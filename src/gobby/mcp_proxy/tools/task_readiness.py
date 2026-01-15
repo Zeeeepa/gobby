@@ -428,7 +428,7 @@ def create_readiness_registry(
 
             # Priority boost - use weight of 110 per level to ensure priority dominates
             # This makes the gap between priority levels (110) larger than max possible
-            # bonuses (leaf=25 + complexity=15 + test_strategy=10 + proximity=50 = 100)
+            # bonuses (leaf=25 + complexity=15 + category=10 + proximity=50 = 100)
             # Priority 0 (critical): 440, Priority 1 (high): 330, etc.
             score += (4 - task.priority) * 110
 
@@ -444,7 +444,7 @@ def create_readiness_registry(
                 score += 15  # Prefer lower complexity tasks
 
             # Bonus for tasks with test strategy defined
-            if task.test_strategy:
+            if task.category:
                 score += 10
 
             # Proximity boost based on ancestry relationship to in_progress task
@@ -468,7 +468,7 @@ def create_readiness_registry(
             reasons.append("actionable leaf task")
         if best_task.complexity_score and best_task.complexity_score <= 5:
             reasons.append("manageable complexity")
-        if best_task.test_strategy:
+        if best_task.category:
             reasons.append("has test strategy")
         if best_proximity > 0:
             reasons.append("same branch as current work")

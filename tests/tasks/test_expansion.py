@@ -55,13 +55,13 @@ def mock_llm_service():
                     "title": "Create database schema",
                     "description": "Define tables for users and sessions",
                     "priority": 1,
-                    "test_strategy": "Run migrations and verify tables exist",
+                    "category": "Run migrations and verify tables exist",
                 },
                 {
                     "title": "Implement data access layer",
                     "description": "Create repository classes",
                     "depends_on": [0],
-                    "test_strategy": "Unit tests pass",
+                    "category": "Unit tests pass",
                 },
             ]
         }
@@ -440,7 +440,7 @@ class TestSubtaskSpec:
         assert spec.description is None
         assert spec.priority == 2
         assert spec.task_type == "task"
-        assert spec.test_strategy is None
+        assert spec.category is None
         assert spec.depends_on is None
 
     def test_all_fields(self):
@@ -449,14 +449,14 @@ class TestSubtaskSpec:
             description="Desc",
             priority=1,
             task_type="feature",
-            test_strategy="Run pytest",
+            category="Run pytest",
             depends_on=[0, 1],
         )
         assert spec.title == "Test"
         assert spec.description == "Desc"
         assert spec.priority == 1
         assert spec.task_type == "feature"
-        assert spec.test_strategy == "Run pytest"
+        assert spec.category == "Run pytest"
         assert spec.depends_on == [0, 1]
 
 

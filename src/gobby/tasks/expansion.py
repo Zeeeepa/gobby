@@ -33,7 +33,7 @@ class SubtaskSpec:
     description: str | None = None
     priority: int = 2
     task_type: str = "task"
-    test_strategy: str | None = None
+    category: str | None = None
     depends_on: list[int] | None = None
 
 
@@ -292,7 +292,7 @@ class TaskExpander:
                 description=item.get("description"),
                 priority=item.get("priority", 2),
                 task_type=item.get("task_type", "task"),
-                test_strategy=item.get("test_strategy"),
+                category=item.get("category"),
                 depends_on=item.get("depends_on"),
             )
             subtask_specs.append(spec)
@@ -438,7 +438,7 @@ class TaskExpander:
                     priority=spec.priority,
                     task_type="task",
                     parent_task_id=parent_task_id,
-                    test_strategy=spec.test_strategy,
+                    category=spec.category,
                 )
                 created_ids.append(impl_task.id)
 
@@ -469,11 +469,11 @@ class TaskExpander:
                 # Normal creation
                 # Build description with test strategy if present
                 description = spec.description or ""
-                if spec.test_strategy:
+                if spec.category:
                     if description:
-                        description += f"\n\n**Test Strategy:** {spec.test_strategy}"
+                        description += f"\n\n**Test Strategy:** {spec.category}"
                     else:
-                        description = f"**Test Strategy:** {spec.test_strategy}"
+                        description = f"**Test Strategy:** {spec.category}"
 
                 # Generate precise validation criteria if context is available
                 if expansion_context:
@@ -496,7 +496,7 @@ class TaskExpander:
                     priority=spec.priority,
                     task_type=spec.task_type,
                     parent_task_id=parent_task_id,
-                    test_strategy=spec.test_strategy,
+                    category=spec.category,
                 )
 
                 created_ids.append(task.id)
@@ -588,10 +588,10 @@ class TaskExpander:
         if pattern_criteria:
             criteria_parts.append(pattern_criteria)
 
-        # 2. Add base criteria from test_strategy if present
-        if spec.test_strategy:
-            # Substitute verification commands into test_strategy
-            strategy = spec.test_strategy
+        # 2. Add base criteria from category if present
+        if spec.category:
+            # Substitute verification commands into category
+            strategy = spec.category
             if context.verification_commands:
                 for name, cmd in context.verification_commands.items():
                     strategy = strategy.replace(f"{{{name}}}", f"`{cmd}`")

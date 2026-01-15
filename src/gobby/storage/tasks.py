@@ -59,7 +59,7 @@ class Task:
     closed_reason: str | None = None
     validation_status: Literal["pending", "valid", "invalid"] | None = None
     validation_feedback: str | None = None
-    test_strategy: str | None = None
+    category: str | None = None
     complexity_score: int | None = None
     estimated_subtasks: int | None = None
     expansion_context: str | None = None
@@ -128,7 +128,7 @@ class Task:
             validation_feedback=(
                 row["validation_feedback"] if "validation_feedback" in keys else None
             ),
-            test_strategy=row["test_strategy"] if "test_strategy" in keys else None,
+            category=row["category"] if "category" in keys else None,
             complexity_score=row["complexity_score"] if "complexity_score" in keys else None,
             estimated_subtasks=row["estimated_subtasks"] if "estimated_subtasks" in keys else None,
             expansion_context=row["expansion_context"] if "expansion_context" in keys else None,
@@ -183,7 +183,7 @@ class Task:
             "closed_reason": self.closed_reason,
             "validation_status": self.validation_status,
             "validation_feedback": self.validation_feedback,
-            "test_strategy": self.test_strategy,
+            "category": self.category,
             "complexity_score": self.complexity_score,
             "estimated_subtasks": self.estimated_subtasks,
             "expansion_context": self.expansion_context,
@@ -499,7 +499,7 @@ class LocalTaskManager:
         task_type: str = "task",
         assignee: str | None = None,
         labels: list[str] | None = None,
-        test_strategy: str | None = None,
+        category: str | None = None,
         complexity_score: int | None = None,
         estimated_subtasks: int | None = None,
         expansion_context: str | None = None,
@@ -543,7 +543,7 @@ class LocalTaskManager:
                             id, project_id, title, description, parent_task_id,
                             created_in_session_id, priority, task_type, assignee,
                             labels, status, created_at, updated_at,
-                            validation_status, test_strategy, complexity_score,
+                            validation_status, category, complexity_score,
                             estimated_subtasks, expansion_context,
                             validation_criteria, use_external_validator, validation_fail_count,
                             workflow_name, verification, sequence_order,
@@ -565,7 +565,7 @@ class LocalTaskManager:
                             now,
                             now,
                             validation_status,
-                            test_strategy,
+                            category,
                             complexity_score,
                             estimated_subtasks,
                             expansion_context,
@@ -753,7 +753,7 @@ class LocalTaskManager:
         parent_task_id: str | None | Any = UNSET,
         validation_status: str | None | Any = UNSET,
         validation_feedback: str | None | Any = UNSET,
-        test_strategy: str | None | Any = UNSET,
+        category: str | None | Any = UNSET,
         complexity_score: int | None | Any = UNSET,
         estimated_subtasks: int | None | Any = UNSET,
         expansion_context: str | None | Any = UNSET,
@@ -846,9 +846,9 @@ class LocalTaskManager:
         if validation_feedback is not UNSET:
             updates.append("validation_feedback = ?")
             params.append(validation_feedback)
-        if test_strategy is not UNSET:
-            updates.append("test_strategy = ?")
-            params.append(test_strategy)
+        if category is not UNSET:
+            updates.append("category = ?")
+            params.append(category)
         if complexity_score is not UNSET:
             updates.append("complexity_score = ?")
             params.append(complexity_score)
@@ -1636,7 +1636,7 @@ class LocalTaskManager:
         task_type: str = "task",
         assignee: str | None = None,
         labels: list[str] | None = None,
-        test_strategy: str | None = None,
+        category: str | None = None,
         complexity_score: int | None = None,
         estimated_subtasks: int | None = None,
         expansion_context: str | None = None,
@@ -1663,7 +1663,7 @@ class LocalTaskManager:
             task_type: Task type
             assignee: Optional assignee
             labels: Optional labels list
-            test_strategy: Testing strategy
+            category: Testing strategy
             complexity_score: Complexity score
             estimated_subtasks: Estimated number of subtasks
             expansion_context: Additional context for expansion
@@ -1694,7 +1694,7 @@ class LocalTaskManager:
             task_type=task_type,
             assignee=assignee,
             labels=labels,
-            test_strategy=test_strategy,
+            category=category,
             complexity_score=complexity_score,
             estimated_subtasks=estimated_subtasks,
             expansion_context=expansion_context,

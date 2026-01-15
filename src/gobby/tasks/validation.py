@@ -468,7 +468,7 @@ class TaskValidator:
         changes_summary: str,
         validation_criteria: str | None = None,
         context_files: list[str] | None = None,
-        test_strategy: str | None = None,
+        category: str | None = None,
     ) -> ValidationResult:
         """
         Validate task completion.
@@ -480,7 +480,7 @@ class TaskValidator:
             changes_summary: Summary of changes made (files, diffs, etc.)
             validation_criteria: Specific criteria to validate against (optional)
             context_files: List of files to read for context (optional)
-            test_strategy: Testing strategy for the task (e.g., 'manual', 'automated')
+            category: Testing strategy for the task (e.g., 'manual', 'automated')
 
         Returns:
             ValidationResult with status and feedback
@@ -521,22 +521,22 @@ class TaskValidator:
             changes_section = f"Changes Summary:\n{changes_summary}\n\n"
 
         # Build test strategy section if provided
-        test_strategy_section = ""
-        if test_strategy:
-            test_strategy_section = f"Test Strategy: {test_strategy}\n"
-            if test_strategy.lower() == "manual":
-                test_strategy_section += (
+        category_section = ""
+        if category:
+            category_section = f"Test Strategy: {category}\n"
+            if category.lower() == "manual":
+                category_section += (
                     "NOTE: This task uses MANUAL testing. Do NOT require automated test files. "
                     "Validation should focus on whether the implementation is correct, "
                     "not whether automated tests exist.\n\n"
                 )
             else:
-                test_strategy_section += "\n"
+                category_section += "\n"
 
         base_prompt = (
             "Validate if the following changes satisfy the requirements.\n\n"
             f"Task: {title}\n"
-            f"{test_strategy_section}"
+            f"{category_section}"
             f"{criteria_text}\n\n"
             f"{changes_section}"
             "IMPORTANT: Return ONLY a JSON object, nothing else. No explanation, no preamble.\n"

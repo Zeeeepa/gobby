@@ -95,9 +95,9 @@ _MANUAL_TEST_PATTERNS: tuple[str, ...] = (
 )
 
 
-def _infer_test_strategy(title: str, description: str | None) -> str | None:
+def _infer_category(title: str, description: str | None) -> str | None:
     """
-    Infer test_strategy from task title/description patterns.
+    Infer category from task title/description patterns.
 
     Returns 'manual' if the task appears to be about manual verification/testing,
     None otherwise (let the user/LLM decide).
@@ -276,7 +276,7 @@ def create_task_registry(
         parent_task_id: str | None = None,
         blocks: list[str] | None = None,
         labels: list[str] | None = None,
-        test_strategy: str | None = None,
+        category: str | None = None,
         validation_criteria: str | None = None,
     ) -> dict[str, Any]:
         """Create a single task in the current project.
@@ -293,7 +293,7 @@ def create_task_registry(
             parent_task_id: Optional parent task ID
             blocks: List of task IDs that this new task blocks
             labels: List of labels
-            test_strategy: Testing strategy for this task
+            category: Testing strategy for this task
             validation_criteria: Acceptance criteria for validating completion.
 
         Returns:
@@ -314,10 +314,10 @@ def create_task_registry(
             except (TaskNotFoundError, ValueError) as e:
                 return {"error": f"Invalid parent_task_id: {e}"}
 
-        # Auto-infer test_strategy if not provided
-        effective_test_strategy = test_strategy
-        if effective_test_strategy is None:
-            effective_test_strategy = _infer_test_strategy(title, description)
+        # Auto-infer category if not provided
+        effective_category = category
+        if effective_category is None:
+            effective_category = _infer_category(title, description)
 
         # Standard path: Use regex-based decomposition or no decomposition
         create_result = task_manager.create_task_with_decomposition(
@@ -328,7 +328,7 @@ def create_task_registry(
             task_type=task_type,
             parent_task_id=parent_task_id,
             labels=labels,
-            test_strategy=effective_test_strategy,
+            category=effective_category,
             validation_criteria=validation_criteria,
             created_in_session_id=session_id,
         )
@@ -405,7 +405,7 @@ def create_task_registry(
                     "description": "List of labels (optional)",
                     "default": None,
                 },
-                "test_strategy": {
+                "category": {
                     "type": "string",
                     "description": "Testing strategy: 'manual' (verify by running/inspecting, no automated tests required), 'automated' (requires unit/integration tests), or 'none' (no testing needed). Auto-inferred as 'manual' for verification/functional testing tasks if not specified.",
                     "enum": ["manual", "automated", "none"],
@@ -479,7 +479,7 @@ def create_task_registry(
         labels: list[str] | None = None,
         validation_criteria: str | None = None,
         parent_task_id: str | None = None,
-        test_strategy: str | None = None,
+        category: str | None = None,
         workflow_name: str | None = None,
         verification: str | None = None,
         sequence_order: int | None = None,
@@ -520,8 +520,8 @@ def create_task_registry(
                     kwargs["parent_task_id"] = parent_task_id  # Fall back to original
             else:
                 kwargs["parent_task_id"] = None
-        if test_strategy is not None:
-            kwargs["test_strategy"] = test_strategy
+        if category is not None:
+            kwargs["category"] = category
         if workflow_name is not None:
             kwargs["workflow_name"] = workflow_name
         if verification is not None:
@@ -573,7 +573,7 @@ def create_task_registry(
                     "description": "Parent task reference: #N, N (seq_num), path (1.2.3), or UUID. Empty string clears parent.",
                     "default": None,
                 },
-                "test_strategy": {
+                "category": {
                     "type": "string",
                     "description": "Testing strategy: 'manual' (verify by running/inspecting, no automated tests required), 'automated' (requires unit/integration tests), or 'none' (no testing needed).",
                     "enum": ["manual", "automated", "none"],
@@ -825,7 +825,7 @@ def create_task_registry(
                         description=task.description,
                         changes_summary=validation_context,
                         validation_criteria=task.validation_criteria,
-                        test_strategy=task.test_strategy,
+                        category=task.category,
                     )
                     # Store validation result regardless of pass/fail
                     task_manager.update_task(

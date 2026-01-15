@@ -418,7 +418,7 @@ def _build_spawn_validation_prompt(
     task_title = task.get("title", "Unknown Task")
     task_description = task.get("description", "")
     validation_criteria = task.get("validation_criteria", "")
-    test_strategy = task.get("test_strategy", "")
+    category = task.get("category", "")
 
     # Extract files mentioned in the task for prioritization
     priority_files = extract_mentioned_files(task)
@@ -437,9 +437,9 @@ def _build_spawn_validation_prompt(
         criteria_section = "No specific criteria provided. Evaluate for general correctness."
 
     # Build test strategy section
-    test_strategy_section = ""
-    if test_strategy:
-        test_strategy_section = f"\n\n## Test Strategy\n{test_strategy}"
+    category_section = ""
+    if category:
+        category_section = f"\n\n## Test Strategy\n{category}"
 
     # Build priority files section
     priority_section = ""
@@ -467,7 +467,7 @@ def _build_spawn_validation_prompt(
 ID: {task_id}
 Title: {task_title}
 
-{criteria_section}{test_strategy_section}{priority_section}{symbol_section}
+{criteria_section}{category_section}{priority_section}{symbol_section}
 
 ## Code Changes to Validate
 {summarized_changes}

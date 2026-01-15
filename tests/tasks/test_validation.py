@@ -10,7 +10,7 @@ focusing on areas not covered by test_task_validation.py:
 - read_files_content early truncation
 - get_validation_context_smart final truncation
 - get_git_diff fallback_to_last_commit=False path
-- validate_task test_strategy parameter handling
+- validate_task category parameter handling
 """
 
 from pathlib import Path
@@ -486,7 +486,7 @@ class TestGetGitDiffEdgeCases:
 
 
 class TestTaskValidatorTestStrategy:
-    """Tests for test_strategy parameter in TaskValidator.validate_task."""
+    """Tests for category parameter in TaskValidator.validate_task."""
 
     @pytest.fixture
     def mock_llm(self):
@@ -500,8 +500,8 @@ class TestTaskValidatorTestStrategy:
         return TaskValidationConfig(enabled=True, provider="claude", model="test-model")
 
     @pytest.mark.asyncio
-    async def test_validate_with_manual_test_strategy(self, config, mock_llm):
-        """Test validation with test_strategy='manual' (lines 524-530)."""
+    async def test_validate_with_manual_category(self, config, mock_llm):
+        """Test validation with category='manual' (lines 524-530)."""
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
         mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
@@ -511,7 +511,7 @@ class TestTaskValidatorTestStrategy:
             title="Fix button color",
             description="Change button to blue",
             changes_summary="Updated CSS",
-            test_strategy="manual",
+            category="manual",
         )
 
         assert result.status == "valid"
@@ -523,8 +523,8 @@ class TestTaskValidatorTestStrategy:
         assert "Do NOT require automated test files" in prompt
 
     @pytest.mark.asyncio
-    async def test_validate_with_manual_test_strategy_uppercase(self, config, mock_llm):
-        """Test validation with test_strategy='MANUAL' (case insensitive)."""
+    async def test_validate_with_manual_category_uppercase(self, config, mock_llm):
+        """Test validation with category='MANUAL' (case insensitive)."""
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
         mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
@@ -534,7 +534,7 @@ class TestTaskValidatorTestStrategy:
             title="Fix button color",
             description="Change button to blue",
             changes_summary="Updated CSS",
-            test_strategy="MANUAL",
+            category="MANUAL",
         )
 
         assert result.status == "valid"
@@ -543,8 +543,8 @@ class TestTaskValidatorTestStrategy:
         assert "MANUAL testing" in prompt
 
     @pytest.mark.asyncio
-    async def test_validate_with_automated_test_strategy(self, config, mock_llm):
-        """Test validation with test_strategy='automated' (lines 531-532)."""
+    async def test_validate_with_automated_category(self, config, mock_llm):
+        """Test validation with category='automated' (lines 531-532)."""
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
         mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
@@ -554,7 +554,7 @@ class TestTaskValidatorTestStrategy:
             title="Add unit tests",
             description="Add tests for validator",
             changes_summary="Added test file",
-            test_strategy="automated",
+            category="automated",
         )
 
         assert result.status == "valid"
@@ -565,8 +565,8 @@ class TestTaskValidatorTestStrategy:
         assert "MANUAL testing" not in prompt
 
     @pytest.mark.asyncio
-    async def test_validate_without_test_strategy(self, config, mock_llm):
-        """Test validation without test_strategy parameter."""
+    async def test_validate_without_category(self, config, mock_llm):
+        """Test validation without category parameter."""
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
         mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
@@ -585,8 +585,8 @@ class TestTaskValidatorTestStrategy:
         assert "Test Strategy:" not in prompt
 
     @pytest.mark.asyncio
-    async def test_validate_with_custom_test_strategy(self, config, mock_llm):
-        """Test validation with custom test_strategy value."""
+    async def test_validate_with_custom_category(self, config, mock_llm):
+        """Test validation with custom category value."""
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
         mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
@@ -596,7 +596,7 @@ class TestTaskValidatorTestStrategy:
             title="Some task",
             description="Task description",
             changes_summary="Changes made",
-            test_strategy="integration",
+            category="integration",
         )
 
         assert result.status == "valid"

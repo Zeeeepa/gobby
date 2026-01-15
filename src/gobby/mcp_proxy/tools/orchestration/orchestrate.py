@@ -644,8 +644,8 @@ def _build_task_prompt(task: Any) -> str:
     if task.description:
         prompt_parts.append(f"\n## Description\n{task.description}")
 
-    if task.test_strategy:
-        prompt_parts.append(f"\n## Test Strategy\n{task.test_strategy}")
+    if task.category:
+        prompt_parts.append(f"\n## Test Strategy\n{task.category}")
 
     if task.validation_criteria:
         prompt_parts.append(f"\n## Validation Criteria\n{task.validation_criteria}")

@@ -34,7 +34,7 @@ Call `gobby-tasks.create_task` with:
 - `parent_task_id`: Optional parent task
 - `blocks`: List of task IDs this task blocks
 - `labels`: List of labels
-- `test_strategy`: "manual", "automated", or "none"
+- `category`: "manual", "automated", or "none"
 - `validation_criteria`: Acceptance criteria
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
@@ -51,7 +51,7 @@ Example: `/gobby-tasks show #1` → `get_task(task_id="#1")`
 ### `/gobby-tasks update <task-id>` - Update task fields
 Call `gobby-tasks.update_task` with:
 - `task_id`: (required) Task reference
-- `title`, `description`, `status`, `priority`, `assignee`, `labels`, `validation_criteria`, `test_strategy`, etc.
+- `title`, `description`, `status`, `priority`, `assignee`, `labels`, `validation_criteria`, `category`, etc.
 
 Example: `/gobby-tasks update #1 status=in_progress` → `update_task(task_id="#1", status="in_progress")`
 
@@ -132,7 +132,7 @@ Example: `/gobby-tasks expand-prompt implement user authentication`
 Call `gobby-tasks.suggest_next_task` with:
 - `task_type`: Optional type filter
 - `prefer_subtasks`: Prefer leaf tasks (default true)
-- `parent_id`: Scope to specific epic/feature hierarchy
+- `parent_task_id`: Scope to specific epic/feature hierarchy
 
 Returns the highest-priority ready task.
 
@@ -219,11 +219,13 @@ Call `gobby-tasks.get_task_diff`
 
 ## Orchestration
 
-### `/gobby-tasks orchestrate <parent-id>` - Spawn agents for ready tasks
-Call `gobby-tasks.orchestrate_ready_tasks`
+### `/gobby-tasks orchestrate <parent-task-id>` - Spawn agents for ready tasks
+Call `gobby-tasks.orchestrate_ready_tasks` with:
+- `parent_task_id`: (required) Parent task to orchestrate subtasks for
 
-### `/gobby-tasks orchestration-status <parent-id>` - Get orchestration status
-Call `gobby-tasks.get_orchestration_status`
+### `/gobby-tasks orchestration-status <parent-task-id>` - Get orchestration status
+Call `gobby-tasks.get_orchestration_status` with:
+- `parent_task_id`: (required) Parent task to check status for
 
 ### `/gobby-tasks poll-agents` - Poll agent status
 Call `gobby-tasks.poll_agent_status`

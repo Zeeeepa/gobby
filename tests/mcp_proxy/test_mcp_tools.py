@@ -104,7 +104,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             task_type="task",
             parent_task_id=None,
             labels=None,
-            test_strategy=None,
+            category=None,
             validation_criteria=None,
             created_in_session_id="test-session",
         )
@@ -144,7 +144,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
             task_type="task",
             parent_task_id=None,
             labels=None,
-            test_strategy=None,
+            category=None,
             validation_criteria=None,
             created_in_session_id="session-abc123",
         )

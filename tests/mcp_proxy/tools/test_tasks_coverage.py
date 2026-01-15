@@ -17,7 +17,7 @@ import pytest
 
 from gobby.mcp_proxy.tools.tasks import (
     SKIP_REASONS,
-    _infer_test_strategy,
+    _infer_category,
     create_task_registry,
 )
 from gobby.storage.tasks import LocalTaskManager, Task
@@ -95,51 +95,51 @@ def sample_task():
 
 
 class TestInferTestStrategy:
-    """Tests for _infer_test_strategy helper function."""
+    """Tests for _infer_category helper function."""
 
     def test_infer_manual_from_verify_that(self):
         """Test inferring manual strategy from 'verify that' pattern."""
-        result = _infer_test_strategy("Verify that the feature works", None)
+        result = _infer_category("Verify that the feature works", None)
         assert result == "manual"
 
     def test_infer_manual_from_check_the(self):
         """Test inferring manual strategy from 'check the' pattern."""
-        result = _infer_test_strategy("Check the output format", None)
+        result = _infer_category("Check the output format", None)
         assert result == "manual"
 
     def test_infer_manual_from_functional_test(self):
         """Test inferring manual strategy from 'functional test' pattern."""
-        result = _infer_test_strategy("Run functional testing on auth", None)
+        result = _infer_category("Run functional testing on auth", None)
         assert result == "manual"
 
     def test_infer_manual_from_smoke_test(self):
         """Test inferring manual strategy from 'smoke test' pattern."""
-        result = _infer_test_strategy("Perform smoke test", None)
+        result = _infer_category("Perform smoke test", None)
         assert result == "manual"
 
     def test_infer_manual_from_manually_verify(self):
         """Test inferring manual strategy from 'manually verify' pattern."""
-        result = _infer_test_strategy("Manually verify the changes", None)
+        result = _infer_category("Manually verify the changes", None)
         assert result == "manual"
 
     def test_infer_manual_from_description(self):
         """Test inferring from description when title doesn't match."""
-        result = _infer_test_strategy("Task title", "Need to verify that it works")
+        result = _infer_category("Task title", "Need to verify that it works")
         assert result == "manual"
 
     def test_infer_none_for_generic_task(self):
         """Test returning None for generic task without patterns."""
-        result = _infer_test_strategy("Implement new feature", "Add the feature")
+        result = _infer_category("Implement new feature", "Add the feature")
         assert result is None
 
     def test_infer_manual_from_run_and_check(self):
         """Test inferring manual strategy from 'run and check' pattern."""
-        result = _infer_test_strategy("Run and check output", None)
+        result = _infer_category("Run and check output", None)
         assert result == "manual"
 
     def test_infer_manual_case_insensitive(self):
         """Test that pattern matching is case insensitive."""
-        result = _infer_test_strategy("VERIFY THAT it works", None)
+        result = _infer_category("VERIFY THAT it works", None)
         assert result == "manual"
 
 
@@ -273,8 +273,8 @@ class TestCreateTaskTool:
             assert call_kwargs["labels"] == ["urgent", "bug"]
 
     @pytest.mark.asyncio
-    async def test_create_task_infers_test_strategy(self, mock_task_manager, mock_sync_manager):
-        """Test that create_task infers test_strategy for manual test tasks."""
+    async def test_create_task_infers_category(self, mock_task_manager, mock_sync_manager):
+        """Test that create_task infers category for manual test tasks."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
@@ -292,13 +292,13 @@ class TestCreateTaskTool:
             await registry.call("create_task", {"title": "Verify that the feature works correctly", "session_id": "test-session"})
 
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
-            assert call_kwargs["test_strategy"] == "manual"
+            assert call_kwargs["category"] == "manual"
 
     @pytest.mark.asyncio
-    async def test_create_task_explicit_test_strategy_overrides_inference(
+    async def test_create_task_explicit_category_overrides_inference(
         self, mock_task_manager, mock_sync_manager
     ):
-        """Test that explicit test_strategy overrides inference."""
+        """Test that explicit category overrides inference."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
@@ -316,11 +316,11 @@ class TestCreateTaskTool:
             # Title would infer "manual", but explicit value overrides
             await registry.call(
                 "create_task",
-                {"title": "Verify that tests pass", "session_id": "test-session", "test_strategy": "automated"},
+                {"title": "Verify that tests pass", "session_id": "test-session", "category": "automated"},
             )
 
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
-            assert call_kwargs["test_strategy"] == "automated"
+            assert call_kwargs["category"] == "automated"
 
     @pytest.mark.asyncio
     async def test_create_task_with_all_optional_fields(self, mock_task_manager, mock_sync_manager):
@@ -348,7 +348,7 @@ class TestCreateTaskTool:
                     "task_type": "feature",
                     "parent_task_id": "550e8400-e29b-41d4-a716-446655440009",
                     "labels": ["important"],
-                    "test_strategy": "automated",
+                    "category": "automated",
                     "validation_criteria": "Must pass tests",
                     "session_id": "sess-123",
                 },
@@ -361,7 +361,7 @@ class TestCreateTaskTool:
             assert call_kwargs["task_type"] == "feature"
             assert call_kwargs["parent_task_id"] == "550e8400-e29b-41d4-a716-446655440009"
             assert call_kwargs["labels"] == ["important"]
-            assert call_kwargs["test_strategy"] == "automated"
+            assert call_kwargs["category"] == "automated"
             assert call_kwargs["validation_criteria"] == "Must pass tests"
             assert call_kwargs["created_in_session_id"] == "sess-123"
 
@@ -604,7 +604,7 @@ class TestUpdateTaskTool:
                 "labels": ["urgent"],
                 "validation_criteria": "Must pass",
                 "parent_task_id": "550e8400-e29b-41d4-a716-446655440010",
-                "test_strategy": "automated",
+                "category": "automated",
                 "workflow_name": "dev-flow",
                 "verification": "Run tests",
                 "sequence_order": 5,
@@ -621,7 +621,7 @@ class TestUpdateTaskTool:
             labels=["urgent"],
             validation_criteria="Must pass",
             parent_task_id="550e8400-e29b-41d4-a716-446655440010",
-            test_strategy="automated",
+            category="automated",
             workflow_name="dev-flow",
             verification="Run tests",
             sequence_order=5,
@@ -1419,7 +1419,7 @@ class TestToolSchemas:
             "labels",
             "validation_criteria",
             "parent_task_id",
-            "test_strategy",
+            "category",
             "workflow_name",
             "verification",
             "sequence_order",

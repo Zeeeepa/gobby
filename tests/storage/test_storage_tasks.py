@@ -298,7 +298,7 @@ class TestLocalTaskManager:
             task_type="chore",
             assignee="me",
             labels=["l1"],
-            test_strategy="strat",
+            category="strat",
             complexity_score=10,
             estimated_subtasks=5,
             expansion_context="ctx",
@@ -314,7 +314,7 @@ class TestLocalTaskManager:
         assert updated.task_type == "chore"
         assert updated.assignee == "me"
         assert updated.labels == ["l1"]
-        assert updated.test_strategy == "strat"
+        assert updated.category == "strat"
         assert updated.complexity_score == 10
         assert updated.estimated_subtasks == 5
         assert updated.expansion_context == "ctx"
@@ -1040,7 +1040,7 @@ class TestLocalTaskManager:
             task_type="feature",
             assignee="developer",
             labels=["important"],
-            test_strategy="Unit tests",
+            category="Unit tests",
             complexity_score=5,
             estimated_subtasks=3,
             expansion_context="More context",
@@ -1058,7 +1058,7 @@ class TestLocalTaskManager:
         assert task.task_type == "feature"
         assert task.assignee == "developer"
         assert task.labels == ["important"]
-        assert task.test_strategy == "Unit tests"
+        assert task.category == "Unit tests"
         assert task.complexity_score == 5
         assert task.estimated_subtasks == 3
         assert task.expansion_context == "More context"

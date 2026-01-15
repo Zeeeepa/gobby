@@ -194,7 +194,7 @@ class TestSuggestNextTask:
         mock_task.id = "task-1"
         mock_task.priority = 1
         mock_task.complexity_score = 3
-        mock_task.test_strategy = "Unit tests"
+        mock_task.category = "Unit tests"
         mock_task.to_dict.return_value = {"id": "task-1", "title": "High priority task"}
 
         task_manager.list_ready_tasks.return_value = [mock_task]
@@ -235,7 +235,7 @@ class TestSuggestNextTask:
         parent_task.id = "parent-1"
         parent_task.priority = 1
         parent_task.complexity_score = None
-        parent_task.test_strategy = None
+        parent_task.category = None
         parent_task.to_dict.return_value = {"id": "parent-1", "title": "Parent task"}
 
         # Leaf task (no children) - same priority as parent
@@ -243,7 +243,7 @@ class TestSuggestNextTask:
         leaf_task.id = "leaf-1"
         leaf_task.priority = 1  # Same priority as parent
         leaf_task.complexity_score = 3
-        leaf_task.test_strategy = "Unit tests"
+        leaf_task.category = "Unit tests"
         leaf_task.to_dict.return_value = {"id": "leaf-1", "title": "Leaf task"}
 
         task_manager.list_ready_tasks.return_value = [parent_task, leaf_task]
@@ -293,7 +293,7 @@ class TestSuggestNextTask:
         task_low_priority.id = "low-priority"
         task_low_priority.priority = 3
         task_low_priority.complexity_score = 2
-        task_low_priority.test_strategy = "Unit tests"
+        task_low_priority.category = "Unit tests"
         task_low_priority.to_dict.return_value = {"id": "low-priority"}
 
         # High priority task with no extra attributes
@@ -301,7 +301,7 @@ class TestSuggestNextTask:
         task_high_priority.id = "high-priority"
         task_high_priority.priority = 1
         task_high_priority.complexity_score = None
-        task_high_priority.test_strategy = None
+        task_high_priority.category = None
         task_high_priority.to_dict.return_value = {"id": "high-priority"}
 
         task_manager.list_ready_tasks.return_value = [task_low_priority, task_high_priority]
@@ -314,7 +314,7 @@ class TestSuggestNextTask:
 
         # Priority weight is 110 per level to ensure priority dominates over bonuses
         # High priority (1): (4-1)*110 + 25 (leaf) = 355
-        # Low priority (3): (4-3)*110 + 25 (leaf) + 15 (complexity) + 10 (test_strategy) = 160
+        # Low priority (3): (4-3)*110 + 25 (leaf) + 15 (complexity) + 10 (category) = 160
         # High priority wins despite fewer bonuses
         assert result["suggestion"]["id"] == "high-priority"
 
@@ -443,7 +443,7 @@ class TestSuggestNextTaskWithParentTaskId:
         child_task.parent_task_id = "epic-1"
         child_task.priority = 2
         child_task.complexity_score = None
-        child_task.test_strategy = None
+        child_task.category = None
         child_task.to_dict.return_value = {"id": "child-1", "title": "Child task"}
 
         # Create unrelated task (not a descendant)
@@ -518,7 +518,7 @@ class TestSuggestNextTaskWithSessionId:
         child_task.parent_task_id = "epic-1"
         child_task.priority = 2
         child_task.status = "open"
-        child_task.configure_mock(complexity_score=None, test_strategy=None)
+        child_task.configure_mock(complexity_score=None, category=None)
         child_task.to_dict.return_value = {"id": "child-1", "title": "Child task"}
 
         # Create unrelated task (not a descendant)
@@ -527,7 +527,7 @@ class TestSuggestNextTaskWithSessionId:
         other_task.parent_task_id = "other-epic"
         other_task.priority = 1  # Higher priority but outside scope
         other_task.status = "open"
-        other_task.configure_mock(complexity_score=None, test_strategy=None)
+        other_task.configure_mock(complexity_score=None, category=None)
         other_task.to_dict.return_value = {"id": "other-1"}
 
         # list_ready_tasks returns both tasks
@@ -578,7 +578,7 @@ class TestSuggestNextTaskWithSessionId:
         child_task.parent_task_id = "explicit-parent"
         child_task.priority = 2
         child_task.status = "open"
-        child_task.configure_mock(complexity_score=None, test_strategy=None)
+        child_task.configure_mock(complexity_score=None, category=None)
         child_task.to_dict.return_value = {"id": "child-of-explicit"}
 
         task_manager.list_ready_tasks.return_value = [child_task]
@@ -629,7 +629,7 @@ class TestSuggestNextTaskWithSessionId:
         task.parent_task_id = None
         task.priority = 1
         task.status = "open"
-        task.configure_mock(complexity_score=None, test_strategy=None)
+        task.configure_mock(complexity_score=None, category=None)
         task.to_dict.return_value = {"id": "any-task"}
 
         task_manager.list_ready_tasks.return_value = [task]

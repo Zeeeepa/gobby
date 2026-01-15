@@ -1130,7 +1130,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             "id": "gt-test-results",
             "title": "Add new feature",
             "validation_criteria": "- [ ] Tests pass",
-            "test_strategy": "Run pytest for feature tests",
+            "category": "Run pytest for feature tests",
         }
 
         await run_external_validation(
@@ -1208,15 +1208,15 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "Refresh" in prompt or "refresh" in prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_test_strategy_field_passed(self, validation_config, mock_agent_spawner):
-        """Test that test_strategy field is passed to context."""
+    async def test_category_field_passed(self, validation_config, mock_agent_spawner):
+        """Test that category field is passed to context."""
         from gobby.tasks.external_validator import run_external_validation
 
         task = {
             "id": "gt-ts-test",
             "title": "Add unit tests",
             "validation_criteria": "- [ ] Tests added",
-            "test_strategy": "Use pytest with 80% coverage target. Mock external APIs.",
+            "category": "Use pytest with 80% coverage target. Mock external APIs.",
         }
 
         await run_external_validation(
@@ -1231,7 +1231,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         prompt = call_kwargs.get("prompt", "")
 
         # Test strategy should be in prompt
-        # Note: Current implementation may not include test_strategy yet
+        # Note: Current implementation may not include category yet
         # This test defines expected behavior
         assert "pytest" in prompt.lower() or "80%" in prompt or "coverage" in prompt.lower()
 

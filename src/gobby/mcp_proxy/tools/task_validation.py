@@ -158,7 +158,7 @@ def create_validation_registry(
                 changes_summary=validation_context,
                 validation_criteria=task.validation_criteria,
                 context_files=context_files,
-                test_strategy=task.test_strategy,
+                category=task.category,
             )
 
         # Record validation iteration to history

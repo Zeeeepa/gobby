@@ -33,14 +33,14 @@ def test_create_task_with_expansion_fields(manager):
         project_id="p1",
         title="Test Expansion",
         description="Rich details here",
-        test_strategy="Unit tests",
+        category="Unit tests",
         complexity_score=5,
         estimated_subtasks=3,
         expansion_context='{"foo": "bar"}',
     )
 
     assert task.description == "Rich details here"
-    assert task.test_strategy == "Unit tests"
+    assert task.category == "Unit tests"
     assert task.complexity_score == 5
     assert task.estimated_subtasks == 3
     assert task.expansion_context == '{"foo": "bar"}'

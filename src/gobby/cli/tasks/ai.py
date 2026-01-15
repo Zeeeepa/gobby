@@ -480,8 +480,8 @@ def expand_task_cmd(
     def process_subtask_data(data: dict[str, Any]) -> Task:
         nonlocal global_index
         desc = data.get("description", "")
-        if "test_strategy" in data:
-            desc += f"\n\nTest Strategy: {data['test_strategy']}"
+        if "category" in data:
+            desc += f"\n\nTest Strategy: {data['category']}"
 
         subtask = manager.create_task(
             title=data["title"],
@@ -939,7 +939,7 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
             score += 15
 
         # Bonus for tasks with test strategy defined
-        if task.test_strategy:
+        if task.category:
             score += 10
 
         scored.append((task, score, is_leaf))
@@ -955,7 +955,7 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
         reasons.append("actionable leaf task")
     if best_task.complexity_score and best_task.complexity_score <= 5:
         reasons.append("manageable complexity")
-    if best_task.test_strategy:
+    if best_task.category:
         reasons.append("has test strategy")
 
     reason_str = f"Selected because: {', '.join(reasons) if reasons else 'best available option'}"

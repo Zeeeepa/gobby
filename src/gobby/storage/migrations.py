@@ -335,7 +335,7 @@ CREATE TABLE tasks (
     validation_override_reason TEXT,
     original_instruction TEXT,
     details TEXT,
-    test_strategy TEXT,
+    category TEXT,
     complexity_score INTEGER,
     estimated_subtasks INTEGER,
     expansion_context TEXT,
@@ -559,9 +559,26 @@ CREATE INDEX idx_merge_conflicts_status ON merge_conflicts(status);
 
 # Future migrations (v61+)
 # Add new migrations here. Do not modify the baseline schema above.
+
+
+def _migrate_test_strategy_to_category(db: LocalDatabase) -> None:
+    """Rename test_strategy column to category if it exists.
+
+    This is a no-op for fresh databases that already have category in the baseline schema.
+    Only runs the rename for databases upgraded from versions before the rename.
+    """
+    # Check if test_strategy column exists
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if row and "test_strategy" in row["sql"].lower():
+        db.execute("ALTER TABLE tasks RENAME COLUMN test_strategy TO category")
+        logger.info("Renamed test_strategy column to category")
+    else:
+        logger.debug("test_strategy column not found (fresh database), skipping rename")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
-    # Example:
-    # (61, "Add new_column to tasks", "ALTER TABLE tasks ADD COLUMN new_column TEXT;"),
+    # TDD Expansion Restructure: Rename test_strategy to category
+    (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
 ]
 
 

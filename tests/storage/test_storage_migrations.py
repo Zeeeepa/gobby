@@ -4,10 +4,17 @@ from unittest.mock import patch
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import (
     BASELINE_VERSION,
+    MIGRATIONS,
     get_current_version,
     run_migrations,
 )
 from gobby.storage.migrations_legacy import LEGACY_MIGRATIONS
+
+# Calculate expected version after all migrations
+EXPECTED_FINAL_VERSION = max(
+    BASELINE_VERSION,
+    max((m[0] for m in MIGRATIONS), default=BASELINE_VERSION),
+)
 
 
 def test_migrations_fresh_db(tmp_path):
@@ -15,7 +22,8 @@ def test_migrations_fresh_db(tmp_path):
 
     With the baseline schema architecture:
     - Fresh databases get BASELINE_SCHEMA applied directly (counts as 1 migration)
-    - This jumps the version to BASELINE_VERSION (60)
+    - Plus any incremental migrations beyond the baseline
+    - Final version is EXPECTED_FINAL_VERSION
     """
     db_path = tmp_path / "migration_test.db"
     db = LocalDatabase(db_path)
@@ -26,12 +34,13 @@ def test_migrations_fresh_db(tmp_path):
     # Run migrations
     applied = run_migrations(db)
 
-    # Fresh databases apply the baseline schema (counts as 1)
-    assert applied == 1
+    # Fresh databases apply baseline schema (1) + incremental migrations
+    expected_count = 1 + len([m for m in MIGRATIONS if m[0] > BASELINE_VERSION])
+    assert applied == expected_count
 
-    # Verify version jumps to baseline
+    # Verify version reaches expected final version
     current_version = get_current_version(db)
-    assert current_version == BASELINE_VERSION
+    assert current_version == EXPECTED_FINAL_VERSION
 
     # Check tables exist (sample check)
     tables = [
@@ -61,7 +70,7 @@ def test_migrations_idempotency(tmp_path):
 
     run_migrations(db)
     initial_version = get_current_version(db)
-    assert initial_version == BASELINE_VERSION
+    assert initial_version == EXPECTED_FINAL_VERSION
 
     # Run again
     applied = run_migrations(db)

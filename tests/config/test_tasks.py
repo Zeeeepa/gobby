@@ -225,7 +225,7 @@ class TestTaskExpansionConfigCustom:
         config = TaskExpansionConfig(max_subtasks=20)
         assert config.max_subtasks == 20
 
-    def test_strategy_options(self) -> None:
+    def category_options(self) -> None:
         """Test different strategy options."""
         from gobby.config.tasks import TaskExpansionConfig
 

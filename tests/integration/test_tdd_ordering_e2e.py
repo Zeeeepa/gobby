@@ -31,7 +31,7 @@ def temp_db(tmp_path):
             parent_task_id TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
-            test_strategy TEXT,
+            category TEXT,
             complexity_score INTEGER,
             estimated_subtasks INTEGER,
             expansion_context TEXT,

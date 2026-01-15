@@ -47,7 +47,7 @@ def mock_task():
     task.validation_fail_count = 0
     task.complexity_score = None
     task.estimated_subtasks = None
-    task.test_strategy = None
+    task.category = None
     task.to_dict.return_value = {
         "id": "gt-abc123",
         "title": "Test Task",
@@ -1047,7 +1047,7 @@ class TestSuggestCommand:
         leaf_task.priority = 2
         leaf_task.status = "open"
         leaf_task.complexity_score = 3
-        leaf_task.test_strategy = None
+        leaf_task.category = None
         leaf_task.description = "A leaf task"
         leaf_task.to_dict.return_value = {"id": "gt-leaf", "title": "Leaf Task"}
 
@@ -1057,7 +1057,7 @@ class TestSuggestCommand:
         parent_task.priority = 1  # Higher priority
         parent_task.status = "open"
         parent_task.complexity_score = 5
-        parent_task.test_strategy = None
+        parent_task.category = None
         parent_task.description = "A parent task"
         parent_task.to_dict.return_value = {"id": "gt-parent", "title": "Parent Task"}
 
@@ -1093,7 +1093,7 @@ class TestSuggestCommand:
         task.priority = 1
         task.status = "open"
         task.complexity_score = 3
-        task.test_strategy = None
+        task.category = None
         task.description = "High priority"
         task.to_dict.return_value = {"id": "gt-abc123", "title": "High Priority Task"}
 
@@ -1977,7 +1977,7 @@ class TestSuggestCommandExtended:
         assert call_kwargs["task_type"] == "bug"
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
-    def test_suggest_task_with_test_strategy(
+    def test_suggest_task_with_category(
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
@@ -1989,7 +1989,7 @@ class TestSuggestCommandExtended:
         task_with_strategy.priority = 2
         task_with_strategy.status = "open"
         task_with_strategy.complexity_score = 3
-        task_with_strategy.test_strategy = "Unit tests for all methods"
+        task_with_strategy.category = "Unit tests for all methods"
         task_with_strategy.description = "Has test strategy"
         task_with_strategy.to_dict.return_value = {
             "id": "gt-strat",
@@ -2020,7 +2020,7 @@ class TestSuggestCommandExtended:
         high_priority_task.priority = 1
         high_priority_task.status = "open"
         high_priority_task.complexity_score = None
-        high_priority_task.test_strategy = None
+        high_priority_task.category = None
         high_priority_task.description = "Urgent task"
         high_priority_task.to_dict.return_value = {
             "id": "gt-high",
