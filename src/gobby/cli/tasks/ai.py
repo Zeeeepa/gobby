@@ -380,6 +380,143 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
     )
 
 
+@click.command("enrich")
+@click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
+@click.option("--cascade", "-c", is_flag=True, help="Also enrich subtasks")
+@click.option(
+    "--web-research/--no-web-research",
+    default=False,
+    help="Enable web research for additional context",
+)
+@click.option(
+    "--mcp-tools/--no-mcp-tools",
+    default=False,
+    help="Enable MCP tools for research",
+)
+@click.option("--force", "-f", is_flag=True, help="Re-enrich already enriched tasks")
+def enrich_cmd(
+    task_refs: tuple[str, ...],
+    cascade: bool,
+    web_research: bool,
+    mcp_tools: bool,
+    force: bool,
+) -> None:
+    """Enrich tasks with additional context and metadata.
+
+    TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
+    Multiple tasks can be specified separated by spaces or commas.
+
+    Examples:
+        gobby tasks enrich #42
+        gobby tasks enrich #42,#43,#44
+        gobby tasks enrich #42 --web-research --mcp-tools
+        gobby tasks enrich #42 --cascade  # Include subtasks
+    """
+    import asyncio
+
+    from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.config.app import load_config
+    from gobby.llm import LLMService
+    from gobby.tasks.enrich import TaskEnricher
+
+    # Parse task references
+    refs = parse_task_refs(task_refs)
+    if not refs:
+        click.echo("Error: No task references provided", err=True)
+        return
+
+    manager = get_task_manager()
+
+    # Resolve all tasks
+    tasks_to_enrich: list[Task] = []
+    for ref in refs:
+        task = resolve_task_id(manager, ref)
+        if not task:
+            # Error already printed by resolve_task_id
+            continue
+        tasks_to_enrich.append(task)
+
+        # If cascade, get subtasks too
+        if cascade:
+            subtasks = manager.list_tasks(parent_task_id=task.id)
+            tasks_to_enrich.extend(subtasks)
+
+    if not tasks_to_enrich:
+        click.echo("No valid tasks to enrich.", err=True)
+        return
+
+    # Initialize enricher
+    try:
+        config = load_config()
+        if not config.gobby_tasks.enrichment.enabled:
+            click.echo("Error: Task enrichment is disabled in config.", err=True)
+            return
+
+        llm_service = LLMService(config)
+        enricher = TaskEnricher(config.gobby_tasks.enrichment, llm_service)
+
+    except Exception as e:
+        click.echo(f"Error initializing enricher: {e}", err=True)
+        return
+
+    # Enrich tasks
+    async def enrich_tasks() -> None:
+        enriched_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        for task in tasks_to_enrich:
+            # Skip if already enriched and not forcing
+            if task.is_enriched and not force:
+                click.echo(f"Skipping #{task.seq_num}: already enriched (use --force)")
+                skipped_count += 1
+                continue
+
+            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+            click.echo(f"Enriching {task_ref}: {task.title[:40]}...")
+
+            try:
+                result = await enricher.enrich(
+                    task_id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    enable_code_research=True,
+                    enable_web_research=web_research,
+                    enable_mcp_tools=mcp_tools,
+                    generate_validation=True,
+                )
+
+                # Update task with enrichment results
+                import json as json_mod
+
+                expansion_context = json_mod.dumps(result.to_dict())
+                update_kwargs: dict[str, Any] = {
+                    "is_enriched": True,
+                    "expansion_context": expansion_context,
+                }
+                if result.category:
+                    update_kwargs["category"] = result.category
+                if result.complexity_score:
+                    update_kwargs["complexity_score"] = result.complexity_score
+                if result.validation_criteria:
+                    update_kwargs["validation_criteria"] = result.validation_criteria
+
+                manager.update_task(task.id, **update_kwargs)
+                click.echo(f"  ✓ Enriched (category={result.category}, complexity={result.complexity_score})")
+                enriched_count += 1
+
+            except Exception as e:
+                click.echo(f"  ✗ Error: {e}", err=True)
+                error_count += 1
+
+        click.echo(f"\nDone: {enriched_count} enriched, {skipped_count} skipped, {error_count} errors")
+
+    try:
+        asyncio.run(enrich_tasks())
+    except Exception as e:
+        click.echo(f"Error during enrichment: {e}", err=True)
+
+
 @click.command("expand")
 @click.argument("task_id", metavar="TASK")
 @click.option("--context", "-c", help="Additional context for expansion")

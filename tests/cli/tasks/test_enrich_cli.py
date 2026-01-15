@@ -224,7 +224,8 @@ class TestEnrichCommandErrors:
 
             result = runner.invoke(tasks, ["enrich", "#999"])
 
-            assert result.exit_code != 0 or "not found" in result.output.lower()
+            # When task is not found, message says "No valid tasks to enrich"
+            assert "no valid tasks" in result.output.lower() or result.exit_code != 0
 
     def test_enrich_disabled_in_config(self, runner: CliRunner, mock_task):
         """Test error when enrichment is disabled in config."""
