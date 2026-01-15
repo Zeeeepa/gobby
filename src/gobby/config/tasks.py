@@ -654,10 +654,6 @@ class WorkflowVariablesConfig(BaseModel):
         default=False,
         description="Require an active task (in_progress) before allowing file edits",
     )
-    auto_decompose: bool = Field(
-        default=True,
-        description="Auto-decompose multi-step task descriptions into subtasks",
-    )
     tdd_mode: bool = Field(
         default=True,
         description="Enable TDD mode for task expansion (test-implementation pairs)",
@@ -693,13 +689,13 @@ def merge_workflow_variables(
         ValidationError: If validate=True and merged values fail validation.
 
     Example:
-        >>> yaml_defaults = {"auto_decompose": True, "tdd_mode": True}
-        >>> db_overrides = {"auto_decompose": False}
+        >>> yaml_defaults = {"tdd_mode": True, "require_task_before_edit": False}
+        >>> db_overrides = {"tdd_mode": False}
         >>> effective = merge_workflow_variables(yaml_defaults, db_overrides)
-        >>> effective["auto_decompose"]
-        False
         >>> effective["tdd_mode"]
-        True
+        False
+        >>> effective["require_task_before_edit"]
+        False
     """
     # Start with defaults
     effective = dict(yaml_defaults)
