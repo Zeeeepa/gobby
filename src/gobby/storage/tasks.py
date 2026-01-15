@@ -711,14 +711,6 @@ class LocalTaskManager:
         if not ref:
             raise TaskNotFoundError("Empty task reference")
 
-        # Check for deprecated gt-* format
-        if ref.startswith("gt-"):
-            raise ValueError(
-                f"The 'gt-*' task ID format is deprecated. "
-                f"Use '#N' format instead (e.g., #1, #47). "
-                f"Got: {ref}"
-            )
-
         # #N format: seq_num lookup
         if ref.startswith("#"):
             try:

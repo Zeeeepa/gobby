@@ -141,7 +141,7 @@ def resolve_task_id_for_mcp(
 
     Raises:
         TaskNotFoundError: If the reference cannot be resolved
-        ValueError: If the format is invalid or deprecated (gt-*)
+        ValueError: If the format is invalid
     """
     # Get project_id from context if not provided
     if project_id is None:
@@ -155,14 +155,6 @@ def resolve_task_id_for_mcp(
     # Check for bare numeric string (seq_num without #)
     if project_id and task_id.isdigit():
         return task_manager.resolve_task_reference(f"#{task_id}", project_id)
-
-    # Check for deprecated gt-* format
-    if task_id.startswith("gt-"):
-        raise ValueError(
-            f"The 'gt-*' task ID format is deprecated. "
-            f"Use '#N' format instead (e.g., #1, #47). "
-            f"Got: {task_id}"
-        )
 
     # UUID format: validate it exists by trying to get it
     task = task_manager.get_task(task_id)
