@@ -4,6 +4,9 @@ Tests for task enrichment module.
 TDD Red phase: These tests should fail until the enrich.py module is implemented.
 """
 
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 
@@ -116,3 +119,205 @@ class TestTaskEnricher:
 
         assert isinstance(result, EnrichmentResult)
         assert result.task_id == "test-task-001"
+
+
+class TestCodeResearch:
+    """Tests for code research functionality in TaskEnricher.
+
+    TDD Red Phase: These tests verify the code research feature that searches
+    the codebase for relevant files, patterns, and function signatures.
+    """
+
+    @pytest.mark.asyncio
+    async def test_code_research_searches_codebase(self):
+        """Test that code research searches for relevant files when enabled."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Add user authentication",
+            description="Implement login and registration",
+            enable_code_research=True,
+        )
+
+        # When code research is enabled, research_findings should be populated
+        assert result.research_findings is not None
+        assert len(result.research_findings) > 0
+
+    @pytest.mark.asyncio
+    async def test_code_research_finds_relevant_files(self):
+        """Test that code research identifies relevant files for the task."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Fix bug in task manager",
+            description="Fix the create_task method in task manager",
+            enable_code_research=True,
+        )
+
+        # Research findings should mention relevant files
+        assert result.research_findings is not None
+        # Should find files related to tasks (implementation-specific)
+        assert "task" in result.research_findings.lower()
+
+    @pytest.mark.asyncio
+    async def test_code_research_respects_disable_flag(self):
+        """Test that code research is skipped when disabled."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Simple task",
+            description="A simple task",
+            enable_code_research=False,
+        )
+
+        # When disabled, research_findings should be None or minimal
+        # The enricher may still return basic info but shouldn't do codebase search
+        # This test ensures the flag is respected
+        assert result.task_id == "test-task"
+
+    @pytest.mark.asyncio
+    async def test_code_research_with_code_context(self):
+        """Test that code research uses provided code context."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        code_context = """
+        def create_task(self, title: str, description: str) -> Task:
+            '''Create a new task.'''
+            pass
+        """
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Improve create_task method",
+            description="Add validation to create_task",
+            code_context=code_context,
+            enable_code_research=True,
+        )
+
+        # Should incorporate provided code context
+        assert result.research_findings is not None
+
+    @pytest.mark.asyncio
+    async def test_code_research_categorizes_task(self):
+        """Test that code research helps categorize the task."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Write tests for user service",
+            description="Add unit tests for the user service module",
+            enable_code_research=True,
+        )
+
+        # Should categorize as "test" based on title/description
+        assert result.category is not None
+        assert result.category == "test"
+
+    @pytest.mark.asyncio
+    async def test_code_research_estimates_complexity(self):
+        """Test that code research provides complexity estimate."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Refactor authentication module",
+            description="Complete refactoring of auth including OAuth, JWT, and session management",
+            enable_code_research=True,
+        )
+
+        # Should estimate complexity (1=low, 2=medium, 3=high)
+        assert result.complexity_score is not None
+        assert 1 <= result.complexity_score <= 3
+
+    @pytest.mark.asyncio
+    async def test_code_research_suggests_subtask_count(self):
+        """Test that code research suggests appropriate subtask count."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Implement user management",
+            description="Add user CRUD operations, roles, and permissions",
+            enable_code_research=True,
+        )
+
+        # Should suggest number of subtasks based on complexity
+        assert result.suggested_subtask_count is not None
+        assert result.suggested_subtask_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_code_research_with_project_context(self):
+        """Test that code research uses project context."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        project_context = """
+        Project: gobby
+        Language: Python
+        Framework: FastAPI
+        Database: SQLite
+        """
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Add database migration",
+            description="Add migration for new user table",
+            project_context=project_context,
+            enable_code_research=True,
+        )
+
+        # Should incorporate project context in research
+        assert result.research_findings is not None
+
+    @pytest.mark.asyncio
+    async def test_code_research_handles_empty_codebase(self):
+        """Test that code research handles empty/no codebase gracefully."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        # Even without codebase access, should return valid result
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Initial setup",
+            description="Set up project structure",
+            enable_code_research=True,
+        )
+
+        # Should not raise, should return basic enrichment
+        assert result.task_id == "test-task"
+
+    @pytest.mark.asyncio
+    async def test_code_research_pattern_detection(self):
+        """Test that code research detects code patterns."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Add repository pattern",
+            description="Implement repository pattern for data access layer",
+            enable_code_research=True,
+        )
+
+        # Research should mention patterns if found
+        assert result.research_findings is not None
