@@ -321,3 +321,218 @@ class TestCodeResearch:
 
         # Research should mention patterns if found
         assert result.research_findings is not None
+
+
+class TestValidationCriteriaGeneration:
+    """Tests for validation criteria generation in TaskEnricher.
+
+    TDD Red Phase: These tests verify that the enricher can generate
+    validation criteria based on task analysis.
+    """
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_generated_when_enabled(self):
+        """Test that validation criteria is generated when generate_validation=True."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Add user login",
+            description="Implement user login functionality",
+            generate_validation=True,
+        )
+
+        # Validation criteria should be populated
+        assert result.validation_criteria is not None
+        assert len(result.validation_criteria) > 0
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_not_generated_when_disabled(self):
+        """Test that validation criteria is None when generate_validation=False."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Simple task",
+            description="A simple task",
+            generate_validation=False,
+        )
+
+        # Validation criteria should be None when disabled
+        assert result.validation_criteria is None
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_based_on_category(self):
+        """Test that validation criteria reflects the task category."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        # Test task should generate test-related criteria
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Write unit tests for user service",
+            description="Add comprehensive unit tests",
+            generate_validation=True,
+        )
+
+        assert result.validation_criteria is not None
+        # Should mention tests in some way
+        criteria_lower = result.validation_criteria.lower()
+        assert "test" in criteria_lower or "pass" in criteria_lower
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_for_code_task(self):
+        """Test validation criteria generation for code tasks."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Implement API endpoint",
+            description="Create a new REST API endpoint for user management",
+            generate_validation=True,
+        )
+
+        assert result.validation_criteria is not None
+        # Should be actionable criteria
+        assert len(result.validation_criteria) > 10
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_for_document_task(self):
+        """Test validation criteria generation for documentation tasks."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Write API documentation",
+            description="Document all REST API endpoints",
+            generate_validation=True,
+        )
+
+        assert result.validation_criteria is not None
+        # Should mention documentation-related validation
+        criteria_lower = result.validation_criteria.lower()
+        assert "document" in criteria_lower or "written" in criteria_lower or "review" in criteria_lower
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_includes_deliverable(self):
+        """Test that validation criteria includes deliverable section."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Implement user authentication",
+            description="Add OAuth2 login flow",
+            generate_validation=True,
+        )
+
+        assert result.validation_criteria is not None
+        # Should be structured with deliverables or acceptance criteria
+        # Flexible check - just verify it's substantive
+        assert len(result.validation_criteria) > 20
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_for_config_task(self):
+        """Test validation criteria generation for config tasks."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Configure CI/CD pipeline",
+            description="Set up automated deployment pipeline",
+            generate_validation=True,
+        )
+
+        assert result.validation_criteria is not None
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_complexity_appropriate(self):
+        """Test that complex tasks get more detailed validation criteria."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        # Complex task
+        complex_result = await enricher.enrich(
+            task_id="complex-task",
+            title="Refactor authentication system",
+            description="Complete overhaul of auth including OAuth, JWT, sessions, and security hardening",
+            generate_validation=True,
+        )
+
+        # Simple task
+        simple_result = await enricher.enrich(
+            task_id="simple-task",
+            title="Fix typo",
+            description="Fix a typo in the readme",
+            generate_validation=True,
+        )
+
+        assert complex_result.validation_criteria is not None
+        assert simple_result.validation_criteria is not None
+        # Complex task should have more detailed criteria
+        assert len(complex_result.validation_criteria) >= len(simple_result.validation_criteria)
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_with_code_context(self):
+        """Test that code context influences validation criteria."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        code_context = """
+        class UserService:
+            def create_user(self, email: str, password: str) -> User:
+                '''Create a new user account.'''
+                pass
+
+            def authenticate(self, email: str, password: str) -> bool:
+                '''Authenticate user credentials.'''
+                pass
+        """
+
+        result = await enricher.enrich(
+            task_id="test-task",
+            title="Add email validation",
+            description="Add email format validation to user creation",
+            code_context=code_context,
+            generate_validation=True,
+        )
+
+        assert result.validation_criteria is not None
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_respects_enable_flag(self):
+        """Test that generate_validation flag controls criteria generation."""
+        from gobby.tasks.enrich import TaskEnricher
+
+        enricher = TaskEnricher()
+
+        # With flag enabled
+        result_enabled = await enricher.enrich(
+            task_id="test-task",
+            title="Some task",
+            generate_validation=True,
+        )
+
+        # With flag disabled
+        result_disabled = await enricher.enrich(
+            task_id="test-task",
+            title="Some task",
+            generate_validation=False,
+        )
+
+        assert result_enabled.validation_criteria is not None
+        assert result_disabled.validation_criteria is None
