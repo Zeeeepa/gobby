@@ -1337,3 +1337,84 @@ def test_category_column_allows_null(tmp_path):
     row = db.fetchone("SELECT category FROM tasks WHERE id = ?", ("task-1",))
     assert row is not None
     assert row["category"] is None
+
+
+# =============================================================================
+# TDD Expansion Restructure: agent_name column addition
+# =============================================================================
+
+
+def test_agent_name_column_exists_after_migration(tmp_path):
+    """Test that the 'agent_name' column exists in the tasks table after migration.
+
+    The agent_name field specifies which subagent configuration file to use when
+    spawning an agent to work on this task (e.g., 'backend-specialist', 'test-writer').
+    """
+    db_path = tmp_path / "agent_name_migration.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations
+    run_migrations(db)
+
+    # Check that agent_name column exists in tasks table
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "agent_name" in sql_lower, "agent_name column not found in tasks table"
+
+
+def test_agent_name_column_accepts_values(tmp_path):
+    """Test that the agent_name column accepts valid TEXT values."""
+    db_path = tmp_path / "agent_name_values.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task with agent_name
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, agent_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task", "backend-specialist"),
+    )
+
+    # Verify the agent_name was stored correctly
+    row = db.fetchone("SELECT agent_name FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["agent_name"] == "backend-specialist"
+
+
+def test_agent_name_column_allows_null(tmp_path):
+    """Test that the agent_name column allows NULL values.
+
+    Most tasks won't have a specific agent configuration, so NULL should be allowed.
+    """
+    db_path = tmp_path / "agent_name_null.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task without agent_name (NULL)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Verify task was created with NULL agent_name
+    row = db.fetchone("SELECT agent_name FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["agent_name"] is None
