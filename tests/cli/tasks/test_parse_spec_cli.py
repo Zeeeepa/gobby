@@ -119,7 +119,8 @@ class TestParseSpecCommand:
                 mock_manager = MagicMock()
                 mock_manager.create_task.return_value = mock_task
                 mock_get_manager.return_value = mock_manager
-                mock_ctx.return_value = {"id": "proj-123"}
+                # Include name so project lookup succeeds
+                mock_ctx.return_value = {"id": "proj-123", "name": "myproject"}
 
                 result = runner.invoke(tasks, ["parse-spec", spec_path, "--project", "myproject"])
 
