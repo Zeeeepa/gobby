@@ -14,6 +14,7 @@ Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 
 import asyncio
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -80,8 +81,6 @@ def should_skip_tdd(title: str) -> bool:
     Returns:
         True if the task should skip TDD transformation, False otherwise
     """
-    import re
-
     for pattern in TDD_SKIP_PATTERNS:
         if re.search(pattern, title, re.IGNORECASE):
             return True
