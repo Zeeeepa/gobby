@@ -1251,6 +1251,7 @@ def create_expansion_registry(
             reference_doc=str(path),
         )
 
+        hierarchy_result = None
         if headings:
             # Build from headings (async but no LLM calls when task_expander=None)
             hierarchy_result = await builder.build_from_headings(
@@ -1259,7 +1260,7 @@ def create_expansion_registry(
             )
             subtask_ids = hierarchy_result.task_ids
         elif checkboxes.total_count > 0:
-            hierarchy_result = builder.build_from_checkboxes(checkboxes)
+            hierarchy_result = await builder.build_from_checkboxes(checkboxes)
             subtask_ids = hierarchy_result.task_ids
 
         # Fetch created subtasks (brief format)
@@ -1273,12 +1274,24 @@ def create_expansion_registry(
                     subtask_info["ref"] = f"#{subtask.seq_num}"
                 subtasks.append(subtask_info)
 
+        # Build phase_groups from parallel_groups (for worktree orchestration)
+        phase_groups = []
+        if hierarchy_result and hierarchy_result.parallel_groups:
+            for group in hierarchy_result.parallel_groups:
+                phase_groups.append({
+                    "task_ids": group.task_ids,
+                    "parent_task_id": group.parent_task_id,
+                    "heading_level": group.heading_level,
+                    "is_parallelizable": group.is_parallelizable(),
+                })
+
         return {
             "parent_task_id": spec_task.id,
             "parent_task_title": spec_task.title,
             "tasks_created": len(subtask_ids),
             "subtasks": subtasks,
             "mode": "structured",
+            "phase_groups": phase_groups,
         }
 
     return registry
