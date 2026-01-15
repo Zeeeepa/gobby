@@ -471,3 +471,40 @@ def _is_path_format(ref: str) -> bool:
         return False
     parts = ref.split(".")
     return all(part.isdigit() for part in parts)
+
+
+def parse_task_refs(refs: tuple[str, ...]) -> list[str]:
+    """Parse task references from various CLI input formats.
+
+    Handles multiple input formats commonly used in CLI:
+    - Single reference: "42", "#42", "abc123-def"
+    - Comma-separated: "#42,#43,#44" or "42,43,44"
+    - Space-separated: passed as tuple from Click variadic args
+    - Mixed: "#42,#43 #44" with both separators
+
+    Numeric references are normalized to #N format.
+    UUID-like references are passed through unchanged.
+
+    Args:
+        refs: Tuple of reference strings from Click variadic argument
+
+    Returns:
+        List of normalized task references
+    """
+    result: list[str] = []
+
+    for arg in refs:
+        # Split on commas first
+        parts = arg.split(",")
+        for part in parts:
+            ref = part.strip()
+            if not ref:
+                continue
+
+            # Normalize pure numeric to #N format
+            if ref.isdigit():
+                ref = f"#{ref}"
+
+            result.append(ref)
+
+    return result
