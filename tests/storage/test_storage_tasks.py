@@ -355,15 +355,22 @@ class TestLocalTaskManager:
         task = task_manager.create_task(project_id, "Task with commits")
         assert task.commits is None or task.commits == []
 
-        updated = task_manager.link_commit(task.id, "abc123def456")
+        # Mock normalize_commit_sha to return the input (simulating valid SHA)
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "abc123d"  # Normalized short form
+            updated = task_manager.link_commit(task.id, "abc123def456")
 
-        assert updated.commits == ["abc123def456"]
+        assert updated.commits == ["abc123d"]
 
     def test_link_commit_appends_to_existing(self, task_manager, project_id):
         """Test linking adds to existing commits array."""
         task = task_manager.create_task(project_id, "Task with commits")
-        task_manager.link_commit(task.id, "commit1")
-        updated = task_manager.link_commit(task.id, "commit2")
+
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "commit1"
+            task_manager.link_commit(task.id, "commit1")
+            mock_normalize.return_value = "commit2"
+            updated = task_manager.link_commit(task.id, "commit2")
 
         assert "commit1" in updated.commits
         assert "commit2" in updated.commits
@@ -372,53 +379,96 @@ class TestLocalTaskManager:
     def test_link_commit_ignores_duplicate(self, task_manager, project_id):
         """Test linking same commit twice doesn't duplicate."""
         task = task_manager.create_task(project_id, "Task with commits")
-        task_manager.link_commit(task.id, "abc123")
-        updated = task_manager.link_commit(task.id, "abc123")
 
-        assert updated.commits == ["abc123"]
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "abc1234"
+            task_manager.link_commit(task.id, "abc123")
+            updated = task_manager.link_commit(task.id, "abc123")
+
+        assert updated.commits == ["abc1234"]
 
     def test_link_commit_invalid_task(self, task_manager):
         """Test linking commit to non-existent task raises error."""
-        with pytest.raises(ValueError, match="not found"):
-            task_manager.link_commit("gt-nonexistent", "abc123")
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "abc1234"
+            with pytest.raises(ValueError, match="not found"):
+                task_manager.link_commit("gt-nonexistent", "abc123")
+
+    def test_link_commit_invalid_sha(self, task_manager, project_id):
+        """Test linking invalid SHA raises error."""
+        task = task_manager.create_task(project_id, "Task with commits")
+
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = None  # SHA can't be resolved
+            with pytest.raises(ValueError, match="Invalid or unresolved"):
+                task_manager.link_commit(task.id, "invalidsha")
 
     def test_unlink_commit_removes_sha(self, task_manager, project_id):
         """Test unlinking removes commit from array."""
         task = task_manager.create_task(project_id, "Task with commits")
-        task_manager.link_commit(task.id, "commit1")
-        task_manager.link_commit(task.id, "commit2")
 
-        updated = task_manager.unlink_commit(task.id, "commit1")
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "commit1"
+            task_manager.link_commit(task.id, "commit1")
+            mock_normalize.return_value = "commit2"
+            task_manager.link_commit(task.id, "commit2")
+            mock_normalize.return_value = "commit1"
+            updated = task_manager.unlink_commit(task.id, "commit1")
 
         assert updated.commits == ["commit2"]
 
     def test_unlink_commit_handles_nonexistent(self, task_manager, project_id):
         """Test unlinking non-existent commit is a no-op."""
         task = task_manager.create_task(project_id, "Task with commits")
-        task_manager.link_commit(task.id, "commit1")
 
-        # Should not raise, just return unchanged
-        updated = task_manager.unlink_commit(task.id, "nonexistent")
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "commit1"
+            task_manager.link_commit(task.id, "commit1")
+            mock_normalize.return_value = "nonexist"  # Different normalized value
+            # Should not raise, just return unchanged
+            updated = task_manager.unlink_commit(task.id, "nonexistent")
 
         assert updated.commits == ["commit1"]
+
+    def test_unlink_commit_prefix_matching(self, task_manager, project_id):
+        """Test unlinking uses prefix matching for legacy data."""
+        task = task_manager.create_task(project_id, "Task with commits")
+
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "abc1234"
+            task_manager.link_commit(task.id, "abc1234")
+
+            # Simulate normalize failing but prefix matching should work
+            mock_normalize.return_value = None
+            updated = task_manager.unlink_commit(task.id, "abc1234")
+
+        # Should still unlink via prefix matching
+        assert updated.commits == [] or updated.commits is None
 
     def test_unlink_commit_from_empty_task(self, task_manager, project_id):
         """Test unlinking from task with no commits is a no-op."""
         task = task_manager.create_task(project_id, "Empty task")
 
-        updated = task_manager.unlink_commit(task.id, "abc123")
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "abc1234"
+            updated = task_manager.unlink_commit(task.id, "abc123")
 
         assert updated.commits is None or updated.commits == []
 
     def test_unlink_commit_invalid_task(self, task_manager):
         """Test unlinking from non-existent task raises error."""
-        with pytest.raises(ValueError, match="not found"):
-            task_manager.unlink_commit("gt-nonexistent", "abc123")
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "abc1234"
+            with pytest.raises(ValueError, match="not found"):
+                task_manager.unlink_commit("gt-nonexistent", "abc123")
 
     def test_commits_persist_after_update(self, task_manager, project_id):
         """Test that commits array persists through other updates."""
         task = task_manager.create_task(project_id, "Task")
-        task_manager.link_commit(task.id, "commit1")
+
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
+            mock_normalize.return_value = "commit1"
+            task_manager.link_commit(task.id, "commit1")
 
         # Update another field
         updated = task_manager.update_task(task.id, title="Updated Title")

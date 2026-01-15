@@ -849,10 +849,10 @@ def create_task_registry(
                                 "issues": [issue.to_dict() for issue in external_result.issues],
                             }
 
-        # Get git commit SHA (best-effort)
+        # Get git commit SHA (best-effort, dynamic short format for consistency)
         from gobby.utils.git import run_git_command
 
-        commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=cwd)
+        commit_sha = run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=cwd)
 
         # Determine target status: route to review if task requires user review OR override was used
         # This ensures tasks with HITL flag or skipped validation go through human review

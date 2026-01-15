@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.storage.database import DatabaseProtocol
@@ -1139,25 +1140,36 @@ class LocalTaskManager:
             return self.update_task(task_id, labels=labels)
         return task
 
-    def link_commit(self, task_id: str, commit_sha: str) -> Task:
+    def link_commit(
+        self, task_id: str, commit_sha: str, cwd: str | Path | None = None
+    ) -> Task:
         """Link a commit SHA to a task.
 
         Adds the commit SHA to the task's commits array if not already present.
+        The SHA is normalized to dynamic short format for consistency.
 
         Args:
             task_id: The task ID to link the commit to.
-            commit_sha: The git commit SHA to link.
+            commit_sha: The git commit SHA to link (short or full).
+            cwd: Working directory for git operations (defaults to current directory).
 
         Returns:
             Updated Task object.
 
         Raises:
-            ValueError: If task not found.
+            ValueError: If task not found or SHA cannot be resolved.
         """
+        from gobby.utils.git import normalize_commit_sha
+
+        # Normalize SHA to dynamic short format
+        normalized_sha = normalize_commit_sha(commit_sha, cwd=cwd)
+        if not normalized_sha:
+            raise ValueError(f"Invalid or unresolved commit SHA: {commit_sha}")
+
         task = self.get_task(task_id)  # Raises if not found
         commits = task.commits or []
-        if commit_sha not in commits:
-            commits.append(commit_sha)
+        if normalized_sha not in commits:
+            commits.append(normalized_sha)
             # Update the commits column in the database
             now = datetime.now(UTC).isoformat()
             with self.db.transaction() as conn:
@@ -1169,14 +1181,18 @@ class LocalTaskManager:
             return self.get_task(task_id)
         return task
 
-    def unlink_commit(self, task_id: str, commit_sha: str) -> Task:
+    def unlink_commit(
+        self, task_id: str, commit_sha: str, cwd: str | Path | None = None
+    ) -> Task:
         """Unlink a commit SHA from a task.
 
         Removes the commit SHA from the task's commits array if present.
+        Handles both normalized and legacy SHA formats via prefix matching.
 
         Args:
             task_id: The task ID to unlink the commit from.
-            commit_sha: The git commit SHA to unlink.
+            commit_sha: The git commit SHA to unlink (short or full).
+            cwd: Working directory for git operations (defaults to current directory).
 
         Returns:
             Updated Task object.
@@ -1184,10 +1200,28 @@ class LocalTaskManager:
         Raises:
             ValueError: If task not found.
         """
+        from gobby.utils.git import normalize_commit_sha
+
+        # Try to normalize - if it fails, fall back to prefix matching
+        normalized_sha = normalize_commit_sha(commit_sha, cwd=cwd)
+
         task = self.get_task(task_id)  # Raises if not found
         commits = task.commits or []
-        if commit_sha in commits:
-            commits.remove(commit_sha)
+
+        # Find matching commit (handle both normalized and legacy SHAs)
+        sha_to_remove = None
+        for stored_sha in commits:
+            # Exact match with normalized SHA
+            if normalized_sha and stored_sha == normalized_sha:
+                sha_to_remove = stored_sha
+                break
+            # Prefix matching for legacy mixed-format data
+            if stored_sha.startswith(commit_sha) or commit_sha.startswith(stored_sha):
+                sha_to_remove = stored_sha
+                break
+
+        if sha_to_remove:
+            commits.remove(sha_to_remove)
             # Update the commits column in the database
             now = datetime.now(UTC).isoformat()
             commits_json = json.dumps(commits) if commits else None

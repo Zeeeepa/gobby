@@ -140,8 +140,16 @@ def create_sync_registry(
         except (TaskNotFoundError, ValueError) as e:
             return {"error": f"Invalid task_id: {e}"}
 
+        # Get project repo path for git operations
+        ctx = get_project_context()
+        repo_path = None
+        if ctx and ctx.get("id") and project_manager:
+            project = project_manager.get(ctx["id"])
+            if project:
+                repo_path = project.repo_path
+
         try:
-            task = task_manager.link_commit(resolved_task_id, commit_sha)
+            task = task_manager.link_commit(resolved_task_id, commit_sha, cwd=repo_path)
             return {
                 "task_id": task.id,
                 "commits": task.commits or [],
@@ -179,8 +187,16 @@ def create_sync_registry(
         except (TaskNotFoundError, ValueError) as e:
             return {"error": f"Invalid task_id: {e}"}
 
+        # Get project repo path for git operations
+        ctx = get_project_context()
+        repo_path = None
+        if ctx and ctx.get("id") and project_manager:
+            project = project_manager.get(ctx["id"])
+            if project:
+                repo_path = project.repo_path
+
         try:
-            task = task_manager.unlink_commit(resolved_task_id, commit_sha)
+            task = task_manager.unlink_commit(resolved_task_id, commit_sha, cwd=repo_path)
             return {
                 "task_id": task.id,
                 "commits": task.commits or [],

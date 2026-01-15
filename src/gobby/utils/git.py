@@ -178,3 +178,45 @@ def get_git_metadata(cwd: str | Path | None = None) -> GitMetadata:
         logger.error(f"Error extracting git metadata: {e}")
 
     return metadata
+
+
+def normalize_commit_sha(sha: str, cwd: str | Path | None = None) -> str | None:
+    """
+    Normalize a commit SHA to dynamic short format.
+
+    Uses git rev-parse --short which returns the minimum characters
+    needed for uniqueness (typically 7, more in large repos).
+
+    Args:
+        sha: Short or full commit SHA
+        cwd: Working directory for git commands (defaults to current directory)
+
+    Returns:
+        Shortened SHA (7+ chars), or None if SHA cannot be resolved
+    """
+    if not sha or len(sha) < 4:
+        return None
+
+    if cwd is None:
+        cwd = Path.cwd()
+
+    # Use git rev-parse --short to get canonical short form
+    result = run_git_command(["git", "rev-parse", "--short", sha], cwd=cwd)
+    return result if result else None
+
+
+def is_valid_sha_format(sha: str) -> bool:
+    """
+    Check if string looks like a valid SHA format (hex, >= 4 chars).
+
+    This is a format check only - does not verify the SHA exists in any repo.
+
+    Args:
+        sha: String to validate
+
+    Returns:
+        True if string could be a valid SHA format
+    """
+    if not sha or len(sha) < 4:
+        return False
+    return all(c in "0123456789abcdefABCDEF" for c in sha)

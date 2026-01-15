@@ -18,6 +18,8 @@ from gobby.utils.git import (
     get_git_branch,
     get_git_metadata,
     get_github_url,
+    is_valid_sha_format,
+    normalize_commit_sha,
     run_git_command,
 )
 
@@ -693,3 +695,160 @@ class TestLogging:
             get_git_metadata(Path("/nonexistent/path"))
 
         assert "does not exist" in caplog.text
+
+
+class TestNormalizeCommitSha:
+    """Tests for normalize_commit_sha function."""
+
+    def test_normalizes_short_sha(self, temp_dir: Path) -> None:
+        """Test short SHA is normalized via git rev-parse --short."""
+        with patch("gobby.utils.git.run_git_command") as mock_run:
+            mock_run.return_value = "abc1234"
+
+            result = normalize_commit_sha("abc1234", cwd=temp_dir)
+
+            assert result == "abc1234"
+            mock_run.assert_called_once_with(
+                ["git", "rev-parse", "--short", "abc1234"], cwd=temp_dir
+            )
+
+    def test_normalizes_full_sha_to_short(self, temp_dir: Path) -> None:
+        """Test full SHA is shortened via git rev-parse --short."""
+        full_sha = "abc1234567890abcdef1234567890abcdef123456"
+        with patch("gobby.utils.git.run_git_command") as mock_run:
+            mock_run.return_value = "abc1234"
+
+            result = normalize_commit_sha(full_sha, cwd=temp_dir)
+
+            assert result == "abc1234"
+            mock_run.assert_called_once_with(
+                ["git", "rev-parse", "--short", full_sha], cwd=temp_dir
+            )
+
+    def test_returns_none_for_invalid_sha(self, temp_dir: Path) -> None:
+        """Test returns None when git can't resolve the SHA."""
+        with patch("gobby.utils.git.run_git_command") as mock_run:
+            mock_run.return_value = None
+
+            result = normalize_commit_sha("invalidsha", cwd=temp_dir)
+
+            assert result is None
+
+    def test_returns_none_for_too_short_sha(self) -> None:
+        """Test returns None when SHA is less than 4 characters."""
+        result = normalize_commit_sha("abc")
+        assert result is None
+
+    def test_returns_none_for_empty_sha(self) -> None:
+        """Test returns None when SHA is empty."""
+        result = normalize_commit_sha("")
+        assert result is None
+
+    def test_returns_none_for_none_sha(self) -> None:
+        """Test returns None when SHA is None."""
+        result = normalize_commit_sha(None)  # type: ignore[arg-type]
+        assert result is None
+
+    def test_uses_cwd_when_none(self) -> None:
+        """Test uses Path.cwd() when cwd is None."""
+        with (
+            patch("gobby.utils.git.run_git_command") as mock_run,
+            patch("pathlib.Path.cwd") as mock_cwd,
+        ):
+            mock_cwd.return_value = Path("/current/dir")
+            mock_run.return_value = "abc1234"
+
+            result = normalize_commit_sha("abc1234")
+
+            assert result == "abc1234"
+            mock_cwd.assert_called_once()
+            mock_run.assert_called_once_with(
+                ["git", "rev-parse", "--short", "abc1234"], cwd=Path("/current/dir")
+            )
+
+    @pytest.mark.integration
+    def test_real_normalize_sha(self, temp_dir: Path) -> None:
+        """Integration test normalizing a real commit SHA."""
+        # Create a git repo with a commit
+        subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True,
+        )
+        (temp_dir / "file.txt").write_text("test")
+        subprocess.run(["git", "add", "."], cwd=temp_dir, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        # Get full SHA
+        full_sha_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=temp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        full_sha = full_sha_result.stdout.strip()
+
+        # Normalize both full and short SHA
+        normalized_from_full = normalize_commit_sha(full_sha, cwd=temp_dir)
+        normalized_from_short = normalize_commit_sha(full_sha[:7], cwd=temp_dir)
+
+        # Both should return the same short SHA
+        assert normalized_from_full is not None
+        assert normalized_from_short is not None
+        assert normalized_from_full == normalized_from_short
+        # Should be short (typically 7 chars, but could be more in large repos)
+        assert len(normalized_from_full) < 40
+
+
+class TestIsValidShaFormat:
+    """Tests for is_valid_sha_format function."""
+
+    def test_valid_short_sha(self) -> None:
+        """Test valid 7-character hex SHA."""
+        assert is_valid_sha_format("abc1234") is True
+
+    def test_valid_full_sha(self) -> None:
+        """Test valid 40-character hex SHA."""
+        assert is_valid_sha_format("a" * 40) is True
+
+    def test_valid_mixed_case(self) -> None:
+        """Test valid SHA with mixed case hex."""
+        assert is_valid_sha_format("AbCdEf1234") is True
+
+    def test_invalid_non_hex_characters(self) -> None:
+        """Test invalid SHA with non-hex characters."""
+        assert is_valid_sha_format("ghijklmnop") is False
+
+    def test_invalid_too_short(self) -> None:
+        """Test invalid SHA that's too short."""
+        assert is_valid_sha_format("abc") is False
+
+    def test_invalid_empty(self) -> None:
+        """Test invalid empty SHA."""
+        assert is_valid_sha_format("") is False
+
+    def test_minimum_length_valid(self) -> None:
+        """Test minimum valid length (4 chars)."""
+        assert is_valid_sha_format("abcd") is True
+
+    def test_special_characters_invalid(self) -> None:
+        """Test SHA with special characters is invalid."""
+        assert is_valid_sha_format("abc123!@") is False
+
+    def test_spaces_invalid(self) -> None:
+        """Test SHA with spaces is invalid."""
+        assert is_valid_sha_format("abc 123") is False
