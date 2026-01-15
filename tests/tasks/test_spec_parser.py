@@ -3400,3 +3400,328 @@ class TestIntegrateLLMIntoTaskCreation:
         assert description is not None
         assert "Part of: Phase 1: Core Features" in description
         assert "Goal: Implement core features" in description
+
+
+class TestProcessCheckboxCallsSmartDescription:
+    """Tests for _process_checkbox calling _build_smart_description.
+
+    These tests verify that _process_checkbox:
+    1. Is async (since _build_smart_description is async)
+    2. Accepts current_heading and all_checkboxes parameters
+    3. Calls _build_smart_description for each checkbox
+    4. Passes the generated description to task creation
+    """
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_is_async(self, mock_task_manager):
+        """_process_checkbox must be async to call async _build_smart_description."""
+        import asyncio
+        import inspect
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # Verify _process_checkbox is a coroutine function
+        assert inspect.iscoroutinefunction(builder._process_checkbox), (
+            "_process_checkbox must be async def to call _build_smart_description"
+        )
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_accepts_heading_and_checkboxes(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """_process_checkbox should accept current_heading and all_checkboxes."""
+        mock_task_manager = mock_task_manager_with_db
+        monkeypatch.setattr(
+            mock_task_manager,
+            "create_task",
+            lambda **kwargs: CreatedTask(
+                id=str(uuid.uuid4()),
+                title=kwargs.get("title", "Test task"),
+                task_type=kwargs.get("task_type", "task"),
+                status=kwargs.get("status", "open"),
+            ),
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        heading = HeadingNode(
+            text="Phase 1: Setup",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="Initial setup phase.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Configure database",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Configure database",
+            parent_heading="Phase 1: Setup",
+        )
+
+        all_checkboxes = [checkbox]
+        created_tasks: list[CreatedTask] = []
+
+        # Call _process_checkbox with heading and all_checkboxes
+        # This should not raise TypeError about unexpected arguments
+        await builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id=None,
+            created_tasks=created_tasks,
+            current_heading=heading,
+            all_checkboxes=all_checkboxes,
+        )
+
+        # Should create at least one task
+        assert len(created_tasks) >= 1
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_calls_build_smart_description(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """_process_checkbox should call _build_smart_description for descriptions."""
+        mock_task_manager = mock_task_manager_with_db
+        monkeypatch.setattr(
+            mock_task_manager,
+            "create_task",
+            lambda **kwargs: CreatedTask(
+                id=str(uuid.uuid4()),
+                title=kwargs.get("title", "Test task"),
+                task_type=kwargs.get("task_type", "task"),
+                status=kwargs.get("status", "open"),
+            ),
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # Track calls to _build_smart_description
+        smart_description_calls: list[dict] = []
+        original_build_smart_description = builder._build_smart_description
+
+        async def tracking_build_smart_description(checkbox, heading, all_checkboxes):
+            smart_description_calls.append({
+                "checkbox": checkbox,
+                "heading": heading,
+                "all_checkboxes": all_checkboxes,
+            })
+            return await original_build_smart_description(checkbox, heading, all_checkboxes)
+
+        monkeypatch.setattr(
+            builder, "_build_smart_description", tracking_build_smart_description
+        )
+
+        heading = HeadingNode(
+            text="Phase 1",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="**Goal**: Do something.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+            parent_heading="Phase 1",
+        )
+
+        all_checkboxes = [checkbox]
+        created_tasks: list[CreatedTask] = []
+
+        await builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id=None,
+            created_tasks=created_tasks,
+            current_heading=heading,
+            all_checkboxes=all_checkboxes,
+        )
+
+        # Should have called _build_smart_description
+        assert len(smart_description_calls) >= 1
+        assert smart_description_calls[0]["checkbox"] == checkbox
+        assert smart_description_calls[0]["heading"] == heading
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_passes_description_to_task_creation(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """Description from _build_smart_description should be passed to _create_task."""
+        mock_task_manager = mock_task_manager_with_db
+
+        # Track what description is passed to create_task
+        create_task_descriptions: list[str | None] = []
+
+        def tracking_create_task(**kwargs):
+            create_task_descriptions.append(kwargs.get("description"))
+            return CreatedTask(
+                id=str(uuid.uuid4()),
+                title=kwargs.get("title", "Test task"),
+                task_type=kwargs.get("task_type", "task"),
+                status=kwargs.get("status", "open"),
+            )
+
+        monkeypatch.setattr(mock_task_manager, "create_task", tracking_create_task)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            tdd_mode=False,  # Simple mode, no TDD triplets
+        )
+
+        heading = HeadingNode(
+            text="Phase 1: Security",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="**Goal**: Implement security features.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Add authentication",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Add authentication",
+            parent_heading="Phase 1: Security",
+        )
+
+        all_checkboxes = [checkbox]
+        created_tasks: list[CreatedTask] = []
+
+        await builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id=None,
+            created_tasks=created_tasks,
+            current_heading=heading,
+            all_checkboxes=all_checkboxes,
+        )
+
+        # Verify description was passed (not None)
+        assert len(create_task_descriptions) >= 1
+        description = create_task_descriptions[0]
+        assert description is not None, (
+            "_process_checkbox should pass description from _build_smart_description, not None"
+        )
+        # Description should contain context from heading
+        assert "Part of: Phase 1: Security" in description
+        assert "Goal: Implement security features" in description
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_tdd_mode_passes_description_to_triplet(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """In TDD mode, description should be passed to _create_tdd_triplet."""
+        mock_task_manager = mock_task_manager_with_db
+
+        # Track what description is passed to create_task
+        create_task_descriptions: list[str | None] = []
+
+        def tracking_create_task(**kwargs):
+            create_task_descriptions.append(kwargs.get("description"))
+            return CreatedTask(
+                id=str(uuid.uuid4()),
+                title=kwargs.get("title", "Test task"),
+                task_type=kwargs.get("task_type", "task"),
+                status=kwargs.get("status", "open"),
+            )
+
+        monkeypatch.setattr(mock_task_manager, "create_task", tracking_create_task)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            tdd_mode=True,  # TDD mode creates triplets
+        )
+
+        heading = HeadingNode(
+            text="Phase 2: Features",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="**Goal**: Add new features.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Add caching",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Add caching",
+            parent_heading="Phase 2: Features",
+        )
+
+        all_checkboxes = [checkbox]
+        created_tasks: list[CreatedTask] = []
+
+        await builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id=None,
+            created_tasks=created_tasks,
+            current_heading=heading,
+            all_checkboxes=all_checkboxes,
+        )
+
+        # TDD mode creates 3 tasks (test, impl, refactor)
+        assert len(created_tasks) == 3
+
+        # All triplet tasks should have received description with context
+        for desc in create_task_descriptions:
+            assert desc is not None, "TDD triplet tasks should receive descriptions"
+            assert "Part of: Phase 2: Features" in desc
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_without_heading(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """_process_checkbox should work when no heading is provided."""
+        mock_task_manager = mock_task_manager_with_db
+        monkeypatch.setattr(
+            mock_task_manager,
+            "create_task",
+            lambda **kwargs: CreatedTask(
+                id=str(uuid.uuid4()),
+                title=kwargs.get("title", "Test task"),
+                task_type=kwargs.get("task_type", "task"),
+                status=kwargs.get("status", "open"),
+            ),
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            tdd_mode=False,
+        )
+
+        checkbox = CheckboxItem(
+            text="Standalone task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Standalone task",
+        )
+
+        created_tasks: list[CreatedTask] = []
+
+        # Should not raise when heading is None
+        await builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id=None,
+            created_tasks=created_tasks,
+            current_heading=None,
+            all_checkboxes=[checkbox],
+        )
+
+        assert len(created_tasks) >= 1
