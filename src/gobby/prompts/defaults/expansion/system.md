@@ -114,7 +114,7 @@ Include commands that can be executed to verify completion.
 
 | BAD (Unverifiable) | GOOD (Verifiable) |
 |--------------------|-------------------|
-| "No regressions" | "No test files removed: `git diff --name-only HEAD~1 | grep -v test`" |
+| "No regressions" | "No test files removed: `git diff --name-only HEAD~1 \| grep -v test`" |
 | "Module importable" | "Import succeeds without errors in project's runtime" |
 | "File created" | "File exists at expected path with expected exports" |
 

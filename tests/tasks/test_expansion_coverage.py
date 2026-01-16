@@ -459,7 +459,7 @@ class TestParseSubtasksEdgeCases:
                         "description": "Complete description",
                         "priority": 1,
                         "task_type": "feature",
-                        "category": "Run tests",
+                        "category": "test",
                         "depends_on": [0, 1],
                     }
                 ]
@@ -472,7 +472,7 @@ class TestParseSubtasksEdgeCases:
         assert specs[0].description == "Complete description"
         assert specs[0].priority == 1
         assert specs[0].task_type == "feature"
-        assert specs[0].category == "Run tests"
+        assert specs[0].category == "test"
         assert specs[0].depends_on == [0, 1]
 
     def test_parse_malformed_json_response(self, mock_task_manager, mock_llm_service):
@@ -508,16 +508,16 @@ class TestCreateSubtasks:
     """Tests for _create_subtasks method."""
 
     @pytest.mark.asyncio
-    async def test_create_subtasks_with_category(self, mock_task_manager, mock_llm_service):
-        """Test that test strategy is added to description."""
+    async def test_create_subtasks_passes_category(self, mock_task_manager, mock_llm_service):
+        """Test that category is passed to create_task."""
         config = TaskExpansionConfig(enabled=True)
         expander = TaskExpander(config, mock_llm_service, mock_task_manager)
 
         specs = [
             SubtaskSpec(
-                title="Task with strategy",
+                title="Task with category",
                 description="Original description",
-                category="Run pytest",
+                category="test",
             )
         ]
 
@@ -529,33 +529,8 @@ class TestCreateSubtasks:
 
         assert len(subtask_ids) == 1
         call_kwargs = mock_task_manager.create_task.call_args.kwargs
-        assert "**Test Strategy:**" in call_kwargs["description"]
-
-    @pytest.mark.asyncio
-    async def test_create_subtasks_strategy_without_description(
-        self, mock_task_manager, mock_llm_service
-    ):
-        """Test test strategy when there's no description."""
-        config = TaskExpansionConfig(enabled=True)
-        expander = TaskExpander(config, mock_llm_service, mock_task_manager)
-
-        specs = [
-            SubtaskSpec(
-                title="Strategy only",
-                description=None,
-                category="Verify output",
-            )
-        ]
-
-        subtask_ids = await expander._create_subtasks(
-            parent_task_id="parent-1",
-            project_id="p1",
-            subtask_specs=specs,
-        )
-
-        assert len(subtask_ids) == 1
-        call_kwargs = mock_task_manager.create_task.call_args.kwargs
-        assert "**Test Strategy:**" in call_kwargs["description"]
+        assert call_kwargs["category"] == "test"
+        assert call_kwargs["description"] == "Original description"
 
     @pytest.mark.asyncio
     async def test_create_subtasks_criteria_only_no_description(
@@ -598,8 +573,9 @@ class TestCreateSubtasks:
 
         assert len(subtask_ids) == 1
         call_kwargs = mock_task_manager.create_task.call_args.kwargs
-        # Description should come from criteria only
-        assert "## Verification" in call_kwargs["description"]
+        # Criteria should be in validation_criteria field
+        assert call_kwargs["validation_criteria"] is not None
+        assert "## Verification" in call_kwargs["validation_criteria"]
 
     @pytest.mark.asyncio
     async def test_create_subtasks_with_precise_criteria(
@@ -797,41 +773,6 @@ class TestGeneratePreciseCriteria:
 
         # Criteria should be a string (can be empty if no pattern matched)
         assert isinstance(criteria, str)
-
-    @pytest.mark.asyncio
-    async def test_generate_criteria_with_category_substitution(
-        self, mock_task_manager, mock_llm_service, verification_config
-    ):
-        """Test that verification commands are substituted in test strategy."""
-        config = TaskExpansionConfig(enabled=True)
-        expander = TaskExpander(
-            config,
-            mock_llm_service,
-            mock_task_manager,
-            verification_config=verification_config,
-        )
-
-        spec = SubtaskSpec(
-            title="Task",
-            category="Run {unit_tests} to verify",
-        )
-        context = ExpansionContext(
-            task=MagicMock(),
-            related_tasks=[],
-            relevant_files=[],
-            file_snippets={},
-            project_patterns={},
-            verification_commands={"unit_tests": "pytest"},
-        )
-
-        criteria = await expander._generate_precise_criteria(
-            spec=spec,
-            context=context,
-            parent_labels=[],
-        )
-
-        assert "## Test Strategy" in criteria
-        assert "`pytest`" in criteria
 
     @pytest.mark.asyncio
     async def test_generate_criteria_with_relevant_files(
