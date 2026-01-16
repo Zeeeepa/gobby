@@ -1397,6 +1397,4 @@ class WorkflowEngine:
         server_calls = mcp_calls.setdefault(server_name, [])
         if inner_tool not in server_calls:
             server_calls.append(inner_tool)
-            logger.debug(
-                f"Session {state.session_id}: MCP call tracked {server_name}/{inner_tool}"
-            )
+            logger.debug(f"Session {state.session_id}: MCP call tracked {server_name}/{inner_tool}")

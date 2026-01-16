@@ -731,9 +731,7 @@ class LocalTaskManager:
 
         if is_seq_ref:
             if not project_id:
-                raise ValueError(
-                    f"Task {task_id} requires project_id for seq_num lookup"
-                )
+                raise ValueError(f"Task {task_id} requires project_id for seq_num lookup")
             try:
                 resolved_id = self.resolve_task_reference(task_id, project_id)
                 task_id = resolved_id

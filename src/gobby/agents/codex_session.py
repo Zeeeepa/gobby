@@ -111,9 +111,7 @@ async def capture_codex_session_id(
             logger.error(f"Codex stderr:\n{stderr.decode()}")
         raise ValueError("No session id found in Codex output")
 
-    logger.debug(
-        f"Captured Codex session_id: {session_id}, model: {model}, workdir: {workdir}"
-    )
+    logger.debug(f"Captured Codex session_id: {session_id}, model: {model}, workdir: {workdir}")
 
     return CodexSessionInfo(
         session_id=session_id,

@@ -258,25 +258,29 @@ def _build_worktree_context_prompt(
     if task_id:
         context_lines.append(f"**Your task:** {task_id}")
 
-    context_lines.extend([
-        "",
-        "**IMPORTANT RULES:**",
-        f"1. ALL file operations must be within {worktree_path}",
-    ])
+    context_lines.extend(
+        [
+            "",
+            "**IMPORTANT RULES:**",
+            f"1. ALL file operations must be within {worktree_path}",
+        ]
+    )
 
     if main_repo_path:
         context_lines.append(f"2. Do NOT access {main_repo_path} (main repo)")
     else:
         context_lines.append("2. Do NOT access the main repository")
 
-    context_lines.extend([
-        "3. Run `pwd` to verify your location before any file operations",
-        f"4. Commit to YOUR branch ({branch_name}), not main/dev",
-        "5. When your assigned task is complete, STOP - do not claim other tasks",
-        "",
-        "---",
-        "",
-    ])
+    context_lines.extend(
+        [
+            "3. Run `pwd` to verify your location before any file operations",
+            f"4. Commit to YOUR branch ({branch_name}), not main/dev",
+            "5. When your assigned task is complete, STOP - do not claim other tasks",
+            "",
+            "---",
+            "",
+        ]
+    )
 
     worktree_context = "\n".join(context_lines)
     return f"{worktree_context}{original_prompt}"

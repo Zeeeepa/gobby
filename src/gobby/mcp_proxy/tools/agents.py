@@ -449,10 +449,7 @@ def create_agents_registry(
                 "child_session_id": gobby_session_id,
                 "gemini_session_id": gemini_session_id,
                 "mode": "terminal",
-                "message": (
-                    f"Gemini agent spawned in terminal with session "
-                    f"{gobby_session_id}"
-                ),
+                "message": (f"Gemini agent spawned in terminal with session {gobby_session_id}"),
                 "pid": terminal_result.pid,
             }
 
@@ -544,10 +541,7 @@ def create_agents_registry(
                 "child_session_id": gobby_session_id,
                 "codex_session_id": codex_session_id,
                 "mode": "terminal",
-                "message": (
-                    f"Codex agent spawned in terminal with session "
-                    f"{gobby_session_id}"
-                ),
+                "message": (f"Codex agent spawned in terminal with session {gobby_session_id}"),
                 "pid": terminal_result.pid,
             }
 
@@ -947,9 +941,7 @@ def create_agents_registry(
         # Kill via registry (run in thread to avoid blocking event loop)
         import asyncio
 
-        result = await asyncio.to_thread(
-            agent_registry.kill, run_id, signal_name=signal
-        )
+        result = await asyncio.to_thread(agent_registry.kill, run_id, signal_name=signal)
 
         if result.get("success"):
             # Update database status

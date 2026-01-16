@@ -63,7 +63,9 @@ class SessionManager:
 
         # Session caches with locks
         # Key is (external_id, source) tuple to prevent cross-CLI collisions
-        self._session_mapping: dict[tuple[str, str], str] = {}  # (external_id, source) -> session_id
+        self._session_mapping: dict[
+            tuple[str, str], str
+        ] = {}  # (external_id, source) -> session_id
         self._session_mapping_lock = threading.Lock()
         self._session_metadata: dict[str, dict[str, Any]] = {}  # session_id -> metadata
         self._session_metadata_lock = threading.Lock()
@@ -278,9 +280,7 @@ class SessionManager:
                     return self._session_mapping[cache_key]
 
             # Find session using full composite key (safe lookup)
-            session = self._storage.find_by_external_id(
-                external_id, machine_id, project_id, source
-            )
+            session = self._storage.find_by_external_id(external_id, machine_id, project_id, source)
 
             if session:
                 session_id: str = session.id

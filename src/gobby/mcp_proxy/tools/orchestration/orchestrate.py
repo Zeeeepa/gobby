@@ -345,7 +345,9 @@ def register_orchestrator(
 
                     # Copy project.json and install hooks (with cleanup on failure)
                     try:
-                        _copy_project_json_to_worktree(git_manager.repo_path, worktree.worktree_path)
+                        _copy_project_json_to_worktree(
+                            git_manager.repo_path, worktree.worktree_path
+                        )
                         _install_provider_hooks(effective_provider, worktree.worktree_path)
                     except Exception as init_error:
                         # Cleanup: delete DB record and git worktree

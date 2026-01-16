@@ -87,8 +87,7 @@ async def capture_gemini_session_id(
                             raise ValueError("Init JSON missing session_id field")
 
                         logger.debug(
-                            f"Captured Gemini session_id: {session_id}, "
-                            f"model: {data.get('model')}"
+                            f"Captured Gemini session_id: {session_id}, model: {data.get('model')}"
                         )
                         return GeminiSessionInfo(
                             session_id=session_id,

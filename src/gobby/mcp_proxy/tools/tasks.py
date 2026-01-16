@@ -989,9 +989,7 @@ def create_task_registry(
         # Determine target status: route to review if task requires user review OR override was used
         # This ensures tasks with HITL flag or skipped validation go through human review
         store_override = should_skip or no_commit_needed
-        route_to_review = task.requires_user_review or (
-            override_justification and store_override
-        )
+        route_to_review = task.requires_user_review or (override_justification and store_override)
 
         if route_to_review:
             # Route to review status instead of closing

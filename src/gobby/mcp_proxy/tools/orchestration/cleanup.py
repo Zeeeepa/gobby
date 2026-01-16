@@ -223,7 +223,9 @@ def register_cleanup(
                             {
                                 **agent_info,
                                 "failure_reason": f"Worktree deletion failed: {delete_result.message}",
-                                "worktree_status": "merged" if merge_succeeded else agent_info.get("worktree_status", "unmerged"),
+                                "worktree_status": "merged"
+                                if merge_succeeded
+                                else agent_info.get("worktree_status", "unmerged"),
                             }
                         )
                         continue

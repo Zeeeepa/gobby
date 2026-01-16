@@ -432,7 +432,9 @@ def update_task(
 @click.option("--reason", "-r", default="completed", help="Reason for closing")
 @click.option("--skip-validation", is_flag=True, help="Skip validation checks")
 @click.option("--force", "-f", is_flag=True, help="Alias for --skip-validation")
-def close_task_cmd(task_ids: tuple[str, ...], reason: str, skip_validation: bool, force: bool) -> None:
+def close_task_cmd(
+    task_ids: tuple[str, ...], reason: str, skip_validation: bool, force: bool
+) -> None:
     """Close one or more tasks.
 
     TASK can be: #N (e.g., #1, #47), seq_num (e.g., 47), path (e.g., 1.2.3), or UUID.
@@ -517,7 +519,9 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     resolved_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
 
     if resolved.status not in ("closed", "review"):
-        click.echo(f"Task {resolved_ref} is not closed or in review (status: {resolved.status})", err=True)
+        click.echo(
+            f"Task {resolved_ref} is not closed or in review (status: {resolved.status})", err=True
+        )
         return
 
     task = manager.reopen_task(resolved.id, reason=reason)
