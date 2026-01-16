@@ -39,8 +39,6 @@ dependencies = [
     "gitingest>=0.3.1",
     # scikit-learn for TF-IDF memory search
     "scikit-learn>=1.0.0",
-    # textual for TUI dashboard
-    "textual>=0.47.0",
 ]
 
 [project.scripts]
@@ -186,12 +184,11 @@ dev = [
 ]
 
 [tool.coverage.run]
-source_pkgs = ["gobby"]
-branch = true
-parallel = true
+source = ["src/gobby"]
+# parallel = true
 
 [tool.coverage.paths]
-gobby = ["src/gobby"]
+gobby = ["src/gobby", "*/gobby", "*/site-packages/gobby"]
 tests = ["tests"]
 
 [tool.coverage.report]

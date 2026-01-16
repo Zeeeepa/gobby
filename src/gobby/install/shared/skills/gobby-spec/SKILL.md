@@ -79,35 +79,43 @@ Present the spec to the user:
 
 ## Step 5: Task Creation
 
-Use `gobby-tasks` MCP tools to create tasks:
+Build a JSON tree from the spec structure and call `build_task_tree`:
 
-1. **Create epic**:
-   ```python
-   call_tool("gobby-tasks", "create_task", {
-       "title": "{Epic Title}",
-       "task_type": "epic",
-       "description": "See spec: .gobby/specs/{name}.md",
-       "session_id": "<your_session_id>"
-   })
-   ```
+```python
+call_tool("gobby-tasks", "build_task_tree", {
+    "tree": {
+        "title": "{Epic Title}",
+        "task_type": "epic",
+        "description": "See spec: .gobby/specs/{name}.md",
+        "children": [
+            {
+                "title": "Phase 1: {Phase Name}",
+                "children": [
+                    {"title": "Task 1", "category": "code"},
+                    {"title": "Task 2", "category": "code", "depends_on": ["Task 1"]}
+                ]
+            },
+            {
+                "title": "Phase 2: {Phase Name}",
+                "children": [
+                    {"title": "Task 3", "category": "code", "depends_on": ["Phase 1: {Phase Name}"]},
+                    {"title": "Task 4", "category": "document"}
+                ]
+            }
+        ]
+    },
+    "session_id": "<your_session_id>"
+})
+```
 
-2. **Create phase tasks** (children of epic):
-   ```python
-   call_tool("gobby-tasks", "create_task", {
-       "title": "Phase 1: {Phase Name}",
-       "task_type": "task",
-       "parent_task_id": "<epic_id>",
-       "session_id": "<your_session_id>"
-   })
-   ```
+The tool returns:
+- `task_refs`: All created task refs (["#42", "#43", ...])
+- `epic_ref`: The root epic ref ("#42")
+- `tasks_created`: Total count
 
-3. **Create leaf tasks** (children of phases):
-   - Parse dependencies from spec notation
-   - Wire `blocks` relationships via `add_dependency` tool
-
-4. **Update spec doc** with task refs:
-   - Fill in Task Mapping table with created task refs (#N)
-   - Use Edit tool to update `.gobby/specs/{name}.md`
+**Update spec doc** with task refs:
+- Fill in Task Mapping table with created task refs (#N)
+- Use Edit tool to update `.gobby/specs/{name}.md`
 
 ## Step 6: Verification
 

@@ -41,6 +41,8 @@ def mock_task_manager():
     """Create a mock task manager."""
     manager = MagicMock(spec=LocalTaskManager)
     manager.db = MagicMock()
+    # Default: no existing children (leaf task check passes)
+    manager.list_tasks.return_value = []
     return manager
 
 
