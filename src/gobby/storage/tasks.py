@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from gobby.storage.database import DatabaseProtocol
 
 if TYPE_CHECKING:
-    from gobby.workflows.definitions import WorkflowState
+    pass
 
 logger = logging.getLogger(__name__)
 
