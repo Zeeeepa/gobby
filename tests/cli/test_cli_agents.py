@@ -1342,50 +1342,50 @@ class TestAgentsStatusCommand:
 
 
 # ==============================================================================
-# Tests for agents cancel command
+# Tests for agents stop command
 # ==============================================================================
 
 
-class TestAgentsCancelCommand:
-    """Tests for gobby agents cancel command."""
+class TestAgentsStopCommand:
+    """Tests for gobby agents stop command."""
 
-    def test_cancel_help(self, runner: CliRunner):
-        """Test cancel --help displays options."""
-        result = runner.invoke(cli, ["agents", "cancel", "--help"])
+    def test_stop_help(self, runner: CliRunner):
+        """Test stop --help displays options."""
+        result = runner.invoke(cli, ["agents", "stop", "--help"])
 
         assert result.exit_code == 0
         assert "RUN_REF" in result.output
 
     @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_cancel_running_agent(
+    def test_stop_running_agent(
         self,
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
     ):
-        """Test cancelling a running agent."""
+        """Test stopping a running agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = mock_agent_run.id
 
-        result = runner.invoke(cli, ["agents", "cancel", mock_agent_run.id, "--yes"])
+        result = runner.invoke(cli, ["agents", "stop", mock_agent_run.id, "--yes"])
 
         assert result.exit_code == 0
-        assert "Cancelled agent run" in result.output
+        assert "Stopped agent run" in result.output
         mock_manager.cancel.assert_called_once_with(mock_agent_run.id)
 
     @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_cancel_pending_agent(
+    def test_stop_pending_agent(
         self,
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
     ):
-        """Test cancelling a pending agent."""
+        """Test stopping a pending agent."""
         pending_run = MagicMock()
         pending_run.id = "ar-pending123"
         pending_run.status = "pending"
@@ -1395,40 +1395,40 @@ class TestAgentsCancelCommand:
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "ar-pending123"
 
-        result = runner.invoke(cli, ["agents", "cancel", "ar-pending123", "--yes"])
+        result = runner.invoke(cli, ["agents", "stop", "ar-pending123", "--yes"])
 
         assert result.exit_code == 0
-        assert "Cancelled agent run" in result.output
+        assert "Stopped agent run" in result.output
 
     @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_cancel_already_completed(
+    def test_stop_already_completed(
         self,
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
-        """Test cancelling already completed agent."""
+        """Test stopping already completed agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = mock_completed_run.id
 
-        result = runner.invoke(cli, ["agents", "cancel", mock_completed_run.id, "--yes"])
+        result = runner.invoke(cli, ["agents", "stop", mock_completed_run.id, "--yes"])
 
         assert result.exit_code == 0
-        assert "Cannot cancel agent in status" in result.output
+        assert "Cannot stop agent in status" in result.output
 
     @patch("gobby.cli.agents.get_agent_run_manager")
     @patch("gobby.cli.agents.LocalDatabase")
-    def test_cancel_not_found(
+    def test_stop_not_found(
         self,
         mock_db_cls: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
     ):
-        """Test cancelling non-existent agent."""
+        """Test stopping non-existent agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None
         mock_get_manager.return_value = mock_manager
@@ -1437,21 +1437,21 @@ class TestAgentsCancelCommand:
         mock_db.fetchall.return_value = []
         mock_db_cls.return_value = mock_db
 
-        result = runner.invoke(cli, ["agents", "cancel", "ar-nonexistent", "--yes"])
+        result = runner.invoke(cli, ["agents", "stop", "ar-nonexistent", "--yes"])
 
         assert result.exit_code != 0
         assert "Agent run not found" in result.output
 
     @patch("gobby.cli.agents.get_agent_run_manager")
     @patch("gobby.cli.agents.LocalDatabase")
-    def test_cancel_prefix_match(
+    def test_stop_prefix_match(
         self,
         mock_db_cls: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
     ):
-        """Test cancel with prefix match."""
+        """Test stop with prefix match."""
         mock_manager = MagicMock()
         # Fix: ensure manager.get returns the run for the resolved ID
         mock_manager.get.return_value = mock_agent_run
@@ -1480,14 +1480,14 @@ class TestAgentsCancelCommand:
         ]
         mock_db_cls.return_value = mock_db
 
-        result = runner.invoke(cli, ["agents", "cancel", "ar-abc", "--yes"])
+        result = runner.invoke(cli, ["agents", "stop", "ar-abc", "--yes"])
 
         assert result.exit_code == 0
-        assert "Cancelled agent run" in result.output
+        assert "Stopped agent run" in result.output
 
-    def test_cancel_requires_confirmation(self, runner: CliRunner):
-        """Test cancel requires confirmation."""
-        result = runner.invoke(cli, ["agents", "cancel", "ar-test123"])
+    def test_stop_requires_confirmation(self, runner: CliRunner):
+        """Test stop requires confirmation."""
+        result = runner.invoke(cli, ["agents", "stop", "ar-test123"])
 
         # Should abort without --yes
         assert result.exit_code == 1
@@ -1893,13 +1893,13 @@ class TestEdgeCases:
 
     @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
-    def test_cancel_error_status(
+    def test_stop_error_status(
         self,
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
     ):
-        """Test cannot cancel agent already in error status."""
+        """Test cannot stop agent already in error status."""
         run = MagicMock()
         run.id = "ar-error"
         run.status = "error"
@@ -1909,7 +1909,7 @@ class TestEdgeCases:
         mock_get_manager.return_value = mock_manager
         mock_resolve.return_value = "ar-error"
 
-        result = runner.invoke(cli, ["agents", "cancel", "ar-error", "--yes"])
+        result = runner.invoke(cli, ["agents", "stop", "ar-error", "--yes"])
 
         assert result.exit_code == 0
-        assert "Cannot cancel agent in status: error" in result.output
+        assert "Cannot stop agent in status: error" in result.output

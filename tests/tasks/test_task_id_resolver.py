@@ -5,7 +5,7 @@ These tests verify that the resolver correctly handles:
 - Path format (e.g., "1.2.3") resolution
 - UUID pass-through
 - Error handling for invalid/non-existent references
-- Deprecation of `gt-*` format
+- Unknown format errors for `gt-*` format (no longer special-cased)
 """
 
 import pytest
@@ -115,11 +115,11 @@ class TestTaskIdResolver:
         with pytest.raises(TaskNotFoundError):
             task_manager.resolve_task_reference("1.2.3", project_id)
 
-    def test_resolve_gt_format_raises_deprecation(self, task_manager, project_id):
-        """Test that gt-* format raises a deprecation error."""
+    def test_resolve_gt_format_raises_unknown_format_error(self, task_manager, project_id):
+        """Test that gt-* format raises an 'unknown format' error (no longer special-cased)."""
         task_manager.create_task(project_id=project_id, title="Test Task")
 
-        with pytest.raises(ValueError, match="deprecated|gt-"):
+        with pytest.raises(TaskNotFoundError, match="Unknown task reference format"):
             task_manager.resolve_task_reference("gt-abc123", project_id)
 
     def test_resolve_invalid_format(self, task_manager, project_id):

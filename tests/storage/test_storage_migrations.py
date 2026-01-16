@@ -1239,7 +1239,9 @@ def test_full_migration_sequence_end_to_end(tmp_path):
 
     # Verify final schema version
     version = get_current_version(db)
-    assert version == EXPECTED_FINAL_VERSION, f"Should be at final schema version {EXPECTED_FINAL_VERSION}"
+    assert version == EXPECTED_FINAL_VERSION, (
+        f"Should be at final schema version {EXPECTED_FINAL_VERSION}"
+    )
 
 
 # =============================================================================
@@ -1514,7 +1516,6 @@ def test_boolean_columns_exist_after_migration(tmp_path):
     """Test that the boolean columns exist in the tasks table after migration.
 
     These flags enable idempotent batch operations:
-    - is_enriched: context has been added
     - is_expanded: subtasks have been created
     - is_tdd_applied: TDD pairs have been generated
     """
@@ -1528,9 +1529,9 @@ def test_boolean_columns_exist_after_migration(tmp_path):
     row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
     assert row is not None
     sql_lower = row["sql"].lower()
-    assert "is_enriched" in sql_lower, "is_enriched column not found in tasks table"
     assert "is_expanded" in sql_lower, "is_expanded column not found in tasks table"
     assert "is_tdd_applied" in sql_lower, "is_tdd_applied column not found in tasks table"
+    # is_enriched was dropped in migration 66
 
 
 def test_boolean_columns_accept_values(tmp_path):
@@ -1549,18 +1550,17 @@ def test_boolean_columns_accept_values(tmp_path):
 
     # Insert task with boolean values set to true (1)
     db.execute(
-        """INSERT INTO tasks (id, project_id, title, is_enriched, is_expanded, is_tdd_applied, created_at, updated_at)
-           VALUES (?, ?, ?, 1, 1, 1, datetime('now'), datetime('now'))""",
+        """INSERT INTO tasks (id, project_id, title, is_expanded, is_tdd_applied, created_at, updated_at)
+           VALUES (?, ?, ?, 1, 1, datetime('now'), datetime('now'))""",
         ("task-1", "test-project", "Test Task"),
     )
 
     # Verify the boolean values were stored correctly
     row = db.fetchone(
-        "SELECT is_enriched, is_expanded, is_tdd_applied FROM tasks WHERE id = ?",
+        "SELECT is_expanded, is_tdd_applied FROM tasks WHERE id = ?",
         ("task-1",),
     )
     assert row is not None
-    assert row["is_enriched"] == 1
     assert row["is_expanded"] == 1
     assert row["is_tdd_applied"] == 1
 
@@ -1591,10 +1591,9 @@ def test_boolean_columns_default_to_zero(tmp_path):
 
     # Verify task was created with default values of 0
     row = db.fetchone(
-        "SELECT is_enriched, is_expanded, is_tdd_applied FROM tasks WHERE id = ?",
+        "SELECT is_expanded, is_tdd_applied FROM tasks WHERE id = ?",
         ("task-1",),
     )
     assert row is not None
-    assert row["is_enriched"] == 0
     assert row["is_expanded"] == 0
     assert row["is_tdd_applied"] == 0

@@ -41,6 +41,8 @@ def test_expand_command_with_flags(mock_task_manager, mock_expander):
         patch("gobby.config.app.load_config") as mock_config,
         patch("gobby.llm.LLMService"),
         patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
+        # Mock get_active_session_id to prevent database access
+        patch("gobby.cli.utils.get_active_session_id", return_value=None),
     ):
         # Enable expansion in config
         mock_config.return_value.gobby_tasks.expansion.enabled = True
@@ -65,4 +67,5 @@ def test_expand_command_with_flags(mock_task_manager, mock_expander):
             context=None,
             enable_web_research=True,
             enable_code_context=False,
+            session_id=None,  # session_id is passed from get_active_session_id()
         )

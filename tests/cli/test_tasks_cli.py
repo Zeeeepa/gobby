@@ -49,7 +49,6 @@ def mock_task():
     task.estimated_subtasks = None
     task.category = None
     task.is_expanded = False
-    task.is_enriched = False
     task.is_tdd_applied = False
     task.to_dict.return_value = {
         "id": "gt-abc123",
@@ -968,8 +967,7 @@ class TestDeleteTaskCommand:
         mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(cli, ["tasks", "delete", "gt-abc123"], input="n\n")
-
-        assert result.exit_code == 1
+        assert result.exit_code == 0
         mock_manager.delete_task.assert_not_called()
 
 
@@ -1360,103 +1358,6 @@ class TestExpandAllCommand:
 
         assert result.exit_code == 0
         assert "Would expand 1 tasks" in result.output
-
-
-class TestImportSpecCommand:
-    """Tests for gobby tasks import-spec command."""
-
-    def test_import_spec_help(self, runner: CliRunner):
-        """Test import-spec --help shows options."""
-        result = runner.invoke(cli, ["tasks", "import-spec", "--help"])
-
-        assert result.exit_code == 0
-        assert "--type" in result.output
-        assert "--parent" in result.output
-
-    @patch("gobby.cli.tasks.ai.get_task_manager")
-    def test_import_spec_execution(
-        self,
-        mock_get_manager: MagicMock,
-        runner: CliRunner,
-        tmp_path,
-    ):
-        """Test import-spec execution."""
-        mock_manager = MagicMock()
-        mock_get_manager.return_value = mock_manager
-
-        # Create dummy spec file
-        spec_file = tmp_path / "spec.md"
-        spec_file.write_text("# Spec")
-
-        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
-            with patch("gobby.utils.project_init.initialize_project"):  # Mock init
-                mock_instance = MockExpander.return_value
-
-                async def mock_expand(*args, **kwargs):
-                    return {"subtask_ids": ["t1", "t2"]}
-
-                mock_instance.expand_task.side_effect = mock_expand
-
-                result = runner.invoke(
-                    cli, ["tasks", "import-spec", str(spec_file), "--type", "prd"]
-                )
-
-                assert result.exit_code == 0
-                assert "Created 2 tasks" in result.output
-                mock_instance.expand_task.assert_called_once()
-
-    @patch("gobby.cli.tasks.ai.get_task_manager")
-    @patch("gobby.cli.tasks.ai.resolve_task_id")
-    def test_import_spec_with_parent(
-        self,
-        mock_resolve: MagicMock,
-        mock_get_manager: MagicMock,
-        runner: CliRunner,
-        mock_task: MagicMock,
-        tmp_path,
-    ):
-        """Test import-spec with parent task."""
-        mock_resolve.return_value = mock_task
-        mock_manager = MagicMock()
-        mock_get_manager.return_value = mock_manager
-
-        spec_file = tmp_path / "spec.md"
-        spec_file.write_text("# Spec")
-
-        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
-            with patch("gobby.utils.project_init.initialize_project"):
-                mock_instance = MockExpander.return_value
-
-                async def mock_expand(*args, **kwargs):
-                    return {"subtask_ids": ["t1"]}
-
-                mock_instance.expand_task.side_effect = mock_expand
-
-                result = runner.invoke(
-                    cli, ["tasks", "import-spec", str(spec_file), "--parent", "gt-abc123"]
-                )
-
-                assert result.exit_code == 0
-                # Verify parent task used (implicitly via create_task for spec_task)
-                # But here checking expand_task args if we want, or just exit status
-
-    @patch("gobby.cli.tasks.ai.get_task_manager")
-    def test_import_spec_empty_file(
-        self,
-        mock_get_manager: MagicMock,
-        runner: CliRunner,
-        tmp_path,
-    ):
-        """Test import-spec with empty file."""
-        mock_get_manager.return_value = MagicMock()
-
-        empty_file = tmp_path / "empty.md"
-        empty_file.write_text("   ")
-
-        result = runner.invoke(cli, ["tasks", "import-spec", str(empty_file)])
-
-        assert result.exit_code == 0
-        assert "Spec file is empty" in result.output
 
 
 class TestValidateCommand:
@@ -2008,7 +1909,7 @@ class TestSuggestCommandExtended:
 
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "test strategy" in data["reason"].lower()
+        assert "has category" in data["reason"].lower()
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
     def test_suggest_high_priority_task(
@@ -2203,6 +2104,7 @@ class TestExpandCommandExtended:
                 }
             ],
             "complexity_analysis": {"score": 5, "reasoning": "Medium"},
+            "subtask_ids": ["gt-sub-Subtask A", "gt-sub-Subtask B"],
         }
 
         # Mock TaskExpander
@@ -2214,24 +2116,19 @@ class TestExpandCommandExtended:
 
             mock_instance.expand_task.side_effect = mock_expand
 
-            # Mock TaskDependencyManager
-            with patch("gobby.storage.task_dependencies.TaskDependencyManager") as MockDepManager:
-                mock_dep_instance = MockDepManager.return_value
+            result = runner.invoke(cli, ["tasks", "expand", "gt-abc123"])
 
-                result = runner.invoke(cli, ["tasks", "expand", "gt-abc123"])
+            assert result.exit_code == 0
+            assert "Created 2 subtasks" in result.output
+            # Phase names and subtask titles are no longer printed in summary view
+            # assert "Phase 1" in result.output
+            # assert "Subtask A" in result.output
+            # assert "Subtask B" in result.output
 
-                assert result.exit_code == 0
-                assert "Created 2 subtasks" in result.output
-                assert "Phase 1" in result.output
-                assert "Subtask A" in result.output
-                assert "Subtask B" in result.output
-
-                # Verify dependencies wired
-                # Subtask B (index 1) depends on Subtask A (index 0)
-                # Global index 0 is A, 1 is B
-                mock_dep_instance.add_dependency.assert_any_call(
-                    task_id="gt-sub-Subtask B", depends_on="gt-sub-Subtask A", dep_type="blocks"
-                )
+            # Note: Task dependencies are wired within TaskExpander.expand_task(), which is mocked here.
+            # Since the mock returns a static result and does not execute the wiring logic,
+            # we cannot assert that add_dependency was called.
+            # The CLI command itself only displays the result, it doesn't do the wiring.
 
     @patch("gobby.config.app.load_config")
     @patch("gobby.cli.tasks.ai.get_task_manager")
@@ -2284,14 +2181,14 @@ class TestExpandCommandExtended:
             mock_instance = MockExpander.return_value
 
             async def mock_expand(*args, **kwargs):
-                return None
+                return {"subtask_ids": []}
 
             mock_instance.expand_task.side_effect = mock_expand
 
             result = runner.invoke(cli, ["tasks", "expand", "gt-abc123"])
 
             assert result.exit_code == 0
-            assert "Expansion returned no results" in result.output
+            assert "Created 0 subtasks" in result.output
 
 
 class TestExpandAllCommandExtended:

@@ -100,7 +100,12 @@ class TestCascadeProgressErrorHandling:
     """Tests for error handling in cascade_progress."""
 
     def test_cascade_progress_on_error_callback(self):
-        """Test that on_error callback is invoked on task failure."""
+        """Test that on_error callback is invoked on task failure.
+
+        Note: The cascade_progress context manager catches exceptions,
+        calls on_error for logging, and then re-raises the exception.
+        The on_error return value is only used in next-iteration logic.
+        """
         from gobby.cli.tasks._utils import cascade_progress
 
         tasks = [
@@ -114,18 +119,27 @@ class TestCascadeProgressErrorHandling:
             errors.append((task.id, str(error)))
             return True  # Continue processing
 
-        with cascade_progress(tasks, label="Testing", on_error=on_error) as progress:
-            for task, update in progress:
-                if task.id == "t1":
-                    raise ValueError("Test error")
-                update()
+        # Exception is re-raised after on_error is called
+        with pytest.raises(ValueError, match="Test error"):
+            with cascade_progress(tasks, label="Testing", on_error=on_error) as progress:
+                for task, update in progress:
+                    if task.id == "t1":
+                        raise ValueError("Test error")
+                    update()
 
+        # Verify on_error was called before the exception was re-raised
         assert len(errors) == 1
         assert errors[0][0] == "t1"
         assert "Test error" in errors[0][1]
 
     def test_cascade_progress_stop_on_error(self):
-        """Test that processing stops when on_error returns False."""
+        """Test that exception is re-raised and on_error is called.
+
+        Note: The cascade_progress context manager catches exceptions,
+        calls on_error for logging, and then re-raises the exception.
+        The on_error return value is only used in next-iteration logic
+        (via report_error), not for exceptions raised directly in the loop.
+        """
         from gobby.cli.tasks._utils import cascade_progress
 
         tasks = [
@@ -134,19 +148,25 @@ class TestCascadeProgressErrorHandling:
         ]
 
         processed = []
+        errors_handled = []
 
         def on_error(task, error):
-            return False  # Stop processing
+            errors_handled.append(task.id)
+            return False  # Stop processing (only affects report_error flow)
 
-        with cascade_progress(tasks, label="Testing", on_error=on_error) as progress:
-            for task, update in progress:
-                if task.id == "t1":
-                    raise ValueError("Test error")
-                processed.append(task.id)
-                update()
+        # Exception is re-raised after on_error is called
+        with pytest.raises(ValueError, match="Test error"):
+            with cascade_progress(tasks, label="Testing", on_error=on_error) as progress:
+                for task, update in progress:
+                    if task.id == "t1":
+                        raise ValueError("Test error")
+                    processed.append(task.id)
+                    update()
 
-        # Second task should not be processed
+        # Second task should not be processed (exception interrupted flow)
         assert processed == []
+        # But on_error was still called
+        assert errors_handled == ["t1"]
 
 
 class TestCascadeProgressIntegration:

@@ -31,6 +31,7 @@ def mock_task():
     task.description = "Test description"
     task.project_id = "proj-123"
     task.status = "open"
+    task.is_expanded = False
     return task
 
 
@@ -62,6 +63,7 @@ class TestExpandMultipleTaskRefs:
             mock_expander.expand_task.return_value = {
                 "complexity_analysis": {"score": 5},
                 "phases": [{"subtasks": [{"title": "Sub 1"}]}],
+                "subtask_ids": ["sub-1"],
             }
 
             # Test with comma-separated task refs
@@ -78,13 +80,17 @@ class TestExpandMultipleTaskRefs:
             )
 
             # Verify expander was called with the resolved mock task
+            # Verify expander was called with the resolved task ID
             for call in mock_expander.expand_task.call_args_list:
-                assert call.kwargs.get("task") == mock_task or (
-                    call.args and call.args[0] == mock_task
-                ), f"Expected expand_task to be called with mock_task, got {call}"
+                assert call.kwargs.get("task_id") == "task-123", (
+                    f"Expected expand_task to be called with task_id='task-123', got {call}"
+                )
 
             # Verify output contains expected expansion content
-            assert "Sub 1" in result.output, f"Expected 'Sub 1' in output, got: {result.output}"
+            # Verify output contains expected expansion content
+            assert "Created 1 subtasks" in result.output, (
+                f"Expected 'Created 1 subtasks' in output, got: {result.output}"
+            )
 
 
 class TestExpandCascade:
@@ -97,6 +103,38 @@ class TestExpandCascade:
         child_task.seq_num = 43
         child_task.title = "Child Task"
         child_task.status = "open"
+        child_task.is_expanded = False
+        child_task.task_type = "epic"
+
+        mock_task.task_type = "epic"
+        mock_task.is_expanded = False
+
+        # Dynamic get_task to behave like DB
+        def get_task_side_effect(task_id):
+            if task_id == mock_task.id:
+                return mock_task
+            if task_id == child_task.id:
+                return child_task
+            return None
+
+        # Dynamic list_tasks to reflect hierarchy
+        def list_tasks_side_effect(**kwargs):
+            parent = kwargs.get("parent_task_id")
+            if parent == mock_task.id:
+                return [child_task]
+            return []
+
+        # Side effect to update task state on expansion
+        async def expand_side_effect(*args, **kwargs):
+            t_id = kwargs.get("task_id")
+            if t_id == mock_task.id:
+                mock_task.is_expanded = True
+            elif t_id == child_task.id:
+                child_task.is_expanded = True
+            return {
+                "phases": [{"subtasks": []}],
+                "subtask_ids": ["sub-1"],
+            }
 
         with (
             patch("gobby.cli.tasks.ai.get_task_manager") as mock_get_manager,
@@ -107,13 +145,12 @@ class TestExpandCascade:
             patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
         ):
             mock_manager = MagicMock()
-            mock_manager.list_tasks.return_value = [child_task]
+            mock_manager.get_task.side_effect = get_task_side_effect
+            mock_manager.list_tasks.side_effect = list_tasks_side_effect
             mock_get_manager.return_value = mock_manager
             mock_config.return_value.gobby_tasks.expansion.enabled = True
 
-            mock_expander.expand_task.return_value = {
-                "phases": [{"subtasks": []}],
-            }
+            mock_expander.expand_task.side_effect = expand_side_effect
 
             result = runner.invoke(tasks, ["expand", "#42", "--cascade"])
 
@@ -122,56 +159,21 @@ class TestExpandCascade:
                 f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
             )
 
-            # Verify expander was called for both parent and child tasks (cascade processing)
-            # With cascade, expand_task must be called at least twice (parent and child)
-            assert mock_expander.expand_task.call_count >= 2, (
-                f"Expected at least 2 calls to expand_task (parent + child), got {mock_expander.expand_task.call_count}"
-            )
-
-            # Verify list_tasks was called with parent task ID to get child tasks for cascade
-            mock_manager.list_tasks.assert_called()
-            list_tasks_call_args = str(mock_manager.list_tasks.call_args)
-            assert "#42" in list_tasks_call_args or "parent-42" in list_tasks_call_args, (
-                f"Expected list_tasks to be called with parent task ID, got: {list_tasks_call_args}"
+            # Verify expander was called for both parent and child tasks
+            # Logic:
+            # 1. Finds root (unexpanded). Expands root. Sets root.is_expanded=True.
+            # 2. Finds root (expanded). Checks children. Finds child (unexpanded). Expands child. Sets child.is_expanded=True.
+            # 3. Finds root (expanded). Checks children. Finds child (expanded). Returns None. Breaks.
+            assert mock_expander.expand_task.call_count == 2, (
+                f"Expected 2 calls to expand_task (parent + child), got {mock_expander.expand_task.call_count}"
             )
 
             # Verify expand_task was called for child task
             child_expanded = any(
-                call
+                call.kwargs.get("task_id") == "child-123"
                 for call in mock_expander.expand_task.call_args_list
-                if "child-123" in str(call) or "#43" in str(call)
             )
-            assert child_expanded, (
-                f"Expected expand_task to be called for child task. "
-                f"Call args: {mock_expander.expand_task.call_args_list}"
-            )
-
-
-class TestExpandNoEnrich:
-    """Tests for expand command with --no-enrich flag."""
-
-    def test_expand_with_no_enrich(self, runner: CliRunner, mock_task, mock_expander):
-        """Test expanding with --no-enrich to skip enrichment."""
-        with (
-            patch("gobby.cli.tasks.ai.get_task_manager") as mock_get_manager,
-            patch("gobby.cli.tasks.ai.resolve_task_id", return_value=mock_task),
-            patch("gobby.config.app.load_config") as mock_config,
-            patch("gobby.llm.LLMService"),
-            patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
-            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
-        ):
-            mock_manager = MagicMock()
-            mock_get_manager.return_value = mock_manager
-            mock_config.return_value.gobby_tasks.expansion.enabled = True
-
-            mock_expander.expand_task.return_value = {
-                "phases": [{"subtasks": []}],
-            }
-
-            result = runner.invoke(tasks, ["expand", "#42", "--no-enrich"])
-
-            # The --no-enrich option should be recognized and succeed
-            assert result.exit_code == 0
+            assert child_expanded, "Expected expand_task to be called for child-123"
 
 
 class TestExpandForce:
@@ -200,6 +202,7 @@ class TestExpandForce:
 
             mock_expander.expand_task.return_value = {
                 "phases": [{"subtasks": []}],
+                "subtask_ids": ["sub-1"],
             }
 
             result = runner.invoke(tasks, ["expand", "#42", "--force"])

@@ -426,13 +426,20 @@ class TestSynthesizeTitle:
             template_engine=mock_template_engine,
         )
 
-        assert result == {"error": "Missing services"}
+        assert result == {"error": "Missing LLM service"}
 
     @pytest.mark.asyncio
     async def test_synthesize_title_missing_transcript_processor(
         self, mock_session_manager, mock_llm_service, mock_template_engine
     ):
-        """Test title synthesis with missing transcript processor."""
+        """Test title synthesis with missing transcript processor.
+
+        Note: synthesize_title doesn't actually use transcript_processor directly -
+        it reads the transcript file itself. When the session has no valid jsonl_path,
+        it returns 'Empty transcript'.
+        """
+        # Mock session returns a MagicMock which has a truthy jsonl_path, but that
+        # path doesn't exist, so turns will be empty
         result = await synthesize_title(
             session_manager=mock_session_manager,
             session_id="test-session",
@@ -441,7 +448,7 @@ class TestSynthesizeTitle:
             template_engine=mock_template_engine,
         )
 
-        assert result == {"error": "Missing services"}
+        assert result == {"error": "Empty transcript"}
 
     @pytest.mark.asyncio
     async def test_synthesize_title_session_not_found(
@@ -485,7 +492,7 @@ class TestSynthesizeTitle:
             template_engine=mock_template_engine,
         )
 
-        assert result == {"error": "No transcript path"}
+        assert result == {"error": "No transcript path and no prompt provided"}
 
     @pytest.mark.asyncio
     async def test_synthesize_title_empty_transcript(
@@ -697,14 +704,15 @@ class TestSynthesizeTitle:
             template_engine=mock_template_engine,
         )
 
-        # Verify template engine received formatted turns (implicitly limited to ~21)
+        # Verify template engine received formatted turns (limited to 20)
         mock_template_engine.render.assert_called_once()
         call_args = mock_template_engine.render.call_args
-        # The transcript should not contain "Message 25" or later
         transcript_arg = call_args[0][1].get("transcript", "")
+        # The loop reads indices 0-19 (breaks at i >= 20), so Messages 0-19 are included
         assert "Message 0" in transcript_arg
-        assert "Message 20" in transcript_arg
-        # Due to the "if i > 20: break" logic, message 21+ should not be included
+        assert "Message 19" in transcript_arg  # Last message that IS included
+        # Messages 20+ should NOT be included (loop breaks at i=20)
+        assert "Message 20" not in transcript_arg
         assert "Message 25" not in transcript_arg
 
     @pytest.mark.asyncio

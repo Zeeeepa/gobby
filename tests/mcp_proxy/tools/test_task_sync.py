@@ -121,7 +121,7 @@ class TestLinkCommit:
 
         assert result["task_id"] == "task-1"
         assert "abc123" in result["commits"]
-        task_manager.link_commit.assert_called_once_with("task-1", "abc123")
+        task_manager.link_commit.assert_called_once_with("task-1", "abc123", cwd=None)
 
     def test_link_commit_error(self, mock_sync_registry):
         """Test link_commit returns error on failure."""
@@ -186,7 +186,7 @@ class TestUnlinkCommit:
 
         assert result["task_id"] == "task-1"
         assert result["commits"] == []
-        task_manager.unlink_commit.assert_called_once_with("task-1", "abc123")
+        task_manager.unlink_commit.assert_called_once_with("task-1", "abc123", cwd=None)
 
     def test_unlink_commit_error(self, mock_sync_registry):
         """Test unlink_commit returns error on failure."""
@@ -445,7 +445,7 @@ class TestGitIntegrationEdgeCases:
         full_sha = "abc123def456789abcdef123456789abcdef1234"
         link(task_id="task-1", commit_sha=full_sha)
 
-        task_manager.link_commit.assert_called_with("task-1", full_sha)
+        task_manager.link_commit.assert_called_with("task-1", full_sha, cwd=None)
 
     def test_link_commit_short_sha(self, mock_sync_registry):
         """Test linking with short SHA."""
@@ -465,7 +465,7 @@ class TestGitIntegrationEdgeCases:
         link = registry.get_tool("link_commit")
         link(task_id="task-1", commit_sha="abc123")
 
-        task_manager.link_commit.assert_called_with("task-1", "abc123")
+        task_manager.link_commit.assert_called_with("task-1", "abc123", cwd=None)
 
     def test_auto_link_with_skipped_commits(self, mock_sync_registry):
         """Test auto_link_commits reports skipped commits."""

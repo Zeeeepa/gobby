@@ -30,7 +30,6 @@ def mock_task():
     task.description = "Test description"
     task.project_id = "proj-123"
     task.status = "open"
-    task.is_enriched = False
     task.is_tdd_applied = False
     task.priority = 2
     return task

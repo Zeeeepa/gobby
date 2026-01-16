@@ -169,11 +169,10 @@ class TestLLMServiceGetProviderForFeature:
 
         service = LLMService(llm_config_claude_only)
 
-        feature_config = SessionSummaryConfig(
-            provider="claude",
-            model="claude-haiku-4-5",
-            prompt=None,  # No prompt configured
-        )
+        feature_config = MagicMock()
+        feature_config.provider = "claude"
+        feature_config.model = "claude-haiku-4-5"
+        feature_config.prompt = None
 
         provider, model, prompt = service.get_provider_for_feature(feature_config)
 

@@ -63,7 +63,7 @@ def temp_db(tmp_path):
             path_cache TEXT,
             agent_name TEXT,
             reference_doc TEXT,
-            is_enriched INTEGER DEFAULT 0,
+            requires_user_review INTEGER DEFAULT 0,
             is_expanded INTEGER DEFAULT 0,
             is_tdd_applied INTEGER DEFAULT 0
         )

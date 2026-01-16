@@ -182,7 +182,9 @@ class TestSessionSummaryConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-haiku-4-5"
-        assert config.prompt is None
+        # prompt now has a default template with placeholders
+        assert config.prompt is not None
+        assert "Generate a concise session summary" in config.prompt
 
     def test_custom_values(self):
         """Test custom session summary config."""

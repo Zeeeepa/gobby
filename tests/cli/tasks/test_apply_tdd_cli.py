@@ -84,7 +84,12 @@ class TestApplyTddCommand:
             patch("gobby.cli.tasks.ai.resolve_task_id", return_value=mock_task),
         ):
             mock_manager = MagicMock()
-            mock_manager.list_tasks.return_value = [child_task]
+            # Return child_task only for the parent, empty list for child to prevent recursion
+            mock_manager.list_tasks.side_effect = (
+                lambda parent_task_id=None, **kwargs: [child_task]
+                if parent_task_id == mock_task.id
+                else []
+            )
             mock_manager.create_task.return_value = mock_task
             mock_get_manager.return_value = mock_manager
 

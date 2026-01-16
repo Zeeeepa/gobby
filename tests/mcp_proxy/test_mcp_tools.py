@@ -235,6 +235,7 @@ async def test_sync_tasks(mock_task_manager, mock_sync_manager):
 async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
     """Test expand_task tool execution with expander registered."""
     mock_expander = MagicMock()
+
     # Return new format with subtask_ids (created by agent via tool calls)
     mock_expander.expand_task = AsyncMock(
         return_value={
@@ -243,9 +244,13 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
             "text": "Created 2 subtasks",
         }
     )
+    mock_task_manager.list_tasks.return_value = []  # Ensure it's a leaf task
 
     # Mock dependency manager (in task_expansion module where expand_task is defined)
-    with patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager") as MockDepManager:
+    with (
+        patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager") as MockDepManager,
+        patch("gobby.mcp_proxy.tools.tasks.get_project_context", return_value={"id": "p1"}),
+    ):
         mock_dep_instance = MockDepManager.return_value
 
         registry = create_task_registry(
@@ -254,6 +259,8 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
 
         msg_task = MagicMock()
         msg_task.id = "t1"
+        msg_task.is_expanded = False
+        msg_task.expansion_context = None
         msg_task.project_id = "p1"
         mock_task_manager.get_task.return_value = msg_task
 
@@ -266,9 +273,19 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
         sub2.id = "sub2"
         sub2.title = "Subtask 2"
         sub2.status = "open"
+
         # Note: resolve_task_id_for_mcp calls get_task first to validate UUID exists,
-        # then expand_task calls it again, then it loops through subtask_ids
-        mock_task_manager.get_task.side_effect = [msg_task, msg_task, sub1, sub2]
+        # then expand_task calls it again, then it loops through subtask_ids multiple times
+        def get_task_side_effect(task_id):
+            if task_id == "t1":
+                return msg_task
+            if task_id == "sub1":
+                return sub1
+            if task_id == "sub2":
+                return sub2
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
 
         result = await registry.call("expand_task", {"task_id": "t1", "context": "extra info"})
 
@@ -277,8 +294,11 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
         assert result["tasks_created"] == 2
         assert len(result["subtasks"]) == 2
         # Subtasks are brief format: [{id, title}, ...]
-        assert result["subtasks"][0] == {"id": "sub1", "title": "Subtask 1"}
-        assert result["subtasks"][1] == {"id": "sub2", "title": "Subtask 2"}
+        assert result["subtasks"][0]["id"] == "sub1"
+        assert result["subtasks"][0]["title"] == "Subtask 1"
+        assert result["subtasks"][1]["id"] == "sub2"
+        assert result["subtasks"][1]["title"] == "Subtask 2"
+        assert result["is_expanded"] is True
 
         # Verify parent -> subtask dependencies are wired
         mock_dep_instance.add_dependency.assert_any_call(
@@ -300,9 +320,12 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
         registry = create_task_registry(
             mock_task_manager, mock_sync_manager, task_expander=mock_expander
         )
+        mock_task_manager.list_tasks.return_value = []  # Ensure it's a leaf task
 
         mock_task = MagicMock()
         mock_task.id = "t1"
+        mock_task.is_expanded = False
+        mock_task.expansion_context = None
         mock_task_manager.get_task.return_value = mock_task
 
         # Call with explicit flags
@@ -322,7 +345,7 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
             context=None,
             enable_web_research=True,
             enable_code_context=False,
-            tdd_mode=False,
+            session_id=None,
         )
 
 
@@ -409,12 +432,13 @@ async def test_link_commit_tool(mock_task_manager, mock_sync_manager):
     mock_task.to_dict.return_value = {"id": "t1", "commits": ["abc123"]}
     mock_task_manager.link_commit.return_value = mock_task
 
-    result = await registry.call(
-        "link_commit",
-        {"task_id": "t1", "commit_sha": "abc123"},
-    )
+    with patch("gobby.mcp_proxy.tools.task_sync.get_project_context", return_value=None):
+        result = await registry.call(
+            "link_commit",
+            {"task_id": "t1", "commit_sha": "abc123"},
+        )
 
-    mock_task_manager.link_commit.assert_called_with("t1", "abc123")
+    mock_task_manager.link_commit.assert_called_with("t1", "abc123", cwd=None)
     assert result["task_id"] == "t1"
     assert "abc123" in result["commits"]
 
@@ -430,12 +454,13 @@ async def test_unlink_commit_tool(mock_task_manager, mock_sync_manager):
     mock_task.to_dict.return_value = {"id": "t1", "commits": []}
     mock_task_manager.unlink_commit.return_value = mock_task
 
-    result = await registry.call(
-        "unlink_commit",
-        {"task_id": "t1", "commit_sha": "abc123"},
-    )
+    with patch("gobby.mcp_proxy.tools.task_sync.get_project_context", return_value=None):
+        result = await registry.call(
+            "unlink_commit",
+            {"task_id": "t1", "commit_sha": "abc123"},
+        )
 
-    mock_task_manager.unlink_commit.assert_called_with("t1", "abc123")
+    mock_task_manager.unlink_commit.assert_called_with("t1", "abc123", cwd=None)
     assert result["task_id"] == "t1"
 
 

@@ -4,7 +4,7 @@ These tests verify that MCP tools correctly resolve task references:
 - `#N` format (e.g., #1, #47) resolves to correct UUID before processing
 - UUID format passes through unchanged
 - Path format (e.g., 1.2.3) resolves to correct UUID
-- `gt-*` format returns error response with helpful migration message
+- `gt-*` format returns 'unknown format' error (no longer special-cased)
 - Error response includes helpful information for all error cases
 """
 
@@ -104,18 +104,17 @@ class TestResolveTaskIdForMCP:
         mock_task_manager.resolve_task_reference.assert_called_once_with("1.2.3", "proj-1")
 
     def test_resolve_gt_format_returns_error(self, mock_task_manager):
-        """Test gt-* format returns deprecation error."""
+        """Test gt-* format returns 'task not found' error (treated as invalid UUID)."""
         from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 
-        mock_task_manager.resolve_task_reference.side_effect = ValueError(
-            "The 'gt-*' task ID format is deprecated. Use '#N' format instead."
-        )
+        # gt-* format doesn't match #N, path, or digit patterns, so it's treated as UUID
+        # get_task returns None for invalid UUID, which triggers TaskNotFoundError
+        mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(TaskNotFoundError) as exc_info:
             resolve_task_id_for_mcp(mock_task_manager, "gt-abc123", project_id="proj-1")
 
-        assert "deprecated" in str(exc_info.value)
-        assert "#N" in str(exc_info.value)
+        assert "gt-abc123" in str(exc_info.value)
 
 
 class TestMCPGetTaskWithHashFormat:
@@ -167,10 +166,12 @@ class TestMCPGetTaskWithHashFormat:
         assert result.get("id") == sample_task_uuid.id
 
     def test_get_task_with_gt_format_error(self, mock_task_manager, mock_sync_manager):
-        """Test get_task returns error for gt-* format."""
+        """Test get_task returns error for gt-* format (treated as invalid UUID)."""
         from gobby.mcp_proxy.tools.tasks import create_task_registry
 
         mock_task_manager.db = MagicMock()
+        # gt-* format is treated as UUID, get_task returns None for invalid UUID
+        mock_task_manager.get_task.return_value = None
 
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
         get_task_func = registry._tools["get_task"].func
@@ -182,8 +183,7 @@ class TestMCPGetTaskWithHashFormat:
             result = get_task_func(task_id="gt-abc123")
 
         assert "error" in result
-        assert "deprecated" in result["error"]
-        assert "#N" in result["error"]
+        assert "not found" in result["error"].lower() or "gt-abc123" in result["error"].lower()
 
 
 class TestMCPUpdateTaskWithHashFormat:
@@ -318,7 +318,7 @@ class TestIntegrationMCPTaskIdResolution:
 
     @pytest.mark.integration
     def test_mcp_get_task_with_gt_format_error(self, temp_db, sample_project):
-        """Test MCP get_task returns error for gt-* format."""
+        """Test MCP get_task returns error for gt-* format (unknown format)."""
         from gobby.mcp_proxy.tools.tasks import create_task_registry
         from gobby.storage.tasks import LocalTaskManager
         from gobby.sync.tasks import TaskSyncManager
@@ -339,5 +339,4 @@ class TestIntegrationMCPTaskIdResolution:
             result = get_task_func(task_id="gt-abc123")
 
         assert "error" in result
-        assert "deprecated" in result["error"]
-        assert "#N" in result["error"]
+        assert "not found" in result["error"].lower() or "unknown" in result["error"].lower()
