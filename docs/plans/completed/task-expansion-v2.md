@@ -1153,7 +1153,7 @@ Bad: `- [ ] Implement enrichment` (too vague)
 2. Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
 3. Verify task structure with `gobby tasks list --tree`
 
-#### 9c. Spec Writing Guide
+#### 9c. Spec Writing Documentation
 
 **New file:** `docs/guides/spec-writing.md`
 

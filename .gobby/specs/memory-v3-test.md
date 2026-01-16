@@ -14,7 +14,7 @@ Transform gobby-memory from a monolithic implementation into a pluggable abstrac
 
 ## Constraints
 
-- Zero breaking changes to existing MCP tool interface
+- Zero breaking changes to existing MCP tool interface (exception: `recall_memory` renamed to `search_memories` with alias support during deprecation period)
 - SQLite backend must retain all V2 features (TF-IDF, cross-references, decay)
 - External backends are optional dependencies (lazy-loaded)
 - JSONL backup works universally across all backends
@@ -33,6 +33,7 @@ Transform gobby-memory from a monolithic implementation into a pluggable abstrac
 - [ ] Update MemoryBackupManager to trigger on facade operations
 - [ ] Add backend selection to DaemonConfig schema
 - [ ] Rename MCP tool `recall_memory` to `search_memories`
+- [ ] Add `recall_memory` as deprecated alias for `search_memories` (removed in v4)
 
 ## Phase 2: Multimodal Support
 
@@ -75,6 +76,42 @@ Transform gobby-memory from a monolithic implementation into a pluggable abstrac
 - [ ] Implement REST API client for OpenMemory endpoints
 - [ ] Add health check for OpenMemory connectivity
 - [ ] Add openmemory backend config section
+
+## Backend Resilience Requirements
+
+All external backends (MemU, Mem0, OpenMemory) must implement:
+
+### Timeouts & Retries
+- Default timeout: 30s (configurable per backend)
+- Max retries: 3 with exponential backoff (1s, 2s, 4s)
+- Retryable errors: network timeouts, 5xx responses, connection refused
+
+### Circuit Breaker
+- Failure threshold: 5 consecutive failures
+- Recovery timeout: 60s
+- Half-open probe: Single request to test recovery
+
+### Health Checks
+- `health_check()` method on MemoryBackend protocol
+- Called on startup and periodically (configurable interval, default 5m)
+- Failed health check → circuit open
+
+### Fallback Semantics
+- `fallback_on_error: bool` config option (default: false)
+- When true: fall back to NullMemoryBackend on failure
+- When false: raise exception immediately (fail-fast)
+
+### Configuration Keys
+```yaml
+backends:
+  memu:
+    timeout: 30
+    max_retries: 3
+    backoff_base: 1.0
+    circuit_breaker_threshold: 5
+    circuit_breaker_timeout: 60
+    fallback_on_error: false
+```
 
 ## Phase 6: Markdown Export (Optional)
 

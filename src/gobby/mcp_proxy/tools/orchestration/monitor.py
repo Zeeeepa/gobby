@@ -79,6 +79,7 @@ def register_monitor(
         # Categorize by status
         open_tasks = []
         in_progress_tasks = []
+        review_tasks: list[dict[str, Any]] = []
         closed_tasks = []
 
         for task in subtasks:
@@ -100,6 +101,8 @@ def register_monitor(
                 closed_tasks.append(task_info)
             elif task.status == "in_progress":
                 in_progress_tasks.append(task_info)
+            elif task.status == "review":
+                review_tasks.append(task_info)
             else:
                 open_tasks.append(task_info)
 
@@ -114,11 +117,13 @@ def register_monitor(
             "summary": {
                 "open": len(open_tasks),
                 "in_progress": len(in_progress_tasks),
+                "review": len(review_tasks),
                 "closed": len(closed_tasks),
                 "total": len(subtasks),
             },
             "open_tasks": open_tasks,
             "in_progress_tasks": in_progress_tasks,
+            "review_tasks": review_tasks,
             "closed_tasks": closed_tasks,
         }
 
@@ -223,8 +228,13 @@ def register_monitor(
 
             # Check if the task is closed (agent completed successfully)
             if task_id:
-                task = task_manager.get_task(task_id)
-                if task and task.status == "closed":
+                try:
+                    task = task_manager.get_task(task_id)
+                except Exception as e:
+                    logger.warning(f"Failed to get task {task_id}: {e}")
+                    task = None
+
+                if task is not None and task.status == "closed":
                     newly_completed.append(
                         {
                             **agent_info,

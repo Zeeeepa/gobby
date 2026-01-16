@@ -143,7 +143,7 @@ async def synthesize_title(
             turns = []
             path = Path(transcript_path)
             if path.exists():
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     for i, line in enumerate(f):
                         if i >= 20:
                             break

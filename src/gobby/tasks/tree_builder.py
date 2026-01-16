@@ -151,9 +151,17 @@ class TaskTreeBuilder:
                 labels=labels,
                 validation_criteria=validation_criteria,
                 requires_user_review=requires_user_review,
+                created_in_session_id=self.session_id,
             )
 
             self._created_tasks.append(task.id)
+
+            # Check for duplicate titles (warn but continue for partial functionality)
+            if title in self._title_to_id:
+                existing_id = self._title_to_id[title]
+                self._errors.append(
+                    f"Duplicate task title '{title}': conflicts with existing task {existing_id}"
+                )
             self._title_to_id[title] = task.id
 
             # Track sibling index for numeric dependency references

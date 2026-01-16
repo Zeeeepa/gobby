@@ -115,7 +115,7 @@ def decode_llm_response(
     text: str,
     response_type: type[T],
     *,
-    strict: bool = True,
+    strict: bool = False,  # Default False for LLM responses (type coercion)
 ) -> T | None:
     """Extract JSON from LLM response and decode to typed struct.
 
@@ -154,8 +154,8 @@ Added to `llm_providers.py`:
 ```python
 class LLMProvidersConfig(BaseModel):
     json_strict: bool = Field(
-        default=True,
-        description="Strict JSON validation. Can be overridden per-workflow.",
+        default=False,  # LLM responses often have type quirks; use permissive default
+        description="Strict JSON validation. Set True for pre-validated data.",
     )
 ```
 

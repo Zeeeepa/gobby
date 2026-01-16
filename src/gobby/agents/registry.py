@@ -9,6 +9,7 @@ that shouldn't be persisted.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -283,21 +284,28 @@ class RunningAgentRegistry:
 
             # Strategy 2: pgrep fallback (for Codex/Gemini without hooks)
             if found_via == "registry" or not target_pid:
-                try:
-                    # Use -- to prevent pgrep from interpreting pattern as options
-                    result = subprocess.run(
-                        ["pgrep", "-f", "--", f"session-id {agent.session_id}"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5.0,
+                # Validate session_id format (UUID or safe identifier) to prevent injection
+                session_id_pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
+                if not session_id_pattern.match(agent.session_id):
+                    self._logger.warning(
+                        f"Invalid session_id format, skipping pgrep: {agent.session_id}"
                     )
-                    if result.returncode == 0 and result.stdout.strip():
-                        pids = result.stdout.strip().split("\n")
-                        target_pid = int(pids[0])
-                        found_via = "pgrep"
-                        self._logger.info(f"Found PID via pgrep: {target_pid}")
-                except Exception as e:
-                    self._logger.warning(f"pgrep fallback failed: {e}")
+                else:
+                    try:
+                        # Use -- to prevent pgrep from interpreting pattern as options
+                        result = subprocess.run(
+                            ["pgrep", "-f", "--", f"session-id {agent.session_id}"],
+                            capture_output=True,
+                            text=True,
+                            timeout=5.0,
+                        )
+                        if result.returncode == 0 and result.stdout.strip():
+                            pids = result.stdout.strip().split("\n")
+                            target_pid = int(pids[0])
+                            found_via = "pgrep"
+                            self._logger.info(f"Found PID via pgrep: {target_pid}")
+                    except Exception as e:
+                        self._logger.warning(f"pgrep fallback failed: {e}")
 
         if not target_pid:
             return {"success": False, "error": "No target PID found"}

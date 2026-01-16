@@ -275,6 +275,22 @@ def register_orchestrator(
                     )
                     continue
 
+                # Validate workflow early (before creating worktree to avoid cleanup)
+                if workflow:
+                    workflow_loader = WorkflowLoader()
+                    is_valid, error_msg = workflow_loader.validate_workflow_for_agent(
+                        workflow, project_path=project_path
+                    )
+                    if not is_valid:
+                        skipped.append(
+                            {
+                                "task_id": task.id,
+                                "title": task.title,
+                                "reason": f"Invalid workflow: {error_msg}",
+                            }
+                        )
+                        continue
+
                 # Determine worktree path
                 newly_created_worktree = False
                 if existing_wt:
@@ -348,22 +364,6 @@ def register_orchestrator(
                         )
                         continue
                     newly_created_worktree = True
-
-                # Validate workflow
-                if workflow:
-                    workflow_loader = WorkflowLoader()
-                    is_valid, error_msg = workflow_loader.validate_workflow_for_agent(
-                        workflow, project_path=project_path
-                    )
-                    if not is_valid:
-                        skipped.append(
-                            {
-                                "task_id": task.id,
-                                "title": task.title,
-                                "reason": f"Invalid workflow: {error_msg}",
-                            }
-                        )
-                        continue
 
                 # Build prompt with task context
                 prompt = _build_task_prompt(task)
