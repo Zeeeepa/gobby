@@ -921,7 +921,7 @@ def create_agents_registry(
 
         Args:
             run_id: Agent run ID
-            signal: Signal to send (TERM, KILL). Default: TERM
+            signal: Signal to send (TERM, KILL, INT, HUP, QUIT). Default: TERM
             force: Use SIGKILL immediately (equivalent to signal="KILL")
             stop: Also end the agent's workflow (prevents restart)
 
@@ -931,6 +931,15 @@ def create_agents_registry(
         if force:
             signal = "KILL"
 
+        # Validate signal against allowlist to prevent injection
+        signal = signal.upper()
+        allowed_signals = {"TERM", "KILL", "INT", "HUP", "QUIT"}
+        if signal not in allowed_signals:
+            return {
+                "success": False,
+                "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}",
+            }
+
         # Get agent info before killing (for session_id)
         agent = agent_registry.get(run_id)
         session_id = agent.session_id if agent else None
@@ -939,7 +948,7 @@ def create_agents_registry(
         import asyncio
 
         result = await asyncio.to_thread(
-            agent_registry.kill, run_id, signal_name=signal.upper()
+            agent_registry.kill, run_id, signal_name=signal
         )
 
         if result.get("success"):

@@ -68,11 +68,30 @@ Returns complete inputSchema with all parameters.
 mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="create_task",
-    arguments={"title": "Implement feature X", "session_id": "<your_session_id>"}
+    arguments={"title": "Implement feature X", "session_id": "<your_session_id>"}  # session_id is Required
 )
 ```
 
 Note: `server_name` changes to `gobby-tasks` when calling (not `gobby`).
+
+### Session ID Requirement
+
+The `session_id` parameter is **required** for `create_task` and links the task to your current working session. This enables session-task tracking, handoff context, and workflow integration.
+
+**How to obtain your session_id:**
+
+```python
+# Get current session info
+result = mcp__gobby__call_tool(
+    server_name="gobby-sessions",
+    tool_name="list_sessions",
+    arguments={"limit": 1}
+)
+# Extract session_id from result["sessions"][0]["id"]
+session_id = result["sessions"][0]["id"]
+```
+
+In most cases, your session_id is automatically available from the session context established when Gobby hooks intercept the CLI session start. Pass this ID when creating tasks to maintain the session-task relationship.
 
 ---
 

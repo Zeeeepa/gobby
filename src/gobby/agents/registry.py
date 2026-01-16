@@ -301,9 +301,59 @@ class RunningAgentRegistry:
                         )
                         if result.returncode == 0 and result.stdout.strip():
                             pids = result.stdout.strip().split("\n")
-                            target_pid = int(pids[0])
-                            found_via = "pgrep"
-                            self._logger.info(f"Found PID via pgrep: {target_pid}")
+                            if len(pids) == 1:
+                                target_pid = int(pids[0])
+                                found_via = "pgrep"
+                                self._logger.info(f"Found PID via pgrep: {target_pid}")
+                            else:
+                                # Multiple PIDs found - need to disambiguate
+                                self._logger.warning(
+                                    f"pgrep returned {len(pids)} PIDs for session "
+                                    f"{agent.session_id}: {pids}"
+                                )
+                                # Inspect each candidate to find the correct one
+                                matched_pid = None
+                                for pid_str in pids:
+                                    try:
+                                        candidate_pid = int(pid_str)
+                                        # Query the process command line to verify
+                                        ps_result = subprocess.run(
+                                            ["ps", "-p", str(candidate_pid), "-o", "args="],
+                                            capture_output=True,
+                                            text=True,
+                                            timeout=2.0,
+                                        )
+                                        if ps_result.returncode == 0:
+                                            cmdline = ps_result.stdout.strip()
+                                            # Verify it's actually the agent process
+                                            # (contains session-id and matches expected CLI)
+                                            if (
+                                                f"session-id {agent.session_id}" in cmdline
+                                                and agent.provider in cmdline.lower()
+                                            ):
+                                                if matched_pid is not None:
+                                                    # Multiple matches - ambiguous
+                                                    self._logger.error(
+                                                        f"Ambiguous PID match: both {matched_pid} "
+                                                        f"and {candidate_pid} match session "
+                                                        f"{agent.session_id}"
+                                                    )
+                                                    matched_pid = None
+                                                    break
+                                                matched_pid = candidate_pid
+                                    except (ValueError, subprocess.TimeoutExpired):
+                                        continue
+                                if matched_pid is not None:
+                                    target_pid = matched_pid
+                                    found_via = "pgrep_disambiguated"
+                                    self._logger.info(
+                                        f"Disambiguated PID via ps inspection: {target_pid}"
+                                    )
+                                else:
+                                    self._logger.error(
+                                        f"Could not disambiguate PIDs for session "
+                                        f"{agent.session_id}: {pids}"
+                                    )
                     except Exception as e:
                         self._logger.warning(f"pgrep fallback failed: {e}")
 
