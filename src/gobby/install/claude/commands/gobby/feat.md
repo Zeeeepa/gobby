@@ -40,7 +40,8 @@ call_tool(
         "title": "<parsed title>",
         "description": "<parsed description if any>",
         "task_type": "feature",
-        "priority": 2
+        "priority": 2,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 ```

@@ -43,7 +43,8 @@ call_tool(
         "description": "<parsed description if any>",
         "task_type": "chore",
         "labels": ["refactor"],
-        "priority": 3
+        "priority": 3,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 ```

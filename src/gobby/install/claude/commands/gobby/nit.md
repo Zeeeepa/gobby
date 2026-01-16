@@ -43,7 +43,8 @@ call_tool(
         "description": "<parsed description if any>",
         "task_type": "chore",
         "labels": ["nitpick"],
-        "priority": 4
+        "priority": 4,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 ```

@@ -44,7 +44,8 @@ call_tool(
         "title": "API v2 migration",
         "description": "Migrate endpoints to GraphQL",
         "task_type": "epic",
-        "priority": 2
+        "priority": 2,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 
@@ -55,7 +56,8 @@ call_tool(
     arguments={
         "title": "User authentication system",
         "task_type": "epic",
-        "priority": 2
+        "priority": 2,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 ```

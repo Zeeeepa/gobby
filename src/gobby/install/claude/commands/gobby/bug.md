@@ -42,7 +42,8 @@ call_tool(
         "title": "<parsed title>",
         "description": "<parsed description if any>",
         "task_type": "bug",
-        "priority": 1
+        "priority": 1,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 ```

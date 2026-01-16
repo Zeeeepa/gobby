@@ -42,7 +42,8 @@ call_tool(
         "title": "<parsed title>",
         "description": "<parsed description if any>",
         "task_type": "chore",
-        "priority": 3
+        "priority": 3,
+        "session_id": "<session_id>"  # Required - from session context
     }
 )
 ```
