@@ -10,7 +10,6 @@ Provides tools for expanding tasks into subtasks and applying TDD patterns:
 import asyncio
 import json
 import re
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -178,12 +177,97 @@ def create_expansion_registry(
             return "\n\n".join(enrichment_parts)
         return None
 
+    async def _apply_tdd_internal(task_id: str) -> dict[str, Any]:
+        """Internal helper to apply TDD transformation to a task.
+
+        Used by expand_task to auto-apply TDD to code/config subtasks.
+        Skips validation checks (those are done by caller).
+
+        Args:
+            task_id: Already-resolved task UUID
+
+        Returns:
+            Dict with success=True and tasks_created, or success=False and error
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"success": False, "error": f"Task not found: {task_id}"}
+
+        # Skip if already TDD-applied
+        if task.is_tdd_applied:
+            return {"success": False, "skipped": True, "reason": "already_applied"}
+
+        # Create TDD triplet
+        try:
+            # 1. Test Task (Red phase)
+            test_task = task_manager.create_task(
+                title=f"Write tests for: {task.title}",
+                description=f"Write failing tests for: {task.title}\n\nRED phase of TDD.",
+                project_id=task.project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+                validation_criteria=TDD_CRITERIA_RED,
+            )
+
+            # 2. Implement Task (Green phase)
+            impl_task = task_manager.create_task(
+                title=f"Implement: {task.title}",
+                description="Make tests pass.\n\nGREEN phase of TDD.",
+                project_id=task.project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+            )
+
+            # Generate validation criteria for implementation task
+            if task_validator:
+                try:
+                    impl_criteria = await task_validator.generate_criteria(
+                        title=impl_task.title,
+                        description=impl_task.description,
+                    )
+                    if impl_criteria:
+                        task_manager.update_task(
+                            impl_task.id, validation_criteria=impl_criteria
+                        )
+                except Exception:
+                    pass
+
+            # 3. Refactor Task (Blue phase)
+            refactor_task = task_manager.create_task(
+                title=f"Refactor: {task.title}",
+                description="Refactor while keeping tests green.\n\nBLUE phase of TDD.",
+                project_id=task.project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+                validation_criteria=TDD_CRITERIA_BLUE,
+            )
+
+            # Wire dependencies: Test -> Implement -> Refactor
+            dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
+            dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
+
+            # Mark parent task as TDD-applied
+            task_manager.update_task(
+                task.id,
+                is_tdd_applied=True,
+                validation_criteria=TDD_PARENT_CRITERIA,
+            )
+
+            return {"success": True, "tasks_created": 3, "task_id": task.id}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     async def _expand_single_task(
         single_task_id: str,
         context: str | None,
         enable_web_research: bool,
         enable_code_context: bool,
         should_generate_validation: bool,
+        skip_tdd: bool = False,
+        force: bool = False,
     ) -> dict[str, Any]:
         """Internal helper to expand a single task."""
         # Resolve task reference
@@ -198,6 +282,23 @@ def create_expansion_registry(
         task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"error": f"Task not found: {single_task_id}", "task_id": single_task_id}
+
+        # Check if already expanded (unless force=True)
+        if task.is_expanded and not force:
+            return {
+                "error": "Task already expanded (is_expanded=True). Use force=True to re-expand.",
+                "task_id": task.id,
+                "is_expanded": True,
+            }
+
+        # Check if task is a leaf (no children)
+        existing_children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
+        if existing_children:
+            return {
+                "error": "Task already has children. Only leaf tasks can be expanded. Use cascade=True on CLI for parent tasks.",
+                "task_id": task.id,
+                "existing_children": len(existing_children),
+            }
 
         # Build context from any stored expansion_context + user context
         merged_context = _build_expansion_context(task, context)
@@ -269,6 +370,26 @@ def create_expansion_registry(
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
+        # Auto-apply TDD to code/config category subtasks (unless skip_tdd=True)
+        tdd_applied_count = 0
+        tdd_categories = ("code", "config")
+        if not skip_tdd and subtask_ids:
+            for sid in subtask_ids:
+                subtask = task_manager.get_task(sid)
+                if not subtask:
+                    continue
+                # Apply TDD to code/config categories
+                if subtask.category in tdd_categories:
+                    # Skip if already TDD-applied or has TDD prefix
+                    if subtask.is_tdd_applied:
+                        continue
+                    if should_skip_tdd(subtask.title):
+                        continue
+                    # Apply TDD transformation
+                    tdd_result = await _apply_tdd_internal(sid)
+                    if tdd_result.get("success", False):
+                        tdd_applied_count += 1
+
         # Build response
         response: dict[str, Any] = {
             "task_id": task.id,
@@ -284,6 +405,9 @@ def create_expansion_registry(
             response["validation_criteria_generated"] = validation_generated
         if validation_skipped_reason:
             response["validation_skipped_reason"] = validation_skipped_reason
+        if tdd_applied_count > 0:
+            response["tdd_applied"] = True
+            response["tdd_applied_count"] = tdd_applied_count
         return response
 
     @registry.tool(
