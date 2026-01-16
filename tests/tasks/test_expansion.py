@@ -441,6 +441,7 @@ class TestSubtaskSpec:
         assert spec.priority == 2
         assert spec.task_type == "task"
         assert spec.category is None
+        assert spec.validation is None
         assert spec.depends_on is None
 
     def test_all_fields(self):
@@ -449,15 +450,36 @@ class TestSubtaskSpec:
             description="Desc",
             priority=1,
             task_type="feature",
-            category="Run pytest",
+            category="test",  # Valid category from VALID_CATEGORIES
+            validation="Run pytest and verify all tests pass",
             depends_on=[0, 1],
         )
         assert spec.title == "Test"
         assert spec.description == "Desc"
         assert spec.priority == 1
         assert spec.task_type == "feature"
-        assert spec.category == "Run pytest"
+        assert spec.category == "test"
+        assert spec.validation == "Run pytest and verify all tests pass"
         assert spec.depends_on == [0, 1]
+
+    def test_category_validation_valid(self):
+        """Test that valid categories are preserved."""
+        for category in ["code", "config", "docs", "test", "research", "planning", "manual"]:
+            spec = SubtaskSpec(title="Test", category=category)
+            assert spec.category == category
+
+    def test_category_validation_invalid(self):
+        """Test that invalid categories become None."""
+        spec = SubtaskSpec(title="Test", category="invalid_category")
+        assert spec.category is None
+
+    def test_category_validation_case_insensitive(self):
+        """Test that category validation is case-insensitive."""
+        spec = SubtaskSpec(title="Test", category="CODE")
+        assert spec.category == "code"
+
+        spec2 = SubtaskSpec(title="Test", category="Test")
+        assert spec2.category == "test"
 
 
 class TestExpansionTimeout:

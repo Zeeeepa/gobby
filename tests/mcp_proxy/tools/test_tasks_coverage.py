@@ -129,8 +129,13 @@ class TestInferTestStrategy:
 
     def test_infer_none_for_generic_task(self):
         """Test returning None for generic task without patterns."""
-        result = _infer_category("Implement new feature", "Add the feature")
+        result = _infer_category("Deploy to staging", "Push to staging environment")
         assert result is None
+
+    def test_infer_code_from_implement_pattern(self):
+        """Test inferring code category from 'implement' pattern."""
+        result = _infer_category("Implement new feature", "Add the feature")
+        assert result == "code"
 
     def test_infer_manual_from_run_and_check(self):
         """Test inferring manual strategy from 'run and check' pattern."""
@@ -800,12 +805,14 @@ class TestCloseTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = None
         mock_task.project_id = "proj-1"
+        mock_task.requires_user_review = False  # Avoid review routing
         mock_task.to_brief.return_value = {
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "status": "closed",
         }
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
+        mock_task_manager.list_tasks.return_value = []  # No children
 
         with (
             patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager,
@@ -872,6 +879,7 @@ class TestCloseTaskTool:
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = None
+        mock_task.requires_user_review = False  # Explicitly set to avoid review routing
         mock_task.to_brief.return_value = {
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "status": "closed",
@@ -970,7 +978,8 @@ class TestCloseTaskTool:
                 },
             )
 
-            assert result == {}
+            # When override_justification is provided, task routes to review
+            assert result.get("routed_to_review") is True
 
 
 # =============================================================================

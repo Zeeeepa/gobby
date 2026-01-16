@@ -34,7 +34,15 @@ class SubtaskSpec:
     priority: int = 2
     task_type: str = "task"
     category: str | None = None
+    validation: str | None = None  # Acceptance criteria from LLM
     depends_on: list[int] | None = None
+
+    def __post_init__(self) -> None:
+        """Validate and normalize category after initialization."""
+        if self.category:
+            from gobby.storage.tasks import validate_category
+
+            self.category = validate_category(self.category)
 
 
 class TaskExpander:
@@ -330,6 +338,7 @@ class TaskExpander:
                 priority=item.get("priority", 2),
                 task_type=item.get("task_type", "task"),
                 category=item.get("category"),
+                validation=item.get("validation"),
                 depends_on=item.get("depends_on"),
             )
             subtask_specs.append(spec)
@@ -374,28 +383,24 @@ class TaskExpander:
         spec_index_to_id: dict[int, str] = {}
 
         for i, spec in enumerate(subtask_specs):
-            # Build description with category if present
+            # Build description
             description = spec.description or ""
-            if spec.category:
-                if description:
-                    description += f"\n\n**Category:** {spec.category}"
-                else:
-                    description = f"**Category:** {spec.category}"
 
-            # Generate precise validation criteria if context is available
-            if expansion_context:
+            # Use validation from LLM output directly as validation_criteria
+            # This replaces the post-expansion generate_criteria() loop
+            validation_criteria = spec.validation
+
+            # If no validation from LLM and context available, generate precise criteria
+            if not validation_criteria and expansion_context:
                 precise_criteria = await self._generate_precise_criteria(
                     spec=spec,
                     context=expansion_context,
                     parent_labels=parent_labels or [],
                 )
                 if precise_criteria:
-                    if description:
-                        description += f"\n\n{precise_criteria}"
-                    else:
-                        description = precise_criteria
+                    validation_criteria = precise_criteria
 
-            # Create the task
+            # Create the task with validation_criteria from LLM output
             task = self.task_manager.create_task(
                 title=spec.title,
                 description=description if description else None,
@@ -404,6 +409,7 @@ class TaskExpander:
                 task_type=spec.task_type,
                 parent_task_id=parent_task_id,
                 category=spec.category,
+                validation_criteria=validation_criteria,
             )
 
             created_ids.append(task.id)

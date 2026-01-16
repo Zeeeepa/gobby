@@ -18,6 +18,32 @@ logger = logging.getLogger(__name__)
 # Priority name to numeric value mapping
 PRIORITY_MAP = {"backlog": 4, "low": 3, "medium": 2, "high": 1, "critical": 0}
 
+# Valid task categories (enum-like constraint)
+VALID_CATEGORIES: frozenset[str] = frozenset({
+    "code",      # Implementation tasks
+    "config",    # Configuration file changes
+    "docs",      # Documentation tasks
+    "test",      # Test-writing tasks
+    "research",  # Investigation/exploration tasks
+    "planning",  # Design/architecture tasks
+    "manual",    # Manual verification tasks
+})
+
+
+def validate_category(category: str | None) -> str | None:
+    """Validate and normalize a category value.
+
+    Args:
+        category: Category string to validate (case-insensitive)
+
+    Returns:
+        Normalized lowercase category if valid, None otherwise
+    """
+    if category is None:
+        return None
+    normalized = category.lower().strip()
+    return normalized if normalized in VALID_CATEGORIES else None
+
 
 def normalize_priority(priority: int | str | None) -> int:
     """Convert priority to numeric value for sorting."""

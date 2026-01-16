@@ -541,13 +541,15 @@ def apply_tdd_cmd(
     for task in tasks_to_transform:
         # Skip if already TDD-applied (unless force)
         if task.is_tdd_applied and not force:
-            click.echo(f"Skipping #{task.seq_num}: TDD already applied (use --force)")
+            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+            click.echo(f"Skipping {task_ref}: TDD already applied (use --force)")
             skipped_count += 1
             continue
 
         # Skip if title has TDD prefix
         if task.title.startswith(TDD_PREFIXES):
-            click.echo(f"Skipping #{task.seq_num}: already a TDD subtask")
+            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+            click.echo(f"Skipping {task_ref}: already a TDD subtask")
             skipped_count += 1
             continue
 
@@ -568,6 +570,46 @@ def apply_tdd_cmd(
     click.echo(f"\nDone: {applied_count} transformed, {skipped_count} skipped, {error_count} failed")
 
 
+def _find_unexpanded_epic(manager: LocalTaskManager, root_task_id: str) -> Task | None:
+    """Depth-first search for first unexpanded epic in the task tree."""
+    task = manager.get_task(root_task_id)
+    if not task:
+        return None
+
+    # Check if this task itself is an unexpanded epic
+    if task.task_type == "epic" and not task.is_expanded:
+        return task
+
+    # Search children depth-first
+    children = manager.list_tasks(parent_task_id=root_task_id, limit=1000)
+    for child in children:
+        if child.task_type == "epic":
+            result = _find_unexpanded_epic(manager, child.id)
+            if result:
+                return result
+
+    return None
+
+
+def _count_unexpanded_epics(manager: LocalTaskManager, root_task_id: str) -> int:
+    """Count unexpanded epics in the task tree."""
+    count = 0
+    task = manager.get_task(root_task_id)
+    if not task:
+        return 0
+
+    # Count this task if it's an unexpanded epic
+    if task.task_type == "epic" and not task.is_expanded:
+        count += 1
+
+    # Count children recursively
+    children = manager.list_tasks(parent_task_id=root_task_id, limit=1000)
+    for child in children:
+        count += _count_unexpanded_epics(manager, child.id)
+
+    return count
+
+
 @click.command("expand")
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--context", "-c", help="Additional context for expansion")
@@ -581,7 +623,7 @@ def apply_tdd_cmd(
     default=True,
     help="Enable/disable codebase context gathering",
 )
-@click.option("--cascade", is_flag=True, help="Also expand subtasks")
+@click.option("--cascade", is_flag=True, help="Iteratively expand all child epics (default for epics)")
 @click.option("--force", "-f", is_flag=True, help="Re-expand already expanded tasks")
 @click.option("--project", "-p", "project_name", help="Project name or ID")
 def expand_task_cmd(
@@ -593,23 +635,23 @@ def expand_task_cmd(
     force: bool,
     project_name: str | None,
 ) -> None:
-    """Expand tasks into subtasks using AI.
+    """Expand a task tree. Runs iteratively until complete.
 
     TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
-    Multiple tasks can be specified separated by spaces or commas.
+
+    For epics, automatically expands all child epics iteratively (--cascade).
+    Use --no-cascade to expand only the root task.
 
     Examples:
-        gobby tasks expand #42
-        gobby tasks expand #42,#43,#44
-        gobby tasks expand #42 --cascade
+        gobby tasks expand #42           # Expands #42 and all child epics
+        gobby tasks expand #42 --force   # Re-expand even if already expanded
     """
     import asyncio
-    from dataclasses import dataclass
 
-    from gobby.cli.tasks._utils import get_all_descendants, parse_task_refs
+    from gobby.cli.tasks._utils import parse_task_refs
     from gobby.config.app import load_config
     from gobby.llm import LLMService
-    from gobby.storage.task_dependencies import TaskDependencyManager
+    from gobby.sessions.lifecycle import get_current_session_id
     from gobby.tasks.expansion import TaskExpander
 
     # Parse task references
@@ -621,19 +663,14 @@ def expand_task_cmd(
     manager = get_task_manager()
 
     # Resolve all tasks
-    tasks_to_expand: list[Task] = []
+    root_tasks: list[Task] = []
     for ref in refs:
         task = resolve_task_id(manager, ref)
         if not task:
             continue
-        tasks_to_expand.append(task)
+        root_tasks.append(task)
 
-        # If cascade, get ALL descendants recursively (not just direct children)
-        if cascade:
-            descendants = get_all_descendants(manager, task.id)
-            tasks_to_expand.extend(descendants)
-
-    if not tasks_to_expand:
+    if not root_tasks:
         click.echo("No valid tasks to expand.", err=True)
         return
 
@@ -653,136 +690,106 @@ def expand_task_cmd(
         click.echo(f"Error initializing services: {e}", err=True)
         return
 
-    dep_manager = TaskDependencyManager(manager.db)
+    # Get current session ID for expansion context
+    session_id = get_current_session_id()
 
-    # Process each task
-    total_created = 0
-    total_wired = 0
+    # Process each root task
+    total_iterations = 0
+    total_subtasks = 0
 
-    for resolved in tasks_to_expand:
-        # Check if already expanded (unless force)
-        if resolved.is_expanded and not force:
-            click.echo(f"Skipping #{resolved.seq_num}: already expanded (use --force)")
-            continue
+    for root_task in root_tasks:
+        root_ref = f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8]
 
-        task_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
-        click.echo(f"\nExpanding {task_ref}: {resolved.title[:50]}...")
-        if web_research:
-            click.echo("  • Web research enabled")
-        if code_context:
-            click.echo("  • Code context enabled")
+        # For epics, default to cascade mode
+        should_cascade = cascade or root_task.task_type == "epic"
 
-        # Run expansion
-        try:
-            result = asyncio.run(
-                expander.expand_task(
-                    task_id=resolved.id,
-                    title=resolved.title,
-                    description=resolved.description,
-                    context=context,
-                    enable_web_research=web_research,
-                    enable_code_context=code_context,
-                )
-            )
-        except Exception as e:
-            click.echo(f"  Error during expansion: {e}", err=True)
-            continue
+        if should_cascade:
+            # Iterative expansion mode
+            click.echo(f"Expanding {root_ref}: {root_task.title[:50]}...")
+            if web_research:
+                click.echo("  • Web research enabled")
+            if code_context:
+                click.echo("  • Code context enabled")
 
-        if not result:
-            click.echo("  Expansion returned no results.")
-            continue
+            iteration = 0
+            while True:
+                iteration += 1
 
-        if "error" in result:
-            click.echo(f"  Error: {result['error']}", err=True)
-            continue
+                # Find next unexpanded epic
+                target = _find_unexpanded_epic(manager, root_task.id)
 
-        # Process results (Create subtasks)
-        @dataclass
-        class PendingDep:
-            task_id: str
-            depends_on_indices: list[int]
-            original_index: int
+                if target is None:
+                    click.echo(f"✓ Expansion complete after {iteration - 1} iterations")
+                    break
 
-        pending_wiring: list[PendingDep] = []
-        created_subtasks: list[Task] = []
-        global_index = 0
+                target_ref = f"#{target.seq_num}" if target.seq_num else target.id[:8]
+                click.echo(f"[{iteration}] Expanding {target_ref}: {target.title[:40]}...")
 
-        # Process subtasks for this task
-        def create_subtask(
-            data: dict[str, Any],
-            idx: int,
-            parent_id: str = resolved.id,
-            parent_project_id: str = resolved.project_id,
-        ) -> tuple[Task, int]:
-            """Create a subtask from expansion data."""
-            desc = data.get("description", "")
-            if "category" in data:
-                desc += f"\n\nCategory: {data['category']}"
-
-            subtask = manager.create_task(
-                title=data["title"],
-                description=desc,
-                parent_task_id=parent_id,
-                project_id=parent_project_id,
-            )
-            return subtask, idx
-
-        # Print analysis if available
-        if "complexity_analysis" in result:
-            analysis = result["complexity_analysis"]
-            click.echo(f"  Complexity Score: {analysis.get('score', '?')}/10")
-            click.echo(f"  Reasoning: {analysis.get('reasoning', '')}")
-
-        phases = result.get("phases", [])
-        if not phases and isinstance(result, list):
-            # Legacy list support
-            phases = [{"name": "Plan", "subtasks": result}]
-
-        for phase in phases:
-            click.echo(f"  Phase: {phase.get('name', 'Unnamed')}")
-            for sub_data in phase.get("subtasks", []):
-                subtask, idx = create_subtask(sub_data, global_index)
-                created_subtasks.append(subtask)
-                indices = sub_data.get("depends_on_indices", [])
-                pending_wiring.append(
-                    PendingDep(task_id=subtask.id, depends_on_indices=indices, original_index=idx)
-                )
-                global_index += 1
-                sub_ref = f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8]
-                click.echo(f"    + Created {sub_ref}: {subtask.title[:50]}")
-
-        # Wire dependencies
-        index_to_id = {p.original_index: p.task_id for p in pending_wiring}
-
-        wired_count = 0
-        for pending in pending_wiring:
-            # Subtask -> Subtask
-            for dep_idx in pending.depends_on_indices:
-                if dep_idx in index_to_id and index_to_id[dep_idx] != pending.task_id:
-                    try:
-                        dep_manager.add_dependency(
-                            task_id=pending.task_id,
-                            depends_on=index_to_id[dep_idx],
-                            dep_type="blocks",
+                try:
+                    result = asyncio.run(
+                        expander.expand_task(
+                            task_id=target.id,
+                            title=target.title,
+                            description=target.description,
+                            context=context,
+                            enable_web_research=web_research,
+                            enable_code_context=code_context,
+                            session_id=session_id,
                         )
-                        wired_count += 1
-                    except ValueError:
-                        pass
+                    )
+                except Exception as e:
+                    click.echo(f"    Error: {e}", err=True)
+                    break
 
-            # Parent -> Subtask (Parent blocked by subtask)
+                if "error" in result:
+                    click.echo(f"    Error: {result['error']}", err=True)
+                    break
+
+                subtasks = result.get("subtask_ids", [])
+                click.echo(f"    → Created {len(subtasks)} subtasks")
+                total_subtasks += len(subtasks)
+
+                remaining = _count_unexpanded_epics(manager, root_task.id)
+                if remaining > 0:
+                    click.echo(f"    → {remaining} epic(s) remaining")
+
+            total_iterations += iteration - 1
+
+        else:
+            # Single task expansion (non-cascade)
+            if root_task.is_expanded and not force:
+                click.echo(f"Skipping {root_ref}: already expanded (use --force)")
+                continue
+
+            click.echo(f"Expanding {root_ref}: {root_task.title[:50]}...")
+
             try:
-                dep_manager.add_dependency(
-                    task_id=resolved.id, depends_on=pending.task_id, dep_type="blocks"
+                result = asyncio.run(
+                    expander.expand_task(
+                        task_id=root_task.id,
+                        title=root_task.title,
+                        description=root_task.description,
+                        context=context,
+                        enable_web_research=web_research,
+                        enable_code_context=code_context,
+                        session_id=session_id,
+                    )
                 )
-            except ValueError:
-                pass
+            except Exception as e:
+                click.echo(f"  Error: {e}", err=True)
+                continue
 
-        click.echo(f"  Created {len(created_subtasks)} subtasks with {wired_count} dependencies")
-        total_created += len(created_subtasks)
-        total_wired += wired_count
+            if "error" in result:
+                click.echo(f"  Error: {result['error']}", err=True)
+                continue
 
-    if len(tasks_to_expand) > 1:
-        click.echo(f"\nTotal: {total_created} subtasks with {total_wired} dependencies")
+            subtasks = result.get("subtask_ids", [])
+            click.echo(f"  Created {len(subtasks)} subtasks")
+            total_subtasks += len(subtasks)
+            total_iterations += 1
+
+    if len(root_tasks) > 1:
+        click.echo(f"\nTotal: {total_subtasks} subtasks across {total_iterations} expansions")
 
 
 @click.command("complexity")

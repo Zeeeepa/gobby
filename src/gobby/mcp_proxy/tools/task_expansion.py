@@ -263,6 +263,61 @@ def create_expansion_registry(
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _find_unexpanded_epic(root_task_id: str) -> Task | None:
+        """Depth-first search for first unexpanded epic in the task tree.
+
+        Traverses the task tree starting from root_task_id to find the first
+        epic that hasn't been expanded yet (is_expanded=False).
+
+        Args:
+            root_task_id: Task ID to start search from
+
+        Returns:
+            First unexpanded epic Task, or None if all epics are expanded
+        """
+        task = task_manager.get_task(root_task_id)
+        if not task:
+            return None
+
+        # Check if this task itself is an unexpanded epic
+        if task.task_type == "epic" and not task.is_expanded:
+            return task
+
+        # Search children depth-first
+        children = task_manager.list_tasks(parent_task_id=root_task_id, limit=1000)
+        for child in children:
+            if child.task_type == "epic":
+                result = _find_unexpanded_epic(child.id)
+                if result:
+                    return result
+
+        return None
+
+    def _count_unexpanded_epics(root_task_id: str) -> int:
+        """Count unexpanded epics in the task tree.
+
+        Args:
+            root_task_id: Task ID to start counting from
+
+        Returns:
+            Number of unexpanded epics in the tree
+        """
+        count = 0
+        task = task_manager.get_task(root_task_id)
+        if not task:
+            return 0
+
+        # Count this task if it's an unexpanded epic
+        if task.task_type == "epic" and not task.is_expanded:
+            count += 1
+
+        # Count children recursively
+        children = task_manager.list_tasks(parent_task_id=root_task_id, limit=1000)
+        for child in children:
+            count += _count_unexpanded_epics(child.id)
+
+        return count
+
     async def _expand_single_task(
         single_task_id: str,
         context: str | None,
@@ -272,8 +327,15 @@ def create_expansion_registry(
         skip_tdd: bool = False,
         force: bool = False,
         session_id: str | None = None,
+        iterative: bool = False,
     ) -> dict[str, Any]:
-        """Internal helper to expand a single task."""
+        """Internal helper to expand a single task.
+
+        When iterative=True, supports iterative expansion of epic trees:
+        - If the root task is already expanded, finds the next unexpanded epic
+        - Returns progress info (unexpanded_epics count, complete flag)
+        - Call repeatedly until complete=True
+        """
         # Resolve task reference
         try:
             resolved_task_id = resolve_task_id_for_mcp(task_manager, single_task_id)
@@ -283,26 +345,41 @@ def create_expansion_registry(
         if not task_expander:
             return {"error": "Task expansion is not enabled", "task_id": single_task_id}
 
-        task = task_manager.get_task(resolved_task_id)
-        if not task:
+        root_task = task_manager.get_task(resolved_task_id)
+        if not root_task:
             return {"error": f"Task not found: {single_task_id}", "task_id": single_task_id}
 
-        # Check if already expanded (unless force=True)
-        if task.is_expanded and not force:
-            return {
-                "error": "Task already expanded (is_expanded=True). Use force=True to re-expand.",
-                "task_id": task.id,
-                "is_expanded": True,
-            }
+        # Iterative mode: find next unexpanded epic in tree
+        if iterative:
+            target_task = _find_unexpanded_epic(resolved_task_id)
+            if target_task is None:
+                # All epics expanded - tree is complete
+                return {
+                    "complete": True,
+                    "task_id": resolved_task_id,
+                    "root_ref": f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8],
+                    "unexpanded_epics": 0,
+                }
+            task = target_task
+        else:
+            task = root_task
 
-        # Check if task is a leaf (no children)
-        existing_children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
-        if existing_children:
-            return {
-                "error": "Task already has children. Only leaf tasks can be expanded. Use cascade=True on CLI for parent tasks.",
-                "task_id": task.id,
-                "existing_children": len(existing_children),
-            }
+            # Non-iterative mode: Check if already expanded (unless force=True)
+            if task.is_expanded and not force:
+                return {
+                    "error": "Task already expanded (is_expanded=True). Use force=True to re-expand, or use iterative mode to expand child epics.",
+                    "task_id": task.id,
+                    "is_expanded": True,
+                }
+
+            # Check if task is a leaf (no children) - only in non-iterative mode
+            existing_children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
+            if existing_children:
+                return {
+                    "error": "Task already has children. Only leaf tasks can be expanded. Use iterative mode or CLI with --cascade for parent tasks.",
+                    "task_id": task.id,
+                    "existing_children": len(existing_children),
+                }
 
         # Build context from any stored expansion_context + user context
         merged_context = _build_expansion_context(task, context)
@@ -402,10 +479,21 @@ def create_expansion_registry(
             "subtasks": created_subtasks,
             "is_expanded": True,
         }
-        # Include parent seq_num for ergonomics
+        # Include seq_num refs for ergonomics
         if task.seq_num is not None:
+            response["expanded_ref"] = f"#{task.seq_num}"
+            # Keep legacy field for compatibility
             response["parent_seq_num"] = task.seq_num
             response["parent_ref"] = f"#{task.seq_num}"
+
+        # Iterative mode: include progress info
+        if iterative:
+            remaining = _count_unexpanded_epics(resolved_task_id)
+            response["unexpanded_epics"] = remaining
+            response["complete"] = remaining == 0
+            # Include root task ref for context
+            response["root_ref"] = f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8]
+
         if validation_generated > 0:
             response["validation_criteria_generated"] = validation_generated
         if validation_skipped_reason:
@@ -417,7 +505,7 @@ def create_expansion_registry(
 
     @registry.tool(
         name="expand_task",
-        description="Expand a high-level task into smaller subtasks using AI.",
+        description="Expand a task into smaller subtasks using AI. Supports iterative expansion of epic trees.",
     )
     async def expand_task(
         task_id: str | None = None,
@@ -429,16 +517,30 @@ def create_expansion_registry(
         skip_tdd: bool = False,
         force: bool = False,
         session_id: str | None = None,
+        iterative: bool = False,
     ) -> dict[str, Any]:
         """
-        Expand a leaf task into subtasks using tool-based expansion.
+        Expand a task into subtasks using tool-based expansion.
 
         The expansion agent calls create_task MCP tool directly to create subtasks,
-        wiring dependencies via the 'blocks' parameter. Auto-applies TDD transformation
-        to code/config category subtasks (unless skip_tdd=True).
+        wiring dependencies via the 'blocks' parameter.
 
-        Only operates on leaf tasks (no children). For parent tasks, use CLI
-        with --cascade flag: `uv run gobby tasks expand #N --cascade`
+        ## Iterative Mode (iterative=True)
+
+        For epic trees, call repeatedly on the root epic until complete=True:
+
+        ```python
+        while True:
+            result = expand_task(task_id="#100", iterative=True)
+            if result.get("complete"):
+                break
+            print(f"Expanded {result['expanded_ref']}, {result['unexpanded_epics']} remaining")
+        ```
+
+        Returns:
+        - expanded_ref: The task that was expanded (may differ from input)
+        - unexpanded_epics: Count of remaining unexpanded epics
+        - complete: True when all epics in tree are expanded
 
         Args:
             task_id: ID of single task to expand (mutually exclusive with task_ids)
@@ -451,9 +553,15 @@ def create_expansion_registry(
             skip_tdd: Skip automatic TDD transformation for code/config subtasks
             force: Re-expand even if is_expanded=True
             session_id: Session ID for TDD mode resolution (optional)
+            iterative: Enable iterative expansion mode for epic trees. When True, finds
+                the next unexpanded epic in the tree and expands it. Call repeatedly
+                until complete=True. (default: False)
 
         Returns:
-            Dictionary with subtask_ids for single task, or results list for batch mode
+            Dictionary with expansion results. In iterative mode, includes:
+            - expanded_ref: Task that was expanded
+            - unexpanded_epics: Remaining unexpanded epics
+            - complete: True when tree is fully expanded
         """
         # Use config default if not specified
         should_generate_validation = (
@@ -479,6 +587,7 @@ def create_expansion_registry(
                 skip_tdd=skip_tdd,
                 force=force,
                 session_id=session_id,
+                iterative=iterative,
             )
 
         # Batch mode - process tasks in parallel
@@ -495,6 +604,7 @@ def create_expansion_registry(
                 skip_tdd=skip_tdd,
                 force=force,
                 session_id=session_id,
+                iterative=iterative,
             )
 
         raw_results = await asyncio.gather(

@@ -18,7 +18,8 @@ SUBTASK_SCHEMA = """
       "description": "string (optional) - Detailed description with implementation notes",
       "priority": "integer (optional) - 1=High, 2=Medium (default), 3=Low",
       "task_type": "string (optional) - task|bug|feature|epic (default: task)",
-      "category": "string (optional) - How to verify completion",
+      "category": "string (required for actionable tasks) - code|config|docs|test|research|planning|manual",
+      "validation": "string (optional) - Acceptance criteria with project commands",
       "depends_on": ["integer (optional) - Array of 0-based indices of subtasks this depends on"]
     }
   ]
@@ -39,8 +40,22 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
 | description | string | No | Detailed description including implementation notes |
 | priority | integer | No | 1=High, 2=Medium (default), 3=Low |
 | task_type | string | No | "task" (default), "bug", "feature", "epic" |
-| category | string | No | How to verify this subtask is complete |
+| category | string | Yes* | Task domain: code, config, docs, test, research, planning, manual |
+| validation | string | No | Acceptance criteria with project commands |
 | depends_on | array[int] | No | Indices (0-based) of subtasks this one depends on |
+
+*Required for actionable tasks. Use "planning" for epic/phase tasks.
+
+## Category Values
+
+Choose the appropriate category for each subtask:
+- **code**: Implementation tasks (write/modify source code)
+- **config**: Configuration file changes (.yaml, .toml, .json, .env)
+- **docs**: Documentation tasks (README, docstrings, guides)
+- **test**: Test-writing tasks (unit tests, integration tests)
+- **research**: Investigation/exploration tasks
+- **planning**: Design/architecture tasks, parent phases
+- **manual**: Manual verification/testing tasks
 
 ## Example Output
 
@@ -51,19 +66,22 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
       "title": "Create database schema",
       "description": "Define tables for users, sessions, and permissions",
       "priority": 1,
-      "category": "Run migrations and verify tables exist"
+      "category": "code",
+      "validation": "Run migrations and verify tables exist with `{unit_tests}`"
     },
     {
       "title": "Implement data access layer",
       "description": "Create repository classes for CRUD operations",
       "depends_on": [0],
-      "category": "Unit tests for all repository methods pass"
+      "category": "code",
+      "validation": "Unit tests for all repository methods pass"
     },
     {
       "title": "Add API endpoints",
       "description": "REST endpoints for user management",
       "depends_on": [1],
-      "category": "Integration tests for all endpoints pass"
+      "category": "code",
+      "validation": "Integration tests for all endpoints pass"
     }
   ]
 }
@@ -81,14 +99,15 @@ Use `depends_on` to specify execution order:
 1. **Atomicity**: Each subtask should be small enough to be completed in one session (10-30 mins of work).
 2. **Dependencies**: Use `depends_on` to enforce logical order (e.g., create file before importing it).
 3. **Context Awareness**: Reference specific existing files or functions from the provided codebase context.
-4. **Testing**: Every coding subtask MUST have a category.
-5. **Completeness**: The set of subtasks must fully accomplish the parent task.
-6. **JSON Only**: Output ONLY valid JSON - no markdown, no explanation, no code blocks.
-7. **No Scope Creep**: Do NOT include optional features, alternatives, or "nice-to-haves". Each subtask must be a concrete requirement from the parent task. Never invent additional features, suggest "consider also adding X", or include "(Optional)" sections. Implement exactly what is specified.
+4. **Categories Required**: Every actionable subtask MUST have a category from the enum.
+5. **Validation Criteria**: Include validation criteria for code/config/test tasks.
+6. **Completeness**: The set of subtasks must fully accomplish the parent task.
+7. **JSON Only**: Output ONLY valid JSON - no markdown, no explanation, no code blocks.
+8. **No Scope Creep**: Do NOT include optional features, alternatives, or "nice-to-haves". Each subtask must be a concrete requirement from the parent task. Never invent additional features, suggest "consider also adding X", or include "(Optional)" sections. Implement exactly what is specified.
 
 ## Validation Criteria Rules
 
-For each subtask, generate PRECISE validation criteria in the `category` field.
+For each subtask, generate PRECISE validation criteria in the `validation` field.
 Use the project's verification commands (provided in context) rather than hardcoded commands.
 
 ### 1. Measurable
@@ -122,39 +141,57 @@ Include commands that can be executed to verify completion.
 """
 
 # TDD Mode Addition
-# The system handles TDD triplet creation deterministically - we just need the LLM
-# to output simple feature/task names, not full test/implement/refactor titles.
+# When TDD mode is enabled, the LLM outputs TDD structure directly with proper categories.
 TDD_MODE_INSTRUCTIONS = """
 
 ## TDD Mode Enabled
 
-**IMPORTANT:** Do NOT create separate test/implement/refactor tasks. The system handles TDD structure automatically.
+For code/config category tasks, output TDD structure directly:
 
-For each coding feature, output a SINGLE task with just the feature name:
-- Title: "User authentication" (NOT "Write tests for user authentication")
-- Title: "Database connection pooling" (NOT "Implement database connection pooling")
+1. **Test task** (category: "test") - Write failing tests first
+2. **Implementation task** (category: "code", depends_on test) - Make tests pass
+3. **Refactor task** (category: "code", depends_on implementation) - Clean up while tests stay green
 
-The system will automatically expand coding tasks into TDD triplets:
-1. Write tests for: <title>
-2. Implement: <title>
-3. Refactor: <title>
-
-For NON-coding tasks (documentation, research, design, planning, configuration):
-- Set `task_type: "epic"` or start the title with keywords like "Document", "Research", "Design", "Plan"
-- These will NOT be expanded into TDD triplets
-
-Example output:
+Example for a feature with TDD:
 ```json
 {
   "subtasks": [
-    {"title": "User authentication", "task_type": "feature", "description": "Login, logout, and session management"},
-    {"title": "Database connection pooling", "task_type": "task"},
-    {"title": "Document the API endpoints", "task_type": "epic"}
+    {
+      "title": "Write tests for: User authentication",
+      "category": "test",
+      "validation": "Tests written that define expected behavior, tests fail without implementation"
+    },
+    {
+      "title": "Implement: User authentication",
+      "category": "code",
+      "depends_on": [0],
+      "validation": "All authentication tests pass"
+    },
+    {
+      "title": "Refactor: User authentication",
+      "category": "code",
+      "depends_on": [1],
+      "validation": "Tests still pass, code is clean and maintainable"
+    }
   ]
 }
 ```
 
-The first two become TDD triplets (6 tasks total). The third stays as a single task.
+For NON-code tasks (docs, research, planning), output single tasks without TDD structure:
+```json
+{
+  "subtasks": [
+    {"title": "Research authentication libraries", "category": "research"},
+    {"title": "Document the API endpoints", "category": "docs"}
+  ]
+}
+```
+
+**IMPORTANT:**
+- Use "Write tests for:" prefix for test tasks
+- Use "Implement:" prefix for implementation tasks
+- Use "Refactor:" prefix for refactor tasks
+- Wire depends_on correctly: impl depends on test, refactor depends on impl
 """
 
 # Default User Prompt Template
