@@ -10,6 +10,7 @@ Provides tools for expanding tasks into subtasks and applying TDD patterns:
 import asyncio
 import json
 import re
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -96,6 +97,7 @@ def create_expansion_registry(
     task_expander: "TaskExpander | None" = None,
     task_validator: "TaskValidator | None" = None,
     auto_generate_on_expand: bool = True,
+    resolve_tdd_mode: Callable[[str | None], bool] | None = None,
 ) -> InternalToolRegistry:
     """
     Create a registry with task expansion tools.
@@ -105,6 +107,7 @@ def create_expansion_registry(
         task_expander: TaskExpander instance (optional, required for AI expansion)
         task_validator: TaskValidator instance (optional, for auto-generating criteria)
         auto_generate_on_expand: Whether to auto-generate validation criteria on expand
+        resolve_tdd_mode: Function to resolve TDD mode from session (optional)
 
     Returns:
         InternalToolRegistry with expansion tools registered
@@ -122,9 +125,9 @@ def create_expansion_registry(
 
     def _build_expansion_context(task: Task, user_context: str | None) -> str | None:
         """
-        Build context for expansion by merging stored enrichment data with user context.
+        Build context for expansion by merging stored data with user context.
 
-        If the task has expansion_context (from prior enrich_task call), parse it and
+        If the task has expansion_context (legacy enrichment data), parse it and
         include research findings, validation criteria, and complexity info.
 
         Args:
@@ -136,7 +139,7 @@ def create_expansion_registry(
         """
         enrichment_parts: list[str] = []
 
-        # Parse stored expansion_context from prior enrichment
+        # Parse stored expansion_context (legacy enrichment data)
         if task.expansion_context:
             try:
                 enrichment_data = json.loads(task.expansion_context)
@@ -421,12 +424,18 @@ def create_expansion_registry(
         enable_web_research: bool = False,
         enable_code_context: bool = True,
         generate_validation: bool | None = None,
+        skip_tdd: bool = False,
+        force: bool = False,
     ) -> dict[str, Any]:
         """
-        Expand a task into subtasks using tool-based expansion.
+        Expand a leaf task into subtasks using tool-based expansion.
 
         The expansion agent calls create_task MCP tool directly to create subtasks,
-        wiring dependencies via the 'blocks' parameter.
+        wiring dependencies via the 'blocks' parameter. Auto-applies TDD transformation
+        to code/config category subtasks (unless skip_tdd=True).
+
+        Only operates on leaf tasks (no children). For parent tasks, use CLI
+        with --cascade flag: `uv run gobby tasks expand #N --cascade`
 
         Args:
             task_id: ID of single task to expand (mutually exclusive with task_ids)
@@ -436,6 +445,8 @@ def create_expansion_registry(
             enable_code_context: Whether to enable code context gathering (default: True)
             generate_validation: Whether to auto-generate validation_criteria for subtasks.
                 Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
+            skip_tdd: Skip automatic TDD transformation for code/config subtasks
+            force: Re-expand even if is_expanded=True
 
         Returns:
             Dictionary with subtask_ids for single task, or results list for batch mode
@@ -461,6 +472,8 @@ def create_expansion_registry(
                 enable_web_research=enable_web_research,
                 enable_code_context=enable_code_context,
                 should_generate_validation=should_generate_validation,
+                skip_tdd=skip_tdd,
+                force=force,
             )
 
         # Batch mode - process tasks in parallel
@@ -474,6 +487,8 @@ def create_expansion_registry(
                 enable_web_research=enable_web_research,
                 enable_code_context=enable_code_context,
                 should_generate_validation=should_generate_validation,
+                skip_tdd=skip_tdd,
+                force=force,
             )
 
         raw_results = await asyncio.gather(
