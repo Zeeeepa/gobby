@@ -17,9 +17,10 @@ variables:
 
 triggers:
   on_stop:
-    # Commit enforcement - block stop if task has uncommitted changes
+    # Task closure enforcement - block stop if task is still in_progress
+    # Agents must close_task() or set to review before stopping
     # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
-    - action: require_commit_before_stop
+    - action: require_task_review_or_close_before_stop
       when: "not variables.get('plan_mode')"
 
   on_session_start:

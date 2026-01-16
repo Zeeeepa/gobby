@@ -12,6 +12,7 @@ from gobby.workflows.task_enforcement_actions import (
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
+    require_task_review_or_close_before_stop,
     validate_session_task_scope,
 )
 
@@ -527,6 +528,145 @@ class TestRequireCommitBeforeStop:
         assert result is not None
         assert "[gt-xyz789]" in result["reason"]
         assert 'close_task(task_id="gt-xyz789"' in result["reason"]
+
+
+# =============================================================================
+# Tests for require_task_review_or_close_before_stop
+# =============================================================================
+
+
+class TestRequireTaskReviewOrCloseBeforeStop:
+    """Tests for require_task_review_or_close_before_stop action."""
+
+    async def test_no_workflow_state_allows(self):
+        """When no workflow_state, allow stop."""
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=None,
+            task_manager=MagicMock(),
+        )
+        assert result is None
+
+    async def test_no_claimed_task_allows(self, workflow_state):
+        """When no claimed_task_id, allow stop."""
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=MagicMock(),
+        )
+        assert result is None
+
+    async def test_no_task_manager_allows(self, workflow_state):
+        """When no task_manager, allow stop."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=None,
+        )
+        assert result is None
+
+    async def test_task_not_found_clears_state(self, workflow_state, mock_task_manager):
+        """When task no longer exists, clear workflow state and allow."""
+        workflow_state.variables["claimed_task_id"] = "gt-deleted"
+        workflow_state.variables["task_claimed"] = True
+
+        mock_task_manager.get_task.return_value = None
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is None
+        assert workflow_state.variables["claimed_task_id"] is None
+        assert workflow_state.variables["task_claimed"] is False
+
+    async def test_task_closed_clears_state(self, workflow_state, mock_task_manager):
+        """When task is closed, clear workflow state and allow."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["task_claimed"] = True
+
+        mock_task = MagicMock()
+        mock_task.status = "closed"
+        mock_task_manager.get_task.return_value = mock_task
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is None
+        assert workflow_state.variables["claimed_task_id"] is None
+        assert workflow_state.variables["task_claimed"] is False
+
+    async def test_task_in_review_clears_state(self, workflow_state, mock_task_manager):
+        """When task is in review, clear workflow state and allow."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["task_claimed"] = True
+
+        mock_task = MagicMock()
+        mock_task.status = "review"
+        mock_task_manager.get_task.return_value = mock_task
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is None
+        assert workflow_state.variables["claimed_task_id"] is None
+        assert workflow_state.variables["task_claimed"] is False
+
+    async def test_task_in_progress_blocks(self, workflow_state, mock_task_manager):
+        """When task is in_progress, block stop."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+
+        mock_task = MagicMock()
+        mock_task.status = "in_progress"
+        mock_task_manager.get_task.return_value = mock_task
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "gt-abc123" in result["reason"]
+        assert "still in_progress" in result["reason"]
+        assert "close_task()" in result["reason"]
+        assert result["task_id"] == "gt-abc123"
+        assert result["task_status"] == "in_progress"
+
+    async def test_exception_allows(self, workflow_state, mock_task_manager):
+        """When exception occurs, allow stop to avoid blocking."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+
+        mock_task_manager.get_task.side_effect = Exception("Database error")
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is None
+
+    async def test_accepts_extra_kwargs(self, workflow_state, mock_task_manager):
+        """Function accepts extra kwargs for compatibility."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+
+        mock_task = MagicMock()
+        mock_task.status = "closed"
+        mock_task_manager.get_task.return_value = mock_task
+
+        # Should not raise even with extra kwargs
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+            project_path="/some/path",  # Extra kwarg for compatibility
+            extra_arg="ignored",
+        )
+
+        assert result is None
 
 
 # =============================================================================

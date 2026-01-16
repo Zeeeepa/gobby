@@ -262,6 +262,90 @@ async def require_commit_before_stop(
     }
 
 
+async def require_task_review_or_close_before_stop(
+    workflow_state: "WorkflowState | None",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Block stop if session has an in_progress task.
+
+    Agents must close their task (or send to review) before stopping.
+    The close_task() validation already requires a commit, so we don't
+    need to check for uncommitted changes here - that's handled by
+    require_commit_before_stop if needed.
+
+    Args:
+        workflow_state: Workflow state with variables (claimed_task_id, etc.)
+        task_manager: LocalTaskManager to verify task status
+        **kwargs: Accepts additional kwargs for compatibility
+
+    Returns:
+        Dict with decision="block" and reason if task is still in_progress,
+        or None to allow the stop.
+    """
+    if not workflow_state:
+        logger.debug("require_task_review_or_close_before_stop: No workflow_state, allowing")
+        return None
+
+    claimed_task_id = workflow_state.variables.get("claimed_task_id")
+    if not claimed_task_id:
+        logger.debug("require_task_review_or_close_before_stop: No claimed task, allowing")
+        return None
+
+    if not task_manager:
+        logger.debug(
+            "require_task_review_or_close_before_stop: No task_manager, allowing"
+        )
+        return None
+
+    try:
+        task = task_manager.get_task(claimed_task_id)
+        if not task:
+            # Task not found - clear stale workflow state and allow
+            logger.debug(
+                f"require_task_review_or_close_before_stop: Task '{claimed_task_id}' not found, "
+                f"clearing state"
+            )
+            workflow_state.variables["claimed_task_id"] = None
+            workflow_state.variables["task_claimed"] = False
+            return None
+
+        if task.status != "in_progress":
+            # Task is closed or in review - allow stop
+            logger.debug(
+                f"require_task_review_or_close_before_stop: Task '{claimed_task_id}' "
+                f"status={task.status}, allowing"
+            )
+            # Clear stale workflow state
+            workflow_state.variables["claimed_task_id"] = None
+            workflow_state.variables["task_claimed"] = False
+            return None
+
+        # Task is still in_progress - block the stop
+        logger.info(
+            f"require_task_review_or_close_before_stop: Blocking stop - task "
+            f"'{claimed_task_id}' is still in_progress"
+        )
+
+        return {
+            "decision": "block",
+            "reason": (
+                f"Task '{claimed_task_id}' is still in_progress. "
+                f"Close it with close_task() before stopping, or set to review "
+                f"if user intervention is needed."
+            ),
+            "task_id": claimed_task_id,
+            "task_status": task.status,
+        }
+
+    except Exception as e:
+        logger.warning(
+            f"require_task_review_or_close_before_stop: Failed to check task status: {e}"
+        )
+        # Allow stop if we can't check - don't block on errors
+        return None
+
+
 async def require_task_complete(
     task_manager: "LocalTaskManager | None",
     session_id: str,

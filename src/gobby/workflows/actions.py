@@ -62,6 +62,7 @@ from gobby.workflows.task_enforcement_actions import (
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
+    require_task_review_or_close_before_stop,
     validate_session_task_scope,
 )
 from gobby.workflows.templates import TemplateEngine
@@ -237,6 +238,10 @@ class ActionExecutor:
         # Task enforcement
         self.register("require_active_task", self._handle_require_active_task)
         self.register("require_commit_before_stop", self._handle_require_commit_before_stop)
+        self.register(
+            "require_task_review_or_close_before_stop",
+            self._handle_require_task_review_or_close_before_stop,
+        )
         self.register("require_task_complete", self._handle_require_task_complete)
         self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
         self.register("capture_baseline_dirty_files", self._handle_capture_baseline_dirty_files)
@@ -866,6 +871,15 @@ class ActionExecutor:
         return await require_commit_before_stop(
             workflow_state=context.state,
             project_path=project_path,
+            task_manager=self.task_manager,
+        )
+
+    async def _handle_require_task_review_or_close_before_stop(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Block stop if task is still in_progress (regardless of dirty files)."""
+        return await require_task_review_or_close_before_stop(
+            workflow_state=context.state,
             task_manager=self.task_manager,
         )
 
