@@ -265,6 +265,7 @@ async def require_commit_before_stop(
 async def require_task_review_or_close_before_stop(
     workflow_state: "WorkflowState | None",
     task_manager: "LocalTaskManager | None" = None,
+    project_id: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """Block stop if session has an in_progress task.
@@ -281,6 +282,7 @@ async def require_task_review_or_close_before_stop(
     Args:
         workflow_state: Workflow state with variables (claimed_task_id, etc.)
         task_manager: LocalTaskManager to verify task status
+        project_id: Project ID for resolving task references (#N, N formats)
         **kwargs: Accepts additional kwargs for compatibility
 
     Returns:
@@ -303,7 +305,10 @@ async def require_task_review_or_close_before_stop(
 
             if isinstance(task_ids, list):
                 for task_id in task_ids:
-                    task = task_manager.get_task(task_id)
+                    try:
+                        task = task_manager.get_task(task_id, project_id=project_id)
+                    except ValueError:
+                        continue
                     if task and task.status == "in_progress":
                         claimed_task_id = task_id
                         logger.debug(
@@ -313,7 +318,7 @@ async def require_task_review_or_close_before_stop(
                         break
                     # Also check subtasks
                     if task:
-                        subtasks = task_manager.list_tasks(parent_task_id=task_id)
+                        subtasks = task_manager.list_tasks(parent_task_id=task.id)
                         for subtask in subtasks:
                             if subtask.status == "in_progress":
                                 claimed_task_id = subtask.id
@@ -334,7 +339,7 @@ async def require_task_review_or_close_before_stop(
         return None
 
     try:
-        task = task_manager.get_task(claimed_task_id)
+        task = task_manager.get_task(claimed_task_id, project_id=project_id)
         if not task:
             # Task not found - clear stale workflow state and allow
             logger.debug(

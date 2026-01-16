@@ -708,8 +708,38 @@ class LocalTaskManager:
 
         raise TaskIDCollisionError("Unreachable")
 
-    def get_task(self, task_id: str) -> Task:
-        """Get a task by ID."""
+    def get_task(self, task_id: str, project_id: str | None = None) -> Task:
+        """Get a task by ID or reference.
+
+        Accepts multiple formats:
+          - UUID: Direct lookup
+          - #N: Project-scoped seq_num (requires project_id)
+          - N: Plain seq_num (requires project_id)
+
+        Args:
+            task_id: Task identifier in any supported format
+            project_id: Required for #N and N formats
+
+        Returns:
+            The Task object
+
+        Raises:
+            ValueError: If task not found or format requires project_id
+        """
+        # Check if this looks like a seq_num reference (#N or plain N)
+        is_seq_ref = task_id.startswith("#") or task_id.isdigit()
+
+        if is_seq_ref:
+            if not project_id:
+                raise ValueError(
+                    f"Task {task_id} requires project_id for seq_num lookup"
+                )
+            try:
+                resolved_id = self.resolve_task_reference(task_id, project_id)
+                task_id = resolved_id
+            except TaskNotFoundError as e:
+                raise ValueError(str(e)) from e
+
         row = self.db.fetchone("SELECT * FROM tasks WHERE id = ?", (task_id,))
         if not row:
             raise ValueError(f"Task {task_id} not found")
@@ -737,6 +767,7 @@ class LocalTaskManager:
         """Resolve a task reference to its UUID.
 
         Accepts multiple reference formats:
+          - N: Plain seq_num (e.g., 47)
           - #N: Project-scoped seq_num (e.g., #47)
           - 1.2.3: Path cache format
           - UUID: Direct UUID (validated to exist)
@@ -755,13 +786,17 @@ class LocalTaskManager:
         if not ref:
             raise TaskNotFoundError("Empty task reference")
 
-        # #N format: seq_num lookup
+        # #N or plain N format: seq_num lookup
+        seq_num: int | None = None
         if ref.startswith("#"):
             try:
                 seq_num = int(ref[1:])
             except ValueError:
                 raise TaskNotFoundError(f"Invalid seq_num format: {ref}") from None
+        elif ref.isdigit():
+            seq_num = int(ref)
 
+        if seq_num is not None:
             if seq_num <= 0:
                 raise TaskNotFoundError(f"Invalid seq_num: {ref} (must be positive)")
 

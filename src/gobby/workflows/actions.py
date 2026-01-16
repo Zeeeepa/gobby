@@ -878,9 +878,16 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Block stop if task is still in_progress (regardless of dirty files)."""
+        # Get project_id from session for task reference resolution
+        project_id = None
+        session = context.session_manager.get(context.session_id)
+        if session:
+            project_id = session.project_id
+
         return await require_task_review_or_close_before_stop(
             workflow_state=context.state,
             task_manager=self.task_manager,
+            project_id=project_id,
         )
 
     async def _handle_require_task_complete(
