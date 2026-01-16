@@ -13,8 +13,6 @@ code_patterns:
   - YAML frontmatter parsing (similar to spec_parser.py)
 ---
 
-# gobby-skills: SkillPort-compatible Skill Management
-
 ## Overview
 
 ### Problem Statement
@@ -26,6 +24,7 @@ SkillPort (github.com/gotalab/skillport) solves this for other AI tools. Gobby s
 ### Solution
 
 Add a `gobby-skills` internal MCP server that:
+
 1. Stores skills as markdown files with YAML frontmatter (SkillPort format)
 2. Uses progressive disclosure (lightweight metadata until full content needed)
 3. Integrates with existing hook system for context injection
@@ -34,6 +33,7 @@ Add a `gobby-skills` internal MCP server that:
 ### Scope
 
 **In Scope:**
+
 - SKILL.md file format with YAML frontmatter
 - SQLite storage for skill metadata
 - `gobby-skills` MCP registry with CRUD + search tools
@@ -42,6 +42,7 @@ Add a `gobby-skills` internal MCP server that:
 - CLI commands (`gobby skills list|show|install|remove`)
 
 **Out of Scope:**
+
 - Skill versioning/updates (future)
 - Skill marketplace/registry (future)
 - Auto-injection based on context detection (future - agent-driven for now)
@@ -74,14 +75,16 @@ Add a `gobby-skills` internal MCP server that:
 ### Data Flow
 
 **Skill Discovery (MCP proxy pattern):**
-```
+
+```text
 1. list_skills()        → Lightweight metadata (~100 tokens/skill)
 2. search_skills(query) → TF-IDF search on descriptions/tags
 3. get_skill(name)      → Full skill content (on demand)
 ```
 
 **Skill Import:**
-```
+
+```text
 1. User: gobby skills install github:anthropics/skills
 2. SkillLoader fetches SKILL.md files from repo
 3. Parser extracts frontmatter + content
@@ -92,6 +95,7 @@ Add a `gobby-skills` internal MCP server that:
 ### Key Abstractions
 
 **Skill dataclass** (`src/gobby/storage/skills.py`):
+
 ```python
 @dataclass
 class Skill:
@@ -112,6 +116,7 @@ class Skill:
 ```
 
 **Skill File Format** (SkillPort-compatible):
+
 ```markdown
 ---
 name: commit-message
@@ -165,10 +170,12 @@ When generating commit messages, follow these conventions...
 **Goal**: Skill storage and CRUD operations.
 
 **Files:**
+
 - `src/gobby/storage/skills.py` - Skill dataclass + LocalSkillManager
 - `src/gobby/storage/migrations.py` - Add skills table migration
 
 **Tasks:**
+
 - [ ] Create Skill dataclass with all fields (id, name, description, version, category, tags, triggers, content, source_path, source_type, enabled, project_id, timestamps)
 - [ ] Create LocalSkillManager with CRUD methods (create, get, list, update, delete)
 - [ ] Add skills table migration to migrations.py
@@ -176,6 +183,7 @@ When generating commit messages, follow these conventions...
 - [ ] Add unit tests for storage layer
 
 **Acceptance Criteria:**
+
 - [ ] Can create, read, update, delete skills in SQLite
 - [ ] Tag filtering works correctly
 - [ ] Tests pass with 80%+ coverage
@@ -185,11 +193,13 @@ When generating commit messages, follow these conventions...
 **Goal**: Parse SKILL.md files and import from sources.
 
 **Files:**
+
 - `src/gobby/skills/__init__.py` - Module init
 - `src/gobby/skills/loader.py` - SkillLoader class
 - `src/gobby/skills/parser.py` - YAML frontmatter parser
 
 **Tasks:**
+
 - [ ] Create YAML frontmatter parser for SKILL.md files (depends: Phase 1)
 - [ ] Create SkillLoader.load_skill(path) method
 - [ ] Create SkillLoader.load_directory(path) for batch loading
@@ -198,6 +208,7 @@ When generating commit messages, follow these conventions...
 - [ ] Add unit tests for loader
 
 **Acceptance Criteria:**
+
 - [ ] Can parse SKILL.md files with YAML frontmatter
 - [ ] Can load all skills from a directory
 - [ ] Can import from GitHub repos
@@ -207,10 +218,12 @@ When generating commit messages, follow these conventions...
 **Goal**: TF-IDF search for skill discovery.
 
 **Files:**
+
 - `src/gobby/skills/search.py` - SkillSearch class
 - `src/gobby/skills/manager.py` - SkillManager (coordinator)
 
 **Tasks:**
+
 - [ ] Create SkillSearch class adapting TF-IDF from memory/search/ (depends: Phase 2)
 - [ ] Implement search on name + description + tags
 - [ ] Add category filtering to search
@@ -219,6 +232,7 @@ When generating commit messages, follow these conventions...
 - [ ] Add unit tests for search
 
 **Acceptance Criteria:**
+
 - [ ] TF-IDF search finds relevant skills by query
 - [ ] Category filtering works
 - [ ] Search is lazy-initialized (no sklearn import until needed)
@@ -228,10 +242,12 @@ When generating commit messages, follow these conventions...
 **Goal**: gobby-skills MCP server with tools.
 
 **Files:**
+
 - `src/gobby/mcp_proxy/tools/skills.py` - create_skills_registry()
 - `src/gobby/mcp_proxy/registries.py` - Register gobby-skills
 
 **Tasks:**
+
 - [ ] Create create_skills_registry() factory function (depends: Phase 3)
 - [ ] Implement list_skills tool (metadata only, ~100 tokens each)
 - [ ] Implement get_skill tool (full content)
@@ -242,6 +258,7 @@ When generating commit messages, follow these conventions...
 - [ ] Add integration tests for MCP tools
 
 **Acceptance Criteria:**
+
 - [ ] gobby-skills appears in list_mcp_servers()
 - [ ] list_skills returns lightweight metadata
 - [ ] get_skill returns full skill content
@@ -253,20 +270,23 @@ When generating commit messages, follow these conventions...
 **Goal**: CLI for skill management.
 
 **Files:**
+
 - `src/gobby/cli/skills.py` - Click command group
 - `src/gobby/cli/__init__.py` - Register skills group
 
 **Tasks:**
+
 - [ ] Create skills command group in cli/skills.py (depends: Phase 4)
 - [ ] Implement `gobby skills list` command
 - [ ] Implement `gobby skills show <name>` command
 - [ ] Implement `gobby skills install <source>` command
 - [ ] Implement `gobby skills remove <name>` command
 - [ ] Implement `gobby skills sync` command (sync file system to DB)
-- [ ] Register skills group in cli/__init__.py
+- [ ] Register skills group in `cli/__init__.py`
 - [ ] Add CLI integration tests
 
 **Acceptance Criteria:**
+
 - [ ] `gobby skills list` shows installed skills
 - [ ] `gobby skills install github:anthropics/skills` imports skills
 - [ ] `gobby skills show commit-message` displays full content
@@ -276,41 +296,49 @@ When generating commit messages, follow these conventions...
 **Goal**: Update docs and CLAUDE.md.
 
 **Files:**
+
 - `CLAUDE.md` - Add skills section
 - `docs/guides/skills.md` - User guide (if requested)
 
 **Tasks:**
+
 - [ ] Add gobby-skills to internal MCP servers table in CLAUDE.md (parallel)
 - [ ] Document skill file format in CLAUDE.md
 - [ ] Add skills CLI commands to CLAUDE.md
 
 **Acceptance Criteria:**
+
 - [ ] CLAUDE.md documents gobby-skills server and tools
 - [ ] Skill file format is documented
 
 ## Dependencies
 
 ### External Dependencies
+
 - PyYAML (already in dependencies)
 - sklearn (already used by memory system)
 
 ### Blockers
+
 - None
 
 ## Testing Strategy
 
 ### Unit Tests
+
 - Storage CRUD operations
 - YAML frontmatter parsing
 - TF-IDF search accuracy
 - Tool input validation
 
 ### Integration Tests
+
 - Full import flow: GitHub → parse → store → search
 - MCP tool round-trip: list → search → get
 - CLI commands
 
 ### Manual Verification
+
 1. `gobby skills install github:anthropics/skills`
 2. `gobby skills list` - verify skills imported
 3. Start Claude Code session
@@ -328,6 +356,7 @@ When generating commit messages, follow these conventions...
 ## Completion Instructions
 
 When completing a task:
+
 1. Make all code changes
 2. Run tests: `uv run pytest tests/skills/ -v`
 3. Commit with task reference: `git commit -m "[#N] description"`
