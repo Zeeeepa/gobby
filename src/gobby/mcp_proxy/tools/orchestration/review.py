@@ -418,7 +418,9 @@ def register_reviewer(
         # Create a fresh list for newly reviewed agents to avoid aliasing the stored list
         newly_reviewed: list[dict[str, Any]] = []
         # Shallow copy to avoid aliasing
-        review_agents_spawned = list(_safe_list_of_dicts(workflow_vars.get("review_agents_spawned")))
+        review_agents_spawned = list(
+            _safe_list_of_dicts(workflow_vars.get("review_agents_spawned"))
+        )
 
         # Resolve review provider from workflow vars or parameters
         effective_review_provider = (
@@ -580,12 +582,13 @@ def register_reviewer(
             if "crashed" in failure_reason.lower() or "exited" in failure_reason.lower():
                 # Potentially retriable - reopen task
                 if task_id:
+                    retry_task: Any = None
                     try:
-                        task = task_manager.get_task(task_id)
+                        retry_task = task_manager.get_task(task_id)
                     except ValueError:
                         # Task was deleted concurrently - skip
-                        task = None
-                    if task and task.status == "in_progress":
+                        pass
+                    if retry_task and retry_task.status == "in_progress":
                         # Reopen for retry
                         try:
                             task_manager.update_task(task_id, status="open")

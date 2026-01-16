@@ -384,7 +384,9 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--cascade", "-c", is_flag=True, help="Also apply TDD to subtasks")
 @click.option("--force", "-f", is_flag=True, help="Reapply TDD even if already applied")
-@click.option("--project", "-p", "_project_name", help="Project name or ID (reserved for future use)")
+@click.option(
+    "--project", "-p", "_project_name", help="Project name or ID (reserved for future use)"
+)
 def apply_tdd_cmd(
     task_refs: tuple[str, ...],
     cascade: bool,
@@ -518,7 +520,9 @@ def apply_tdd_cmd(
             priority=task.priority,
             validation_criteria=TDD_CRITERIA_BLUE,
         )
-        refactor_ref = f"#{refactor_task.seq_num}" if refactor_task.seq_num else refactor_task.id[:8]
+        refactor_ref = (
+            f"#{refactor_task.seq_num}" if refactor_task.seq_num else refactor_task.id[:8]
+        )
         click.echo(f"  Created {refactor_ref}: {refactor_task.title[:50]}")
 
         # Wire dependencies: Test -> Implement -> Refactor
@@ -567,7 +571,9 @@ def apply_tdd_cmd(
             click.echo(f"  Error: {e}", err=True)
             error_count += 1
 
-    click.echo(f"\nDone: {applied_count} transformed, {skipped_count} skipped, {error_count} failed")
+    click.echo(
+        f"\nDone: {applied_count} transformed, {skipped_count} skipped, {error_count} failed"
+    )
 
 
 def _find_unexpanded_epic(manager: LocalTaskManager, root_task_id: str) -> Task | None:
@@ -623,7 +629,9 @@ def _count_unexpanded_epics(manager: LocalTaskManager, root_task_id: str) -> int
     default=True,
     help="Enable/disable codebase context gathering",
 )
-@click.option("--cascade", is_flag=True, help="Iteratively expand all child epics (default for epics)")
+@click.option(
+    "--cascade", is_flag=True, help="Iteratively expand all child epics (default for epics)"
+)
 @click.option("--force", "-f", is_flag=True, help="Re-expand already expanded tasks")
 @click.option("--project", "-p", "project_name", help="Project name or ID")
 def expand_task_cmd(
@@ -649,9 +657,9 @@ def expand_task_cmd(
     import asyncio
 
     from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.cli.utils import get_active_session_id
     from gobby.config.app import load_config
     from gobby.llm import LLMService
-    from gobby.sessions.lifecycle import get_current_session_id
     from gobby.tasks.expansion import TaskExpander
 
     # Parse task references
@@ -691,7 +699,7 @@ def expand_task_cmd(
         return
 
     # Get current session ID for expansion context
-    session_id = get_current_session_id()
+    session_id = get_active_session_id()
 
     # Process each root task
     total_iterations = 0
