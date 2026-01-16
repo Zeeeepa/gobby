@@ -232,25 +232,27 @@ class TestStatusCommand:
         return CliRunner()
 
     @patch("gobby.cli.load_config")
+    @patch("gobby.cli.daemon.Path")
     def test_status_no_pid_file(
-        self, mock_load_config: MagicMock, runner: CliRunner, temp_dir: Path
+        self, mock_path: MagicMock, mock_load_config: MagicMock, runner: CliRunner, temp_dir: Path
     ):
         """Test status when no PID file exists."""
         mock_config = MagicMock()
         mock_config.logging.client = str(temp_dir / "logs" / "client.log")
         mock_load_config.return_value = mock_config
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            # Ensure no PID file exists
-            pid_file = Path.home() / ".gobby" / "gobby.pid"
-            if pid_file.exists():
-                pid_file.unlink()
+        # Mock Path.home() to return temp_dir, and make PID file not exist
+        mock_pid_file = MagicMock()
+        mock_pid_file.exists.return_value = False
+        mock_path.home.return_value.__truediv__.return_value.__truediv__.return_value = (
+            mock_pid_file
+        )
 
-            result = runner.invoke(cli, ["status"])
+        result = runner.invoke(cli, ["status"])
 
-            # Should indicate daemon is not running
-            assert result.exit_code == 0
-            assert "not running" in result.output.lower() or "stopped" in result.output.lower()
+        # Should indicate daemon is not running
+        assert result.exit_code == 0
+        assert "not running" in result.output.lower() or "stopped" in result.output.lower()
 
 
 class TestInitCommand:
