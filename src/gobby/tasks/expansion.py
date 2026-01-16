@@ -69,6 +69,39 @@ class TaskExpander:
             verification_config=verification_config,
         )
 
+    def _resolve_tdd_mode(self, session_id: str | None, task_type: str | None = None) -> bool:
+        """Resolve tdd_mode with cascading precedence.
+
+        Order: task_type override > step workflow > lifecycle workflow > config.yaml > pydantic default
+
+        Epic tasks never use TDD mode since their closing condition is
+        'all children are closed', not test-based verification.
+
+        Args:
+            session_id: Session ID to resolve TDD mode from workflow state
+            task_type: Task type - epics always disable TDD mode
+
+        Returns:
+            True if TDD mode is enabled, False otherwise
+        """
+        # Epics never use TDD mode
+        if task_type == "epic":
+            return False
+
+        if session_id:
+            try:
+                from gobby.workflows.state_manager import WorkflowStateManager
+
+                state_manager = WorkflowStateManager(self.task_manager.db)
+                state = state_manager.get_state(session_id)
+                if state and state.variables and "tdd_mode" in state.variables:
+                    return bool(state.variables["tdd_mode"])
+            except Exception as e:
+                logger.debug(f"Failed to resolve tdd_mode from workflow state: {e}")
+
+        # Fall back to config (includes pydantic default)
+        return self.config.tdd_mode
+
     async def expand_task(
         self,
         task_id: str,
@@ -77,6 +110,7 @@ class TaskExpander:
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using structured JSON output.
@@ -95,6 +129,7 @@ class TaskExpander:
             context: Additional context for expansion
             enable_web_research: Whether to enable web research (default: False)
             enable_code_context: Whether to enable code context gathering (default: True)
+            session_id: Session ID for TDD mode resolution (optional)
 
         Returns:
             Dictionary with:
@@ -123,6 +158,7 @@ class TaskExpander:
                     context=context,
                     enable_web_research=enable_web_research,
                     enable_code_context=enable_code_context,
+                    session_id=session_id,
                 )
         except TimeoutError:
             error_msg = (
@@ -145,6 +181,7 @@ class TaskExpander:
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Internal implementation of expand_task (called within timeout context)."""
         # Gather enhanced context
@@ -195,11 +232,15 @@ class TaskExpander:
             # Get provider and generate text response
             provider = self.llm_service.get_provider(self.config.provider)
 
+            # Resolve TDD mode from session workflow state or config
+            # Epics never use TDD mode
+            tdd_mode = self._resolve_tdd_mode(session_id, task_obj.task_type)
+
             # Note: TDD transformation is applied separately via apply_tdd command.
             # The expand_task only creates plain subtasks.
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(),
+                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=tdd_mode),
                 model=self.config.model,
             )
 

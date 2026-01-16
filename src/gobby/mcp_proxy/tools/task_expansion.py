@@ -271,6 +271,7 @@ def create_expansion_registry(
         should_generate_validation: bool,
         skip_tdd: bool = False,
         force: bool = False,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Internal helper to expand a single task."""
         # Resolve task reference
@@ -314,6 +315,7 @@ def create_expansion_registry(
             context=merged_context,
             enable_web_research=enable_web_research,
             enable_code_context=enable_code_context,
+            session_id=session_id,
         )
 
         # Handle errors
@@ -426,6 +428,7 @@ def create_expansion_registry(
         generate_validation: bool | None = None,
         skip_tdd: bool = False,
         force: bool = False,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Expand a leaf task into subtasks using tool-based expansion.
@@ -447,6 +450,7 @@ def create_expansion_registry(
                 Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
             skip_tdd: Skip automatic TDD transformation for code/config subtasks
             force: Re-expand even if is_expanded=True
+            session_id: Session ID for TDD mode resolution (optional)
 
         Returns:
             Dictionary with subtask_ids for single task, or results list for batch mode
@@ -474,6 +478,7 @@ def create_expansion_registry(
                 should_generate_validation=should_generate_validation,
                 skip_tdd=skip_tdd,
                 force=force,
+                session_id=session_id,
             )
 
         # Batch mode - process tasks in parallel
@@ -489,6 +494,7 @@ def create_expansion_registry(
                 should_generate_validation=should_generate_validation,
                 skip_tdd=skip_tdd,
                 force=force,
+                session_id=session_id,
             )
 
         raw_results = await asyncio.gather(
