@@ -1,0 +1,5 @@
+[allowlist]
+paths = [
+  '''_bmad/_config/files-manifest.csv''',
+  '''docs/plans/gobby-choo-choo.md''',
+]

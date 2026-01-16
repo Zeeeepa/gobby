@@ -279,7 +279,7 @@ conductor:
     stuck_agent_minutes: 15
 
   llm_mode: hybrid        # template | api | hybrid
-  api_model: claude-3-haiku-20240307
+  api_model: claude-4.5-haiku
 ```
 
 ### 4.4 Hybrid LLM Strategy
@@ -1453,7 +1453,7 @@ conductor:
 
   # LLM settings
   llm_mode: hybrid        # template | api | hybrid
-  api_model: claude-3-haiku-20240307
+  api_model: claude-4.5-haiku
 
   # Token budget
   token_budget:
