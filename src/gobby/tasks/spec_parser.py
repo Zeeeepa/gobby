@@ -824,15 +824,11 @@ class TaskHierarchyBuilder:
         description = "\n\n".join(parts) if parts else None
 
         # LLM fallback if structured extraction yielded minimal results
-        task_config = (
-            getattr(self.config, "task_description", None) if self.config else None
-        )
+        task_config = getattr(self.config, "task_description", None) if self.config else None
         min_length = getattr(task_config, "min_structured_length", 50) if task_config else 50
 
         if not description or len(description) < min_length:
-            description = await self._generate_description_llm(
-                checkbox, heading, description
-            )
+            description = await self._generate_description_llm(checkbox, heading, description)
 
         return description
 
@@ -1658,7 +1654,7 @@ def format_spec_with_llm(content: str) -> str:
 
     try:
         # Check if we're already in an event loop
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
         # We're in an async context, can't use asyncio.run
         raise RuntimeError("Use format_spec_with_llm_async in async contexts")
     except RuntimeError as e:
