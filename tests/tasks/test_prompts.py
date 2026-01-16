@@ -7,7 +7,11 @@ from gobby.tasks.prompts.expand import DEFAULT_SYSTEM_PROMPT, ExpansionPromptBui
 def test_get_system_prompt_default():
     config = TaskExpansionConfig(enabled=True, provider="test", model="test")
     builder = ExpansionPromptBuilder(config)
-    assert builder.get_system_prompt() == DEFAULT_SYSTEM_PROMPT
+    prompt = builder.get_system_prompt()
+    # Should contain key content from the system prompt template
+    assert "senior technical project manager" in prompt
+    assert "JSON object containing a \"subtasks\" array" in prompt
+    assert "## Validation Criteria Rules" in prompt
 
 
 def test_get_system_prompt_custom():

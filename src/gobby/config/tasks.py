@@ -149,7 +149,15 @@ class TaskExpansionConfig(BaseModel):
     )
     prompt: str | None = Field(
         default=None,
-        description="Custom prompt template for task expansion",
+        description="DEPRECATED: Use prompt_path instead. Custom prompt template for task expansion",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom user prompt template (e.g., 'expansion/user')",
+    )
+    system_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom system prompt template (e.g., 'expansion/system')",
     )
     codebase_research_enabled: bool = Field(
         default=True,
@@ -169,11 +177,11 @@ class TaskExpansionConfig(BaseModel):
     )
     system_prompt: str | None = Field(
         default=None,
-        description="Custom system prompt for task expansion (overrides default in expand.py)",
+        description="DEPRECATED: Use system_prompt_path instead. Custom system prompt for task expansion",
     )
     tdd_prompt: str | None = Field(
         default=None,
-        description="TDD mode instructions appended to system prompt when tdd_mode is enabled (overrides default in expand.py)",
+        description="DEPRECATED: TDD mode is now integrated into the system prompt template via Jinja2 conditionals",
     )
     web_research_enabled: bool = Field(
         default=True,
@@ -226,7 +234,31 @@ class TaskValidationConfig(BaseModel):
     )
     prompt: str | None = Field(
         default=None,
-        description="Custom prompt template for task validation (use {title}, {criteria_text}, {changes_section} placeholders)",
+        description="DEPRECATED: Use prompt_path instead. Custom prompt template for task validation",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom validation prompt template (e.g., 'validation/validate')",
+    )
+    criteria_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom criteria generation prompt template (e.g., 'validation/criteria')",
+    )
+    external_system_prompt_path: str | None = Field(
+        default=None,
+        description="Path to external validator system prompt (e.g., 'external_validation/system')",
+    )
+    external_spawn_prompt_path: str | None = Field(
+        default=None,
+        description="Path to spawn validation prompt template (e.g., 'external_validation/spawn')",
+    )
+    external_agent_prompt_path: str | None = Field(
+        default=None,
+        description="Path to agent validation prompt template (e.g., 'external_validation/agent')",
+    )
+    external_llm_prompt_path: str | None = Field(
+        default=None,
+        description="Path to LLM validation prompt template (e.g., 'external_validation/external')",
     )
     criteria_system_prompt: str = Field(
         default="You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that aren't mentioned. Vague tasks get vague criteria. Use markdown checkboxes.",
@@ -234,7 +266,7 @@ class TaskValidationConfig(BaseModel):
     )
     criteria_prompt: str | None = Field(
         default=None,
-        description="Custom prompt template for generating validation criteria (use {title}, {description} placeholders)",
+        description="DEPRECATED: Use criteria_prompt_path instead. Custom prompt template for generating validation criteria",
     )
     # Validation loop control
     max_iterations: int = Field(

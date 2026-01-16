@@ -11,10 +11,12 @@ All modes ensure the validator has no prior knowledge of the implementation.
 import json
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService
+from gobby.prompts import PromptLoader
 from gobby.tasks.commits import (
     extract_mentioned_files,
     extract_mentioned_symbols,
@@ -42,6 +44,29 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+# Default system prompt for external validators
+DEFAULT_EXTERNAL_SYSTEM_PROMPT = (
+    "You are an objective QA validator reviewing code changes. "
+    "You have no prior context about this task - evaluate purely based on "
+    "the acceptance criteria and the changes provided. "
+    "Be thorough but fair in your assessment."
+)
+
+# Module-level loader (initialized lazily)
+_loader: PromptLoader | None = None
+
+
+def _get_loader(project_dir: Path | None = None) -> PromptLoader:
+    """Get or create the module-level PromptLoader."""
+    global _loader
+    if _loader is None:
+        _loader = PromptLoader(project_dir=project_dir)
+        # Register fallbacks for strangler fig pattern
+        _loader.register_fallback(
+            "external_validation/system", lambda: DEFAULT_EXTERNAL_SYSTEM_PROMPT
+        )
+    return _loader
 
 
 @dataclass

@@ -63,6 +63,7 @@ gobby = [
     "install/gemini/**/*",
     "install/codex/**/*",
     "install/antigravity/**/*",
+    "prompts/defaults/**/*.md",
 ]
 
 [tool.pytest.ini_options]

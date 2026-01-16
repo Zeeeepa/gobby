@@ -5,9 +5,15 @@ Handles the construction of system and user prompts for task expansion,
 instructing the agent to return structured JSON for subtask creation.
 """
 
+import logging
+from pathlib import Path
+
 from gobby.config.app import TaskExpansionConfig
+from gobby.prompts import PromptLoader
 from gobby.storage.tasks import Task
 from gobby.tasks.context import ExpansionContext
+
+logger = logging.getLogger(__name__)
 
 # JSON Schema for subtask output
 SUBTASK_SCHEMA = """
@@ -222,23 +228,49 @@ Return the JSON now."""
 class ExpansionPromptBuilder:
     """Builds prompts for task expansion."""
 
-    def __init__(self, config: TaskExpansionConfig):
+    def __init__(self, config: TaskExpansionConfig, project_dir: Path | None = None):
         self.config = config
+        self._loader = PromptLoader(project_dir=project_dir)
+
+        # Register fallbacks for strangler fig pattern
+        self._loader.register_fallback(
+            "expansion/system", lambda: DEFAULT_SYSTEM_PROMPT + TDD_MODE_INSTRUCTIONS
+        )
+        self._loader.register_fallback("expansion/user", lambda: DEFAULT_USER_PROMPT)
 
     def get_system_prompt(self, tdd_mode: bool = False) -> str:
         """
-        Get the system prompt (from config or default).
+        Get the system prompt (from config, template file, or default).
+
+        Precedence order:
+        1. Inline config (deprecated): config.system_prompt
+        2. Config path: config.system_prompt_path
+        3. Template file: expansion/system.md
+        4. Python constant fallback: DEFAULT_SYSTEM_PROMPT
 
         Args:
-            tdd_mode: If True, append TDD-specific instructions.
+            tdd_mode: If True, TDD instructions are included (via Jinja2 conditional).
         """
-        base_prompt = self.config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        # 1. Inline config (deprecated, for backwards compatibility)
+        if self.config.system_prompt:
+            base_prompt = self.config.system_prompt
+            if tdd_mode:
+                tdd_instructions = self.config.tdd_prompt or TDD_MODE_INSTRUCTIONS
+                base_prompt += tdd_instructions
+            return base_prompt
 
-        if tdd_mode:
-            tdd_instructions = self.config.tdd_prompt or TDD_MODE_INSTRUCTIONS
-            base_prompt += tdd_instructions
+        # 2. Config path or 3. Template file
+        prompt_path = self.config.system_prompt_path or "expansion/system"
 
-        return base_prompt
+        try:
+            return self._loader.render(prompt_path, {"tdd_mode": tdd_mode})
+        except FileNotFoundError:
+            logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
+            # 4. Python constant fallback
+            base_prompt = DEFAULT_SYSTEM_PROMPT
+            if tdd_mode:
+                base_prompt += TDD_MODE_INSTRUCTIONS
+            return base_prompt
 
     def build_user_prompt(
         self,
@@ -248,8 +280,15 @@ class ExpansionPromptBuilder:
     ) -> str:
         """
         Build the user prompt by injecting context into the template.
+
+        Precedence order:
+        1. Inline config (deprecated): config.prompt
+        2. Config path: config.prompt_path
+        3. Template file: expansion/user.md
+        4. Python constant fallback: DEFAULT_USER_PROMPT
         """
-        template = self.config.prompt or DEFAULT_USER_PROMPT
+        # Check if using inline config (deprecated)
+        use_legacy_template = self.config.prompt is not None
 
         # Format context string
         context_parts = []
@@ -311,14 +350,29 @@ class ExpansionPromptBuilder:
         # Format research findings
         research_str = context.agent_findings or "No research performed."
 
-        # Inject into template
-        prompt = template.format(
-            task_id=task.id,
-            title=task.title,
-            description=task.description or "",
-            context_str=context_str,
-            research_str=research_str,
-        )
+        # Build context for template rendering
+        template_context = {
+            "task_id": task.id,
+            "title": task.title,
+            "description": task.description or "",
+            "context_str": context_str,
+            "research_str": research_str,
+        }
+
+        # Render using appropriate method
+        if use_legacy_template:
+            # 1. Inline config (deprecated)
+            template = self.config.prompt or DEFAULT_USER_PROMPT
+            prompt = template.format(**template_context)
+        else:
+            # 2. Config path or 3. Template file
+            prompt_path = self.config.prompt_path or "expansion/user"
+            try:
+                prompt = self._loader.render(prompt_path, template_context)
+            except FileNotFoundError:
+                logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
+                # 4. Python constant fallback
+                prompt = DEFAULT_USER_PROMPT.format(**template_context)
 
         # Append specific user instructions if provided
         if user_instructions:

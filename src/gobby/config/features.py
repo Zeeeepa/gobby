@@ -50,11 +50,19 @@ Do not add quotes, extra formatting, or code examples.
 Description: {description}
 
 Summary:""",
-        description="Prompt template for tool description summarization (use {description} placeholder)",
+        description="DEPRECATED: Use prompt_path instead. Prompt template for tool description summarization",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom tool summary prompt template (e.g., 'features/tool_summary')",
     )
     system_prompt: str = Field(
         default="You are a technical summarizer. Create concise tool descriptions.",
-        description="System prompt for tool description summarization",
+        description="DEPRECATED: Use system_prompt_path instead. System prompt for tool description summarization",
+    )
+    system_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom tool summary system prompt (e.g., 'features/tool_summary_system')",
     )
     server_description_prompt: str = Field(
         default="""Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
@@ -63,11 +71,19 @@ Tools:
 {tools_list}
 
 Description (1 sentence, try to keep under 100 characters):""",
-        description="Prompt template for server description generation (use {server_name} and {tools_list} placeholders)",
+        description="DEPRECATED: Use server_description_prompt_path instead. Prompt template for server description generation",
+    )
+    server_description_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom server description prompt (e.g., 'features/server_description')",
     )
     server_description_system_prompt: str = Field(
         default="You write concise technical descriptions.",
-        description="System prompt for server description generation",
+        description="DEPRECATED: Use server_description_system_prompt_path instead. System prompt for server description generation",
+    )
+    server_description_system_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom server description system prompt (e.g., 'features/server_description_system')",
     )
 
 
@@ -104,12 +120,19 @@ Existing context: {existing_context}
 
 Write a 1-2 sentence description focusing on the goal and deliverable.
 Do not add quotes, extra formatting, or implementation details.""",
-        description="Prompt template for task description generation "
-        "(use {task_title}, {section_title}, {section_content}, {existing_context} placeholders)",
+        description="DEPRECATED: Use prompt_path instead. Prompt template for task description generation",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom task description prompt (e.g., 'features/task_description')",
     )
     system_prompt: str = Field(
         default="You are a technical writer creating concise task descriptions for developers.",
-        description="System prompt for task description generation",
+        description="DEPRECATED: Use system_prompt_path instead. System prompt for task description generation",
+    )
+    system_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom task description system prompt (e.g., 'features/task_description_system')",
     )
 
     @field_validator("min_structured_length")
@@ -164,7 +187,11 @@ Be concise and specific. Recommend 1-3 tools maximum with:
 2. Brief rationale based on server description matching task type
 3. Suggested workflow (e.g., "First call X, then use result with Y")
 4. Only mention built-in tools if no MCP server is suitable""",
-        description="System prompt for recommend_tools() MCP tool.",
+        description="DEPRECATED: Use prompt_path instead. System prompt for recommend_tools() MCP tool.",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom recommend tools system prompt (e.g., 'features/recommend_tools')",
     )
     hybrid_rerank_prompt: str = Field(
         default="""You are an expert at selecting tools for tasks.
@@ -184,7 +211,11 @@ Return the top {top_k} most relevant as JSON:
     }}
   ]
 }}""",
-        description="Prompt template for hybrid mode re-ranking (use {task_description}, {candidate_list}, {top_k} placeholders)",
+        description="DEPRECATED: Use hybrid_rerank_prompt_path instead. Prompt template for hybrid mode re-ranking",
+    )
+    hybrid_rerank_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom hybrid re-rank prompt (e.g., 'features/recommend_tools_hybrid')",
     )
     llm_prompt: str = Field(
         default="""You are an expert at selecting the right tools for a given task.
@@ -203,7 +234,11 @@ Return a JSON object with this structure:
     }}
   ]
 }}""",
-        description="Prompt template for LLM mode recommendations (use {task_description}, {available_servers} placeholders)",
+        description="DEPRECATED: Use llm_prompt_path instead. Prompt template for LLM mode recommendations",
+    )
+    llm_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom LLM recommendation prompt (e.g., 'features/recommend_tools_llm')",
     )
 
 
@@ -243,7 +278,11 @@ class ImportMCPServerConfig(BaseModel):
     )
     prompt: str = Field(
         default=DEFAULT_IMPORT_MCP_SERVER_PROMPT,
-        description="System prompt for MCP server config extraction",
+        description="DEPRECATED: Use prompt_path instead. System prompt for MCP server config extraction",
+    )
+    prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom import MCP system prompt (e.g., 'features/import_mcp')",
     )
     github_fetch_prompt: str = Field(
         default="""Fetch the README from this GitHub repository and extract MCP server configuration:
@@ -253,7 +292,11 @@ class ImportMCPServerConfig(BaseModel):
 If the URL doesn't point directly to a README, try to find and fetch the README.md file.
 
 After reading the documentation, extract the MCP server configuration as a JSON object.""",
-        description="User prompt template for GitHub import (use {github_url} placeholder)",
+        description="DEPRECATED: Use github_fetch_prompt_path instead. User prompt template for GitHub import",
+    )
+    github_fetch_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom GitHub fetch prompt (e.g., 'features/import_mcp_github')",
     )
     search_fetch_prompt: str = Field(
         default="""Search for MCP server: {search_query}
@@ -262,7 +305,11 @@ Find the official documentation or GitHub repository for this MCP server.
 Then fetch and read the README or installation docs.
 
 After reading the documentation, extract the MCP server configuration as a JSON object.""",
-        description="User prompt template for search-based import (use {search_query} placeholder)",
+        description="DEPRECATED: Use search_fetch_prompt_path instead. User prompt template for search-based import",
+    )
+    search_fetch_prompt_path: str | None = Field(
+        default=None,
+        description="Path to custom search fetch prompt (e.g., 'features/import_mcp_search')",
     )
 
 
