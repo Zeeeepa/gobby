@@ -6,7 +6,7 @@ and enforce task completion before allowing agent to stop.
 """
 
 import logging
-import subprocess
+import subprocess  # nosec B404
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
@@ -40,7 +40,7 @@ def _get_dirty_files(project_path: str | None = None) -> set[str]:
         )
 
     try:
-        result = subprocess.run(  # nosec B603,B607
+        result = subprocess.run(  # nosec
             ["git", "status", "--porcelain"],
             cwd=project_path,
             capture_output=True,
@@ -274,6 +274,10 @@ async def require_task_review_or_close_before_stop(
     need to check for uncommitted changes here - that's handled by
     require_commit_before_stop if needed.
 
+    Checks both:
+    1. claimed_task_id - task explicitly claimed via update_task(status="in_progress")
+    2. session_task - task(s) assigned via set_variable (fallback if no claimed_task_id)
+
     Args:
         workflow_state: Workflow state with variables (claimed_task_id, etc.)
         task_manager: LocalTaskManager to verify task status
@@ -287,15 +291,46 @@ async def require_task_review_or_close_before_stop(
         logger.debug("require_task_review_or_close_before_stop: No workflow_state, allowing")
         return None
 
+    # 1. Check claimed_task_id first (existing behavior)
     claimed_task_id = workflow_state.variables.get("claimed_task_id")
+
+    # 2. If no claimed task, fall back to session_task
+    if not claimed_task_id and task_manager:
+        session_task = workflow_state.variables.get("session_task")
+        if session_task and session_task != "*":
+            # Normalize to list
+            task_ids = [session_task] if isinstance(session_task, str) else session_task
+
+            if isinstance(task_ids, list):
+                for task_id in task_ids:
+                    task = task_manager.get_task(task_id)
+                    if task and task.status == "in_progress":
+                        claimed_task_id = task_id
+                        logger.debug(
+                            f"require_task_review_or_close_before_stop: Found in_progress "
+                            f"session_task '{task_id}'"
+                        )
+                        break
+                    # Also check subtasks
+                    if task:
+                        subtasks = task_manager.list_tasks(parent_task_id=task_id)
+                        for subtask in subtasks:
+                            if subtask.status == "in_progress":
+                                claimed_task_id = subtask.id
+                                logger.debug(
+                                    f"require_task_review_or_close_before_stop: Found in_progress "
+                                    f"subtask '{subtask.id}' under session_task '{task_id}'"
+                                )
+                                break
+                    if claimed_task_id:
+                        break
+
     if not claimed_task_id:
         logger.debug("require_task_review_or_close_before_stop: No claimed task, allowing")
         return None
 
     if not task_manager:
-        logger.debug(
-            "require_task_review_or_close_before_stop: No task_manager, allowing"
-        )
+        logger.debug("require_task_review_or_close_before_stop: No task_manager, allowing")
         return None
 
     try:

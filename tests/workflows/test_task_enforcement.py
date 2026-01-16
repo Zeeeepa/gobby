@@ -668,6 +668,160 @@ class TestRequireTaskReviewOrCloseBeforeStop:
 
         assert result is None
 
+    # -------------------------------------------------------------------------
+    # Tests for session_task fallback (when claimed_task_id is not set)
+    # -------------------------------------------------------------------------
+
+    async def test_session_task_string_blocks_when_in_progress(
+        self, workflow_state, mock_task_manager
+    ):
+        """When session_task is set (string) and task is in_progress, block stop."""
+        workflow_state.variables["session_task"] = "gt-session-task"
+        # No claimed_task_id set
+
+        mock_task = MagicMock()
+        mock_task.id = "gt-session-task"
+        mock_task.status = "in_progress"
+        mock_task_manager.get_task.return_value = mock_task
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "gt-session-task" in result["reason"]
+        assert "still in_progress" in result["reason"]
+
+    async def test_session_task_list_blocks_when_any_in_progress(
+        self, workflow_state, mock_task_manager
+    ):
+        """When session_task is a list and any task is in_progress, block stop."""
+        workflow_state.variables["session_task"] = ["gt-task1", "gt-task2"]
+        # No claimed_task_id set
+
+        mock_task1 = MagicMock()
+        mock_task1.id = "gt-task1"
+        mock_task1.status = "closed"
+
+        mock_task2 = MagicMock()
+        mock_task2.id = "gt-task2"
+        mock_task2.status = "in_progress"
+
+        # Return different tasks for each get_task call
+        mock_task_manager.get_task.side_effect = [mock_task1, mock_task2, mock_task2]
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "gt-task2" in result["reason"]
+
+    async def test_session_task_allows_when_all_closed(
+        self, workflow_state, mock_task_manager
+    ):
+        """When session_task is set but all tasks are closed, allow stop."""
+        workflow_state.variables["session_task"] = "gt-closed-task"
+        # No claimed_task_id set
+
+        mock_task = MagicMock()
+        mock_task.id = "gt-closed-task"
+        mock_task.status = "closed"
+        mock_task_manager.get_task.return_value = mock_task
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        # Should allow since no in_progress task found
+        assert result is None
+
+    async def test_session_task_subtask_in_progress_blocks(
+        self, workflow_state, mock_task_manager
+    ):
+        """When session_task has subtask in_progress, block stop."""
+        workflow_state.variables["session_task"] = "gt-parent"
+        # No claimed_task_id set
+
+        mock_parent = MagicMock()
+        mock_parent.id = "gt-parent"
+        mock_parent.status = "open"  # Parent is open, not in_progress
+
+        mock_subtask = MagicMock()
+        mock_subtask.id = "gt-subtask"
+        mock_subtask.status = "in_progress"
+
+        # First call for parent, second call for subtask verification
+        mock_task_manager.get_task.side_effect = [mock_parent, mock_subtask]
+        mock_task_manager.list_tasks.return_value = [mock_subtask]
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "gt-subtask" in result["reason"]
+
+    async def test_session_task_wildcard_allows(self, workflow_state, mock_task_manager):
+        """When session_task='*', don't check tasks (wildcard means all)."""
+        workflow_state.variables["session_task"] = "*"
+        # No claimed_task_id set
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        # Wildcard means we don't check specific tasks
+        assert result is None
+        mock_task_manager.get_task.assert_not_called()
+
+    async def test_session_task_no_task_manager_allows(self, workflow_state):
+        """When session_task is set but no task_manager, allow stop."""
+        workflow_state.variables["session_task"] = "gt-task"
+        # No claimed_task_id set
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=None,
+        )
+
+        assert result is None
+
+    async def test_claimed_task_takes_precedence_over_session_task(
+        self, workflow_state, mock_task_manager
+    ):
+        """claimed_task_id is checked first, session_task is fallback."""
+        workflow_state.variables["claimed_task_id"] = "gt-claimed"
+        workflow_state.variables["session_task"] = "gt-session"
+
+        mock_claimed_task = MagicMock()
+        mock_claimed_task.id = "gt-claimed"
+        mock_claimed_task.status = "in_progress"
+
+        # Only return the claimed task
+        mock_task_manager.get_task.return_value = mock_claimed_task
+
+        result = await require_task_review_or_close_before_stop(
+            workflow_state=workflow_state,
+            task_manager=mock_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        # Should block on claimed_task, not session_task
+        assert "gt-claimed" in result["reason"]
+
 
 # =============================================================================
 # Tests for require_task_complete
