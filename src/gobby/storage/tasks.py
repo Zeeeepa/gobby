@@ -544,6 +544,7 @@ class LocalTaskManager:
         linear_team_id: str | None = None,
         agent_name: str | None = None,
         reference_doc: str | None = None,
+        requires_user_review: bool = False,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -579,8 +580,9 @@ class LocalTaskManager:
                             validation_criteria, use_external_validator, validation_fail_count,
                             workflow_name, verification, sequence_order,
                             github_issue_number, github_pr_number, github_repo,
-                            linear_issue_id, linear_team_id, seq_num, agent_name, reference_doc
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            linear_issue_id, linear_team_id, seq_num, agent_name, reference_doc,
+                            requires_user_review
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -613,6 +615,7 @@ class LocalTaskManager:
                             next_seq_num,
                             agent_name,
                             reference_doc,
+                            requires_user_review,
                         ),
                     )
 
