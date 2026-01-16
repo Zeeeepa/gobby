@@ -1,20 +1,25 @@
 # Gobby UI Specification Documents
 
-These spec documents are designed for use with `expand_from_spec` to create task hierarchies.
+These spec documents describe the UI implementation phases for Gobby.
 
 ## Usage
 
 ```python
-# Expand a phase into tasks
-call_tool("gobby-tasks", "expand_from_spec", {"spec_path": "docs/specs/ui/phase-0-tui.md"})
+# Create a parent epic for the entire UI implementation
+parent = call_tool("gobby-tasks", "create_task", {
+    "title": "Gobby UI Implementation",
+    "task_type": "epic",
+    "session_id": "<your_session_id>"
+})
 
-# Or create all phases as epics under a parent
-parent = call_tool("gobby-tasks", "create_task", {"title": "Gobby UI Implementation", "task_type": "epic", "session_id": "<your_session_id>"})
-for phase in range(8):
-    call_tool("gobby-tasks", "expand_from_spec", {
-        "spec_path": f"docs/specs/ui/phase-{phase}-*.md",
-        "parent_task_id": parent["id"]
-    })
+# Create phase epics and use expand_task to break them into subtasks
+phase_epic = call_tool("gobby-tasks", "create_task", {
+    "title": "Phase 0: TUI Dashboard",
+    "task_type": "epic",
+    "parent_task_id": parent["id"],
+    "session_id": "<your_session_id>"
+})
+call_tool("gobby-tasks", "expand_task", {"task_id": phase_epic["id"]})
 ```
 
 ## Phase Overview
@@ -54,6 +59,5 @@ for phase in range(8):
 ## Notes
 
 - Each spec is self-contained with clear dependencies
-- Checkboxes are structured for expand_from_spec parsing
 - Sections map to epic-level tasks, checkboxes map to individual tasks
 - TDD mode will create test tasks alongside implementation tasks

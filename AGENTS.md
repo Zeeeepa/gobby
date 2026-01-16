@@ -81,7 +81,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 
 1. **Start of session**: `list_ready_tasks` or `suggest_next_task`
 2. **New work**: `create_task(title, description, session_id)` - session_id required
-3. **Complex work**: `expand_task` or `expand_from_spec` for subtasks
+3. **Complex work**: `expand_task` for subtasks
 4. **Track progress**: `update_task(status="in_progress")`
 5. **Complete work**: Commit with `[task-id]` in message, then `close_task(commit_sha="...")`
 
@@ -128,7 +128,6 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 | `expand_task` | Break task into subtasks with AI |
 | `analyze_complexity` | Get complexity score |
 | `expand_all` | Expand all unexpanded tasks |
-| `expand_from_spec` | Create tasks from PRD/spec |
 | `suggest_next_task` | AI suggests next task to work on |
 
 **Validation:**
@@ -161,10 +160,6 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 - If `close_task` errors about missing commits, commit the changes
 - `no_commit_needed=true` is ONLY for non-code tasks (research, planning)
 - Never fabricate `override_justification`
-
-### Spec Documents
-
-When creating tasks from a spec/PRD/design doc, use `expand_from_spec(spec_path)` - do NOT manually iterate. It ensures TDD pairs and proper dependencies.
 
 ### Commit Linking
 

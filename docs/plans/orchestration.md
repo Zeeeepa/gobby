@@ -444,7 +444,6 @@ gobby-tasks.list_ready_tasks
 gobby-tasks.suggest_next_task
 gobby-tasks.create_task
 gobby-tasks.expand_task
-gobby-tasks.expand_from_spec
 gobby-tasks.validate_task_tree
 
 # Agent/worktree management (orchestrator's job)

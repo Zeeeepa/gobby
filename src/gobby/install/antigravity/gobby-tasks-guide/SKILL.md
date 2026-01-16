@@ -372,7 +372,6 @@ mcp__gobby__call_tool(
 | `expand_task` | Break task into subtasks using AI |
 | `analyze_complexity` | Get complexity score for a task |
 | `expand_all` | Expand all unexpanded tasks |
-| `expand_from_spec` | Create tasks from PRD/spec |
 | `suggest_next_task` | AI suggests best next task |
 
 ### Expanding a Task

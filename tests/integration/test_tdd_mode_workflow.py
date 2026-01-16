@@ -1,8 +1,8 @@
 """
 Functional tests for TDD mode enforcement via workflow variable.
 
-Tests that expand_task, expand_from_spec, and expand_from_prompt respect
-tdd_mode from workflow state variables and create test→implementation pairs.
+Tests that expand_task respects tdd_mode from workflow state variables
+and creates test→implementation pairs when enabled.
 """
 
 from datetime import UTC, datetime

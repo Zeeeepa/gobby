@@ -49,4 +49,4 @@ call_tool(
 
 After creating, confirm with the task reference and suggest next steps:
 - "Created epic #127: User authentication system"
-- "Use `expand_task` or `expand_from_spec` to break this down into subtasks."
+- "Use `expand_task` to break this down into subtasks."
