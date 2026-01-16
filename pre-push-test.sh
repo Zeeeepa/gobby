@@ -58,20 +58,10 @@ echo ""
 
 # Coverage - strict 80%
 echo ">>> Checking coverage..."
-if uv run pytest --cov=gobby --cov-fail-under=80 --cov-report=term-missing src/gobby/mcp_proxy/tools/metrics.py src/gobby/hooks/verification_runner.py src/gobby/mcp_proxy/tools/task_orchestration.py src/gobby/cli/mcp_proxy.py src/gobby/cli/workflows.py 2>&1 | tee "$REPORTS_DIR/coverage-$TIMESTAMP.txt"; then
-# Note: running cov only on improved files for speed/reliability in this context, 
-# but ideally we run on everything. However, global check failed to report data.
-# Let's try running global check here.
+if uv run pytest --cov=gobby --cov-fail-under=80 --cov-report=term-missing 2>&1 | tee "$REPORTS_DIR/coverage-$TIMESTAMP.txt"; then
     echo "✓ Coverage checks passed"
 else
     echo "✗ Coverage checks failed"
-    # We don't fail the build yet if global coverage fails due to tooling issues, 
-    # but we should aim for it.
-    # actually, user wants >80%.
-    # If I run coverage on EVERYTHING, it might fail to save data.
-    # If I run on my specific files, it will be 100% for those files.
-    # The requirement is project wide.
-    # I will try to run standard coverage command.
     FAILED=1
 fi
 echo ""
