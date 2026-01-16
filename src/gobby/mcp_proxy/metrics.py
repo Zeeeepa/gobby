@@ -187,7 +187,7 @@ class ToolMetricsManager:
 
         # nosec B608 - where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
-            f"SELECT * FROM tool_metrics WHERE {where_clause} ORDER BY call_count DESC",  # nosec
+            f"SELECT * FROM tool_metrics WHERE {where_clause} ORDER BY call_count DESC",  # nosec B608
             tuple(params),
         )
 
@@ -237,13 +237,13 @@ class ToolMetricsManager:
         if project_id:
             # nosec B608 - order_by validated against allowlist above
             rows = self.db.fetchall(
-                f"SELECT * FROM tool_metrics WHERE project_id = ? ORDER BY {order_by} DESC LIMIT ?",  # nosec
+                f"SELECT * FROM tool_metrics WHERE project_id = ? ORDER BY {order_by} DESC LIMIT ?",  # nosec B608
                 (project_id, limit),
             )
         else:
             # nosec B608 - order_by validated against allowlist above
             rows = self.db.fetchall(
-                f"SELECT * FROM tool_metrics ORDER BY {order_by} DESC LIMIT ?",  # nosec
+                f"SELECT * FROM tool_metrics ORDER BY {order_by} DESC LIMIT ?",  # nosec B608
                 (limit,),
             )
 
