@@ -85,7 +85,10 @@ class TestStartCommand:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
             # Create necessary directories within temp_dir by setting HOME
             gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
@@ -137,8 +140,11 @@ class TestStartCommand:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -163,8 +169,11 @@ class TestStartCommand:
         """Test start when daemon is already running."""
         mock_load_config.return_value = mock_config
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -193,8 +202,11 @@ class TestStartCommand:
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -246,8 +258,11 @@ class TestStartCommand:
         mock_is_port_available.return_value = False
         mock_wait_port.return_value = False  # Port never available
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -283,8 +298,11 @@ class TestStartCommand:
         mock_is_port_available.side_effect = port_available_side_effect
         mock_wait_port.return_value = False
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -323,8 +341,11 @@ class TestStartCommand:
         mock_process.poll.return_value = 1  # Process exited
         mock_popen.return_value = mock_process
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -366,8 +387,11 @@ class TestStartCommand:
         # Health check always fails
         mock_httpx_get.side_effect = httpx.ConnectError("Connection refused")
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -394,8 +418,11 @@ class TestStartCommand:
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 2  # Two processes killed
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -535,8 +562,11 @@ class TestRestartCommand:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -608,8 +638,11 @@ class TestRestartCommand:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -643,10 +676,12 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "Show Gobby daemon status" in result.output
 
+    @patch("gobby.cli.daemon.Path")
     @patch("gobby.cli.load_config")
     def test_status_no_pid_file(
         self,
         mock_load_config: MagicMock,
+        mock_path: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
@@ -654,16 +689,17 @@ class TestStatusCommand:
         """Test status when no PID file exists."""
         mock_load_config.return_value = mock_config
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            # Ensure no PID file exists
-            pid_file = Path.home() / ".gobby" / "gobby.pid"
-            if pid_file.exists():
-                pid_file.unlink()
+        # Mock Path.home() to return temp_dir, and make PID file not exist
+        mock_pid_file = MagicMock()
+        mock_pid_file.exists.return_value = False
+        mock_path.home.return_value.__truediv__.return_value.__truediv__.return_value = (
+            mock_pid_file
+        )
 
-            result = runner.invoke(cli, ["status"])
+        result = runner.invoke(cli, ["status"])
 
-            assert result.exit_code == 0
-            assert "Stopped" in result.output
+        assert result.exit_code == 0
+        assert "Stopped" in result.output
 
     @patch("gobby.cli.load_config")
     def test_status_invalid_pid_file(
@@ -676,8 +712,11 @@ class TestStatusCommand:
         """Test status with invalid PID file content."""
         mock_load_config.return_value = mock_config
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
 
             # Create invalid PID file
@@ -700,8 +739,11 @@ class TestStatusCommand:
         """Test status with stale PID file (process not running)."""
         mock_load_config.return_value = mock_config
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -740,8 +782,11 @@ class TestStatusCommand:
         mock_proc.create_time.return_value = time.time() - 3600  # 1 hour ago
         mock_psutil_process.return_value = mock_proc
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -772,8 +817,11 @@ class TestStatusCommand:
         mock_fetch_status.return_value = {}
         mock_psutil_process.side_effect = psutil.NoSuchProcess(pid=12345)
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -808,11 +856,12 @@ class TestDaemonCommandsIntegration:
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
-        """Ensure no PID file exists before test and cleanup after."""
-        pid_file = Path.home() / ".gobby" / "gobby.pid"
+        """Ensure temp PID file location is clean (does NOT touch real PID file)."""
+        pid_file = temp_dir / ".gobby" / "gobby.pid"
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
         if pid_file.exists():
             pid_file.unlink()
-        yield
+        yield pid_file
         if pid_file.exists():
             pid_file.unlink()
 
@@ -857,8 +906,11 @@ class TestDaemonCommandsIntegration:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -898,11 +950,12 @@ class TestEdgeCases:
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
-        """Ensure no PID file exists before test and cleanup after."""
-        pid_file = Path.home() / ".gobby" / "gobby.pid"
+        """Ensure temp PID file location is clean (does NOT touch real PID file)."""
+        pid_file = temp_dir / ".gobby" / "gobby.pid"
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
         if pid_file.exists():
             pid_file.unlink()
-        yield
+        yield pid_file
         if pid_file.exists():
             pid_file.unlink()
 
@@ -943,8 +996,11 @@ class TestEdgeCases:
         # Simulate timeout
         mock_httpx_get.side_effect = httpx.TimeoutException("Timeout")
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -1000,8 +1056,11 @@ class TestEdgeCases:
 
         mock_httpx_get.side_effect = responses
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -1032,8 +1091,11 @@ class TestEdgeCases:
         mock_is_port_available.return_value = True
         mock_popen.side_effect = OSError("Cannot execute")
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -1076,8 +1138,11 @@ class TestEdgeCases:
         mock_proc.create_time.return_value = time.time() - 7200  # 2 hours ago
         mock_psutil_process.return_value = mock_proc
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -1110,11 +1175,12 @@ class TestCommandBuilding:
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
-        """Ensure no PID file exists before test and cleanup after."""
-        pid_file = Path.home() / ".gobby" / "gobby.pid"
+        """Ensure temp PID file location is clean (does NOT touch real PID file)."""
+        pid_file = temp_dir / ".gobby" / "gobby.pid"
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
         if pid_file.exists():
             pid_file.unlink()
-        yield
+        yield pid_file
         if pid_file.exists():
             pid_file.unlink()
 
@@ -1156,8 +1222,11 @@ class TestCommandBuilding:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -1209,8 +1278,11 @@ class TestCommandBuilding:
         mock_response.status_code = 200
         mock_httpx_get.return_value = mock_response
 
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            gobby_dir = Path.home() / ".gobby"
+        with (
+            runner.isolated_filesystem(temp_dir=str(temp_dir)),
+            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
+        ):
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
