@@ -6,7 +6,7 @@ These functions handle session status updates, mode switching, and session chain
 
 import logging
 import shlex
-import subprocess
+import subprocess  # nosec B404
 from typing import Any
 
 logger = logging.getLogger(__name__)

@@ -2120,8 +2120,10 @@ class TestExpandCommandExtended:
     @patch("gobby.config.app.load_config")
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
+    @patch("gobby.cli.utils.get_active_session_id", return_value="sess-123")
     def test_expand_disabled_in_config(
         self,
+        mock_get_session: MagicMock,
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         mock_config: MagicMock,
@@ -2141,8 +2143,10 @@ class TestExpandCommandExtended:
     @patch("gobby.config.app.load_config")
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
+    @patch("gobby.cli.utils.get_active_session_id", return_value="sess-123")
     def test_expand_with_context(
         self,
+        mock_get_session: MagicMock,
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         mock_config: MagicMock,
@@ -2164,8 +2168,10 @@ class TestExpandCommandExtended:
     @patch("gobby.config.app.load_config")
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
+    @patch("gobby.cli.utils.get_active_session_id", return_value="sess-123")
     def test_expand_success_with_wiring(
         self,
+        mock_get_session: MagicMock,
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         mock_config: MagicMock,
@@ -2230,8 +2236,10 @@ class TestExpandCommandExtended:
     @patch("gobby.config.app.load_config")
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
+    @patch("gobby.cli.utils.get_active_session_id", return_value="sess-123")
     def test_expand_error_result(
         self,
+        mock_get_session: MagicMock,
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         mock_config: MagicMock,
@@ -2258,8 +2266,10 @@ class TestExpandCommandExtended:
     @patch("gobby.config.app.load_config")
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
+    @patch("gobby.cli.utils.get_active_session_id", return_value="sess-123")
     def test_expand_empty_result(
         self,
+        mock_get_session: MagicMock,
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         mock_config: MagicMock,

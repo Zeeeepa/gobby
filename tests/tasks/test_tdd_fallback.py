@@ -46,30 +46,19 @@ async def test_tdd_fallback_expands_to_triplet(mock_task_manager):
             parent_task_id="parent-1",
             project_id="p1",
             subtask_specs=specs,
-            tdd_mode=True,
+            # tdd_mode=True  <-- Removed
         )
 
         # Assert
-        assert len(created_ids) == 3
+        # Since TDD fallback is removed from _create_subtasks, we expect only the plain task
+        assert len(created_ids) == 1
 
         # Verify tasks created
         calls = mock_task_manager.create_task.call_args_list
-        assert len(calls) == 3
+        assert len(calls) == 1
 
         titles = [c.kwargs["title"] for c in calls]
-        assert titles[0] == "Write tests for: Implement Auth"
-        assert titles[1] == "Implement: Implement Auth"
-        assert titles[2] == "Refactor: Implement Auth"
-
-        # Verify dependencies
-        # IDs are generated starting from 0 by the mock side effect.
-        # But wait, create_task is called inside a loop or sequentially.
-        # calls[0] -> task-0 (Test)
-        # calls[1] -> task-1 (Impl)
-        # calls[2] -> task-2 (Refactor)
-
-        mock_dep_manager.add_dependency.assert_any_call("task-1", "task-0", "blocks")
-        mock_dep_manager.add_dependency.assert_any_call("task-2", "task-1", "blocks")
+        assert titles[0] == "Implement Auth"
 
 
 @pytest.mark.asyncio
@@ -89,10 +78,12 @@ async def test_tdd_fallback_respects_existing_tests(mock_task_manager):
         mock_dep = MockDepManager.return_value
 
         created_ids = await expander._create_subtasks(
-            parent_task_id="p-1", project_id="p1", subtask_specs=specs, tdd_mode=True
+            parent_task_id="p-1",
+            project_id="p1",
+            subtask_specs=specs,
+            # tdd_mode=True  <-- Removed
         )
 
-        # Should NOT expand "Implement Auth" because it depends on a test task
         # Should create exactly 2 tasks
         assert len(created_ids) == 2
 

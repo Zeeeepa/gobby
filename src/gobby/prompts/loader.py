@@ -226,7 +226,7 @@ class PromptLoader:
 
             # Create a restricted Jinja2 environment
             env = Environment(
-                autoescape=False,
+                autoescape=False,  # nosec B701 - Generating raw text prompts, not HTML
                 undefined=StrictUndefined,
                 # Disable dangerous features
                 extensions=[],

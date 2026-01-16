@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import subprocess
+import subprocess  # nosec B404
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -660,7 +660,7 @@ class WorktreeGitManager:
                     logger.debug(f"Detected default branch from origin/HEAD: {branch}")
                     return branch
         except Exception:
-            pass
+            pass  # nosec B110
 
         # Method 2: Check which common default branches exist
         for branch in ["main", "master", "develop"]:
@@ -683,7 +683,7 @@ class WorktreeGitManager:
                     logger.debug(f"Detected default branch from remote ref: {branch}")
                     return branch
             except Exception:
-                continue
+                continue  # nosec B112
 
         # Method 3: Fall back to "main"
         logger.debug("Could not detect default branch, falling back to 'main'")

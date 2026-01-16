@@ -53,6 +53,7 @@ class TestExpandMultipleTaskRefs:
             patch("gobby.config.app.load_config") as mock_config,
             patch("gobby.llm.LLMService"),
             patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
+            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
         ):
             mock_manager = MagicMock()
             mock_get_manager.return_value = mock_manager
@@ -67,7 +68,9 @@ class TestExpandMultipleTaskRefs:
             result = runner.invoke(tasks, ["expand", "#42,#43,#44"])
 
             # Verify CLI exits successfully
-            assert result.exit_code == 0, f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
+            assert result.exit_code == 0, (
+                f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
+            )
 
             # Verify expander was called three times (once per task ref)
             assert mock_expander.expand_task.call_count == 3, (
@@ -76,9 +79,9 @@ class TestExpandMultipleTaskRefs:
 
             # Verify expander was called with the resolved mock task
             for call in mock_expander.expand_task.call_args_list:
-                assert call.kwargs.get("task") == mock_task or (call.args and call.args[0] == mock_task), (
-                    f"Expected expand_task to be called with mock_task, got {call}"
-                )
+                assert call.kwargs.get("task") == mock_task or (
+                    call.args and call.args[0] == mock_task
+                ), f"Expected expand_task to be called with mock_task, got {call}"
 
             # Verify output contains expected expansion content
             assert "Sub 1" in result.output, f"Expected 'Sub 1' in output, got: {result.output}"
@@ -101,6 +104,7 @@ class TestExpandCascade:
             patch("gobby.config.app.load_config") as mock_config,
             patch("gobby.llm.LLMService"),
             patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
+            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
         ):
             mock_manager = MagicMock()
             mock_manager.list_tasks.return_value = [child_task]
@@ -114,7 +118,9 @@ class TestExpandCascade:
             result = runner.invoke(tasks, ["expand", "#42", "--cascade"])
 
             # Verify CLI exits successfully
-            assert result.exit_code == 0, f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
+            assert result.exit_code == 0, (
+                f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
+            )
 
             # Verify expander was called for both parent and child tasks (cascade processing)
             # With cascade, expand_task must be called at least twice (parent and child)
@@ -131,7 +137,8 @@ class TestExpandCascade:
 
             # Verify expand_task was called for child task
             child_expanded = any(
-                call for call in mock_expander.expand_task.call_args_list
+                call
+                for call in mock_expander.expand_task.call_args_list
                 if "child-123" in str(call) or "#43" in str(call)
             )
             assert child_expanded, (
@@ -151,6 +158,7 @@ class TestExpandNoEnrich:
             patch("gobby.config.app.load_config") as mock_config,
             patch("gobby.llm.LLMService"),
             patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
+            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
         ):
             mock_manager = MagicMock()
             mock_get_manager.return_value = mock_manager
@@ -184,6 +192,7 @@ class TestExpandForce:
             patch("gobby.config.app.load_config") as mock_config,
             patch("gobby.llm.LLMService"),
             patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
+            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
         ):
             mock_manager = MagicMock()
             mock_get_manager.return_value = mock_manager

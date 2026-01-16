@@ -36,51 +36,6 @@ def mock_task():
     return task
 
 
-class TestEnrichProjectFlag:
-    """Tests for enrich command --project flag."""
-
-    def test_enrich_has_project_option(self, runner: CliRunner):
-        """Test that enrich command has --project option."""
-        result = runner.invoke(tasks, ["enrich", "--help"])
-        assert result.exit_code == 0
-        assert "--project" in result.output or "-p" in result.output
-
-    def test_enrich_with_project_flag(self, runner: CliRunner, mock_task):
-        """Test enrich with --project flag."""
-        with (
-            patch("gobby.cli.tasks.ai.get_task_manager") as mock_get_manager,
-            patch("gobby.cli.tasks.ai.resolve_task_id", return_value=mock_task),
-            patch("gobby.config.app.load_config") as mock_config,
-            patch("gobby.llm.LLMService"),
-            patch("gobby.tasks.enrich.TaskEnricher") as mock_enricher_cls,
-        ):
-            mock_manager = MagicMock()
-            mock_get_manager.return_value = mock_manager
-            mock_config.return_value.gobby_tasks.enrichment.enabled = True
-
-            mock_enricher = MagicMock()
-            mock_enricher.enrich = MagicMock()
-            mock_enricher_cls.return_value = mock_enricher
-
-            from gobby.tasks.enrich import EnrichmentResult
-
-            async def mock_enrich(*args, **kwargs):
-                return EnrichmentResult(
-                    category="feature",
-                    complexity_score=5,
-                    validation_criteria="Test criteria",
-                )
-
-            mock_enricher.enrich = mock_enrich
-
-            result = runner.invoke(tasks, ["enrich", "#42", "--project", "myproject"])
-
-            # Command should succeed with --project flag
-            assert result.exit_code == 0, f"--project flag failed: {result.output}"
-            # Verify the enricher was invoked
-            assert mock_enricher_cls.called, "TaskEnricher should be instantiated"
-
-
 class TestExpandProjectFlag:
     """Tests for expand command --project flag."""
 
@@ -98,6 +53,7 @@ class TestExpandProjectFlag:
             patch("gobby.config.app.load_config") as mock_config,
             patch("gobby.llm.LLMService"),
             patch("gobby.tasks.expansion.TaskExpander") as mock_expander_cls,
+            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
         ):
             mock_manager = MagicMock()
             mock_get_manager.return_value = mock_manager

@@ -187,11 +187,7 @@ class ToolMetricsManager:
 
         # nosec B608 - where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
-            f"""
-            SELECT * FROM tool_metrics
-            WHERE {where_clause}
-            ORDER BY call_count DESC
-            """,
+            f"SELECT * FROM tool_metrics WHERE {where_clause} ORDER BY call_count DESC",  # nosec
             tuple(params),
         )
 
@@ -241,22 +237,13 @@ class ToolMetricsManager:
         if project_id:
             # nosec B608 - order_by validated against allowlist above
             rows = self.db.fetchall(
-                f"""
-                SELECT * FROM tool_metrics
-                WHERE project_id = ?
-                ORDER BY {order_by} DESC
-                LIMIT ?
-                """,
+                f"SELECT * FROM tool_metrics WHERE project_id = ? ORDER BY {order_by} DESC LIMIT ?",  # nosec
                 (project_id, limit),
             )
         else:
             # nosec B608 - order_by validated against allowlist above
             rows = self.db.fetchall(
-                f"""
-                SELECT * FROM tool_metrics
-                ORDER BY {order_by} DESC
-                LIMIT ?
-                """,
+                f"SELECT * FROM tool_metrics ORDER BY {order_by} DESC LIMIT ?",  # nosec
                 (limit,),
             )
 
@@ -379,7 +366,7 @@ class ToolMetricsManager:
             where_clause = " AND ".join(conditions)
             # nosec B608 - where_clause built from hardcoded condition strings
             cursor = self.db.execute(
-                f"DELETE FROM tool_metrics WHERE {where_clause}",
+                f"DELETE FROM tool_metrics WHERE {where_clause}",  # nosec
                 tuple(params),
             )
         else:
@@ -548,11 +535,7 @@ class ToolMetricsManager:
 
         # nosec B608 - where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
-            f"""
-            SELECT * FROM tool_metrics_daily
-            WHERE {where_clause}
-            ORDER BY date DESC, call_count DESC
-            """,
+            f"SELECT * FROM tool_metrics_daily WHERE {where_clause} ORDER BY date DESC, call_count DESC",  # nosec
             tuple(params),
         )
 

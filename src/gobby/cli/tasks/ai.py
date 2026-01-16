@@ -505,7 +505,7 @@ def apply_tdd_cmd(
                 if impl_criteria:
                     manager.update_task(impl_task.id, validation_criteria=impl_criteria)
             except Exception:
-                pass  # Leave without criteria if generation fails
+                pass  # nosec B110 - Leave without criteria if generation fails
 
         impl_ref = f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8]
         click.echo(f"  Created {impl_ref}: {impl_task.title[:50]}")

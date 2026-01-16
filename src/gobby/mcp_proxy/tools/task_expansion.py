@@ -161,15 +161,11 @@ def create_expansion_registry(
                         complexity_info.append(f"Complexity level: {complexity_level}")
                     if subtask_count:
                         complexity_info.append(f"Suggested subtask count: {subtask_count}")
-                    enrichment_parts.append(
-                        "## Complexity Analysis\n" + "\n".join(complexity_info)
-                    )
+                    enrichment_parts.append("## Complexity Analysis\n" + "\n".join(complexity_info))
 
             except (json.JSONDecodeError, TypeError):
                 # Legacy or plain text context - preserve it as raw text
-                enrichment_parts.append(
-                    f"## Legacy Expansion Context\n{task.expansion_context}"
-                )
+                enrichment_parts.append(f"## Legacy Expansion Context\n{task.expansion_context}")
 
         # Add user-provided context
         if user_context:
@@ -231,11 +227,9 @@ def create_expansion_registry(
                         description=impl_task.description,
                     )
                     if impl_criteria:
-                        task_manager.update_task(
-                            impl_task.id, validation_criteria=impl_criteria
-                        )
+                        task_manager.update_task(impl_task.id, validation_criteria=impl_criteria)
                 except Exception:
-                    pass
+                    pass  # nosec B110
 
             # 3. Refactor Task (Blue phase)
             refactor_task = task_manager.create_task(
@@ -443,7 +437,7 @@ def create_expansion_registry(
                                 task_manager.update_task(sid, validation_criteria=criteria)
                                 validation_generated += 1
                         except Exception:
-                            pass
+                            pass  # nosec B110
 
         # Update parent task: set is_expanded and validation criteria
         task_manager.update_task(
@@ -492,7 +486,9 @@ def create_expansion_registry(
             response["unexpanded_epics"] = remaining
             response["complete"] = remaining == 0
             # Include root task ref for context
-            response["root_ref"] = f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8]
+            response["root_ref"] = (
+                f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8]
+            )
 
         if validation_generated > 0:
             response["validation_criteria_generated"] = validation_generated
@@ -570,7 +566,9 @@ def create_expansion_registry(
 
         # Validate parameters
         if task_id and task_ids:
-            return {"error": "task_id and task_ids are mutually exclusive. Provide one or the other."}
+            return {
+                "error": "task_id and task_ids are mutually exclusive. Provide one or the other."
+            }
         if not task_id and not task_ids:
             return {"error": "Either task_id or task_ids must be provided"}
         if task_ids is not None and len(task_ids) == 0:
@@ -592,7 +590,7 @@ def create_expansion_registry(
 
         # Batch mode - process tasks in parallel
         # At this point, task_ids is guaranteed to be a non-empty list (validated above)
-        assert task_ids is not None  # Type narrowing for mypy
+        assert task_ids is not None  # nosec B101 - Type narrowing for mypy
 
         async def expand_one(tid: str) -> dict[str, Any]:
             return await _expand_single_task(
@@ -757,13 +755,15 @@ def create_expansion_registry(
             priority=task.priority,
             validation_criteria=TDD_CRITERIA_RED,
         )
-        created_tasks.append({
-            "ref": f"#{test_task.seq_num}" if test_task.seq_num else test_task.id[:8],
-            "title": test_task.title,
-            "seq_num": test_task.seq_num,
-            "id": test_task.id,
-            "phase": "red",
-        })
+        created_tasks.append(
+            {
+                "ref": f"#{test_task.seq_num}" if test_task.seq_num else test_task.id[:8],
+                "title": test_task.title,
+                "seq_num": test_task.seq_num,
+                "id": test_task.id,
+                "phase": "red",
+            }
+        )
 
         # 2. Implement Task (Green phase) - make tests pass
         # Dynamically generate criteria (same as regular subtasks after expansion)
@@ -787,15 +787,17 @@ def create_expansion_registry(
                 if impl_criteria:
                     task_manager.update_task(impl_task.id, validation_criteria=impl_criteria)
             except Exception:
-                pass  # Leave without criteria if generation fails
+                pass  # nosec B110 - Leave without criteria if generation fails
 
-        created_tasks.append({
-            "ref": f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8],
-            "title": impl_task.title,
-            "seq_num": impl_task.seq_num,
-            "id": impl_task.id,
-            "phase": "green",
-        })
+        created_tasks.append(
+            {
+                "ref": f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8],
+                "title": impl_task.title,
+                "seq_num": impl_task.seq_num,
+                "id": impl_task.id,
+                "phase": "green",
+            }
+        )
 
         # 3. Refactor Task (Blue phase) - clean up while keeping tests green
         refactor_task = task_manager.create_task(
@@ -807,13 +809,17 @@ def create_expansion_registry(
             priority=task.priority,
             validation_criteria=TDD_CRITERIA_BLUE,
         )
-        created_tasks.append({
-            "ref": f"#{refactor_task.seq_num}" if refactor_task.seq_num else refactor_task.id[:8],
-            "title": refactor_task.title,
-            "seq_num": refactor_task.seq_num,
-            "id": refactor_task.id,
-            "phase": "blue",
-        })
+        created_tasks.append(
+            {
+                "ref": f"#{refactor_task.seq_num}"
+                if refactor_task.seq_num
+                else refactor_task.id[:8],
+                "title": refactor_task.title,
+                "seq_num": refactor_task.seq_num,
+                "id": refactor_task.id,
+                "phase": "blue",
+            }
+        )
 
         # Wire dependencies: Test -> Implement -> Refactor
         dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")

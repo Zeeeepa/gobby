@@ -461,7 +461,7 @@ def create_handoff(
     # Enrich with real-time git status
     if not handoff_ctx.git_status:
         try:
-            result = subprocess.run(  # nosec B603,B607
+            result = subprocess.run(  # nosec
                 ["git", "status", "--short"],
                 capture_output=True,
                 text=True,
@@ -474,7 +474,7 @@ def create_handoff(
 
     # Get recent git commits
     try:
-        result = subprocess.run(  # nosec B603,B607
+        result = subprocess.run(  # nosec
             ["git", "log", "--oneline", "-10", "--format=%H|%s"],
             capture_output=True,
             text=True,

@@ -336,11 +336,7 @@ class SchemaHashManager:
         placeholders = ",".join("?" for _ in valid_tool_names)
         # nosec B608 - placeholders are just '?' characters, values parameterized
         cursor = self.db.execute(
-            f"""
-            DELETE FROM tool_schema_hashes
-            WHERE project_id = ? AND server_name = ?
-            AND tool_name NOT IN ({placeholders})
-            """,
+            f"DELETE FROM tool_schema_hashes WHERE project_id = ? AND server_name = ? AND tool_name NOT IN ({placeholders})",  # nosec
             (project_id, server_name, *valid_tool_names),
         )
         return cursor.rowcount

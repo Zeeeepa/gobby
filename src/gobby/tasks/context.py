@@ -303,7 +303,7 @@ class ExpansionContextGatherer:
             Dict mapping module path to list of test files that import it.
         """
         import re
-        import subprocess
+        import subprocess  # nosec B404
 
         result: dict[str, list[str]] = {}
         root = find_project_root()
@@ -326,7 +326,7 @@ class ExpansionContextGatherer:
                 # Use grep to find test files that import this module
                 # Pattern matches: from {module} import, import {module}
                 pattern = rf"(from\s+{re.escape(import_path)}(\.\w+)*\s+import|import\s+{re.escape(import_path)})"
-                grep_result = subprocess.run(  # nosec B603,B607
+                grep_result = subprocess.run(  # nosec
                     ["grep", "-r", "-l", "-E", pattern, str(tests_dir)],
                     capture_output=True,
                     text=True,

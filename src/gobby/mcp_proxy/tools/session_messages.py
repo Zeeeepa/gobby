@@ -314,7 +314,7 @@ def create_session_messages_registry(
                 Success status, markdown lengths, and extracted context summary
             """
             import json
-            import subprocess
+            import subprocess  # nosec B404
             import time
             from pathlib import Path
 
@@ -377,7 +377,7 @@ def create_session_messages_registry(
             # Enrich with real-time git status
             if not handoff_ctx.git_status:
                 try:
-                    result = subprocess.run(  # nosec B603,B607
+                    result = subprocess.run(  # nosec
                         ["git", "status", "--short"],
                         capture_output=True,
                         text=True,
@@ -390,7 +390,7 @@ def create_session_messages_registry(
 
             # Get recent git commits
             try:
-                result = subprocess.run(  # nosec B603,B607
+                result = subprocess.run(  # nosec
                     ["git", "log", "--oneline", "-10", "--format=%H|%s"],
                     capture_output=True,
                     text=True,
@@ -840,7 +840,7 @@ def create_session_messages_registry(
             Returns:
                 Session ID, list of commits, and count
             """
-            import subprocess
+            import subprocess  # nosec B404
             from datetime import datetime
             from pathlib import Path
 

@@ -9,7 +9,7 @@ Handles git worktrees, detached HEAD, and missing remotes gracefully.
 """
 
 import logging
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import TypedDict
 

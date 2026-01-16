@@ -15,7 +15,7 @@ TODO: Add strategy 4 - codebase grep for test files related to the task.
 
 import logging
 import re
-import subprocess
+import subprocess  # nosec B404
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal

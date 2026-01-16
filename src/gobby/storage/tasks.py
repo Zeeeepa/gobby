@@ -19,15 +19,17 @@ logger = logging.getLogger(__name__)
 PRIORITY_MAP = {"backlog": 4, "low": 3, "medium": 2, "high": 1, "critical": 0}
 
 # Valid task categories (enum-like constraint)
-VALID_CATEGORIES: frozenset[str] = frozenset({
-    "code",      # Implementation tasks
-    "config",    # Configuration file changes
-    "docs",      # Documentation tasks
-    "test",      # Test-writing tasks
-    "research",  # Investigation/exploration tasks
-    "planning",  # Design/architecture tasks
-    "manual",    # Manual verification tasks
-})
+VALID_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "code",  # Implementation tasks
+        "config",  # Configuration file changes
+        "docs",  # Documentation tasks
+        "test",  # Test-writing tasks
+        "research",  # Investigation/exploration tasks
+        "planning",  # Design/architecture tasks
+        "manual",  # Manual verification tasks
+    }
+)
 
 
 def validate_category(category: str | None) -> str | None:
@@ -69,7 +71,9 @@ class Task:
     id: str
     project_id: str
     title: str
-    status: Literal["open", "in_progress", "review", "closed", "failed", "escalated", "needs_decomposition"]
+    status: Literal[
+        "open", "in_progress", "review", "closed", "failed", "escalated", "needs_decomposition"
+    ]
     priority: int
     task_type: str  # bug, feature, task, epic, chore
     created_at: str
@@ -1162,9 +1166,7 @@ class LocalTaskManager:
             return self.update_task(task_id, labels=labels)
         return task
 
-    def link_commit(
-        self, task_id: str, commit_sha: str, cwd: str | Path | None = None
-    ) -> Task:
+    def link_commit(self, task_id: str, commit_sha: str, cwd: str | Path | None = None) -> Task:
         """Link a commit SHA to a task.
 
         Adds the commit SHA to the task's commits array if not already present.
@@ -1203,9 +1205,7 @@ class LocalTaskManager:
             return self.get_task(task_id)
         return task
 
-    def unlink_commit(
-        self, task_id: str, commit_sha: str, cwd: str | Path | None = None
-    ) -> Task:
+    def unlink_commit(self, task_id: str, commit_sha: str, cwd: str | Path | None = None) -> Task:
         """Unlink a commit SHA from a task.
 
         Removes the commit SHA from the task's commits array if present.
@@ -1358,7 +1358,7 @@ class LocalTaskManager:
             placeholders = ", ".join("?" for _ in task_ids)
             # nosec B608 - placeholders are just '?' characters, values parameterized
             dep_rows = self.db.fetchall(
-                f"SELECT task_id, depends_on FROM task_dependencies WHERE dep_type = 'blocks' AND task_id IN ({placeholders})",
+                f"SELECT task_id, depends_on FROM task_dependencies WHERE dep_type = 'blocks' AND task_id IN ({placeholders})",  # nosec
                 tuple(task_ids),
             )
 

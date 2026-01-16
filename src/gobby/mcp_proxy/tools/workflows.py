@@ -799,7 +799,7 @@ def create_workflows_registry(
         import asyncio
         import os
         import stat
-        import subprocess
+        import subprocess  # nosec B404
 
         # Script location
         gobby_dir = Path.home() / ".gobby"
@@ -832,9 +832,7 @@ def create_workflows_registry(
                 source_content = source_script_path.read_text()
                 source_version = get_script_version(source_content)
             else:
-                logger.warning(
-                    f"Source shutdown script not found at {source_script_path}"
-                )
+                logger.warning(f"Source shutdown script not found at {source_script_path}")
                 source_content = None
                 source_version = None
 
@@ -880,7 +878,8 @@ def create_workflows_registry(
         try:
             # Run in background - we don't wait for it since it kills our process
             env = os.environ.copy()
-            subprocess.Popen(
+            # nosec B603
+            subprocess.Popen(  # nosec
                 [str(script_path), signal.upper(), "0"],  # Delay already applied
                 env=env,
                 start_new_session=True,  # Detach from parent
