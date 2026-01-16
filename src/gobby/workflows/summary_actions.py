@@ -145,7 +145,7 @@ async def synthesize_title(
             if path.exists():
                 with open(path) as f:
                     for i, line in enumerate(f):
-                        if i > 20:
+                        if i >= 20:
                             break
                         if line.strip():
                             turns.append(json.loads(line))

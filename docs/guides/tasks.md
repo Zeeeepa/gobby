@@ -214,67 +214,20 @@ if task["status"] == "needs_decomposition":
 
 ## Task Decomposition Workflow
 
-Gobby provides a phased approach to breaking down complex work into actionable tasks:
+Gobby provides a streamlined approach to breaking down complex work:
 
 ```text
-parse_spec → enrich → expand → apply_tdd
-     ↓          ↓        ↓          ↓
-  (fast)    (context) (subtasks)  (tests)
+create_task → expand_task
+     ↓            ↓
+  (task)   (research + subtasks + TDD)
 ```
 
-### Phase 1: Parse Spec (Fast)
+### Expanding Tasks
 
-Create tasks from a specification document with checkboxes:
-
-```bash
-# CLI: Parse spec into tasks
-gobby tasks parse-spec docs/plans/feature.md
-
-# With parent task
-gobby tasks parse-spec docs/plans/feature.md --parent #42
-```
-
-```python
-# MCP: Parse checkboxes from spec content
-call_tool(server_name="gobby-tasks", tool_name="parse_spec", arguments={
-    "spec_content": "## Phase 1\n- [ ] Task 1\n- [ ] Task 2",
-    "parent_task_id": "gt-abc123"
-})
-```
-
-### Phase 2: Enrich Tasks (LLM Context)
-
-Add context, complexity scores, and validation criteria:
-
-```bash
-# CLI: Enrich a task
-gobby tasks enrich #42
-
-# Enrich with subtasks
-gobby tasks enrich #42 --cascade
-
-# Enable web research
-gobby tasks enrich #42 --web-research --mcp-tools
-```
-
-```python
-# MCP: Enrich task with AI analysis
-call_tool(server_name="gobby-tasks", tool_name="enrich_task", arguments={
-    "task_id": "gt-abc123",
-    "enable_web_research": False,
-    "enable_mcp_tools": False
-})
-```
-
-Enrichment adds:
-- **Category**: Type classification (feature, bug, refactor)
-- **Complexity score**: 1-10 difficulty rating
-- **Validation criteria**: Pass/fail conditions
-- **Relevant files**: Codebase files to modify
-
-### Phase 3: Expand Tasks (Subtask Generation)
-
-Break down complex tasks into smaller subtasks:
+Break down complex tasks into smaller subtasks. The expand command:
+- Researches the codebase for relevant context
+- Generates subtasks with proper dependencies
+- Automatically applies TDD transformation to code tasks
 
 ```bash
 # CLI: Expand a task
@@ -283,11 +236,8 @@ gobby tasks expand #42
 # Expand multiple tasks
 gobby tasks expand #42,#43,#44
 
-# Expand with cascade (include subtasks)
+# Expand with cascade (include all descendants)
 gobby tasks expand #42 --cascade
-
-# Skip enrichment step
-gobby tasks expand #42 --no-enrich
 ```
 
 ```python
@@ -299,9 +249,10 @@ call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={
 })
 ```
 
-### Phase 4: Apply TDD (Test/Implementation Pairs)
+### Apply TDD (Test/Implementation Pairs)
 
-Transform tasks into test-driven development triplets:
+Transform tasks into test-driven development triplets.
+Note: This is called automatically by `expand_task` for code tasks.
 
 ```bash
 # CLI: Apply TDD to a task
@@ -329,21 +280,17 @@ TDD creates three subtasks for each task:
 ### Complete Workflow Example
 
 ```bash
-# 1. Parse spec into tasks
-gobby tasks parse-spec docs/plans/auth-feature.md
+# 1. Create a task for your feature
+gobby tasks create "Implement user authentication"
 
-# 2. Enrich all tasks with AI analysis
-gobby tasks enrich #42 --cascade
-
-# 3. Expand complex tasks into subtasks
+# 2. Expand into subtasks (includes research and auto-TDD)
 gobby tasks expand #42 --cascade
 
-# 4. Apply TDD to implementation tasks
-gobby tasks apply-tdd #42 --cascade
-
-# 5. View the task tree
+# 3. View the task tree
 gobby tasks show #42 --tree
 ```
+
+For structured planning from specs, use the `/gobby:spec` skill.
 
 ## LLM-Powered Expansion
 
@@ -363,11 +310,6 @@ call_tool(server_name="gobby-tasks", tool_name="analyze_complexity", arguments={
 
 # Get AI suggestion for next task
 call_tool(server_name="gobby-tasks", tool_name="suggest_next_task", arguments={})
-
-# Create tasks from a PRD or spec
-call_tool(server_name="gobby-tasks", tool_name="expand_from_spec", arguments={
-    "spec_content": "# Feature: User Authentication\n..."
-})
 ```
 
 ## Task Validation
@@ -554,13 +496,9 @@ task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"ta
 
 | Tool | Description |
 |------|-------------|
-| `parse_spec` | Parse checkboxes from spec content (fast, no LLM) |
-| `enrich_task` | Add context, complexity, validation criteria |
-| `expand_task` | Break task into subtasks with AI |
+| `expand_task` | Research, break into subtasks, auto-apply TDD |
 | `apply_tdd` | Create test/implement/refactor triplet |
 | `analyze_complexity` | Get complexity score |
-| `expand_all` | Expand all unexpanded tasks |
-| `expand_from_spec` | Create tasks from PRD/spec |
 | `suggest_next_task` | AI suggests next task to work on |
 
 ### Validation
@@ -601,9 +539,7 @@ gobby tasks blocked
 gobby tasks sync [--import] [--export]
 
 # Task Decomposition
-gobby tasks parse-spec SPEC_PATH [--parent TASK] [--project NAME]
-gobby tasks enrich TASKS... [--cascade] [--web-research] [--mcp-tools] [--force]
-gobby tasks expand TASKS... [--cascade] [--no-enrich] [--force]
+gobby tasks expand TASKS... [--cascade] [--force]
 gobby tasks apply-tdd TASKS... [--cascade] [--force]
 gobby tasks complexity TASK_ID [--all]
 gobby tasks suggest

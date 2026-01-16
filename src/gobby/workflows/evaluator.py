@@ -65,7 +65,7 @@ def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
     if not task:
         return False
 
-    return bool(task.status == "review" and task.requires_user_review)
+    return bool(task.status == "review" and getattr(task, "requires_user_review", False))
 
 
 def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bool:
@@ -337,6 +337,10 @@ class ConditionEvaluator:
                 else:
                     # SimpleNamespace from workflow engine
                     mcp_calls = getattr(variables, "mcp_calls", {})
+
+                # Ensure mcp_calls is a dict (could be None or other type)
+                if not isinstance(mcp_calls, dict):
+                    mcp_calls = {}
 
                 if tool:
                     return tool in mcp_calls.get(server, [])

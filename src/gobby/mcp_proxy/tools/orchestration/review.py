@@ -596,8 +596,16 @@ def register_reviewer(
                                 }
                             )
                             continue
-                        except Exception:
-                            pass  # nosec B110 - Best-effort task reopen on crash
+                        except Exception as e:
+                            # Task update failed - keep in still_failed for next cycle
+                            still_failed.append(
+                                {
+                                    **agent_info,
+                                    "pending_retry": True,
+                                    "retry_error": str(e),
+                                }
+                            )
+                            continue
 
             # Non-retriable - escalate
             escalated.append(

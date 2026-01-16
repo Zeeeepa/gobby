@@ -9,7 +9,7 @@ Tool categories (extracted to separate modules via Strangler Fig pattern):
 - Dependencies: add_dependency, remove_dependency, get_dependency_tree (task_dependencies.py)
 - Readiness: list_ready_tasks, list_blocked_tasks, suggest_next_task (task_readiness.py)
 - Sync/Git: sync_tasks, link_commit, auto_link_commits, get_task_diff (task_sync.py)
-- Expansion: expand_task, expand_from_spec, analyze_complexity (task_expansion.py)
+- Expansion: expand_task, analyze_complexity, apply_tdd (task_expansion.py)
 - Validation: validate_task, generate_validation_criteria (task_validation.py)
 
 For direct access to specific registries, import from:

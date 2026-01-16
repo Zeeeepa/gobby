@@ -273,7 +273,7 @@ steps:
 
     transitions:
       - to: shutdown
-        when: "variables.get('summary_file_written', False) and variables.get('session_update_completed', False)"
+        when: "variables.get('summary_file_written', False) and (variables.get('session_update_completed', False) or variables.get('_premature_stop_count', 0) >= 3)"
 
   # ─────────────────────────────────────────────────────────────
   # Step 8: Shutdown
@@ -301,7 +301,7 @@ steps:
 
     transitions:
       - to: complete
-        when: "step_action_count >= 1"
+        when: "success()"
 
   # ─────────────────────────────────────────────────────────────
   # Terminal Step

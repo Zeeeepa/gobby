@@ -111,7 +111,7 @@ class TaskEnrichmentConfig(BaseModel):
         description="LLM provider to use for enrichment",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="claude-3-5-haiku-latest",
         description="Model to use for enrichment (lightweight model for speed)",
     )
     enable_code_research: bool = Field(

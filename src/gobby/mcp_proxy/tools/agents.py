@@ -935,8 +935,12 @@ def create_agents_registry(
         agent = agent_registry.get(run_id)
         session_id = agent.session_id if agent else None
 
-        # Kill via registry
-        result = agent_registry.kill(run_id, signal_name=signal.upper())
+        # Kill via registry (run in thread to avoid blocking event loop)
+        import asyncio
+
+        result = await asyncio.to_thread(
+            agent_registry.kill, run_id, signal_name=signal.upper()
+        )
 
         if result.get("success"):
             # Update database status

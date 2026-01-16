@@ -806,55 +806,58 @@ def create_workflows_registry(
         scripts_dir = gobby_dir / "scripts"
         script_path = scripts_dir / "agent_shutdown.sh"
 
-        # Default script content - handles various terminal types
-        default_script = '''#!/bin/bash
-# Gobby Agent Shutdown Script
-# Closes the current terminal window/pane based on terminal type
+        # Source script from the install directory (single source of truth)
+        source_script_path = (
+            Path(__file__).parent.parent.parent
+            / "install"
+            / "shared"
+            / "scripts"
+            / "agent_shutdown.sh"
+        )
 
-SIGNAL="${1:-TERM}"
-DELAY_MS="${2:-0}"
+        def get_script_version(script_content: str) -> str | None:
+            """Extract VERSION marker from script content."""
+            import re
 
-# Apply delay if specified
-if [ "$DELAY_MS" -gt 0 ]; then
-    sleep $(awk "BEGIN {printf \"%.3f\", $DELAY_MS/1000}")
-fi
+            match = re.search(r"^# VERSION:\s*(.+)$", script_content, re.MULTILINE)
+            return match.group(1).strip() if match else None
 
-# Detect terminal type and close appropriately
-if [ -n "$TMUX" ]; then
-    # Running in tmux - kill the pane
-    tmux kill-pane
-elif [ "$TERM_PROGRAM" = "iTerm.app" ]; then
-    # iTerm2 - use AppleScript to close tab/window
-    osascript -e 'tell application "iTerm2" to close current session of current window'
-elif [ "$TERM_PROGRAM" = "Apple_Terminal" ]; then
-    # Terminal.app - use AppleScript
-    osascript -e 'tell application "Terminal" to close front window'
-elif [ "$TERM_PROGRAM" = "ghostty" ]; then
-    # Ghostty - send quit signal to parent shell
-    kill -s "$SIGNAL" "$PPID"
-elif [ -n "$KITTY_WINDOW_ID" ]; then
-    # Kitty terminal
-    kitty @ close-window --self
-elif [ -n "$WEZTERM_PANE" ]; then
-    # WezTerm
-    wezterm cli kill-pane
-else
-    # Generic fallback - exit the script
-    exit 0
-fi
-'''
-
-        # Ensure directories exist and script is present
+        # Ensure directories exist and script is present/up-to-date
         script_rebuilt = False
         try:
             scripts_dir.mkdir(parents=True, exist_ok=True)
 
+            # Read source script content
+            if source_script_path.exists():
+                source_content = source_script_path.read_text()
+                source_version = get_script_version(source_content)
+            else:
+                logger.warning(
+                    f"Source shutdown script not found at {source_script_path}"
+                )
+                source_content = None
+                source_version = None
+
+            # Check if installed script exists and compare versions
+            needs_rebuild = False
             if not script_path.exists():
-                script_path.write_text(default_script)
+                needs_rebuild = True
+            elif source_content:
+                installed_content = script_path.read_text()
+                installed_version = get_script_version(installed_content)
+                # Rebuild if versions differ or installed has no version marker
+                if installed_version != source_version:
+                    needs_rebuild = True
+                    logger.info(
+                        f"Shutdown script version mismatch: installed={installed_version}, source={source_version}"
+                    )
+
+            if needs_rebuild and source_content:
+                script_path.write_text(source_content)
                 # Make executable
                 script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
                 script_rebuilt = True
-                logger.info(f"Created agent shutdown script at {script_path}")
+                logger.info(f"Created/updated agent shutdown script at {script_path}")
         except OSError as e:
             return {
                 "success": False,

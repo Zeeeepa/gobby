@@ -1,16 +1,10 @@
 # Writing Specification Documents
 
-Gobby can parse structured specification documents into tasks. This guide explains how to write specs that work well with the task system.
+Gobby supports structured specification documents for planning features. This guide explains how to write specs that work well with the task system.
 
 ## Quick Start
 
-```bash
-# Parse a spec into tasks
-gobby tasks parse-spec docs/plans/feature.md
-
-# Or import via AI expansion
-gobby tasks import-spec docs/plans/feature.md --type prd
-```
+Use the `/gobby:spec` skill to interactively create tasks from your spec document. The skill guides you through requirements gathering, spec writing, and task creation.
 
 ## Document Structure
 
@@ -43,7 +37,7 @@ Each checkbox becomes a task. The text after the checkbox becomes the task title
 ```markdown
 ## Phase 1: Foundation
 
-- [ ] Add TaskEnricher class to src/gobby/tasks/enrich.py
+- [ ] Add validation helper to src/gobby/tasks/validation.py
 - [ ] Create database migration for category field
 - [ ] Update CLAUDE.md with new task workflow
 ```
@@ -134,11 +128,9 @@ Group independent work that can happen simultaneously:
 
 ## After Writing Your Spec
 
-1. **Parse into tasks**: `gobby tasks parse-spec docs/plans/feature.md`
+1. **Create tasks**: Use `/gobby:spec` skill to create tasks from the spec
 2. **Verify structure**: `gobby tasks list --tree`
-3. **Enrich with AI**: `gobby tasks enrich #N --cascade`
-4. **Expand complex tasks**: `gobby tasks expand #N`
-5. **Apply TDD**: `gobby tasks apply-tdd #N --cascade`
+3. **Expand complex tasks**: `gobby tasks expand #N --cascade` (includes research and auto-TDD)
 
 ## Best Practices
 
@@ -168,4 +160,3 @@ stepsCompleted: ['Phase 1']
 
 - [Task Management Guide](./tasks.md) - Full task system documentation
 - [MCP Tools Reference](./mcp-tools.md) - Tool API documentation
-- `.gobby/docs/spec-planning.md` - Detailed spec template (installed per-project)

@@ -36,6 +36,7 @@ Call `gobby-tasks.create_task` with:
 - `labels`: List of labels
 - `category`: Task domain - "test", "code", "document", "research", "config", or "manual"
 - `validation_criteria`: Acceptance criteria
+- `requires_user_review`: (boolean, default: false) When true, task routes to review status instead of closed
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
 Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature", session_id="<your_session_id>")`
@@ -52,6 +53,7 @@ Example: `/gobby-tasks show #1` → `get_task(task_id="#1")`
 Call `gobby-tasks.update_task` with:
 - `task_id`: (required) Task reference
 - `title`, `description`, `status`, `priority`, `assignee`, `labels`, `validation_criteria`, `category`, etc.
+- `requires_user_review`: (boolean) Set to require user review before closing
 
 Example: `/gobby-tasks update #1 status=in_progress` → `update_task(task_id="#1", status="in_progress")`
 
@@ -120,21 +122,6 @@ Call `gobby-tasks.expand_task` with:
 - `session_id`: Your session ID
 
 Example: `/gobby-tasks expand #1` → `expand_task(task_id="#1")`
-
-### `/gobby-tasks expand-spec <path>` - Create tasks from spec
-Call `gobby-tasks.expand_from_spec` with:
-- `spec_path`: (required) Path to markdown/PRD file
-- `parent_task_id`: Optional parent task
-- `task_type`: Default type for created tasks
-- `mode`: Expansion mode
-- `session_id`: Your session ID
-
-Example: `/gobby-tasks expand-spec docs/auth-design.md` → `expand_from_spec(spec_path="docs/auth-design.md")`
-
-### `/gobby-tasks expand-prompt <prompt>` - Create tasks from prompt
-Call `gobby-tasks.expand_from_prompt` to create tasks from natural language.
-
-Example: `/gobby-tasks expand-prompt implement user authentication`
 
 ### `/gobby-tasks suggest` - Suggest next task
 Call `gobby-tasks.suggest_next_task` with:
@@ -261,7 +248,7 @@ After executing the appropriate MCP tool, present the results clearly:
 
 If the subcommand is not recognized, show available subcommands:
 - create, show, update, list, close, reopen, delete
-- expand, expand-spec, expand-prompt, suggest, ready, blocked
+- expand, suggest, ready, blocked
 - depend, undepend, deps, check-cycles
 - validate, validation-status, validation-history, generate-criteria, fix, validate-fix
 - label, unlabel

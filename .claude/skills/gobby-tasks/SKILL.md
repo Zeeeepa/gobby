@@ -121,21 +121,6 @@ Call `gobby-tasks.expand_task` with:
 
 Example: `/gobby-tasks expand #1` → `expand_task(task_id="#1")`
 
-### `/gobby-tasks expand-spec <path>` - Create tasks from spec
-Call `gobby-tasks.expand_from_spec` with:
-- `spec_path`: (required) Path to markdown/PRD file
-- `parent_task_id`: Optional parent task
-- `task_type`: Default type for created tasks
-- `mode`: Expansion mode
-- `session_id`: Your session ID
-
-Example: `/gobby-tasks expand-spec docs/auth-design.md` → `expand_from_spec(spec_path="docs/auth-design.md")`
-
-### `/gobby-tasks expand-prompt <prompt>` - Create tasks from prompt
-Call `gobby-tasks.expand_from_prompt` to create tasks from natural language.
-
-Example: `/gobby-tasks expand-prompt implement user authentication`
-
 ### `/gobby-tasks suggest` - Suggest next task
 Call `gobby-tasks.suggest_next_task` with:
 - `task_type`: Optional type filter
@@ -259,7 +244,7 @@ After executing the appropriate MCP tool, present the results clearly:
 
 If the subcommand is not recognized, show available subcommands:
 - create, show, update, list, close, reopen, delete
-- expand, expand-spec, expand-prompt, suggest, ready, blocked
+- expand, suggest, ready, blocked
 - depend, undepend, deps, check-cycles
 - validate, validation-status, validation-history, generate-criteria, fix, validate-fix
 - label, unlabel

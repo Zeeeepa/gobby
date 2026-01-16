@@ -92,7 +92,6 @@ class Task:
     # Spec traceability
     reference_doc: str | None = None  # Path to source specification document
     # Processing flags for idempotent operations
-    is_enriched: bool = False  # Context has been added
     is_expanded: bool = False  # Subtasks have been created
     is_tdd_applied: bool = False  # TDD pairs have been generated
     # Review status fields (HITL support)
@@ -173,7 +172,6 @@ class Task:
             path_cache=row["path_cache"] if "path_cache" in keys else None,
             agent_name=row["agent_name"] if "agent_name" in keys else None,
             reference_doc=row["reference_doc"] if "reference_doc" in keys else None,
-            is_enriched=bool(row["is_enriched"]) if "is_enriched" in keys else False,
             is_expanded=bool(row["is_expanded"]) if "is_expanded" in keys else False,
             is_tdd_applied=bool(row["is_tdd_applied"]) if "is_tdd_applied" in keys else False,
             requires_user_review=(
@@ -229,7 +227,6 @@ class Task:
             "path_cache": self.path_cache,
             "agent_name": self.agent_name,
             "reference_doc": self.reference_doc,
-            "is_enriched": self.is_enriched,
             "is_expanded": self.is_expanded,
             "is_tdd_applied": self.is_tdd_applied,
             "requires_user_review": self.requires_user_review,
@@ -800,7 +797,6 @@ class LocalTaskManager:
         linear_team_id: str | None | Any = UNSET,
         agent_name: str | None | Any = UNSET,
         reference_doc: str | None | Any = UNSET,
-        is_enriched: bool | None | Any = UNSET,
         is_expanded: bool | None | Any = UNSET,
         is_tdd_applied: bool | None | Any = UNSET,
         validation_override_reason: str | None | Any = UNSET,
@@ -938,9 +934,6 @@ class LocalTaskManager:
         if reference_doc is not UNSET:
             updates.append("reference_doc = ?")
             params.append(reference_doc)
-        if is_enriched is not UNSET:
-            updates.append("is_enriched = ?")
-            params.append(1 if is_enriched else 0)
         if is_expanded is not UNSET:
             updates.append("is_expanded = ?")
             params.append(1 if is_expanded else 0)

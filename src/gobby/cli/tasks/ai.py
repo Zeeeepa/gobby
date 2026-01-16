@@ -380,157 +380,6 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
     )
 
 
-@click.command("enrich")
-@click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
-@click.option("--cascade", "-c", is_flag=True, help="Also enrich subtasks")
-@click.option(
-    "--web-research/--no-web-research",
-    default=False,
-    help="Enable web research for additional context",
-)
-@click.option(
-    "--mcp-tools/--no-mcp-tools",
-    default=False,
-    help="Enable MCP tools for research",
-)
-@click.option("--force", "-f", is_flag=True, help="Re-enrich already enriched tasks")
-@click.option("--project", "-p", "_project_name", help="Project name or ID (reserved for future use)")
-def enrich_cmd(
-    task_refs: tuple[str, ...],
-    cascade: bool,
-    web_research: bool,
-    mcp_tools: bool,
-    force: bool,
-    _project_name: str | None,
-) -> None:
-    """Enrich tasks with additional context and metadata.
-
-    TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
-    Multiple tasks can be specified separated by spaces or commas.
-
-    Examples:
-        gobby tasks enrich #42
-        gobby tasks enrich #42,#43,#44
-        gobby tasks enrich #42 --web-research --mcp-tools
-        gobby tasks enrich #42 --cascade  # Include subtasks
-    """
-    import asyncio
-
-    from gobby.cli.tasks._utils import get_all_descendants, parse_task_refs
-    from gobby.config.app import load_config
-    from gobby.llm import LLMService
-    from gobby.tasks.enrich import TaskEnricher
-
-    # Parse task references
-    refs = parse_task_refs(task_refs)
-    if not refs:
-        click.echo("Error: No task references provided", err=True)
-        return
-
-    manager = get_task_manager()
-
-    # Resolve all tasks
-    tasks_to_enrich: list[Task] = []
-    for ref in refs:
-        task = resolve_task_id(manager, ref)
-        if not task:
-            # Error already printed by resolve_task_id
-            continue
-        tasks_to_enrich.append(task)
-
-        # If cascade, get ALL descendants recursively (not just direct children)
-        if cascade:
-            descendants = get_all_descendants(manager, task.id)
-            tasks_to_enrich.extend(descendants)
-
-    if not tasks_to_enrich:
-        click.echo("No valid tasks to enrich.", err=True)
-        return
-
-    # Initialize enricher
-    try:
-        config = load_config()
-        if not config.gobby_tasks.enrichment.enabled:
-            click.echo("Error: Task enrichment is disabled in config.", err=True)
-            return
-
-        llm_service = LLMService(config)
-        enricher = TaskEnricher(config=config.gobby_tasks.enrichment, llm_service=llm_service)
-
-    except Exception as e:
-        click.echo(f"Error initializing enricher: {e}", err=True)
-        return
-
-    # Enrich tasks
-    async def enrich_tasks() -> None:
-        enriched_count = 0
-        skipped_count = 0
-        error_count = 0
-
-        for task in tasks_to_enrich:
-            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
-
-            # Skip tasks with children (epics/parent tasks) - only enrich leaf tasks
-            children = manager.list_tasks(parent_task_id=task.id)
-            if children:
-                click.echo(f"Skipping {task_ref}: has {len(children)} children (not a leaf task)")
-                skipped_count += 1
-                continue
-
-            # Skip if already enriched and not forcing
-            if task.is_enriched and not force:
-                click.echo(f"Skipping {task_ref}: already enriched (use --force)")
-                skipped_count += 1
-                continue
-
-            click.echo(f"Enriching {task_ref}: {task.title[:40]}...")
-
-            try:
-                result = await enricher.enrich(
-                    task_id=task.id,
-                    title=task.title,
-                    description=task.description,
-                    enable_code_research=True,
-                    enable_web_research=web_research,
-                    enable_mcp_tools=mcp_tools,
-                    generate_validation=True,
-                )
-
-                # Update task with enrichment results
-                import json as json_mod
-
-                expansion_context = json_mod.dumps(result.to_dict())
-                update_kwargs: dict[str, Any] = {
-                    "is_enriched": True,
-                    "expansion_context": expansion_context,
-                }
-                if result.domain_category:
-                    update_kwargs["category"] = result.domain_category
-                if result.complexity_level is not None:
-                    update_kwargs["complexity_score"] = result.complexity_level
-                if result.validation_criteria:
-                    update_kwargs["validation_criteria"] = result.validation_criteria
-
-                manager.update_task(task.id, **update_kwargs)
-                click.echo(
-                    f"  ✓ Enriched (category={result.domain_category}, complexity={result.complexity_level})"
-                )
-                enriched_count += 1
-
-            except Exception as e:
-                click.echo(f"  ✗ Error: {e}", err=True)
-                error_count += 1
-
-        click.echo(
-            f"\nDone: {enriched_count} enriched, {skipped_count} skipped, {error_count} errors"
-        )
-
-    try:
-        asyncio.run(enrich_tasks())
-    except Exception as e:
-        click.echo(f"Error during enrichment: {e}", err=True)
-
-
 @click.command("apply-tdd")
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--cascade", "-c", is_flag=True, help="Also apply TDD to subtasks")
@@ -548,9 +397,9 @@ def apply_tdd_cmd(
     Multiple tasks can be specified separated by spaces or commas.
 
     Creates three subtasks for each task:
-    1. [TEST] Write tests for: <title>
-    2. [IMPL] Implement: <title>
-    3. [REFACTOR] Refactor: <title>
+    1. Write tests for: <title>
+    2. Implement: <title>
+    3. Refactor: <title>
 
     Examples:
         gobby tasks apply-tdd #42
@@ -565,8 +414,8 @@ def apply_tdd_cmd(
     from gobby.storage.task_dependencies import TaskDependencyManager
     from gobby.tasks.validation import TaskValidator
 
-    # TDD prefixes (same as in MCP tool)
-    TDD_PREFIXES = ("[TEST]", "[IMPL]", "[REFACTOR]")
+    # TDD prefixes (same as in MCP tool - src/gobby/mcp_proxy/tools/task_expansion.py)
+    TDD_PREFIXES = ("Write tests for:", "Implement:", "Refactor:")
 
     # TDD validation criteria per phase (from task-expansion-v2 spec)
     TDD_CRITERIA_RED = """## Deliverable
@@ -622,7 +471,7 @@ def apply_tdd_cmd(
         """Apply TDD transformation to a single task."""
         # 1. Test Task (Red phase)
         test_task = manager.create_task(
-            title=f"[TEST] {task.title}",
+            title=f"Write tests for: {task.title}",
             description=f"Write failing tests for: {task.title}\n\nThis is the RED phase of TDD.",
             project_id=task.project_id,
             parent_task_id=task.id,
@@ -635,7 +484,7 @@ def apply_tdd_cmd(
 
         # 2. Implement Task (Green phase) - dynamically generate criteria
         impl_task = manager.create_task(
-            title=f"[IMPL] {task.title}",
+            title=f"Implement: {task.title}",
             description="Implement the feature to make tests pass.\n\nThis is the GREEN phase of TDD.",
             project_id=task.project_id,
             parent_task_id=task.id,
@@ -661,7 +510,7 @@ def apply_tdd_cmd(
 
         # 3. Refactor Task (Blue phase)
         refactor_task = manager.create_task(
-            title=f"[REFACTOR] {task.title}",
+            title=f"Refactor: {task.title}",
             description="Refactor the implementation while keeping tests passing.\n\nThis is the BLUE phase of TDD.",
             project_id=task.project_id,
             parent_task_id=task.id,
@@ -733,11 +582,6 @@ def apply_tdd_cmd(
     help="Enable/disable codebase context gathering",
 )
 @click.option("--cascade", is_flag=True, help="Also expand subtasks")
-@click.option(
-    "--enrich/--no-enrich",
-    default=True,
-    help="Enable/disable auto-enrichment before expansion",
-)
 @click.option("--force", "-f", is_flag=True, help="Re-expand already expanded tasks")
 @click.option("--project", "-p", "project_name", help="Project name or ID")
 def expand_task_cmd(
@@ -746,7 +590,6 @@ def expand_task_cmd(
     web_research: bool,
     code_context: bool,
     cascade: bool,
-    enrich: bool,
     force: bool,
     project_name: str | None,
 ) -> None:
@@ -758,7 +601,7 @@ def expand_task_cmd(
     Examples:
         gobby tasks expand #42
         gobby tasks expand #42,#43,#44
-        gobby tasks expand #42 --cascade --no-enrich
+        gobby tasks expand #42 --cascade
     """
     import asyncio
     from dataclasses import dataclass
@@ -767,7 +610,6 @@ def expand_task_cmd(
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
-    from gobby.tasks.enrich import TaskEnricher
     from gobby.tasks.expansion import TaskExpander
 
     # Parse task references
@@ -806,7 +648,6 @@ def expand_task_cmd(
         expander = TaskExpander(
             config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
         )
-        enricher = TaskEnricher(llm_service, manager) if enrich else None
 
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)
@@ -830,41 +671,6 @@ def expand_task_cmd(
             click.echo("  • Web research enabled")
         if code_context:
             click.echo("  • Code context enabled")
-
-        # Auto-enrich if enabled and task has no expansion_context
-        if enricher and not resolved.expansion_context:
-            click.echo("  • Auto-enriching task...")
-            try:
-                enrichment_result = asyncio.run(
-                    enricher.enrich(
-                        task_id=resolved.id,
-                        title=resolved.title,
-                        description=resolved.description,
-                        enable_code_research=code_context,
-                        enable_web_research=web_research,
-                        enable_mcp_tools=False,
-                        generate_validation=True,
-                    )
-                )
-                # Update task with enrichment results
-                import json
-
-                enrich_kwargs: dict[str, Any] = {
-                    "is_enriched": True,
-                    "expansion_context": json.dumps(enrichment_result.to_dict()),
-                }
-                if enrichment_result.domain_category:
-                    enrich_kwargs["category"] = enrichment_result.domain_category
-                if enrichment_result.complexity_level is not None:
-                    enrich_kwargs["complexity_score"] = enrichment_result.complexity_level
-                if enrichment_result.validation_criteria:
-                    enrich_kwargs["validation_criteria"] = enrichment_result.validation_criteria
-                manager.update_task(resolved.id, **enrich_kwargs)
-                # Refresh task
-                resolved = manager.get_task(resolved.id)  # type: ignore[assignment]
-                click.echo("  • Enrichment complete")
-            except Exception as e:
-                click.echo(f"  • Enrichment failed (continuing): {e}", err=True)
 
         # Run expansion
         try:
@@ -1198,172 +1004,6 @@ def expand_all_cmd(
 
     success_count = len([r for r in results if r["status"] == "success"])
     click.echo(f"\nExpanded {success_count}/{len(results)} tasks successfully.")
-
-
-@click.command("parse-spec")
-@click.argument("spec_path", type=click.Path())
-@click.option("--parent", "parent_ref", help="Parent task reference: #N, UUID, or path")
-@click.option("--project", "-p", "_project_name", help="Project name (reserved for future use)")
-@click.option("--llm", "use_llm", is_flag=True, help="Use LLM to convert document to spec format first")
-def parse_spec_cmd(
-    spec_path: str,
-    parent_ref: str | None,
-    _project_name: str | None,
-    use_llm: bool,
-) -> None:
-    """Parse a spec file and create tasks from checkboxes.
-
-    Reads a markdown file and creates tasks from checkbox items.
-    Supports multiple checkbox formats: - [ ], * [ ], 1. [ ]
-
-    Use --llm to auto-convert any document format to parseable spec format.
-
-    Examples:
-        gobby tasks parse-spec spec.md
-        gobby tasks parse-spec spec.md --parent #42
-        gobby tasks parse-spec spec.md --llm
-    """
-    import asyncio
-    from pathlib import Path
-
-    from gobby.tasks.spec_parser import (
-        CheckboxExtractor,
-        MarkdownStructureParser,
-        TaskHierarchyBuilder,
-    )
-    from gobby.utils.project_context import get_project_context
-
-    # Check file exists
-    path = Path(spec_path)
-    if not path.exists():
-        click.echo(f"Error: File not found: {spec_path}", err=True)
-        return
-
-    # Read spec file
-    try:
-        spec_content = path.read_text(encoding="utf-8")
-    except Exception as e:
-        click.echo(f"Error reading file: {e}", err=True)
-        return
-
-    manager = get_task_manager()
-
-    # Resolve parent task if provided
-    parent_task_id: str | None = None
-    if parent_ref:
-        parent_task = resolve_task_id(manager, parent_ref)
-        if not parent_task:
-            return  # Error already printed
-        parent_task_id = parent_task.id
-
-    # Determine project ID
-    project_id: str | None = None
-    if _project_name:
-        # Look up project by name
-        ctx = get_project_context()
-        if ctx and ctx.get("name") == _project_name:
-            project_id = ctx.get("id")
-        else:
-            click.echo(
-                f"Warning: Project '{_project_name}' not found, using current project", err=True
-            )
-
-    if not project_id:
-        ctx = get_project_context()
-        project_id = ctx.get("id") if ctx else None
-
-    if not project_id:
-        click.echo("Error: No project context available.", err=True)
-        return
-
-    # Handle LLM formatting if requested
-    if use_llm:
-        from gobby.tasks.spec_parser import format_spec_with_llm
-
-        click.echo("Formatting document with LLM...")
-        formatted_path = path.with_suffix(".formatted.md")
-        try:
-            formatted_content = format_spec_with_llm(spec_content)
-            formatted_path.write_text(formatted_content, encoding="utf-8")
-            click.echo(f"Formatted spec saved to: {formatted_path}")
-            spec_content = formatted_content
-        except Exception as e:
-            click.echo(f"Error formatting with LLM: {e}", err=True)
-            click.echo("Falling back to original content...")
-
-    # Parse markdown structure (headings and checkboxes)
-    heading_parser = MarkdownStructureParser()
-    checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
-
-    headings = heading_parser.parse(spec_content)
-    checkboxes = checkbox_extractor.extract(spec_content)
-
-    has_structure = bool(headings) or checkboxes.total_count > 0
-
-    if not has_structure:
-        click.echo("No structure found in spec (no headings or checkboxes).")
-        if not use_llm:
-            click.echo("Tip: Use --llm to auto-convert document to spec format.")
-        return
-
-    # Extract title from spec (# Title heading or filename)
-    lines = spec_content.strip().split("\n")
-    title = path.stem.replace("-", " ").replace("_", " ").title()
-    for line in lines:
-        line = line.strip()
-        if line.startswith("# ") and not line.startswith("##"):
-            title = line[2:].strip()
-            break
-        elif line and not line.startswith("#"):
-            title = line[:80] + ("..." if len(line) > 80 else "")
-            break
-
-    # Create parent epic for the spec
-    spec_task = manager.create_task(
-        project_id=project_id,
-        title=title,
-        description=f"Tasks parsed from: {spec_path}",
-        parent_task_id=parent_task_id,
-        task_type="epic",
-        reference_doc=str(path),
-    )
-    spec_ref = f"#{spec_task.seq_num}" if spec_task.seq_num else spec_task.id[:8]
-    click.echo(f"Created epic {spec_ref}: {title}")
-
-    # Use TaskHierarchyBuilder to create proper hierarchy (matching MCP tool)
-    builder = TaskHierarchyBuilder(
-        task_manager=manager,
-        project_id=project_id,
-        parent_task_id=spec_task.id,
-        reference_doc=str(path),
-    )
-
-    # build_from_headings is async
-    if headings:
-        hierarchy_result = asyncio.run(
-            builder.build_from_headings(
-                headings=headings,
-                checkboxes=checkboxes if checkboxes.total_count > 0 else None,
-            )
-        )
-    elif checkboxes.total_count > 0:
-        hierarchy_result = asyncio.run(builder.build_from_checkboxes(checkboxes))
-    else:
-        hierarchy_result = None
-
-    if hierarchy_result:
-        # Print created tasks summary
-        for task_info in hierarchy_result.tasks:
-            task = manager.get_task(task_info.id)
-            if task:
-                task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
-                indent = "  " if task_info.parent_task_id == spec_task.id else "    "
-                type_label = f"[{task_info.task_type}]" if task_info.task_type == "epic" else ""
-                click.echo(f"{indent}Created {task_ref}: {type_label} {task_info.title[:50]}")
-
-        click.echo(f"\nCreated {hierarchy_result.total_count} tasks under {spec_ref}.")
-    else:
-        click.echo("No tasks created.")
 
 
 @click.command("suggest")

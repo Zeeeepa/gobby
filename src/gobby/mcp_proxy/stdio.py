@@ -110,8 +110,7 @@ class DaemonProxy:
         # Fallback for LLM-based task tools if not explicit in config
         elif tool_name in (
             "expand_task",
-            "expand_from_spec",
-            "expand_from_prompt",
+            "apply_tdd",
             "suggest_next_task",
             "validate_task",
         ):

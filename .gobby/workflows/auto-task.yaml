@@ -24,6 +24,7 @@ type: step
 variables:
   session_task: null  # Task ID(s) to complete before exit
   researched_task_id: null  # Track which task has been researched
+  claimed_task_id: null  # Currently claimed task ID
   # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
   premature_stop_max_attempts: 3
 

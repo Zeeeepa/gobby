@@ -357,7 +357,6 @@ CREATE TABLE tasks (
     path_cache TEXT,
     agent_name TEXT,
     reference_doc TEXT,
-    is_enriched INTEGER DEFAULT 0,
     is_expanded INTEGER DEFAULT 0,
     is_tdd_applied INTEGER DEFAULT 0,
     requires_user_review INTEGER DEFAULT 0,
@@ -644,6 +643,26 @@ def _migrate_add_review_columns(db: LocalDatabase) -> None:
         logger.info("Added accepted_by_user column to tasks table")
 
 
+def _migrate_drop_is_enriched(db: LocalDatabase) -> None:
+    """Drop deprecated is_enriched column from tasks table.
+
+    The is_enriched flag is no longer used after the Task Expansion V3 simplification.
+    SQLite 3.35.0+ supports ALTER TABLE DROP COLUMN.
+    """
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if not row:
+        return
+
+    if "is_enriched" in row["sql"].lower():
+        try:
+            db.execute("ALTER TABLE tasks DROP COLUMN is_enriched")
+            logger.info("Dropped is_enriched column from tasks table")
+        except Exception as e:
+            # SQLite < 3.35.0 doesn't support DROP COLUMN
+            # Column will remain but be unused - not a problem
+            logger.warning(f"Could not drop is_enriched column (SQLite < 3.35?): {e}")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -655,6 +674,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (64, "Add boolean columns to tasks", _migrate_add_boolean_columns),
     # Review status: Add columns for HITL review workflow
     (65, "Add review columns to tasks", _migrate_add_review_columns),
+    # Task Expansion V3: Drop unused is_enriched column
+    (66, "Drop is_enriched column from tasks", _migrate_drop_is_enriched),
 ]
 
 

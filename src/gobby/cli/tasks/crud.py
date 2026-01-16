@@ -516,8 +516,8 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     # Use standardized ref for errors
     resolved_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
 
-    if resolved.status != "closed":
-        click.echo(f"Task {resolved_ref} is not closed (status: {resolved.status})", err=True)
+    if resolved.status not in ("closed", "review"):
+        click.echo(f"Task {resolved_ref} is not closed or in review (status: {resolved.status})", err=True)
         return
 
     task = manager.reopen_task(resolved.id, reason=reason)

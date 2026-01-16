@@ -138,7 +138,8 @@ class TaskSyncManager:
                     "parent_id": task.parent_task_id,
                     "deps_on": sorted(deps_map.get(task.id, [])),  # Sort deps for stability
                     # Commit linking - normalize to short SHAs and deduplicate
-                    "commits": self._normalize_commits(task.commits, target_path.parent),
+                    # target_path is .gobby/tasks.jsonl, so parent.parent is repo root
+                    "commits": self._normalize_commits(task.commits, target_path.parent.parent),
                     # Validation history (for tracking validation state across syncs)
                     "validation": (
                         {

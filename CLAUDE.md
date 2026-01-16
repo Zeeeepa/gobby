@@ -256,9 +256,8 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
    - Task types: `task`, `bug`, `feature`, `epic`
 
 3. **Complex tasks** (multi-step work):
-   - `expand_task(task_id)` - LLM-based decomposition into subtasks with TDD pairs
-   - `enrich_task(task_id)` - Add validation criteria and test strategy to a task
-   - `apply_tdd(task_id)` - Transform task into TEST/IMPL pairs
+   - `expand_task(task_id)` - LLM-based research, decomposition into subtasks, and auto-TDD
+   - `apply_tdd(task_id)` - Transform task into TEST/IMPL pairs (called automatically by expand)
    - Expansion creates subtasks with proper dependencies and test strategies
 
 4. **Track progress**:
@@ -302,31 +301,30 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 })
 ```
 
-### Spec Document Parsing
+### Task Expansion Workflow
 
-When creating tasks from a spec/PRD/design doc, use the phased workflow:
+When working with complex tasks, use the expansion workflow:
 
 ```bash
-# 1. Parse spec into tasks (fast, extracts checkboxes)
-gobby tasks parse-spec docs/plans/feature.md
+# 1. Create or identify the task to expand
+gobby tasks create "Implement user authentication"
 
-# 2. Enrich with context (adds validation criteria, test strategy)
-gobby tasks enrich #N --cascade
-
-# 3. Expand complex tasks into subtasks
+# 2. Expand into subtasks (includes research, decomposition, and auto-TDD)
 gobby tasks expand #N
 
-# 4. Apply TDD pairs to implementation tasks
-gobby tasks apply-tdd #N --cascade
+# 3. For cascading expansion of entire task trees
+gobby tasks expand #N --cascade
 ```
 
 Or via MCP tool:
 
 ```python
-call_tool(server_name="gobby-tasks", tool_name="parse_spec", arguments={
-    "spec_path": "docs/plans/feature.md"
+call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={
+    "task_id": "#42"
 })
 ```
+
+For structured planning from specs, use the `/gobby:spec` skill which guides you through requirements gathering, spec writing, and task creation.
 
 ### Commit Linking
 

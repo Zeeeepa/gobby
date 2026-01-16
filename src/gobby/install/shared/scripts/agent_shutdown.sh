@@ -1,5 +1,6 @@
 #!/bin/bash
 # agent_shutdown.sh - Gracefully terminate the agent's terminal session
+# VERSION: 2.0.0
 # Installed by: uv run gobby install --gemini
 #
 # This script is used by the meeseeks workflow to self-terminate
@@ -40,3 +41,4 @@ kill -TERM "$TERM_PID" 2>/dev/null || true
 # If still alive after 2 seconds, force kill
 sleep 2
 kill -9 "$TERM_PID" 2>/dev/null || true
+
