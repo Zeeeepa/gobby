@@ -82,41 +82,6 @@ Transform gobby-memory from a monolithic implementation into a **pluggable abstr
 
 ## Task Mapping
 
-| Spec Item | Task Ref | Status |
+<!-- Updated after task creation -->
+| Plan Item | Task Ref | Status |
 |-----------|----------|--------|
-| **Epic: Memory V3** | #4300 | open |
-| **Phase 1: Protocol & SQLite Refactor** | #4301 | open |
-| Create protocol.py | #4307 | open |
-| Create backends/__init__.py | #4308 | open |
-| Create backends/sqlite.py | #4309 | open |
-| Create backends/null.py | #4310 | open |
-| Modify manager.py | #4311 | open |
-| Modify sync/memories.py | #4312 | open |
-| Add config schema | #4313 | open |
-| Rename recall_memory | #4314 | open |
-| Create slash commands | #4315 | open |
-| **Phase 2: Multimodal Support** | #4302 | open |
-| Add media column migration | #4316 | open |
-| Add LLMService.describe_image() | #4317 | open |
-| Add remember_with_image() | #4318 | open |
-| Add remember_screenshot() | #4319 | open |
-| Update SqliteMemoryBackend for media | #4320 | open |
-| Create .gobby/resources/ | #4321 | open |
-| **Phase 3: MemU Backend** | #4303 | open |
-| Create backends/memu.py | #4322 | open |
-| Map MemUService.memorize() | #4323 | open |
-| Map MemUService.retrieve() | #4324 | open |
-| **Phase 4: Mem0 Backend** | #4304 | open |
-| Create backends/mem0.py | #4325 | open |
-| Map Memory.add() | #4326 | open |
-| Map Memory.search() | #4327 | open |
-| Add API key config | #4328 | open |
-| **Phase 5: OpenMemory Backend** | #4305 | open |
-| Create backends/openmemory.py | #4329 | open |
-| Connect to REST API | #4330 | open |
-| Add health check | #4331 | open |
-| Add base_url config | #4332 | open |
-| **Phase 6: Markdown Export** | #4306 | open |
-| Add export_markdown() | #4333 | open |
-| Create markdown format spec | #4334 | open |
-| Add CLI command | #4335 | open |
