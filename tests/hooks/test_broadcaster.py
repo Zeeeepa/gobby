@@ -109,3 +109,290 @@ async def test_broadcast_no_server(default_config, sample_input):
 
     await broadcaster.broadcast_hook_event(HookType.SESSION_START, sample_input)
     # Should just return without error
+
+
+@pytest.mark.asyncio
+async def test_broadcast_no_config(mock_websocket_server, sample_input):
+    """Test safe handling when config is None."""
+    broadcaster = HookEventBroadcaster(mock_websocket_server, None)
+
+    await broadcaster.broadcast_hook_event(HookType.SESSION_START, sample_input)
+
+    # Should return early without broadcasting
+    mock_websocket_server.broadcast.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_with_output(mock_websocket_server, default_config, sample_input):
+    """Test broadcast with output data."""
+    from gobby.hooks.hook_types import SessionStartOutput
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    output = SessionStartOutput(context={"key": "value"})
+
+    await broadcaster.broadcast_hook_event(HookType.SESSION_START, sample_input, output)
+
+    mock_websocket_server.broadcast.assert_called_once()
+    call_args = mock_websocket_server.broadcast.call_args[0][0]
+    assert "result" in call_args
+    assert call_args["result"]["context"]["key"] == "value"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_unified(mock_websocket_server, default_config):
+    """Test broadcast_event with unified HookEvent."""
+    from datetime import UTC, datetime
+
+    from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={"external_id": "test-session", "transcript_path": "/tmp", "source": "startup"},
+    )
+
+    await broadcaster.broadcast_event(event)
+
+    mock_websocket_server.broadcast.assert_called_once()
+    call_args = mock_websocket_server.broadcast.call_args[0][0]
+    assert call_args["event_type"] == "session-start"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_with_response(mock_websocket_server, default_config):
+    """Test broadcast_event with HookResponse."""
+    from datetime import UTC, datetime
+
+    from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={"external_id": "test-session", "transcript_path": "/tmp", "source": "startup"},
+    )
+    response = HookResponse(
+        decision="allow",
+        reason="Test reason",
+        context="Additional context string",
+    )
+
+    await broadcaster.broadcast_event(event, response)
+
+    mock_websocket_server.broadcast.assert_called_once()
+    call_args = mock_websocket_server.broadcast.call_args[0][0]
+    assert "result" in call_args
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_unknown_type(mock_websocket_server, default_config):
+    """Test broadcast_event with unknown event type."""
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock
+
+    from gobby.hooks.events import HookEvent, SessionSource
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+
+    # Create event with mock event type that has unknown value
+    mock_event_type = MagicMock()
+    mock_event_type.value = "unknown_event_type"
+    event = HookEvent(
+        event_type=mock_event_type,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={},
+    )
+
+    # Should handle gracefully without raising
+    await broadcaster.broadcast_event(event)
+
+    # Should not broadcast unknown events
+    mock_websocket_server.broadcast.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_no_websocket(default_config):
+    """Test broadcast_event without websocket server."""
+    from datetime import UTC, datetime
+
+    from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+
+    broadcaster = HookEventBroadcaster(None, default_config)
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={"external_id": "test-session", "transcript_path": "/tmp", "source": "startup"},
+    )
+
+    # Should return early without error
+    await broadcaster.broadcast_event(event)
+
+
+@pytest.mark.asyncio
+async def test_broadcast_subagent_event(mock_websocket_server, default_config):
+    """Test broadcast of subagent events with special handling."""
+    from gobby.hooks.hook_types import SubagentStartInput
+
+    # Enable subagent events in broadcast list
+    default_config.hook_extensions.websocket.broadcast_events.append("subagent-start")
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    subagent_input = SubagentStartInput(
+        external_id="parent-session",
+        subagent_id="subagent-123",
+        cwd="/tmp",
+    )
+
+    await broadcaster.broadcast_hook_event(HookType.SUBAGENT_START, subagent_input)
+
+    mock_websocket_server.broadcast.assert_called_once()
+    call_args = mock_websocket_server.broadcast.call_args[0][0]
+    assert call_args["event_type"] == "subagent-start"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_subagent_id_fallback(mock_websocket_server, default_config):
+    """Test subagent_id fallback from external_id."""
+    from datetime import UTC, datetime
+
+    from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+
+    # Enable subagent events
+    default_config.hook_extensions.websocket.broadcast_events.append("subagent-start")
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    event = HookEvent(
+        event_type=HookEventType.SUBAGENT_START,
+        session_id="parent-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={
+            "external_id": "parent-session",
+            "cwd": "/tmp",
+            # subagent_id not provided - should fallback to external_id
+        },
+    )
+
+    await broadcaster.broadcast_event(event)
+
+    mock_websocket_server.broadcast.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_exception_handling(mock_websocket_server, default_config, sample_input):
+    """Test exception handling during broadcast."""
+    mock_websocket_server.broadcast.side_effect = Exception("Connection error")
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+
+    # Should handle exception gracefully
+    await broadcaster.broadcast_hook_event(HookType.SESSION_START, sample_input)
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_exception_handling(mock_websocket_server, default_config):
+    """Test exception handling in broadcast_event."""
+    from datetime import UTC, datetime
+
+    from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+
+    # Cause an exception during input validation
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={
+            # Missing required fields like transcript_path
+            "external_id": "test-session",
+            # Missing 'source' which is required
+        },
+    )
+
+    # Should handle validation error gracefully
+    await broadcaster.broadcast_event(event)
+
+
+@pytest.mark.asyncio
+async def test_broadcast_with_task_context(mock_websocket_server, default_config):
+    """Test broadcast includes task context when present."""
+    from gobby.hooks.hook_types import PreToolUseInput
+
+    # Enable pre-tool-use events
+    default_config.hook_extensions.websocket.broadcast_events.append("pre-tool-use")
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+
+    # Create input with task_id and metadata containing task context
+    tool_input = PreToolUseInput(
+        external_id="test-session",
+        tool_name="read_file",
+        tool_input={"path": "/tmp/test"},
+        task_id="task-123",
+        metadata={"_task_context": {"title": "Test Task"}},
+    )
+
+    await broadcaster.broadcast_hook_event(HookType.PRE_TOOL_USE, tool_input)
+
+    mock_websocket_server.broadcast.assert_called_once()
+    call_args = mock_websocket_server.broadcast.call_args[0][0]
+    assert call_args.get("task_id") == "task-123"
+    assert call_args.get("task_context") == {"title": "Test Task"}
+
+
+@pytest.mark.asyncio
+async def test_broadcast_with_response_context_dict(mock_websocket_server, default_config):
+    """Test broadcast with response context as dict."""
+    from datetime import UTC, datetime
+
+    from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data={"external_id": "test-session", "transcript_path": "/tmp", "source": "startup"},
+    )
+    response = HookResponse(
+        decision="allow",
+        context={"existing": "dict"},  # Context as dict
+    )
+
+    await broadcaster.broadcast_event(event, response)
+
+    mock_websocket_server.broadcast.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_input_with_stop_event(mock_websocket_server, default_config):
+    """Test broadcast extracts session_id from external_id for stop events."""
+    from gobby.hooks.hook_types import StopInput
+
+    # Enable stop events
+    default_config.hook_extensions.websocket.broadcast_events.append("stop")
+
+    broadcaster = HookEventBroadcaster(mock_websocket_server, default_config)
+
+    # StopInput requires external_id
+    stop_input = StopInput(
+        external_id="session-via-external-id",
+        cwd="/tmp",
+    )
+
+    await broadcaster.broadcast_hook_event(HookType.STOP, stop_input)
+
+    mock_websocket_server.broadcast.assert_called_once()
+    call_args = mock_websocket_server.broadcast.call_args[0][0]
+    assert call_args.get("session_id") == "session-via-external-id"

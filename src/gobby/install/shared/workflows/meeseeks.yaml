@@ -1,0 +1,316 @@
+name: meeseeks
+description: |
+  Single-task focused agent workflow. "I'm Mr. Meeseeks, look at me!"
+
+  Each step has strict exit conditions. The agent cannot proceed
+  until requirements are met. Designed to be spawned from auto-task
+  for individual task execution.
+
+  Steps:
+  1. Get session ID from gobby-sessions
+  2. Claim the assigned task (set to in_progress)
+  3. Search gobby-memory for relevant context
+  4. [If coding] Search context7 for documentation
+  5. [If coding] Save findings to gobby-memory
+  6. Work on task until closed
+  7. Generate and save session summary
+  8. Run shutdown script to terminate
+
+version: "1.0"
+type: step
+
+variables:
+  assigned_task_id: null      # Set when spawning
+  task_category: null         # "code", "test", "docs", or null
+  session_id_acquired: false
+  mcp_calls: {}               # Tracked automatically by engine
+  summary_file_written: false      # Set when Write tool completes summary file
+  session_update_completed: false  # Set when gobby-sessions update completes
+
+steps:
+  # ─────────────────────────────────────────────────────────────
+  # Step 1: Get Session
+  # ─────────────────────────────────────────────────────────────
+  - name: get_session
+    description: "Acquire session ID from gobby-sessions"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 1: Acquire your session ID.
+
+          Call: mcp__gobby__call_tool(server_name="gobby-sessions", tool_name="get_current_session", arguments={})
+
+          Do not proceed until you have your session_id.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    transitions:
+      - to: claim_task
+        when: "mcp_called('gobby-sessions', 'get_current_session')"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 2: Claim Task
+  # ─────────────────────────────────────────────────────────────
+  - name: claim_task
+    description: "Set assigned task to in_progress"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 2: Claim your assigned task.
+
+          Task ID: {{ variables.assigned_task_id }}
+
+          Call: mcp__gobby__call_tool(
+            server_name="gobby-tasks",
+            tool_name="update_task",
+            arguments={"task_id": "{{ variables.assigned_task_id }}", "status": "in_progress"}
+          )
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: update_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+
+    transitions:
+      - to: search_memory
+        when: "variables.get('task_claimed', False)"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 3: Search Memory
+  # ─────────────────────────────────────────────────────────────
+  - name: search_memory
+    description: "Search gobby-memory for relevant context"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 3: Search your memory for relevant context.
+
+          Call: mcp__gobby__call_tool(
+            server_name="gobby-memory",
+            tool_name="recall",
+            arguments={"query": "<relevant search terms>", "limit": 5}
+          )
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+      - Glob
+      - Grep
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    transitions:
+      # If coding task, go to context7 search
+      - to: search_context7
+        when: "mcp_called('gobby-memory', 'recall') and variables.get('task_category') == 'code'"
+      # Otherwise skip to work
+      - to: work
+        when: "mcp_called('gobby-memory', 'recall') and variables.get('task_category') != 'code'"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 4: Search Context7 (coding tasks only)
+  # ─────────────────────────────────────────────────────────────
+  - name: search_context7
+    description: "Search context7 for library documentation"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 4: Research documentation via context7.
+
+          First resolve library ID, then get docs:
+          1. mcp__gobby__call_tool(server_name="context7", tool_name="resolve-library-id", arguments={"libraryName": "..."})
+          2. mcp__gobby__call_tool(server_name="context7", tool_name="get-library-docs", arguments={...})
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+      - Glob
+      - Grep
+      - WebSearch
+      - WebFetch
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    transitions:
+      - to: save_findings
+        when: "mcp_called('context7')"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 5: Save Findings (coding tasks only)
+  # ─────────────────────────────────────────────────────────────
+  - name: save_findings
+    description: "Save research findings to gobby-memory"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 5: Save your research findings to memory.
+
+          Call: mcp__gobby__call_tool(
+            server_name="gobby-memory",
+            tool_name="remember",
+            arguments={"content": "<your findings>", "importance": 0.7}
+          )
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    transitions:
+      - to: work
+        when: "mcp_called('gobby-memory', 'remember')"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 6: Work
+  # ─────────────────────────────────────────────────────────────
+  - name: work
+    description: "Work on task until closed"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 6: Implementation phase.
+
+          Task: {{ variables.assigned_task_id }}
+
+          You now have full tool access. Complete the task, commit your changes,
+          then close the task with close_task().
+
+    allowed_tools: all
+
+    transitions:
+      - to: summarize
+        when: "mcp_called('gobby-tasks', 'close_task')"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 7: Summarize
+  # ─────────────────────────────────────────────────────────────
+  - name: summarize
+    description: "Generate session summary and save to file"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 7: Generate your session summary.
+
+          1. Create a markdown summary of what you accomplished
+          2. Save to ~/.gobby/session_summaries/{{ session.id }}.md
+          3. Also save via gobby-sessions if available
+
+          Both must complete before proceeding.
+
+    allowed_tools:
+      - Write
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - Read
+      - Bash  # For mkdir if needed
+
+    blocked_tools:
+      - Edit
+      - NotebookEdit
+
+    on_tool_success:
+      - tool: Write
+        action: set_variable
+        variable: summary_file_written
+        value: true
+
+    on_mcp_success:
+      - server: gobby-sessions
+        tool: update_session
+        action: set_variable
+        variable: session_update_completed
+        value: true
+
+    transitions:
+      - to: shutdown
+        when: "variables.get('summary_file_written', False) and (variables.get('session_update_completed', False) or variables.get('_premature_stop_count', 0) >= 3)"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 8: Shutdown
+  # ─────────────────────────────────────────────────────────────
+  - name: shutdown
+    description: "Run shutdown script and terminate"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 8: Shutdown sequence.
+
+          Run: ~/.gobby/scripts/agent_shutdown.sh
+
+          This will terminate your terminal session.
+
+    allowed_tools:
+      - Bash
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - mcp__gobby__call_tool
+
+    transitions:
+      - to: complete
+        when: "success()"
+
+  # ─────────────────────────────────────────────────────────────
+  # Terminal Step
+  # ─────────────────────────────────────────────────────────────
+  - name: complete
+    description: "Meeseeks task complete - existence is pain"
+
+exit_condition: "current_step == 'complete'"
+
+on_premature_stop:
+  action: block
+  message: "Cannot stop - task not complete. Meeseeks don't get to stop until they've fulfilled their purpose."

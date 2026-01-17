@@ -65,8 +65,8 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
         )
 
         # Pre-warm the daemon status cache
-        manager._cached_daemon_is_ready = True
-        manager._cached_daemon_status = "ready"
+        manager._health_monitor._cached_daemon_is_ready = True
+        manager._health_monitor._cached_daemon_status = "ready"
 
         yield manager
 

@@ -16,6 +16,17 @@ Guide users through structured requirements gathering, specification writing, an
 4. **Task Creation** - Create tasks from approved spec
 5. **Verification** - Update spec with task refs
 
+## Step 0: **REQUIRED** ENTER PLAN MODE
+
+Before creating any spec, you must enter Claude Code's plan mode to explore the codebase
+and design the implementation approach.
+
+**How to enter**: Use the `EnterPlanMode` tool or respond with a planning-focused message
+that triggers plan mode. Plan mode allows you to read files and design without making edits.
+
+**Why required**: Spec creation requires understanding existing code patterns, architecture
+constraints, and dependencies before proposing new work.
+
 ## Step 1: Requirements Gathering
 
 Ask the user:
@@ -69,6 +80,12 @@ Write to `.gobby/specs/{kebab-name}.md`:
 |-----------|----------|--------|
 ```
 
+**Dependency Notation Mapping:**
+- In markdown spec: `(depends: Task 1)` or `(depends: Phase N)`
+- In JSON for build_task_tree: `"depends_on": ["Task 1"]` or `"depends_on": ["Phase N: Name"]`
+
+The skill converts human-readable notation to JSON format when calling `build_task_tree`.
+
 ## Step 4: User Approval
 
 Present the spec to the user:
@@ -107,6 +124,13 @@ call_tool("gobby-tasks", "build_task_tree", {
     "session_id": "<your_session_id>"
 })
 ```
+
+**Note on session_id**:
+- Required parameter provided by the runtime environment
+- Available in the `SessionStart` hook context at conversation start
+- Look for `session_id: <uuid>` in the startup system reminder
+- If not found, omit the parameter and the system will use the current session
+- Invalid session_id returns an error; the task is not created
 
 The tool returns:
 - `task_refs`: All created task refs (["#42", "#43", ...])

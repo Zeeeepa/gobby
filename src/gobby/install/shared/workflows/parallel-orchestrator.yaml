@@ -1,0 +1,133 @@
+name: parallel-orchestrator
+description: |
+  Farm out subtasks to Gemini in parallel worktrees.
+  Claude orchestrates multiple concurrent agents. No auto-merge.
+
+version: "1.0"
+type: step
+
+variables:
+  session_task: null          # Epic/parent task ID
+  target_branch: "dev"        # Branch to merge into (configurable)
+  max_concurrent: 3           # Max parallel agents
+  coding_provider: "gemini"   # Provider for subtasks
+  spawn_mode: "terminal"      # Mode for spawning subagents (terminal, in_process, embedded, headless)
+  spawned_agents: []          # Track {task_id, run_id, worktree_id, worktree_path}
+  completed_worktrees: []     # Worktrees with completed work
+
+steps:
+  - name: spawn
+    description: "Spawn agents for ready tasks up to max_concurrent"
+    on_enter:
+      - action: inject_message
+        content: |
+          Parallel orchestration mode active.
+
+          Epic task: {{ variables.session_task }}
+          Max concurrent: {{ variables.max_concurrent }}
+          Currently running: {{ variables.spawned_agents | length }}
+
+          1. Call list_ready_tasks(parent_task_id="{{ variables.session_task }}") to get ready subtasks
+          2. For each ready task (up to max_concurrent - currently_running):
+             - create_worktree(branch="task/<task_id>")
+             - start_agent(provider="{{ variables.coding_provider }}",
+                          mode="{{ variables.spawn_mode }}",
+                          project_path=<worktree_path>,
+                          task=<task_id>,
+                          workflow="auto-task")
+             - Add to spawned_agents: {task_id, run_id, worktree_id, worktree_path}
+          3. If agents spawned -> transition to 'monitor'
+          4. If no ready tasks and no running agents -> transition to 'review'
+
+    allowed_tools: all
+
+    transitions:
+      - to: monitor
+        when: "len(variables.spawned_agents) > 0"
+      - to: review
+        when: "task_tree_complete(variables.session_task)"
+
+  - name: monitor
+    description: "Monitor running agents for completion"
+    on_enter:
+      - action: inject_message
+        content: |
+          Monitoring {{ variables.spawned_agents | length }} running agent(s).
+
+          Poll with poll_agent_status(parent_session_id=<your_session_id>)
+          Or check each agent with get_agent_result(run_id=<run_id>)
+
+          When an agent completes:
+          - Remove from spawned_agents
+          - Add worktree_path to completed_worktrees
+          - If slots available and tasks ready -> transition to 'spawn'
+          - If all agents done and task tree complete -> transition to 'review'
+          - Otherwise keep monitoring
+
+    allowed_tools: all
+
+    transitions:
+      - to: spawn
+        when: "len(variables.spawned_agents) < variables.max_concurrent"
+      - to: review
+        when: "len(variables.spawned_agents) == 0 and task_tree_complete(variables.session_task)"
+
+  - name: review
+    description: "All tasks complete - review the worktrees"
+    on_enter:
+      - action: inject_message
+        content: |
+          All subtasks have been completed!
+
+          Completed worktrees to review:
+          {% for wt in variables.completed_worktrees %}
+          - {{ wt }}
+          {% endfor %}
+
+          For each worktree:
+          1. cd to worktree path
+          2. Check git log for commits
+          3. Review key files modified
+          4. Run tests if applicable
+
+          Summarize what was accomplished across all worktrees.
+          Inform user the epic is ready for manual merge/consolidation.
+
+          ## Post-Review Merge (if user requests)
+
+          For parallel worktrees, merging is more complex since each task has its own branch.
+          Options to suggest to the user:
+
+          1. **Merge each worktree individually** using gobby-merge:
+             For each worktree in completed_worktrees:
+               merge_start(worktree_id=<id>, source_branch="task/<task_id>",
+                          target_branch="{{ variables.target_branch }}")
+               # Resolve conflicts if any
+               merge_apply(resolution_id=<id>)
+
+          2. **Merge to an epic branch first** (consolidate then merge once):
+             - Create epic branch from {{ variables.target_branch }}
+             - Merge each task branch into epic branch
+             - Review consolidated changes
+             - Merge epic branch to {{ variables.target_branch }}
+
+          The user should decide the merge strategy based on task independence and
+          whether they want to review consolidated changes first.
+
+    allowed_tools: all
+
+exit_condition: "task_tree_complete(variables.session_task)"
+
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    You cannot stop yet. The epic task tree is not complete.
+
+    Current state:
+    - Epic: {{ variables.session_task }}
+    - Running agents: {{ variables.spawned_agents | length }}
+    - Completed worktrees: {{ variables.completed_worktrees | length }}
+
+    If agents are running, poll their status with poll_agent_status().
+    If slots are available and tasks are ready, spawn more agents.
+    Continue until task_tree_complete({{ variables.session_task }}).

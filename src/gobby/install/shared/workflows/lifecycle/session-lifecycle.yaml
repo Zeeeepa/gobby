@@ -10,14 +10,17 @@ settings:
 variables:
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
+  # Auto-decompose multi-step task descriptions into subtasks
+  auto_decompose: false
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
 
 triggers:
   on_stop:
-    # Commit enforcement - block stop if task has uncommitted changes
+    # Task closure enforcement - block stop if task is still in_progress
+    # Agents must close_task() or set to review before stopping
     # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
-    - action: require_commit_before_stop
+    - action: require_task_review_or_close_before_stop
       when: "not variables.get('plan_mode')"
 
   on_session_start:
@@ -55,7 +58,7 @@ triggers:
 
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
-      when: "event.data.get('source') not in ['clear', 'compact'] or event.data.get('source') == 'startup'"
+      when: "event.data.get('source') == 'startup'"
       template: |
         ## Session Start: Plan Mode Recommended
         *Injected by Gobby session startup*
@@ -68,19 +71,19 @@ triggers:
         If the user's request involves non-trivial changes, use `/plan` or
         suggest entering plan mode before proceeding with edits.
 
-    # Plan mode notice - inject notice if in plan mode
-    - action: inject_message
-      when: "variables.get('plan_mode')"
-      content: |
-        ## Plan Mode Active
-        *Injected by Gobby*
+        Do not assume you know any of the downstream mcp servers proxied by the gobby mcp server, 
+        or their tool schemas. Use progressive disclosure to minimize tokens:
 
-        You are currently in **PLAN mode**. 
-        File modifications are allowed only for planning documents (e.g., in `~/.claude/plans/`).
-        Task enforcement is relaxed for these files.
+        1. `list_tools(server="...")` - Brief metadata only
+        2. `get_tool_schema(server_name, tool_name)` - Full schema when needed
+        3. `call_tool(server_name, tool_name, arguments)` - Execute
 
   on_before_agent:
-    # Memory recall - inject memories relevant to the user's prompt via semantic search
+    # Title synthesis on first prompt
+    - action: synthesize_title
+      when: "session.title == None"
+
+    # Memory recall - inject memories relevant to the user's prompt
     - action: memory_recall_relevant
       limit: 5
       min_importance: 0.7
@@ -156,6 +159,12 @@ triggers:
     # Extract structured context before compaction
     # Saves formatted markdown to session.compact_markdown
     - action: extract_handoff_context
+    
+    # Memory sync - export to JSONL for Git persistence
+    - action: memory_sync_export
+
+    # Task sync - export to JSONL for Git persistence
+    - action: task_sync_export
 
     # Generate LLM summary with cumulative compression
     # Each compact builds on previous summary, weighting recent work higher

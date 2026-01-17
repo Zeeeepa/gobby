@@ -110,3 +110,124 @@ class TestBuildMemoryContext:
         assert "- - " not in result
         assert "- * " not in result
         assert "- • " not in result
+
+    def test_all_memory_types(self):
+        """Test with all 4 memory types present."""
+        memories = [
+            Memory(
+                id="m1",
+                content="This is the project context",
+                memory_type="context",
+                importance=0.9,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+            Memory(
+                id="m2",
+                content="- Use Python 3.11+",
+                memory_type="preference",
+                importance=0.8,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+            Memory(
+                id="m3",
+                content="- Follow PEP 8 style",
+                memory_type="pattern",
+                importance=0.7,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+            Memory(
+                id="m4",
+                content="- Database uses SQLite",
+                memory_type="fact",
+                importance=0.6,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+        ]
+        result = build_memory_context(memories)
+
+        # Check all sections are present
+        assert "<project-memory>" in result
+        assert "</project-memory>" in result
+        assert "## Project Context" in result
+        assert "## Preferences" in result
+        assert "## Patterns" in result
+        assert "## Facts" in result
+
+        # Check content is included
+        assert "This is the project context" in result
+        assert "Use Python 3.11+" in result
+        assert "Follow PEP 8 style" in result
+        assert "Database uses SQLite" in result
+
+    def test_context_type_no_bullet_stripping(self):
+        """Test that context type content is not bullet-stripped."""
+        mem = Memory(
+            id="m1",
+            content="- This is context with dash",
+            memory_type="context",
+            importance=0.9,
+            created_at="2024-01-01",
+            updated_at="2024-01-01",
+        )
+        result = build_memory_context([mem])
+        # Context type preserves original formatting
+        assert "- This is context with dash" in result
+
+    def test_mixed_types_ordering(self):
+        """Test that sections appear in correct order."""
+        memories = [
+            Memory(
+                id="m1",
+                content="fact content",
+                memory_type="fact",
+                importance=0.6,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+            Memory(
+                id="m2",
+                content="context content",
+                memory_type="context",
+                importance=0.9,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+        ]
+        result = build_memory_context(memories)
+
+        # Context should appear before Facts
+        context_pos = result.find("## Project Context")
+        facts_pos = result.find("## Facts")
+        assert context_pos < facts_pos
+
+    def test_skips_empty_content_after_stripping(self):
+        """Test that empty content after bullet stripping is skipped."""
+        memories = [
+            Memory(
+                id="m1",
+                content="- ",  # Only bullet, no content
+                memory_type="preference",
+                importance=0.8,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+            Memory(
+                id="m2",
+                content="- Valid content",
+                memory_type="preference",
+                importance=0.8,
+                created_at="2024-01-01",
+                updated_at="2024-01-01",
+            ),
+        ]
+        result = build_memory_context(memories)
+        # Should only have one preference item (the valid one)
+        assert result.count("- Valid content") == 1
+        # Should not have empty bullet lines
+        lines = result.split("\n")
+        bullet_lines = [l for l in lines if l.strip() == "-"]
+        assert len(bullet_lines) == 0

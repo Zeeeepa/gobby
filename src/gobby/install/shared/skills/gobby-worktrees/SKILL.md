@@ -70,11 +70,18 @@ Example: `/gobby-worktrees spawn feature/auth Implement OAuth login`
 ### `/gobby-worktrees delete <worktree-id>` - Delete a worktree
 Call `gobby-worktrees.delete_worktree` with:
 - `worktree_id`: (required) Worktree ID
-- `force`: Force deletion
+- `force`: Force deletion even with uncommitted changes
 
-Deletes both git worktree and database record.
+**This is the proper way to clean up worktrees.** It handles all cleanup:
+- Removes the worktree directory and all temporary files
+- Cleans up git's worktree tracking (`.git/worktrees/`)
+- Deletes the associated git branch
+- Removes the Gobby database record
+
+Do NOT manually run `git worktree remove` - use this tool instead.
 
 Example: `/gobby-worktrees delete wt-abc123` → `delete_worktree(worktree_id="wt-abc123")`
+Example: `/gobby-worktrees delete wt-abc123 --force` → `delete_worktree(worktree_id="wt-abc123", force=true)`
 
 ### `/gobby-worktrees sync <worktree-id>` - Sync with main branch
 Call `gobby-worktrees.sync_worktree` with:

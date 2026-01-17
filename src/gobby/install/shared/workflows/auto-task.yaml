@@ -1,26 +1,143 @@
 name: auto-task
+description: |
+  Autonomous task execution workflow with research-first enforcement.
+  Requires context7 documentation lookup before allowing code modifications.
+  Research gate resets when the active task changes.
+
+  Key features:
+  - Research step blocks Edit/Write until documentation is consulted
+  - Research requirement resets per-task (when claimed_task_id changes)
+  - Explicit state machine with research/work/complete steps
+  - Proper loop that stays in 'work' until task_tree_complete()
+
+  Usage:
+    1. Create/claim a task via gobby-tasks
+    2. Activate this workflow with session_task set to the task ID
+    3. Research phase: use context7 to look up relevant docs
+    4. Work autonomously until all subtasks are closed
+    5. Workflow exits when task tree is complete
+
+version: "1.0"
 type: step
-description: Autonomous task execution workflow. Validates task completion before exit.
-version: 1.0.0
 
-exit_condition: current_step == 'complete'
-
-on_premature_stop:
-  action: guide_continuation
-  message: |
-    It looks like the task isn't marked as complete yet.
-    If you're done, please ensure all subtasks are closed and then use request_step_transition('complete').
-    If you're stuck, use suggest_next_task() to get help.
+# Session-scoped variables (set on activation)
+variables:
+  session_task: null  # Task ID(s) to complete before exit
+  researched_task_id: null  # Track which task has been researched
+  claimed_task_id: null  # Currently claimed task ID
+  # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
+  premature_stop_max_attempts: 3
 
 steps:
-  - name: work
-    description: Active work phase. Focus on completing the assigned task.
+  - name: research
+    description: "Research via context7 before implementation"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Research phase for task: {{ variables.claimed_task_id }}
+
+          Before writing code, use context7 to look up relevant documentation.
+          Example: call_tool("context7", "resolve-library-id", {"libraryName": "fastapi"})
+          Then: call_tool("context7", "get-library-docs", {"context7CompatibleLibraryID": "/fastapi/fastapi", "topic": "dependency injection"})
+
+          After researching, you'll transition to implementation.
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - Task
+      - call_tool
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__recommend_tools
+      - mcp__gobby__search_tools
+      - TodoWrite
+      - AskUserQuestion
+      - WebSearch
+      - WebFetch
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
     transitions:
+      - to: work
+        when: "step_action_count >= 2"
+
+    on_exit:
+      - action: set_variable
+        name: researched_task_id
+        value: "{{ variables.claimed_task_id }}"
+
+  - name: work
+    description: "Work on assigned task until complete"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          You are in autonomous task execution mode.
+
+          Session task: {{ variables.session_task }}
+
+          Work on this task and its subtasks until completion.
+          Use suggest_next_task() to find available work.
+          When all subtasks are closed, the task will be marked complete.
+
+      # FUTURE: Uncomment to enable meeseeks spawning for subtasks
+      # - action: inject_message
+      #   content: |
+      #     Consider spawning meeseeks agents for subtasks:
+      #
+      #     mcp__gobby__call_tool(
+      #       server_name="gobby-agents",
+      #       tool_name="start_agent",
+      #       arguments={
+      #         "prompt": "Complete task: {task_title}",
+      #         "workflow": "meeseeks",
+      #         "mode": "terminal",
+      #         "default_variables": {
+      #           "assigned_task_id": "{task_id}",
+      #           "task_category": "code"
+      #         }
+      #       }
+      #     )
+
+    # Full tool access for implementation
+    allowed_tools: all
+
+    transitions:
+      # Return to research if task changed
+      - to: research
+        when: "variables.claimed_task_id and variables.claimed_task_id != variables.researched_task_id"
+      # Complete when task tree done
       - to: complete
-        when: task_tree_complete(variables.get('session_task'))
-    # Optional: Block tools that shouldn't be used during work?
-    # blocked_tools: ["some_distracting_tool"]
+        when: "task_tree_complete(variables.session_task)"
 
   - name: complete
-    description: Task is fully complete and verified.
-    # No transitions out - this satisfies exit_condition
+    description: "Task work finished - terminal step"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Task complete! All subtasks for {{ variables.session_task }} have been closed.
+
+          The auto-task workflow will now exit.
+          You may stop the session or start a new task.
+
+# Exit condition for entire workflow
+# When this evaluates to true, the workflow can cleanly exit
+# Uses task_tree_complete directly so stop is allowed when tasks are done
+# (even if transition to 'complete' step hasn't fired yet)
+exit_condition: "task_tree_complete(variables.session_task)"
+
+# Handler for premature stop attempts
+# Triggered when agent tries to stop but exit_condition is not met
+on_premature_stop:
+  action: guide_continuation
+  message: "Task has incomplete subtasks. Use suggest_next_task() and continue working. Do not wait for user confirmation to proceed."
