@@ -250,6 +250,7 @@ class TestWorkflowDefinitionPrematureStop:
 # =============================================================================
 
 
+@pytest.mark.integration
 class TestAutonomousTaskWorkflowLoading:
     """Tests for loading the auto-task workflow."""
 
