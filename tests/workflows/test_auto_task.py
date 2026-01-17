@@ -327,6 +327,7 @@ class TestAutonomousTaskWorkflowLoading:
 # =============================================================================
 
 
+@pytest.mark.integration
 class TestActivateWorkflowWithVariables:
     """Tests for activate_workflow MCP tool with variables parameter."""
 
