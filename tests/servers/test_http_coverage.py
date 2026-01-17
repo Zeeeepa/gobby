@@ -209,8 +209,11 @@ class TestResolveProjectId:
         no_project_dir = temp_dir / "no_project"
         no_project_dir.mkdir()
 
-        with pytest.raises(ValueError) as exc_info:
-            basic_http_server._resolve_project_id(None, str(no_project_dir))
+        # Mock get_project_context to return None to isolate from filesystem state
+        # (find_project_root searches up the tree and might find project.json in parents)
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
+            with pytest.raises(ValueError) as exc_info:
+                basic_http_server._resolve_project_id(None, str(no_project_dir))
 
         assert "No .gobby/project.json found" in str(exc_info.value)
         assert "gobby init" in str(exc_info.value)

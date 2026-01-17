@@ -310,9 +310,15 @@ class TestAutonomousTaskWorkflowLoading:
         assert work_step is not None
         assert len(work_step.transitions) > 0
 
-        transition = work_step.transitions[0]
-        assert transition.to == "complete"
-        assert "task_tree_complete" in transition.when
+        # Find the transition to 'complete' (may not be the first one if research step exists)
+        complete_transition = None
+        for transition in work_step.transitions:
+            if transition.to == "complete":
+                complete_transition = transition
+                break
+
+        assert complete_transition is not None, "No transition to 'complete' step found"
+        assert "task_tree_complete" in complete_transition.when
 
 
 # =============================================================================
