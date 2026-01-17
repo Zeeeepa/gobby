@@ -159,6 +159,8 @@ Present the plan to the user:
 **IMPORTANT**: `expand_task` creates FLAT children only - it does not create nested hierarchies.
 To get a proper Epic → Phases → Tasks structure, you must create the hierarchy manually.
 
+**Required: session_id** - All `create_task` calls require a `session_id` parameter. Find your session ID in the SessionStart hook context (look for `session_id: <uuid>` in the startup system reminder).
+
 ### 6a. Create the Root Epic
 
 ```python
@@ -204,10 +206,16 @@ Now expand each phase to generate leaf tasks + TDD sandwich:
 
 ```python
 # Expand Phase 1 - LLM creates leaf tasks from the description
-call_tool("gobby-tasks", "expand_task", {"task_id": "#43"})
+call_tool("gobby-tasks", "expand_task", {
+    "task_id": "#43",
+    "session_id": "<your_session_id>"
+})
 
 # Expand Phase 2
-call_tool("gobby-tasks", "expand_task", {"task_id": "#44"})
+call_tool("gobby-tasks", "expand_task", {
+    "task_id": "#44",
+    "session_id": "<your_session_id>"
+})
 
 # ... repeat for each phase
 ```
@@ -221,13 +229,17 @@ call_tool("gobby-tasks", "expand_task", {"task_id": "#44"})
 ### 6d. Update Plan Doc with Task Refs
 
 After all expansions complete:
-- Call `list_tasks(parent_task_id="#42")` to get the full tree
+
+```python
+# Get the full task tree
+call_tool("gobby-tasks", "list_tasks", {
+    "parent_task_id": "#42",
+    "session_id": "<your_session_id>"
+})
+```
+
 - Fill in Task Mapping table with created task refs
 - Use Edit tool to update `.gobby/plans/{name}.md`
-
-**Note on session_id**:
-- Required parameter from the SessionStart hook context
-- Look for `session_id: <uuid>` in the startup system reminder
 
 ## Step 7: Task Verification
 
