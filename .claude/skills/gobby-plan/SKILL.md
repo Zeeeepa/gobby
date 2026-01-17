@@ -1,30 +1,31 @@
 ---
-name: gobby-spec
-description: This skill should be used when the user asks to "/gobby-spec", "create spec", "plan feature", "write specification". Guide users through structured specification planning and task creation.
+name: gobby-plan
+description: This skill should be used when the user asks to "/gobby-plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning and task creation.
 version: "1.0"
 ---
 
-# /gobby-spec - Specification Planning Skill
+# /gobby-plan - Implementation Planning Skill
 
 Guide users through structured requirements gathering, specification writing, and task creation.
 
 ## Workflow Overview
 
 1. **Requirements Gathering** - Ask questions to understand the feature
-2. **Draft Spec** - Write structured specification document
-3. **User Approval** - Present spec for review
-4. **Task Creation** - Create tasks from approved spec
-5. **Verification** - Update spec with task refs
+2. **Draft Plan** - Write structured plan document
+3. **Plan Verification** - Check for TDD anti-patterns and dependency issues
+4. **User Approval** - Present plan for review
+5. **Task Creation** - Create tasks from approved plan
+6. **Task Verification** - Update plan with task refs
 
 ## Step 0: **REQUIRED** ENTER PLAN MODE
 
-Before creating any spec, you must enter Claude Code's plan mode to explore the codebase
+Before creating any plan, you must enter Claude Code's plan mode to explore the codebase
 and design the implementation approach.
 
 **How to enter**: Use the `EnterPlanMode` tool or respond with a planning-focused message
 that triggers plan mode. Plan mode allows you to read files and design without making edits.
 
-**Why required**: Spec creation requires understanding existing code patterns, architecture
+**Why required**: Plan creation requires understanding existing code patterns, architecture
 constraints, and dependencies before proposing new work.
 
 ## Step 1: Requirements Gathering
@@ -35,17 +36,17 @@ Ask the user:
 3. "Are there any constraints or requirements I should know about?"
 4. "What are the unknowns or risks?"
 
-## Step 2: Draft Spec Structure
+## Step 2: Draft Plan Structure
 
-Create a specification with:
+Create a plan with:
 - **Epic title**: The overall feature name
 - **Phases**: Logical groupings of work (e.g., "Foundation", "Core Implementation", "Polish")
 - **Tasks**: Atomic units of work under each phase
 - **Dependencies**: Which tasks block which (use notation: `depends: #N` or `depends: Phase N`)
 
-## Step 3: Write Spec Document
+## Step 3: Write Plan Document
 
-Write to `.gobby/specs/{kebab-name}.md`:
+Write to `.gobby/plans/{kebab-name}.md`:
 
 ```markdown
 # {Epic Title}
@@ -81,29 +82,90 @@ Write to `.gobby/specs/{kebab-name}.md`:
 ```
 
 **Dependency Notation Mapping:**
-- In markdown spec: `(depends: Task 1)` or `(depends: Phase N)`
+- In markdown plan: `(depends: Task 1)` or `(depends: Phase N)`
 - In JSON for build_task_tree: `"depends_on": ["Task 1"]` or `"depends_on": ["Phase N: Name"]`
 
 The skill converts human-readable notation to JSON format when calling `build_task_tree`.
 
-## Step 4: User Approval
+## Step 4: Plan Verification (REQUIRED)
 
-Present the spec to the user:
-- Show the full spec document
-- Ask: "Does this spec look correct? Would you like any changes before I create tasks?"
+Before presenting to the user, verify the plan does NOT contain TDD anti-patterns:
+
+### Check 1: No Explicit Test Tasks
+
+Scan for tasks that should NOT exist (TDD sandwich creates these automatically):
+
+**FORBIDDEN patterns - remove these if found:**
+- `"Write tests for..."` or `"Add tests for..."`
+- `"Test..."` as task title prefix
+- `"[TEST]..."` or `"[IMPL]..."` or `"[REFACTOR]..."`
+- `"Ensure tests pass"` or `"Run tests"`
+- `"Add unit tests"` or `"Add integration tests"`
+- Any task with `test` as the primary verb
+
+**ALLOWED (these are fine):**
+- `"Add TestClient fixture"` (not a test task, but test infrastructure)
+- `"Configure pytest settings"` (configuration, not test writing)
+
+### Check 2: Dependency Tree Validation
+
+Verify the dependency structure is valid:
+
+1. **No circular dependencies**: Task A → B → A is invalid
+2. **No missing dependencies**: If Task B depends on Task A, Task A must exist
+3. **Phase dependencies are valid**: `depends: Phase N` must reference an existing phase
+4. **Leaf tasks are implementation work**: Bottom-level tasks should be concrete work, not meta-tasks
+
+### Check 3: Task Categorization
+
+Ensure each task has the right category:
+- `category: "code"` - Implementation tasks (will get TDD treatment)
+- `category: "document"` - Documentation tasks (no TDD)
+- `category: "config"` - Configuration changes (gets TDD)
+
+### Verification Output
+
+After verification, report:
+```
+Plan Verification:
+✓ No explicit test tasks found
+✓ Dependency tree is valid (no cycles, all refs exist)
+✓ Categories assigned correctly
+
+Ready for user approval.
+```
+
+Or if issues found:
+```
+Plan Verification:
+✗ Found 2 explicit test tasks (removed):
+  - "Add tests for user authentication" → REMOVED
+  - "Ensure all tests pass" → REMOVED
+✓ Dependency tree is valid
+✓ Categories assigned correctly
+
+Plan updated. Ready for user approval.
+```
+
+## Step 5: User Approval
+
+Present the plan to the user:
+- Show the full plan document
+- Show verification results
+- Ask: "Does this plan look correct? Would you like any changes before I create tasks?"
 - Make changes if requested
 - Once approved, proceed to task creation
 
-## Step 5: Task Creation
+## Step 6: Task Creation
 
-Build a JSON tree from the spec structure and call `build_task_tree`:
+Build a JSON tree from the plan structure and call `build_task_tree`:
 
 ```python
 call_tool("gobby-tasks", "build_task_tree", {
     "tree": {
         "title": "{Epic Title}",
         "task_type": "epic",
-        "description": "See spec: .gobby/specs/{name}.md",
+        "description": "See plan: .gobby/plans/{name}.md",
         "children": [
             {
                 "title": "Phase 1: {Phase Name}",
@@ -137,16 +199,16 @@ The tool returns:
 - `epic_ref`: The root epic ref ("#42")
 - `tasks_created`: Total count
 
-**Update spec doc** with task refs:
+**Update plan doc** with task refs:
 - Fill in Task Mapping table with created task refs (#N)
-- Use Edit tool to update `.gobby/specs/{name}.md`
+- Use Edit tool to update `.gobby/plans/{name}.md`
 
-## Step 6: Verification
+## Step 7: Task Verification
 
 After creating all tasks:
 1. Show the created task tree (call `list_tasks` with `parent_task_id`)
-2. Confirm task count matches spec items
-3. Show the updated spec doc with task refs
+2. Confirm task count matches plan items
+3. Show the updated plan doc with task refs
 
 ## Task Granularity Guidelines
 
@@ -161,16 +223,34 @@ Bad: "Implement enrichment" (too vague)
 
 ## TDD Compatibility (IMPORTANT)
 
-The /gobby-spec skill creates **coarse-grained tasks** knowing that:
+The /gobby-plan skill creates **coarse-grained tasks** knowing that:
 1. `expand_task` decomposes them into subtasks
-2. `apply_tdd` transforms code tasks into test->implement->refactor triplets
+2. TDD sandwich pattern is applied at the parent/epic level
+
+### TDD Sandwich Pattern
+
+The TDD sandwich wraps a parent task's implementation children:
+- **ONE [TEST] task at the START** - Write tests for the entire feature
+- **Multiple [IMPL] tasks in the MIDDLE** - Implementation subtasks
+- **ONE [REFACTOR] task at the END** - Refactor after all impls pass
+
+```
+Parent Task
+├── [TEST] Write tests for feature (first)
+├── [IMPL] Subtask 1
+├── [IMPL] Subtask 2
+├── [IMPL] Subtask 3
+└── [REFACTOR] Refactor feature code (last)
+```
 
 **DO NOT manually create:**
 - "Write tests for: ..."
-- "Implement: ..."
-- "Refactor: ..."
-- "Test ..." (as first word)
+- "[TEST] ..." tasks
+- "[IMPL] ..." tasks
+- "[REFACTOR] ..." tasks
 - Separate test tasks alongside implementation tasks
+
+These are automatically generated by `expand_task` when TDD mode is enabled.
 
 **DO create:**
 - High-level feature tasks (e.g., "Add user authentication")
@@ -185,25 +265,26 @@ The /gobby-spec skill creates **coarse-grained tasks** knowing that:
 {"title": "Write API documentation", "category": "document"}
 ```
 
-**After expand_task + apply_tdd, this becomes:**
+**After expand_task with TDD sandwich, this becomes:**
 - Add database schema (parent)
-  - Write tests for: Add database schema
-  - Implement: Add database schema
-  - Refactor: Add database schema
+  - [TEST] Write tests for database schema
+  - [IMPL] Add database schema
+  - [REFACTOR] Refactor database schema code
 - Create API endpoint (parent)
-  - Write tests for: Create API endpoint
-  - Implement: Create API endpoint
-  - Refactor: Create API endpoint
+  - [TEST] Write tests for API endpoint
+  - [IMPL] Create API endpoint
+  - [REFACTOR] Refactor API endpoint code
 - Write API documentation (no TDD - it's a document)
 
 ## Example Usage
 
-User: `/gobby-spec`
+User: `/gobby-plan`
 Agent: "What feature would you like to plan?"
 User: "Add dark mode support to the app"
 Agent: [Asks clarifying questions]
-Agent: [Writes spec to .gobby/specs/dark-mode.md]
-Agent: "Here's the spec. Does this look correct?"
+Agent: [Writes plan to .gobby/plans/dark-mode.md]
+Agent: [Runs verification - removes any test tasks found]
+Agent: "Here's the plan. Does this look correct?"
 User: "Yes, create the tasks"
 Agent: [Creates epic + phases + tasks]
-Agent: "Created 12 tasks under epic #47. The spec has been updated with task refs."
+Agent: "Created 12 tasks under epic #47. The plan has been updated with task refs."
