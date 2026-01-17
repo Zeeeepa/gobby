@@ -138,6 +138,6 @@ telemetry:
 
 ## Task Mapping
 
-<!-- Updated after task creation via /gobby-spec -->
+<!-- Updated after task creation via /gobby-plan -->
 | Spec Item | Task Ref | Status |
 |-----------|----------|--------|

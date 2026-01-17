@@ -323,7 +323,7 @@ call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={
 })
 ```
 
-For structured planning from specs, use the `/gobby:spec` skill which guides you through requirements gathering, spec writing, and task creation.
+For structured planning from specs, use the `/gobby-plan` skill which guides you through requirements gathering, spec writing, and task creation.
 
 ### Commit Linking
 

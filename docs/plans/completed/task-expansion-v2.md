@@ -1035,7 +1035,7 @@ Never close a task without committing first unless it's a non-code task.
 A template/guide for agents writing specification documents. Agents can reference this
 when creating specs that work well with `parse_spec`.
 
-**Future:** May become a `/gobby:spec` skill and part of `architect.yaml` workflow.
+**Future:** May become a `/gobby-plan` skill and part of `architect.yaml` workflow.
 
 ```markdown
 # Spec Writing Guide

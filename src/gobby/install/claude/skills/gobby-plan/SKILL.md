@@ -1,10 +1,10 @@
 ---
-name: gobby-spec
-description: This skill should be used when the user asks to "/gobby-spec", "create spec", "plan feature", "write specification". Guide users through structured specification planning and task creation.
+name: gobby-plan
+description: This skill should be used when the user asks to "/gobby-plan", "create plan", "plan feature", "write specification". Guide users through structured planning and task creation.
 version: "1.0"
 ---
 
-# /gobby-spec - Specification Planning Skill
+# /gobby-plan - Planning Skill
 
 Guide users through structured requirements gathering, specification writing, and task creation.
 
@@ -34,7 +34,7 @@ Create a specification with:
 
 ## Step 3: Write Spec Document
 
-Write to `.gobby/specs/{kebab-name}.md`:
+Write to `.gobby/plans/{kebab-name}.md`:
 
 ```markdown
 # {Epic Title}
@@ -86,7 +86,7 @@ call_tool("gobby-tasks", "build_task_tree", {
     "tree": {
         "title": "{Epic Title}",
         "task_type": "epic",
-        "description": "See spec: .gobby/specs/{name}.md",
+        "description": "See spec: .gobby/plans/{name}.md",
         "children": [
             {
                 "title": "Phase 1: {Phase Name}",
@@ -115,7 +115,7 @@ The tool returns:
 
 **Update spec doc** with task refs:
 - Fill in Task Mapping table with created task refs (#N)
-- Use Edit tool to update `.gobby/specs/{name}.md`
+- Use Edit tool to update `.gobby/plans/{name}.md`
 
 ## Step 6: Verification
 
@@ -137,7 +137,7 @@ Bad: "Implement enrichment" (too vague)
 
 ## TDD Compatibility (IMPORTANT)
 
-The /gobby-spec skill creates **coarse-grained tasks** knowing that:
+The /gobby-plan skill creates **coarse-grained tasks** knowing that:
 1. `expand_task` decomposes them into subtasks
 2. `apply_tdd` transforms code tasks into test->implement->refactor triplets
 
@@ -174,11 +174,11 @@ The /gobby-spec skill creates **coarse-grained tasks** knowing that:
 
 ## Example Usage
 
-User: `/gobby-spec`
+User: `/gobby-plan`
 Agent: "What feature would you like to plan?"
 User: "Add dark mode support to the app"
 Agent: [Asks clarifying questions]
-Agent: [Writes spec to .gobby/specs/dark-mode.md]
+Agent: [Writes spec to .gobby/plans/dark-mode.md]
 Agent: "Here's the spec. Does this look correct?"
 User: "Yes, create the tasks"
 Agent: [Creates epic + phases + tasks]

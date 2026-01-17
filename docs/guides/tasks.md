@@ -290,7 +290,7 @@ gobby tasks expand #42 --cascade
 gobby tasks show #42 --tree
 ```
 
-For structured planning from specs, use the `/gobby:spec` skill.
+For structured planning, use the `/gobby-plan` skill.
 
 ## LLM-Powered Expansion
 

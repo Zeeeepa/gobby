@@ -4,7 +4,7 @@ Gobby supports structured specification documents for planning features. This gu
 
 ## Quick Start
 
-Use the `/gobby:spec` skill to interactively create tasks from your spec document. The skill guides you through requirements gathering, spec writing, and task creation.
+Use the `/gobby-plan` skill to interactively create tasks from your spec document. The skill guides you through requirements gathering, spec writing, and task creation.
 
 ## Document Structure
 
@@ -128,7 +128,7 @@ Group independent work that can happen simultaneously:
 
 ## After Writing Your Spec
 
-1. **Create tasks**: Use `/gobby:spec` skill to create tasks from the spec
+1. **Create tasks**: Use `/gobby-plan` skill to create tasks from the spec
 2. **Verify structure**: `gobby tasks list --tree`
 3. **Expand complex tasks**: `gobby tasks expand #N --cascade` (includes research and auto-TDD)
 
