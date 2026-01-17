@@ -453,8 +453,8 @@ def create_task_registry(
                 },
                 "category": {
                     "type": "string",
-                    "description": "Testing strategy: 'manual' (verify by running/inspecting, no automated tests required), 'automated' (requires unit/integration tests), or 'none' (no testing needed). Auto-inferred as 'manual' for verification/functional testing tasks if not specified.",
-                    "enum": ["manual", "automated", "none"],
+                    "description": "Task domain: 'code' (implementation), 'config' (configuration files), 'docs' (documentation), 'test' (test-writing), 'research' (investigation), 'planning' (design/architecture), or 'manual' (manual verification).",
+                    "enum": ["code", "config", "docs", "test", "research", "planning", "manual"],
                     "default": None,
                 },
                 "validation_criteria": {
@@ -685,8 +685,8 @@ def create_task_registry(
                 },
                 "category": {
                     "type": "string",
-                    "description": "Testing strategy: 'manual' (verify by running/inspecting, no automated tests required), 'automated' (requires unit/integration tests), or 'none' (no testing needed).",
-                    "enum": ["manual", "automated", "none"],
+                    "description": "Task domain: 'code' (implementation), 'config' (configuration files), 'docs' (documentation), 'test' (test-writing), 'research' (investigation), 'planning' (design/architecture), or 'manual' (manual verification).",
+                    "enum": ["code", "config", "docs", "test", "research", "planning", "manual"],
                     "default": None,
                 },
                 "workflow_name": {

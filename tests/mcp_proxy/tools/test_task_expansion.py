@@ -1959,4 +1959,40 @@ class TestShouldSkipTdd:
         assert should_skip_tdd("Create new API endpoint") is False
         assert should_skip_tdd("Implement password reset") is False
 
+    def test_should_skip_tdd_skips_new_tdd_prefix(self):
+        """Test that tasks with new [TDD] prefix are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        assert should_skip_tdd("[TDD] Write failing tests for auth") is True
+
+    def test_should_skip_tdd_skips_new_impl_prefix(self):
+        """Test that tasks with new [IMPL] prefix are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        assert should_skip_tdd("[IMPL] Add user authentication") is True
+
+    def test_should_skip_tdd_skips_new_ref_prefix(self):
+        """Test that tasks with new [REF] prefix are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        assert should_skip_tdd("[REF] Refactor and verify auth module") is True
+
 

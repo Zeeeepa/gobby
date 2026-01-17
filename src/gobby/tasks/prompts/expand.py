@@ -146,59 +146,8 @@ Include commands that can be executed to verify completion.
 **Important:** Replace `{unit_tests}`, `{type_check}`, `{lint}` with actual commands from the Project Verification Commands section in the context.
 """
 
-# TDD Mode Addition
-# When TDD mode is enabled, the LLM outputs TDD structure directly with proper categories.
-TDD_MODE_INSTRUCTIONS = """
-
-## TDD Mode Enabled
-
-For code/config category tasks, output TDD structure directly:
-
-1. **Test task** (category: "test") - Write failing tests first
-2. **Implementation task** (category: "code", depends_on test) - Make tests pass
-3. **Refactor task** (category: "code", depends_on implementation) - Clean up while tests stay green
-
-Example for a feature with TDD:
-```json
-{
-  "subtasks": [
-    {
-      "title": "Write tests for: User authentication",
-      "category": "test",
-      "validation": "Tests written that define expected behavior, tests fail without implementation"
-    },
-    {
-      "title": "Implement: User authentication",
-      "category": "code",
-      "depends_on": [0],
-      "validation": "All authentication tests pass"
-    },
-    {
-      "title": "Refactor: User authentication",
-      "category": "code",
-      "depends_on": [1],
-      "validation": "Tests still pass, code is clean and maintainable"
-    }
-  ]
-}
-```
-
-For NON-code tasks (docs, research, planning), output single tasks without TDD structure:
-```json
-{
-  "subtasks": [
-    {"title": "Research authentication libraries", "category": "research"},
-    {"title": "Document the API endpoints", "category": "docs"}
-  ]
-}
-```
-
-**IMPORTANT:**
-- Use "Write tests for:" prefix for test tasks
-- Use "Implement:" prefix for implementation tasks
-- Use "Refactor:" prefix for refactor tasks
-- Wire depends_on correctly: impl depends on test, refactor depends on impl
-"""
+# NOTE: TDD_MODE_INSTRUCTIONS removed - TDD is now applied automatically post-expansion
+# by _apply_tdd_sandwich() in task_expansion.py for non-epic code/config tasks
 
 # Default User Prompt Template
 DEFAULT_USER_PROMPT = """Analyze and expand this task into subtasks.
@@ -233,9 +182,8 @@ class ExpansionPromptBuilder:
         self._loader = PromptLoader(project_dir=project_dir)
 
         # Register fallbacks for strangler fig pattern
-        self._loader.register_fallback(
-            "expansion/system", lambda: DEFAULT_SYSTEM_PROMPT + TDD_MODE_INSTRUCTIONS
-        )
+        # NOTE: TDD is applied post-expansion, not in prompt
+        self._loader.register_fallback("expansion/system", lambda: DEFAULT_SYSTEM_PROMPT)
         self._loader.register_fallback("expansion/user", lambda: DEFAULT_USER_PROMPT)
 
     def get_system_prompt(self, tdd_mode: bool = False) -> str:
@@ -249,28 +197,22 @@ class ExpansionPromptBuilder:
         4. Python constant fallback: DEFAULT_SYSTEM_PROMPT
 
         Args:
-            tdd_mode: If True, TDD instructions are included (via Jinja2 conditional).
+            tdd_mode: Deprecated, ignored. TDD is now applied post-expansion.
         """
         # 1. Inline config (deprecated, for backwards compatibility)
         if self.config.system_prompt:
-            base_prompt = self.config.system_prompt
-            if tdd_mode:
-                tdd_instructions = self.config.tdd_prompt or TDD_MODE_INSTRUCTIONS
-                base_prompt += tdd_instructions
-            return base_prompt
+            return self.config.system_prompt
 
         # 2. Config path or 3. Template file
         prompt_path = self.config.system_prompt_path or "expansion/system"
 
         try:
-            return self._loader.render(prompt_path, {"tdd_mode": tdd_mode})
+            # Pass empty context - tdd_mode no longer used in templates
+            return self._loader.render(prompt_path, {})
         except FileNotFoundError:
             logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
             # 4. Python constant fallback
-            base_prompt = DEFAULT_SYSTEM_PROMPT
-            if tdd_mode:
-                base_prompt += TDD_MODE_INSTRUCTIONS
-            return base_prompt
+            return DEFAULT_SYSTEM_PROMPT
 
     def build_user_prompt(
         self,

@@ -34,7 +34,7 @@ Call `gobby-tasks.create_task` with:
 - `parent_task_id`: Optional parent task
 - `blocks`: List of task IDs this task blocks
 - `labels`: List of labels
-- `test_strategy`: "manual", "automated", or "none"
+- `category`: "code", "config", "docs", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
@@ -51,7 +51,7 @@ Example: `/gobby-tasks show #1` → `get_task(task_id="#1")`
 ### `/gobby-tasks update <task-id>` - Update task fields
 Call `gobby-tasks.update_task` with:
 - `task_id`: (required) Task reference
-- `title`, `description`, `status`, `priority`, `assignee`, `labels`, `validation_criteria`, `test_strategy`, etc.
+- `title`, `description`, `status`, `priority`, `assignee`, `labels`, `validation_criteria`, `category`, etc.
 
 Example: `/gobby-tasks update #1 status=in_progress` → `update_task(task_id="#1", status="in_progress")`
 

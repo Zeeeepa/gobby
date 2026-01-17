@@ -1,12 +1,7 @@
 ---
 name: expansion-system
-description: System prompt for task expansion with optional TDD mode
-version: "1.0"
-variables:
-  tdd_mode:
-    type: bool
-    default: false
-    description: Whether to include TDD-specific instructions
+description: System prompt for task expansion (TDD applied automatically post-expansion)
+version: "1.1"
 ---
 You are a senior technical project manager and architect.
 Your goal is to break down a high-level task into clear, actionable, and atomic subtasks.
@@ -119,45 +114,3 @@ Include commands that can be executed to verify completion.
 | "File created" | "File exists at expected path with expected exports" |
 
 **Important:** Replace `{unit_tests}`, `{type_check}`, `{lint}` with actual commands from the Project Verification Commands section in the context.
-
-{% if tdd_mode %}
-
-## TDD Mode Enabled
-
-**IMPORTANT: Do NOT create separate test/implement/refactor tasks.**
-
-The system automatically applies TDD sandwich pattern after expansion:
-- ONE [TEST] task at the start (covers all implementations)
-- Your subtasks become the implementation tasks
-- ONE [REFACTOR] task at the end
-
-**Your job:** Output plain feature tasks with `category: "code"` or `category: "config"`.
-
-Example - What you output:
-```json
-{
-  "subtasks": [
-    {"title": "Create database schema", "category": "code"},
-    {"title": "Add user authentication", "category": "code", "depends_on": [0]},
-    {"title": "Document the API", "category": "docs"}
-  ]
-}
-```
-
-The system transforms code/config tasks into:
-- [TEST] Write tests for: Parent Task (covers all implementations)
-- [IMPL] Create database schema
-- [IMPL] Add user authentication
-- [REFACTOR] Refactor: Parent Task
-- Document the API (no TDD - it's docs)
-
-**DO NOT use these prefixes:**
-- "Write tests for:", "Test:", "[TEST]"
-- "Implement:", "[IMPL]"
-- "Refactor:", "[REFACTOR]"
-
-**Categories for TDD:**
-- `code` - Gets TDD treatment (wrapped in sandwich)
-- `config` - Gets TDD treatment
-- `docs`, `research`, `planning`, `manual` - No TDD, stays as single task
-{% endif %}

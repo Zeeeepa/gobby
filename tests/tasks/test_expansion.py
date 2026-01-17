@@ -542,16 +542,21 @@ class TestExpansionTimeout:
 
 
 class TestEpicTddMode:
-    """Tests for TDD mode handling with epics."""
+    """Tests for TDD mode handling with epics.
+
+    NOTE: TDD is now applied post-expansion via _apply_tdd_sandwich() in the MCP
+    tools layer (task_expansion.py), not in the prompt. These tests verify that
+    the prompt builder correctly omits TDD instructions from prompts.
+    """
 
     @pytest.mark.asyncio
     async def test_tdd_mode_disabled_for_epics(self, mock_task_manager, mock_llm_service):
-        """Test that TDD mode is disabled when expanding an epic.
+        """Test that TDD instructions are NOT in prompt for epics.
 
-        Epics don't need TDD pairs because their closing condition is
-        'all children are closed', not test-based verification.
+        TDD is now applied post-expansion by the MCP layer, not in the prompt.
+        Epics skip TDD entirely (task.task_type != "epic" check in _expand_single_task).
         """
-        # Create config with TDD mode enabled
+        # Create config with TDD mode enabled (ignored since TDD is post-expansion)
         config = TaskExpansionConfig(enabled=True, tdd_mode=True)
 
         # Create an epic task
@@ -589,6 +594,7 @@ class TestEpicTddMode:
             provider.generate_text.assert_called_once()
 
             # Check that the system prompt does NOT contain TDD instructions
+            # TDD is now handled post-expansion, not in prompts
             call_args = provider.generate_text.call_args
             system_prompt = call_args.kwargs["system_prompt"]
             assert "TDD Mode Enabled" not in system_prompt
@@ -596,8 +602,13 @@ class TestEpicTddMode:
 
     @pytest.mark.asyncio
     async def test_tdd_mode_enabled_for_non_epics(self, mock_task_manager, mock_llm_service):
-        """Test that TDD mode is enabled for non-epic tasks when configured."""
-        # Create config with TDD mode enabled
+        """Test that TDD instructions are NOT in prompt for non-epics either.
+
+        TDD is now applied post-expansion by _apply_tdd_sandwich() in the MCP
+        tools layer. The prompt no longer contains TDD instructions - LLM outputs
+        plain tasks with categories, and the system applies TDD sandwich.
+        """
+        # Create config with TDD mode enabled (ignored since TDD is post-expansion)
         config = TaskExpansionConfig(enabled=True, tdd_mode=True)
 
         # Create a feature task (not an epic)
@@ -634,7 +645,8 @@ class TestEpicTddMode:
             provider = mock_llm_service.get_provider.return_value
             provider.generate_text.assert_called_once()
 
-            # Check that the system prompt DOES contain TDD instructions
+            # TDD is now handled post-expansion via _apply_tdd_sandwich() in MCP layer
+            # The prompt should NOT contain TDD instructions anymore
             call_args = provider.generate_text.call_args
             system_prompt = call_args.kwargs["system_prompt"]
-            assert "TDD Mode Enabled" in system_prompt
+            assert "TDD Mode Enabled" not in system_prompt

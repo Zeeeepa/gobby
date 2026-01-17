@@ -23,11 +23,15 @@ if TYPE_CHECKING:
 __all__ = ["create_expansion_registry", "should_skip_tdd", "TDD_PREFIXES", "TDD_SKIP_PATTERNS"]
 
 # TDD triplet prefixes - used for both skip detection and triplet creation
-TDD_PREFIXES = ("Write tests for:", "Implement:", "Refactor:")
+TDD_PREFIXES = ("[TDD]", "[IMPL]", "[REF]")
 
 # Patterns for tasks that should skip TDD transformation (case-insensitive)
 TDD_SKIP_PATTERNS = (
-    # TDD prefixes (already in triplet form)
+    # New TDD prefixes (already in triplet form)
+    r"^\[TDD\]",
+    r"^\[IMPL\]",
+    r"^\[REF\]",
+    # Legacy TDD prefixes (backwards compatibility)
     r"^Write tests for:",
     r"^Implement:",
     r"^Refactor:",
@@ -219,7 +223,7 @@ def create_expansion_registry(
 
             # 1. Create ONE Test Task (Red phase) - tests for all implementations
             test_task = task_manager.create_task(
-                title=f"Write tests for: {parent.title}",
+                title=f"[TDD] Write failing tests for {parent.title}",
                 description=(
                     f"Write failing tests for: {parent.title}\n\n"
                     "## Implementation tasks to cover:\n"
@@ -231,10 +235,14 @@ def create_expansion_registry(
                 task_type="task",
                 priority=parent.priority,
                 validation_criteria=TDD_CRITERIA_RED,
+                category="test",
             )
 
-            # 2. Wire all implementation tasks to be blocked by the test task
+            # 2. Add [IMPL] prefix to all implementation tasks and wire dependencies
             for impl_id in impl_task_ids:
+                impl_task = task_manager.get_task(impl_id)
+                if impl_task and not impl_task.title.startswith("[IMPL]"):
+                    task_manager.update_task(impl_id, title=f"[IMPL] {impl_task.title}")
                 try:
                     dep_manager.add_dependency(impl_id, test_task.id, "blocks")
                 except ValueError:
@@ -242,7 +250,7 @@ def create_expansion_registry(
 
             # 3. Create ONE Refactor Task (Blue phase) - refactor after all impls done
             refactor_task = task_manager.create_task(
-                title=f"Refactor: {parent.title}",
+                title=f"[REF] Refactor and verify {parent.title}",
                 description=(
                     f"Refactor implementations in: {parent.title}\n\n"
                     "BLUE phase of TDD - clean up while keeping tests green."
@@ -252,6 +260,7 @@ def create_expansion_registry(
                 task_type="task",
                 priority=parent.priority,
                 validation_criteria=TDD_CRITERIA_BLUE,
+                category="code",
             )
 
             # 4. Wire refactor to be blocked by TEST task and all implementation tasks
@@ -479,11 +488,12 @@ def create_expansion_registry(
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
-        # Auto-apply TDD sandwich pattern (unless skip_tdd=True)
-        # Creates ONE [TEST] task, keeps impl tasks, creates ONE [REFACTOR] task
+        # Auto-apply TDD sandwich pattern (unless skip_tdd=True or expanding an epic)
+        # Creates ONE [TDD] task, renames impl tasks with [IMPL], creates ONE [REF] task
+        # IMPORTANT: Skip TDD when expanding epics - TDD is applied at feature task level
         tdd_applied = False
         tdd_categories = ("code", "config")
-        if not skip_tdd and subtask_ids:
+        if not skip_tdd and subtask_ids and task.task_type != "epic":
             # Collect code/config subtasks that should be wrapped in TDD sandwich
             impl_task_ids = []
             for sid in subtask_ids:
