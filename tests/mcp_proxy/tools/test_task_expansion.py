@@ -1864,10 +1864,10 @@ class TestApplyTddTool:
         assert "apply_tdd" in tool_names, "apply_tdd tool should be registered"
 
     @pytest.mark.asyncio
-    async def test_apply_tdd_creates_triplet(
+    async def test_apply_tdd_creates_sandwich(
         self, mock_task_manager, mock_task_expander, expansion_registry
     ):
-        """Test that apply_tdd creates test, implement, refactor triplet."""
+        """Test that apply_tdd creates TDD sandwich (TEST, children, REFACTOR)."""
         parent_task = Task(
             id="parent-1",
             title="Add user authentication",
@@ -1875,37 +1875,43 @@ class TestApplyTddTool:
             project_id="p1",
             status="open",
             priority=2,
-            task_type="task",
+            task_type="epic",
             created_at="now",
             updated_at="now",
             is_tdd_applied=False,
         )
+        # Child tasks that will be wrapped in sandwich
+        child_task = Task(
+            id="child-1",
+            title="Create login form",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            category="code",
+        )
         mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = [child_task]
         mock_task_manager.create_task.side_effect = [
             Task(id="test-1", title="Write tests for: Add user authentication",
                  project_id="p1", status="open", priority=2, task_type="task",
                  created_at="now", updated_at="now", seq_num=101),
-            Task(id="impl-1", title="Implement: Add user authentication",
-                 project_id="p1", status="open", priority=2, task_type="task",
-                 created_at="now", updated_at="now", seq_num=102),
             Task(id="refactor-1", title="Refactor: Add user authentication",
                  project_id="p1", status="open", priority=2, task_type="task",
-                 created_at="now", updated_at="now", seq_num=103),
+                 created_at="now", updated_at="now", seq_num=102),
         ]
 
         result = await expansion_registry.call(
             "apply_tdd", {"task_id": "parent-1"}
         )
 
-        # Should create 3 subtasks
+        # Should create 2 tasks (TEST + REFACTOR), children stay as impl
         assert "error" not in result
-        assert result.get("tasks_created") == 3
-
-        # Verify subtask titles follow TDD pattern
-        subtask_titles = [s.get("title") for s in result.get("subtasks", [])]
-        assert any("Write tests for:" in t for t in subtask_titles if t)
-        assert any("Implement:" in t for t in subtask_titles if t)
-        assert any("Refactor:" in t for t in subtask_titles if t)
+        assert result.get("tasks_created") == 2
+        assert result.get("impl_tasks_wrapped") == 1
+        assert result.get("tdd_applied") is True
 
     @pytest.mark.asyncio
     async def test_apply_tdd_skips_already_applied(
@@ -1945,22 +1951,33 @@ class TestApplyTddTool:
             project_id="p1",
             status="open",
             priority=2,
-            task_type="task",
+            task_type="epic",
             created_at="now",
             updated_at="now",
             is_tdd_applied=False,
         )
+        # Pre-existing children (the impl tasks in sandwich pattern)
+        child_task = Task(
+            id="child-1",
+            title="Create login form",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            category="code",
+        )
         mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = [child_task]
+        # Sandwich creates only 2 tasks (TEST + REFACTOR), children already exist
         mock_task_manager.create_task.side_effect = [
             Task(id="test-1", title="Write tests for: Add user authentication",
                  project_id="p1", status="open", priority=2, task_type="task",
                  created_at="now", updated_at="now", seq_num=101),
-            Task(id="impl-1", title="Implement: Add user authentication",
-                 project_id="p1", status="open", priority=2, task_type="task",
-                 created_at="now", updated_at="now", seq_num=102),
             Task(id="refactor-1", title="Refactor: Add user authentication",
                  project_id="p1", status="open", priority=2, task_type="task",
-                 created_at="now", updated_at="now", seq_num=103),
+                 created_at="now", updated_at="now", seq_num=102),
         ]
 
         result = await expansion_registry.call(
@@ -1990,22 +2007,33 @@ class TestApplyTddTool:
             project_id="p1",
             status="open",
             priority=2,
-            task_type="task",
+            task_type="epic",
             created_at="now",
             updated_at="now",
             is_tdd_applied=False,
         )
+        # Pre-existing children (the impl tasks in sandwich pattern)
+        child_task = Task(
+            id="child-1",
+            title="Create login form",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            category="code",
+        )
         mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = [child_task]
+        # Sandwich creates only 2 tasks (TEST + REFACTOR), children already exist
         mock_task_manager.create_task.side_effect = [
             Task(id="test-1", title="Write tests for: Add user authentication",
                  project_id="p1", status="open", priority=2, task_type="task",
                  created_at="now", updated_at="now", seq_num=101),
-            Task(id="impl-1", title="Implement: Add user authentication",
-                 project_id="p1", status="open", priority=2, task_type="task",
-                 created_at="now", updated_at="now", seq_num=102),
             Task(id="refactor-1", title="Refactor: Add user authentication",
                  project_id="p1", status="open", priority=2, task_type="task",
-                 created_at="now", updated_at="now", seq_num=103),
+                 created_at="now", updated_at="now", seq_num=102),
         ]
 
         result = await expansion_registry.call(
@@ -2031,14 +2059,24 @@ class TestApplyTddTool:
 # ============================================================================
 
 
-class TestTddTripletDependencies:
-    """Tests for TDD triplet creation with proper dependencies."""
+class TestTddSandwichDependencies:
+    """Tests for TDD sandwich creation with proper dependencies.
+
+    Sandwich pattern:
+    - ONE [TEST] task at the start
+    - Original child tasks stay as implementation
+    - ONE [REFACTOR] task at the end
+
+    Dependencies:
+    - All impl tasks are blocked by TEST
+    - REFACTOR is blocked by TEST and all impl tasks
+    """
 
     @pytest.mark.asyncio
     async def test_apply_tdd_creates_dependencies_impl_blocked_by_test(
         self, mock_task_manager, mock_task_expander
     ):
-        """Test that Implement task is blocked by Test task."""
+        """Test that pre-existing impl tasks are blocked by TEST task."""
         if not IMPORT_SUCCEEDED:
             pytest.skip("Module not extracted yet")
 
@@ -2059,37 +2097,48 @@ class TestTddTripletDependencies:
                 project_id="p1",
                 status="open",
                 priority=2,
-                task_type="task",
+                task_type="epic",
                 created_at="now",
                 updated_at="now",
                 is_tdd_applied=False,
             )
+            # Pre-existing children (impl tasks in sandwich)
+            impl_task = Task(
+                id="impl-1",
+                title="Create login form",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+                category="code",
+            )
             mock_task_manager.get_task.return_value = parent_task
+            mock_task_manager.list_tasks.return_value = [impl_task]
 
-            # Track created task IDs
+            # Sandwich only creates TEST and REFACTOR (impl already exists)
             test_task = Task(id="test-1", title="Write tests for: Add user authentication",
                              project_id="p1", status="open", priority=2, task_type="task",
                              created_at="now", updated_at="now", seq_num=101)
-            impl_task = Task(id="impl-1", title="Implement: Add user authentication",
-                             project_id="p1", status="open", priority=2, task_type="task",
-                             created_at="now", updated_at="now", seq_num=102)
             refactor_task = Task(id="refactor-1", title="Refactor: Add user authentication",
                                  project_id="p1", status="open", priority=2, task_type="task",
-                                 created_at="now", updated_at="now", seq_num=103)
+                                 created_at="now", updated_at="now", seq_num=102)
 
-            mock_task_manager.create_task.side_effect = [test_task, impl_task, refactor_task]
+            mock_task_manager.create_task.side_effect = [test_task, refactor_task]
 
             result = await registry.call("apply_tdd", {"task_id": "parent-1"})
 
-            # Should succeed
+            # Should succeed with 2 tasks created
             assert "error" not in result
-            assert result["tasks_created"] == 3
+            assert result["tasks_created"] == 2
 
             # Verify dependency was created: impl blocked by test
             add_dep_calls = mock_dep_manager.add_dependency.call_args_list
 
-            # Should have 2 dependencies: impl->test, refactor->impl
-            assert len(add_dep_calls) >= 2, f"Should create at least 2 dependencies, got {add_dep_calls}"
+            # Should have at least 3 dependencies:
+            # impl-1 -> test-1, refactor-1 -> test-1, refactor-1 -> impl-1
+            assert len(add_dep_calls) >= 3, f"Should create at least 3 dependencies, got {add_dep_calls}"
 
             # Check impl blocked by test (handle both positional and keyword args)
             def matches_dependency(call, from_id, to_id, relation):
@@ -2107,13 +2156,13 @@ class TestTddTripletDependencies:
                 matches_dependency(call, "impl-1", "test-1", "blocks")
                 for call in add_dep_calls
             )
-            assert impl_blocked_by_test, f"Implement should be blocked by Test, got {add_dep_calls}"
+            assert impl_blocked_by_test, f"Impl should be blocked by Test, got {add_dep_calls}"
 
     @pytest.mark.asyncio
-    async def test_apply_tdd_creates_dependencies_refactor_blocked_by_impl(
+    async def test_apply_tdd_creates_dependencies_refactor_blocked_by_test_and_impl(
         self, mock_task_manager, mock_task_expander
     ):
-        """Test that Refactor task is blocked by Implement task."""
+        """Test that Refactor task is blocked by TEST and all impl tasks."""
         if not IMPORT_SUCCEEDED:
             pytest.skip("Module not extracted yet")
 
@@ -2134,31 +2183,42 @@ class TestTddTripletDependencies:
                 project_id="p1",
                 status="open",
                 priority=2,
-                task_type="task",
+                task_type="epic",
                 created_at="now",
                 updated_at="now",
                 is_tdd_applied=False,
             )
+            # Pre-existing children (impl tasks in sandwich)
+            impl_task = Task(
+                id="impl-1",
+                title="Create login form",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+                category="code",
+            )
             mock_task_manager.get_task.return_value = parent_task
+            mock_task_manager.list_tasks.return_value = [impl_task]
 
+            # Sandwich only creates TEST and REFACTOR
             test_task = Task(id="test-1", title="Write tests for: Add user authentication",
                              project_id="p1", status="open", priority=2, task_type="task",
                              created_at="now", updated_at="now", seq_num=101)
-            impl_task = Task(id="impl-1", title="Implement: Add user authentication",
-                             project_id="p1", status="open", priority=2, task_type="task",
-                             created_at="now", updated_at="now", seq_num=102)
             refactor_task = Task(id="refactor-1", title="Refactor: Add user authentication",
                                  project_id="p1", status="open", priority=2, task_type="task",
-                                 created_at="now", updated_at="now", seq_num=103)
+                                 created_at="now", updated_at="now", seq_num=102)
 
-            mock_task_manager.create_task.side_effect = [test_task, impl_task, refactor_task]
+            mock_task_manager.create_task.side_effect = [test_task, refactor_task]
 
             result = await registry.call("apply_tdd", {"task_id": "parent-1"})
 
             # Should succeed
             assert "error" not in result
 
-            # Verify dependency: refactor blocked by impl (handle both positional and keyword args)
+            # Verify dependencies (handle both positional and keyword args)
             add_dep_calls = mock_dep_manager.add_dependency.call_args_list
 
             def matches_dependency(call, from_id, to_id, relation):
@@ -2172,11 +2232,19 @@ class TestTddTripletDependencies:
                     and kwargs.get("relation") == relation
                 )
 
+            # REFACTOR should be blocked by TEST
+            refactor_blocked_by_test = any(
+                matches_dependency(call, "refactor-1", "test-1", "blocks")
+                for call in add_dep_calls
+            )
+            assert refactor_blocked_by_test, f"Refactor should be blocked by Test, got {add_dep_calls}"
+
+            # REFACTOR should be blocked by all impl tasks
             refactor_blocked_by_impl = any(
                 matches_dependency(call, "refactor-1", "impl-1", "blocks")
                 for call in add_dep_calls
             )
-            assert refactor_blocked_by_impl, f"Refactor should be blocked by Implement, got {add_dep_calls}"
+            assert refactor_blocked_by_impl, f"Refactor should be blocked by Impl, got {add_dep_calls}"
 
 
 # ============================================================================

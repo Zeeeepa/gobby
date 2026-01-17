@@ -176,84 +176,103 @@ def create_expansion_registry(
             return "\n\n".join(enrichment_parts)
         return None
 
-    async def _apply_tdd_internal(task_id: str) -> dict[str, Any]:
-        """Internal helper to apply TDD transformation to a task.
+    async def _apply_tdd_sandwich(
+        parent_task_id: str,
+        impl_task_ids: list[str],
+    ) -> dict[str, Any]:
+        """Apply TDD sandwich pattern to a parent task's children.
 
-        Used by expand_task to auto-apply TDD to code/config subtasks.
-        Skips validation checks (those are done by caller).
+        Creates a "sandwich" structure where implementation tasks are wrapped:
+        - ONE [TEST] task at the start (RED phase - write tests for all impls)
+        - Original child tasks stay as implementation (GREEN phase)
+        - ONE [REFACTOR] task at the end (BLUE phase - refactor everything)
+
+        Dependencies:
+        - All impl tasks are blocked by the TEST task
+        - REFACTOR task is blocked by all impl tasks
 
         Args:
-            task_id: Already-resolved task UUID
+            parent_task_id: The parent task (epic) being expanded
+            impl_task_ids: List of implementation task IDs (the original children)
 
         Returns:
-            Dict with success=True and tasks_created, or success=False and error
+            Dict with success=True and tasks_created count, or error info
         """
-        task = task_manager.get_task(task_id)
-        if not task:
-            return {"success": False, "error": f"Task not found: {task_id}"}
+        parent = task_manager.get_task(parent_task_id)
+        if not parent:
+            return {"success": False, "error": f"Parent task not found: {parent_task_id}"}
+
+        if not impl_task_ids:
+            return {"success": False, "error": "No implementation tasks to wrap"}
 
         # Skip if already TDD-applied
-        if task.is_tdd_applied:
+        if parent.is_tdd_applied:
             return {"success": False, "skipped": True, "reason": "already_applied"}
 
-        # Create TDD triplet
         try:
-            # 1. Test Task (Red phase)
+            # 1. Create ONE Test Task (Red phase) - tests for all implementations
             test_task = task_manager.create_task(
-                title=f"Write tests for: {task.title}",
-                description=f"Write failing tests for: {task.title}\n\nRED phase of TDD.",
-                project_id=task.project_id,
-                parent_task_id=task.id,
+                title=f"Write tests for: {parent.title}",
+                description=(
+                    f"Write failing tests for all tasks in: {parent.title}\n\n"
+                    "RED phase of TDD - define expected behavior before implementation."
+                ),
+                project_id=parent.project_id,
+                parent_task_id=parent.id,
                 task_type="task",
-                priority=task.priority,
+                priority=parent.priority,
                 validation_criteria=TDD_CRITERIA_RED,
             )
 
-            # 2. Implement Task (Green phase)
-            impl_task = task_manager.create_task(
-                title=f"Implement: {task.title}",
-                description="Make tests pass.\n\nGREEN phase of TDD.",
-                project_id=task.project_id,
-                parent_task_id=task.id,
-                task_type="task",
-                priority=task.priority,
-            )
-
-            # Generate validation criteria for implementation task
-            if task_validator:
+            # 2. Wire all implementation tasks to be blocked by the test task
+            for impl_id in impl_task_ids:
                 try:
-                    impl_criteria = await task_validator.generate_criteria(
-                        title=impl_task.title,
-                        description=impl_task.description,
-                    )
-                    if impl_criteria:
-                        task_manager.update_task(impl_task.id, validation_criteria=impl_criteria)
-                except Exception:
-                    pass  # nosec B110
+                    dep_manager.add_dependency(impl_id, test_task.id, "blocks")
+                except ValueError:
+                    pass  # Dependency already exists
 
-            # 3. Refactor Task (Blue phase)
+            # 3. Create ONE Refactor Task (Blue phase) - refactor after all impls done
             refactor_task = task_manager.create_task(
-                title=f"Refactor: {task.title}",
-                description="Refactor while keeping tests green.\n\nBLUE phase of TDD.",
-                project_id=task.project_id,
-                parent_task_id=task.id,
+                title=f"Refactor: {parent.title}",
+                description=(
+                    f"Refactor implementations in: {parent.title}\n\n"
+                    "BLUE phase of TDD - clean up while keeping tests green."
+                ),
+                project_id=parent.project_id,
+                parent_task_id=parent.id,
                 task_type="task",
-                priority=task.priority,
+                priority=parent.priority,
                 validation_criteria=TDD_CRITERIA_BLUE,
             )
 
-            # Wire dependencies: Test -> Implement -> Refactor
-            dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
-            dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
+            # 4. Wire refactor to be blocked by TEST task and all implementation tasks
+            # REFACTOR depends on TEST (must complete testing before refactoring)
+            try:
+                dep_manager.add_dependency(refactor_task.id, test_task.id, "blocks")
+            except ValueError:
+                pass  # Dependency already exists
 
-            # Mark parent task as TDD-applied
+            # REFACTOR depends on all impl tasks
+            for impl_id in impl_task_ids:
+                try:
+                    dep_manager.add_dependency(refactor_task.id, impl_id, "blocks")
+                except ValueError:
+                    pass  # Dependency already exists
+
+            # Mark parent as TDD-applied
             task_manager.update_task(
-                task.id,
+                parent.id,
                 is_tdd_applied=True,
                 validation_criteria=TDD_PARENT_CRITERIA,
             )
 
-            return {"success": True, "tasks_created": 3, "task_id": task.id}
+            return {
+                "success": True,
+                "tasks_created": 2,  # TEST + REFACTOR (impl tasks already existed)
+                "test_task_id": test_task.id,
+                "refactor_task_id": refactor_task.id,
+                "impl_task_count": len(impl_task_ids),
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -451,25 +470,27 @@ def create_expansion_registry(
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
-        # Auto-apply TDD to code/config category subtasks (unless skip_tdd=True)
-        tdd_applied_count = 0
+        # Auto-apply TDD sandwich pattern (unless skip_tdd=True)
+        # Creates ONE [TEST] task, keeps impl tasks, creates ONE [REFACTOR] task
+        tdd_applied = False
         tdd_categories = ("code", "config")
         if not skip_tdd and subtask_ids:
+            # Collect code/config subtasks that should be wrapped in TDD sandwich
+            impl_task_ids = []
             for sid in subtask_ids:
                 subtask = task_manager.get_task(sid)
                 if not subtask:
                     continue
-                # Apply TDD to code/config categories
+                # Include code/config categories that aren't already TDD-formatted
                 if subtask.category in tdd_categories:
-                    # Skip if already TDD-applied or has TDD prefix
-                    if subtask.is_tdd_applied:
-                        continue
-                    if should_skip_tdd(subtask.title):
-                        continue
-                    # Apply TDD transformation
-                    tdd_result = await _apply_tdd_internal(sid)
-                    if tdd_result.get("success", False):
-                        tdd_applied_count += 1
+                    if not should_skip_tdd(subtask.title):
+                        impl_task_ids.append(sid)
+
+            # Apply TDD sandwich at parent level (wraps all impl tasks)
+            if impl_task_ids:
+                tdd_result = await _apply_tdd_sandwich(resolved_task_id, impl_task_ids)
+                if tdd_result.get("success", False):
+                    tdd_applied = True
 
         # Build response
         response: dict[str, Any] = {
@@ -499,9 +520,8 @@ def create_expansion_registry(
             response["validation_criteria_generated"] = validation_generated
         if validation_skipped_reason:
             response["validation_skipped_reason"] = validation_skipped_reason
-        if tdd_applied_count > 0:
+        if tdd_applied:
             response["tdd_applied"] = True
-            response["tdd_applied_count"] = tdd_applied_count
         return response
 
     @registry.tool(
@@ -697,29 +717,29 @@ def create_expansion_registry(
 
     @registry.tool(
         name="apply_tdd",
-        description="Transform a task into TDD triplet (test, implement, refactor).",
+        description="Apply TDD sandwich pattern to a task's children (TEST -> impl tasks -> REFACTOR).",
     )
     async def apply_tdd(
         task_id: str,
     ) -> dict[str, Any]:
         """
-        Transform a task into TDD triplet (test, implement, refactor).
+        Apply TDD sandwich pattern to wrap a task's children.
 
-        Creates three subtasks for the given task:
-        1. Write tests for: <title>
-        2. Implement: <title>
-        3. Refactor: <title>
+        Creates a "sandwich" structure:
+        - ONE [TEST] task at the start (RED phase - tests for all implementations)
+        - Original child tasks stay as implementation (GREEN phase)
+        - ONE [REFACTOR] task at the end (BLUE phase - refactor everything)
 
-        Skips tasks that already have is_tdd_applied=True or tasks with
-        titles starting with TDD prefixes.
+        The task must have children (typically an expanded epic or phase).
+        Skips tasks that already have is_tdd_applied=True.
 
         Args:
             task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
 
         Returns:
-            Dictionary with tasks_created count and subtasks list
+            Dictionary with tasks_created count and sandwich info
         """
-        # Resolve task reference (resolve_task_id_for_mcp is imported at module level)
+        # Resolve task reference
         try:
             resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
@@ -737,110 +757,49 @@ def create_expansion_registry(
                 "task_id": task.id,
             }
 
-        # Skip if title matches TDD skip patterns (case-insensitive)
-        # Includes: TDD prefixes, deletion tasks, documentation/config updates
-        if should_skip_tdd(task.title):
+        # Get children to wrap in sandwich
+        children = task_manager.list_tasks(parent_task_id=resolved_task_id, limit=100)
+        if not children:
             return {
-                "skipped": True,
-                "reason": "Task title matches TDD skip pattern",
+                "error": "Task has no children to wrap in TDD sandwich. "
+                "Use expand_task first to create subtasks.",
                 "task_id": task.id,
             }
 
-        # Create TDD triplet: Test -> Implement -> Refactor
-        # Each phase has specific validation criteria per the spec
-        created_tasks: list[dict[str, Any]] = []
+        # Filter to code/config children that aren't already TDD-formatted
+        tdd_categories = ("code", "config")
+        impl_task_ids = []
+        for child in children:
+            # Skip tasks that match TDD skip patterns
+            if should_skip_tdd(child.title):
+                continue
+            # Include code/config categories, or tasks without category (default to include)
+            if child.category in tdd_categories or child.category is None:
+                impl_task_ids.append(child.id)
 
-        # 1. Test Task (Red phase) - write failing tests
-        test_task = task_manager.create_task(
-            title=f"Write tests for: {task.title}",
-            description=f"Write failing tests for: {task.title}\n\nThis is the RED phase of TDD.",
-            project_id=task.project_id,
-            parent_task_id=task.id,
-            task_type="task",
-            priority=task.priority,
-            validation_criteria=TDD_CRITERIA_RED,
-        )
-        created_tasks.append(
-            {
-                "ref": f"#{test_task.seq_num}" if test_task.seq_num else test_task.id[:8],
-                "title": test_task.title,
-                "seq_num": test_task.seq_num,
-                "id": test_task.id,
-                "phase": "red",
+        if not impl_task_ids:
+            return {
+                "skipped": True,
+                "reason": "No eligible children for TDD (all match skip patterns or wrong category)",
+                "task_id": task.id,
             }
-        )
 
-        # 2. Implement Task (Green phase) - make tests pass
-        # Dynamically generate criteria (same as regular subtasks after expansion)
-        impl_task = task_manager.create_task(
-            title=f"Implement: {task.title}",
-            description="Implement the feature to make tests pass.\n\nThis is the GREEN phase of TDD.",
-            project_id=task.project_id,
-            parent_task_id=task.id,
-            task_type="task",
-            priority=task.priority,
-            # validation_criteria generated below
-        )
+        # Apply TDD sandwich
+        result = await _apply_tdd_sandwich(resolved_task_id, impl_task_ids)
 
-        # Generate validation criteria for implementation task (like regular subtasks)
-        if task_validator:
-            try:
-                impl_criteria = await task_validator.generate_criteria(
-                    title=impl_task.title,
-                    description=impl_task.description,
-                )
-                if impl_criteria:
-                    task_manager.update_task(impl_task.id, validation_criteria=impl_criteria)
-            except Exception:
-                pass  # nosec B110 - Leave without criteria if generation fails
-
-        created_tasks.append(
-            {
-                "ref": f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8],
-                "title": impl_task.title,
-                "seq_num": impl_task.seq_num,
-                "id": impl_task.id,
-                "phase": "green",
+        if result.get("success"):
+            return {
+                "task_id": task.id,
+                "tdd_applied": True,
+                "tasks_created": result.get("tasks_created", 0),
+                "impl_tasks_wrapped": result.get("impl_task_count", 0),
+                "test_task_id": result.get("test_task_id"),
+                "refactor_task_id": result.get("refactor_task_id"),
             }
-        )
-
-        # 3. Refactor Task (Blue phase) - clean up while keeping tests green
-        refactor_task = task_manager.create_task(
-            title=f"Refactor: {task.title}",
-            description="Refactor the implementation while keeping tests passing.\n\nThis is the BLUE phase of TDD.",
-            project_id=task.project_id,
-            parent_task_id=task.id,
-            task_type="task",
-            priority=task.priority,
-            validation_criteria=TDD_CRITERIA_BLUE,
-        )
-        created_tasks.append(
-            {
-                "ref": f"#{refactor_task.seq_num}"
-                if refactor_task.seq_num
-                else refactor_task.id[:8],
-                "title": refactor_task.title,
-                "seq_num": refactor_task.seq_num,
-                "id": refactor_task.id,
-                "phase": "blue",
+        else:
+            return {
+                "error": result.get("error", "Unknown error"),
+                "task_id": task.id,
             }
-        )
-
-        # Wire dependencies: Test -> Implement -> Refactor
-        dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
-        dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
-
-        # Mark parent task as TDD-applied and update its validation criteria
-        task_manager.update_task(
-            task.id,
-            is_tdd_applied=True,
-            validation_criteria=TDD_PARENT_CRITERIA,
-        )
-
-        return {
-            "task_id": task.id,
-            "tasks_created": len(created_tasks),
-            "subtasks": created_tasks,
-        }
 
     return registry

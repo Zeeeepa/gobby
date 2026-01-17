@@ -2318,83 +2318,19 @@ class TestTDDMode:
         )
         assert builder.tdd_mode is True
 
-    def test_create_tdd_triplet_creates_three_tasks(
-        self, mock_task_manager_with_db, monkeypatch
-    ):
-        """_create_tdd_triplet creates test, implementation, and refactor tasks."""
-        builder = TaskHierarchyBuilder(
-            task_manager=mock_task_manager_with_db,
-            project_id="test-project",
-            tdd_mode=True,
-        )
-
-        # Mock the dependency manager
-        mock_dep_manager = MockDependencyManager()
-        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
-
-        tasks = builder._create_tdd_triplet(
-            title="Implement feature X",
-            parent_task_id="gt-parent",
-            description="Feature X description",
-        )
-
-        assert len(tasks) == 3
-        # First task should be the test task
-        assert tasks[0].title == "Write tests for: Implement feature X"
-        # Verify the test task has proper TDD red-phase wording
-        test_task_title = tasks[0].title.lower()
-        assert "test" in test_task_title, "Test task should contain 'test' in title"
-
-        # Second task should be the implementation task
-        assert tasks[1].title == "Implement: Implement feature X"
-
-        # Third task should be the refactor task
-        assert tasks[2].title == "Refactor: Implement feature X"
-
-    def test_create_tdd_triplet_wires_dependency(
-        self, mock_task_manager_with_db, monkeypatch
-    ):
-        """_create_tdd_triplet wires dependency: impl blocked by test, refactor blocked by impl."""
-        builder = TaskHierarchyBuilder(
-            task_manager=mock_task_manager_with_db,
-            project_id="test-project",
-            tdd_mode=True,
-        )
-
-        # Mock the dependency manager
-        mock_dep_manager = MockDependencyManager()
-        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
-
-        tasks = builder._create_tdd_triplet(
-            title="Implement feature X",
-            parent_task_id="gt-parent",
-            description=None,
-        )
-
-        # Check dependency was added
-        assert len(mock_dep_manager.dependencies) == 2
-
-        # Impl blocked by Test
-        dep1 = mock_dep_manager.dependencies[0]
-        assert dep1["task_id"] == tasks[1].id
-        assert dep1["depends_on"] == tasks[0].id
-        assert dep1["dep_type"] == "blocks"
-
-        # Refactor blocked by Impl
-        dep2 = mock_dep_manager.dependencies[1]
-        assert dep2["task_id"] == tasks[2].id
-        assert dep2["depends_on"] == tasks[1].id
-        assert dep2["dep_type"] == "blocks"
+    # NOTE: _create_tdd_triplet method was removed - TDD is now applied via
+    # the "sandwich" pattern at expand_task time (one TEST before all impls,
+    # one REFACTOR after). See task_expansion.py _apply_tdd_sandwich.
 
     @pytest.mark.asyncio
-    async def test_checkbox_in_tdd_mode_creates_triplet(
+    async def test_checkbox_in_tdd_mode_creates_single_task(
         self, mock_task_manager_with_db, monkeypatch
     ):
-        """Checkboxes in TDD mode create test->implement->refactor triplets."""
+        """Checkboxes create regular tasks - TDD is applied later via expand_task sandwich."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
             project_id="test-project",
-            tdd_mode=True,
+            tdd_mode=True,  # tdd_mode is now ignored at parse time
         )
 
         # Mock the dependency manager
@@ -2416,11 +2352,9 @@ class TestTDDMode:
             created_tasks=created_tasks,
         )
 
-        # Should create 3 tasks (test + impl + refactor)
-        assert len(created_tasks) == 3
-        assert created_tasks[0].title == "Write tests for: Add user validation"
-        assert created_tasks[1].title == "Implement: Add user validation"
-        assert created_tasks[2].title == "Refactor: Add user validation"
+        # Should create 1 task (TDD sandwich applied later at expand_task time)
+        assert len(created_tasks) == 1
+        assert created_tasks[0].title == "Add user validation"
 
     @pytest.mark.asyncio
     async def test_checked_checkbox_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):

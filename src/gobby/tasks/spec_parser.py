@@ -980,27 +980,16 @@ class TaskHierarchyBuilder:
         # Level 4+: Task (implementation items)
         task_type = "epic" if heading.level <= 3 else "task"
 
-        # In TDD mode, create test→implement pairs for non-epic tasks (h4+)
-        if self.tdd_mode and task_type == "task":
-            tasks = self._create_tdd_triplet(
-                title=heading.text,
-                parent_task_id=parent_task_id,
-                description=heading.content if heading.content.strip() else None,
-            )
-            created_tasks.extend(tasks)
-            created_at_level.extend(t.id for t in tasks)
-            # Use implementation task (second in triplet) as parent for children
-            task = tasks[1]
-        else:
-            # Create task for this heading
-            task = self._create_task(
-                title=heading.text,
-                task_type=task_type,
-                parent_task_id=parent_task_id,
-                description=heading.content if heading.content.strip() else None,
-            )
-            created_tasks.append(task)
-            created_at_level.append(task.id)
+        # Create task for this heading
+        # NOTE: TDD sandwich pattern is now applied at expand_task time, not during parsing
+        task = self._create_task(
+            title=heading.text,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            description=heading.content if heading.content.strip() else None,
+        )
+        created_tasks.append(task)
+        created_at_level.append(task.id)
 
         # Process checkboxes under this heading (scoped by line range)
         for checkbox in self._get_checkboxes_for_heading(heading, all_checkboxes):
@@ -1055,29 +1044,18 @@ class TaskHierarchyBuilder:
             all_checkboxes=all_checkboxes or [],
         )
 
-        # In TDD mode, create test→implement pairs for open tasks
-        if self.tdd_mode and status == "open":
-            tasks = self._create_tdd_triplet(
-                title=checkbox.text,
-                parent_task_id=parent_task_id,
-                description=description,
-            )
-            created_tasks.extend(tasks)
-            created_at_level.extend(t.id for t in tasks)
-            # Use the implementation task (second in triplet) as parent for children
-            impl_task = tasks[1]
-        else:
-            # Create task for this checkbox
-            task = self._create_task(
-                title=checkbox.text,
-                task_type="task",
-                parent_task_id=parent_task_id,
-                description=description,
-                status=status,
-            )
-            created_tasks.append(task)
-            created_at_level.append(task.id)
-            impl_task = task
+        # Create task for this checkbox
+        # NOTE: TDD sandwich pattern is now applied at expand_task time, not during parsing
+        task = self._create_task(
+            title=checkbox.text,
+            task_type="task",
+            parent_task_id=parent_task_id,
+            description=description,
+            status=status,
+        )
+        created_tasks.append(task)
+        created_at_level.append(task.id)
+        impl_task = task
 
         # Process nested checkboxes as child tasks
         for child in checkbox.children:
@@ -1147,96 +1125,6 @@ class TaskHierarchyBuilder:
             status=status,
             parent_task_id=parent_task_id,
         )
-
-    def _create_tdd_triplet(
-        self,
-        title: str,
-        parent_task_id: str | None,
-        description: str | None,
-        labels: list[str] | None = None,
-    ) -> list[CreatedTask]:
-        """Create a Red-Green-Refactor triplet for TDD mode.
-
-        Creates three tasks:
-        1. Test (Red): Write failing tests
-        2. Implement (Green): Make tests pass
-        3. Refactor (Blue): Clean up code
-
-        Args:
-            title: Original task title
-            parent_task_id: Parent task ID
-            description: Task description
-            labels: Optional labels
-
-        Returns:
-            List of [test_task, impl_task, refactor_task]
-        """
-        # 1. Test Task (Red)
-        test_title = f"Write tests for: {title}"
-        test_description = (
-            f"Write failing tests for: {title}\n\n"
-            "Test strategy: Tests should fail initially (red phase)"
-        )
-        test_task = self._create_task(
-            title=test_title,
-            task_type="task",
-            parent_task_id=parent_task_id,
-            description=test_description,
-            labels=labels,
-        )
-
-        # 2. Implementation Task (Green)
-        impl_title = f"Implement: {title}"
-        impl_description = description or ""
-        if impl_description:
-            impl_description += "\n\n"
-        impl_description += (
-            "Test strategy: All tests from previous subtask should pass (green phase)"
-        )
-
-        impl_task = self._create_task(
-            title=impl_title,
-            task_type="task",
-            parent_task_id=parent_task_id,
-            description=impl_description,
-            labels=labels,
-        )
-
-        # 3. Refactor Task (Refactor)
-        refactor_title = f"Refactor: {title}"
-        refactor_description = (
-            f"Refactor the implementation of: {title}\n\n"
-            "Test strategy: All tests must continue to pass after refactoring"
-        )
-        refactor_task = self._create_task(
-            title=refactor_title,
-            task_type="task",
-            parent_task_id=parent_task_id,
-            description=refactor_description,
-            labels=labels,
-        )
-
-        # Wire dependencies
-        try:
-            # Implement blocked by Test
-            self.dep_manager.add_dependency(
-                task_id=impl_task.id,
-                depends_on=test_task.id,
-                dep_type="blocks",
-            )
-            # Refactor blocked by Implement
-            self.dep_manager.add_dependency(
-                task_id=refactor_task.id,
-                depends_on=impl_task.id,
-                dep_type="blocks",
-            )
-            logger.debug(
-                f"TDD triplet created: {test_task.id} -> {impl_task.id} -> {refactor_task.id}"
-            )
-        except ValueError as e:
-            logger.warning(f"Failed to add TDD dependency: {e}")
-
-        return [test_task, impl_task, refactor_task]
 
     async def build_from_headings_with_fallback(
         self,
