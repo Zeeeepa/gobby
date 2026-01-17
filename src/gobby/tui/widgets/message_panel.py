@@ -1,0 +1,167 @@
+"""Inter-agent message panel widget."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from textual.app import ComposeResult
+from textual.containers import Horizontal, VerticalScroll
+from textual.reactive import reactive
+from textual.widget import Widget
+from textual.widgets import Static
+
+
+class AgentMessage(Static):
+    """A single agent message display."""
+
+    DEFAULT_CSS = """
+    AgentMessage {
+        height: 1;
+        padding: 0 1;
+    }
+
+    AgentMessage.--outgoing {
+        color: $secondary;
+    }
+
+    AgentMessage.--incoming {
+        color: $text;
+    }
+
+    AgentMessage .message-arrow {
+        width: 2;
+    }
+
+    AgentMessage .message-sender {
+        color: $text-muted;
+        width: 12;
+    }
+
+    AgentMessage .message-content {
+        width: 1fr;
+    }
+
+    AgentMessage .message-time {
+        color: $text-dim;
+        width: 8;
+    }
+    """
+
+    def __init__(
+        self,
+        sender: str,
+        content: str,
+        direction: str = "incoming",
+        timestamp: str | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.sender = sender
+        self.content = content
+        self.direction = direction
+        self.timestamp = timestamp or datetime.now().strftime("%H:%M:%S")
+        self.add_class(f"--{direction}")
+
+    def compose(self) -> ComposeResult:
+        arrow = "→" if self.direction == "outgoing" else "←"
+        with Horizontal():
+            yield Static(arrow, classes="message-arrow")
+            yield Static(f"[{self.sender}]", classes="message-sender")
+            yield Static(self.content[:60], classes="message-content")
+            yield Static(self.timestamp[-8:], classes="message-time")
+
+
+class InterAgentMessagePanel(Widget):
+    """Panel showing real-time inter-agent messages."""
+
+    DEFAULT_CSS = """
+    InterAgentMessagePanel {
+        height: 1fr;
+        border: round $surface-lighter;
+    }
+
+    InterAgentMessagePanel .panel-header {
+        height: 1;
+        padding: 0 1;
+        background: $surface-light;
+    }
+
+    InterAgentMessagePanel .panel-title {
+        text-style: bold;
+        color: $primary-lighten;
+    }
+
+    InterAgentMessagePanel .messages-scroll {
+        height: 1fr;
+        padding: 1;
+    }
+
+    InterAgentMessagePanel .empty-state {
+        content-align: center middle;
+        height: 1fr;
+        color: $text-dim;
+    }
+    """
+
+    messages: reactive[list[dict[str, Any]]] = reactive(list)
+    max_messages = 100
+
+    def compose(self) -> ComposeResult:
+        yield Static("💬 Inter-Agent Messages", classes="panel-header panel-title")
+
+        if not self.messages:
+            yield Static("No messages yet", classes="empty-state")
+        else:
+            with VerticalScroll(classes="messages-scroll", id="messages-scroll"):
+                for msg in self.messages[-20:]:  # Show last 20
+                    yield AgentMessage(
+                        sender=msg.get("sender", "unknown"),
+                        content=msg.get("content", ""),
+                        direction=msg.get("direction", "incoming"),
+                        timestamp=msg.get("timestamp"),
+                    )
+
+    def watch_messages(self, messages: list[dict[str, Any]]) -> None:
+        """Scroll to bottom when messages change."""
+        try:
+            scroll = self.query_one("#messages-scroll", VerticalScroll)
+            scroll.scroll_end(animate=False)
+        except Exception:
+            pass
+
+    def add_message(
+        self,
+        sender: str,
+        content: str,
+        direction: str = "incoming",
+    ) -> None:
+        """Add a new message to the panel."""
+        new_messages = list(self.messages)
+        new_messages.append({
+            "sender": sender,
+            "content": content,
+            "direction": direction,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+        # Keep only the last max_messages
+        self.messages = new_messages[-self.max_messages:]
+
+        # Mount the new message widget
+        try:
+            scroll = self.query_one("#messages-scroll", VerticalScroll)
+            scroll.mount(
+                AgentMessage(
+                    sender=sender,
+                    content=content,
+                    direction=direction,
+                )
+            )
+            scroll.scroll_end(animate=False)
+        except Exception:
+            pass
+
+    def clear_messages(self) -> None:
+        """Clear all messages."""
+        self.messages = []
