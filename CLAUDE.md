@@ -92,7 +92,6 @@ src/gobby/
 │   ├── expansion.py      # TaskExpander (LLM-based decomposition)
 │   ├── validation.py     # TaskValidator (criteria checking)
 │   ├── commits.py        # Commit linking logic
-│   ├── tdd_repair.py     # TDD pair repair
 │   └── prompts/          # LLM prompts for expansion
 │
 ├── workflows/            # Workflow engine
@@ -256,8 +255,8 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
    - Task types: `task`, `bug`, `feature`, `epic`
 
 3. **Complex tasks** (multi-step work):
-   - `expand_task(task_id)` - LLM-based research, decomposition into subtasks, and auto-TDD
-   - `apply_tdd(task_id)` - Transform task into TEST/IMPL pairs (called automatically by expand)
+   - `expand_task(task_id)` - LLM-based decomposition into subtasks with auto-TDD sandwich pattern
+   - TDD sandwich: ONE [TEST] task → your impl tasks → ONE [REFACTOR] task
    - Expansion creates subtasks with proper dependencies and test strategies
 
 4. **Track progress**:

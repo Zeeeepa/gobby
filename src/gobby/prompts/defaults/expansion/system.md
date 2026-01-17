@@ -124,50 +124,40 @@ Include commands that can be executed to verify completion.
 
 ## TDD Mode Enabled
 
-For code/config category tasks, output TDD structure directly:
+**IMPORTANT: Do NOT create separate test/implement/refactor tasks.**
 
-1. **Test task** (category: "test") - Write failing tests first
-2. **Implementation task** (category: "code", depends_on test) - Make tests pass
-3. **Refactor task** (category: "code", depends_on implementation) - Clean up while tests stay green
+The system automatically applies TDD sandwich pattern after expansion:
+- ONE [TEST] task at the start (covers all implementations)
+- Your subtasks become the implementation tasks
+- ONE [REFACTOR] task at the end
 
-Example for a feature with TDD:
+**Your job:** Output plain feature tasks with `category: "code"` or `category: "config"`.
+
+Example - What you output:
 ```json
 {
   "subtasks": [
-    {
-      "title": "Write tests for: User authentication",
-      "category": "test",
-      "validation": "Tests written that define expected behavior, tests fail without implementation"
-    },
-    {
-      "title": "Implement: User authentication",
-      "category": "code",
-      "depends_on": [0],
-      "validation": "All authentication tests pass"
-    },
-    {
-      "title": "Refactor: User authentication",
-      "category": "code",
-      "depends_on": [1],
-      "validation": "Tests still pass, code is clean and maintainable"
-    }
+    {"title": "Create database schema", "category": "code"},
+    {"title": "Add user authentication", "category": "code", "depends_on": [0]},
+    {"title": "Document the API", "category": "docs"}
   ]
 }
 ```
 
-For NON-code tasks (docs, research, planning), output single tasks without TDD structure:
-```json
-{
-  "subtasks": [
-    {"title": "Research authentication libraries", "category": "research"},
-    {"title": "Document the API endpoints", "category": "docs"}
-  ]
-}
-```
+The system transforms code/config tasks into:
+- [TEST] Write tests for: Parent Task (covers all implementations)
+- [IMPL] Create database schema
+- [IMPL] Add user authentication
+- [REFACTOR] Refactor: Parent Task
+- Document the API (no TDD - it's docs)
 
-**IMPORTANT:**
-- Use "Write tests for:" prefix for test tasks
-- Use "Implement:" prefix for implementation tasks
-- Use "Refactor:" prefix for refactor tasks
-- Wire depends_on correctly: impl depends on test, refactor depends on impl
+**DO NOT use these prefixes:**
+- "Write tests for:", "Test:", "[TEST]"
+- "Implement:", "[IMPL]"
+- "Refactor:", "[REFACTOR]"
+
+**Categories for TDD:**
+- `code` - Gets TDD treatment (wrapped in sandwich)
+- `config` - Gets TDD treatment
+- `docs`, `research`, `planning`, `manual` - No TDD, stays as single task
 {% endif %}

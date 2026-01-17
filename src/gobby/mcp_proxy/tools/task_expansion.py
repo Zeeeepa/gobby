@@ -1,10 +1,9 @@
 """
 Task expansion MCP tools module.
 
-Provides tools for expanding tasks into subtasks and applying TDD patterns:
-- expand_task: Expand task into subtasks via AI
+Provides tools for expanding tasks into subtasks with automatic TDD sandwich pattern:
+- expand_task: Expand task into subtasks via AI (auto-applies TDD sandwich)
 - analyze_complexity: Analyze task complexity
-- apply_tdd: Transform task into TDD triplet (test, implement, refactor)
 """
 
 import asyncio
@@ -210,11 +209,21 @@ def create_expansion_registry(
             return {"success": False, "skipped": True, "reason": "already_applied"}
 
         try:
+            # Build list of impl task titles for TEST task context
+            impl_titles = []
+            for impl_id in impl_task_ids:
+                impl_task = task_manager.get_task(impl_id)
+                if impl_task:
+                    impl_titles.append(f"- {impl_task.title}")
+            impl_list = "\n".join(impl_titles) if impl_titles else "- (implementation tasks)"
+
             # 1. Create ONE Test Task (Red phase) - tests for all implementations
             test_task = task_manager.create_task(
                 title=f"Write tests for: {parent.title}",
                 description=(
-                    f"Write failing tests for all tasks in: {parent.title}\n\n"
+                    f"Write failing tests for: {parent.title}\n\n"
+                    "## Implementation tasks to cover:\n"
+                    f"{impl_list}\n\n"
                     "RED phase of TDD - define expected behavior before implementation."
                 ),
                 project_id=parent.project_id,
@@ -714,92 +723,5 @@ def create_expansion_registry(
             "existing_subtasks": subtask_count,
             "note": "For detailed breakdown, use expand_task to create subtasks",
         }
-
-    @registry.tool(
-        name="apply_tdd",
-        description="Apply TDD sandwich pattern to a task's children (TEST -> impl tasks -> REFACTOR).",
-    )
-    async def apply_tdd(
-        task_id: str,
-    ) -> dict[str, Any]:
-        """
-        Apply TDD sandwich pattern to wrap a task's children.
-
-        Creates a "sandwich" structure:
-        - ONE [TEST] task at the start (RED phase - tests for all implementations)
-        - Original child tasks stay as implementation (GREEN phase)
-        - ONE [REFACTOR] task at the end (BLUE phase - refactor everything)
-
-        The task must have children (typically an expanded epic or phase).
-        Skips tasks that already have is_tdd_applied=True.
-
-        Args:
-            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
-
-        Returns:
-            Dictionary with tasks_created count and sandwich info
-        """
-        # Resolve task reference
-        try:
-            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
-        except (TaskNotFoundError, ValueError) as e:
-            return {"error": f"Invalid task_id: {e}"}
-
-        task = task_manager.get_task(resolved_task_id)
-        if not task:
-            return {"error": f"Task not found: {task_id}"}
-
-        # Skip if already TDD-applied
-        if task.is_tdd_applied:
-            return {
-                "skipped": True,
-                "reason": "TDD already applied to this task",
-                "task_id": task.id,
-            }
-
-        # Get children to wrap in sandwich
-        children = task_manager.list_tasks(parent_task_id=resolved_task_id, limit=100)
-        if not children:
-            return {
-                "error": "Task has no children to wrap in TDD sandwich. "
-                "Use expand_task first to create subtasks.",
-                "task_id": task.id,
-            }
-
-        # Filter to code/config children that aren't already TDD-formatted
-        tdd_categories = ("code", "config")
-        impl_task_ids = []
-        for child in children:
-            # Skip tasks that match TDD skip patterns
-            if should_skip_tdd(child.title):
-                continue
-            # Include code/config categories, or tasks without category (default to include)
-            if child.category in tdd_categories or child.category is None:
-                impl_task_ids.append(child.id)
-
-        if not impl_task_ids:
-            return {
-                "skipped": True,
-                "reason": "No eligible children for TDD (all match skip patterns or wrong category)",
-                "task_id": task.id,
-            }
-
-        # Apply TDD sandwich
-        result = await _apply_tdd_sandwich(resolved_task_id, impl_task_ids)
-
-        if result.get("success"):
-            return {
-                "task_id": task.id,
-                "tdd_applied": True,
-                "tasks_created": result.get("tasks_created", 0),
-                "impl_tasks_wrapped": result.get("impl_task_count", 0),
-                "test_task_id": result.get("test_task_id"),
-                "refactor_task_id": result.get("refactor_task_id"),
-            }
-        else:
-            return {
-                "error": result.get("error", "Unknown error"),
-                "task_id": task.id,
-            }
 
     return registry

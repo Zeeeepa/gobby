@@ -1,9 +1,7 @@
 """Tests for --project/-p flag on task CLI commands.
 
 Tests verify the --project flag for specifying project context:
-- enrich command with --project
 - expand command with --project
-- apply-tdd command with --project
 """
 
 from unittest.mock import MagicMock, patch
@@ -74,28 +72,3 @@ class TestExpandProjectFlag:
             assert mock_expander_cls.called, "TaskExpander should be instantiated"
 
 
-class TestApplyTddProjectFlag:
-    """Tests for apply-tdd command --project flag."""
-
-    def test_apply_tdd_has_project_option(self, runner: CliRunner):
-        """Test that apply-tdd command has --project option."""
-        result = runner.invoke(tasks, ["apply-tdd", "--help"])
-        assert result.exit_code == 0
-        assert "--project" in result.output or "-p" in result.output
-
-    def test_apply_tdd_with_project_flag(self, runner: CliRunner, mock_task):
-        """Test apply-tdd with --project flag."""
-        with (
-            patch("gobby.cli.tasks.ai.get_task_manager") as mock_get_manager,
-            patch("gobby.cli.tasks.ai.resolve_task_id", return_value=mock_task),
-        ):
-            mock_manager = MagicMock()
-            mock_get_manager.return_value = mock_manager
-            mock_manager.create_task.return_value = mock_task
-
-            result = runner.invoke(tasks, ["apply-tdd", "#42", "--project", "myproject"])
-
-            # The --project option should be recognized and command should succeed
-            assert result.exit_code == 0, f"Command failed: {result.output}"
-            # Verify no unknown option error for --project
-            assert "Error: No such option" not in result.output

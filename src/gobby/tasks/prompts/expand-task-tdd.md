@@ -1,47 +1,48 @@
 # TDD Mode Instructions
 
-**IMPORTANT:** Do NOT create separate test/implement/refactor tasks. The system handles TDD structure automatically.
+**IMPORTANT:** Do NOT create separate test/implement/refactor tasks. The system handles TDD structure automatically via the sandwich pattern.
 
-For each coding feature, output a SINGLE task with just the feature name:
-- Title: "User authentication" (NOT "Write tests for user authentication")
-- Title: "Database connection pooling" (NOT "Implement database connection pooling")
+## How It Works
 
-The system will automatically expand coding tasks into TDD triplets:
-1. Write tests for: <title>
-2. Implement: <title>
-3. Refactor: <title>
+The system automatically applies TDD sandwich pattern after expansion:
+- ONE [TEST] task at the start (covers all code/config implementations)
+- Your subtasks become the implementation tasks
+- ONE [REFACTOR] task at the end
 
-## Task Types
+**Your job:** Output plain feature tasks with `category: "code"` or `category: "config"`.
 
-| task_type | Description | TDD Expansion |
-|-----------|-------------|---------------|
-| `feature` | New functionality requiring code implementation | Yes - expands to TDD triplet |
-| `task` | General coding work (default) | Yes - expands to TDD triplet |
-| `bug` | Bug fix requiring code changes | Yes - expands to TDD triplet |
-| `epic` | Non-coding tasks: documentation, research, design, planning | No - stays as single task |
+## Categories for TDD
 
-For NON-coding tasks (documentation, research, design, planning, configuration):
-- Set `task_type: "epic"` or start the title with keywords like "Document", "Research", "Design", "Plan"
-- These will NOT be expanded into TDD triplets
+| Category | TDD Treatment | Description |
+|----------|---------------|-------------|
+| `code` | Yes - wrapped in sandwich | Source code implementation |
+| `config` | Yes - wrapped in sandwich | Configuration file changes |
+| `docs` | No - stays as single task | Documentation tasks |
+| `research` | No - stays as single task | Investigation/exploration |
+| `planning` | No - stays as single task | Design/architecture work |
+| `manual` | No - stays as single task | Manual verification |
 
-## Subtask Fields
+## DO NOT Use These Prefixes
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| title | string | Yes | Short, actionable title for the subtask |
-| description | string | No | Detailed description with implementation notes and context |
-| task_type | string | No | One of: "feature", "task" (default), "bug", "epic" |
+- "Write tests for:", "Test:", "[TEST]"
+- "Implement:", "[IMPL]"
+- "Refactor:", "[REFACTOR]"
 
 ## Example Output
 
 ```json
 {
   "subtasks": [
-    {"title": "User authentication", "task_type": "feature", "description": "Login, logout, and session management"},
-    {"title": "Database connection pooling", "task_type": "task", "description": "Add pooling for database connections"},
-    {"title": "Document the API endpoints", "task_type": "epic", "description": "Write API documentation for all endpoints"}
+    {"title": "Create database schema", "category": "code"},
+    {"title": "Add user authentication", "category": "code", "depends_on": [0]},
+    {"title": "Document the API", "category": "docs"}
   ]
 }
 ```
 
-The first two become TDD triplets (6 tasks total). The third stays as a single task.
+The system transforms this into:
+- [TEST] Write tests for: Parent Task (covers database schema + authentication)
+- [IMPL] Create database schema
+- [IMPL] Add user authentication
+- [REFACTOR] Refactor: Parent Task
+- Document the API (no TDD - it's docs)
