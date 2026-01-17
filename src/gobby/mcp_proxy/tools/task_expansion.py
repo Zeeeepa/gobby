@@ -343,6 +343,11 @@ def create_expansion_registry(
         if not root_task:
             return {"error": f"Task not found: {single_task_id}", "task_id": single_task_id}
 
+        # Auto-enable iterative mode for epics (timeout-safe cascade)
+        # Each call expands one epic and returns - caller loops until complete=True
+        if root_task.task_type == "epic" and not iterative:
+            iterative = True
+
         # Iterative mode: find next unexpanded epic in tree
         if iterative:
             target_task = _find_unexpanded_epic(resolved_task_id)
