@@ -29,6 +29,7 @@ Example:
 
 import asyncio
 import logging
+import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -446,9 +447,34 @@ class HookManager:
         """
         # Check daemon status (cached)
         is_ready, _, daemon_status, error_reason = self._get_cached_daemon_status()
+
+        # Critical hooks that should retry before giving up
+        # These hooks are essential for session context preservation
+        critical_hooks = {
+            HookEventType.SESSION_START,
+            HookEventType.SESSION_END,
+            HookEventType.PRE_COMPACT,
+        }
+        retry_delays = [0.5, 1.0, 2.0]  # Exponential backoff
+
+        # Retry with fresh health checks for critical hooks
+        if not is_ready and event.event_type in critical_hooks:
+            for attempt, delay in enumerate(retry_delays, 1):
+                time.sleep(delay)
+                is_ready = self._health_monitor.check_now()
+                if is_ready:
+                    self.logger.info(
+                        f"Daemon recovered after {attempt} retry(ies) for {event.event_type}"
+                    )
+                    break
+                self.logger.debug(
+                    f"Daemon still unavailable, retry {attempt}/{len(retry_delays)} "
+                    f"for {event.event_type}"
+                )
+
         if not is_ready:
             self.logger.warning(
-                f"Daemon not available, skipping hook execution: {event.event_type}. "
+                f"Daemon not available after retries, skipping hook execution: {event.event_type}. "
                 f"Status: {daemon_status}, Error: {error_reason}"
             )
             return HookResponse(

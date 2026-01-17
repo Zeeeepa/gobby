@@ -141,5 +141,31 @@ class HealthMonitor:
                 self._cached_daemon_error,
             )
 
+    def check_now(self) -> bool:
+        """
+        Perform immediate health check (not cached).
+
+        Makes a fresh HTTP call to check daemon status and updates the cache.
+        Used for retry logic when cached status indicates daemon is unavailable.
+
+        Returns:
+            True if daemon is healthy, False otherwise
+        """
+        try:
+            is_ready, message, status, error = self._daemon_client.check_status()
+            with self._health_check_lock:
+                self._cached_daemon_is_ready = is_ready
+                self._cached_daemon_message = message
+                self._cached_daemon_status = status
+                self._cached_daemon_error = error
+            return is_ready
+        except Exception as e:
+            self.logger.debug(f"Immediate health check failed: {e}")
+            with self._health_check_lock:
+                self._cached_daemon_is_ready = False
+                self._cached_daemon_status = "not_running"
+                self._cached_daemon_error = str(e)
+            return False
+
 
 __all__ = ["HealthMonitor"]

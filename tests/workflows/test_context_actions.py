@@ -250,13 +250,14 @@ class TestInjectContext:
 
         assert result is None
 
-    def test_returns_none_when_parent_has_no_summary(
+    def test_returns_none_when_parent_has_no_summary_and_no_failback(
         self, mock_session_manager, workflow_state, mock_template_engine, mock_session
     ):
-        """Should return None when parent session has no summary."""
+        """Should return None when parent session has no summary and no failback file."""
         mock_session.parent_session_id = "parent-session-id"
         parent = MagicMock()
         parent.summary_markdown = None
+        parent.external_id = None  # No external_id means no failback lookup
 
         mock_session_manager.get.side_effect = lambda sid: (
             mock_session if sid == "test-session-id" else parent
@@ -271,6 +272,43 @@ class TestInjectContext:
         )
 
         assert result is None
+
+    def test_recovers_from_failback_file_when_no_summary(
+        self, mock_session_manager, workflow_state, mock_template_engine, mock_session, tmp_path
+    ):
+        """Should recover summary from failback file when database summary is empty."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        mock_session.parent_session_id = "parent-session-id"
+        parent = MagicMock()
+        parent.summary_markdown = None
+        parent.external_id = "test-external-uuid-123"
+
+        mock_session_manager.get.side_effect = lambda sid: (
+            mock_session if sid == "test-session-id" else parent
+        )
+
+        # Create the .gobby directory structure and failback file
+        # Path.home() returns tmp_path, so full path is tmp_path / ".gobby" / "session_summaries"
+        (tmp_path / ".gobby" / "session_summaries").mkdir(parents=True)
+        (tmp_path / ".gobby" / "session_summaries" / "session_20240101_test-external-uuid-123.md").write_text(
+            "# Recovered Summary\nRecovered from failback file."
+        )
+
+        # Patch Path.home() to use tmp_path
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = inject_context(
+                session_manager=mock_session_manager,
+                session_id="test-session-id",
+                state=workflow_state,
+                template_engine=mock_template_engine,
+                source="previous_session_summary",
+            )
+
+        assert result is not None
+        assert result["inject_context"] == "# Recovered Summary\nRecovered from failback file."
+        assert workflow_state.context_injected is True
 
     def test_artifacts_source_with_artifacts(self, mock_session_manager, mock_template_engine):
         """Should format artifacts as markdown when source is artifacts."""

@@ -98,8 +98,22 @@ def inject_context(
 
         if current_session.parent_session_id:
             parent = session_manager.get(current_session.parent_session_id)
-            if parent and parent.summary_markdown:
+            if parent:
                 content = parent.summary_markdown
+                # Failback: try reading from file if database summary is empty
+                # This handles cases where daemon was unavailable during /clear
+                if not content and hasattr(parent, "external_id") and parent.external_id:
+                    summary_dir = Path.home() / ".gobby" / "session_summaries"
+                    if summary_dir.exists():
+                        for summary_file in summary_dir.glob(f"session_*_{parent.external_id}.md"):
+                            try:
+                                content = summary_file.read_text()
+                                logger.info(
+                                    f"Recovered summary from failback file for {parent.external_id}"
+                                )
+                                break
+                            except Exception as e:
+                                logger.warning(f"Failed to read failback file {summary_file}: {e}")
 
     elif source == "artifacts":
         if state.artifacts:

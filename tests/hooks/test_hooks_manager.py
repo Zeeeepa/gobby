@@ -150,10 +150,18 @@ class TestHookManagerHandle:
         manager = hook_manager_with_mocks
 
         # Simulate daemon not ready by mocking HealthMonitor's get_cached_status
-        with patch.object(
-            manager._health_monitor,
-            "get_cached_status",
-            return_value=(False, None, "not_running", "Connection refused"),
+        # Also mock check_now() since critical hooks (like SESSION_START) retry
+        with (
+            patch.object(
+                manager._health_monitor,
+                "get_cached_status",
+                return_value=(False, None, "not_running", "Connection refused"),
+            ),
+            patch.object(
+                manager._health_monitor,
+                "check_now",
+                return_value=False,  # Retries also fail
+            ),
         ):
             response = manager.handle(sample_session_start_event)
 
@@ -161,6 +169,39 @@ class TestHookManagerHandle:
         assert response.decision == "allow"
         assert response.reason is not None
         assert "not_running" in response.reason
+
+    def test_handle_daemon_recovers_after_retry(
+        self,
+        hook_manager_with_mocks: HookManager,
+        sample_session_start_event: HookEvent,
+    ):
+        """Test daemon recovery after retry for critical hooks."""
+        from unittest.mock import MagicMock, patch
+
+        manager = hook_manager_with_mocks
+
+        # Create a mock that returns True on the second call (simulating recovery)
+        check_now_mock = MagicMock(side_effect=[False, True])  # Fails first, then succeeds
+
+        # Simulate daemon not ready initially, but check_now recovers
+        with (
+            patch.object(
+                manager._health_monitor,
+                "get_cached_status",
+                return_value=(False, None, "not_running", "Connection refused"),
+            ),
+            patch.object(
+                manager._health_monitor,
+                "check_now",
+                check_now_mock,
+            ),
+        ):
+            response = manager.handle(sample_session_start_event)
+
+        # Should succeed after retry (no reason means it proceeded to handler)
+        assert response.decision == "allow"
+        # check_now should have been called (retry logic was triggered)
+        assert check_now_mock.call_count >= 1
 
     def test_handle_unknown_event_type(self, hook_manager_with_mocks: HookManager):
         """Test handling unknown event type fails open."""
