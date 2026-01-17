@@ -77,7 +77,7 @@ Write to `.gobby/plans/{kebab-name}.md`:
 ## Task Mapping
 
 <!-- Updated after task creation -->
-| Spec Item | Task Ref | Status |
+| Plan Item | Task Ref | Status |
 |-----------|----------|--------|
 ```
 

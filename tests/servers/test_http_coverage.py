@@ -380,6 +380,7 @@ class TestCreateServer:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestAdminEndpoints:
     """Additional tests for admin endpoints."""
 
@@ -533,6 +534,7 @@ class TestAdminEndpoints:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestMCPEndpoints:
     """Tests for MCP endpoints.
 
@@ -667,6 +669,7 @@ class FakeMCPManagerSimple:
         return server_name in self._configs
 
 
+@pytest.mark.integration
 class TestMCPEndpointsWithManager:
     """Tests for MCP endpoints with mock MCP manager."""
 
@@ -727,6 +730,7 @@ class TestMCPEndpointsWithManager:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestCodeEndpoints:
     """Tests for code execution endpoints."""
 
@@ -778,6 +782,7 @@ class TestCodeEndpoints:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestHooksEndpoints:
     """Tests for hooks endpoints."""
 
@@ -827,6 +832,7 @@ class TestHooksEndpoints:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestPluginsEndpoints:
     """Tests for plugins endpoints."""
 
@@ -891,6 +897,7 @@ class TestPluginsEndpoints:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestWebhooksEndpoints:
     """Tests for webhooks endpoints."""
 
@@ -1129,6 +1136,7 @@ class TestRunServer:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestInternalRegistries:
     """Tests for internal registry handling."""
 
