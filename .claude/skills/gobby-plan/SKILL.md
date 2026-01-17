@@ -156,45 +156,78 @@ Present the plan to the user:
 
 ## Step 6: Task Creation
 
-Create the epic and let `expand_task` build the tree from the plan context:
+**IMPORTANT**: `expand_task` creates FLAT children only - it does not create nested hierarchies.
+To get a proper Epic → Phases → Tasks structure, you must create the hierarchy manually.
+
+### 6a. Create the Root Epic
 
 ```python
-# 1. Create the epic with plan document as description
 epic = call_tool("gobby-tasks", "create_task", {
     "title": "{Epic Title}",
     "task_type": "epic",
-    "description": "## Plan\nSee .gobby/plans/{name}.md\n\n{paste key plan sections here for LLM context}",
+    "description": "See .gobby/plans/{name}.md",
     "session_id": "<your_session_id>"
 })
 # Returns: {"ref": "#42", ...}
-
-# 2. Expand the epic - LLM decomposes into subtasks based on description
-# For nested epics, use iterative mode to cascade through the tree
-while True:
-    result = call_tool("gobby-tasks", "expand_task", {
-        "task_id": "#42",
-        "iterative": True
-    })
-    if result.get("complete"):
-        break
-    # Each iteration expands one unexpanded epic in the tree
 ```
 
-**What expand_task does:**
-- LLM reads the task title/description and generates subtasks
-- Creates subtasks with proper dependencies
-- Auto-applies TDD sandwich for code/config subtasks (ONE [TEST] → IMPLs → ONE [REFACTOR])
-- Sets `is_expanded=True` on expanded tasks
+### 6b. Create Phase Epics Manually
+
+For EACH phase in your plan, create a child epic. Include the phase's task list in the description
+so `expand_task` knows what leaf tasks to create:
+
+```python
+# Phase 1
+phase1 = call_tool("gobby-tasks", "create_task", {
+    "title": "Phase 1: {Phase Name}",
+    "task_type": "epic",
+    "parent_task_id": "#42",  # Root epic ref
+    "description": "{Phase goal}\n\nTasks:\n- Task 1 title (category: code)\n- Task 2 title (category: code)\n- Task 3 title (category: config)",
+    "session_id": "<your_session_id>"
+})
+# Returns: {"ref": "#43", ...}
+
+# Phase 2
+phase2 = call_tool("gobby-tasks", "create_task", {
+    "title": "Phase 2: {Phase Name}",
+    "task_type": "epic",
+    "parent_task_id": "#42",
+    "description": "{Phase goal}\n\nTasks:\n- Task 4 title (category: code)\n- Task 5 title (category: document)",
+    "session_id": "<your_session_id>"
+})
+# ... repeat for each phase in the plan
+```
+
+### 6c. Expand Each Phase Epic
+
+Now expand each phase to generate leaf tasks + TDD sandwich:
+
+```python
+# Expand Phase 1 - LLM creates leaf tasks from the description
+call_tool("gobby-tasks", "expand_task", {"task_id": "#43"})
+
+# Expand Phase 2
+call_tool("gobby-tasks", "expand_task", {"task_id": "#44"})
+
+# ... repeat for each phase
+```
+
+**What expand_task does per phase:**
+- LLM reads the phase title + description
+- Creates leaf tasks as children of the phase epic
+- Auto-applies TDD sandwich (ONE [TEST] → leaf tasks → ONE [REFACTOR])
+- Sets `is_expanded=True` on the phase
+
+### 6d. Update Plan Doc with Task Refs
+
+After all expansions complete:
+- Call `list_tasks(parent_task_id="#42")` to get the full tree
+- Fill in Task Mapping table with created task refs
+- Use Edit tool to update `.gobby/plans/{name}.md`
 
 **Note on session_id**:
-- Required parameter provided by the runtime environment
-- Available in the `SessionStart` hook context at conversation start
+- Required parameter from the SessionStart hook context
 - Look for `session_id: <uuid>` in the startup system reminder
-
-**Update plan doc** with task refs:
-- After expansion, call `list_tasks(parent_task_id="#42")` to get created subtasks
-- Fill in Task Mapping table with created task refs (#N)
-- Use Edit tool to update `.gobby/plans/{name}.md`
 
 ## Step 7: Task Verification
 
