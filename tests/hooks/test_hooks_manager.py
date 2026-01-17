@@ -70,21 +70,8 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
 
         yield manager
 
-        # Cleanup: Remove test sessions from HookManager's database (uses production DB)
-        # The HookManager creates its own LocalDatabase() connection to ~/.gobby/gobby-hub.db
-        test_external_ids = [
-            "test-external-id-123",
-            "test-resume-session-123",
-            "test",
-        ]
-        try:
-            manager._database.execute(
-                f"DELETE FROM sessions WHERE external_id IN ({','.join('?' * len(test_external_ids))})",
-                tuple(test_external_ids),
-            )
-        except Exception:
-            pass  # Best effort cleanup
-
+        # Cleanup: HookManager uses the temp database via config.database_path
+        # (protect_production_resources fixture ensures GOBBY_TEST_PROTECT is set)
         manager.shutdown()
         db.close()
 
@@ -1206,7 +1193,6 @@ class TestHookManagerWebhookDispatch:
         assert len(result) == 1
         assert result[0].success is True
 
-    @pytest.mark.skip(reason="Flaky: sqlite3.DatabaseError in CI due to test isolation issues")
     def test_dispatch_webhooks_async_disabled(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
     ):

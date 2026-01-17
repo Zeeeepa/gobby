@@ -264,7 +264,6 @@ class TestGobbyRunnerRun:
                     # Should not raise - error is logged but doesn't crash
                     await runner.run()
 
-    @pytest.mark.skip(reason="Flaky: OSError Bad file descriptor in CI due to test isolation issues")
     @pytest.mark.asyncio
     async def test_run_with_websocket_server(self, mock_config_with_websocket):
         """Test run with WebSocket server enabled."""

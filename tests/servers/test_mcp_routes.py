@@ -1649,7 +1649,6 @@ class TestMCPProxy:
 
         assert response.status_code == 500
 
-    @pytest.mark.skip(reason="Flaky: sqlite3.DatabaseError in CI due to test isolation issues")
     def test_proxy_no_mcp_manager(self, client: TestClient) -> None:
         """Test proxy when MCP manager not available."""
         response = client.post(

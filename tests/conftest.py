@@ -116,6 +116,15 @@ def protect_production_resources(request: pytest.FixtureRequest, temp_dir: Path)
     safe_logs_dir = temp_dir / "logs"
     safe_logs_dir.mkdir()
 
+    # Run migrations on safe database - this is CRITICAL!
+    # Code that calls LocalDatabase() without arguments will use this path via GOBBY_DATABASE_PATH.
+    # Without migrations, queries will fail with "file is not a database" errors.
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
+    safe_db = LocalDatabase(safe_db_path)
+    run_migrations(safe_db)
+
     safe_log_client = safe_logs_dir / "gobby.log"
     safe_log_error = safe_logs_dir / "gobby-error.log"
     safe_log_mcp_server = safe_logs_dir / "mcp-server.log"
