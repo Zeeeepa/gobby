@@ -767,6 +767,80 @@ steps:
           - **Over-constrained**: Task depends on unrelated tasks unnecessarily
           - **Under-constrained**: Parallel tasks that should be sequential
 
+          **Step 2b.1: Build Dependency Graph**
+
+          Query all tasks and their dependencies:
+
+          ```python
+          tasks = call_tool("gobby-tasks", "list_tasks", {
+              "parent_task_id": variables.root_epic_id,
+              "include_children": true,
+              "session_id": "<your_session_id>"
+          })
+
+          # Build adjacency list: task_id -> [depends_on_ids]
+          graph = {}
+          for task in tasks:
+              graph[task["ref"]] = task.get("depends_on", [])
+          ```
+
+          **Step 2b.2: Detect Circular Dependencies**
+
+          Use DFS with coloring to find cycles:
+
+          ```
+          For each task:
+            If visiting a task already in current path → CYCLE FOUND
+            Track: path = [#1, #2, #3] and #3 depends on #1 → cycle: #1 → #2 → #3 → #1
+          ```
+
+          Report cycles with full path so user can identify which edge to remove.
+
+          **Step 2b.3: Identify Missing Dependencies**
+
+          Analyze task content for implicit dependencies:
+
+          | Task B Content | Likely Depends On |
+          |----------------|-------------------|
+          | "Update X to use Y" | Task that creates Y |
+          | "Integrate A with B" | Tasks that create A and B |
+          | "Add tests for Feature" | Task that implements Feature |
+          | "Configure X for Y" | Task that creates Y |
+          | References file created by another task | That task |
+
+          Compare content-inferred deps against declared deps:
+          ```
+          If task B mentions "user model" but doesn't depend on "Create user model" task
+          → Missing dependency detected
+          ```
+
+          **Step 2b.4: Detect Over-Constrained Tasks**
+
+          A task is over-constrained if it depends on tasks it doesn't actually need:
+
+          ```
+          Task: "Add logging to auth"
+          Declared deps: ["Create user model", "Setup database", "Configure Redis"]
+          Analysis: Only needs auth module, doesn't use user model or Redis
+          → Over-constrained: Remove deps on user model and Redis
+          ```
+
+          **Step 2b.5: Detect Under-Constrained Tasks**
+
+          Tasks that should be sequential but are marked parallel:
+
+          ```
+          Task A: "Create API endpoint for /users"
+          Task B: "Add rate limiting to /users endpoint"
+          Currently: Both parallel (no dependency)
+          Should be: B depends on A (can't rate-limit endpoint that doesn't exist)
+          ```
+
+          Look for:
+          - Tasks modifying the same file without dependencies
+          - Tasks where one clearly builds on another's output
+          - Phase N+1 tasks that reference Phase N outputs without deps
+
           #### 2c. Orphaned Tasks
 
           Look for:
