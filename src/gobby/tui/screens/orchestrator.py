@@ -343,7 +343,8 @@ class ActiveAgentsPanel(Widget):
             try:
                 started_dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
                 duration = datetime.now(started_dt.tzinfo) - started_dt
-                duration_str = f"{duration.seconds // 60}m"
+                total_minutes = int(duration.total_seconds() // 60)
+                duration_str = f"{total_minutes}m"
             except Exception:
                 duration_str = "?"
         else:
@@ -461,7 +462,8 @@ class ReviewQueuePanel(Widget):
                         try:
                             updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
                             wait = datetime.now(updated_dt.tzinfo) - updated_dt
-                            wait_str = f"⏳{wait.seconds // 60}m"
+                            minutes = int(wait.total_seconds() // 60)
+                            wait_str = f"⏳{minutes}m"
                         except Exception:
                             wait_str = "⏳?"
                     else:
@@ -676,8 +678,7 @@ class OrchestratorScreen(Widget):
             self.notify(f"Failed to load orchestrator data: {e}", severity="error")
         finally:
             self.loading = False
-            if self.loading:
-                await self.recompose()
+            await self.recompose()
 
     async def _update_panels(
         self,

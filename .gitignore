@@ -237,3 +237,6 @@ bandit_report.json
 _bmad/
 test-projects/
 docs/archive/
+
+# Claude backup files
+*.backup

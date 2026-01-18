@@ -7,6 +7,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.events import Key
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
@@ -277,15 +278,16 @@ class ChatScreen(Widget):
         if event.button.id == "send-button":
             await self._send_message()
 
-    async def on_key(self, event: Any) -> None:
+    async def on_key(self, event: Key) -> None:
         """Handle key events for sending messages."""
         # Check for Enter key in text area (without shift)
-        if event.key == "enter" and not event.shift:
+        # In Textual, Shift+Enter would be key="shift+enter", not "enter"
+        if event.key == "enter":
             # Check if focus is on the text area
             input_area = self.query_one("#chat-input-area", ChatInputArea)
             text_area = input_area.query_one("#chat-input", TextArea)
             if text_area.has_focus:
-                event.prevent_default()
+                event.stop()
                 await self._send_message()
 
     async def _send_message(self) -> None:

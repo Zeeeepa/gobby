@@ -124,6 +124,11 @@ class InterAgentMessagePanel(Widget):
 
     def watch_messages(self, messages: list[dict[str, Any]]) -> None:
         """Scroll to bottom when messages change."""
+        # Schedule scroll after recompose completes
+        self.call_after_refresh(self._scroll_to_end)
+
+    def _scroll_to_end(self) -> None:
+        """Scroll the message panel to the end."""
         try:
             scroll = self.query_one("#messages-scroll", VerticalScroll)
             scroll.scroll_end(animate=False)
@@ -145,22 +150,8 @@ class InterAgentMessagePanel(Widget):
             "timestamp": datetime.now().isoformat(),
         })
 
-        # Keep only the last max_messages
+        # Keep only the last max_messages - reactive will trigger recompose
         self.messages = new_messages[-self.max_messages:]
-
-        # Mount the new message widget
-        try:
-            scroll = self.query_one("#messages-scroll", VerticalScroll)
-            scroll.mount(
-                AgentMessage(
-                    sender=sender,
-                    content=content,
-                    direction=direction,
-                )
-            )
-            scroll.scroll_end(animate=False)
-        except Exception:
-            pass
 
     def clear_messages(self) -> None:
         """Clear all messages."""

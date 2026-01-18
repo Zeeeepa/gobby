@@ -176,6 +176,7 @@ class WorkflowsScreen(Widget):
 
     async def refresh_data(self) -> None:
         """Refresh workflow status."""
+        workflows: list[dict[str, Any]] = []
         try:
             async with GobbyAPIClient(self.api_client.base_url) as client:
                 status = await client.get_workflow_status()
@@ -196,7 +197,7 @@ class WorkflowsScreen(Widget):
             self.loading = False
             await self.recompose()
             await self._update_state_panel()
-            await self._setup_table()
+            await self._setup_table(workflows)
 
     async def _update_state_panel(self) -> None:
         """Update the workflow state panel."""
@@ -206,7 +207,7 @@ class WorkflowsScreen(Widget):
         except Exception:
             pass
 
-    async def _setup_table(self) -> None:
+    async def _setup_table(self, workflows: list[dict[str, Any]] | None = None) -> None:
         """Set up the available workflows table."""
         try:
             table = self.query_one("#available-workflows", DataTable)
@@ -214,18 +215,15 @@ class WorkflowsScreen(Widget):
             table.add_columns("Name", "Type", "Description")
             table.cursor_type = "row"
 
-            # Get workflow details
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                result = await client.call_tool(
-                    "gobby-workflows",
-                    "list_workflows",
-                    {},
-                )
-                for wf in result.get("workflows", []):
-                    name = wf.get("name", "Unknown")
-                    wf_type = wf.get("type", "unknown")
-                    desc = wf.get("description", "")[:50]
-                    table.add_row(name, wf_type, desc, key=name)
+            # Use provided workflows instead of fetching again
+            if workflows is None:
+                workflows = []
+
+            for wf in workflows:
+                name = wf.get("name", "Unknown")
+                wf_type = wf.get("type", "unknown")
+                desc = wf.get("description", "")[:50]
+                table.add_row(name, wf_type, desc, key=name)
 
         except Exception:
             pass

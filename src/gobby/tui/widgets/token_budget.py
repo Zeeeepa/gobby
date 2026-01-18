@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import ProgressBar, Static
+
+logger = logging.getLogger(__name__)
 
 
 class TokenBudgetMeter(Widget):
@@ -143,8 +147,9 @@ class TokenBudgetMeter(Widget):
             spent_widget.remove_class("--normal", "--warning", "--critical")
             spent_widget.add_class(status_class)
 
-        except Exception:
-            pass
+        except Exception as e:
+            # Widget may not be composed yet during initialization
+            logger.debug(f"Token budget display update skipped: {e}")
 
     def update_budget(self, spent: float, limit: float) -> None:
         """Update budget values."""

@@ -68,7 +68,8 @@ class ReviewItem(Static):
             try:
                 updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
                 wait = datetime.now(updated_dt.tzinfo) - updated_dt
-                wait_str = f"⏳{wait.seconds // 60}m"
+                minutes = int(wait.total_seconds() // 60)
+                wait_str = f"⏳{minutes}m"
             except Exception:
                 wait_str = "⏳?"
         else:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -21,6 +22,8 @@ from textual.widgets import (
 
 from gobby.tui.api_client import GobbyAPIClient
 from gobby.tui.ws_client import GobbyWebSocketClient
+
+logger = logging.getLogger(__name__)
 
 
 class SessionListPanel(Widget):
@@ -183,7 +186,12 @@ class SessionDetailPanel(Widget):
 
     def watch_session(self, session: dict[str, Any] | None) -> None:
         """Recompose when session changes."""
-        asyncio.create_task(self.recompose())
+        def _handle_recompose_error(task: asyncio.Task[None]) -> None:
+            if not task.cancelled() and task.exception():
+                logger.error(f"Recompose failed: {task.exception()}", exc_info=task.exception())
+
+        task = asyncio.create_task(self.recompose())
+        task.add_done_callback(_handle_recompose_error)
 
     def update_session(self, session: dict[str, Any] | None) -> None:
         """Update the displayed session."""
@@ -312,8 +320,8 @@ class SessionsScreen(Widget):
 
                 table.add_row(session_id, source, status, branch, age_str, key=session.get("id"))
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Widget query failed (may not be mounted): {e}")
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle session selection."""
@@ -324,8 +332,8 @@ class SessionsScreen(Widget):
             try:
                 detail_panel = self.query_one("#detail-panel", SessionDetailPanel)
                 detail_panel.update_session(session)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Detail panel query failed (may not be mounted): {e}")
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle search input changes."""
@@ -335,9 +343,14 @@ class SessionsScreen(Widget):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle filter changes."""
+        def _handle_refresh_error(task: asyncio.Task[None]) -> None:
+            if not task.cancelled() and task.exception():
+                logger.error(f"Refresh failed: {task.exception()}", exc_info=task.exception())
+
         if event.select.id == "status-filter":
             self.current_filter = str(event.value)
-            asyncio.create_task(self.refresh_data())
+            task = asyncio.create_task(self.refresh_data())
+            task.add_done_callback(_handle_refresh_error)
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle action button presses."""

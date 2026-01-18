@@ -255,53 +255,54 @@ class DashboardScreen(Widget):
 
     async def refresh_data(self) -> None:
         """Refresh all dashboard data."""
-        self.loading = True
-        await self.recompose()
-
         try:
             async with GobbyAPIClient(self.api_client.base_url) as client:
-                # Fetch status
+                # Fetch all data first before any UI updates
                 status = await client.get_status()
-
-                # Update stats
-                stats_panel = self.query_one("#stats-panel", StatsPanel)
-
-                # Task counts
-                tasks_summary = status.get("tasks", {})
-                stats_panel.update_stat("tasks-open", tasks_summary.get("open", 0))
-                stats_panel.update_stat("tasks-progress", tasks_summary.get("in_progress", 0))
-
-                # Session count
-                sessions_summary = status.get("sessions", {})
-                stats_panel.update_stat("sessions-active", sessions_summary.get("active", 0))
-
-                # Agent count
                 agents = await client.list_agents()
-                running_agents = len([a for a in agents if a.get("status") == "running"])
-                stats_panel.update_stat("agents-running", running_agents)
 
-                # MCP servers
-                mcp_status = status.get("mcp_servers", {})
-                stats_panel.update_stat("mcp-servers", mcp_status.get("connected", 0))
+            # Now update UI - set loading to false and recompose if needed
+            if self.loading:
+                self.loading = False
+                await self.recompose()
 
-                # Memory count
-                memory_status = status.get("memory", {})
-                stats_panel.update_stat("memory-items", memory_status.get("count", 0))
+            # Update stats panel
+            stats_panel = self.query_one("#stats-panel", StatsPanel)
 
-                # Update haiku based on status
-                haiku_panel = self.query_one("#haiku-panel", HaikuPanel)
-                haiku = self._generate_status_haiku(status)
-                haiku_panel.update_haiku(haiku)
+            # Task counts
+            tasks_summary = status.get("tasks", {})
+            stats_panel.update_stat("tasks-open", tasks_summary.get("open", 0))
+            stats_panel.update_stat("tasks-progress", tasks_summary.get("in_progress", 0))
 
-                # Add initial activity
-                activity_panel = self.query_one("#activity-panel", ActivityPanel)
-                activity_panel.add_activity("Dashboard loaded")
+            # Session count
+            sessions_summary = status.get("sessions", {})
+            stats_panel.update_stat("sessions-active", sessions_summary.get("active", 0))
+
+            # Agent count
+            running_agents = len([a for a in agents if a.get("status") == "running"])
+            stats_panel.update_stat("agents-running", running_agents)
+
+            # MCP servers
+            mcp_status = status.get("mcp_servers", {})
+            stats_panel.update_stat("mcp-servers", mcp_status.get("connected", 0))
+
+            # Memory count
+            memory_status = status.get("memory", {})
+            stats_panel.update_stat("memory-items", memory_status.get("count", 0))
+
+            # Update haiku based on status
+            haiku_panel = self.query_one("#haiku-panel", HaikuPanel)
+            haiku = self._generate_status_haiku(status)
+            haiku_panel.update_haiku(haiku)
+
+            # Add initial activity
+            activity_panel = self.query_one("#activity-panel", ActivityPanel)
+            activity_panel.add_activity("Dashboard loaded")
 
         except Exception as e:
             # Show error state
-            self.notify(f"Failed to load dashboard: {e}", severity="error")
-        finally:
             self.loading = False
+            self.notify(f"Failed to load dashboard: {e}", severity="error")
 
     def _generate_status_haiku(self, status: dict[str, Any]) -> list[str]:
         """Generate a haiku based on system status."""

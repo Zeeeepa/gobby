@@ -305,7 +305,7 @@ class GobbyApp(App):
 
     def on_menu_panel_item_selected(self, event: MenuPanel.ItemSelected) -> None:
         """Handle menu item selection."""
-        asyncio.create_task(self._show_screen(event.item.screen_id))
+        self.run_worker(self._show_screen(event.item.screen_id))
 
     async def on_unmount(self) -> None:
         """Clean up on app exit."""

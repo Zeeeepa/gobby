@@ -1042,10 +1042,13 @@ class TestGenerateProjectStructure:
         assert "tree content" in result
 
     @pytest.mark.asyncio
-    async def test_generate_project_structure_gitingest_import_error(self, gatherer, tmp_project):
+    async def test_generate_project_structure_gitingest_import_error(self, gatherer, tmp_project, monkeypatch):
         """Test fallback when gitingest not installed."""
+        # Remove gitingest from sys.modules to simulate import error
+        import sys
+        monkeypatch.delitem(sys.modules, "gitingest", raising=False)
+
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_project):
-            # The actual import might fail, which triggers fallback
             result = await gatherer._generate_project_structure()
 
         # Should still return something via fallback

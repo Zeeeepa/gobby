@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
@@ -228,10 +230,6 @@ class TasksScreen(Widget):
         content-align: center middle;
     }
     """
-
-    from dataclasses import dataclass
-
-    from textual.message import Message
 
     @dataclass
     class FilterChanged(Message):
