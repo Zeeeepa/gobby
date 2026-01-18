@@ -1,0 +1,941 @@
+name: plan-expansion
+description: |
+  BMAD-style collaborative planning workflow with automated TDD expansion.
+
+  Enforces a structured planning process:
+  1. Context Discovery - Analyze existing project context
+  2. Requirements Elicitation - BMAD-style A/P/C menu discovery
+  3. Plan Drafting - Write plan document to .gobby/plans/
+  4. Plan Verification - Validate structure and dependencies
+  5. Task Hierarchy Creation - Create epic → phase → task structure
+  6. TDD Expansion Loop - Auto-expand feature tasks with TDD triplets
+  7. Verification - Confirm task tree is complete
+
+  Usage:
+    1. Activate: `gobby workflows set plan-expansion`
+    2. Follow discovery prompts
+    3. Write plan document when ready
+    4. Approve plan for task creation
+    5. Workflow automatically expands feature tasks
+
+version: "1.0"
+type: step
+
+variables:
+  # Plan file path (set during draft_plan step)
+  plan_file: null
+  # Root epic ID (set during create_hierarchy)
+  root_epic_id: null
+  # Phase epic IDs
+  phase_epic_ids: []
+  # Feature task IDs (tasks to expand)
+  feature_task_ids: []
+  # Expanded task IDs (tracks expansion progress)
+  expanded_task_ids: []
+  # Expected counts for validation
+  expected_phase_count: 0
+  expected_feature_count: 0
+  # A/P/C menu choice
+  apc_choice: null
+  # Elicitation depth (rounds of deep discovery)
+  elicitation_depth: 0
+  # Verification flags
+  context_analyzed: false
+  verification_passed: false
+  tasks_verified: false
+
+steps:
+  # =========================================
+  # Phase 1: Context Discovery (BMAD-style)
+  # =========================================
+  - name: discover
+    description: "Analyze existing context before asking questions"
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - WebSearch
+      - WebFetch
+      - Task
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__recommend_tools
+      - mcp__gobby__search_tools
+      - TodoWrite
+      - AskUserQuestion
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Collaborative Planning: Context Discovery
+
+          **REQUIRED**: Before creating any plan, thoroughly analyze the project context.
+
+          ### What to Analyze
+
+          1. **Existing Plans** - Check `.gobby/plans/*.md` for related work
+          2. **Project Structure** - Understand directory layout and patterns
+          3. **Related Code** - Find existing implementations to build on
+          4. **Architecture Constraints** - Identify patterns that must be followed
+          5. **Dependencies** - Note external libraries and internal modules
+
+          ### How to Analyze
+
+          Use read-only tools to explore:
+          - `Glob` - Find relevant files by pattern
+          - `Grep` - Search for related code/patterns
+          - `Read` - Examine specific files
+          - `Task` with `subagent_type=Explore` - For broader exploration
+
+          ### Output Required
+
+          Present findings to the user:
+          ```
+          ## Context Analysis
+
+          **Existing Related Work:**
+          - [List any existing plans or implementations]
+
+          **Relevant Code Patterns:**
+          - [Patterns to follow or integrate with]
+
+          **Architecture Constraints:**
+          - [Constraints that affect the design]
+
+          **Dependencies:**
+          - [External/internal dependencies to consider]
+          ```
+
+          After presenting findings, set `variables.context_analyzed = true` to proceed.
+
+    transitions:
+      - to: gather
+        when: "variables.context_analyzed"
+
+  # =========================================
+  # Phase 2: Requirements Elicitation (BMAD A/P/C)
+  # =========================================
+  - name: gather
+    description: "Collaborative requirements gathering with A/P/C menu"
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - WebSearch
+      - WebFetch
+      - Task
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__recommend_tools
+      - mcp__gobby__search_tools
+      - TodoWrite
+      - AskUserQuestion
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Requirements Elicitation (BMAD-style A/P/C)
+
+          Based on context analysis, validate understanding through collaborative discovery.
+
+          ### Core Questions to Ask
+
+          1. **"What is the name/title for this feature or project?"**
+          2. **"What is the high-level goal?"** (1-2 sentences)
+          3. **"What problem are we solving?"** (Why does this matter?)
+          4. **"What does success look like?"** (Measurable outcomes)
+          5. **"What constraints must we respect?"** (Technical, business, time)
+          6. **"What are the unknowns or risks?"** (Pre-mortem analysis)
+
+          ### A/P/C Menu
+
+          After initial discussion, present the menu using `AskUserQuestion`:
+
+          - **[A] Advanced** - Deeper elicitation techniques:
+            - Socratic questioning (challenge assumptions)
+            - First principles breakdown (decompose to fundamentals)
+            - Stakeholder perspectives (who else is affected?)
+            - Edge case exploration (what could go wrong?)
+
+          - **[P] Party** - Multiple perspectives on the problem:
+            - Developer perspective (implementation complexity)
+            - User perspective (usability and value)
+            - Operations perspective (maintenance and monitoring)
+            - Security perspective (attack surface and risks)
+
+          - **[C] Continue** - Proceed to plan drafting
+
+          ### Elicitation Loop
+
+          If user chooses [A] or [P]:
+          1. Apply the selected technique
+          2. Increment `variables.elicitation_depth`
+          3. Present A/P/C menu again
+          4. Loop until user chooses [C]
+
+          ### Setting the Choice
+
+          After user responds, set `variables.apc_choice` to their selection:
+          - 'A' or 'a' for Advanced (loops back to gather)
+          - 'P' or 'p' for Party (loops back to gather)
+          - 'C' or 'c' for Continue (transitions to draft_plan)
+
+    transitions:
+      # Loop for deeper elicitation
+      - to: gather
+        when: "variables.apc_choice in ['A', 'P', 'a', 'p']"
+      # Continue to drafting
+      - to: draft_plan
+        when: "variables.apc_choice in ['C', 'c']"
+
+  # =========================================
+  # Phase 3: Draft Plan Document
+  # =========================================
+  - name: draft_plan
+    description: "Create plan document with phases and tasks"
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - Write
+      - Edit
+      - WebSearch
+      - WebFetch
+      - Task
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__recommend_tools
+      - mcp__gobby__search_tools
+      - TodoWrite
+      - AskUserQuestion
+
+    blocked_tools:
+      - Bash
+      - NotebookEdit
+
+    rules:
+      # Only allow writes to .gobby/plans/ during planning
+      - name: restrict_write_to_plans
+        when: "tool_name == 'Write' and '.gobby/plans/' not in str(tool_args.get('file_path', ''))"
+        action: block
+        message: "During planning, only write to .gobby/plans/"
+      - name: restrict_edit_to_plans
+        when: "tool_name == 'Edit' and '.gobby/plans/' not in str(tool_args.get('file_path', ''))"
+        action: block
+        message: "During planning, only edit files in .gobby/plans/"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Drafting Plan Structure
+
+          Create a plan document at `.gobby/plans/{kebab-name}.md`.
+
+          ### Plan Document Template
+
+          ```markdown
+          # {Epic Title}
+
+          ## Overview
+          {Goal and context from requirements gathering}
+
+          ## Constraints
+          {Constraints identified during elicitation}
+
+          ## Phase 1: {Phase Name}
+
+          **Goal**: {One sentence outcome}
+
+          **Tasks:**
+          - [ ] Task 1 title (category: code)
+          - [ ] Task 2 title (depends: Task 1) (category: code)
+          - [ ] Task 3 title (parallel) (category: config)
+
+          ## Phase 2: {Phase Name}
+
+          **Goal**: {One sentence outcome}
+
+          **Tasks:**
+          - [ ] Task 4 (depends: Phase 1) (category: code)
+          - [ ] Task 5 (parallel with Task 4) (category: docs)
+
+          ## Task Mapping
+
+          <!-- Updated after task creation -->
+          | Plan Item | Task Ref | Status |
+          |-----------|----------|--------|
+          ```
+
+          ### Task Categories (CRITICAL)
+
+          Assign ONE category to each task. This determines TDD behavior:
+
+          | Category | Description | TDD Applied? |
+          |----------|-------------|--------------|
+          | `code` | Implementation tasks | YES |
+          | `config` | Configuration changes | YES |
+          | `docs` | Documentation tasks | NO |
+          | `test` | Test infrastructure | NO |
+          | `research` | Investigation tasks | NO |
+          | `planning` | Architecture/design | NO |
+          | `manual` | Manual verification | NO |
+
+          ### FORBIDDEN Patterns (TDD Anti-Patterns)
+
+          **DO NOT create these tasks** - TDD sandwich creates them automatically:
+
+          - `"Write tests for..."` or `"Add tests for..."`
+          - `"Test..."` as task title prefix
+          - `"[TDD]..."` or `"[IMPL]..."` or `"[REF]..."`
+          - `"Ensure tests pass"` or `"Run tests"`
+          - `"Add unit tests"` or `"Add integration tests"`
+          - Any task with `test` as the primary verb
+
+          **ALLOWED** (not test tasks):
+          - `"Add TestClient fixture"` (test infrastructure)
+          - `"Configure pytest settings"` (configuration)
+
+          ### Task Granularity Guidelines
+
+          Each task should be:
+          - **Atomic**: Completable in one AI session
+          - **Testable**: Has clear pass/fail criteria
+          - **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
+          - **Scoped**: References specific files/functions when possible
+
+          Good: `"Add TaskEnricher class to src/gobby/tasks/enrich.py"`
+          Bad: `"Implement enrichment"` (too vague)
+
+          ### Dependency Notation
+
+          Use inline notation in task lists:
+          - `(depends: Task 1)` - Depends on specific task
+          - `(depends: Phase N)` - Depends on all tasks in phase
+          - `(parallel)` - Can run in parallel with siblings
+
+          ### When Ready
+
+          After writing the plan document:
+          1. Set `variables.plan_file` to the file path (e.g., `.gobby/plans/my-feature.md`)
+          2. Workflow will transition to verify_plan step
+
+    exit_conditions:
+      - type: user_approval
+        prompt: "Is the plan document ready for verification?"
+
+    transitions:
+      - to: verify_plan
+        when: "variables.plan_file"
+
+  # =========================================
+  # Phase 4: Verify Plan Structure
+  # =========================================
+  - name: verify_plan
+    description: "Verify plan has no test tasks and valid dependencies"
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - Edit
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - TodoWrite
+      - AskUserQuestion
+
+    blocked_tools:
+      - Write
+      - Bash
+      - NotebookEdit
+
+    rules:
+      - name: only_edit_plan_file
+        when: "tool_name == 'Edit' and str(tool_args.get('file_path', '')) != str(variables.plan_file)"
+        action: block
+        message: "Can only edit the plan file during verification"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Plan Verification (REQUIRED)
+
+          Before proceeding to task creation, verify the plan passes all checks.
+
+          ### Check 1: No Explicit Test Tasks
+
+          Scan the plan for tasks that should NOT exist (TDD sandwich creates these):
+
+          **FORBIDDEN patterns - remove these if found:**
+          - `"Write tests for..."` or `"Add tests for..."`
+          - `"Test..."` as task title prefix
+          - `"[TDD]..."` or `"[IMPL]..."` or `"[REF]..."`
+          - `"Ensure tests pass"` or `"Run tests"`
+          - `"Add unit tests"` or `"Add integration tests"`
+          - Any task with `test` as the primary verb
+
+          **ALLOWED (these are fine):**
+          - `"Add TestClient fixture"` (test infrastructure, not a test task)
+          - `"Configure pytest settings"` (configuration)
+
+          ### Check 2: Dependency Tree Validation
+
+          Verify the dependency structure is valid:
+
+          1. **No circular dependencies**: Task A → B → A is invalid
+          2. **No missing dependencies**: If Task B depends on Task A, Task A must exist
+          3. **Phase dependencies are valid**: `depends: Phase N` must reference an existing phase
+          4. **Leaf tasks are implementation work**: Bottom-level tasks should be concrete work
+
+          ### Check 3: Task Categorization
+
+          Ensure each task has a valid category:
+          - `code` - Implementation tasks (gets TDD triplets)
+          - `config` - Configuration changes (gets TDD triplets)
+          - `docs` - Documentation tasks (no TDD)
+          - `test` - Test infrastructure (no TDD)
+          - `research` - Investigation tasks (no TDD)
+          - `planning` - Architecture/design (no TDD)
+          - `manual` - Manual verification (no TDD)
+
+          ### Check 4: Phase Structure
+
+          Each phase must have:
+          - A clear goal (one sentence outcome)
+          - At least one task
+          - Logical grouping of related work
+
+          ### Verification Output
+
+          After verification, report results:
+
+          ```
+          Plan Verification:
+          ✓ No explicit test tasks found
+          ✓ Dependency tree is valid (no cycles, all refs exist)
+          ✓ Categories assigned correctly
+          ✓ Phase structure is valid
+
+          Ready for user approval.
+          ```
+
+          Or if issues found:
+
+          ```
+          Plan Verification:
+          ✗ Found 2 explicit test tasks (removed):
+            - "Add tests for user authentication" → REMOVED
+            - "Ensure all tests pass" → REMOVED
+          ✓ Dependency tree is valid
+          ✓ Categories assigned correctly
+
+          Plan updated. Ready for user approval.
+          ```
+
+          ### After Verification
+
+          1. Present verification results to user
+          2. If all checks pass, set `variables.verification_passed = true`
+          3. If issues found but fixed, re-run verification
+          4. Ask: "Does this plan look correct? Ready to create tasks?"
+
+    transitions:
+      - to: draft_plan
+        when: "not variables.verification_passed"
+      - to: create_hierarchy
+        when: "variables.verification_passed"
+
+  # =========================================
+  # Phase 5: Create Task Hierarchy
+  # =========================================
+  - name: create_hierarchy
+    description: "Create epic -> phase -> task hierarchy via MCP"
+
+    allowed_tools:
+      - Read
+      - Glob
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - TodoWrite
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+      - WebSearch
+      - WebFetch
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Creating Task Hierarchy
+
+          Create the 3-level hierarchy manually using MCP `create_task` calls.
+
+          **IMPORTANT**: `expand_task` creates FLAT children only - it does not create nested
+          hierarchies. You must create the Epic → Phase → Task structure manually.
+
+          **Required**: All `create_task` calls need a `session_id` parameter. Find your
+          session ID in the SessionStart hook context (look for `session_id: <uuid>`).
+
+          ### Step 1: Create Root Epic (Level 1)
+
+          ```python
+          epic = call_tool("gobby-tasks", "create_task", {
+              "title": "{Epic Title from plan}",
+              "task_type": "epic",
+              "description": "See .gobby/plans/{name}.md",
+              "session_id": "<your_session_id>"
+          })
+          # Returns: {"ref": "#42", ...}
+          # Store: variables.root_epic_id = "#42"
+          ```
+
+          ### Step 2: Create Phase Epics (Level 2)
+
+          For EACH phase in your plan, create a child epic:
+
+          ```python
+          # Phase 1
+          phase1 = call_tool("gobby-tasks", "create_task", {
+              "title": "Phase 1: {Phase Name}",
+              "task_type": "epic",
+              "parent_task_id": "#42",  # Root epic ref
+              "description": "{Phase goal}",
+              "session_id": "<your_session_id>"
+          })
+          # Returns: {"ref": "#43", ...}
+          # Append to: variables.phase_epic_ids
+
+          # Phase 2
+          phase2 = call_tool("gobby-tasks", "create_task", {
+              "title": "Phase 2: {Phase Name}",
+              "task_type": "epic",
+              "parent_task_id": "#42",
+              "description": "{Phase goal}",
+              "session_id": "<your_session_id>"
+          })
+          # ... repeat for each phase
+          ```
+
+          ### Step 3: Create Feature Tasks (Level 3)
+
+          For EACH task in your plan, create it under the appropriate phase:
+
+          ```python
+          # Feature tasks under Phase 1 (#43)
+          task1 = call_tool("gobby-tasks", "create_task", {
+              "title": "Create protocol.py with type definitions",
+              "task_type": "task",  # NOT epic!
+              "parent_task_id": "#43",  # Phase 1 epic ref
+              "category": "code",  # code/config gets TDD, docs/research don't
+              "description": "Implementation details...",
+              "session_id": "<your_session_id>"
+          })
+          # Returns: {"ref": "#45", ...}
+          # Append to: variables.feature_task_ids
+
+          task2 = call_tool("gobby-tasks", "create_task", {
+              "title": "Create backends/__init__.py with factory",
+              "task_type": "task",
+              "parent_task_id": "#43",
+              "category": "code",
+              "description": "Implementation details...",
+              "session_id": "<your_session_id>"
+          })
+          # ... repeat for all feature tasks in all phases
+          ```
+
+          **CRITICAL**: Create feature tasks as `task_type: "task"` (NOT epic).
+          TDD triplets are only applied when expanding tasks, NOT epics.
+
+          ### Tracking Variables
+
+          As you create tasks, update workflow variables:
+          - `variables.root_epic_id` = Root epic ref (e.g., "#42")
+          - `variables.phase_epic_ids` = List of phase epic refs
+          - `variables.feature_task_ids` = List of feature task refs to expand
+          - `variables.expected_feature_count` = Total feature tasks expected
+
+          ### When Complete
+
+          After creating all tasks, verify:
+          - `len(variables.feature_task_ids) == variables.expected_feature_count`
+          - Workflow will transition to expand_loop
+
+    transitions:
+      - to: expand_loop
+        when: "len(variables.feature_task_ids) > 0 and len(variables.feature_task_ids) == variables.expected_feature_count"
+
+  # =========================================
+  # Phase 6: TDD Expansion Loop
+  # =========================================
+  - name: expand_loop
+    description: "Expand each feature task with TDD triplets"
+
+    allowed_tools:
+      - Read
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - TodoWrite
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+      - WebSearch
+      - WebFetch
+      - Glob
+      - Grep
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## TDD Expansion Loop
+
+          **Progress:**
+          - Tasks expanded: {{ len(variables.expanded_task_ids) }}
+          - Tasks remaining: {{ len(variables.feature_task_ids) - len(variables.expanded_task_ids) }}
+
+          ### What expand_task Does
+
+          When you call `expand_task` on a **feature task** (NOT an epic):
+
+          1. **LLM Analysis**: Reads the task title + description
+          2. **Subtask Generation**: Creates implementation subtasks (granular work items)
+          3. **TDD Sandwich**: Applied to tasks with `category: code` or `category: config`:
+             - ONE `[TDD]` task at the start (write failing tests)
+             - N `[IMPL]` tasks (implementation work)
+             - ONE `[REF]` task at the end (refactor, verify tests pass)
+
+          ### TDD Triplet Pattern
+
+          Each code/config feature task becomes:
+
+          ```
+          Feature Task (#45)
+          ├── [TDD] Write failing tests for feature
+          ├── [IMPL] Implement component A
+          ├── [IMPL] Implement component B
+          └── [REF] Refactor and verify tests pass
+          ```
+
+          **Dependencies are set automatically:**
+          - All [IMPL] tasks depend on [TDD]
+          - [REF] task depends on [TDD] and all [IMPL] tasks
+
+          ### Why Expand Feature Tasks, NOT Phase Epics?
+
+          - TDD is **explicitly SKIPPED** when `task.task_type == "epic"`
+          - Expanding a phase epic creates feature tasks BUT without TDD triplets
+          - Expanding a feature task creates subtasks WITH TDD triplets
+
+          ### How to Expand
+
+          For each feature task in `variables.feature_task_ids`:
+
+          ```python
+          # Get next unexpanded task
+          task_id = variables.feature_task_ids[len(variables.expanded_task_ids)]
+
+          # Expand it
+          result = call_tool("gobby-tasks", "expand_task", {
+              "task_id": task_id,
+              "session_id": "<your_session_id>"
+          })
+
+          # Track expansion
+          variables.expanded_task_ids.append(task_id)
+          ```
+
+          ### 4-Level Hierarchy After Expansion
+
+          ```
+          L1: Root Epic (created in create_hierarchy)
+          └── L2: Phase Epic (created in create_hierarchy)
+              └── L3: Feature Task (created in create_hierarchy, is_tdd_applied=True after expand)
+                  ├── L4: [TDD] Write failing tests (created by expand_task)
+                  ├── L4: [IMPL] Implementation subtask (created by expand_task)
+                  └── L4: [REF] Refactor/cleanup (created by expand_task)
+          ```
+
+          ### Loop Behavior
+
+          This step loops until all feature tasks are expanded:
+          - If `len(expanded_task_ids) < len(feature_task_ids)`: Loop back
+          - If `len(expanded_task_ids) >= len(feature_task_ids)`: Proceed to verify_tasks
+
+    transitions:
+      # Loop back if more tasks to expand
+      - to: expand_loop
+        when: "len(variables.expanded_task_ids) < len(variables.feature_task_ids)"
+      # Exit loop when all expanded
+      - to: verify_tasks
+        when: "len(variables.expanded_task_ids) >= len(variables.feature_task_ids)"
+
+  # =========================================
+  # Phase 7: Verify Created Tasks
+  # =========================================
+  - name: verify_tasks
+    description: "Verify all tasks created correctly"
+
+    allowed_tools:
+      - Read
+      - Edit
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - TodoWrite
+      - AskUserQuestion
+
+    blocked_tools:
+      - Write
+      - Bash
+      - NotebookEdit
+      - WebSearch
+      - WebFetch
+
+    rules:
+      - name: only_edit_plan_file
+        when: "tool_name == 'Edit' and '.gobby/plans/' not in str(tool_args.get('file_path', ''))"
+        action: block
+        message: "Can only edit files in .gobby/plans/ during task verification"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Task Tree Verification
+
+          **Summary:**
+          - Root Epic: {{ variables.root_epic_id }}
+          - Phase Epics: {{ len(variables.phase_epic_ids) }}
+          - Feature Tasks: {{ len(variables.feature_task_ids) }}
+          - Expanded Tasks: {{ len(variables.expanded_task_ids) }}
+
+          ### Step 1: List Complete Task Tree
+
+          Get the full task tree to verify structure:
+
+          ```python
+          result = call_tool("gobby-tasks", "list_tasks", {
+              "parent_task_id": variables.root_epic_id,
+              "include_children": true,
+              "session_id": "<your_session_id>"
+          })
+          ```
+
+          ### Step 2: Verify TDD Triplets
+
+          For each feature task with `category: code` or `category: config`:
+          - Should have child tasks with `[TDD]`, `[IMPL]`, and `[REF]` prefixes
+          - `is_expanded=True` and `is_tdd_applied=True` flags should be set
+
+          **Expected structure:**
+          ```
+          #42 [epic] Root Epic
+          ├── #43 [epic] Phase 1: Setup
+          │   ├── #45 [task] Create protocol.py (is_tdd_applied=True)
+          │   │   ├── [TDD] Write failing tests for protocol
+          │   │   ├── [IMPL] Define MemoryCapability enum
+          │   │   ├── [IMPL] Define MemoryQuery dataclass
+          │   │   └── [REF] Refactor and verify protocol
+          │   └── #46 [task] Create backends/__init__.py (is_tdd_applied=True)
+          │       ├── [TDD] Write failing tests for factory
+          │       ├── [IMPL] Implement get_backend()
+          │       └── [REF] Refactor and verify factory
+          └── #44 [epic] Phase 2: Integration
+              └── ...
+          ```
+
+          ### Step 3: Update Plan Document
+
+          Update the plan document at `{{ variables.plan_file }}` with task refs:
+
+          ```markdown
+          ## Task Mapping
+
+          | Plan Item | Task Ref | Status |
+          |-----------|----------|--------|
+          | Create protocol.py | #45 | open |
+          | Create backends/__init__.py | #46 | open |
+          | ... | ... | ... |
+          ```
+
+          Use the Edit tool to update the Task Mapping table.
+
+          ### Step 4: Report Summary
+
+          Present final summary to user:
+
+          ```
+          ## Task Tree Created
+
+          Root Epic: #42 - {Epic Title}
+
+          Phase 1: {Phase Name} (#43)
+          - #45 Create protocol.py (4 subtasks)
+          - #46 Create backends/__init__.py (3 subtasks)
+
+          Phase 2: {Phase Name} (#44)
+          - ...
+
+          Total: X feature tasks, Y subtasks (with TDD)
+
+          Plan document updated: .gobby/plans/{name}.md
+          ```
+
+          ### Step 5: User Approval
+
+          Ask user to verify the task tree is correct:
+          - "Does this task tree look correct?"
+          - "Ready to proceed with implementation?"
+
+          If approved, set `variables.tasks_verified = true` to complete workflow.
+
+    exit_conditions:
+      - type: user_approval
+        prompt: "Is the task tree correct? Approve to complete workflow."
+
+    transitions:
+      - to: complete
+        when: "variables.tasks_verified"
+
+  # =========================================
+  # Phase 8: Complete
+  # =========================================
+  - name: complete
+    description: "Workflow complete - ready for execution"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Plan-to-Tasks Complete!
+
+          **Summary:**
+          - Root Epic: {{ variables.root_epic_id }}
+          - Phases: {{ len(variables.phase_epic_ids) }}
+          - Feature Tasks: {{ len(variables.feature_task_ids) }}
+          - Expanded Tasks: {{ len(variables.expanded_task_ids) }}
+
+          **Plan Document:** {{ variables.plan_file }}
+
+          All tasks have been created with TDD triplets where applicable.
+
+          ### Next Steps
+
+          #### Option 1: Get Next Task Suggestion
+
+          ```python
+          result = call_tool("gobby-tasks", "suggest_next_task", {
+              "session_id": "<your_session_id>"
+          })
+          # Returns: Next ready task based on priorities and dependencies
+          ```
+
+          #### Option 2: Activate Auto-Task Workflow
+
+          For autonomous task execution until the epic is complete:
+
+          ```python
+          call_tool("gobby-workflows", "activate_workflow", {
+              "name": "auto-task",
+              "variables": {
+                  "session_task": "{{ variables.root_epic_id }}"
+              }
+          })
+          ```
+
+          The auto-task workflow will:
+          - Suggest the next ready task
+          - Block session stop until task tree is complete
+          - Auto-transition when all tasks are closed
+
+          #### Option 3: Manual Execution
+
+          Work through tasks manually:
+
+          1. List ready tasks:
+             ```python
+             call_tool("gobby-tasks", "list_ready_tasks", {
+                 "session_id": "<your_session_id>"
+             })
+             ```
+
+          2. Claim a task:
+             ```python
+             call_tool("gobby-tasks", "update_task", {
+                 "task_id": "#XYZ",
+                 "status": "in_progress"
+             })
+             ```
+
+          3. Do the work, commit with task ref:
+             ```bash
+             git commit -m "[#XYZ] feat: implement feature"
+             ```
+
+          4. Close the task:
+             ```python
+             call_tool("gobby-tasks", "close_task", {
+                 "task_id": "#XYZ",
+                 "commit_sha": "abc123"
+             })
+             ```
+
+          ### Workflow Complete
+
+          The plan-expansion workflow has finished. You can now:
+          - Clear this workflow: `gobby workflows clear`
+          - Activate auto-task for execution
+          - Work through tasks manually
+
+          Good luck with implementation!
+
+# Exit condition for entire workflow
+exit_condition: "variables.tasks_verified"
+
+# Handler for premature stop attempts
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    Plan-to-tasks workflow is not yet complete.
+
+    Current step: {{ workflow_state.step }}
+
+    Please complete the remaining steps:
+    - discover: Analyze project context
+    - gather: Elicit requirements with A/P/C menu
+    - draft_plan: Write plan document
+    - verify_plan: Validate plan structure
+    - create_hierarchy: Create task epics and phases
+    - expand_loop: Expand tasks with TDD
+    - verify_tasks: Confirm task tree
+    - complete: Workflow finished
