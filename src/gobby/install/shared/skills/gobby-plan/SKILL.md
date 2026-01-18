@@ -410,3 +410,65 @@ Agent: "Here's the plan. Does this look correct?"
 User: "Yes, create the tasks"
 Agent: [Creates epic + phases + tasks]
 Agent: "Created 12 tasks under epic #47. The plan has been updated with task refs."
+
+## Optional: Workflow-Enforced Planning
+
+For stricter enforcement of the planning process with step gates and tool restrictions,
+you can activate the `plan-expansion` workflow instead of following this skill manually.
+
+### When to Use the Workflow
+
+Use the workflow when you want:
+- **Hard step gates** - Can't proceed to task creation without approval
+- **Tool restrictions** - Edit/Write blocked during discovery and gather phases
+- **Loop enforcement** - Expansion loop can't be skipped or abandoned
+- **State persistence** - Workflow state survives context compaction
+
+### How to Activate
+
+After gathering requirements (Step 1), activate the workflow:
+
+```python
+call_tool("gobby-workflows", "activate_workflow", {
+    "name": "plan-expansion",
+    "variables": {
+        "context_analyzed": false,  # Start from discovery
+        "apc_choice": null
+    }
+})
+```
+
+Or skip discovery if you've already analyzed the codebase:
+
+```python
+call_tool("gobby-workflows", "activate_workflow", {
+    "name": "plan-expansion",
+    "step": "gather",  # Start from requirements elicitation
+    "variables": {
+        "context_analyzed": true
+    }
+})
+```
+
+### Workflow Steps
+
+1. **discover** - Analyze existing context (blocks Edit/Write)
+2. **gather** - A/P/C elicitation menu (blocks Edit/Write)
+3. **draft_plan** - Write plan document (only .gobby/plans/ allowed)
+4. **verify_plan** - Check structure and dependencies
+5. **create_hierarchy** - Create epic → phase → task structure
+6. **expand_loop** - Auto-expand feature tasks with TDD
+7. **cleanup** - Evaluate tree, fix deps, identify duplicates, offer cleanup
+8. **verify_tasks** - Confirm task tree and update plan
+9. **complete** - Workflow finished
+
+### Hybrid Approach
+
+The skill and workflow are complementary:
+- **Skill**: Interactive flexibility for requirements and drafting
+- **Workflow**: Deterministic expansion with enforced gates
+
+Recommended pattern:
+1. Use this skill for Steps 1-5 (requirements through approval)
+2. Activate `plan-expansion` workflow at Step 6 (task creation)
+3. Workflow handles expansion loop deterministically

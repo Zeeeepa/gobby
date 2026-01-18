@@ -42,6 +42,7 @@ variables:
   # Verification flags
   context_analyzed: false
   verification_passed: false
+  cleanup_complete: false
   tasks_verified: false
 
 steps:
@@ -690,18 +691,181 @@ steps:
 
           This step loops until all feature tasks are expanded:
           - If `len(expanded_task_ids) < len(feature_task_ids)`: Loop back
-          - If `len(expanded_task_ids) >= len(feature_task_ids)`: Proceed to verify_tasks
+          - If `len(expanded_task_ids) >= len(feature_task_ids)`: Proceed to cleanup
 
     transitions:
       # Loop back if more tasks to expand
       - to: expand_loop
         when: "len(variables.expanded_task_ids) < len(variables.feature_task_ids)"
       # Exit loop when all expanded
-      - to: verify_tasks
+      - to: cleanup
         when: "len(variables.expanded_task_ids) >= len(variables.feature_task_ids)"
 
   # =========================================
-  # Phase 7: Verify Created Tasks
+  # Phase 7: Cleanup Task Tree
+  # =========================================
+  - name: cleanup
+    description: "Evaluate task tree, fix dependencies, identify duplicates, offer cleanup"
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - TodoWrite
+      - AskUserQuestion
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+      - WebSearch
+      - WebFetch
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ## Task Tree Cleanup
+
+          After TDD expansion, evaluate the task tree for issues and offer cleanup.
+
+          ### Step 1: Load Complete Task Tree
+
+          ```python
+          result = call_tool("gobby-tasks", "list_tasks", {
+              "parent_task_id": variables.root_epic_id,
+              "include_children": true,
+              "session_id": "<your_session_id>"
+          })
+          ```
+
+          ### Step 2: Identify Issues
+
+          Scan the task tree for these problems:
+
+          #### 2a. Duplicate Tasks
+
+          Look for tasks with:
+          - Identical or near-identical titles
+          - Same functionality described differently
+          - Overlapping scope between siblings
+
+          **Common duplicates after expansion:**
+          - Multiple `[IMPL]` tasks doing the same thing
+          - Redundant test setup tasks
+          - Config tasks duplicated across phases
+
+          #### 2b. Dependency Issues
+
+          Check for:
+          - **Missing dependencies**: Task B uses output from Task A but doesn't depend on it
+          - **Circular dependencies**: A → B → C → A (should not exist)
+          - **Over-constrained**: Task depends on unrelated tasks unnecessarily
+          - **Under-constrained**: Parallel tasks that should be sequential
+
+          #### 2c. Orphaned Tasks
+
+          Look for:
+          - Tasks with no parent (should all be under phase epics)
+          - Tasks that nothing depends on AND don't depend on anything (isolated)
+          - Tasks that duplicate work already done in parent
+
+          #### 2d. Scope Issues
+
+          Identify:
+          - Tasks too large (should be split)
+          - Tasks too small (should be merged)
+          - Tasks with unclear boundaries
+
+          ### Step 3: Generate Cleanup Report
+
+          Present findings to user:
+
+          ```
+          ## Task Tree Analysis
+
+          **Statistics:**
+          - Total tasks: X
+          - L4 subtasks (TDD): Y
+          - Ready to work: Z
+
+          **Issues Found:**
+
+          ### Duplicates (N found)
+          - #123 "Create user model" ≈ #456 "Define User class"
+            Recommendation: Merge into #123, delete #456
+
+          ### Dependency Issues (N found)
+          - #234 should depend on #123 (uses User model)
+          - #345 → #456 → #345 circular dependency detected
+
+          ### Scope Issues (N found)
+          - #567 too broad: "Implement entire auth system"
+            Recommendation: Already expanded, mark as epic
+
+          **No issues found in:** Dependencies, Orphans
+          ```
+
+          ### Step 4: Offer Cleanup Options
+
+          Use `AskUserQuestion` to present options:
+
+          ```
+          Based on analysis, I found N issues. How would you like to proceed?
+
+          Options:
+          - [A] Auto-fix all (merge duplicates, add missing deps, delete orphans)
+          - [S] Selective fix (review each issue individually)
+          - [M] Manual review (show full task tree, I'll fix manually)
+          - [C] Continue without cleanup (proceed to verification)
+          ```
+
+          ### Step 5: Execute Cleanup (if chosen)
+
+          For each cleanup action:
+
+          **Merge duplicates:**
+          ```python
+          # Keep the more detailed task, delete the other
+          call_tool("gobby-tasks", "delete_task", {
+              "task_id": "#456",
+              "session_id": "<your_session_id>"
+          })
+          ```
+
+          **Add missing dependencies:**
+          ```python
+          call_tool("gobby-tasks", "update_task", {
+              "task_id": "#234",
+              "depends_on": ["#123"],  # Add dependency
+              "session_id": "<your_session_id>"
+          })
+          ```
+
+          **Fix circular dependencies:**
+          - Identify the incorrect edge
+          - Remove it using update_task
+          - May require user input on which direction is correct
+
+          **Handle orphans:**
+          - Move to appropriate parent, or
+          - Delete if truly redundant
+
+          ### Step 6: Set Cleanup Complete
+
+          After cleanup (or skip), set `variables.cleanup_complete = true`
+          to proceed to verify_tasks.
+
+    transitions:
+      - to: verify_tasks
+        when: "variables.cleanup_complete"
+
+  # =========================================
+  # Phase 8: Verify Created Tasks
   # =========================================
   - name: verify_tasks
     description: "Verify all tasks created correctly"
@@ -829,7 +993,7 @@ steps:
         when: "variables.tasks_verified"
 
   # =========================================
-  # Phase 8: Complete
+  # Phase 9: Complete
   # =========================================
   - name: complete
     description: "Workflow complete - ready for execution"
@@ -937,5 +1101,6 @@ on_premature_stop:
     - verify_plan: Validate plan structure
     - create_hierarchy: Create task epics and phases
     - expand_loop: Expand tasks with TDD
+    - cleanup: Evaluate tree, fix deps, identify duplicates
     - verify_tasks: Confirm task tree
     - complete: Workflow finished
