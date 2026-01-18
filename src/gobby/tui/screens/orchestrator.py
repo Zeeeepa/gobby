@@ -767,6 +767,22 @@ class OrchestratorScreen(Widget):
         elif key == "p":
             self.mode = "paused"
             await self._update_mode_panel()
+        elif key in ("j", "down"):
+            await self._navigate_review_queue(1)
+        elif key in ("k", "up"):
+            await self._navigate_review_queue(-1)
+
+    async def _navigate_review_queue(self, delta: int) -> None:
+        """Navigate review queue selection."""
+        try:
+            review_panel = self.query_one("#review-queue-panel", ReviewQueuePanel)
+            review_tasks = [t for t in review_panel.tasks if t.get("status") == "review"]
+            if not review_tasks:
+                return
+            new_index = review_panel.selected_index + delta
+            review_panel.selected_index = max(0, min(new_index, len(review_tasks) - 1))
+        except Exception:
+            pass
 
     async def _toggle_mode(self) -> None:
         """Toggle between interactive and autonomous modes."""
@@ -804,7 +820,11 @@ class OrchestratorScreen(Widget):
             if task_id is None:
                 self.notify("Task has no ID", severity="error")
                 return
-            await self.api_client.close_task(task_id, no_commit_needed=True)
+            await self.api_client.close_task(
+                task_id,
+                no_commit_needed=True,
+                override_justification="Orchestrator approval - manual user review",
+            )
             self.notify(f"Approved: {task.get('ref', task_id)}")
 
             messages_panel = self.query_one("#messages-panel", InterAgentMessagePanel)

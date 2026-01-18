@@ -391,11 +391,19 @@ class TasksScreen(Widget):
 
                 elif button_id == "btn-complete":
                     # Note: In real usage, this would need a commit SHA
-                    await client.close_task(task_id, no_commit_needed=True)
+                    await client.close_task(
+                        task_id,
+                        no_commit_needed=True,
+                        override_justification="TUI completion - manual user action",
+                    )
                     self.notify(f"Task completed: {task_id}")
 
                 elif button_id == "btn-approve":
-                    await client.close_task(task_id, no_commit_needed=True)
+                    await client.close_task(
+                        task_id,
+                        no_commit_needed=True,
+                        override_justification="TUI approval - manual user review",
+                    )
                     self.notify(f"Task approved: {task_id}")
 
                 elif button_id == "btn-reopen":

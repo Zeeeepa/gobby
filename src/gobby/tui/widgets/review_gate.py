@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from textual.app import ComposeResult
@@ -66,11 +67,18 @@ class ReviewItem(Static):
         updated = self.task_data.get("updated_at", "")
         if updated:
             try:
+                # Parse ISO format, normalize to UTC
                 updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                wait = datetime.now(updated_dt.tzinfo) - updated_dt
+                # Ensure timezone-aware comparison
+                if updated_dt.tzinfo is None:
+                    updated_dt = updated_dt.replace(tzinfo=UTC)
+                now = datetime.now(UTC)
+                wait = now - updated_dt
                 minutes = int(wait.total_seconds() // 60)
                 wait_str = f"⏳{minutes}m"
-            except Exception:
+            except ValueError as e:
+                # Log parsing errors for debugging
+                logging.getLogger(__name__).debug(f"Failed to parse updated_at: {updated!r}: {e}")
                 wait_str = "⏳?"
         else:
             wait_str = "⏳?"
@@ -207,6 +215,7 @@ class ReviewGatePanel(Widget):
     def update_tasks(self, tasks: list[dict[str, Any]]) -> None:
         """Update the tasks list."""
         self.tasks = tasks
+        self.refresh(recompose=True)
 
     def get_selected_task(self) -> dict[str, Any] | None:
         """Get the currently selected task."""

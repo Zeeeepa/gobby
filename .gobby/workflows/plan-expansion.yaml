@@ -297,7 +297,7 @@ steps:
           | `code` | Implementation tasks | YES |
           | `config` | Configuration changes | YES |
           | `docs` | Documentation tasks | NO |
-          | `test` | Test infrastructure | NO |
+          | `refactor` | Refactoring tasks | NO |
           | `research` | Investigation tasks | NO |
           | `planning` | Architecture/design | NO |
           | `manual` | Manual verification | NO |
@@ -415,7 +415,7 @@ steps:
           - `code` - Implementation tasks (gets TDD triplets)
           - `config` - Configuration changes (gets TDD triplets)
           - `docs` - Documentation tasks (no TDD)
-          - `test` - Test infrastructure (no TDD)
+          - `refactor` - Refactoring tasks (no TDD)
           - `research` - Investigation tasks (no TDD)
           - `planning` - Architecture/design (no TDD)
           - `manual` - Manual verification (no TDD)

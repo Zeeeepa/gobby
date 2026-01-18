@@ -746,7 +746,7 @@ interface Task {
   validation_override_reason: string | null;
 
   // Task expansion (NEW)
-  category: string | null;  // code, config, docs, test, research, planning, manual
+  category: string | null;  // code, config, docs, test, refactor, research, planning, manual
   complexity_score: number | null;
   estimated_subtasks: number | null;
   expansion_context: string | null;

@@ -178,6 +178,7 @@ class GobbyAPIClient:
         task_id: str,
         commit_sha: str | None = None,
         no_commit_needed: bool = False,
+        override_justification: str | None = None,
     ) -> dict[str, Any]:
         """Close a task."""
         args: dict[str, Any] = {"task_id": task_id}
@@ -185,6 +186,8 @@ class GobbyAPIClient:
             args["commit_sha"] = commit_sha
         if no_commit_needed:
             args["no_commit_needed"] = True
+        if override_justification:
+            args["override_justification"] = override_justification
         return await self.call_tool("gobby-tasks", "close_task", args)
 
     async def suggest_next_task(self) -> dict[str, Any]:

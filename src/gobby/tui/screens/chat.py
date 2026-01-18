@@ -305,6 +305,7 @@ class ChatScreen(Widget):
 
         # Show loading state
         self.sending = True
+        await self.recompose()
 
         try:
             # Get response mode
@@ -324,6 +325,7 @@ class ChatScreen(Widget):
             )
         finally:
             self.sending = False
+            await self.recompose()
 
     async def _get_conductor_response(self, message: str, mode: str) -> str:
         """Get a response from the conductor LLM."""

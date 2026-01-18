@@ -40,11 +40,13 @@ class HaikuPanel(Static):
     }
     """
 
-    haiku_lines = reactive(["Tasks await your hands", "Agents stand ready to serve", "Begin your journey"])
+    haiku_lines: reactive[list[str]] = reactive(list)
+    _default_haiku = ["Tasks await your hands", "Agents stand ready to serve", "Begin your journey"]
 
     def compose(self) -> ComposeResult:
         yield Static("🎭 Gobby", classes="haiku-title")
-        for i, line in enumerate(self.haiku_lines):
+        lines = self.haiku_lines if self.haiku_lines else self._default_haiku
+        for i, line in enumerate(lines):
             yield Static(line, classes="haiku-line", id=f"haiku-line-{i}")
 
     def watch_haiku_lines(self, lines: list[str]) -> None:
