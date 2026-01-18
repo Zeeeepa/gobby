@@ -31,30 +31,15 @@ Call `gobby-tasks.create_task` with:
 
 Parse the user input:
 - If input contains " - ", split into title and description
-- Otherwise, use entire input as title with no description
-
-**Important**: When no description is provided (no " - " separator), omit the `description` parameter entirely from the `create_task` call. Do not include it with an empty string or null.
+- Otherwise, use entire input as title
 
 ```python
-# With description (input: "API v2 migration - Migrate endpoints to GraphQL")
 call_tool(
     server_name="gobby-tasks",
     tool_name="create_task",
     arguments={
-        "title": "API v2 migration",
-        "description": "Migrate endpoints to GraphQL",
-        "task_type": "epic",
-        "priority": 2,
-        "session_id": "<session_id>"  # Required - from session context
-    }
-)
-
-# Without description (input: "User authentication system")
-call_tool(
-    server_name="gobby-tasks",
-    tool_name="create_task",
-    arguments={
-        "title": "User authentication system",
+        "title": "<parsed title>",
+        "description": "<parsed description if any>",
         "task_type": "epic",
         "priority": 2,
         "session_id": "<session_id>"  # Required - from session context
