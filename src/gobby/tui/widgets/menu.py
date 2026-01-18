@@ -32,11 +32,11 @@ class MenuItemWidget(Static):
     }
 
     MenuItemWidget:hover {
-        background: $surface-lighter;
+        background: #45475a;
     }
 
     MenuItemWidget.--selected {
-        background: $primary;
+        background: #7c3aed;
         color: white;
         text-style: bold;
     }
@@ -70,8 +70,8 @@ class MenuPanel(Widget):
     DEFAULT_CSS = """
     MenuPanel {
         width: 14;
-        background: $surface-light;
-        border-right: solid $surface-lighter;
+        background: #313244;
+        border-right: solid #45475a;
     }
     """
 
@@ -107,9 +107,15 @@ class MenuPanel(Widget):
 
     def watch_current_screen(self, screen_id: str) -> None:
         """Update selected state when current screen changes."""
+        # Skip if not yet composed
+        if not self.is_mounted:
+            return
         for item in self.MENU_ITEMS:
-            widget = self.query_one(f"#menu-{item.screen_id}", MenuItemWidget)
-            widget.selected = item.screen_id == screen_id
+            try:
+                widget = self.query_one(f"#menu-{item.screen_id}", MenuItemWidget)
+                widget.selected = item.screen_id == screen_id
+            except Exception:
+                pass  # Widget not yet mounted
 
     def select_screen(self, screen_id: str) -> None:
         """Programmatically select a screen."""

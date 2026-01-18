@@ -32,7 +32,7 @@ class WorktreesScreen(Widget):
     WorktreesScreen .screen-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     WorktreesScreen .header-row {
@@ -41,7 +41,7 @@ class WorktreesScreen(Widget):
 
     WorktreesScreen .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
@@ -58,7 +58,7 @@ class WorktreesScreen(Widget):
     WorktreesScreen .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
     """
 

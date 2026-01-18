@@ -35,7 +35,7 @@ class GobbyHeader(Static):
     GobbyHeader {
         dock: top;
         height: 3;
-        background: $primary;
+        background: #7c3aed;
         color: white;
         layout: horizontal;
     }
@@ -75,8 +75,8 @@ class GobbyFooter(Static):
     GobbyFooter {
         dock: bottom;
         height: 1;
-        background: $surface-light;
-        color: $text-muted;
+        background: #313244;
+        color: #a6adc8;
         layout: horizontal;
     }
 
@@ -91,11 +91,11 @@ class GobbyFooter(Static):
     }
 
     GobbyFooter .connected {
-        color: $success;
+        color: #22c55e;
     }
 
     GobbyFooter .disconnected {
-        color: $error;
+        color: #ef4444;
     }
     """
 

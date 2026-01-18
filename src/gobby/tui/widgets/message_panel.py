@@ -22,11 +22,11 @@ class AgentMessage(Static):
     }
 
     AgentMessage.--outgoing {
-        color: $secondary;
+        color: #06b6d4;
     }
 
     AgentMessage.--incoming {
-        color: $text;
+        color: #cdd6f4;
     }
 
     AgentMessage .message-arrow {
@@ -34,7 +34,7 @@ class AgentMessage(Static):
     }
 
     AgentMessage .message-sender {
-        color: $text-muted;
+        color: #a6adc8;
         width: 12;
     }
 
@@ -43,7 +43,7 @@ class AgentMessage(Static):
     }
 
     AgentMessage .message-time {
-        color: $text-dim;
+        color: #6c7086;
         width: 8;
     }
     """
@@ -78,18 +78,18 @@ class InterAgentMessagePanel(Widget):
     DEFAULT_CSS = """
     InterAgentMessagePanel {
         height: 1fr;
-        border: round $surface-lighter;
+        border: round #45475a;
     }
 
     InterAgentMessagePanel .panel-header {
         height: 1;
         padding: 0 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     InterAgentMessagePanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
     }
 
     InterAgentMessagePanel .messages-scroll {
@@ -100,7 +100,7 @@ class InterAgentMessagePanel(Widget):
     InterAgentMessagePanel .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-dim;
+        color: #6c7086;
     }
     """
 

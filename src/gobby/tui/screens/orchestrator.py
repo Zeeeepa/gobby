@@ -26,7 +26,7 @@ class ConductorPanel(Widget):
 
     DEFAULT_CSS = """
     ConductorPanel {
-        border: round $primary;
+        border: round #7c3aed;
         padding: 1 2;
         height: auto;
         min-height: 10;
@@ -44,7 +44,7 @@ class ConductorPanel(Widget):
 
     ConductorPanel .conductor-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
@@ -55,7 +55,7 @@ class ConductorPanel(Widget):
 
     ConductorPanel .haiku-line {
         text-align: center;
-        color: $text;
+        color: #cdd6f4;
     }
     """
 
@@ -86,7 +86,7 @@ class TokenBudgetPanel(Widget):
 
     DEFAULT_CSS = """
     TokenBudgetPanel {
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 1;
         height: auto;
     }
@@ -99,12 +99,12 @@ class TokenBudgetPanel(Widget):
 
     TokenBudgetPanel .budget-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
     TokenBudgetPanel .budget-period {
-        color: $text-dim;
+        color: #6c7086;
     }
 
     TokenBudgetPanel .budget-bar-container {
@@ -127,19 +127,19 @@ class TokenBudgetPanel(Widget):
 
     TokenBudgetPanel .budget-limit {
         width: auto;
-        color: $text-muted;
+        color: #a6adc8;
     }
 
     TokenBudgetPanel .budget-normal {
-        color: $success;
+        color: #22c55e;
     }
 
     TokenBudgetPanel .budget-warning {
-        color: $warning;
+        color: #f59e0b;
     }
 
     TokenBudgetPanel .budget-critical {
-        color: $error;
+        color: #ef4444;
     }
     """
 
@@ -208,7 +208,7 @@ class ModeIndicatorPanel(Widget):
 
     ModeIndicatorPanel .mode-header {
         text-style: bold;
-        color: $text-muted;
+        color: #a6adc8;
         margin-bottom: 1;
     }
 
@@ -218,19 +218,19 @@ class ModeIndicatorPanel(Widget):
     }
 
     ModeIndicatorPanel .mode-interactive {
-        border: round $success;
+        border: round #22c55e;
     }
 
     ModeIndicatorPanel .mode-autonomous {
-        border: round $warning;
+        border: round #f59e0b;
     }
 
     ModeIndicatorPanel .mode-paused {
-        border: round $text-dim;
+        border: round #6c7086;
     }
 
     ModeIndicatorPanel .mode-hint {
-        color: $text-dim;
+        color: #6c7086;
         margin-top: 1;
     }
     """
@@ -264,7 +264,7 @@ class ActiveAgentsPanel(Widget):
 
     DEFAULT_CSS = """
     ActiveAgentsPanel {
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 1;
         height: 1fr;
     }
@@ -277,12 +277,12 @@ class ActiveAgentsPanel(Widget):
 
     ActiveAgentsPanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
     ActiveAgentsPanel .agent-count {
-        color: $secondary;
+        color: #06b6d4;
     }
 
     ActiveAgentsPanel .agents-list {
@@ -296,7 +296,7 @@ class ActiveAgentsPanel(Widget):
     }
 
     ActiveAgentsPanel .agent-status {
-        color: $success;
+        color: #22c55e;
         width: 2;
     }
 
@@ -305,12 +305,12 @@ class ActiveAgentsPanel(Widget):
     }
 
     ActiveAgentsPanel .agent-duration {
-        color: $text-dim;
+        color: #6c7086;
         width: 6;
     }
 
     ActiveAgentsPanel .empty-state {
-        color: $text-dim;
+        color: #6c7086;
         content-align: center middle;
         height: 1fr;
     }
@@ -365,7 +365,7 @@ class ReviewQueuePanel(Widget):
 
     DEFAULT_CSS = """
     ReviewQueuePanel {
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 1;
         height: 1fr;
     }
@@ -378,12 +378,12 @@ class ReviewQueuePanel(Widget):
 
     ReviewQueuePanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
     ReviewQueuePanel .queue-count {
-        color: $status-review;
+        color: #a855f7;
     }
 
     ReviewQueuePanel .review-list {
@@ -397,15 +397,15 @@ class ReviewQueuePanel(Widget):
     }
 
     ReviewQueuePanel .review-item:hover {
-        background: $surface-lighter;
+        background: #45475a;
     }
 
     ReviewQueuePanel .review-item.--selected {
-        background: $primary-darken;
+        background: #6d28d9;
     }
 
     ReviewQueuePanel .review-id {
-        color: $status-review;
+        color: #a855f7;
         width: 16;
     }
 
@@ -414,7 +414,7 @@ class ReviewQueuePanel(Widget):
     }
 
     ReviewQueuePanel .review-time {
-        color: $text-dim;
+        color: #6c7086;
         width: 6;
     }
 
@@ -429,7 +429,7 @@ class ReviewQueuePanel(Widget):
     }
 
     ReviewQueuePanel .empty-state {
-        color: $text-dim;
+        color: #6c7086;
         content-align: center middle;
         height: 1fr;
     }
@@ -498,14 +498,14 @@ class InterAgentMessagePanel(Widget):
 
     DEFAULT_CSS = """
     InterAgentMessagePanel {
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 1;
         height: 1fr;
     }
 
     InterAgentMessagePanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         margin-bottom: 1;
     }
 
@@ -520,19 +520,19 @@ class InterAgentMessagePanel(Widget):
     }
 
     InterAgentMessagePanel .message-outgoing {
-        color: $secondary;
+        color: #06b6d4;
     }
 
     InterAgentMessagePanel .message-incoming {
-        color: $text;
+        color: #cdd6f4;
     }
 
     InterAgentMessagePanel .message-sender {
-        color: $text-muted;
+        color: #a6adc8;
     }
 
     InterAgentMessagePanel .empty-state {
-        color: $text-dim;
+        color: #6c7086;
         content-align: center middle;
         height: 1fr;
     }

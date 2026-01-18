@@ -28,13 +28,13 @@ class WorkflowStatePanel(Widget):
     WorkflowStatePanel {
         height: auto;
         padding: 1;
-        border: round $primary;
+        border: round #7c3aed;
         margin: 1;
     }
 
     WorkflowStatePanel .state-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         padding-bottom: 1;
     }
 
@@ -44,7 +44,7 @@ class WorkflowStatePanel(Widget):
     }
 
     WorkflowStatePanel .state-label {
-        color: $text-muted;
+        color: #a6adc8;
         width: 16;
     }
 
@@ -53,11 +53,11 @@ class WorkflowStatePanel(Widget):
     }
 
     WorkflowStatePanel .state-active {
-        color: $success;
+        color: #22c55e;
     }
 
     WorkflowStatePanel .state-inactive {
-        color: $text-dim;
+        color: #6c7086;
     }
     """
 
@@ -100,7 +100,7 @@ class WorkflowsScreen(Widget):
     WorkflowsScreen .screen-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     WorkflowsScreen .header-row {
@@ -109,7 +109,7 @@ class WorkflowsScreen(Widget):
 
     WorkflowsScreen .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 

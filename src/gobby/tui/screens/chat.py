@@ -33,14 +33,14 @@ class ChatMessage(Static):
 
     ChatMessage.--user {
         margin-left: 8;
-        background: $surface-light;
-        border: round $secondary;
+        background: #313244;
+        border: round #06b6d4;
     }
 
     ChatMessage.--conductor {
         margin-right: 8;
-        background: $surface-light;
-        border: round $primary;
+        background: #313244;
+        border: round #7c3aed;
     }
 
     ChatMessage .message-header {
@@ -55,20 +55,20 @@ class ChatMessage(Static):
     }
 
     ChatMessage .message-time {
-        color: $text-dim;
+        color: #6c7086;
         width: auto;
     }
 
     ChatMessage.--user .message-sender {
-        color: $secondary;
+        color: #06b6d4;
     }
 
     ChatMessage.--conductor .message-sender {
-        color: $primary-lighten;
+        color: #a78bfa;
     }
 
     ChatMessage .message-content {
-        color: $text;
+        color: #cdd6f4;
     }
     """
 
@@ -101,7 +101,7 @@ class ChatHistory(VerticalScroll):
     ChatHistory {
         height: 1fr;
         padding: 1;
-        background: $surface;
+        background: #1e1e2e;
     }
     """
 
@@ -128,8 +128,8 @@ class ChatInputArea(Widget):
         min-height: 4;
         max-height: 10;
         padding: 1;
-        border-top: solid $surface-lighter;
-        background: $surface-light;
+        border-top: solid #45475a;
+        background: #313244;
     }
 
     ChatInputArea .input-row {
@@ -156,7 +156,7 @@ class ChatInputArea(Widget):
     }
 
     ChatInputArea .mode-label {
-        color: $text-muted;
+        color: #a6adc8;
         width: auto;
         margin-right: 1;
     }
@@ -211,17 +211,17 @@ class ChatScreen(Widget):
     ChatScreen .chat-header {
         height: 3;
         padding: 1;
-        background: $surface-light;
-        border-bottom: solid $surface-lighter;
+        background: #313244;
+        border-bottom: solid #45475a;
     }
 
     ChatScreen .header-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
     }
 
     ChatScreen .header-mode {
-        color: $text-muted;
+        color: #a6adc8;
         dock: right;
     }
 
@@ -236,7 +236,7 @@ class ChatScreen(Widget):
     ChatScreen .loading-indicator {
         height: 3;
         content-align: center middle;
-        background: $surface-light;
+        background: #313244;
     }
     """
 

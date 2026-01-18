@@ -24,11 +24,11 @@ class ReviewItem(Static):
     }
 
     ReviewItem:hover {
-        background: $surface-lighter;
+        background: #45475a;
     }
 
     ReviewItem.--selected {
-        background: $primary-darken;
+        background: #6d28d9;
     }
 
     ReviewItem .review-content {
@@ -36,7 +36,7 @@ class ReviewItem(Static):
     }
 
     ReviewItem .review-ref {
-        color: $status-review;
+        color: #a855f7;
         width: 12;
     }
 
@@ -45,7 +45,7 @@ class ReviewItem(Static):
     }
 
     ReviewItem .review-wait {
-        color: $text-dim;
+        color: #6c7086;
         width: 8;
     }
     """
@@ -94,24 +94,24 @@ class ReviewGatePanel(Widget):
     DEFAULT_CSS = """
     ReviewGatePanel {
         height: 1fr;
-        border: round $surface-lighter;
+        border: round #45475a;
     }
 
     ReviewGatePanel .panel-header {
         layout: horizontal;
         height: 1;
         padding: 0 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     ReviewGatePanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
     ReviewGatePanel .queue-count {
-        color: $status-review;
+        color: #a855f7;
     }
 
     ReviewGatePanel .review-list {
@@ -123,7 +123,7 @@ class ReviewGatePanel(Widget):
         layout: horizontal;
         height: 3;
         padding: 1;
-        border-top: solid $surface-lighter;
+        border-top: solid #45475a;
     }
 
     ReviewGatePanel .action-row Button {
@@ -133,7 +133,7 @@ class ReviewGatePanel(Widget):
     ReviewGatePanel .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-dim;
+        color: #6c7086;
     }
     """
 

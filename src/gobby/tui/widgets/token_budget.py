@@ -26,7 +26,7 @@ class TokenBudgetMeter(Widget):
 
     TokenBudgetMeter .budget-title {
         width: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
 
     TokenBudgetMeter .budget-percentage {
@@ -50,19 +50,19 @@ class TokenBudgetMeter(Widget):
 
     TokenBudgetMeter .budget-limit {
         width: auto;
-        color: $text-muted;
+        color: #a6adc8;
     }
 
     TokenBudgetMeter .--normal {
-        color: $success;
+        color: #22c55e;
     }
 
     TokenBudgetMeter .--warning {
-        color: $warning;
+        color: #f59e0b;
     }
 
     TokenBudgetMeter .--critical {
-        color: $error;
+        color: #ef4444;
     }
     """
 

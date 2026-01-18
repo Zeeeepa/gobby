@@ -29,12 +29,12 @@ class MemoryDetailPanel(Widget):
         width: 40%;
         height: 1fr;
         padding: 1;
-        border-left: solid $surface-lighter;
+        border-left: solid #45475a;
     }
 
     MemoryDetailPanel .detail-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         padding-bottom: 1;
     }
 
@@ -44,7 +44,7 @@ class MemoryDetailPanel(Widget):
     }
 
     MemoryDetailPanel .detail-label {
-        color: $text-muted;
+        color: #a6adc8;
         width: 12;
     }
 
@@ -55,14 +55,14 @@ class MemoryDetailPanel(Widget):
     MemoryDetailPanel .content-area {
         height: 1fr;
         padding: 1;
-        border: round $surface-lighter;
+        border: round #45475a;
         overflow-y: auto;
     }
 
     MemoryDetailPanel .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
     """
 
@@ -108,7 +108,7 @@ class MemoryScreen(Widget):
     MemoryScreen .screen-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     MemoryScreen .header-row {
@@ -117,7 +117,7 @@ class MemoryScreen(Widget):
 
     MemoryScreen .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 

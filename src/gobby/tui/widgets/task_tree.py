@@ -17,11 +17,11 @@ class TaskTree(Tree):
     }
 
     TaskTree > .tree--cursor {
-        background: $primary-darken;
+        background: #6d28d9;
     }
 
     TaskTree > .tree--guides {
-        color: $surface-lighter;
+        color: #45475a;
     }
     """
 

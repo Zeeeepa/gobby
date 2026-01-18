@@ -27,13 +27,13 @@ class MetricsSummaryPanel(Widget):
     MetricsSummaryPanel {
         height: auto;
         padding: 1;
-        border: round $surface-lighter;
+        border: round #45475a;
         margin: 1;
     }
 
     MetricsSummaryPanel .summary-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         padding-bottom: 1;
     }
 
@@ -45,18 +45,18 @@ class MetricsSummaryPanel(Widget):
 
     MetricsSummaryPanel .stat-box {
         height: 4;
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 0 1;
         content-align: center middle;
     }
 
     MetricsSummaryPanel .stat-value {
         text-style: bold;
-        color: $secondary;
+        color: #06b6d4;
     }
 
     MetricsSummaryPanel .stat-label {
-        color: $text-muted;
+        color: #a6adc8;
     }
     """
 
@@ -107,7 +107,7 @@ class MetricsScreen(Widget):
     MetricsScreen .screen-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     MetricsScreen .header-row {
@@ -116,7 +116,7 @@ class MetricsScreen(Widget):
 
     MetricsScreen .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 

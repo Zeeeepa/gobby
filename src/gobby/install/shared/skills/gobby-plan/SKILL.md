@@ -198,7 +198,7 @@ phase2 = call_tool("gobby-tasks", "create_task", {
     "title": "Phase 2: {Phase Name}",
     "task_type": "epic",
     "parent_task_id": "#42",
-    "description": "{Phase goal}\n\nTasks:\n- Task 4 title (category: code)\n- Task 5 title (category: document)",
+    "description": "{Phase goal}\n\nTasks:\n- Task 4 title (category: code)\n- Task 5 title (category: docs)",
     "session_id": "<your_session_id>"
 })
 # ... repeat for each phase in the plan

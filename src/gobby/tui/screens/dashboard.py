@@ -20,7 +20,7 @@ class HaikuPanel(Static):
 
     DEFAULT_CSS = """
     HaikuPanel {
-        border: round $primary;
+        border: round #7c3aed;
         padding: 1 2;
         height: auto;
         min-height: 8;
@@ -28,14 +28,14 @@ class HaikuPanel(Static):
 
     HaikuPanel .haiku-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         text-align: center;
         padding-bottom: 1;
     }
 
     HaikuPanel .haiku-line {
         text-align: center;
-        color: $text;
+        color: #cdd6f4;
         padding: 0 1;
     }
     """
@@ -65,14 +65,14 @@ class StatsPanel(Static):
 
     DEFAULT_CSS = """
     StatsPanel {
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 1 2;
         height: auto;
     }
 
     StatsPanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         padding-bottom: 1;
     }
 
@@ -83,7 +83,7 @@ class StatsPanel(Static):
 
     StatsPanel .stat-label {
         width: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
 
     StatsPanel .stat-value {
@@ -121,7 +121,7 @@ class ActivityPanel(Static):
 
     DEFAULT_CSS = """
     ActivityPanel {
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 1 2;
         height: 1fr;
         min-height: 10;
@@ -129,7 +129,7 @@ class ActivityPanel(Static):
 
     ActivityPanel .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         padding-bottom: 1;
     }
 
@@ -140,11 +140,11 @@ class ActivityPanel(Static):
 
     ActivityPanel .activity-item {
         height: 1;
-        color: $text-muted;
+        color: #a6adc8;
     }
 
     ActivityPanel .activity-time {
-        color: $text-dim;
+        color: #6c7086;
         width: 10;
     }
 

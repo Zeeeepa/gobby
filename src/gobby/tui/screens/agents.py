@@ -31,13 +31,13 @@ class SpawnAgentDialog(Widget):
         width: 100%;
         height: auto;
         padding: 1;
-        border: round $primary;
-        background: $surface;
+        border: round #7c3aed;
+        background: #1e1e2e;
     }
 
     SpawnAgentDialog .dialog-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         padding-bottom: 1;
     }
 
@@ -47,7 +47,7 @@ class SpawnAgentDialog(Widget):
     }
 
     SpawnAgentDialog .form-label {
-        color: $text-muted;
+        color: #a6adc8;
         margin-bottom: 0;
     }
 
@@ -126,7 +126,7 @@ class AgentsScreen(Widget):
     AgentsScreen .screen-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     AgentsScreen .header-row {
@@ -135,7 +135,7 @@ class AgentsScreen(Widget):
 
     AgentsScreen .panel-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
         width: 1fr;
     }
 
@@ -161,7 +161,7 @@ class AgentsScreen(Widget):
     AgentsScreen .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
     """
 

@@ -19,11 +19,11 @@ class HaikuDisplay(Widget):
 
     HaikuDisplay .haiku-line {
         text-align: center;
-        color: $text;
+        color: #cdd6f4;
     }
 
     HaikuDisplay .haiku-line-first {
-        color: $primary-lighten;
+        color: #a78bfa;
     }
     """
 
@@ -54,24 +54,24 @@ class ModeIndicator(Widget):
     DEFAULT_CSS = """
     ModeIndicator {
         height: 3;
-        border: round $surface-lighter;
+        border: round #45475a;
         padding: 0 1;
         content-align: center middle;
     }
 
     ModeIndicator.--interactive {
-        border: round $success;
-        color: $success;
+        border: round #22c55e;
+        color: #22c55e;
     }
 
     ModeIndicator.--autonomous {
-        border: round $warning;
-        color: $warning;
+        border: round #f59e0b;
+        color: #f59e0b;
     }
 
     ModeIndicator.--paused {
-        border: round $text-dim;
-        color: $text-dim;
+        border: round #6c7086;
+        color: #6c7086;
     }
     """
 

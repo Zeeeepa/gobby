@@ -29,13 +29,13 @@ class TaskTreePanel(Widget):
     TaskTreePanel {
         width: 1fr;
         height: 1fr;
-        border-right: solid $surface-lighter;
+        border-right: solid #45475a;
     }
 
     TaskTreePanel .panel-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     TaskTreePanel .filter-row {
@@ -108,11 +108,11 @@ class TaskDetailPanel(Widget):
 
     TaskDetailPanel .detail-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
     }
 
     TaskDetailPanel .detail-ref {
-        color: $secondary;
+        color: #06b6d4;
     }
 
     TaskDetailPanel .detail-section {
@@ -120,7 +120,7 @@ class TaskDetailPanel(Widget):
     }
 
     TaskDetailPanel .detail-label {
-        color: $text-muted;
+        color: #a6adc8;
         width: 12;
     }
 
@@ -130,7 +130,7 @@ class TaskDetailPanel(Widget):
 
     TaskDetailPanel .detail-description {
         padding: 1;
-        border: round $surface-lighter;
+        border: round #45475a;
         height: auto;
         max-height: 10;
     }
@@ -148,7 +148,7 @@ class TaskDetailPanel(Widget):
     TaskDetailPanel .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
     """
 

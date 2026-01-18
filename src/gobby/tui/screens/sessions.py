@@ -30,13 +30,13 @@ class SessionListPanel(Widget):
     SessionListPanel {
         width: 1fr;
         height: 1fr;
-        border-right: solid $surface-lighter;
+        border-right: solid #45475a;
     }
 
     SessionListPanel .panel-header {
         height: auto;
         padding: 1;
-        background: $surface-light;
+        background: #313244;
     }
 
     SessionListPanel .search-row {
@@ -99,7 +99,7 @@ class SessionDetailPanel(Widget):
 
     SessionDetailPanel .detail-title {
         text-style: bold;
-        color: $primary-lighten;
+        color: #a78bfa;
     }
 
     SessionDetailPanel .detail-section {
@@ -112,7 +112,7 @@ class SessionDetailPanel(Widget):
     }
 
     SessionDetailPanel .detail-label {
-        color: $text-muted;
+        color: #a6adc8;
         width: 14;
     }
 
@@ -122,7 +122,7 @@ class SessionDetailPanel(Widget):
 
     SessionDetailPanel .context-section {
         padding: 1;
-        border: round $surface-lighter;
+        border: round #45475a;
         height: auto;
         max-height: 15;
         overflow-y: auto;
@@ -141,7 +141,7 @@ class SessionDetailPanel(Widget):
     SessionDetailPanel .empty-state {
         content-align: center middle;
         height: 1fr;
-        color: $text-muted;
+        color: #a6adc8;
     }
     """
 

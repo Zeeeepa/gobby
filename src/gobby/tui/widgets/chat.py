@@ -26,21 +26,21 @@ class ChatMessage(Static):
 
     ChatMessage.--user {
         margin-left: 8;
-        background: $surface-light;
-        border: round $secondary;
+        background: #313244;
+        border: round #06b6d4;
     }
 
     ChatMessage.--assistant {
         margin-right: 8;
-        background: $surface-light;
-        border: round $primary;
+        background: #313244;
+        border: round #7c3aed;
     }
 
     ChatMessage.--system {
         margin-left: 4;
         margin-right: 4;
-        background: $surface-lighter;
-        border: round $text-dim;
+        background: #45475a;
+        border: round #6c7086;
     }
 
     ChatMessage .message-header {
@@ -55,24 +55,24 @@ class ChatMessage(Static):
     }
 
     ChatMessage.--user .message-sender {
-        color: $secondary;
+        color: #06b6d4;
     }
 
     ChatMessage.--assistant .message-sender {
-        color: $primary-lighten;
+        color: #a78bfa;
     }
 
     ChatMessage.--system .message-sender {
-        color: $text-dim;
+        color: #6c7086;
     }
 
     ChatMessage .message-time {
-        color: $text-dim;
+        color: #6c7086;
         width: auto;
     }
 
     ChatMessage .message-content {
-        color: $text;
+        color: #cdd6f4;
     }
     """
 
@@ -105,7 +105,7 @@ class ChatHistory(VerticalScroll):
     ChatHistory {
         height: 1fr;
         padding: 1;
-        background: $surface;
+        background: #1e1e2e;
     }
     """
 
@@ -149,8 +149,8 @@ class ChatInput(Widget):
         min-height: 4;
         max-height: 10;
         padding: 1;
-        border-top: solid $surface-lighter;
-        background: $surface-light;
+        border-top: solid #45475a;
+        background: #313244;
     }
 
     ChatInput .input-row {
