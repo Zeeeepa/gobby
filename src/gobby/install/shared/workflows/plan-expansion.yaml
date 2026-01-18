@@ -781,6 +781,59 @@ steps:
           - Tasks too small (should be merged)
           - Tasks with unclear boundaries
 
+          #### 2e. Test Task Analysis (CRITICAL)
+
+          Test-related tasks often slip through plan verification or fail expansion.
+          Analyze each test task to determine the correct action:
+
+          **Category 1: Redundant Test Tasks (close with no_commit_needed)**
+
+          Tasks that will be covered by TDD triplets on implementation tasks:
+          - "Add tests for X" where X has an [IMPL] sibling → redundant
+          - "Write unit tests for Y" where Y is being implemented → redundant
+
+          Example:
+          ```
+          #4451 "Add tests for media column migration" → REDUNDANT
+            (TDD on #4442 "Implement media migration" covers this)
+          ```
+
+          **Category 2: Update Existing Tests (keep as leaf tasks)**
+
+          Tasks about modifying existing test files to work with new architecture:
+          - "Update existing X tests for new pattern"
+          - "Refactor test suite for Y"
+          - "Fix broken tests after Z change"
+
+          These are legitimate work NOT covered by TDD (which creates NEW tests).
+
+          Example:
+          ```
+          #4437 "Update existing memory tests for backend pattern" → KEEP
+            (Modifies existing tests, not creating new ones)
+          ```
+
+          **Category 3: Validation Tasks (change category to manual)**
+
+          Tasks that are really validation/verification, not test writing:
+          - "Run full test suite"
+          - "Run type check"
+          - "Verify all tests pass"
+          - "Manual QA check"
+
+          Example:
+          ```
+          #4441 "Run full test suite and type check" → CHANGE TO manual
+            (This is validation, not test writing)
+          ```
+
+          **Category 4: Failed Expansion (LLM refused)**
+
+          Tasks that failed expansion due to "NO TEST TASKS" filter:
+          - Check if they're truly test tasks (→ close as redundant)
+          - Check if they're misnamed (→ rename and retry)
+          - Check if they're update tasks (→ keep as leaf)
+
           ### Step 3: Generate Cleanup Report
 
           Present findings to user:
@@ -806,6 +859,20 @@ steps:
           ### Scope Issues (N found)
           - #567 too broad: "Implement entire auth system"
             Recommendation: Already expanded, mark as epic
+
+          ### Test Task Issues (N found)
+          Redundant (covered by TDD): 9 tasks
+          - #4451, #4452, #4453 (Phase 2) → close no_commit_needed
+          - #4460 (Phase 3) → close no_commit_needed
+          - ...
+
+          Update existing tests (keep): 3 tasks
+          - #4437 "Update existing memory tests for backend pattern"
+          - #4461 "Update existing config tests for MemU"
+          - #4477 "Update existing config tests for OpenMemory"
+
+          Validation tasks (change to manual): 1 task
+          - #4441 "Run full test suite and type check"
 
           **No issues found in:** Dependencies, Orphans
           ```
@@ -854,6 +921,30 @@ steps:
           **Handle orphans:**
           - Move to appropriate parent, or
           - Delete if truly redundant
+
+          **Close redundant test tasks:**
+          ```python
+          # Close tasks that TDD triplets will cover
+          for task_id in redundant_test_tasks:
+              call_tool("gobby-tasks", "close_task", {
+                  "task_id": task_id,
+                  "no_commit_needed": true,
+                  "session_id": "<your_session_id>"
+              })
+          ```
+
+          **Change validation tasks to manual:**
+          ```python
+          call_tool("gobby-tasks", "update_task", {
+              "task_id": "#4441",
+              "category": "manual",
+              "session_id": "<your_session_id>"
+          })
+          ```
+
+          **Keep update-existing-tests tasks as leaf tasks:**
+          No action needed - leave as-is without expansion.
+          These are legitimate work items that will be executed manually.
 
           ### Step 6: Set Cleanup Complete
 
