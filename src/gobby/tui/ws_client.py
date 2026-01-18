@@ -200,9 +200,8 @@ class GobbyWebSocketClient:
         if msg_type == "error":
             logger.error(f"Server error: {data.get('message')}")
 
-        # Dispatch to registered handlers
-        handlers = self._handlers.get(msg_type, [])
-        handlers.extend(self._handlers.get("*", []))  # Wildcard handlers
+        # Dispatch to registered handlers (combine without mutating originals)
+        handlers = self._handlers.get(msg_type, []) + self._handlers.get("*", [])
 
         for handler in handlers:
             try:

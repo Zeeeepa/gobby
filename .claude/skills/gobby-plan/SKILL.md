@@ -96,7 +96,7 @@ Scan for tasks that should NOT exist (TDD sandwich creates these automatically):
 **FORBIDDEN patterns - remove these if found:**
 - `"Write tests for..."` or `"Add tests for..."`
 - `"Test..."` as task title prefix
-- `"[TEST]..."` or `"[IMPL]..."` or `"[REFACTOR]..."`
+- `"[TDD]..."` or `"[IMPL]..."` or `"[REF]..."`
 - `"Ensure tests pass"` or `"Run tests"`
 - `"Add unit tests"` or `"Add integration tests"`
 - Any task with `test` as the primary verb
@@ -321,14 +321,7 @@ Feature Task
 
 ### Task Categories
 
-Valid categories (from `src/gobby/storage/tasks.py`):
-- `code` - Implementation tasks (gets TDD triplets)
-- `config` - Configuration changes (gets TDD triplets)
-- `docs` - Documentation tasks (no TDD)
-- `test` - Test infrastructure tasks (no TDD)
-- `research` - Investigation tasks (no TDD)
-- `planning` - Architecture/design tasks (no TDD)
-- `manual` - Manual verification tasks (no TDD)
+See "Check 3: Task Categorization" above for the canonical list of valid categories.
 
 ### What You Create vs What expand_task Produces
 

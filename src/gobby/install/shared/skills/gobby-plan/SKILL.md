@@ -96,7 +96,7 @@ Scan for tasks that should NOT exist (TDD sandwich creates these automatically):
 **FORBIDDEN patterns - remove these if found:**
 - `"Write tests for..."` or `"Add tests for..."`
 - `"Test..."` as task title prefix
-- `"[TEST]..."` or `"[IMPL]..."` or `"[REFACTOR]..."`
+- `"[TDD]..."` or `"[IMPL]..."` or `"[REF]..."`
 - `"Ensure tests pass"` or `"Run tests"`
 - `"Add unit tests"` or `"Add integration tests"`
 - Any task with `test` as the primary verb
