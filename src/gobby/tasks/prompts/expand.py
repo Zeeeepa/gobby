@@ -58,11 +58,13 @@ Choose the appropriate category for each subtask:
 - **code**: Implementation tasks (write/modify source code)
 - **config**: Configuration file changes (.yaml, .toml, .json, .env)
 - **docs**: Documentation tasks (README, docstrings, guides)
+- **refactor**: Refactoring tasks (updating existing code, including existing tests)
 - **research**: Investigation/exploration tasks
 - **planning**: Design/architecture tasks, parent phases
-- **manual**: Manual verification/testing tasks
+- **manual**: Manual functional testing (observe output, verify behavior)
 
 NOTE: Do NOT use category "test" - TDD test tasks are created automatically.
+Use "refactor" for tasks that update existing test files to work with new code.
 
 ## Example Output
 

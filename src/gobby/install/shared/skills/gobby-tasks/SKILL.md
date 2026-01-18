@@ -34,7 +34,7 @@ Call `gobby-tasks.create_task` with:
 - `parent_task_id`: Optional parent task
 - `blocks`: List of task IDs this task blocks
 - `labels`: List of labels
-- `category`: "code", "config", "docs", "test", "research", "planning", or "manual"
+- `category`: "code", "config", "docs", "refactor", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`

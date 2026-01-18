@@ -325,10 +325,11 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 - `code` - Implementation tasks (gets TDD triplets)
 - `config` - Configuration changes (gets TDD triplets)
 - `docs` - Documentation tasks (no TDD)
-- `test` - Test infrastructure tasks (no TDD)
+- `refactor` - Refactoring tasks, including updating existing tests (no TDD)
+- `test` - Test infrastructure tasks (fixtures, helpers) (no TDD)
 - `research` - Investigation tasks (no TDD)
 - `planning` - Architecture/design tasks (no TDD)
-- `manual` - Manual verification tasks (no TDD)
+- `manual` - Manual functional testing (observe output) (no TDD)
 
 ### What You Create vs What expand_task Produces
 

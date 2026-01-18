@@ -16,7 +16,7 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
 | description | string | No | Detailed description including implementation notes |
 | priority | integer | No | 1=High, 2=Medium (default), 3=Low |
 | task_type | string | No | "task" (default), "bug", "feature", "epic" |
-| category | string | Yes* | Task domain: code, config, docs, test, research, planning, manual |
+| category | string | Yes* | Task domain: code, config, docs, refactor, research, planning, manual (NOT test) |
 | validation | string | No | Acceptance criteria with project commands |
 | depends_on | array[int] | No | Indices (0-based) of subtasks this one depends on |
 
@@ -28,10 +28,13 @@ Choose the appropriate category for each subtask:
 - **code**: Implementation tasks (write/modify source code)
 - **config**: Configuration file changes (.yaml, .toml, .json, .env)
 - **docs**: Documentation tasks (README, docstrings, guides)
-- **test**: Test-writing tasks (unit tests, integration tests)
+- **refactor**: Refactoring tasks (updating existing code, including existing tests)
 - **research**: Investigation/exploration tasks
 - **planning**: Design/architecture tasks, parent phases
-- **manual**: Manual verification/testing tasks
+- **manual**: Manual functional testing (observe output, verify behavior)
+
+NOTE: Do NOT use category "test" - TDD test tasks are created automatically.
+Use "refactor" for tasks that update existing test files to work with new code.
 
 ## Example Output
 

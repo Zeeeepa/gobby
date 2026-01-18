@@ -34,7 +34,7 @@ Call `gobby-tasks.create_task` with:
 - `parent_task_id`: Optional parent task
 - `blocks`: List of task IDs this task blocks
 - `labels`: List of labels
-- `category`: "code", "config", "docs", "test", "research", "planning", or "manual"
+- `category`: "code", "config", "docs", "refactor", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
@@ -117,9 +117,37 @@ Call `gobby-tasks.expand_task` with:
 - `enable_web_research`: Use web for research
 - `enable_code_context`: Include code context
 - `generate_validation`: Generate criteria for subtasks
+- `iterative`: Set to `true` for epics to cascade through all phases
 - `session_id`: Your session ID
 
+**For epics with multiple phases**, use iterative mode and loop until complete:
+```python
+while True:
+    result = call_tool("gobby-tasks", "expand_task", {
+        "task_id": "#100",
+        "iterative": True,
+        "session_id": "<session_id>"
+    })
+    # Report progress
+    print(f"Expanded {result['expanded_ref']}, {result['unexpanded_epics']} remaining")
+    if result.get("complete"):
+        break
+```
+
+Response includes:
+- `expanded_ref`: The task that was actually expanded (may differ from input in iterative mode)
+- `unexpanded_epics`: Count of remaining unexpanded epics
+- `complete`: True when all epics in tree are expanded
+
 Example: `/gobby-tasks expand #1` → `expand_task(task_id="#1")`
+Example (epic cascade): `/gobby-tasks expand #1 --cascade` → loops with `iterative=True`
+
+**When user runs `/gobby-tasks expand` on an epic:**
+1. Check if the task has `task_type=epic`
+2. If epic, recommend cascade: "This epic has phases. Would you like me to expand them all (cascade), or just this one?"
+3. For cascade, use iterative mode and report progress after each phase
+4. Report progress: "Expanded Phase 1 (#4015), 6 phases remaining..."
+5. Continue until `complete=True`
 
 ### `/gobby-tasks suggest` - Suggest next task
 Call `gobby-tasks.suggest_next_task` with:
