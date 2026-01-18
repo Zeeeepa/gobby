@@ -86,13 +86,14 @@ class TokenBudgetMeter(Widget):
                 id="percentage",
             )
 
-        yield ProgressBar(
+        bar = ProgressBar(
             total=100,
-            progress=percentage * 100,
             show_eta=False,
             id="budget-bar",
             classes="budget-bar",
         )
+        bar.advance(percentage * 100)
+        yield bar
 
         with Horizontal(classes="budget-details"):
             yield Static(

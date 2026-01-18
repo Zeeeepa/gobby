@@ -79,7 +79,7 @@ class ChatMessage(Static):
         content: str,
         is_user: bool = True,
         timestamp: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.sender = sender
@@ -248,7 +248,7 @@ class ChatScreen(Widget):
         self,
         api_client: GobbyAPIClient,
         ws_client: GobbyWebSocketClient,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.api_client = api_client

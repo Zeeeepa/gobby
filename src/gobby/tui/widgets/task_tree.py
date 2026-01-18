@@ -40,7 +40,7 @@ class TaskTree(Tree):
         "epic": "🏔️ ",
     }
 
-    def __init__(self, label: str = "Tasks", **kwargs) -> None:
+    def __init__(self, label: str = "Tasks", **kwargs: Any) -> None:
         super().__init__(label, **kwargs)
         self._task_map: dict[str, dict[str, Any]] = {}
 

@@ -35,13 +35,15 @@ class GobbyAPIClient:
         """Get comprehensive daemon status."""
         response = await self.client.get("/admin/status")
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     async def get_config(self) -> dict[str, Any]:
         """Get daemon configuration."""
         response = await self.client.get("/admin/config")
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     async def get_metrics(self) -> str:
         """Get Prometheus metrics."""
@@ -65,13 +67,15 @@ class GobbyAPIClient:
             params["project_id"] = project_id
         response = await self.client.get("/sessions", params=params)
         response.raise_for_status()
-        return response.json()
+        result: list[dict[str, Any]] = response.json()
+        return result
 
     async def get_session(self, session_id: str) -> dict[str, Any]:
         """Get session details."""
         response = await self.client.get(f"/sessions/{session_id}")
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     # ==================== MCP Tool Endpoints ====================
 
@@ -79,13 +83,15 @@ class GobbyAPIClient:
         """List available MCP servers."""
         response = await self.client.get("/mcp/servers")
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     async def list_tools(self, server_name: str) -> dict[str, Any]:
         """List tools from an MCP server."""
         response = await self.client.get(f"/mcp/{server_name}/tools")
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     async def call_tool(
         self,
@@ -99,7 +105,8 @@ class GobbyAPIClient:
             json=arguments or {},
         )
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     # ==================== Task Helpers (via MCP) ====================
 
@@ -119,13 +126,15 @@ class GobbyAPIClient:
             args["parent_id"] = parent_id
         response = await self.call_tool("gobby-tasks", "list_tasks", args)
         result = response.get("result", {})
-        return result.get("tasks", [])
+        tasks: list[dict[str, Any]] = result.get("tasks", [])
+        return tasks
 
     async def get_task(self, task_id: str) -> dict[str, Any]:
         """Get task details."""
         response = await self.call_tool("gobby-tasks", "get_task", {"task_id": task_id})
         result = response.get("result", {})
-        return result.get("task", {})
+        task: dict[str, Any] = result.get("task", {})
+        return task
 
     async def create_task(
         self,
@@ -192,7 +201,8 @@ class GobbyAPIClient:
             {"query": query, "limit": limit},
         )
         result = response.get("result", {})
-        return result.get("memories", [])
+        memories: list[dict[str, Any]] = result.get("memories", [])
+        return memories
 
     async def remember(self, content: str, importance: float = 0.5) -> dict[str, Any]:
         """Store a memory."""
@@ -208,7 +218,8 @@ class GobbyAPIClient:
         """List running agents."""
         response = await self.call_tool("gobby-agents", "list_agents", {})
         result = response.get("result", {})
-        return result.get("agents", [])
+        agents: list[dict[str, Any]] = result.get("agents", [])
+        return agents
 
     async def start_agent(
         self,
@@ -235,7 +246,8 @@ class GobbyAPIClient:
         """List git worktrees."""
         response = await self.call_tool("gobby-worktrees", "list_worktrees", {})
         result = response.get("result", {})
-        return result.get("worktrees", [])
+        worktrees: list[dict[str, Any]] = result.get("worktrees", [])
+        return worktrees
 
     # ==================== Workflow Helpers (via MCP) ====================
 

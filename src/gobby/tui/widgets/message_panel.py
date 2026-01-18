@@ -54,7 +54,7 @@ class AgentMessage(Static):
         content: str,
         direction: str = "incoming",
         timestamp: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.sender = sender
@@ -68,7 +68,7 @@ class AgentMessage(Static):
         with Horizontal():
             yield Static(arrow, classes="message-arrow")
             yield Static(f"[{self.sender}]", classes="message-sender")
-            yield Static(self.content[:60], classes="message-content")
+            yield Static(str(self.content)[:60], classes="message-content")
             yield Static(self.timestamp[-8:], classes="message-time")
 
 

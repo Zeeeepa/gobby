@@ -82,7 +82,7 @@ class ChatMessage(Static):
         content: str,
         role: str = "user",
         timestamp: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.sender = sender

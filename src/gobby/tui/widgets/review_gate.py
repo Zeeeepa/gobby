@@ -52,18 +52,18 @@ class ReviewItem(Static):
 
     selected = reactive(False)
 
-    def __init__(self, task: dict[str, Any], **kwargs) -> None:
+    def __init__(self, task_data: dict[str, Any], **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.task = task
+        self.task_data = task_data
 
     def compose(self) -> ComposeResult:
-        ref = self.task.get("ref", "")
-        title = self.task.get("title", "Untitled")[:30]
-        if len(self.task.get("title", "")) > 30:
+        ref = self.task_data.get("ref", "")
+        title = self.task_data.get("title", "Untitled")[:30]
+        if len(self.task_data.get("title", "")) > 30:
             title += "..."
 
         # Calculate wait time
-        updated = self.task.get("updated_at", "")
+        updated = self.task_data.get("updated_at", "")
         if updated:
             try:
                 updated_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
@@ -86,7 +86,7 @@ class ReviewItem(Static):
 
     def on_click(self) -> None:
         """Handle click to select."""
-        self.post_message(ReviewGatePanel.ItemSelected(self.task))
+        self.post_message(ReviewGatePanel.ItemSelected(self.task_data))
 
 
 class ReviewGatePanel(Widget):
@@ -168,7 +168,7 @@ class ReviewGatePanel(Widget):
         else:
             with VerticalScroll(classes="review-list"):
                 for task in review_tasks:
-                    item = ReviewItem(task, id=f"review-{task.get('id', '')}")
+                    item = ReviewItem(task_data=task, id=f"review-{task.get('id', '')}")
                     if self.selected_task and task.get("id") == self.selected_task.get("id"):
                         item.selected = True
                     yield item

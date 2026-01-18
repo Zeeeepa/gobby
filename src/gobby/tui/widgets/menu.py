@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -48,7 +49,7 @@ class MenuItemWidget(Static):
         self,
         item: MenuItem,
         selected: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.item = item

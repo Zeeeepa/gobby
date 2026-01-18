@@ -632,7 +632,7 @@ class OrchestratorScreen(Widget):
         self,
         api_client: GobbyAPIClient,
         ws_client: GobbyWebSocketClient,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.api_client = api_client
@@ -801,6 +801,9 @@ class OrchestratorScreen(Widget):
                 return
 
             task_id = task.get("id")
+            if task_id is None:
+                self.notify("Task has no ID", severity="error")
+                return
             await self.api_client.close_task(task_id, no_commit_needed=True)
             self.notify(f"Approved: {task.get('ref', task_id)}")
 

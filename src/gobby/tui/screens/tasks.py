@@ -86,9 +86,11 @@ class TaskTreePanel(Widget):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle filter changes."""
+        status_val = self.query_one("#status-filter", Select).value
+        type_val = self.query_one("#type-filter", Select).value
         self.post_message(TasksScreen.FilterChanged(
-            status=self.query_one("#status-filter", Select).value,
-            task_type=self.query_one("#type-filter", Select).value,
+            status=str(status_val) if status_val is not Select.BLANK else "all",
+            task_type=str(type_val) if type_val is not Select.BLANK else "all",
         ))
 
 
@@ -153,36 +155,36 @@ class TaskDetailPanel(Widget):
     }
     """
 
-    task: reactive[dict[str, Any] | None] = reactive(None)
+    task_data: reactive[dict[str, Any] | None] = reactive(None)
 
     def compose(self) -> ComposeResult:
-        if self.task is None:
+        if self.task_data is None:
             yield Static("Select a task to view details", classes="empty-state")
         else:
             with Vertical(classes="detail-header"):
-                yield Static(self.task.get("title", "Untitled"), classes="detail-title")
-                yield Static(self.task.get("ref", ""), classes="detail-ref")
+                yield Static(self.task_data.get("title", "Untitled"), classes="detail-title")
+                yield Static(self.task_data.get("ref", ""), classes="detail-ref")
 
             with Vertical(classes="detail-section"):
                 with Horizontal():
                     yield Static("Status:", classes="detail-label")
-                    yield Static(self.task.get("status", "unknown"), classes="detail-value", id="detail-status")
+                    yield Static(self.task_data.get("status", "unknown"), classes="detail-value", id="detail-status")
                 with Horizontal():
                     yield Static("Type:", classes="detail-label")
-                    yield Static(self.task.get("task_type", "task"), classes="detail-value")
+                    yield Static(self.task_data.get("task_type", "task"), classes="detail-value")
                 with Horizontal():
                     yield Static("Priority:", classes="detail-label")
-                    yield Static(str(self.task.get("priority", 3)), classes="detail-value")
+                    yield Static(str(self.task_data.get("priority", 3)), classes="detail-value")
                 with Horizontal():
                     yield Static("Assignee:", classes="detail-label")
-                    yield Static(self.task.get("assignee", "Unassigned"), classes="detail-value")
+                    yield Static(self.task_data.get("assignee", "Unassigned"), classes="detail-value")
 
-            if self.task.get("description"):
+            if self.task_data.get("description"):
                 yield Static("Description:", classes="detail-label")
-                yield Static(self.task.get("description", ""), classes="detail-description")
+                yield Static(self.task_data.get("description", ""), classes="detail-description")
 
             with Horizontal(classes="action-buttons"):
-                status = self.task.get("status", "")
+                status = self.task_data.get("status", "")
                 if status == "open":
                     yield Button("Start", variant="primary", id="btn-start")
                     yield Button("Expand", id="btn-expand")
@@ -192,13 +194,13 @@ class TaskDetailPanel(Widget):
                     yield Button("Approve", variant="success", id="btn-approve")
                     yield Button("Reopen", variant="error", id="btn-reopen")
 
-    def watch_task(self, task: dict[str, Any] | None) -> None:
-        """Recompose when task changes."""
+    def watch_task_data(self, task_data: dict[str, Any] | None) -> None:
+        """Recompose when task_data changes."""
         self.call_after_refresh(self.recompose)
 
     def update_task(self, task: dict[str, Any] | None) -> None:
         """Update the displayed task."""
-        self.task = task
+        self.task_data = task
 
 
 class TasksScreen(Widget):
@@ -251,7 +253,7 @@ class TasksScreen(Widget):
         self,
         api_client: GobbyAPIClient,
         ws_client: GobbyWebSocketClient,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.api_client = api_client
@@ -286,7 +288,7 @@ class TasksScreen(Widget):
                     args["task_type"] = self.current_filter_type
 
                 tasks = await client.list_tasks(**args)
-                self.tasks = tasks
+                self.task_datas = tasks
                 self._task_map = {t.get("id", ""): t for t in tasks}
 
         except Exception as e:
@@ -304,7 +306,7 @@ class TasksScreen(Widget):
 
             # Build parent -> children mapping
             children_map: dict[str | None, list[dict[str, Any]]] = {}
-            for task in self.tasks:
+            for task in self.task_datas:
                 parent_id = task.get("parent_id")
                 if parent_id not in children_map:
                     children_map[parent_id] = []

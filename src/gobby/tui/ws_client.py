@@ -171,7 +171,7 @@ class GobbyWebSocketClient:
                 data = json.loads(message)
                 await self._handle_message(data)
             except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON received: {message}")
+                logger.warning(f"Invalid JSON received: {message!r}")
             except Exception as e:
                 logger.error(f"Error handling message: {e}")
 

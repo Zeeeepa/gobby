@@ -70,7 +70,7 @@ class WorktreesScreen(Widget):
         self,
         api_client: GobbyAPIClient,
         ws_client: GobbyWebSocketClient,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.api_client = api_client
