@@ -339,14 +339,19 @@ class TestBundledTemplates:
         assert template.content != ""
         assert template.source_path is not None
 
-    def test_expansion_system_has_tdd_mode(self) -> None:
-        """Test that expansion/system template supports TDD mode conditional."""
+    def test_expansion_system_no_tdd_mode_in_prompt(self) -> None:
+        """Test that expansion/system template does not include TDD mode.
+
+        TDD mode is now applied post-expansion via the sandwich pattern,
+        not in the prompt itself.
+        """
         loader = PromptLoader()
 
-        # Without TDD mode
-        result_no_tdd = loader.render("expansion/system", {"tdd_mode": False})
-        assert "TDD Mode Enabled" not in result_no_tdd
+        # TDD mode is no longer in the template - it's applied post-expansion
+        result = loader.render("expansion/system", {"tdd_mode": False})
+        assert "TDD Mode Enabled" not in result
 
-        # With TDD mode
-        result_tdd = loader.render("expansion/system", {"tdd_mode": True})
-        assert "TDD Mode Enabled" in result_tdd
+        # tdd_mode variable is ignored - template is the same regardless
+        result_with_flag = loader.render("expansion/system", {"tdd_mode": True})
+        assert "TDD Mode Enabled" not in result_with_flag
+        assert result == result_with_flag

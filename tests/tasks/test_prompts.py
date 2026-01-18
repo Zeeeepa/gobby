@@ -84,15 +84,21 @@ def test_build_user_prompt_with_instructions():
     assert "Do it cleanly" in prompt
 
 
-def test_get_system_prompt_with_tdd_mode():
-    """Test that TDD mode instructions are appended when enabled."""
+def test_get_system_prompt_tdd_mode_deprecated():
+    """Test that tdd_mode parameter is deprecated and ignored.
+
+    TDD mode is now applied post-expansion via the sandwich pattern,
+    not in the prompt itself.
+    """
     config = TaskExpansionConfig(enabled=True, provider="test", model="test")
     builder = ExpansionPromptBuilder(config)
 
     prompt_without_tdd = builder.get_system_prompt(tdd_mode=False)
     prompt_with_tdd = builder.get_system_prompt(tdd_mode=True)
 
-    # TDD mode should append additional instructions
-    assert len(prompt_with_tdd) > len(prompt_without_tdd)
-    assert "TDD Mode Enabled" in prompt_with_tdd
+    # tdd_mode is deprecated and ignored - prompts should be identical
+    assert len(prompt_with_tdd) == len(prompt_without_tdd)
+    assert prompt_with_tdd == prompt_without_tdd
+    # TDD mode is not mentioned in the prompt
+    assert "TDD Mode Enabled" not in prompt_with_tdd
     assert "TDD Mode Enabled" not in prompt_without_tdd

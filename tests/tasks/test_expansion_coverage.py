@@ -447,7 +447,11 @@ class TestParseSubtasksEdgeCases:
         assert specs[0].title == "Valid"
 
     def test_parse_all_subtask_fields(self, mock_task_manager, mock_llm_service):
-        """Test that all subtask fields are parsed correctly."""
+        """Test that all subtask fields are parsed correctly.
+
+        Note: category='test' subtasks are filtered out (TDD sandwich creates them).
+        Use category='code' to test field parsing.
+        """
         config = TaskExpansionConfig(enabled=True)
         expander = TaskExpander(config, mock_llm_service, mock_task_manager)
 
@@ -459,7 +463,7 @@ class TestParseSubtasksEdgeCases:
                         "description": "Complete description",
                         "priority": 1,
                         "task_type": "feature",
-                        "category": "test",
+                        "category": "code",
                         "depends_on": [0, 1],
                     }
                 ]
@@ -472,7 +476,7 @@ class TestParseSubtasksEdgeCases:
         assert specs[0].description == "Complete description"
         assert specs[0].priority == 1
         assert specs[0].task_type == "feature"
-        assert specs[0].category == "test"
+        assert specs[0].category == "code"
         assert specs[0].depends_on == [0, 1]
 
     def test_parse_malformed_json_response(self, mock_task_manager, mock_llm_service):

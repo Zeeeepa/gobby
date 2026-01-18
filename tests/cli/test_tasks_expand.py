@@ -36,6 +36,7 @@ def test_expand_command_with_flags(mock_task_manager, mock_expander):
                 description=None,
                 seq_num=1,
                 is_expanded=False,
+                expansion_context=None,
             ),
         ),
         patch("gobby.config.app.load_config") as mock_config,

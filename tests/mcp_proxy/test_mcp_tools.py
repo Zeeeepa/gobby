@@ -259,9 +259,12 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
 
         msg_task = MagicMock()
         msg_task.id = "t1"
+        msg_task.title = "Test task"
+        msg_task.description = "Test description"
         msg_task.is_expanded = False
         msg_task.expansion_context = None
         msg_task.project_id = "p1"
+        msg_task.task_type = "task"
         mock_task_manager.get_task.return_value = msg_task
 
         # Mock fetching created subtasks
@@ -324,8 +327,11 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
 
         mock_task = MagicMock()
         mock_task.id = "t1"
+        mock_task.title = "Test task"
+        mock_task.description = "Test description"
         mock_task.is_expanded = False
         mock_task.expansion_context = None
+        mock_task.task_type = "task"
         mock_task_manager.get_task.return_value = mock_task
 
         # Call with explicit flags
@@ -340,8 +346,8 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
 
         mock_expander.expand_task.assert_called_with(
             task_id="t1",
-            title=mock_task.title,
-            description=mock_task.description,
+            title="Test task",
+            description="Test description",
             context=None,
             enable_web_research=True,
             enable_code_context=False,
