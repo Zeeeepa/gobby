@@ -8,6 +8,7 @@ Provides tools for expanding tasks into subtasks with automatic TDD sandwich pat
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -19,6 +20,8 @@ from gobby.storage.tasks import LocalTaskManager, Task, TaskNotFoundError
 if TYPE_CHECKING:
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["create_expansion_registry", "should_skip_tdd", "TDD_PREFIXES", "TDD_SKIP_PATTERNS"]
 
@@ -493,7 +496,13 @@ def create_expansion_registry(
         # IMPORTANT: Skip TDD when expanding epics - TDD is applied at feature task level
         tdd_applied = False
         tdd_categories = ("code", "config")
-        if not skip_tdd and subtask_ids and task.task_type != "epic":
+        should_apply_tdd = not skip_tdd and subtask_ids and task.task_type != "epic"
+        logger.info(
+            f"TDD check: task={task.id[:8]} type={task.task_type} "
+            f"skip_tdd={skip_tdd} subtask_count={len(subtask_ids)} "
+            f"should_apply={should_apply_tdd}"
+        )
+        if should_apply_tdd:
             # Collect code/config subtasks that should be wrapped in TDD sandwich
             impl_task_ids = []
             for sid in subtask_ids:
@@ -504,12 +513,29 @@ def create_expansion_registry(
                 if subtask.category in tdd_categories:
                     if not should_skip_tdd(subtask.title):
                         impl_task_ids.append(sid)
+                        logger.debug(
+                            f"  TDD candidate: {subtask.id[:8]} category={subtask.category}"
+                        )
+                    else:
+                        logger.debug(
+                            f"  TDD skip (pattern): {subtask.id[:8]} title={subtask.title[:40]}"
+                        )
+                else:
+                    logger.debug(
+                        f"  TDD skip (category): {subtask.id[:8]} category={subtask.category}"
+                    )
 
             # Apply TDD sandwich at parent level (wraps all impl tasks)
             if impl_task_ids:
+                logger.info(f"Applying TDD sandwich: {len(impl_task_ids)} code/config subtasks")
                 tdd_result = await _apply_tdd_sandwich(resolved_task_id, impl_task_ids)
                 if tdd_result.get("success", False):
                     tdd_applied = True
+                    logger.info(f"TDD sandwich applied successfully to {task.id[:8]}")
+                else:
+                    logger.warning(f"TDD sandwich failed: {tdd_result}")
+            else:
+                logger.info(f"No code/config subtasks for TDD sandwich in {task.id[:8]}")
 
         # Build response
         response: dict[str, Any] = {
