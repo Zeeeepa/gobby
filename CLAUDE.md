@@ -209,6 +209,32 @@ Use `list_mcp_servers()` to see connected servers, then `list_tools(server="..."
 
 ## Task Management (CRITICAL)
 
+### Getting Your Session ID
+
+**Tasks require a `session_id` parameter.** The session_id is automatically injected into your context by the Gobby daemon when a session starts via the `session-start` hook.
+
+**Where to find it**: Look for `session_id:` in your system context at the start of the conversation. Example:
+
+```text
+session_id: 0cca7fc6-cdf1-4fbc-bd31-418745285672
+```
+
+**How I (Claude) get it**: The Gobby daemon fires a `session-start` hook when I begin a session. This hook injects context including:
+- `session_id` - Unique identifier for this session
+- `machine_id` - Machine identifier
+- `project_id` - Current project identifier
+- `terminal` - Terminal type (e.g., `tmux`)
+
+Use this session_id in all `create_task` calls:
+
+```python
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Fix authentication bug",
+    "task_type": "bug",
+    "session_id": "0cca7fc6-cdf1-4fbc-bd31-418745285672"  # From SessionStart context
+})
+```
+
 ### Workflow Requirements
 
 **BEFORE editing files (Edit/Write tools), you MUST have a task with `status: in_progress`.**
