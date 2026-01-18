@@ -124,6 +124,7 @@ def protect_production_resources(request: pytest.FixtureRequest, temp_dir: Path)
 
     safe_db = LocalDatabase(safe_db_path)
     run_migrations(safe_db)
+    safe_db.close()
 
     safe_log_client = safe_logs_dir / "gobby.log"
     safe_log_error = safe_logs_dir / "gobby-error.log"
