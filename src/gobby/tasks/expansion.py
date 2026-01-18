@@ -318,11 +318,15 @@ class TaskExpander:
         Returns:
             True if this is a test task that should be filtered
         """
-        # Filter by category
+        # Don't filter refactor tasks - they may legitimately update existing tests
+        if category and category.lower() == "refactor":
+            return False
+
+        # Filter by category=test
         if category and category.lower() == "test":
             return True
 
-        # Filter by title patterns
+        # Filter by title patterns (only when category is not explicitly set to refactor)
         title_lower = title.lower().strip()
         for pattern in self.TEST_TASK_PATTERNS:
             if re.search(pattern, title_lower, re.IGNORECASE):
@@ -377,7 +381,7 @@ class TaskExpander:
 
             # Filter out test tasks - TDD sandwich creates them automatically
             if self._is_test_task(title, category):
-                logger.info(f"Filtered test task: '{title}' (category={category})")
+                logger.debug(f"Filtered test task: '{title}' (category={category})")
                 filtered_count += 1
                 continue
 
@@ -393,7 +397,7 @@ class TaskExpander:
             subtask_specs.append(spec)
 
         if filtered_count > 0:
-            logger.info(f"Filtered {filtered_count} test tasks from LLM output")
+            logger.debug(f"Filtered {filtered_count} test tasks from LLM output")
 
         return subtask_specs
 
