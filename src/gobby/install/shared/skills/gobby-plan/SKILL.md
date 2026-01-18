@@ -120,6 +120,7 @@ Ensure each task has a valid category:
 - `code` - Implementation tasks (gets TDD triplets)
 - `config` - Configuration changes (gets TDD triplets)
 - `docs` - Documentation tasks (no TDD)
+- `refactor` - Refactoring tasks, including updating existing tests (no TDD)
 - `test` - Test infrastructure (no TDD)
 - `research` - Investigation tasks (no TDD)
 - `planning` - Architecture/design (no TDD)

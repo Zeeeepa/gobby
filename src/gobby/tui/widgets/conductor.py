@@ -27,7 +27,7 @@ class HaikuDisplay(Widget):
     }
     """
 
-    lines = reactive(["", "", ""])
+    lines = reactive(("", "", ""))
 
     def compose(self) -> ComposeResult:
         for i, line in enumerate(self.lines):
@@ -39,7 +39,7 @@ class HaikuDisplay(Widget):
     def update_haiku(self, lines: list[str]) -> None:
         """Update the haiku text."""
         if len(lines) >= 3:
-            self.lines = lines[:3]
+            self.lines = tuple(lines[:3])  # type: ignore[assignment]
             for i, line in enumerate(self.lines):
                 try:
                     widget = self.query_one(f"#haiku-{i}", Static)

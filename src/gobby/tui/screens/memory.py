@@ -93,7 +93,7 @@ class MemoryDetailPanel(Widget):
 
     def watch_memory(self, memory: dict[str, Any] | None) -> None:
         """Recompose when memory changes."""
-        asyncio.create_task(self.recompose())
+        self.call_after_refresh(self.recompose)
 
 
 class MemoryScreen(Widget):
@@ -191,21 +191,18 @@ class MemoryScreen(Widget):
     async def refresh_data(self) -> None:
         """Refresh memory list."""
         try:
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                # Search with current query or get all
-                if self.search_query:
-                    memories = await client.recall(self.search_query, limit=50)
-                else:
-                    # Get recent memories
-                    result = await client.call_tool(
-                        "gobby-memory",
-                        "list_memories",
-                        {"limit": 50},
-                    )
-                    memories = result.get("memories", [])
+            if self.search_query:
+                memories = await self.api_client.recall(self.search_query, limit=50)
+            else:
+                result = await self.api_client.call_tool(
+                    "gobby-memory",
+                    "list_memories",
+                    {"limit": 50},
+                )
+                memories = result.get("memories", [])
 
-                self.memories = memories
-                self._memory_map = {m.get("id", ""): m for m in memories}
+            self.memories = memories
+            self._memory_map = {m.get("id", ""): m for m in memories}
 
         except Exception as e:
             self.notify(f"Failed to load memories: {e}", severity="error")

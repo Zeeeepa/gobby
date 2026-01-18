@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -224,7 +223,8 @@ class AgentsScreen(Widget):
                 run_id = agent.get("run_id", "")[:12]
                 status = agent.get("status", "unknown")
                 mode = agent.get("mode", "?")
-                prompt = agent.get("prompt", "")[:40] + "..." if len(agent.get("prompt", "")) > 40 else agent.get("prompt", "")
+                prompt_val = agent.get("prompt") or ""
+                prompt = prompt_val[:40] + "..." if len(prompt_val) > 40 else prompt_val
 
                 # Calculate duration
                 started = agent.get("started_at", "")
@@ -324,4 +324,4 @@ class AgentsScreen(Widget):
     def on_ws_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Handle WebSocket events."""
         if event_type == "agent_event":
-            asyncio.create_task(self.refresh_data())
+            self.run_worker(self.refresh_data(), name="refresh_data", exclusive=True)

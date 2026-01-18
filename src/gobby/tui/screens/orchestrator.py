@@ -661,18 +661,10 @@ class OrchestratorScreen(Widget):
     async def refresh_data(self) -> None:
         """Refresh orchestrator data."""
         try:
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                # Get system status
-                status = await client.get_status()
-
-                # Get tasks in review
-                tasks = await client.list_tasks(status="review")
-
-                # Get running agents
-                agents = await client.list_agents()
-
-                # Update panels
-                await self._update_panels(status, tasks, agents)
+            status = await self.api_client.get_status()
+            tasks = await self.api_client.list_tasks(status="review")
+            agents = await self.api_client.list_agents()
+            await self._update_panels(status, tasks, agents)
 
         except Exception as e:
             self.notify(f"Failed to load orchestrator data: {e}", severity="error")
@@ -809,11 +801,9 @@ class OrchestratorScreen(Widget):
                 return
 
             task_id = task.get("id")
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                await client.close_task(task_id, no_commit_needed=True)
-                self.notify(f"Approved: {task.get('ref', task_id)}")
+            await self.api_client.close_task(task_id, no_commit_needed=True)
+            self.notify(f"Approved: {task.get('ref', task_id)}")
 
-            # Add to message panel
             messages_panel = self.query_one("#messages-panel", InterAgentMessagePanel)
             messages_panel.add_message("conductor", f"Approved task {task.get('ref', '')}", "outgoing")
 
@@ -833,15 +823,13 @@ class OrchestratorScreen(Widget):
                 return
 
             task_id = task.get("id")
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                await client.call_tool(
-                    "gobby-tasks",
-                    "reopen_task",
-                    {"task_id": task_id},
-                )
-                self.notify(f"Rejected: {task.get('ref', task_id)}")
+            await self.api_client.call_tool(
+                "gobby-tasks",
+                "reopen_task",
+                {"task_id": task_id},
+            )
+            self.notify(f"Rejected: {task.get('ref', task_id)}")
 
-            # Add to message panel
             messages_panel = self.query_one("#messages-panel", InterAgentMessagePanel)
             messages_panel.add_message("conductor", f"Rejected task {task.get('ref', '')}", "outgoing")
 

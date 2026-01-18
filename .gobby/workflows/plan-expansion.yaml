@@ -373,7 +373,7 @@ steps:
 
     rules:
       - name: only_edit_plan_file
-        when: "tool_name == 'Edit' and str(tool_args.get('file_path', '')) != str(variables.plan_file)"
+        when: "variables.plan_file and tool_name == 'Edit' and str(tool_args.get('file_path', '')) != str(variables.plan_file)"
         action: block
         message: "Can only edit the plan file during verification"
 

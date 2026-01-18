@@ -263,12 +263,10 @@ class SessionsScreen(Widget):
         await self.recompose()
 
         try:
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                # Build filter args
-                status = None if self.current_filter == "all" else self.current_filter
-                sessions = await client.list_sessions(status=status, limit=100)
-                self.sessions = sessions
-                self._session_map = {s.get("id", ""): s for s in sessions}
+            status = None if self.current_filter == "all" else self.current_filter
+            sessions = await self.api_client.list_sessions(status=status, limit=100)
+            self.sessions = sessions
+            self._session_map = {s.get("id", ""): s for s in sessions}
 
         except Exception as e:
             self.notify(f"Failed to load sessions: {e}", severity="error")
@@ -360,23 +358,22 @@ class SessionsScreen(Widget):
         button_id = event.button.id
 
         try:
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                if button_id == "btn-pickup":
-                    result = await client.call_tool(
-                        "gobby-sessions",
-                        "pickup",
-                        {"session_id": self.selected_session_id},
-                    )
-                    self.notify(f"Session picked up: {self.selected_session_id[:12]}")
+            if button_id == "btn-pickup":
+                await self.api_client.call_tool(
+                    "gobby-sessions",
+                    "pickup",
+                    {"session_id": self.selected_session_id},
+                )
+                self.notify(f"Session picked up: {self.selected_session_id[:12]}")
 
-                elif button_id == "btn-handoff":
-                    result = await client.call_tool(
-                        "gobby-sessions",
-                        "get_handoff_context",
-                        {"session_id": self.selected_session_id},
-                    )
-                    context = result.get("context", "No context available")
-                    self.notify(f"Handoff context: {len(context)} chars")
+            elif button_id == "btn-handoff":
+                result = await self.api_client.call_tool(
+                    "gobby-sessions",
+                    "get_handoff_context",
+                    {"session_id": self.selected_session_id},
+                )
+                context = result.get("context", "No context available")
+                self.notify(f"Handoff context: {len(context)} chars")
 
         except Exception as e:
             self.notify(f"Action failed: {e}", severity="error")

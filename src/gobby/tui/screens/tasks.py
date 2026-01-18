@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -195,7 +194,7 @@ class TaskDetailPanel(Widget):
 
     def watch_task(self, task: dict[str, Any] | None) -> None:
         """Recompose when task changes."""
-        asyncio.create_task(self.recompose())
+        self.call_after_refresh(self.recompose)
 
     def update_task(self, task: dict[str, Any] | None) -> None:
         """Update the displayed task."""
@@ -414,10 +413,9 @@ class TasksScreen(Widget):
     def on_ws_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Handle WebSocket events."""
         if event_type == "hook_event":
-            # Refresh on task-related hooks
             hook_type = data.get("event_type", "")
             if "task" in hook_type.lower():
-                asyncio.create_task(self.refresh_data())
+                self.run_worker(self.refresh_data(), name="refresh_data", exclusive=True)
 
     def activate_search(self) -> None:
         """Activate search mode."""

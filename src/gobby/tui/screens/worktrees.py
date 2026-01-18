@@ -99,9 +99,8 @@ class WorktreesScreen(Widget):
     async def refresh_data(self) -> None:
         """Refresh worktree list."""
         try:
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                worktrees = await client.list_worktrees()
-                self.worktrees = worktrees
+            worktrees = await self.api_client.list_worktrees()
+            self.worktrees = worktrees
         except Exception as e:
             self.notify(f"Failed to load worktrees: {e}", severity="error")
         finally:
@@ -153,14 +152,13 @@ class WorktreesScreen(Widget):
     async def _cleanup_worktrees(self) -> None:
         """Clean up stale worktrees."""
         try:
-            async with GobbyAPIClient(self.api_client.base_url) as client:
-                result = await client.call_tool(
-                    "gobby-worktrees",
-                    "cleanup_worktrees",
-                    {},
-                )
-                cleaned = result.get("cleaned", 0)
-                self.notify(f"Cleaned up {cleaned} worktrees")
+            result = await self.api_client.call_tool(
+                "gobby-worktrees",
+                "cleanup_worktrees",
+                {},
+            )
+            cleaned = result.get("cleaned", 0)
+            self.notify(f"Cleaned up {cleaned} worktrees")
 
             await self.refresh_data()
 
