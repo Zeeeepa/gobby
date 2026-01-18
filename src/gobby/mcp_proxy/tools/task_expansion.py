@@ -22,6 +22,7 @@ from gobby.tasks.tdd import (
     TDD_SKIP_PATTERNS,
     apply_tdd_sandwich,
     build_expansion_context,
+    should_skip_expansion,
     should_skip_tdd,
 )
 
@@ -183,17 +184,44 @@ def create_expansion_registry(
                     "root_ref": f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8],
                     "unexpanded_epics": 0,
                 }
+
+            # Re-fetch to get latest state and verify task should be expanded
+            target_task = task_manager.get_task(target_task.id)
+            if target_task is None:
+                return {"error": "Task deleted during expansion", "task_id": resolved_task_id}
+
+            # Check if task should be skipped (TDD prefixes or already expanded)
+            skip, reason = should_skip_expansion(
+                target_task.title, target_task.is_expanded, force
+            )
+            if skip:
+                logger.info(f"Skipping task {target_task.id[:8]}: {reason}")
+                return {
+                    "skipped": True,
+                    "reason": reason,
+                    "task_id": target_task.id,
+                    "unexpanded_epics": _count_unexpanded_epics(resolved_task_id),
+                }
+
             task = target_task
         else:
             task = root_task
 
-            # Non-iterative mode: Check if already expanded (unless force=True)
-            if task.is_expanded and not force:
-                return {
-                    "error": "Task already expanded (is_expanded=True). Use force=True to re-expand, or use iterative mode to expand child epics.",
-                    "task_id": task.id,
-                    "is_expanded": True,
-                }
+            # Non-iterative mode: Check if task should be skipped
+            skip, reason = should_skip_expansion(task.title, task.is_expanded, force)
+            if skip:
+                if reason == "already expanded":
+                    return {
+                        "error": "Task already expanded (is_expanded=True). Use force=True to re-expand, or use iterative mode to expand child epics.",
+                        "task_id": task.id,
+                        "is_expanded": True,
+                    }
+                else:
+                    return {
+                        "error": f"Cannot expand task: {reason}",
+                        "task_id": task.id,
+                        "skipped": True,
+                    }
 
             # Check if task is a leaf (no children) - only in non-iterative mode
             existing_children = task_manager.list_tasks(parent_task_id=task.id, limit=1)

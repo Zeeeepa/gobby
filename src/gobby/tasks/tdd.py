@@ -28,6 +28,7 @@ __all__ = [
     "TDD_PARENT_CRITERIA",
     "TDD_CATEGORIES",
     "should_skip_tdd",
+    "should_skip_expansion",
     "apply_tdd_sandwich",
     "build_expansion_context",
 ]
@@ -107,6 +108,35 @@ def should_skip_tdd(title: str) -> bool:
         if re.search(pattern, title, re.IGNORECASE):
             return True
     return False
+
+
+def should_skip_expansion(title: str, is_expanded: bool, force: bool = False) -> tuple[bool, str]:
+    """
+    Check if a task should be skipped from expansion.
+
+    Tasks are skipped if:
+    - Already expanded (is_expanded=True) unless force=True
+    - Title starts with TDD prefixes ([TDD], [IMPL], [REF]) - these are atomic tasks
+
+    Args:
+        title: The task title to check
+        is_expanded: Whether the task's is_expanded flag is set
+        force: Whether to force expansion even if already expanded
+
+    Returns:
+        Tuple of (should_skip: bool, reason: str)
+        reason is empty string if should_skip is False
+    """
+    # Check for TDD prefixes - these tasks should never be expanded
+    for prefix in TDD_PREFIXES:
+        if title.startswith(prefix):
+            return True, f"TDD task ({prefix})"
+
+    # Check if already expanded
+    if is_expanded and not force:
+        return True, "already expanded"
+
+    return False, ""
 
 
 async def apply_tdd_sandwich(

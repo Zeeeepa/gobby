@@ -470,6 +470,7 @@ def expand_task_cmd(
         TDD_CATEGORIES,
         apply_tdd_sandwich,
         build_expansion_context,
+        should_skip_expansion,
         should_skip_tdd,
     )
     from gobby.tasks.validation import TaskValidator
@@ -609,6 +610,19 @@ def expand_task_cmd(
                     click.echo(f"✓ Expansion complete after {iteration - 1} iterations")
                     break
 
+                # Re-fetch to get latest state
+                target = manager.get_task(target.id)
+                if target is None:
+                    click.echo("    Task deleted during expansion", err=True)
+                    break
+
+                # Check if task should be skipped (TDD prefixes or already expanded)
+                skip, reason = should_skip_expansion(target.title, target.is_expanded, force)
+                if skip:
+                    target_ref = f"#{target.seq_num}" if target.seq_num else target.id[:8]
+                    click.echo(f"    Skipping {target_ref}: {reason}")
+                    continue
+
                 target_ref = f"#{target.seq_num}" if target.seq_num else target.id[:8]
                 click.echo(f"[{iteration}] Expanding {target_ref}: {target.title[:40]}...")
 
@@ -656,8 +670,9 @@ def expand_task_cmd(
 
         else:
             # Single task expansion (non-cascade)
-            if root_task.is_expanded and not force:
-                click.echo(f"Skipping {root_ref}: already expanded (use --force)")
+            skip, reason = should_skip_expansion(root_task.title, root_task.is_expanded, force)
+            if skip:
+                click.echo(f"Skipping {root_ref}: {reason}")
                 continue
 
             click.echo(f"Expanding {root_ref}: {root_task.title[:50]}...")
