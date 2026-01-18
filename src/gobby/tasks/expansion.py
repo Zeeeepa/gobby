@@ -293,9 +293,48 @@ class TaskExpander:
             logger.error(f"Failed to expand task {task_id}: {error_msg}", exc_info=True)
             return {"error": error_msg, "subtask_ids": [], "subtask_count": 0}
 
+    # Patterns that indicate a test task (case-insensitive)
+    TEST_TASK_PATTERNS = (
+        r"^write\s+tests?\s+for",
+        r"^add\s+(?:unit\s+)?tests?\s+for",
+        r"^create\s+(?:unit\s+)?tests?",
+        r"^unit\s+tests?\s+for",
+        r"^integration\s+tests?\s+for",
+        r"^test\s+(?:the\s+)?",
+        r"^verify\s+with\s+tests?",
+        r"tests?\s+for\s+.*(?:class|function|method|module)",
+    )
+
+    def _is_test_task(self, title: str, category: str | None) -> bool:
+        """Check if a subtask is a test task that should be filtered out.
+
+        TDD sandwich pattern creates test tasks automatically. LLM-generated
+        test tasks would cause duplicates and should be filtered.
+
+        Args:
+            title: The subtask title
+            category: The subtask category (if provided)
+
+        Returns:
+            True if this is a test task that should be filtered
+        """
+        # Filter by category
+        if category and category.lower() == "test":
+            return True
+
+        # Filter by title patterns
+        title_lower = title.lower().strip()
+        for pattern in self.TEST_TASK_PATTERNS:
+            if re.search(pattern, title_lower, re.IGNORECASE):
+                return True
+
+        return False
+
     def _parse_subtasks(self, response: str) -> list[SubtaskSpec]:
         """
         Parse subtask specifications from LLM JSON response.
+
+        Filters out test tasks since TDD sandwich creates them automatically.
 
         Args:
             response: Raw LLM response text (should be JSON)
@@ -321,8 +360,9 @@ class TaskExpander:
             logger.warning(f"Expected 'subtasks' to be a list, got {type(subtasks_data)}")
             return []
 
-        # Parse each subtask
+        # Parse each subtask, filtering out test tasks
         subtask_specs = []
+        filtered_count = 0
         for i, item in enumerate(subtasks_data):
             if not isinstance(item, dict):
                 logger.warning(f"Subtask {i} is not a dict, skipping")
@@ -332,16 +372,28 @@ class TaskExpander:
                 logger.warning(f"Subtask {i} missing title, skipping")
                 continue
 
+            title = item["title"]
+            category = item.get("category")
+
+            # Filter out test tasks - TDD sandwich creates them automatically
+            if self._is_test_task(title, category):
+                logger.info(f"Filtered test task: '{title}' (category={category})")
+                filtered_count += 1
+                continue
+
             spec = SubtaskSpec(
-                title=item["title"],
+                title=title,
                 description=item.get("description"),
                 priority=item.get("priority", 2),
                 task_type=item.get("task_type", "task"),
-                category=item.get("category"),
+                category=category,
                 validation=item.get("validation"),
                 depends_on=item.get("depends_on"),
             )
             subtask_specs.append(spec)
+
+        if filtered_count > 0:
+            logger.info(f"Filtered {filtered_count} test tasks from LLM output")
 
         return subtask_specs
 

@@ -24,7 +24,7 @@ SUBTASK_SCHEMA = """
       "description": "string (optional) - Detailed description with implementation notes",
       "priority": "integer (optional) - 1=High, 2=Medium (default), 3=Low",
       "task_type": "string (optional) - task|bug|feature|epic (default: task)",
-      "category": "string (required for actionable tasks) - code|config|docs|test|research|planning|manual",
+      "category": "string (required for actionable tasks) - code|config|docs|research|planning|manual (NOT test)",
       "validation": "string (optional) - Acceptance criteria with project commands",
       "depends_on": ["integer (optional) - Array of 0-based indices of subtasks this depends on"]
     }
@@ -46,7 +46,7 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
 | description | string | No | Detailed description including implementation notes |
 | priority | integer | No | 1=High, 2=Medium (default), 3=Low |
 | task_type | string | No | "task" (default), "bug", "feature", "epic" |
-| category | string | Yes* | Task domain: code, config, docs, test, research, planning, manual |
+| category | string | Yes* | Task domain: code, config, docs, research, planning, manual (NOT test) |
 | validation | string | No | Acceptance criteria with project commands |
 | depends_on | array[int] | No | Indices (0-based) of subtasks this one depends on |
 
@@ -58,10 +58,11 @@ Choose the appropriate category for each subtask:
 - **code**: Implementation tasks (write/modify source code)
 - **config**: Configuration file changes (.yaml, .toml, .json, .env)
 - **docs**: Documentation tasks (README, docstrings, guides)
-- **test**: Test-writing tasks (unit tests, integration tests)
 - **research**: Investigation/exploration tasks
 - **planning**: Design/architecture tasks, parent phases
 - **manual**: Manual verification/testing tasks
+
+NOTE: Do NOT use category "test" - TDD test tasks are created automatically.
 
 ## Example Output
 
@@ -106,10 +107,11 @@ Use `depends_on` to specify execution order:
 2. **Dependencies**: Use `depends_on` to enforce logical order (e.g., create file before importing it).
 3. **Context Awareness**: Reference specific existing files or functions from the provided codebase context.
 4. **Categories Required**: Every actionable subtask MUST have a category from the enum.
-5. **Validation Criteria**: Include validation criteria for code/config/test tasks.
+5. **Validation Criteria**: Include validation criteria for code/config tasks.
 6. **Completeness**: The set of subtasks must fully accomplish the parent task.
 7. **JSON Only**: Output ONLY valid JSON - no markdown, no explanation, no code blocks.
 8. **No Scope Creep**: Do NOT include optional features, alternatives, or "nice-to-haves". Each subtask must be a concrete requirement from the parent task. Never invent additional features, suggest "consider also adding X", or include "(Optional)" sections. Implement exactly what is specified.
+9. **NO TEST TASKS**: Do NOT create subtasks for writing tests. TDD is applied AUTOMATICALLY after expansion. Creating test tasks like "Write tests for X", "Add unit tests", "Create test file", "Verify with tests", or ANY task with category="test" will cause DUPLICATE test work. Only create implementation subtasks.
 
 ## Validation Criteria Rules
 
