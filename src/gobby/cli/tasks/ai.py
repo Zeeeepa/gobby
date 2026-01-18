@@ -464,7 +464,15 @@ def expand_task_cmd(
     from gobby.cli.utils import get_active_session_id
     from gobby.config.app import load_config
     from gobby.llm import LLMService
+    from gobby.storage.task_dependencies import TaskDependencyManager
     from gobby.tasks.expansion import TaskExpander
+    from gobby.tasks.tdd import (
+        TDD_CATEGORIES,
+        apply_tdd_sandwich,
+        build_expansion_context,
+        should_skip_tdd,
+    )
+    from gobby.tasks.validation import TaskValidator
 
     # Parse task references
     refs = parse_task_refs(task_refs)
@@ -497,10 +505,77 @@ def expand_task_cmd(
         expander = TaskExpander(
             config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
         )
+        dep_manager = TaskDependencyManager(manager.db)
+        validator = TaskValidator(config.gobby_tasks.validation, llm_service)
+        auto_generate_validation = config.gobby_tasks.validation.auto_generate_on_expand
 
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)
         return
+
+    async def _post_expansion_processing(
+        task: Task, subtask_ids: list[str]
+    ) -> dict[str, Any]:
+        """Apply MCP-parity post-expansion processing.
+
+        - Wire parent → subtask blocking dependencies
+        - Apply TDD sandwich for code/config subtasks (non-epic only)
+        - Generate validation criteria for subtasks
+        """
+        result: dict[str, Any] = {"tdd_applied": False, "validation_generated": 0}
+
+        if not subtask_ids:
+            return result
+
+        # 1. Wire parent → subtask blocking dependencies
+        for subtask_id in subtask_ids:
+            try:
+                dep_manager.add_dependency(
+                    task_id=task.id, depends_on=subtask_id, dep_type="blocks"
+                )
+            except ValueError:
+                pass  # Dependency already exists
+
+        # 2. Apply TDD sandwich (non-epic tasks with code/config subtasks)
+        if task.task_type != "epic":
+            impl_task_ids = []
+            for sid in subtask_ids:
+                subtask = manager.get_task(sid)
+                if subtask and subtask.category in TDD_CATEGORIES:
+                    if not should_skip_tdd(subtask.title):
+                        impl_task_ids.append(sid)
+
+            if impl_task_ids:
+                tdd_result = await apply_tdd_sandwich(
+                    manager, dep_manager, task.id, impl_task_ids
+                )
+                if tdd_result.get("success"):
+                    result["tdd_applied"] = True
+
+        # 3. Generate validation criteria for subtasks
+        if auto_generate_validation:
+            for sid in subtask_ids:
+                subtask = manager.get_task(sid)
+                if subtask and not subtask.validation_criteria and subtask.task_type != "epic":
+                    try:
+                        criteria = await validator.generate_criteria(
+                            title=subtask.title,
+                            description=subtask.description,
+                        )
+                        if criteria:
+                            manager.update_task(sid, validation_criteria=criteria)
+                            result["validation_generated"] += 1
+                    except Exception:
+                        pass  # Best effort
+
+        # 4. Update parent task: set is_expanded and validation criteria
+        manager.update_task(
+            task.id,
+            is_expanded=True,
+            validation_criteria="All child tasks must be completed (status: closed).",
+        )
+
+        return result
 
     # Get current session ID for expansion context
     session_id = get_active_session_id()
@@ -537,13 +612,16 @@ def expand_task_cmd(
                 target_ref = f"#{target.seq_num}" if target.seq_num else target.id[:8]
                 click.echo(f"[{iteration}] Expanding {target_ref}: {target.title[:40]}...")
 
+                # Build merged context from stored expansion_context + user context
+                merged_context = build_expansion_context(target.expansion_context, context)
+
                 try:
                     result = asyncio.run(
                         expander.expand_task(
                             task_id=target.id,
                             title=target.title,
                             description=target.description,
-                            context=context,
+                            context=merged_context,
                             enable_web_research=web_research,
                             enable_code_context=code_context,
                             session_id=session_id,
@@ -561,6 +639,15 @@ def expand_task_cmd(
                 click.echo(f"    → Created {len(subtasks)} subtasks")
                 total_subtasks += len(subtasks)
 
+                # Apply post-expansion processing (deps, TDD sandwich, validation)
+                post_result = asyncio.run(
+                    _post_expansion_processing(target, subtasks)
+                )
+                if post_result.get("tdd_applied"):
+                    click.echo("    → Applied TDD sandwich")
+                if post_result.get("validation_generated", 0) > 0:
+                    click.echo(f"    → Generated {post_result['validation_generated']} validation criteria")
+
                 remaining = _count_unexpanded_epics(manager, root_task.id)
                 if remaining > 0:
                     click.echo(f"    → {remaining} epic(s) remaining")
@@ -575,13 +662,16 @@ def expand_task_cmd(
 
             click.echo(f"Expanding {root_ref}: {root_task.title[:50]}...")
 
+            # Build merged context from stored expansion_context + user context
+            merged_context = build_expansion_context(root_task.expansion_context, context)
+
             try:
                 result = asyncio.run(
                     expander.expand_task(
                         task_id=root_task.id,
                         title=root_task.title,
                         description=root_task.description,
-                        context=context,
+                        context=merged_context,
                         enable_web_research=web_research,
                         enable_code_context=code_context,
                         session_id=session_id,
@@ -597,6 +687,15 @@ def expand_task_cmd(
 
             subtasks = result.get("subtask_ids", [])
             click.echo(f"  Created {len(subtasks)} subtasks")
+
+            # Apply post-expansion processing (deps, TDD sandwich, validation)
+            post_result = asyncio.run(
+                _post_expansion_processing(root_task, subtasks)
+            )
+            if post_result.get("tdd_applied"):
+                click.echo("  → Applied TDD sandwich")
+            if post_result.get("validation_generated", 0) > 0:
+                click.echo(f"  → Generated {post_result['validation_generated']} validation criteria")
             total_subtasks += len(subtasks)
             total_iterations += 1
 
