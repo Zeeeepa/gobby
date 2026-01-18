@@ -96,7 +96,7 @@ class GobbyAPIClient:
         """Execute a tool on an MCP server."""
         response = await self.client.post(
             f"/mcp/{server_name}/tools/{tool_name}",
-            json={"arguments": arguments or {}},
+            json=arguments or {},
         )
         response.raise_for_status()
         return response.json()
@@ -117,12 +117,14 @@ class GobbyAPIClient:
             args["task_type"] = task_type
         if parent_id:
             args["parent_id"] = parent_id
-        result = await self.call_tool("gobby-tasks", "list_tasks", args)
+        response = await self.call_tool("gobby-tasks", "list_tasks", args)
+        result = response.get("result", {})
         return result.get("tasks", [])
 
     async def get_task(self, task_id: str) -> dict[str, Any]:
         """Get task details."""
-        result = await self.call_tool("gobby-tasks", "get_task", {"task_id": task_id})
+        response = await self.call_tool("gobby-tasks", "get_task", {"task_id": task_id})
+        result = response.get("result", {})
         return result.get("task", {})
 
     async def create_task(
@@ -184,11 +186,12 @@ class GobbyAPIClient:
 
     async def recall(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Search memories."""
-        result = await self.call_tool(
+        response = await self.call_tool(
             "gobby-memory",
             "recall",
             {"query": query, "limit": limit},
         )
+        result = response.get("result", {})
         return result.get("memories", [])
 
     async def remember(self, content: str, importance: float = 0.5) -> dict[str, Any]:
@@ -203,7 +206,8 @@ class GobbyAPIClient:
 
     async def list_agents(self) -> list[dict[str, Any]]:
         """List running agents."""
-        result = await self.call_tool("gobby-agents", "list_agents", {})
+        response = await self.call_tool("gobby-agents", "list_agents", {})
+        result = response.get("result", {})
         return result.get("agents", [])
 
     async def start_agent(
@@ -229,7 +233,8 @@ class GobbyAPIClient:
 
     async def list_worktrees(self) -> list[dict[str, Any]]:
         """List git worktrees."""
-        result = await self.call_tool("gobby-worktrees", "list_worktrees", {})
+        response = await self.call_tool("gobby-worktrees", "list_worktrees", {})
+        result = response.get("result", {})
         return result.get("worktrees", [])
 
     # ==================== Workflow Helpers (via MCP) ====================

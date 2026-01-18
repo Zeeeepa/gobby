@@ -565,15 +565,6 @@ Tree > .tree--guides {
     color: $surface-lighter;
 }
 
-/* ==================== Scrollbar ==================== */
-*::-webkit-scrollbar {
-    background: $surface;
-}
-
-*::-webkit-scrollbar-thumb {
-    background: $surface-lighter;
-}
-
 /* ==================== Help Overlay ==================== */
 #help-overlay {
     align: center middle;

@@ -82,6 +82,64 @@ Transform gobby-memory from a monolithic implementation into a **pluggable abstr
 
 ## Task Mapping
 
-<!-- Updated after task creation -->
 | Plan Item | Task Ref | Status |
 |-----------|----------|--------|
+| **Root Epic** | #4424 | open |
+| **Phase 1: Protocol & SQLite Refactor** | #4425 | open |
+| Create protocol.py with memory protocol types | #4431 | open |
+| Create backends/__init__.py with factory function | #4432 | open |
+| Create backends/null.py for testing | #4433 | open |
+| Create backends/sqlite.py refactoring LocalMemoryManager | #4434 | open |
+| Add backend config schema to persistence.py | #4435 | open |
+| Modify manager.py to use backend protocol pattern | #4436 | open |
+| Update existing memory tests for backend pattern | #4437 | open |
+| Modify sync/memories.py to become backup-only | #4438 | open |
+| Rename MCP tool recall_memory to search_memories | #4439 | open |
+| Create slash commands skill file for memory operations | #4440 | open |
+| Run full test suite and type check | #4441 | open |
+| **Phase 2: Multimodal Support** | #4426 | blocked |
+| Add media column migration to memories table | #4442 | open |
+| Add describe_image abstract method to LLMProvider base class | #4443 | open |
+| Implement describe_image in ClaudeLLMProvider | #4444 | open |
+| Implement describe_image in GeminiLLMProvider | #4445 | open |
+| Implement describe_image in CodexLLMProvider | #4446 | open |
+| Update SqliteMemoryBackend to store/retrieve media attachments | #4447 | open |
+| Create .gobby/resources/ directory configuration | #4448 | open |
+| Add remember_with_image helper to MemoryManager | #4449 | open |
+| Add remember_screenshot helper for browser automation | #4450 | open |
+| Add tests for media column migration and Memory dataclass | #4451 | open |
+| Add tests for LLMProvider describe_image methods | #4452 | open |
+| Add tests for MemoryManager image helpers | #4453 | open |
+| **Phase 3: MemU Backend** | #4427 | blocked |
+| Create backends/memu.py with MemoryBackend protocol implementation | #4454 | open |
+| Implement create_memory mapping to MemUService.memorize() | #4455 | open |
+| Implement search_memories mapping to MemUService.retrieve() | #4456 | open |
+| Implement remaining MemoryBackend protocol methods | #4457 | open |
+| Add MemU configuration to persistence.py | #4458 | open |
+| Register MemUBackend in backends factory | #4459 | open |
+| Add unit tests for MemUBackend | #4460 | open |
+| Update existing config tests for MemU configuration | #4461 | open |
+| **Phase 4: Mem0 Backend** | #4428 | blocked |
+| Create backends directory structure | #4462 | open |
+| Define MemoryBackend protocol in protocol.py | #4463 | open |
+| Add Mem0Config to persistence.py | #4464 | open |
+| Add mem0 section to config.yaml template | #4465 | open |
+| Create Mem0Backend implementation | #4466 | open |
+| Add mem0ai as optional dependency | #4467 | open |
+| Update backends/__init__.py with factory and exports | #4468 | open |
+| Write unit tests for Mem0Backend | #4469 | open |
+| Add tests for Mem0Config in test_persistence.py | #4470 | open |
+| **Phase 5: OpenMemory Backend** | #4429 | blocked |
+| Add OpenMemory base_url configuration to persistence.py | #4471 | open |
+| Create backends/openmemory.py with MemoryBackend protocol implementation | #4472 | open |
+| Implement REST API endpoint connections in OpenMemoryBackend | #4473 | open |
+| Add health_check method to OpenMemoryBackend | #4474 | open |
+| Register OpenMemoryBackend in backends factory | #4475 | open |
+| Add unit tests for OpenMemoryBackend | #4476 | open |
+| Update existing config tests for OpenMemory configuration | #4477 | open |
+| **Phase 6: Markdown Export** | #4430 | blocked |
+| Add export_markdown() method to MemoryManager | #4478 | open |
+| Add unit tests for export_markdown() method | #4479 | open |
+| Add export command to memory CLI | #4480 | open |
+| Add CLI tests for memory export command | #4481 | open |
+| Create markdown export format documentation | #4482 | open |
