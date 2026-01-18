@@ -1015,48 +1015,58 @@ class TestFormatArg:
 class TestGenerateProjectStructure:
     """Tests for _generate_project_structure method."""
 
-    def test_generate_project_structure_no_root(self, gatherer):
+    @pytest.mark.asyncio
+    async def test_generate_project_structure_no_root(self, gatherer):
         """Test with no project root."""
         with patch("gobby.tasks.context.find_project_root", return_value=None):
-            result = gatherer._generate_project_structure()
+            result = await gatherer._generate_project_structure()
         assert result is None
 
-    def test_generate_project_structure_with_gitingest(self, gatherer, tmp_project):
+    @pytest.mark.asyncio
+    async def test_generate_project_structure_with_gitingest(self, gatherer, tmp_project):
         """Test with gitingest available."""
-        # Create a mock module that returns our test values
+        # Create an async mock that returns our test values
+        async def mock_ingest_async(*args, **kwargs):
+            return ("summary", "tree content", "file content")
+
         mock_gitingest = MagicMock()
-        mock_gitingest.ingest.return_value = ("summary", "tree content", "file content")
+        mock_gitingest.ingest_async = mock_ingest_async
 
         with (
             patch("gobby.tasks.context.find_project_root", return_value=tmp_project),
             patch.dict("sys.modules", {"gitingest": mock_gitingest}),
         ):
-            result = gatherer._generate_project_structure()
+            result = await gatherer._generate_project_structure()
 
         assert "## Project Structure" in result
         assert "tree content" in result
 
-    def test_generate_project_structure_gitingest_import_error(self, gatherer, tmp_project):
+    @pytest.mark.asyncio
+    async def test_generate_project_structure_gitingest_import_error(self, gatherer, tmp_project):
         """Test fallback when gitingest not installed."""
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_project):
             # The actual import might fail, which triggers fallback
-            result = gatherer._generate_project_structure()
+            result = await gatherer._generate_project_structure()
 
         # Should still return something via fallback
         if result:
             assert "## Project Structure" in result
 
-    def test_generate_project_structure_gitingest_exception(self, gatherer, tmp_project):
+    @pytest.mark.asyncio
+    async def test_generate_project_structure_gitingest_exception(self, gatherer, tmp_project):
         """Test fallback when gitingest raises exception."""
-        # Create a mock module that raises an exception
+        # Create an async mock that raises an exception
+        async def mock_ingest_async(*args, **kwargs):
+            raise RuntimeError("gitingest error")
+
         mock_gitingest = MagicMock()
-        mock_gitingest.ingest.side_effect = RuntimeError("gitingest error")
+        mock_gitingest.ingest_async = mock_ingest_async
 
         with (
             patch("gobby.tasks.context.find_project_root", return_value=tmp_project),
             patch.dict("sys.modules", {"gitingest": mock_gitingest}),
         ):
-            result = gatherer._generate_project_structure()
+            result = await gatherer._generate_project_structure()
 
         # Should still work via fallback
         if result:
@@ -1322,7 +1332,8 @@ class TestEdgeCases:
         # Should still produce a signature, possibly with "..." for return type
         assert "def func()" in sig
 
-    def test_generate_project_structure_no_guidance(self, gatherer, tmp_path):
+    @pytest.mark.asyncio
+    async def test_generate_project_structure_no_guidance(self, gatherer, tmp_path):
         """Test project structure when there's no file placement guidance."""
         # Create minimal project with src but no CLAUDE.md
         src_dir = tmp_path / "src"
@@ -1330,20 +1341,21 @@ class TestEdgeCases:
         (src_dir / "module.py").write_text("pass")
 
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_path):
-            result = gatherer._generate_project_structure()
+            result = await gatherer._generate_project_structure()
 
         # Should return structure without guidance section if no guidance found
         if result:
             assert "## Project Structure" in result
 
-    def test_generate_project_structure_fallback_returns_none(self, gatherer, tmp_path):
+    @pytest.mark.asyncio
+    async def test_generate_project_structure_fallback_returns_none(self, gatherer, tmp_path):
         """Test when both gitingest and fallback return nothing."""
         # Empty directory - no src/lib/app/tests
         with (
             patch("gobby.tasks.context.find_project_root", return_value=tmp_path),
             patch.dict("sys.modules", {"gitingest": None}),  # Trigger import error
         ):
-            result = gatherer._generate_project_structure()
+            result = await gatherer._generate_project_structure()
 
         # Should return None when no tree can be built
         assert result is None

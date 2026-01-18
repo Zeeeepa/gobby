@@ -149,7 +149,7 @@ class ExpansionContextGatherer:
         verification_commands = self._get_verification_commands()
 
         # Generate project structure tree
-        project_structure = self._generate_project_structure()
+        project_structure = await self._generate_project_structure()
 
         return ExpansionContext(
             task=task,
@@ -546,7 +546,7 @@ class ExpansionContextGatherer:
                 return f"{arg.arg}: ..."
         return arg.arg
 
-    def _generate_project_structure(self, max_depth: int = 3) -> str | None:
+    async def _generate_project_structure(self, max_depth: int = 3) -> str | None:
         """
         Generate a tree view of the project structure.
 
@@ -568,11 +568,11 @@ class ExpansionContextGatherer:
 
         tree = None
 
-        # Primary: Try gitingest
+        # Primary: Try gitingest (use async version since we're in async context)
         try:
-            from gitingest import ingest
+            from gitingest import ingest_async
 
-            _summary, tree, _content = ingest(str(root))
+            _summary, tree, _content = await ingest_async(str(root))
         except ImportError:
             logger.debug("gitingest not installed, using fallback tree builder")
         except Exception as e:
