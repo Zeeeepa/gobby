@@ -78,9 +78,7 @@ def create_expansion_registry(
         impl_task_ids: list[str],
     ) -> dict[str, Any]:
         """Wrapper to call shared apply_tdd_sandwich with local managers."""
-        return await apply_tdd_sandwich(
-            task_manager, dep_manager, parent_task_id, impl_task_ids
-        )
+        return await apply_tdd_sandwich(task_manager, dep_manager, parent_task_id, impl_task_ids)
 
     def _find_unexpanded_epic(root_task_id: str) -> Task | None:
         """Depth-first search for first unexpanded epic in the task tree.
@@ -191,9 +189,7 @@ def create_expansion_registry(
                 return {"error": "Task deleted during expansion", "task_id": resolved_task_id}
 
             # Check if task should be skipped (TDD prefixes or already expanded)
-            skip, reason = should_skip_expansion(
-                target_task.title, target_task.is_expanded, force
-            )
+            skip, reason = should_skip_expansion(target_task.title, target_task.is_expanded, force)
             if skip:
                 logger.info(f"Skipping task {target_task.id[:8]}: {reason}")
                 return {

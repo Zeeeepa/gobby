@@ -130,10 +130,12 @@ class GobbyWebSocketClient:
 
                     # Resubscribe to events
                     if self._subscriptions:
-                        await self._send({
-                            "type": "subscribe",
-                            "events": list(self._subscriptions),
-                        })
+                        await self._send(
+                            {
+                                "type": "subscribe",
+                                "events": list(self._subscriptions),
+                            }
+                        )
 
                     # Listen for messages
                     await self._listen()
@@ -251,8 +253,6 @@ class WebSocketEventBridge:
             if self._app:
                 # Post custom message to Textual app
                 # The app will define how to handle these
-                self._app.call_from_thread(
-                    self._app.post_ws_event, event_type, data
-                )
+                self._app.call_from_thread(self._app.post_ws_event, event_type, data)
 
         return handler

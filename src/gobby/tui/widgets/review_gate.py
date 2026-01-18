@@ -152,16 +152,19 @@ class ReviewGatePanel(Widget):
     @dataclass
     class ItemSelected(Message):
         """Message sent when a review item is selected."""
+
         task: dict[str, Any]
 
     @dataclass
     class TaskApproved(Message):
         """Message sent when a task is approved."""
+
         task: dict[str, Any]
 
     @dataclass
     class TaskRejected(Message):
         """Message sent when a task is rejected."""
+
         task: dict[str, Any]
 
     def compose(self) -> ComposeResult:
@@ -195,12 +198,11 @@ class ReviewGatePanel(Widget):
         for task in self.tasks:
             try:
                 item = self.query_one(f"#review-{task.get('id', '')}", ReviewItem)
-                item.selected = (
-                    self.selected_task is not None
-                    and task.get("id") == self.selected_task.get("id")
-                )
+                item.selected = self.selected_task is not None and task.get(
+                    "id"
+                ) == self.selected_task.get("id")
             except Exception:
-                pass
+                pass  # nosec B110 - Widget may not be mounted yet
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle action button presses."""

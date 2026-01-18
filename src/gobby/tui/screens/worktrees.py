@@ -88,7 +88,10 @@ class WorktreesScreen(Widget):
             with Container(classes="loading-container"):
                 yield LoadingIndicator()
         elif not self.worktrees:
-            yield Static("No worktrees found. Create one to enable parallel development.", classes="empty-state")
+            yield Static(
+                "No worktrees found. Create one to enable parallel development.",
+                classes="empty-state",
+            )
         else:
             yield DataTable(id="worktrees-table")
 
@@ -124,12 +127,14 @@ class WorktreesScreen(Widget):
                 branch = wt.get("branch_name", "N/A")
                 status = wt.get("status", "unknown")
                 task_id = wt.get("task_id", "-")[:12] if wt.get("task_id") else "-"
-                path = wt.get("path", "")[-30:] if len(wt.get("path", "")) > 30 else wt.get("path", "")
+                path = (
+                    wt.get("path", "")[-30:] if len(wt.get("path", "")) > 30 else wt.get("path", "")
+                )
 
                 table.add_row(wt_id, branch, status, task_id, path, key=wt.get("id"))
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle worktree selection."""

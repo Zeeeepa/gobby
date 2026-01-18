@@ -121,12 +121,14 @@ class ChatHistory(VerticalScroll):
         """Add a new message to the chat history."""
         # Store message data
         new_messages = list(self.messages)
-        new_messages.append({
-            "sender": sender,
-            "content": content,
-            "role": role,
-            "timestamp": timestamp or datetime.now().strftime("%H:%M"),
-        })
+        new_messages.append(
+            {
+                "sender": sender,
+                "content": content,
+                "role": role,
+                "timestamp": timestamp or datetime.now().strftime("%H:%M"),
+            }
+        )
         self.messages = new_messages
 
         # Mount the widget
@@ -174,6 +176,7 @@ class ChatInput(Widget):
     @dataclass
     class Submitted(Message):
         """Message sent when user submits input."""
+
         text: str
 
     def compose(self) -> ComposeResult:

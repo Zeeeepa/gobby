@@ -514,9 +514,7 @@ def expand_task_cmd(
         click.echo(f"Error initializing services: {e}", err=True)
         return
 
-    async def _post_expansion_processing(
-        task: Task, subtask_ids: list[str]
-    ) -> dict[str, Any]:
+    async def _post_expansion_processing(task: Task, subtask_ids: list[str]) -> dict[str, Any]:
         """Apply MCP-parity post-expansion processing.
 
         - Wire parent → subtask blocking dependencies
@@ -547,9 +545,7 @@ def expand_task_cmd(
                         impl_task_ids.append(sid)
 
             if impl_task_ids:
-                tdd_result = await apply_tdd_sandwich(
-                    manager, dep_manager, task.id, impl_task_ids
-                )
+                tdd_result = await apply_tdd_sandwich(manager, dep_manager, task.id, impl_task_ids)
                 if tdd_result.get("success"):
                     result["tdd_applied"] = True
 
@@ -567,7 +563,7 @@ def expand_task_cmd(
                             manager.update_task(sid, validation_criteria=criteria)
                             result["validation_generated"] += 1
                     except Exception:
-                        pass  # Best effort
+                        pass  # nosec B110 - Best effort validation generation
 
         # 4. Update parent task: set is_expanded and validation criteria
         manager.update_task(
@@ -654,13 +650,13 @@ def expand_task_cmd(
                 total_subtasks += len(subtasks)
 
                 # Apply post-expansion processing (deps, TDD sandwich, validation)
-                post_result = asyncio.run(
-                    _post_expansion_processing(target, subtasks)
-                )
+                post_result = asyncio.run(_post_expansion_processing(target, subtasks))
                 if post_result.get("tdd_applied"):
                     click.echo("    → Applied TDD sandwich")
                 if post_result.get("validation_generated", 0) > 0:
-                    click.echo(f"    → Generated {post_result['validation_generated']} validation criteria")
+                    click.echo(
+                        f"    → Generated {post_result['validation_generated']} validation criteria"
+                    )
 
                 remaining = _count_unexpanded_epics(manager, root_task.id)
                 if remaining > 0:
@@ -704,13 +700,13 @@ def expand_task_cmd(
             click.echo(f"  Created {len(subtasks)} subtasks")
 
             # Apply post-expansion processing (deps, TDD sandwich, validation)
-            post_result = asyncio.run(
-                _post_expansion_processing(root_task, subtasks)
-            )
+            post_result = asyncio.run(_post_expansion_processing(root_task, subtasks))
             if post_result.get("tdd_applied"):
                 click.echo("  → Applied TDD sandwich")
             if post_result.get("validation_generated", 0) > 0:
-                click.echo(f"  → Generated {post_result['validation_generated']} validation criteria")
+                click.echo(
+                    f"  → Generated {post_result['validation_generated']} validation criteria"
+                )
             total_subtasks += len(subtasks)
             total_iterations += 1
 

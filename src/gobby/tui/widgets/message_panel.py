@@ -133,7 +133,7 @@ class InterAgentMessagePanel(Widget):
             scroll = self.query_one("#messages-scroll", VerticalScroll)
             scroll.scroll_end(animate=False)
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet
 
     def add_message(
         self,
@@ -143,15 +143,17 @@ class InterAgentMessagePanel(Widget):
     ) -> None:
         """Add a new message to the panel."""
         new_messages = list(self.messages)
-        new_messages.append({
-            "sender": sender,
-            "content": content,
-            "direction": direction,
-            "timestamp": datetime.now().isoformat(),
-        })
+        new_messages.append(
+            {
+                "sender": sender,
+                "content": content,
+                "direction": direction,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         # Keep only the last max_messages - reactive will trigger recompose
-        self.messages = new_messages[-self.max_messages:]
+        self.messages = new_messages[-self.max_messages :]
 
     def clear_messages(self) -> None:
         """Clear all messages."""

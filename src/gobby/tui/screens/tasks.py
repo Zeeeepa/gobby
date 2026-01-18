@@ -59,25 +59,31 @@ class TaskTreePanel(Widget):
             yield Static("📋 Tasks", classes="panel-title")
             with Horizontal(classes="filter-row"):
                 yield Select(
-                    [(label, value) for label, value in [
-                        ("All Status", "all"),
-                        ("Open", "open"),
-                        ("In Progress", "in_progress"),
-                        ("Review", "review"),
-                        ("Closed", "closed"),
-                    ]],
+                    [
+                        (label, value)
+                        for label, value in [
+                            ("All Status", "all"),
+                            ("Open", "open"),
+                            ("In Progress", "in_progress"),
+                            ("Review", "review"),
+                            ("Closed", "closed"),
+                        ]
+                    ],
                     value="all",
                     id="status-filter",
                     classes="filter-select",
                 )
                 yield Select(
-                    [(label, value) for label, value in [
-                        ("All Types", "all"),
-                        ("Task", "task"),
-                        ("Bug", "bug"),
-                        ("Feature", "feature"),
-                        ("Epic", "epic"),
-                    ]],
+                    [
+                        (label, value)
+                        for label, value in [
+                            ("All Types", "all"),
+                            ("Task", "task"),
+                            ("Bug", "bug"),
+                            ("Feature", "feature"),
+                            ("Epic", "epic"),
+                        ]
+                    ],
                     value="all",
                     id="type-filter",
                     classes="filter-select",
@@ -88,10 +94,12 @@ class TaskTreePanel(Widget):
         """Handle filter changes."""
         status_val = self.query_one("#status-filter", Select).value
         type_val = self.query_one("#type-filter", Select).value
-        self.post_message(TasksScreen.FilterChanged(
-            status=str(status_val) if status_val is not Select.BLANK else "all",
-            task_type=str(type_val) if type_val is not Select.BLANK else "all",
-        ))
+        self.post_message(
+            TasksScreen.FilterChanged(
+                status=str(status_val) if status_val is not Select.BLANK else "all",
+                task_type=str(type_val) if type_val is not Select.BLANK else "all",
+            )
+        )
 
 
 class TaskDetailPanel(Widget):
@@ -168,7 +176,11 @@ class TaskDetailPanel(Widget):
             with Vertical(classes="detail-section"):
                 with Horizontal():
                     yield Static("Status:", classes="detail-label")
-                    yield Static(self.task_data.get("status", "unknown"), classes="detail-value", id="detail-status")
+                    yield Static(
+                        self.task_data.get("status", "unknown"),
+                        classes="detail-value",
+                        id="detail-status",
+                    )
                 with Horizontal():
                     yield Static("Type:", classes="detail-label")
                     yield Static(self.task_data.get("task_type", "task"), classes="detail-value")
@@ -177,7 +189,9 @@ class TaskDetailPanel(Widget):
                     yield Static(str(self.task_data.get("priority", 3)), classes="detail-value")
                 with Horizontal():
                     yield Static("Assignee:", classes="detail-label")
-                    yield Static(self.task_data.get("assignee", "Unassigned"), classes="detail-value")
+                    yield Static(
+                        self.task_data.get("assignee", "Unassigned"), classes="detail-value"
+                    )
 
             if self.task_data.get("description"):
                 yield Static("Description:", classes="detail-label")
@@ -235,12 +249,14 @@ class TasksScreen(Widget):
     @dataclass
     class FilterChanged(Message):
         """Message sent when filters change."""
+
         status: str
         task_type: str
 
     @dataclass
     class TaskSelected(Message):
         """Message sent when a task is selected."""
+
         task_id: str
 
     loading = reactive(True)
@@ -320,7 +336,7 @@ class TasksScreen(Widget):
             tree.root.expand()
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def _add_task_to_tree(
         self,
@@ -359,7 +375,7 @@ class TasksScreen(Widget):
                 detail_panel = self.query_one("#detail-panel", TaskDetailPanel)
                 detail_panel.update_task(task)
             except Exception:
-                pass
+                pass  # nosec B110 - Widget may not be mounted yet
 
     async def on_filter_changed(self, event: FilterChanged) -> None:
         """Handle filter changes."""

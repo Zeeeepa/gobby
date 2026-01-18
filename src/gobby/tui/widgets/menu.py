@@ -116,7 +116,7 @@ class MenuPanel(Widget):
                 widget = self.query_one(f"#menu-{item.screen_id}", MenuItemWidget)
                 widget.selected = item.screen_id == screen_id
             except Exception:
-                pass  # Widget not yet mounted
+                pass  # nosec B110 - Widget not yet mounted
 
     def select_screen(self, screen_id: str) -> None:
         """Programmatically select a screen."""

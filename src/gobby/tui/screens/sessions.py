@@ -67,12 +67,15 @@ class SessionListPanel(Widget):
             with Horizontal(classes="search-row"):
                 yield Input(placeholder="Search sessions...", id="session-search")
                 yield Select(
-                    [(label, value) for label, value in [
-                        ("All", "all"),
-                        ("Active", "active"),
-                        ("Paused", "paused"),
-                        ("Handoff Ready", "handoff_ready"),
-                    ]],
+                    [
+                        (label, value)
+                        for label, value in [
+                            ("All", "all"),
+                            ("Active", "active"),
+                            ("Paused", "paused"),
+                            ("Handoff Ready", "handoff_ready"),
+                        ]
+                    ],
                     value="all",
                     id="status-filter",
                 )
@@ -166,8 +169,18 @@ class SessionDetailPanel(Widget):
                     ("Source", self.session.get("source", "Unknown")),
                     ("Status", self.session.get("status", "unknown")),
                     ("Branch", self.session.get("git_branch", "N/A")),
-                    ("Project", self.session.get("project_id", "N/A")[:12] if self.session.get("project_id") else "N/A"),
-                    ("Machine", self.session.get("machine_id", "N/A")[:12] if self.session.get("machine_id") else "N/A"),
+                    (
+                        "Project",
+                        self.session.get("project_id", "N/A")[:12]
+                        if self.session.get("project_id")
+                        else "N/A",
+                    ),
+                    (
+                        "Machine",
+                        self.session.get("machine_id", "N/A")[:12]
+                        if self.session.get("machine_id")
+                        else "N/A",
+                    ),
                 ]
                 for label, value in details:
                     with Horizontal(classes="detail-row"):
@@ -178,7 +191,10 @@ class SessionDetailPanel(Widget):
             context = self.session.get("compact_markdown", "")
             if context:
                 yield Static("Context:", classes="detail-label")
-                yield Static(context[:500] + "..." if len(context) > 500 else context, classes="context-section")
+                yield Static(
+                    context[:500] + "..." if len(context) > 500 else context,
+                    classes="context-section",
+                )
 
             with Horizontal(classes="action-buttons"):
                 yield Button("Pickup", variant="primary", id="btn-pickup")
@@ -186,6 +202,7 @@ class SessionDetailPanel(Widget):
 
     def watch_session(self, session: dict[str, Any] | None) -> None:
         """Recompose when session changes."""
+
         def _handle_recompose_error(task: asyncio.Task[None]) -> None:
             if not task.cancelled() and task.exception():
                 logger.error(f"Recompose failed: {task.exception()}", exc_info=task.exception())
@@ -286,7 +303,8 @@ class SessionsScreen(Widget):
             if self.search_query:
                 query = self.search_query.lower()
                 filtered = [
-                    s for s in self.sessions
+                    s
+                    for s in self.sessions
                     if query in s.get("id", "").lower()
                     or query in s.get("source", "").lower()
                     or query in s.get("title", "").lower()
@@ -341,6 +359,7 @@ class SessionsScreen(Widget):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle filter changes."""
+
         def _handle_refresh_error(task: asyncio.Task[None]) -> None:
             if not task.cancelled() and task.exception():
                 logger.error(f"Refresh failed: {task.exception()}", exc_info=task.exception())
@@ -390,4 +409,4 @@ class SessionsScreen(Widget):
             search = self.query_one("#session-search", Input)
             search.focus()
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet

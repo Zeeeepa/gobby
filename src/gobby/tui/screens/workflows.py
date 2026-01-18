@@ -73,7 +73,9 @@ class WorkflowStatePanel(Widget):
             if workflow:
                 with Horizontal(classes="state-row"):
                     yield Static("Workflow:", classes="state-label")
-                    yield Static(workflow.get("name", "Unknown"), classes="state-value state-active")
+                    yield Static(
+                        workflow.get("name", "Unknown"), classes="state-value state-active"
+                    )
                 with Horizontal(classes="state-row"):
                     yield Static("Current Step:", classes="state-label")
                     yield Static(workflow.get("current_step", "N/A"), classes="state-value")
@@ -205,7 +207,7 @@ class WorkflowsScreen(Widget):
             panel = self.query_one("#state-panel", WorkflowStatePanel)
             panel.workflow_status = self.workflow_status
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet
 
     async def _setup_table(self, workflows: list[dict[str, Any]] | None = None) -> None:
         """Set up the available workflows table."""
@@ -226,7 +228,7 @@ class WorkflowsScreen(Widget):
                 table.add_row(name, wf_type, desc, key=name)
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI update failure is non-critical
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""

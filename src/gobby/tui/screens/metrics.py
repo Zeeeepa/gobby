@@ -196,7 +196,7 @@ class MetricsScreen(Widget):
             panel = self.query_one("#summary-panel", MetricsSummaryPanel)
             panel.metrics = self.metrics
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet
 
     async def _setup_table(self) -> None:
         """Set up and populate the tools table."""
@@ -216,7 +216,7 @@ class MetricsScreen(Widget):
                 table.add_row(server, name, calls, success, avg_time)
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI update failure is non-critical
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""

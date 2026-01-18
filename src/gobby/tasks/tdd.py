@@ -308,15 +308,11 @@ def build_expansion_context(
                     complexity_info.append(f"Complexity level: {complexity_level}")
                 if subtask_count:
                     complexity_info.append(f"Suggested subtask count: {subtask_count}")
-                enrichment_parts.append(
-                    "## Complexity Analysis\n" + "\n".join(complexity_info)
-                )
+                enrichment_parts.append("## Complexity Analysis\n" + "\n".join(complexity_info))
 
         except (json.JSONDecodeError, TypeError):
             # Legacy or plain text context - preserve it as raw text
-            enrichment_parts.append(
-                f"## Legacy Expansion Context\n{expansion_context_json}"
-            )
+            enrichment_parts.append(f"## Legacy Expansion Context\n{expansion_context_json}")
 
     # Add user-provided context
     if user_context:

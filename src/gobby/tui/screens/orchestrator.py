@@ -78,7 +78,7 @@ class ConductorPanel(Widget):
                 widget = self.query_one(f"#haiku-{i}", Static)
                 widget.update(line)
             except Exception:
-                pass
+                pass  # nosec B110 - Widget may not be mounted yet
 
 
 class TokenBudgetPanel(Widget):
@@ -188,7 +188,7 @@ class TokenBudgetPanel(Widget):
                 spent_widget.add_class("budget-normal")
 
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet
 
     def update_budget(self, spent: float, limit: float, period: str = "7d") -> None:
         """Update budget values."""
@@ -557,7 +557,9 @@ class InterAgentMessagePanel(Widget):
                     arrow = "→" if direction == "outgoing" else "←"
                     css_class = f"message-{direction}"
 
-                    yield Static(f"{arrow} [{sender}] {content}", classes=f"message-item {css_class}")
+                    yield Static(
+                        f"{arrow} [{sender}] {content}", classes=f"message-item {css_class}"
+                    )
 
     def watch_messages(self, messages: list[dict[str, Any]]) -> None:
         """Recompose when messages change."""
@@ -566,12 +568,14 @@ class InterAgentMessagePanel(Widget):
     def add_message(self, sender: str, content: str, direction: str = "incoming") -> None:
         """Add a new message."""
         new_messages = list(self.messages)
-        new_messages.append({
-            "sender": sender,
-            "content": content,
-            "direction": direction,
-            "timestamp": datetime.now().isoformat(),
-        })
+        new_messages.append(
+            {
+                "sender": sender,
+                "content": content,
+                "direction": direction,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         # Keep last 100 messages
         self.messages = new_messages[-100:]
 
@@ -702,7 +706,7 @@ class OrchestratorScreen(Widget):
             review_panel.update_tasks(tasks)
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def _generate_conductor_haiku(
         self,
@@ -782,7 +786,7 @@ class OrchestratorScreen(Widget):
             new_index = review_panel.selected_index + delta
             review_panel.selected_index = max(0, min(new_index, len(review_tasks) - 1))
         except Exception:
-            pass
+            pass  # nosec B110 - Navigation failure is non-critical
 
     async def _toggle_mode(self) -> None:
         """Toggle between interactive and autonomous modes."""
@@ -804,7 +808,7 @@ class OrchestratorScreen(Widget):
             mode_panel = self.query_one("#mode-panel", ModeIndicatorPanel)
             mode_panel.set_mode(self.mode)
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet
 
     async def _approve_task(self) -> None:
         """Approve the selected review task."""
@@ -828,7 +832,9 @@ class OrchestratorScreen(Widget):
             self.notify(f"Approved: {task.get('ref', task_id)}")
 
             messages_panel = self.query_one("#messages-panel", InterAgentMessagePanel)
-            messages_panel.add_message("conductor", f"Approved task {task.get('ref', '')}", "outgoing")
+            messages_panel.add_message(
+                "conductor", f"Approved task {task.get('ref', '')}", "outgoing"
+            )
 
             await self.refresh_data()
 
@@ -854,7 +860,9 @@ class OrchestratorScreen(Widget):
             self.notify(f"Rejected: {task.get('ref', task_id)}")
 
             messages_panel = self.query_one("#messages-panel", InterAgentMessagePanel)
-            messages_panel.add_message("conductor", f"Rejected task {task.get('ref', '')}", "outgoing")
+            messages_panel.add_message(
+                "conductor", f"Rejected task {task.get('ref', '')}", "outgoing"
+            )
 
             await self.refresh_data()
 
@@ -893,4 +901,4 @@ class OrchestratorScreen(Widget):
                 messages_panel.add_message(session_id, content, "incoming")
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI event handling failure is non-critical

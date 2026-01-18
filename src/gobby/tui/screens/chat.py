@@ -174,11 +174,14 @@ class ChatInputArea(Widget):
         with Horizontal(classes="mode-row"):
             yield Static("Mode:", classes="mode-label")
             yield Select(
-                [(label, value) for label, value in [
-                    ("Haiku", "haiku"),
-                    ("Prose", "prose"),
-                    ("Terse", "terse"),
-                ]],
+                [
+                    (label, value)
+                    for label, value in [
+                        ("Haiku", "haiku"),
+                        ("Prose", "prose"),
+                        ("Terse", "terse"),
+                    ]
+                ],
                 value="haiku",
                 id="mode-select",
             )
@@ -343,9 +346,9 @@ class ChatScreen(Widget):
                 agents_info = await client.list_agents()
 
                 context = f"""System Status:
-- Open tasks: {tasks_info.get('open', 0)}
-- In progress: {tasks_info.get('in_progress', 0)}
-- Running agents: {len([a for a in agents_info if a.get('status') == 'running'])}
+- Open tasks: {tasks_info.get("open", 0)}
+- In progress: {tasks_info.get("in_progress", 0)}
+- Running agents: {len([a for a in agents_info if a.get("status") == "running"])}
 """
 
                 # For now, generate a simple response
@@ -377,7 +380,9 @@ class ChatScreen(Widget):
                 if in_progress > 0:
                     return f"{in_progress} task{'s' if in_progress != 1 else ''} in progress\nCode flows through busy hands\nWork carries on"
                 elif open_count > 0:
-                    return f"{open_count} tasks await you\nReady for your attention\nChoose and begin"
+                    return (
+                        f"{open_count} tasks await you\nReady for your attention\nChoose and begin"
+                    )
                 else:
                     return "All is quiet now\nNo tasks need attention here\nRest or create more"
             elif mode == "terse":
@@ -436,7 +441,7 @@ class ChatScreen(Widget):
                     )
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI event handling failure is non-critical
 
     def activate_search(self) -> None:
         """Focus the chat input."""
@@ -445,4 +450,4 @@ class ChatScreen(Widget):
             text_area = input_area.query_one("#chat-input", TextArea)
             text_area.focus()
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet

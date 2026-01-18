@@ -194,13 +194,15 @@ class GobbyApp(App):
         self.ws_client.on_disconnect(self._on_ws_disconnect)
 
         # Subscribe to events
-        await self.ws_client.subscribe([
-            "hook_event",
-            "agent_event",
-            "autonomous_event",
-            "session_message",
-            "worktree_event",
-        ])
+        await self.ws_client.subscribe(
+            [
+                "hook_event",
+                "agent_event",
+                "autonomous_event",
+                "session_message",
+                "worktree_event",
+            ]
+        )
 
         # Start WebSocket connection in background
         self._ws_task = asyncio.create_task(self._connect_ws())

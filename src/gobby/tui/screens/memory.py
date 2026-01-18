@@ -229,7 +229,7 @@ class MemoryScreen(Widget):
                 table.add_row(mem_id, content, importance, key=memory.get("id"))
 
         except Exception:
-            pass
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle memory selection."""
@@ -240,7 +240,7 @@ class MemoryScreen(Widget):
                 panel = self.query_one("#detail-panel", MemoryDetailPanel)
                 panel.memory = self._memory_map[memory_id]
             except Exception:
-                pass
+                pass  # nosec B110 - Widget may not be mounted yet
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -273,7 +273,7 @@ class MemoryScreen(Widget):
             self.loading = True
             await self.refresh_data()
         except Exception:
-            pass
+            pass  # nosec B110 - Search failure handled by refresh_data
 
     async def _forget_memory(self) -> None:
         """Forget the selected memory."""
@@ -302,4 +302,4 @@ class MemoryScreen(Widget):
             search = self.query_one("#search-input", Input)
             search.focus()
         except Exception:
-            pass
+            pass  # nosec B110 - Widget may not be mounted yet
