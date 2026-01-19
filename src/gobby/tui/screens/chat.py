@@ -175,12 +175,9 @@ class ChatInputArea(Widget):
             yield Static("Mode:", classes="mode-label")
             yield Select(
                 [
-                    (label, value)
-                    for label, value in [
-                        ("Haiku", "haiku"),
-                        ("Prose", "prose"),
-                        ("Terse", "terse"),
-                    ]
+                    ("Haiku", "haiku"),
+                    ("Prose", "prose"),
+                    ("Terse", "terse"),
                 ],
                 value="haiku",
                 id="mode-select",
