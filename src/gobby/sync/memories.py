@@ -11,13 +11,17 @@ from gobby.storage.database import DatabaseProtocol
 logger = logging.getLogger(__name__)
 
 
-class MemorySyncManager:
+class MemoryBackupManager:
     """
-    Manages synchronization of memories between the database and filesystem.
+    Manages backup of memories from the database to filesystem.
 
-    Supports:
-    - JSONL export/import for memories (to .gobby/memories.jsonl)
-    - Debounced auto-export on changes
+    This is a backup/export utility, NOT a sync mechanism. Memories are stored
+    in the database (via the configured backend) and this class provides:
+    - JSONL backup export (to .gobby/memories.jsonl)
+    - One-time migration import from existing JSONL files
+    - Debounced auto-backup on changes
+
+    For actual memory storage, see gobby.memory.backends.
     """
 
     def __init__(
@@ -113,7 +117,10 @@ class MemorySyncManager:
 
     async def import_from_files(self) -> int:
         """
-        Import memories from filesystem.
+        Import memories from filesystem (one-time migration).
+
+        This is intended for migrating existing JSONL backup files into the
+        database. For ongoing memory storage, use the memory backend directly.
 
         Returns:
             Count of imported memories
@@ -130,11 +137,12 @@ class MemorySyncManager:
 
         return await asyncio.to_thread(self._import_memories_sync, memories_file)
 
-    def export_sync(self) -> int:
+    def backup_sync(self) -> int:
         """
-        Export memories synchronously (blocking).
+        Backup memories to filesystem synchronously (blocking).
 
-        Used to force a write before the async loop starts.
+        Used to force a backup write before the async loop starts.
+        This is a one-way export for backup purposes only.
         """
         if not self.config.enabled:
             return 0
@@ -146,15 +154,21 @@ class MemorySyncManager:
             memories_file = self._get_export_path()
             return self._export_to_files_sync(memories_file)
         except Exception as e:
-            logger.warning(f"Failed to sync memory export: {e}")
+            logger.warning(f"Failed to backup memories: {e}")
             return 0
+
+    # Backward compatibility alias
+    export_sync = backup_sync
 
     async def export_to_files(self) -> int:
         """
-        Export memories to filesystem.
+        Backup memories to filesystem as JSONL.
+
+        This exports all memories to a JSONL file for backup purposes.
+        The file can be used for disaster recovery or migration.
 
         Returns:
-            Count of exported memories
+            Count of backed up memories
         """
         if not self.config.enabled:
             return 0
@@ -241,3 +255,7 @@ class MemorySyncManager:
         except Exception as e:
             logger.error(f"Failed to export memories: {e}")
             return 0
+
+
+# Backward compatibility alias
+MemorySyncManager = MemoryBackupManager
