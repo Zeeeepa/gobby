@@ -414,6 +414,63 @@ def create_memory_registry(
             return {"success": False, "error": str(e)}
 
     @registry.tool(
+        name="remember_screenshot",
+        description="Create a memory from raw screenshot bytes (base64 encoded). Saves to .gobby/resources/ and describes with LLM.",
+    )
+    async def remember_screenshot(
+        screenshot_base64: str,
+        context: str | None = None,
+        memory_type: str = "observation",
+        importance: float = 0.5,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Create a memory from raw screenshot bytes.
+
+        Saves the screenshot to .gobby/resources/ with a timestamp-based filename,
+        uses LLM to describe it, and stores the memory with the description.
+
+        Args:
+            screenshot_base64: Base64-encoded PNG screenshot bytes
+            context: Optional context to guide the image description
+            memory_type: Type of memory (default: "observation")
+            importance: Importance score (0.0-1.0)
+            tags: Optional list of tags
+        """
+        import base64
+
+        if not llm_service:
+            return {
+                "success": False,
+                "error": "LLM service not configured. Screenshot memories require an LLM provider.",
+            }
+
+        try:
+            # Decode base64 to bytes
+            screenshot_bytes = base64.b64decode(screenshot_base64)
+
+            memory = await memory_manager.remember_screenshot(
+                screenshot_bytes=screenshot_bytes,
+                context=context,
+                memory_type=memory_type,
+                importance=importance,
+                project_id=get_current_project_id(),
+                tags=tags,
+                source_type="mcp_tool",
+            )
+            return {
+                "success": True,
+                "memory": {
+                    "id": memory.id,
+                    "content": memory.content,
+                },
+            }
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
         name="memory_stats",
         description="Get statistics about the memory system.",
     )

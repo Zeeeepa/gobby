@@ -287,6 +287,78 @@ class MemoryManager:
         # Note: The backend returns MemoryRecord, but we need Memory
         return self.storage.get_memory(record.id)
 
+    async def remember_screenshot(
+        self,
+        screenshot_bytes: bytes,
+        context: str | None = None,
+        memory_type: str = "observation",
+        importance: float = 0.5,
+        project_id: str | None = None,
+        source_type: str = "user",
+        source_session_id: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Memory:
+        """
+        Store a memory from raw screenshot bytes.
+
+        Saves the screenshot to .gobby/resources/ with a timestamp-based filename,
+        then delegates to remember_with_image() for LLM description and storage.
+
+        Args:
+            screenshot_bytes: Raw PNG screenshot bytes (from Playwright/Puppeteer)
+            context: Optional context to guide the image description
+            memory_type: Type of memory (default: "observation")
+            importance: 0.0-1.0 importance score
+            project_id: Optional project context
+            source_type: Origin of memory
+            source_session_id: Origin session
+            tags: Optional tags
+
+        Returns:
+            The created Memory object
+
+        Raises:
+            ValueError: If LLM service is not configured or screenshot bytes are empty
+        """
+        if not screenshot_bytes:
+            raise ValueError("Screenshot bytes cannot be empty")
+
+        # Determine resources directory
+        # Use project .gobby/resources if in a project, else ~/.gobby/resources
+        from datetime import datetime as dt
+
+        from gobby.utils.project_context import get_project_context
+
+        ctx = get_project_context()
+        if ctx and ctx.get("path"):
+            resources_dir = Path(ctx["path"]) / ".gobby" / "resources"
+        else:
+            resources_dir = Path.home() / ".gobby" / "resources"
+
+        # Ensure directory exists
+        resources_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate timestamp-based filename
+        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"screenshot_{timestamp}.png"
+        filepath = resources_dir / filename
+
+        # Write screenshot to file
+        filepath.write_bytes(screenshot_bytes)
+        logger.debug(f"Saved screenshot to {filepath}")
+
+        # Delegate to remember_with_image
+        return await self.remember_with_image(
+            image_path=str(filepath),
+            context=context,
+            memory_type=memory_type,
+            importance=importance,
+            project_id=project_id,
+            source_type=source_type,
+            source_session_id=source_session_id,
+            tags=tags,
+        )
+
     def _create_crossrefs(
         self,
         memory: Memory,
