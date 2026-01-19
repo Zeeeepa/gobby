@@ -339,8 +339,21 @@ class ActionExecutor:
     async def _handle_set_variable(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Set a workflow variable."""
-        return set_variable(context.state, kwargs.get("name"), kwargs.get("value"))
+        """Set a workflow variable.
+
+        Values containing Jinja2 templates ({{ ... }}) are rendered before setting.
+        """
+        value = kwargs.get("value")
+
+        # Render template if value contains Jinja2 syntax
+        if isinstance(value, str) and "{{" in value:
+            template_context = {
+                "variables": context.state.variables or {},
+                "state": context.state,
+            }
+            value = context.template_engine.render(value, template_context)
+
+        return set_variable(context.state, kwargs.get("name"), value)
 
     async def _handle_increment_variable(
         self, context: ActionContext, **kwargs: Any
