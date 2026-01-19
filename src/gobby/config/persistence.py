@@ -114,7 +114,14 @@ class MemoryConfig(BaseModel):
 
 
 class MemorySyncConfig(BaseModel):
-    """Memory synchronization configuration (Git sync)."""
+    """Memory backup configuration (filesystem export).
+
+    Note: This was previously named for "sync" but is actually a backup mechanism.
+    Memories are stored in the database via MemoryBackendProtocol; this config
+    controls the JSONL backup file export (for disaster recovery/migration).
+
+    TODO: Consider renaming to MemoryBackupConfig in a future breaking change.
+    """
 
     enabled: bool = Field(
         default=True,

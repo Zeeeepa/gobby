@@ -1,8 +1,28 @@
+"""Memory backup utilities for filesystem export.
+
+This module provides JSONL backup functionality for memories. It is NOT a
+bidirectional sync mechanism - memories are stored in the database via
+MemoryBackendProtocol. This module handles:
+
+- Backup export to .gobby/memories.jsonl for disaster recovery
+- One-time migration import from existing JSONL files
+- Debounced auto-backup on memory changes
+
+Classes:
+    MemoryBackupManager: Main backup manager (formerly MemorySyncManager)
+    MemorySyncManager: Backward-compatible alias for MemoryBackupManager
+"""
+
 import asyncio
 import json
 import logging
 import time
 from pathlib import Path
+
+__all__ = [
+    "MemoryBackupManager",
+    "MemorySyncManager",  # Backward compatibility alias
+]
 
 # TODO: Rename MemorySyncConfig to MemoryBackupConfig in gobby.config.persistence
 # for consistency with MemoryBackupManager naming. Keeping current name for now
