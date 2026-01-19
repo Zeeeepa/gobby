@@ -47,7 +47,7 @@ class TaskTree(Tree):
     def populate(self, tasks: list[dict[str, Any]]) -> None:
         """Populate the tree with tasks."""
         self.clear()
-        self._task_map = {task_id: t for t in tasks if (task_id := t.get("id")) and task_id}
+        self._task_map = {task_id: t for t in tasks if (task_id := t.get("id"))}
 
         # Build parent -> children mapping
         children_map: dict[str | None, list[dict[str, Any]]] = {}
