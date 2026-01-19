@@ -16,6 +16,7 @@ __all__ = [
     "MemoryConfig",
     "MemorySyncConfig",
     "MemUConfig",
+    "OpenMemoryConfig",
 ]
 
 
@@ -42,6 +43,38 @@ class MemUConfig(BaseModel):
     )
 
 
+class OpenMemoryConfig(BaseModel):
+    """OpenMemory backend configuration.
+
+    Configure this section when using backend: 'openmemory' for self-hosted
+    embedding-based memory storage via the OpenMemory REST API.
+
+    OpenMemory provides semantic search over memories using local embeddings.
+    """
+
+    base_url: str = Field(
+        default="http://localhost:8080",
+        description="OpenMemory server base URL (required when backend='openmemory')",
+    )
+    api_key: str | None = Field(
+        default=None,
+        description="Optional API key for authentication",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Default user ID for memories (optional, defaults to 'default')",
+    )
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate base_url is a valid URL format."""
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("base_url must start with http:// or https://")
+        # Remove trailing slash for consistency
+        return v.rstrip("/")
+
+
 class MemoryConfig(BaseModel):
     """Memory system configuration."""
 
@@ -55,12 +88,17 @@ class MemoryConfig(BaseModel):
             "Storage backend for memories. Options: "
             "'sqlite' (default, local SQLite database), "
             "'memu' (Mem0 cloud-based semantic memory), "
+            "'openmemory' (self-hosted OpenMemory REST API), "
             "'null' (no persistence, for testing)"
         ),
     )
     memu: MemUConfig = Field(
         default_factory=MemUConfig,
         description="Mem0 backend configuration (only used when backend='memu')",
+    )
+    openmemory: OpenMemoryConfig = Field(
+        default_factory=OpenMemoryConfig,
+        description="OpenMemory backend configuration (only used when backend='openmemory')",
     )
     importance_threshold: float = Field(
         default=0.7,
@@ -134,7 +172,7 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        valid_backends = {"sqlite", "memu", "null"}
+        valid_backends = {"sqlite", "memu", "openmemory", "null"}
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
