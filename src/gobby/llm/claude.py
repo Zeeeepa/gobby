@@ -486,3 +486,93 @@ class ClaudeLLMProvider(LLMProvider):
                 text=f"Generation failed: {e}",
                 tool_calls=tool_calls,
             )
+
+    async def describe_image(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """
+        Generate a text description of an image using Claude's vision capabilities.
+
+        Uses the Anthropic API directly for vision support.
+
+        Args:
+            image_path: Path to the image file to describe
+            context: Optional context to guide the description
+
+        Returns:
+            Text description of the image
+        """
+        import base64
+        import mimetypes
+        from pathlib import Path
+
+        import anthropic
+
+        # Validate image exists
+        path = Path(image_path)
+        if not path.exists():
+            return f"Image not found: {image_path}"
+
+        # Read and encode image
+        try:
+            image_data = path.read_bytes()
+            image_base64 = base64.standard_b64encode(image_data).decode("utf-8")
+        except Exception as e:
+            self.logger.error(f"Failed to read image {image_path}: {e}")
+            return f"Failed to read image: {e}"
+
+        # Determine media type
+        mime_type, _ = mimetypes.guess_type(str(path))
+        if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+            # Default to png for unknown types
+            mime_type = "image/png"
+
+        # Build prompt
+        prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
+        if context:
+            prompt = f"{context}\n\n{prompt}"
+
+        # Use Anthropic API for vision
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return "Image description unavailable (ANTHROPIC_API_KEY not set)"
+
+        try:
+            client = anthropic.AsyncAnthropic(api_key=api_key)
+            # Type annotation to satisfy mypy
+            image_block: anthropic.types.ImageBlockParam = {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": mime_type,  # type: ignore[typeddict-item]
+                    "data": image_base64,
+                },
+            }
+            text_block: anthropic.types.TextBlockParam = {
+                "type": "text",
+                "text": prompt,
+            }
+            message = await client.messages.create(
+                model="claude-haiku-4-5-20250514",  # Use haiku for cost efficiency
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [image_block, text_block],
+                    }
+                ],
+            )
+
+            # Extract text from response
+            result = ""
+            for block in message.content:
+                if hasattr(block, "text"):
+                    result += block.text
+
+            return result if result else "No description generated"
+
+        except Exception as e:
+            self.logger.error(f"Failed to describe image with Claude: {e}")
+            return f"Image description failed: {e}"
