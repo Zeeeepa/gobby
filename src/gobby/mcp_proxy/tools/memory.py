@@ -158,7 +158,7 @@ def create_memory_registry(
         tags_none: list[str] | None = None,
     ) -> dict[str, Any]:
         """Deprecated alias for search_memories. Use search_memories instead."""
-        return search_memories(
+        return search_memories(  # type: ignore[no-any-return]
             query=query,
             limit=limit,
             min_importance=min_importance,
