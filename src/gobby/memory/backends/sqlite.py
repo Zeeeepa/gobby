@@ -6,6 +6,7 @@ MemoryBackendProtocol-compliant interface for SQLite storage.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -88,6 +89,21 @@ class SQLiteBackend:
         Returns:
             The created MemoryRecord
         """
+        # Serialize media list to JSON for storage
+        media_json: str | None = None
+        if media:
+            media_json = json.dumps([
+                {
+                    "media_type": m.media_type,
+                    "content_path": m.content_path,
+                    "mime_type": m.mime_type,
+                    "description": m.description,
+                    "description_model": m.description_model,
+                    "metadata": m.metadata,
+                }
+                for m in media
+            ])
+
         # Create via storage layer
         memory = self._storage.create_memory(
             content=content,
@@ -97,10 +113,11 @@ class SQLiteBackend:
             source_type=source_type or "user",
             source_session_id=source_session_id,
             tags=tags,
+            media=media_json,
         )
 
         # Convert to MemoryRecord
-        return self._memory_to_record(memory, user_id=user_id, media=media, metadata=metadata)
+        return self._memory_to_record(memory, user_id=user_id, metadata=metadata)
 
     async def get(self, memory_id: str) -> MemoryRecord | None:
         """Retrieve a memory by ID.
@@ -220,7 +237,6 @@ class SQLiteBackend:
         self,
         memory: Any,
         user_id: str | None = None,
-        media: list[MediaAttachment] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> MemoryRecord:
         """Convert a Memory object to MemoryRecord.
@@ -228,7 +244,6 @@ class SQLiteBackend:
         Args:
             memory: Memory object from storage layer
             user_id: Optional user ID to include
-            media: Optional media attachments
             metadata: Optional additional metadata
 
         Returns:
@@ -238,6 +253,26 @@ class SQLiteBackend:
         created_at = datetime.fromisoformat(memory.created_at) if memory.created_at else datetime.now(UTC)
         updated_at = datetime.fromisoformat(memory.updated_at) if memory.updated_at else None
         last_accessed = datetime.fromisoformat(memory.last_accessed_at) if memory.last_accessed_at else None
+
+        # Deserialize media from JSON string
+        media_list: list[MediaAttachment] = []
+        if memory.media:
+            try:
+                media_data = json.loads(memory.media)
+                media_list = [
+                    MediaAttachment(
+                        media_type=m.get("media_type", "unknown"),
+                        content_path=m.get("content_path", ""),
+                        mime_type=m.get("mime_type", "application/octet-stream"),
+                        description=m.get("description"),
+                        description_model=m.get("description_model"),
+                        metadata=m.get("metadata"),
+                    )
+                    for m in media_data
+                ]
+            except (json.JSONDecodeError, TypeError):
+                # If media is malformed, log and continue with empty list
+                media_list = []
 
         return MemoryRecord(
             id=memory.id,
@@ -253,7 +288,7 @@ class SQLiteBackend:
             source_session_id=memory.source_session_id,
             access_count=memory.access_count,
             last_accessed_at=last_accessed,
-            media=media or [],
+            media=media_list,
             metadata=metadata or {},
         )
 

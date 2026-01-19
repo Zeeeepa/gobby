@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from gobby.memory.protocol import MediaAttachment
 from gobby.storage.database import DatabaseProtocol
 from gobby.utils.id import generate_prefixed_id
+
+# Re-export MediaAttachment for consumers that import from this module
+__all__ = ["Memory", "MemoryCrossRef", "LocalMemoryManager", "MediaAttachment"]
 
 logger = logging.getLogger(__name__)
 
