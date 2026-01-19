@@ -1,7 +1,9 @@
-import pytest
+from unittest.mock import MagicMock, Mock, patch
+
 import click
+import pytest
 from click.testing import CliRunner
-from unittest.mock import Mock, patch, MagicMock
+
 from gobby.cli.workflows import workflows
 from gobby.workflows.definitions import WorkflowState
 
@@ -87,18 +89,18 @@ def test_set_workflow_lifecycle_error(
 
 
 def test_reload_workflows_success(runner):
-    # Mock load_config
-    with patch("gobby.cli.workflows.load_config") as mock_conf:
+    # Mock load_config - imported inside function from gobby.config.app
+    with patch("gobby.config.app.load_config") as mock_conf:
         mock_conf.return_value.daemon_port = 8765
 
-        # Mock psutil
-        with patch("gobby.cli.workflows.psutil.process_iter") as mock_iter:
+        # Mock psutil - imported inside function
+        with patch("psutil.process_iter") as mock_iter:
             proc = Mock()
             proc.cmdline.return_value = ["python", "-m", "gobby", "start"]
             mock_iter.return_value = [proc]
 
-            # Mock httpx
-            with patch("gobby.cli.workflows.httpx.post") as mock_post:
+            # Mock httpx - imported inside function
+            with patch("httpx.post") as mock_post:
                 mock_post.return_value.status_code = 200
                 mock_post.return_value.json.return_value = {"status": "success"}
 
@@ -108,8 +110,8 @@ def test_reload_workflows_success(runner):
 
 
 def test_reload_workflows_fallback(runner):
-    # Mock load_config failure or process not found
-    with patch("gobby.cli.workflows.load_config") as mock_conf:
+    # Mock load_config failure or process not found - imported inside function
+    with patch("gobby.config.app.load_config") as mock_conf:
         mock_conf.side_effect = Exception("Config error")
 
         # Mock loader for fallback

@@ -56,10 +56,12 @@ from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.utils.daemon_client import DaemonClient
-from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.hooks import WorkflowHookHandler
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
+
+if TYPE_CHECKING:
+    from gobby.workflows.engine import WorkflowEngine
 
 # Backward-compatible alias
 TranscriptProcessor = ClaudeTranscriptParser
@@ -217,7 +219,9 @@ class HookManager:
         self._memory_manager = MemoryManager(self._database, memory_config)
 
         # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
+        # Import WorkflowEngine here to avoid circular import (hooks -> hook_manager -> engine -> hooks)
         from gobby.workflows.actions import ActionExecutor
+        from gobby.workflows.engine import WorkflowEngine
         from gobby.workflows.templates import TemplateEngine
 
         # Workflow loader handles project-specific paths dynamically via project_path parameter

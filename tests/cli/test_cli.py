@@ -232,21 +232,17 @@ class TestStatusCommand:
         return CliRunner()
 
     @patch("gobby.cli.load_config")
-    @patch("gobby.cli.daemon.Path")
+    @patch("gobby.cli.daemon.get_gobby_home")
     def test_status_no_pid_file(
-        self, mock_path: MagicMock, mock_load_config: MagicMock, runner: CliRunner, temp_dir: Path
+        self, mock_get_home: MagicMock, mock_load_config: MagicMock, runner: CliRunner, temp_dir: Path
     ):
         """Test status when no PID file exists."""
         mock_config = MagicMock()
         mock_config.logging.client = str(temp_dir / "logs" / "client.log")
         mock_load_config.return_value = mock_config
 
-        # Mock Path.home() to return temp_dir, and make PID file not exist
-        mock_pid_file = MagicMock()
-        mock_pid_file.exists.return_value = False
-        mock_path.home.return_value.__truediv__.return_value.__truediv__.return_value = (
-            mock_pid_file
-        )
+        # Mock get_gobby_home to return temp_dir (which has no gobby.pid)
+        mock_get_home.return_value = temp_dir
 
         result = runner.invoke(cli, ["status"])
 

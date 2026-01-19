@@ -1,11 +1,12 @@
 import asyncio
 import logging
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookResponse
 
-from .engine import WorkflowEngine
+if TYPE_CHECKING:
+    from .engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class WorkflowHookHandler:
 
     def __init__(
         self,
-        engine: WorkflowEngine,
+        engine: "WorkflowEngine",
         loop: asyncio.AbstractEventLoop | None = None,
         timeout: float = 30.0,  # Timeout for workflow operations in seconds
         enabled: bool = True,

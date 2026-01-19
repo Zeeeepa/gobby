@@ -1,8 +1,30 @@
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, Mock
+
 import pytest
-from unittest.mock import AsyncMock, Mock, MagicMock
+
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
-from gobby.workflows.definitions import WorkflowState, WorkflowDefinition, WorkflowStep
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+
+
+def make_event(
+    event_type: HookEventType = HookEventType.BEFORE_TOOL,
+    session_id: str = "test-session",
+    metadata: dict | None = None,
+    data: dict | None = None,
+    cwd: str | None = None,
+) -> HookEvent:
+    """Helper to create HookEvent with required fields."""
+    return HookEvent(
+        event_type=event_type,
+        session_id=session_id,
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(UTC),
+        data=data or {},
+        metadata=metadata or {},
+        cwd=cwd,
+    )
 
 
 @pytest.fixture
@@ -41,7 +63,7 @@ def engine(mock_loader, mock_state_manager, mock_action_executor):
 
 @pytest.mark.asyncio
 async def test_handle_event_no_session_id(engine):
-    event = HookEvent(event_type=HookEventType.BEFORE_TOOL, metadata={})
+    event = make_event(metadata={})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
 
@@ -49,66 +71,60 @@ async def test_handle_event_no_session_id(engine):
 @pytest.mark.asyncio
 async def test_handle_event_no_state(engine, mock_state_manager):
     mock_state_manager.get_state.return_value = None
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL, metadata={"_platform_session_id": "sess-123"}
-    )
+    event = make_event(metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
 
 
 @pytest.mark.asyncio
 async def test_handle_event_disabled_workflow(engine, mock_state_manager):
-    state = Mock(spec=WorkflowState)
+    state = MagicMock()
     state.disabled = True
     state.disabled_reason = "testing"
     state.workflow_name = "test-wf"
+    state.step_entered_at = None
     mock_state_manager.get_state.return_value = state
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL, metadata={"_platform_session_id": "sess-123"}
-    )
+    event = make_event(metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
 
 
 @pytest.mark.asyncio
 async def test_handle_event_lifecycle_state(engine, mock_state_manager):
-    state = Mock(spec=WorkflowState)
+    state = MagicMock()
     state.disabled = False
     state.workflow_name = "__lifecycle__"
+    state.step_entered_at = None
     mock_state_manager.get_state.return_value = state
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL, metadata={"_platform_session_id": "sess-123"}
-    )
+    event = make_event(metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
 
 
 @pytest.mark.asyncio
 async def test_handle_event_workflow_not_found(engine, mock_state_manager, mock_loader):
-    state = Mock(spec=WorkflowState)
+    state = MagicMock()
     state.disabled = False
     state.workflow_name = "unknown-wf"
     state.variables = {}
+    state.step_entered_at = None
     mock_state_manager.get_state.return_value = state
     mock_loader.load_workflow.return_value = None
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL,
-        cwd="/tmp",
-        metadata={"_platform_session_id": "sess-123"},
-    )
+    event = make_event(cwd="/tmp", metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
 
 
 @pytest.mark.asyncio
 async def test_handle_event_lifecycle_workflow_type(engine, mock_state_manager, mock_loader):
-    state = Mock(spec=WorkflowState)
+    state = MagicMock()
     state.disabled = False
     state.workflow_name = "lifecycle-wf"
     state.variables = {}
+    state.step_entered_at = None
     mock_state_manager.get_state.return_value = state
 
     workflow = Mock(spec=WorkflowDefinition)
@@ -116,22 +132,19 @@ async def test_handle_event_lifecycle_workflow_type(engine, mock_state_manager, 
     workflow.name = "lifecycle-wf"
     mock_loader.load_workflow.return_value = workflow
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL,
-        cwd="/tmp",
-        metadata={"_platform_session_id": "sess-123"},
-    )
+    event = make_event(cwd="/tmp", metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
 
 
 @pytest.mark.asyncio
 async def test_handle_event_step_not_found(engine, mock_state_manager, mock_loader):
-    state = Mock(spec=WorkflowState)
+    state = MagicMock()
     state.disabled = False
     state.workflow_name = "test-wf"
     state.step = "unknown-step"
     state.variables = {}
+    state.step_entered_at = None
     mock_state_manager.get_state.return_value = state
 
     workflow = Mock(spec=WorkflowDefinition)
@@ -140,8 +153,7 @@ async def test_handle_event_step_not_found(engine, mock_state_manager, mock_load
     workflow.get_step.return_value = None
     mock_loader.load_workflow.return_value = workflow
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL,
+    event = make_event(
         cwd="/tmp",
         metadata={"_platform_session_id": "sess-123"},
         data={"tool_name": "test_tool"},
@@ -152,12 +164,14 @@ async def test_handle_event_step_not_found(engine, mock_state_manager, mock_load
 
 @pytest.mark.asyncio
 async def test_handle_event_handle_approval(engine, mock_state_manager, mock_loader):
-    state = MagicMock(spec=WorkflowState)
+    state = MagicMock()
     state.disabled = False
     state.workflow_name = "test-wf"
     state.step = "current-step"
     state.approval_pending = False
     state.variables = {}
+    state.step_entered_at = None
+    state.session_id = "sess-123"
     mock_state_manager.get_state.return_value = state
 
     workflow = Mock(spec=WorkflowDefinition)
@@ -180,7 +194,7 @@ async def test_handle_event_handle_approval(engine, mock_state_manager, mock_loa
     approval_check.timeout_seconds = 60
     engine.evaluator.check_pending_approval.return_value = approval_check
 
-    event = HookEvent(
+    event = make_event(
         event_type=HookEventType.BEFORE_AGENT,
         cwd="/tmp",
         metadata={"_platform_session_id": "sess-123"},
@@ -197,18 +211,19 @@ async def test_handle_event_handle_approval(engine, mock_state_manager, mock_loa
 async def test_evaluate_lifecycle_workflows_none(engine, mock_loader):
     mock_loader.discover_lifecycle_workflows.return_value = []
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL,
-        cwd="/tmp",
-        metadata={"_platform_session_id": "sess-123"},
-    )
+    event = make_event(cwd="/tmp", metadata={"_platform_session_id": "sess-123"})
 
     response = await engine.evaluate_all_lifecycle_workflows(event)
     assert response.decision == "allow"
 
 
 @pytest.mark.asyncio
-async def test_evaluate_lifecycle_workflows_blocked(engine, mock_loader, mock_action_executor):
+async def test_evaluate_lifecycle_workflows_blocked(
+    engine, mock_loader, mock_state_manager, mock_action_executor
+):
+    # Configure state_manager to return None so we don't hit Mock attribute issues
+    mock_state_manager.get_state.return_value = None
+
     workflow = Mock(spec=WorkflowDefinition)
     workflow.name = "block-wf"
     workflow.triggers = {"on_before_tool": [{"action": "block_action"}]}
@@ -223,8 +238,7 @@ async def test_evaluate_lifecycle_workflows_blocked(engine, mock_loader, mock_ac
     # Mock action execution to block
     mock_action_executor.execute.return_value = {"decision": "block", "reason": "blocked by policy"}
 
-    event = HookEvent(
-        event_type=HookEventType.BEFORE_TOOL,
+    event = make_event(
         cwd="/tmp",
         metadata={"_platform_session_id": "sess-123"},
         data={"source": "test"},
