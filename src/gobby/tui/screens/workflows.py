@@ -6,8 +6,6 @@ import asyncio
 import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
@@ -22,6 +20,8 @@ from textual.widgets import (
 
 from gobby.tui.api_client import GobbyAPIClient
 from gobby.tui.ws_client import GobbyWebSocketClient
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowStatePanel(Widget):
