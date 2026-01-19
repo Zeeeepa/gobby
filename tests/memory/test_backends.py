@@ -276,3 +276,192 @@ class TestModuleExports:
         if hasattr(backends, "__all__"):
             assert "NullBackend" not in backends.__all__
             assert "SQLiteBackend" not in backends.__all__
+
+
+# =============================================================================
+# TDD Tests: SQLiteBackend Media Support (Phase 2 Multimodal)
+# =============================================================================
+
+
+class TestSQLiteBackendMediaSupport:
+    """TDD tests for SQLiteBackend media attachment support.
+
+    RED phase: These tests define expected behavior for storing/retrieving
+    media attachments via the SQLiteBackend.
+    """
+
+    @pytest.mark.asyncio
+    async def test_create_with_media_stores_attachment(self, temp_db: LocalDatabase):
+        """Test that creating a memory with media stores the media attachment."""
+        from gobby.memory.protocol import MediaAttachment
+
+        backend = get_backend("sqlite", database=temp_db)
+
+        media = [
+            MediaAttachment(
+                media_type="image",
+                content_path="/path/to/screenshot.png",
+                mime_type="image/png",
+                description="Error screenshot",
+            )
+        ]
+
+        record = await backend.create(
+            content="Found an error in the login flow",
+            memory_type="fact",
+            media=media,
+        )
+
+        assert record is not None
+        assert record.media is not None
+        assert len(record.media) == 1
+        assert record.media[0].content_path == "/path/to/screenshot.png"
+        assert record.media[0].mime_type == "image/png"
+
+    @pytest.mark.asyncio
+    async def test_get_returns_media_attachment(self, temp_db: LocalDatabase):
+        """Test that get() retrieves the stored media attachment."""
+        from gobby.memory.protocol import MediaAttachment
+
+        backend = get_backend("sqlite", database=temp_db)
+
+        media = [
+            MediaAttachment(
+                media_type="image",
+                content_path="/images/diagram.png",
+                mime_type="image/png",
+                description="Architecture diagram",
+            )
+        ]
+
+        created = await backend.create(
+            content="System architecture overview",
+            media=media,
+        )
+
+        # Retrieve the memory
+        retrieved = await backend.get(created.id)
+
+        assert retrieved is not None
+        assert retrieved.media is not None
+        assert len(retrieved.media) == 1
+        assert retrieved.media[0].content_path == "/images/diagram.png"
+        assert retrieved.media[0].description == "Architecture diagram"
+
+    @pytest.mark.asyncio
+    async def test_list_memories_includes_media(self, temp_db: LocalDatabase):
+        """Test that list_memories returns memories with their media attachments."""
+        from gobby.memory.protocol import MediaAttachment
+
+        backend = get_backend("sqlite", database=temp_db)
+
+        # Create memory with media
+        media = [
+            MediaAttachment(
+                media_type="image",
+                content_path="/charts/performance.png",
+                mime_type="image/png",
+            )
+        ]
+        await backend.create(content="Performance metrics", media=media)
+
+        # Create memory without media
+        await backend.create(content="Simple text memory")
+
+        # List all memories
+        results = await backend.list_memories()
+
+        # Find the memory with media
+        with_media = next(
+            (r for r in results if r.content == "Performance metrics"), None
+        )
+        assert with_media is not None
+        assert with_media.media is not None
+        assert len(with_media.media) == 1
+        assert with_media.media[0].content_path == "/charts/performance.png"
+
+        # Find the memory without media
+        without_media = next(
+            (r for r in results if r.content == "Simple text memory"), None
+        )
+        assert without_media is not None
+        assert without_media.media == []
+
+    @pytest.mark.asyncio
+    async def test_search_returns_media_attachments(self, temp_db: LocalDatabase):
+        """Test that search() returns memories with their media attachments."""
+        from gobby.memory.protocol import MediaAttachment, MemoryQuery
+
+        backend = get_backend("sqlite", database=temp_db)
+
+        # Create memory with media
+        media = [
+            MediaAttachment(
+                media_type="image",
+                content_path="/screenshots/error.png",
+                mime_type="image/png",
+                description="Authentication error",
+            )
+        ]
+        await backend.create(content="Authentication flow bug", media=media)
+
+        # Search for it
+        query = MemoryQuery(text="Authentication")
+        results = await backend.search(query)
+
+        assert len(results) >= 1
+        auth_memory = next(
+            (r for r in results if "Authentication" in r.content), None
+        )
+        assert auth_memory is not None
+        assert auth_memory.media is not None
+        assert len(auth_memory.media) == 1
+        assert auth_memory.media[0].description == "Authentication error"
+
+    @pytest.mark.asyncio
+    async def test_create_without_media_returns_empty_list(
+        self, temp_db: LocalDatabase
+    ):
+        """Test that creating without media returns empty media list."""
+        backend = get_backend("sqlite", database=temp_db)
+
+        record = await backend.create(content="No media attached")
+
+        assert record.media == []
+
+    @pytest.mark.asyncio
+    async def test_multiple_media_attachments(self, temp_db: LocalDatabase):
+        """Test that multiple media attachments can be stored and retrieved."""
+        from gobby.memory.protocol import MediaAttachment
+
+        backend = get_backend("sqlite", database=temp_db)
+
+        media = [
+            MediaAttachment(
+                media_type="image",
+                content_path="/images/before.png",
+                mime_type="image/png",
+                description="Before state",
+            ),
+            MediaAttachment(
+                media_type="image",
+                content_path="/images/after.png",
+                mime_type="image/png",
+                description="After state",
+            ),
+        ]
+
+        created = await backend.create(
+            content="UI comparison showing before and after states",
+            media=media,
+        )
+
+        assert len(created.media) == 2
+
+        # Verify retrieval
+        retrieved = await backend.get(created.id)
+        assert retrieved is not None
+        assert len(retrieved.media) == 2
+        paths = [m.content_path for m in retrieved.media]
+        assert "/images/before.png" in paths
+        assert "/images/after.png" in paths
