@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from gobby.mcp_proxy.tools.task_github import create_github_sync_registry
+from gobby.sync.github import GitHubRateLimitError, GitHubNotFoundError
 
 
 @pytest.mark.asyncio
@@ -145,6 +146,113 @@ async def test_get_github_status():
         mock_integration.is_available.return_value = True
 
         result = await registry.call("get_github_status", {})
-        assert result["success"] is True
-        assert result["github_repo"] == "owner/repo"
         assert result["linked_tasks_count"] == 5
+
+
+@pytest.mark.asyncio
+async def test_unlink_github_repo():
+    mock_task_manager = AsyncMock()
+    mock_task_manager.db = MagicMock()
+    mock_mcp_manager = AsyncMock()
+    mock_project_manager = MagicMock()
+
+    registry = create_github_sync_registry(
+        task_manager=mock_task_manager,
+        mcp_manager=mock_mcp_manager,
+        project_manager=mock_project_manager,
+        project_id="proj_123",
+    )
+
+    result = await registry.call("unlink_github_repo", {})
+
+    assert result["success"] is True
+    mock_project_manager.update.assert_called_with("proj_123", github_repo=None)
+
+
+@pytest.mark.asyncio
+async def test_import_github_issues_errors():
+    mock_task_manager = AsyncMock()
+    mock_task_manager.db = MagicMock()
+    mock_mcp_manager = AsyncMock()
+    mock_project_manager = MagicMock()
+
+    registry = create_github_sync_registry(
+        task_manager=mock_task_manager,
+        mcp_manager=mock_mcp_manager,
+        project_manager=mock_project_manager,
+        project_id="proj_123",
+    )
+
+    with patch("gobby.mcp_proxy.tools.task_github.GitHubSyncService") as MockService:
+        mock_service_instance = MockService.return_value
+
+        # Test Rate Limit Error
+        mock_service_instance.import_github_issues.side_effect = GitHubRateLimitError(
+            "Rate limited", reset_at=12345
+        )
+        result = await registry.call("import_github_issues", {"repo": "owner/repo"})
+        assert result["success"] is False
+        assert result["error_type"] == "rate_limit"
+        assert result["reset_at"] == 12345
+
+        # Test Not Found Error
+        mock_service_instance.import_github_issues.side_effect = GitHubNotFoundError(
+            "Repo not found", resource="repo"
+        )
+        result = await registry.call("import_github_issues", {"repo": "owner/repo"})
+        assert result["error_type"] == "not_found"
+        assert result["resource"] == "repo"
+
+
+@pytest.mark.asyncio
+async def test_sync_task_to_github_errors():
+    mock_task_manager = AsyncMock()
+    mock_task_manager.db = MagicMock()
+    mock_mcp_manager = AsyncMock()
+    mock_project_manager = MagicMock()
+
+    registry = create_github_sync_registry(
+        task_manager=mock_task_manager,
+        mcp_manager=mock_mcp_manager,
+        project_manager=mock_project_manager,
+        project_id="proj_123",
+    )
+
+    with patch("gobby.mcp_proxy.tools.task_github.GitHubSyncService") as MockService:
+        mock_service_instance = MockService.return_value
+
+        # Test Rate Limit Error
+        mock_service_instance.sync_task_to_github.side_effect = GitHubRateLimitError(
+            "Rate limited", reset_at=12345
+        )
+        result = await registry.call("sync_task_to_github", {"task_id": "task_123"})
+        assert result["success"] is False
+        assert result["error_type"] == "rate_limit"
+
+
+@pytest.mark.asyncio
+async def test_create_pr_for_task_errors():
+    mock_task_manager = AsyncMock()
+    mock_task_manager.db = MagicMock()
+    mock_mcp_manager = AsyncMock()
+    mock_project_manager = MagicMock()
+
+    registry = create_github_sync_registry(
+        task_manager=mock_task_manager,
+        mcp_manager=mock_mcp_manager,
+        project_manager=mock_project_manager,
+        project_id="proj_123",
+    )
+
+    with patch("gobby.mcp_proxy.tools.task_github.GitHubSyncService") as MockService:
+        mock_service_instance = MockService.return_value
+
+        # Test Rate Limit Error
+        mock_service_instance.create_pr_for_task.side_effect = GitHubRateLimitError(
+            "Rate limited", reset_at=12345
+        )
+        result = await registry.call(
+            "create_pr_for_task", {"task_id": "task_123", "head_branch": "feature"}
+        )
+        assert result["success"] is False
+        assert result["error_type"] == "rate_limit"

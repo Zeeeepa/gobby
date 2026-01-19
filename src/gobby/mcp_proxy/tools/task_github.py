@@ -179,6 +179,20 @@ def create_github_sync_registry(
                 "error": str(e),
                 "error_type": "invalid_task",
             }
+        except GitHubRateLimitError as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_type": "rate_limit",
+                "reset_at": e.reset_at,
+            }
+        except GitHubNotFoundError as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_type": "not_found",
+                "resource": e.resource,
+            }
         except GitHubSyncError as e:
             return {
                 "success": False,
@@ -236,6 +250,20 @@ def create_github_sync_registry(
                 "success": False,
                 "error": str(e),
                 "error_type": "invalid_task",
+            }
+        except GitHubRateLimitError as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_type": "rate_limit",
+                "reset_at": e.reset_at,
+            }
+        except GitHubNotFoundError as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_type": "not_found",
+                "resource": e.resource,
             }
         except GitHubSyncError as e:
             return {
