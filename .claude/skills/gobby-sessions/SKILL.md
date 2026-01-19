@@ -14,7 +14,35 @@ This skill manages agent sessions via the gobby-sessions MCP server. Parse the u
 session_id: fd59c8fc-...
 ```
 
+This is the **internal Gobby session ID** - use it for task creation, parent_session_id, etc.
+
 ## Subcommands
+
+### `/gobby-sessions get-current` - Look up your session ID
+Call `gobby-sessions.get_current` with:
+- `external_id`: (required) Your CLI's session ID
+- `source`: (required) CLI source - "claude", "antigravity", "gemini", or "codex"
+
+Returns your internal Gobby session_id from the external CLI session ID.
+
+**How to find your external_id by CLI:**
+
+| CLI | How to find external_id |
+|-----|------------------------|
+| **Claude Code** | Extract from your JSONL transcript path: `/path/to/<external_id>.jsonl` |
+| **Antigravity** | Same as Claude Code - extract from JSONL path |
+| **Gemini** | Extract from your transcript path filename |
+| **Codex** | Extract from your session transcript path |
+
+**When to use this tool:**
+- When you only have the CLI's external session ID (from transcript path, env var, etc.)
+- When `session_id` wasn't injected in your context
+- For cross-CLI session correlation
+
+**Note:** If you already have `session_id` in your context (from SessionStart hook), you don't need this tool.
+
+Example: `/gobby-sessions get-current ea13ad4f-ca32-48e6-9000-e5e6af35a397 claude`
+→ `get_current(external_id="ea13ad4f-ca32-48e6-9000-e5e6af35a397", source="claude")`
 
 ### `/gobby-sessions list` - List all sessions
 Call `gobby-sessions.list_sessions` with:
@@ -145,4 +173,4 @@ After executing the appropriate MCP tool, present the results clearly:
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
-- list, show, messages, search, handoff, get-handoff, pickup, commits, stats, mark-complete
+- get-current, list, show, messages, search, handoff, get-handoff, pickup, commits, stats, mark-complete

@@ -82,6 +82,25 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 
 You are operating within a Gobby-enabled environment. You **must** use the `gobby-tasks` system to track your work. Do not rely on chat history or loose files.
 
+### Getting Your Session ID
+
+**Tasks require a `session_id` parameter.** The session_id may be injected into your context by the Gobby daemon via the `session-start` hook.
+
+**Where to find it**: Look for `session_id:` in your system context at the start of the conversation.
+
+**Fallback - Using `get_current`**: If `session_id` wasn't injected in your context, you can look it up using your CLI's external session ID:
+
+```python
+# Extract external_id from your transcript path filename
+# The external_id is typically the session ID portion of the path
+
+mcp_call_tool(server="gobby-sessions", tool="get_current", arguments={
+    "external_id": "<your-session-id>",
+    "source": "gemini"  # or "antigravity" if running in Antigravity IDE
+})
+# Returns: {"session_id": "...", "found": true, ...}
+```
+
 ### 1. Start of Session
 
 1. **Check Context:**

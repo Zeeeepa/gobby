@@ -65,6 +65,24 @@ Use `get_tool_schema` to look up parameter details for any tool.
 
 ## Task Management (gobby-tasks)
 
+### Getting Your Session ID
+
+**Tasks require a `session_id` parameter.** The session_id may be injected into your context by the Gobby daemon via the `session-start` hook.
+
+**Where to find it**: Look for `session_id:` in your system context at the start of the conversation.
+
+**Fallback - Using `get_current`**: If `session_id` wasn't injected in your context, you can look it up using your CLI's external session ID:
+
+```python
+# Extract external_id from your Codex session/transcript path
+
+call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+    "external_id": "<your-codex-session-id>",
+    "source": "codex"
+})
+# Returns: {"session_id": "...", "found": true, ...}
+```
+
 ### CRITICAL: Workflow Requirement
 
 **Before editing files (Edit/Write), you MUST have a task with `status: in_progress`.** The hook blocks file modifications without an active task.

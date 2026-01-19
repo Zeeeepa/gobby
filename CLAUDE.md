@@ -220,10 +220,24 @@ session_id: 0cca7fc6-cdf1-4fbc-bd31-418745285672
 ```
 
 **How I (Claude) get it**: The Gobby daemon fires a `session-start` hook when I begin a session. This hook injects context including:
-- `session_id` - Unique identifier for this session
+- `session_id` - Unique identifier for this session (internal Gobby ID)
 - `machine_id` - Machine identifier
 - `project_id` - Current project identifier
 - `terminal` - Terminal type (e.g., `tmux`)
+
+**Fallback - Using `get_current`**: If `session_id` wasn't injected in your context, you can look it up using your CLI's external session ID:
+
+```python
+# Extract external_id from your JSONL transcript path (the filename without .jsonl)
+# Example path: /Users/josh/.claude/projects/.../ea13ad4f-ca32-48e6-9000-e5e6af35a397.jsonl
+# external_id would be: ea13ad4f-ca32-48e6-9000-e5e6af35a397
+
+call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+    "external_id": "ea13ad4f-ca32-48e6-9000-e5e6af35a397",
+    "source": "claude"  # or "antigravity" if running in Antigravity IDE
+})
+# Returns: {"session_id": "0cca7fc6-...", "found": true, ...}
+```
 
 Use this session_id in all `create_task` calls:
 
