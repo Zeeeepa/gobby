@@ -69,7 +69,7 @@ def test_hook_manager_integration():
         patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClientClass,
         patch("gobby.hooks.hook_manager.WorkflowLoader"),
         patch("gobby.hooks.hook_manager.WorkflowStateManager"),
-        patch("gobby.hooks.hook_manager.WorkflowEngine"),
+        patch("gobby.workflows.engine.WorkflowEngine"),
         patch("gobby.hooks.hook_manager.WorkflowHookHandler") as MockHandlerClass,
     ):
         # Setup mocks
@@ -120,7 +120,7 @@ def test_hook_manager_blocks_on_workflow():
         patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClientClass,
         patch("gobby.hooks.hook_manager.WorkflowLoader"),
         patch("gobby.hooks.hook_manager.WorkflowStateManager"),
-        patch("gobby.hooks.hook_manager.WorkflowEngine"),
+        patch("gobby.workflows.engine.WorkflowEngine"),
         patch("gobby.hooks.hook_manager.WorkflowHookHandler") as MockHandlerClass,
     ):
         mock_handler_instance = MockHandlerClass.return_value
