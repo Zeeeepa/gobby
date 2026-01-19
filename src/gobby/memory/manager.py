@@ -874,3 +874,109 @@ class MemoryManager:
                 count += 1
 
         return count
+
+    def export_markdown(
+        self,
+        project_id: str | None = None,
+        include_metadata: bool = True,
+        include_stats: bool = True,
+    ) -> str:
+        """
+        Export memories as a formatted markdown document.
+
+        Creates a human-readable markdown export of memories, suitable for
+        backup, documentation, or sharing.
+
+        Args:
+            project_id: Filter by project ID (None for all memories)
+            include_metadata: Include memory metadata (type, importance, tags)
+            include_stats: Include summary statistics at the top
+
+        Returns:
+            Formatted markdown string with all memories
+
+        Example output:
+            # Memory Export
+
+            **Exported:** 2026-01-19 12:34:56 UTC
+            **Total memories:** 42
+
+            ---
+
+            ## Memory: abc123
+
+            User prefers dark mode for all applications.
+
+            - **Type:** preference
+            - **Importance:** 0.8
+            - **Tags:** ui, settings
+            - **Created:** 2026-01-15 10:00:00
+        """
+        memories = self.storage.list_memories(project_id=project_id, limit=10000)
+
+        lines: list[str] = []
+
+        # Header
+        lines.append("# Memory Export")
+        lines.append("")
+
+        # Stats section
+        if include_stats:
+            now = datetime.now(UTC)
+            lines.append(f"**Exported:** {now.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            lines.append(f"**Total memories:** {len(memories)}")
+            if project_id:
+                lines.append(f"**Project:** {project_id}")
+
+            # Type breakdown
+            if memories:
+                by_type: dict[str, int] = {}
+                for m in memories:
+                    by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
+                type_str = ", ".join(f"{k}: {v}" for k, v in sorted(by_type.items()))
+                lines.append(f"**By type:** {type_str}")
+
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+
+        # Individual memories
+        for memory in memories:
+            # Memory header with short ID
+            short_id = memory.id[:8] if len(memory.id) > 8 else memory.id
+            lines.append(f"## Memory: {short_id}")
+            lines.append("")
+
+            # Content
+            lines.append(memory.content)
+            lines.append("")
+
+            # Metadata
+            if include_metadata:
+                lines.append(f"- **Type:** {memory.memory_type}")
+                lines.append(f"- **Importance:** {memory.importance}")
+
+                if memory.tags:
+                    tags_str = ", ".join(memory.tags)
+                    lines.append(f"- **Tags:** {tags_str}")
+
+                if memory.source_type:
+                    lines.append(f"- **Source:** {memory.source_type}")
+
+                # Parse and format created_at
+                try:
+                    created = datetime.fromisoformat(memory.created_at)
+                    created_str = created.strftime("%Y-%m-%d %H:%M:%S")
+                except (ValueError, TypeError):
+                    created_str = memory.created_at
+                lines.append(f"- **Created:** {created_str}")
+
+                if memory.access_count > 0:
+                    lines.append(f"- **Accessed:** {memory.access_count} times")
+
+                lines.append("")
+
+            lines.append("---")
+            lines.append("")
+
+        return "\n".join(lines)
