@@ -230,6 +230,53 @@ def memory_stats(ctx: click.Context, project_ref: str | None) -> None:
             click.echo(f"    {mem_type}: {count}")
 
 
+@memory.command("export")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
+@click.option("--output", "-o", "output_file", type=click.Path(), help="Output file (stdout if not specified)")
+@click.option("--no-metadata", is_flag=True, help="Exclude memory metadata")
+@click.option("--no-stats", is_flag=True, help="Exclude summary statistics")
+@click.pass_context
+def export_memories(
+    ctx: click.Context,
+    project_ref: str | None,
+    output_file: str | None,
+    no_metadata: bool,
+    no_stats: bool,
+) -> None:
+    """Export memories as markdown.
+
+    Exports all memories (or filtered by project) to a formatted markdown document.
+    Output goes to stdout by default, or to a file with --output.
+
+    Examples:
+
+        gobby memory export                    # Export all to stdout
+
+        gobby memory export -o memories.md    # Export to file
+
+        gobby memory export -p myproject      # Export specific project
+
+        gobby memory export --no-metadata     # Content only, no metadata
+    """
+    project_id = resolve_project_ref(project_ref) if project_ref else None
+    manager = get_memory_manager(ctx)
+
+    markdown = manager.export_markdown(
+        project_id=project_id,
+        include_metadata=not no_metadata,
+        include_stats=not no_stats,
+    )
+
+    if output_file:
+        from pathlib import Path
+
+        path = Path(output_file)
+        path.write_text(markdown)
+        click.echo(f"Exported memories to {output_file}")
+    else:
+        click.echo(markdown)
+
+
 def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
     """Resolve memory reference (UUID or prefix) to full ID."""
     # Try exact match first
