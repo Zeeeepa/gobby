@@ -14,6 +14,7 @@ from wcwidth import wcswidth
 
 from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.project_context import get_project_context
@@ -44,6 +45,7 @@ def check_tasks_enabled() -> None:
 def get_task_manager() -> LocalTaskManager:
     """Get initialized task manager."""
     db = LocalDatabase()
+    run_migrations(db)
     return LocalTaskManager(db)
 
 
