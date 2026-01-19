@@ -4,9 +4,12 @@ import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
+import tracemalloc
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+tracemalloc.start()
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig

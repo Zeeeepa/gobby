@@ -62,8 +62,11 @@ async def test_capture_gemini_session_id_no_init_found():
         yield b'{"type": "goodbye"}\n'
 
     mock_proc.stdout = output_lines()
-    mock_proc.wait = MagicMock(return_value=asyncio.Future())
-    mock_proc.wait.return_value.set_result(None)
+
+    async def async_wait():
+        return
+
+    mock_proc.wait = async_wait
     mock_proc.terminate = MagicMock()
 
     with patch("asyncio.create_subprocess_exec", return_value=mock_proc):

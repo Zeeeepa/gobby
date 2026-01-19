@@ -126,3 +126,358 @@ async def test_trigger_export_debounce(sync_manager):
     await asyncio.sleep(0.2)
 
     assert sync_manager.export_to_files.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_trigger_export_disabled(mock_db, mock_memory_manager):
+    """Test that trigger_export does nothing when disabled."""
+    config = MemorySyncConfig(enabled=False)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+
+    sync_manager.trigger_export()
+
+    # Should not create any task
+    assert sync_manager._export_task is None
+
+
+def test_trigger_export_no_event_loop(mock_db, mock_memory_manager, tmp_path):
+    """Test trigger_export runs synchronously when no event loop."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+    sync_manager.export_path = tmp_path / "memories.jsonl"
+
+    # When no event loop is running, should run sync
+    sync_manager.trigger_export()
+
+    # Should have created the file synchronously
+    assert (tmp_path / "memories.jsonl").exists()
+
+
+def test_trigger_export_sync_error(mock_db, mock_memory_manager, tmp_path, caplog):
+    """Test trigger_export handles sync export errors."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+    sync_manager.export_path = tmp_path / "memories.jsonl"
+
+    # Make list_memories raise an error
+    mock_memory_manager.list_memories.side_effect = Exception("Export failed")
+
+    # Should not raise, just log error
+    sync_manager.trigger_export()
+    assert "Failed to export memories" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_shutdown(sync_manager):
+    """Test graceful shutdown."""
+    sync_manager.export_to_files = AsyncMock(return_value=1)
+
+    # Trigger an export
+    sync_manager.trigger_export()
+
+    # Shutdown should wait for the task
+    await sync_manager.shutdown()
+
+    assert sync_manager._shutdown_requested is True
+    assert sync_manager._export_task is None
+
+
+@pytest.mark.asyncio
+async def test_shutdown_no_task(sync_manager):
+    """Test shutdown when no task is running."""
+    await sync_manager.shutdown()
+
+    assert sync_manager._shutdown_requested is True
+
+
+@pytest.mark.asyncio
+async def test_shutdown_with_cancelled_task(sync_manager):
+    """Test shutdown handles cancelled task."""
+    # Create a task that will be cancelled
+    async def slow_export():
+        await asyncio.sleep(10)
+        return 1
+
+    sync_manager._export_task = asyncio.create_task(slow_export())
+
+    # Cancel it
+    sync_manager._export_task.cancel()
+
+    # Shutdown should handle CancelledError
+    await sync_manager.shutdown()
+
+    assert sync_manager._shutdown_requested is True
+
+
+@pytest.mark.asyncio
+async def test_process_export_queue_disabled(mock_db, mock_memory_manager):
+    """Test _process_export_queue returns early when disabled."""
+    config = MemorySyncConfig(enabled=False)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+
+    # Should return immediately
+    await sync_manager._process_export_queue()
+
+
+@pytest.mark.asyncio
+async def test_process_export_queue_error(sync_manager, caplog):
+    """Test _process_export_queue handles export errors."""
+    sync_manager._last_change_time = 0  # Force immediate export
+    sync_manager.config.export_debounce = 0
+
+    # Make export raise an error
+    with patch.object(sync_manager, "export_to_files", new_callable=AsyncMock) as mock_export:
+        mock_export.side_effect = Exception("Export failed")
+
+        await sync_manager._process_export_queue()
+
+    assert "Error during memory sync export" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_get_export_path_context_error(sync_manager):
+    """Test _get_export_path falls back to cwd on context error."""
+    sync_manager.export_path = Path(".gobby/memories.jsonl")
+
+    with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
+        mock_ctx.side_effect = Exception("Context error")
+
+        path = sync_manager._get_export_path()
+
+    # Should fall back to cwd
+    assert path == Path.cwd() / ".gobby/memories.jsonl"
+
+
+@pytest.mark.asyncio
+async def test_get_export_path_no_context_path(sync_manager):
+    """Test _get_export_path falls back to cwd when context has no path."""
+    sync_manager.export_path = Path(".gobby/memories.jsonl")
+
+    with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
+        mock_ctx.return_value = {"name": "test"}  # No "path" key
+
+        path = sync_manager._get_export_path()
+
+    # Should fall back to cwd
+    assert path == Path.cwd() / ".gobby/memories.jsonl"
+
+
+@pytest.mark.asyncio
+async def test_import_from_files_disabled(mock_db, mock_memory_manager):
+    """Test import_from_files returns 0 when disabled."""
+    config = MemorySyncConfig(enabled=False)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+
+    count = await sync_manager.import_from_files()
+
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_import_from_files_no_memory_manager(mock_db):
+    """Test import_from_files returns 0 when no memory manager."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, None, config)
+
+    count = await sync_manager.import_from_files()
+
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_import_from_files_not_exists(sync_manager, tmp_path):
+    """Test import_from_files returns 0 when file doesn't exist."""
+    sync_manager.export_path = tmp_path / "nonexistent.jsonl"
+
+    count = await sync_manager.import_from_files()
+
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_import_skips_empty_lines(sync_manager, tmp_path):
+    """Test import skips empty lines."""
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
+
+    # File with empty lines
+    mem_file.write_text(
+        '\n'
+        + json.dumps({"content": "memory1", "type": "fact"}) + "\n"
+        + '\n'
+        + '   \n'
+        + json.dumps({"content": "memory2", "type": "fact"}) + "\n"
+    )
+
+    count = await sync_manager.import_from_files()
+
+    assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_import_skips_duplicates(sync_manager, tmp_path):
+    """Test import skips duplicate memories."""
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
+
+    # Make content_exists return True for duplicate
+    sync_manager.memory_manager.content_exists.side_effect = [True, False]
+
+    mem_file.write_text(
+        json.dumps({"content": "duplicate", "type": "fact"}) + "\n"
+        + json.dumps({"content": "new", "type": "fact"}) + "\n"
+    )
+
+    count = await sync_manager.import_from_files()
+
+    # Only 1 should be imported
+    assert count == 1
+    assert sync_manager.memory_manager.storage.create_memory.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_import_handles_invalid_json(sync_manager, tmp_path, caplog):
+    """Test import handles invalid JSON lines."""
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
+
+    mem_file.write_text(
+        "not valid json\n"
+        + json.dumps({"content": "valid", "type": "fact"}) + "\n"
+    )
+
+    count = await sync_manager.import_from_files()
+
+    assert count == 1
+    assert "Invalid JSON in memories file" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_import_handles_create_error(sync_manager, tmp_path, caplog):
+    """Test import handles create_memory errors."""
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
+
+    sync_manager.memory_manager.storage.create_memory.side_effect = [
+        Exception("Create failed"),
+        MagicMock(),  # Second call succeeds
+    ]
+
+    mem_file.write_text(
+        json.dumps({"content": "memory1", "type": "fact"}) + "\n"
+        + json.dumps({"content": "memory2", "type": "fact"}) + "\n"
+    )
+
+    count = await sync_manager.import_from_files()
+
+    # Only second one succeeded
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_import_handles_file_error(sync_manager, tmp_path, caplog):
+    """Test import handles file read errors."""
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
+
+    # Create file then make it unreadable (simulated via mock)
+    mem_file.write_text("test\n")
+
+    with patch("builtins.open", side_effect=OSError("Permission denied")):
+        count = await sync_manager.import_from_files()
+
+    assert count == 0
+    assert "Failed to import memories" in caplog.text
+
+
+def test_export_sync(sync_manager, tmp_path):
+    """Test synchronous export."""
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
+
+    count = sync_manager.export_sync()
+
+    assert count == 1
+    assert mem_file.exists()
+
+
+def test_export_sync_disabled(mock_db, mock_memory_manager):
+    """Test export_sync returns 0 when disabled."""
+    config = MemorySyncConfig(enabled=False)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+
+    count = sync_manager.export_sync()
+
+    assert count == 0
+
+
+def test_export_sync_no_memory_manager(mock_db):
+    """Test export_sync returns 0 when no memory manager."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, None, config)
+
+    count = sync_manager.export_sync()
+
+    assert count == 0
+
+
+def test_export_sync_error(sync_manager, caplog):
+    """Test export_sync handles errors."""
+    sync_manager.memory_manager.list_memories.side_effect = Exception("Export failed")
+
+    count = sync_manager.export_sync()
+
+    assert count == 0
+    assert "Failed to export memories" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_export_to_files_disabled(mock_db, mock_memory_manager):
+    """Test export_to_files returns 0 when disabled."""
+    config = MemorySyncConfig(enabled=False)
+    sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
+
+    count = await sync_manager.export_to_files()
+
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_export_to_files_no_memory_manager(mock_db):
+    """Test export_to_files returns 0 when no memory manager."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, None, config)
+
+    count = await sync_manager.export_to_files()
+
+    assert count == 0
+
+
+def test_import_memories_sync_no_manager(mock_db, tmp_path):
+    """Test _import_memories_sync returns 0 when no manager."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, None, config)
+
+    count = sync_manager._import_memories_sync(tmp_path / "test.jsonl")
+
+    assert count == 0
+
+
+def test_export_memories_sync_no_manager(mock_db, tmp_path):
+    """Test _export_memories_sync returns 0 when no manager."""
+    config = MemorySyncConfig(enabled=True)
+    sync_manager = MemorySyncManager(mock_db, None, config)
+
+    count = sync_manager._export_memories_sync(tmp_path / "test.jsonl")
+
+    assert count == 0
+
+
+def test_export_memories_sync_error(sync_manager, tmp_path, caplog):
+    """Test _export_memories_sync handles errors."""
+    sync_manager.memory_manager.list_memories.side_effect = Exception("List failed")
+
+    count = sync_manager._export_memories_sync(tmp_path / "test.jsonl")
+
+    assert count == 0
+    assert "Failed to export memories" in caplog.text
