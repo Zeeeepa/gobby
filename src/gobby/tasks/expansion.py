@@ -525,7 +525,7 @@ class TaskExpander:
             # Serialize and update the task
             context_json = json.dumps(context_data)
             self.task_manager.update_task(task_id, expansion_context=context_json)
-            logger.info(f"Saved expansion context for {task_id} ({len(context_json)} bytes)")
+            logger.debug(f"Saved expansion context for {task_id} ({len(context_json)} bytes)")
 
         except Exception as e:
             logger.warning(f"Failed to save expansion context for {task_id}: {e}")

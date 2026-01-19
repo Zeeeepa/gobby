@@ -571,8 +571,14 @@ class ExpansionContextGatherer:
         # Primary: Try gitingest (use async version since we're in async context)
         try:
             from gitingest import ingest_async
+            from loguru import logger as loguru_logger
 
-            _summary, tree, _content = await ingest_async(str(root))
+            # Suppress gitingest's verbose loguru output during CLI commands
+            loguru_logger.disable("gitingest")
+            try:
+                _summary, tree, _content = await ingest_async(str(root))
+            finally:
+                loguru_logger.enable("gitingest")
         except ImportError:
             logger.debug("gitingest not installed, using fallback tree builder")
         except Exception as e:
