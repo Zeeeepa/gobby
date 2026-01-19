@@ -7,6 +7,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
@@ -195,8 +196,8 @@ class MetricsScreen(Widget):
         try:
             panel = self.query_one("#summary-panel", MetricsSummaryPanel)
             panel.metrics = self.metrics
-        except Exception:
-            pass  # nosec B110 - Widget may not be mounted yet
+        except NoMatches:
+            pass  # Widget may not be mounted yet
 
     async def _setup_table(self) -> None:
         """Set up and populate the tools table."""
@@ -215,8 +216,8 @@ class MetricsScreen(Widget):
 
                 table.add_row(server, name, calls, success, avg_time)
 
-        except Exception:
-            pass  # nosec B110 - TUI update failure is non-critical
+        except NoMatches:
+            pass  # Table widget may not be mounted yet
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
