@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
@@ -207,7 +210,7 @@ class WorkflowsScreen(Widget):
             panel = self.query_one("#state-panel", WorkflowStatePanel)
             panel.workflow_status = self.workflow_status
         except Exception:
-            pass  # Widget may not be mounted yet
+            logger.debug("Failed to query state panel during async update", exc_info=True)  # nosec B110
 
     async def _setup_table(self, workflows: list[dict[str, Any]] | None = None) -> None:
         """Set up the available workflows table."""
