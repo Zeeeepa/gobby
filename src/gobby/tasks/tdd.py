@@ -144,23 +144,27 @@ async def apply_tdd_sandwich(
     dep_manager: "TaskDependencyManager",
     parent_task_id: str,
     impl_task_ids: list[str],
+    refactor_task_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Apply TDD sandwich pattern to a parent task's children.
 
     Creates a "sandwich" structure where implementation tasks are wrapped:
     - ONE [TDD] task at the start (RED phase - write failing tests for all impls)
     - Original child tasks renamed with [IMPL] prefix (GREEN phase)
-    - ONE [REF] task at the end (BLUE phase - refactor everything)
+    - Intermediate [REF] tasks (refactor-category subtasks) depend on all [IMPL]s
+    - ONE final [REF] task at the end (BLUE phase - refactor everything)
 
     Dependencies are wired:
     - All [IMPL] tasks are blocked by the [TDD] task
-    - [REF] task is blocked by [TDD] task and all [IMPL] tasks
+    - Intermediate [REF] tasks are blocked by all [IMPL] tasks
+    - Final [REF] task is blocked by [TDD], all [IMPL]s, and intermediate [REF]s
 
     Args:
         task_manager: LocalTaskManager instance for task CRUD
         dep_manager: TaskDependencyManager instance for dependency wiring
         parent_task_id: The parent task ID being expanded
         impl_task_ids: List of implementation task IDs (the original children)
+        refactor_task_ids: List of refactor-category task IDs (optional)
 
     Returns:
         Dict with:
@@ -169,6 +173,7 @@ async def apply_tdd_sandwich(
         - test_task_id: ID of the created TDD task
         - refactor_task_id: ID of the created REF task
         - impl_task_count: Number of impl tasks wrapped
+        - intermediate_refactor_count: Number of intermediate refactor tasks processed
         Or error info if failed
     """
     parent = task_manager.get_task(parent_task_id)
@@ -218,7 +223,22 @@ async def apply_tdd_sandwich(
             except ValueError:
                 pass  # Dependency already exists
 
-        # 3. Create ONE Refactor Task (Blue phase) - refactor after all impls done
+        # 3. Add [REF] prefix to intermediate refactor tasks and wire dependencies
+        # These are refactor-category subtasks from the expansion (not the final [REF])
+        intermediate_refactor_ids: list[str] = []
+        for ref_id in refactor_task_ids or []:
+            ref_task = task_manager.get_task(ref_id)
+            if ref_task and not ref_task.title.startswith("[REF]"):
+                task_manager.update_task(ref_id, title=f"[REF] {ref_task.title}")
+            intermediate_refactor_ids.append(ref_id)
+            # Each intermediate [REF] depends on all [IMPL] tasks
+            for impl_id in impl_task_ids:
+                try:
+                    dep_manager.add_dependency(ref_id, impl_id, "blocks")
+                except ValueError:
+                    pass  # Dependency already exists
+
+        # 5. Create ONE final Refactor Task (Blue phase) - refactor after all impls done
         refactor_task = task_manager.create_task(
             title=f"[REF] Refactor and verify {parent.title}",
             description=(
@@ -233,7 +253,7 @@ async def apply_tdd_sandwich(
             category="code",
         )
 
-        # 4. Wire refactor to be blocked by TDD task and all implementation tasks
+        # 6. Wire final refactor to be blocked by TDD, all impls, and intermediate refs
         # REFACTOR depends on TDD (must complete testing before refactoring)
         try:
             dep_manager.add_dependency(refactor_task.id, test_task.id, "blocks")
@@ -247,6 +267,13 @@ async def apply_tdd_sandwich(
             except ValueError:
                 pass  # Dependency already exists
 
+        # REFACTOR depends on all intermediate refactor tasks (if any)
+        for ref_id in intermediate_refactor_ids:
+            try:
+                dep_manager.add_dependency(refactor_task.id, ref_id, "blocks")
+            except ValueError:
+                pass  # Dependency already exists
+
         # Mark parent as TDD-applied
         task_manager.update_task(
             parent.id,
@@ -256,10 +283,11 @@ async def apply_tdd_sandwich(
 
         return {
             "success": True,
-            "tasks_created": 2,  # TDD + REF (impl tasks already existed)
+            "tasks_created": 2,  # TDD + final REF (impl tasks already existed)
             "test_task_id": test_task.id,
             "refactor_task_id": refactor_task.id,
             "impl_task_count": len(impl_task_ids),
+            "intermediate_refactor_count": len(intermediate_refactor_ids),
         }
     except Exception as e:
         return {"success": False, "error": str(e)}

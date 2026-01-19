@@ -76,9 +76,12 @@ def create_expansion_registry(
     async def _apply_tdd_sandwich_wrapper(
         parent_task_id: str,
         impl_task_ids: list[str],
+        refactor_task_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Wrapper to call shared apply_tdd_sandwich with local managers."""
-        return await apply_tdd_sandwich(task_manager, dep_manager, parent_task_id, impl_task_ids)
+        return await apply_tdd_sandwich(
+            task_manager, dep_manager, parent_task_id, impl_task_ids, refactor_task_ids
+        )
 
     def _find_unexpanded_epic(root_task_id: str) -> Task | None:
         """Depth-first search for first unexpanded epic in the task tree.
@@ -313,6 +316,7 @@ def create_expansion_registry(
         if should_apply_tdd:
             # Collect code/config subtasks that should be wrapped in TDD sandwich
             impl_task_ids = []
+            refactor_task_ids = []
             for sid in subtask_ids:
                 subtask = task_manager.get_task(sid)
                 if not subtask:
@@ -328,6 +332,17 @@ def create_expansion_registry(
                         logger.debug(
                             f"  TDD skip (pattern): {subtask.id[:8]} title={subtask.title[:40]}"
                         )
+                elif subtask.category == "refactor":
+                    # Refactor-category tasks get [REF] prefix and wire into dependency chain
+                    if not should_skip_tdd(subtask.title):
+                        refactor_task_ids.append(sid)
+                        logger.debug(
+                            f"  TDD refactor candidate: {subtask.id[:8]} category={subtask.category}"
+                        )
+                    else:
+                        logger.debug(
+                            f"  TDD skip (pattern): {subtask.id[:8]} title={subtask.title[:40]}"
+                        )
                 else:
                     logger.debug(
                         f"  TDD skip (category): {subtask.id[:8]} category={subtask.category}"
@@ -335,8 +350,13 @@ def create_expansion_registry(
 
             # Apply TDD sandwich at parent level (wraps all impl tasks)
             if impl_task_ids:
-                logger.info(f"Applying TDD sandwich: {len(impl_task_ids)} code/config subtasks")
-                tdd_result = await _apply_tdd_sandwich_wrapper(resolved_task_id, impl_task_ids)
+                logger.info(
+                    f"Applying TDD sandwich: {len(impl_task_ids)} code/config subtasks, "
+                    f"{len(refactor_task_ids)} refactor subtasks"
+                )
+                tdd_result = await _apply_tdd_sandwich_wrapper(
+                    resolved_task_id, impl_task_ids, refactor_task_ids or None
+                )
                 if tdd_result.get("success", False):
                     tdd_applied = True
                     logger.info(f"TDD sandwich applied successfully to {task.id[:8]}")
