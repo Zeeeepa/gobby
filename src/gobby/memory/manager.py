@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import MemoryConfig
 from gobby.memory.backends import get_backend
 from gobby.memory.context import build_memory_context
-from gobby.memory.protocol import MemoryBackendProtocol
+from gobby.memory.protocol import MediaAttachment, MemoryBackendProtocol
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
+    from gobby.llm.service import LLMService
     from gobby.memory.search import SearchBackend
 
 logger = logging.getLogger(__name__)
@@ -27,9 +30,11 @@ class MemoryManager:
         self,
         db: DatabaseProtocol,
         config: MemoryConfig,
+        llm_service: LLMService | None = None,
     ):
         self.db = db
         self.config = config
+        self._llm_service = llm_service
 
         # Initialize storage backend based on config
         # Note: SQLiteBackend wraps LocalMemoryManager internally
@@ -42,6 +47,16 @@ class MemoryManager:
 
         self._search_backend: SearchBackend | None = None
         self._search_backend_fitted = False
+
+    @property
+    def llm_service(self) -> LLMService | None:
+        """Get the LLM service for image description."""
+        return self._llm_service
+
+    @llm_service.setter
+    def llm_service(self, service: LLMService | None) -> None:
+        """Set the LLM service for image description."""
+        self._llm_service = service
 
     @property
     def search_backend(self) -> SearchBackend:
@@ -188,6 +203,89 @@ class MemoryManager:
                 logger.warning(f"Auto-crossref failed for {memory.id}: {e}")
 
         return memory
+
+    async def remember_with_image(
+        self,
+        image_path: str,
+        context: str | None = None,
+        memory_type: str = "fact",
+        importance: float = 0.5,
+        project_id: str | None = None,
+        source_type: str = "user",
+        source_session_id: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Memory:
+        """
+        Store a memory with an image attachment.
+
+        Uses the configured LLM provider to generate a description of the image,
+        then stores the memory with the description as content and the image
+        as a media attachment.
+
+        Args:
+            image_path: Path to the image file
+            context: Optional context to guide the image description
+            memory_type: Type of memory (fact, preference, etc)
+            importance: 0.0-1.0 importance score
+            project_id: Optional project context
+            source_type: Origin of memory
+            source_session_id: Origin session
+            tags: Optional tags
+
+        Returns:
+            The created Memory object
+
+        Raises:
+            ValueError: If LLM service is not configured or image not found
+        """
+        path = Path(image_path)
+        if not path.exists():
+            raise ValueError(f"Image not found: {image_path}")
+
+        # Get LLM provider for image description
+        if not self._llm_service:
+            raise ValueError(
+                "LLM service not configured. Pass llm_service to MemoryManager "
+                "to enable remember_with_image."
+            )
+
+        provider = self._llm_service.get_default_provider()
+
+        # Generate image description
+        description = await provider.describe_image(image_path, context=context)
+
+        # Determine MIME type
+        mime_type, _ = mimetypes.guess_type(str(path))
+        if not mime_type:
+            mime_type = "application/octet-stream"
+
+        # Create media attachment
+        media = MediaAttachment(
+            media_type="image",
+            content_path=str(path.absolute()),
+            mime_type=mime_type,
+            description=description,
+            description_model=provider.provider_name,
+        )
+
+        # Store memory with media attachment via backend
+        record = await self._backend.create(
+            content=description,
+            memory_type=memory_type,
+            importance=importance,
+            project_id=project_id,
+            source_type=source_type,
+            source_session_id=source_session_id,
+            tags=tags,
+            media=[media],
+        )
+
+        # Mark search index for refit
+        self.mark_search_refit_needed()
+
+        # Return as Memory object for backward compatibility
+        # Note: The backend returns MemoryRecord, but we need Memory
+        return self.storage.get_memory(record.id)
 
     def _create_crossrefs(
         self,
