@@ -15,7 +15,31 @@ from pydantic import BaseModel, Field, field_validator
 __all__ = [
     "MemoryConfig",
     "MemorySyncConfig",
+    "MemUConfig",
 ]
+
+
+class MemUConfig(BaseModel):
+    """Mem0 (MemU) backend configuration.
+
+    Configure this section when using backend: 'memu' for cloud-based
+    semantic memory storage via the Mem0 AI service.
+
+    Requires: pip install mem0ai
+    """
+
+    api_key: str | None = Field(
+        default=None,
+        description="Mem0 API key for authentication (required when backend='memu')",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Default user ID for memories (optional, defaults to 'default')",
+    )
+    org_id: str | None = Field(
+        default=None,
+        description="Organization ID for multi-tenant use (optional)",
+    )
 
 
 class MemoryConfig(BaseModel):
@@ -30,8 +54,13 @@ class MemoryConfig(BaseModel):
         description=(
             "Storage backend for memories. Options: "
             "'sqlite' (default, local SQLite database), "
+            "'memu' (Mem0 cloud-based semantic memory), "
             "'null' (no persistence, for testing)"
         ),
+    )
+    memu: MemUConfig = Field(
+        default_factory=MemUConfig,
+        description="Mem0 backend configuration (only used when backend='memu')",
     )
     importance_threshold: float = Field(
         default=0.7,
@@ -105,11 +134,9 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        valid_backends = {"sqlite", "null"}
+        valid_backends = {"sqlite", "memu", "null"}
         if v not in valid_backends:
-            raise ValueError(
-                f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}"
-            )
+            raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
 
 
