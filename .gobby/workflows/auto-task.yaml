@@ -35,13 +35,21 @@ steps:
     on_enter:
       - action: inject_message
         content: |
-          Research phase for task: {{ variables.claimed_task_id }}
+          ## Research Phase (auto-transitions after 2 actions)
 
-          Before writing code, use context7 to look up relevant documentation.
-          Example: call_tool("context7", "resolve-library-id", {"libraryName": "fastapi"})
-          Then: call_tool("context7", "get-library-docs", {"context7CompatibleLibraryID": "/fastapi/fastapi", "topic": "dependency injection"})
+          Task: {{ variables.claimed_task_id }}
 
-          After researching, you'll transition to implementation.
+          **How to proceed**:
+          1. Use allowed tools to research: Read, Glob, Grep, context7 lookups, WebSearch
+          2. After 2+ research actions, you'll auto-transition to the `work` step
+          3. No manual transition needed - just do research
+
+          **Allowed tools**: Read, Glob, Grep, Task, MCP calls, TodoWrite, WebSearch, WebFetch, AskUserQuestion
+          **Blocked tools**: Edit, Write, Bash, NotebookEdit (until work step)
+
+          Example context7 lookup:
+            call_tool("context7", "resolve-library-id", {"libraryName": "fastapi"})
+            call_tool("context7", "get-library-docs", {"context7CompatibleLibraryID": "/fastapi/fastapi", "topic": "dependency injection"})
 
     allowed_tools:
       - Read
