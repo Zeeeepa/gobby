@@ -16,6 +16,7 @@ import pytest
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.manager import MemoryManager
+from gobby.memory.protocol import MemoryBackendProtocol
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
 from gobby.storage.migrations import run_migrations
@@ -36,9 +37,10 @@ def db(tmp_path):
 
 @pytest.fixture
 def memory_config():
-    """Create a default memory configuration."""
+    """Create a default memory configuration with SQLite backend."""
     return MemoryConfig(
         enabled=True,
+        backend="sqlite",  # Explicitly use SQLite backend
         injection_limit=10,
         importance_threshold=0.3,
         decay_enabled=True,
@@ -56,25 +58,39 @@ def memory_manager(db, memory_config):
 
 @pytest.fixture
 def mock_storage():
-    """Create a mock LocalMemoryManager."""
+    """Create a mock LocalMemoryManager.
+
+    Note: With the backend abstraction pattern, prefer using the real
+    SQLite backend with temp_db fixture for integration tests.
+    This mock is retained for unit tests that need isolation.
+    """
     return MagicMock(spec=LocalMemoryManager)
 
 
 @pytest.fixture
 def mock_config():
-    """Create a mock MemoryConfig."""
+    """Create a mock MemoryConfig.
+
+    Note: Prefer using the real memory_config fixture when possible.
+    This mock is retained for unit tests that need isolation.
+    """
     config = MagicMock(spec=MemoryConfig)
     config.importance_threshold = 0.3
     config.decay_enabled = True
     config.decay_rate = 0.05
     config.decay_floor = 0.1
     config.access_debounce_seconds = 60
+    config.backend = "sqlite"  # Add backend field for compatibility
     return config
 
 
 @pytest.fixture
 def mock_db():
-    """Create a mock database."""
+    """Create a mock database.
+
+    Note: Prefer using the real db fixture with tmp_path for integration tests.
+    This mock is retained for unit tests that need isolation.
+    """
     return MagicMock(spec=LocalDatabase)
 
 
@@ -92,6 +108,19 @@ class TestMemoryManagerInit:
         assert manager.db is db
         assert manager.config is memory_config
         assert isinstance(manager.storage, LocalMemoryManager)
+
+    def test_init_creates_backend(self, db, memory_config):
+        """Test that initialization creates a MemoryBackendProtocol instance."""
+        manager = MemoryManager(db=db, config=memory_config)
+        assert hasattr(manager, "_backend")
+        assert isinstance(manager._backend, MemoryBackendProtocol)
+
+    def test_init_with_null_backend(self, db):
+        """Test that null backend can be used for testing."""
+        config = MemoryConfig(backend="null")
+        manager = MemoryManager(db=db, config=config)
+        assert hasattr(manager, "_backend")
+        assert isinstance(manager._backend, MemoryBackendProtocol)
 
 
 # =============================================================================
