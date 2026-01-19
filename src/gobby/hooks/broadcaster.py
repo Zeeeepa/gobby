@@ -107,6 +107,11 @@ class HookEventBroadcaster:
                 if "subagent_id" not in raw_input and "external_id" in raw_input:
                     raw_input["subagent_id"] = raw_input["external_id"]
 
+            # Map 'prompt' -> 'prompt_text' for UserPromptSubmit
+            if enum_hook_type == HookType.USER_PROMPT_SUBMIT:
+                if "prompt_text" not in raw_input and "prompt" in raw_input:
+                    raw_input["prompt_text"] = raw_input["prompt"]
+
             # Validate input data structure matches Pydantic model
             # Use construct/model_validate to avoid strict validation errors if possible,
             # or just try/except. Let's rely on standard validation.
