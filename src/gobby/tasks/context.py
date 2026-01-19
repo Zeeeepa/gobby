@@ -570,10 +570,25 @@ class ExpansionContextGatherer:
 
         # Primary: Try gitingest (use async version since we're in async context)
         try:
+            # Import gitingest (this will hijack logging via configure_logging())
+            import logging as _logging
+
             from gitingest import ingest_async
             from loguru import logger as loguru_logger
 
-            # Suppress gitingest's verbose loguru output during CLI commands
+            # Undo gitingest's logging hijack:
+            # gitingest installs an InterceptHandler on Python's root logger and adds
+            # a loguru stderr sink. This causes ALL standard library logging (including
+            # gobby.tasks.expansion) to be routed through loguru's formatted output.
+            # 1. Remove the InterceptHandler from root logger
+            _root = _logging.getLogger()
+            _root.handlers = [
+                h for h in _root.handlers if h.__class__.__name__ != "InterceptHandler"
+            ]
+            # 2. Remove loguru's stderr sink to prevent duplicate output
+            loguru_logger.remove()
+
+            # Now run gitingest (it won't reconfigure logging on subsequent calls)
             loguru_logger.disable("gitingest")
             try:
                 _summary, tree, _content = await ingest_async(str(root))
