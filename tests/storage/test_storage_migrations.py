@@ -1597,3 +1597,298 @@ def test_boolean_columns_default_to_zero(tmp_path):
     assert row is not None
     assert row["is_expanded"] == 0
     assert row["is_tdd_applied"] == 0
+
+
+# =============================================================================
+# Inter-Session Messaging: inter_session_messages table migration
+# =============================================================================
+
+
+def test_inter_session_messages_table_exists(tmp_path):
+    """Test that inter_session_messages table is created after migration.
+
+    This table enables communication between parent and child agent sessions,
+    allowing agents to coordinate work without using the filesystem.
+    """
+    db_path = tmp_path / "inter_session_messages.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Check table exists
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='inter_session_messages'"
+    )
+    assert row is not None, "inter_session_messages table not created"
+
+
+def test_inter_session_messages_schema(tmp_path):
+    """Test that inter_session_messages has correct columns."""
+    db_path = tmp_path / "inter_session_schema.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Get table info
+    rows = db.fetchall("PRAGMA table_info(inter_session_messages)")
+    columns = {row["name"] for row in rows}
+
+    # Verify required columns exist
+    expected_columns = {
+        "id",
+        "from_session",
+        "to_session",
+        "content",
+        "priority",
+        "sent_at",
+        "read_at",
+    }
+    for col in expected_columns:
+        assert col in columns, f"Column {col} missing from inter_session_messages"
+
+
+def test_inter_session_messages_foreign_keys(tmp_path):
+    """Test that inter_session_messages has foreign keys to sessions table."""
+    db_path = tmp_path / "inter_session_fk.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Get table SQL
+    row = db.fetchone(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='inter_session_messages'"
+    )
+    assert row is not None
+    sql_lower = row["sql"].lower()
+
+    # Check for foreign key references to sessions
+    assert "references sessions" in sql_lower or "foreign key" in sql_lower, (
+        "inter_session_messages missing foreign key to sessions"
+    )
+
+
+def test_inter_session_messages_indexes(tmp_path):
+    """Test that inter_session_messages has proper indexes for queries."""
+    db_path = tmp_path / "inter_session_index.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Check for indexes
+    rows = db.fetchall(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='inter_session_messages'"
+    )
+    index_names = [row["name"] for row in rows]
+
+    # Should have indexes on to_session for efficient message retrieval
+    has_to_session_index = any("to_session" in name.lower() for name in index_names)
+    assert has_to_session_index, f"No to_session index found. Indexes: {index_names}"
+
+
+def test_inter_session_messages_insert_and_query(tmp_path):
+    """Test that inter_session_messages can store and retrieve messages."""
+    db_path = tmp_path / "inter_session_insert.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project and sessions first (required for foreign keys)
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-parent", "ext-parent", "machine-1", "claude", "test-project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, parent_session_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-child", "ext-child", "machine-1", "claude", "test-project", "session-parent"),
+    )
+
+    # Insert a message from parent to child
+    import uuid
+
+    msg_id = str(uuid.uuid4())
+    db.execute(
+        """INSERT INTO inter_session_messages
+           (id, from_session, to_session, content, priority, sent_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+        (msg_id, "session-parent", "session-child", "Please work on subtask A", "normal"),
+    )
+
+    # Query messages for child session
+    row = db.fetchone(
+        "SELECT * FROM inter_session_messages WHERE to_session = ?",
+        ("session-child",),
+    )
+    assert row is not None
+    assert row["from_session"] == "session-parent"
+    assert row["content"] == "Please work on subtask A"
+    assert row["priority"] == "normal"
+    assert row["read_at"] is None  # Not read yet
+
+
+def test_inter_session_messages_read_at_nullable(tmp_path):
+    """Test that read_at is nullable for unread messages."""
+    db_path = tmp_path / "inter_session_read.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create required parent records
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-2", "ext-2", "machine-1", "claude", "test-project"),
+    )
+
+    import uuid
+
+    msg_id = str(uuid.uuid4())
+
+    # Insert message without read_at (NULL)
+    db.execute(
+        """INSERT INTO inter_session_messages
+           (id, from_session, to_session, content, priority, sent_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+        (msg_id, "session-1", "session-2", "Test message", "normal"),
+    )
+
+    row = db.fetchone("SELECT read_at FROM inter_session_messages WHERE id = ?", (msg_id,))
+    assert row is not None
+    assert row["read_at"] is None
+
+    # Update to mark as read
+    db.execute(
+        "UPDATE inter_session_messages SET read_at = datetime('now') WHERE id = ?",
+        (msg_id,),
+    )
+
+    row = db.fetchone("SELECT read_at FROM inter_session_messages WHERE id = ?", (msg_id,))
+    assert row["read_at"] is not None
+
+
+def test_inter_session_messages_priority_values(tmp_path):
+    """Test that priority accepts expected values (normal, urgent)."""
+    db_path = tmp_path / "inter_session_priority.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create required parent records
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-2", "ext-2", "machine-1", "claude", "test-project"),
+    )
+
+    import uuid
+
+    # Insert with normal priority
+    db.execute(
+        """INSERT INTO inter_session_messages
+           (id, from_session, to_session, content, priority, sent_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+        (str(uuid.uuid4()), "session-1", "session-2", "Normal message", "normal"),
+    )
+
+    # Insert with urgent priority
+    db.execute(
+        """INSERT INTO inter_session_messages
+           (id, from_session, to_session, content, priority, sent_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+        (str(uuid.uuid4()), "session-1", "session-2", "Urgent message", "urgent"),
+    )
+
+    # Verify both were stored
+    rows = db.fetchall("SELECT priority FROM inter_session_messages ORDER BY priority")
+    priorities = [row["priority"] for row in rows]
+    assert "normal" in priorities
+    assert "urgent" in priorities
+
+
+def test_inter_session_messages_cascade_delete(tmp_path):
+    """Test that deleting a session cascades to inter_session_messages."""
+    db_path = tmp_path / "inter_session_cascade.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Enable foreign keys
+    db.execute("PRAGMA foreign_keys = ON")
+
+    # Create required parent records
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-1", "ext-1", "machine-1", "claude", "test-project"),
+    )
+    db.execute(
+        "INSERT INTO sessions (id, external_id, machine_id, source, project_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("session-2", "ext-2", "machine-1", "claude", "test-project"),
+    )
+
+    import uuid
+
+    msg_id = str(uuid.uuid4())
+    db.execute(
+        """INSERT INTO inter_session_messages
+           (id, from_session, to_session, content, priority, sent_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+        (msg_id, "session-1", "session-2", "Test message", "normal"),
+    )
+
+    # Verify message exists
+    row = db.fetchone("SELECT * FROM inter_session_messages WHERE id = ?", (msg_id,))
+    assert row is not None
+
+    # Delete the sender session
+    db.execute("DELETE FROM sessions WHERE id = ?", ("session-1",))
+
+    # Verify message was cascade deleted
+    row = db.fetchone("SELECT * FROM inter_session_messages WHERE id = ?", (msg_id,))
+    assert row is None, "Message should be cascade deleted when sender session is deleted"
+
+
+def test_inter_session_messages_migration_in_migrations_list(tmp_path):
+    """Test that inter_session_messages migration is in the MIGRATIONS list."""
+    # The migration should be in MIGRATIONS (v67 or higher)
+    migration_found = None
+    for version, description, _action in MIGRATIONS:
+        if "inter_session" in description.lower() or "message" in description.lower():
+            migration_found = (version, description)
+            break
+
+    assert migration_found is not None, (
+        "inter_session_messages migration not found in MIGRATIONS list"
+    )
