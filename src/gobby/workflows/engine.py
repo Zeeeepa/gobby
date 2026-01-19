@@ -175,6 +175,10 @@ class WorkflowEngine:
             "session": SimpleNamespace(**session_info),
             "tool_name": event.data.get("tool_name"),
             "tool_args": event.data.get("tool_args", {}),
+            # State attributes for transition conditions
+            "step_action_count": state.step_action_count,
+            "total_action_count": state.total_action_count,
+            "step": state.step,
         }
 
         current_step = workflow.get_step(state.step)
