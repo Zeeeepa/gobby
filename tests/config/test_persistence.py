@@ -143,6 +143,110 @@ class TestMemoryConfigValidation:
 
 
 # =============================================================================
+# MemUConfig Tests
+# =============================================================================
+
+
+class TestMemUConfigImport:
+    """Test that MemUConfig can be imported from the persistence module."""
+
+    def test_import_from_persistence_module(self) -> None:
+        """Test importing MemUConfig from config.persistence."""
+        from gobby.config.persistence import MemUConfig
+
+        assert MemUConfig is not None
+
+
+class TestMemUConfigDefaults:
+    """Test MemUConfig default values."""
+
+    def test_default_instantiation(self) -> None:
+        """Test MemUConfig creates with all defaults (None values)."""
+        from gobby.config.persistence import MemUConfig
+
+        config = MemUConfig()
+        assert config.api_key is None
+        assert config.user_id is None
+        assert config.org_id is None
+
+
+class TestMemUConfigCustom:
+    """Test MemUConfig with custom values."""
+
+    def test_with_api_key(self) -> None:
+        """Test setting API key."""
+        from gobby.config.persistence import MemUConfig
+
+        config = MemUConfig(api_key="test-api-key")
+        assert config.api_key == "test-api-key"
+
+    def test_with_user_id(self) -> None:
+        """Test setting user ID."""
+        from gobby.config.persistence import MemUConfig
+
+        config = MemUConfig(user_id="test-user")
+        assert config.user_id == "test-user"
+
+    def test_with_org_id(self) -> None:
+        """Test setting organization ID."""
+        from gobby.config.persistence import MemUConfig
+
+        config = MemUConfig(org_id="test-org")
+        assert config.org_id == "test-org"
+
+    def test_full_configuration(self) -> None:
+        """Test setting all configuration values."""
+        from gobby.config.persistence import MemUConfig
+
+        config = MemUConfig(
+            api_key="my-api-key",
+            user_id="my-user",
+            org_id="my-org",
+        )
+        assert config.api_key == "my-api-key"
+        assert config.user_id == "my-user"
+        assert config.org_id == "my-org"
+
+
+class TestMemoryConfigMemuIntegration:
+    """Test MemoryConfig integration with MemUConfig."""
+
+    def test_default_memu_config(self) -> None:
+        """Test that MemoryConfig has default MemUConfig."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig()
+        assert config.memu is not None
+        assert config.memu.api_key is None
+
+    def test_memu_backend_selection(self) -> None:
+        """Test selecting memu backend."""
+        from gobby.config.persistence import MemoryConfig, MemUConfig
+
+        config = MemoryConfig(
+            backend="memu",
+            memu=MemUConfig(api_key="test-key"),
+        )
+        assert config.backend == "memu"
+        assert config.memu.api_key == "test-key"
+
+    def test_backend_validator_accepts_memu(self) -> None:
+        """Test that 'memu' is a valid backend option."""
+        from gobby.config.persistence import MemoryConfig
+
+        config = MemoryConfig(backend="memu")
+        assert config.backend == "memu"
+
+    def test_backend_validator_rejects_invalid(self) -> None:
+        """Test that invalid backends are rejected."""
+        from gobby.config.persistence import MemoryConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            MemoryConfig(backend="invalid_backend")
+        assert "invalid_backend" in str(exc_info.value).lower()
+
+
+# =============================================================================
 # MemorySyncConfig Tests
 # =============================================================================
 
