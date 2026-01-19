@@ -262,10 +262,9 @@ class LocalDatabase:
             update_params.append(val)
 
         # Construct and execute query
-        # nosec B608: Table and column names are validated above against
-        # a strict alphanumeric pattern. The WHERE clause uses parameterized
-        # queries. This is safe from SQL injection.
-        sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE {where}"  # nosec B608
+        # Table and column names are validated above against a strict alphanumeric pattern.
+        # The WHERE clause uses parameterized queries. This is safe from SQL injection.
+        sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE {where}"
         full_params = tuple(update_params) + where_params
 
         return self.execute(sql, full_params)

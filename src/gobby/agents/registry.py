@@ -247,7 +247,7 @@ class RunningAgentRegistry:
         """
         import os
         import signal
-        import subprocess  # nosec B404
+        import subprocess
         import time
 
         agent = self.get(run_id)
@@ -293,7 +293,7 @@ class RunningAgentRegistry:
                 else:
                     try:
                         # Use -- to prevent pgrep from interpreting pattern as options
-                        result = subprocess.run(  # nosec
+                        result = subprocess.run(
                             ["pgrep", "-f", "--", f"session-id {agent.session_id}"],
                             capture_output=True,
                             text=True,
@@ -317,7 +317,7 @@ class RunningAgentRegistry:
                                     try:
                                         candidate_pid = int(pid_str)
                                         # Query the process command line to verify
-                                        ps_result = subprocess.run(  # nosec
+                                        ps_result = subprocess.run(
                                             ["ps", "-p", str(candidate_pid), "-o", "args="],
                                             capture_output=True,
                                             text=True,

@@ -55,7 +55,7 @@ def _get_worktree_base_dir() -> Path:
     else:
         # macOS/Linux: use /tmp for better isolation
         # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
-        base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
+        base = Path("/tmp").resolve() / "gobby-worktrees"
 
     base.mkdir(parents=True, exist_ok=True)
     return base
@@ -588,7 +588,7 @@ def create_worktrees_registry(
                 if mgr:
                     resolved_git_mgr = mgr
             except Exception:
-                # nosec B110 - If context resolution fails, continue without git manager
+                # If context resolution fails, continue without git manager
                 pass
 
         # Check for uncommitted changes if not forcing

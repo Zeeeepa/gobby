@@ -563,7 +563,7 @@ def expand_task_cmd(
                             manager.update_task(sid, validation_criteria=criteria)
                             result["validation_generated"] += 1
                     except Exception:
-                        pass  # nosec B110 - Best effort validation generation
+                        pass  # Best effort validation generation
 
         # 4. Update parent task: set is_expanded and validation criteria
         manager.update_task(

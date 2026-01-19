@@ -230,7 +230,7 @@ def register_orchestrator(
             if platform.system() == "Windows":
                 base = Path(tempfile.gettempdir()) / "gobby-worktrees"
             else:
-                base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
+                base = Path("/tmp").resolve() / "gobby-worktrees"
             base.mkdir(parents=True, exist_ok=True)
             return base
 

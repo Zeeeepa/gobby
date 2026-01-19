@@ -154,7 +154,7 @@ def uninstall_codex_notify() -> dict[str, Any]:
         if notify_dir.exists() and not any(notify_dir.iterdir()):
             notify_dir.rmdir()
     except Exception:
-        pass  # nosec B110 - Best-effort cleanup, directory removal is non-critical
+        pass  # Best-effort cleanup, directory removal is non-critical
 
     # Update ~/.codex/config.toml to remove notify line
     codex_config_path = Path.home() / ".codex" / "config.toml"

@@ -45,7 +45,7 @@ class HaikuDisplay(Widget):
                     widget = self.query_one(f"#haiku-{i}", Static)
                     widget.update(line)
                 except Exception:
-                    pass  # nosec B110 - Widget may not be mounted yet
+                    pass  # Widget may not be mounted yet
 
 
 class ModeIndicator(Widget):
@@ -96,7 +96,7 @@ class ModeIndicator(Widget):
             label = self.query_one("#mode-label", Static)
             label.update(self.MODE_LABELS.get(mode, "UNKNOWN"))
         except Exception:
-            pass  # nosec B110 - Widget may not be mounted yet
+            pass  # Widget may not be mounted yet
 
     def set_mode(self, mode: str) -> None:
         """Set the current mode."""

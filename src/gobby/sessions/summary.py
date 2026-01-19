@@ -8,7 +8,7 @@ Handles:
 
 import json
 import logging
-import subprocess  # nosec B404
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -482,7 +482,7 @@ class SummaryFileGenerator:
             Git status output or error message
         """
         try:
-            result = subprocess.run(  # nosec
+            result = subprocess.run(
                 ["git", "status", "--short"],
                 capture_output=True,
                 text=True,
@@ -501,7 +501,7 @@ class SummaryFileGenerator:
         """
         try:
             # Get changed files with status
-            diff_result = subprocess.run(  # nosec
+            diff_result = subprocess.run(
                 ["git", "diff", "HEAD", "--name-status"],
                 capture_output=True,
                 text=True,
@@ -509,7 +509,7 @@ class SummaryFileGenerator:
             )
 
             # Get untracked files
-            untracked_result = subprocess.run(  # nosec
+            untracked_result = subprocess.run(
                 ["git", "ls-files", "--others", "--exclude-standard"],
                 capture_output=True,
                 text=True,

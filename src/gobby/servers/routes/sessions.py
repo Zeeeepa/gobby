@@ -453,7 +453,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             try:
                 body = await request.json()
             except Exception:
-                pass  # nosec B110 - Empty body is fine
+                pass  # Empty body is fine
 
             reason = body.get("reason", "External stop request")
             source = body.get("source", "http_api")

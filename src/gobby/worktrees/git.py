@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import subprocess  # nosec B404
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -92,7 +92,7 @@ class WorktreeGitManager:
         logger.debug(f"Running: {' '.join(cmd)} in {cwd}")
 
         try:
-            result = subprocess.run(  # nosec B603
+            result = subprocess.run(
                 cmd,
                 cwd=cwd,
                 capture_output=True,
@@ -224,7 +224,7 @@ class WorktreeGitManager:
                     if status:
                         branch_name = status.branch
                 except Exception:
-                    # nosec B110 - Ignore errors getting status, we just won't have the branch name
+                    # Ignore errors getting status, we just won't have the branch name
                     pass
 
             # Remove worktree
@@ -660,7 +660,7 @@ class WorktreeGitManager:
                     logger.debug(f"Detected default branch from origin/HEAD: {branch}")
                     return branch
         except Exception:
-            pass  # nosec B110
+            pass
 
         # Method 2: Check which common default branches exist
         for branch in ["main", "master", "develop"]:
@@ -683,7 +683,7 @@ class WorktreeGitManager:
                     logger.debug(f"Detected default branch from remote ref: {branch}")
                     return branch
             except Exception:
-                continue  # nosec B112
+                continue
 
         # Method 3: Fall back to "main"
         logger.debug("Could not detect default branch, falling back to 'main'")

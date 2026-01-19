@@ -202,7 +202,7 @@ class ReviewGatePanel(Widget):
                     "id"
                 ) == self.selected_task.get("id")
             except Exception:
-                pass  # nosec B110 - Widget may not be mounted yet
+                pass  # Widget may not be mounted yet
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle action button presses."""

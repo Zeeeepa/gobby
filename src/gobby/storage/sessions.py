@@ -556,14 +556,14 @@ class LocalSessionManager:
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         params.append(limit)
 
-        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
+        # where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
             f"""
             SELECT * FROM sessions
             WHERE {where_clause}
             ORDER BY updated_at DESC
             LIMIT ?
-            """,  # nosec B608
+            """,
             tuple(params),
         )
         return [Session.from_row(row) for row in rows]
@@ -600,9 +600,9 @@ class LocalSessionManager:
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
-        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
+        # where_clause built from hardcoded condition strings, values parameterized
         result = self.db.fetchone(
-            f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",  # nosec B608
+            f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",
             tuple(params),
         )
         return result["count"] if result else 0

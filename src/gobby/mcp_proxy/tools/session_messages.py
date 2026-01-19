@@ -165,7 +165,7 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
-                assert message_manager, "Message manager not available"  # nosec B101
+                assert message_manager, "Message manager not available"
                 messages = await message_manager.get_messages(
                     session_id=session_id,
                     limit=limit,
@@ -231,7 +231,7 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
-                assert message_manager, "Message manager not available"  # nosec B101
+                assert message_manager, "Message manager not available"
                 results = await message_manager.search_messages(
                     query_text=query,
                     session_id=session_id,
@@ -273,7 +273,7 @@ def create_session_messages_registry(
             Returns:
                 Session ID, compact_markdown, and whether context exists
             """
-            assert session_manager, "Session manager not available"  # nosec B101
+            assert session_manager, "Session manager not available"
             session = session_manager.get(session_id)
             if not session:
                 return {"error": f"Session {session_id} not found", "found": False}
@@ -314,7 +314,7 @@ def create_session_messages_registry(
                 Success status, markdown lengths, and extracted context summary
             """
             import json
-            import subprocess  # nosec B404
+            import subprocess
             import time
             from pathlib import Path
 
@@ -377,7 +377,7 @@ def create_session_messages_registry(
             # Enrich with real-time git status
             if not handoff_ctx.git_status:
                 try:
-                    result = subprocess.run(  # nosec
+                    result = subprocess.run(
                         ["git", "status", "--short"],
                         capture_output=True,
                         text=True,
@@ -386,11 +386,11 @@ def create_session_messages_registry(
                     )
                     handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
                 except Exception:
-                    pass  # nosec B110 - Git status is optional, ignore failures
+                    pass  # Git status is optional, ignore failures
 
             # Get recent git commits
             try:
-                result = subprocess.run(  # nosec
+                result = subprocess.run(
                     ["git", "log", "--oneline", "-10", "--format=%H|%s"],
                     capture_output=True,
                     text=True,
@@ -406,7 +406,7 @@ def create_session_messages_registry(
                     if commits:
                         handoff_ctx.git_commits = commits
             except Exception:
-                pass  # nosec B110 - Git log is optional, ignore failures
+                pass  # Git log is optional, ignore failures
 
             # Determine what to generate (neither flag = both)
             generate_compact = compact or not full
@@ -840,7 +840,7 @@ def create_session_messages_registry(
             Returns:
                 Session ID, list of commits, and count
             """
-            import subprocess  # nosec B404
+            import subprocess
             from datetime import datetime
             from pathlib import Path
 
@@ -899,7 +899,7 @@ def create_session_messages_registry(
                     "--format=%H|%s|%aI",  # hash|subject|author-date-iso
                 ]
 
-                result = subprocess.run(  # nosec B603
+                result = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
@@ -976,7 +976,7 @@ def create_session_messages_registry(
             Returns:
                 Success status and session details
             """
-            assert session_manager, "Session manager not available"  # nosec B101
+            assert session_manager, "Session manager not available"
 
             # Find session
             if session_id:

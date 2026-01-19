@@ -9,7 +9,7 @@ Handles git worktrees, detached HEAD, and missing remotes gracefully.
 """
 
 import logging
-import subprocess  # nosec B404
+import subprocess
 from pathlib import Path
 from typing import TypedDict
 
@@ -36,7 +36,7 @@ def run_git_command(command: list[str], cwd: str | Path, timeout: int = 5) -> st
         Command output as string (stripped), or None if command fails
     """
     try:
-        result = subprocess.run(  # nosec B603
+        result = subprocess.run(
             command,
             cwd=cwd,
             capture_output=True,

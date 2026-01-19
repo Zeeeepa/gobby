@@ -214,8 +214,8 @@ class LocalMemoryManager:
         params.append(datetime.now(UTC).isoformat())
         params.append(memory_id)
 
-        # nosec B608: SET clause built from hardcoded column names, values parameterized
-        sql = f"UPDATE memories SET {', '.join(updates)} WHERE id = ?"  # nosec B608
+        # SET clause built from hardcoded column names, values parameterized
+        sql = f"UPDATE memories SET {', '.join(updates)} WHERE id = ?"
 
         with self.db.transaction() as conn:
             cursor = conn.execute(sql, tuple(params))

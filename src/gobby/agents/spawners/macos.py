@@ -6,7 +6,7 @@ import os
 import platform
 import shlex
 import shutil
-import subprocess  # nosec B404
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -83,7 +83,7 @@ class GhosttySpawner(TerminalSpawnerBase):
                 spawn_env.update(env)
 
             # Spawn process
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 args,
                 cwd=cwd,
                 env=spawn_env,
@@ -170,7 +170,7 @@ class ITermSpawner(TerminalSpawnerBase):
             end tell
             """
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 ["/usr/bin/osascript", "-e", applescript],
                 start_new_session=True,
             )
@@ -257,7 +257,7 @@ class TerminalAppSpawner(TerminalSpawnerBase):
             end tell
             """
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 ["/usr/bin/osascript", "-e", script],
                 start_new_session=True,
             )

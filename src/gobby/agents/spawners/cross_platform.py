@@ -6,7 +6,7 @@ import os
 import platform
 import shlex
 import shutil
-import subprocess  # nosec B404
+import subprocess
 import time
 from pathlib import Path
 
@@ -68,7 +68,7 @@ class KittySpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 args,
                 env=spawn_env,
                 start_new_session=True,
@@ -124,7 +124,7 @@ class AlacrittySpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 args,
                 env=spawn_env,
                 start_new_session=True,
@@ -233,7 +233,7 @@ class TmuxSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 args,
                 cwd=cwd,
                 env=spawn_env,

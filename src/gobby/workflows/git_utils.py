@@ -5,7 +5,7 @@ These are pure utility functions with no ActionContext dependency.
 """
 
 import logging
-import subprocess  # nosec B404
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def get_git_status() -> str:
         Short git status output, or error message if not a git repo.
     """
     try:
-        result = subprocess.run(  # nosec
+        result = subprocess.run(
             ["git", "status", "--short"],
             capture_output=True,
             text=True,
@@ -38,7 +38,7 @@ def get_recent_git_commits(max_commits: int = 10) -> list[dict[str, str]]:
         List of dicts with 'hash' and 'message' keys
     """
     try:
-        result = subprocess.run(  # nosec
+        result = subprocess.run(
             ["git", "log", f"-{max_commits}", "--format=%H|%s"],
             capture_output=True,
             text=True,
@@ -65,7 +65,7 @@ def get_file_changes() -> str:
     """
     try:
         # Get changed files with status
-        diff_result = subprocess.run(  # nosec
+        diff_result = subprocess.run(
             ["git", "diff", "HEAD", "--name-status"],
             capture_output=True,
             text=True,
@@ -73,7 +73,7 @@ def get_file_changes() -> str:
         )
 
         # Get untracked files
-        untracked_result = subprocess.run(  # nosec
+        untracked_result = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
             capture_output=True,
             text=True,

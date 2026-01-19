@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess  # nosec B404
+import subprocess
 from pathlib import Path
 
 from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
@@ -48,7 +48,7 @@ class GnomeTerminalSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 args,
                 env=spawn_env,
                 start_new_session=True,
@@ -104,7 +104,7 @@ class KonsoleSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(  # nosec B603
+            process = subprocess.Popen(
                 args,
                 env=spawn_env,
                 start_new_session=True,

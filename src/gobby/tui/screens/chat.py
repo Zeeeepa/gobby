@@ -438,7 +438,7 @@ class ChatScreen(Widget):
                     )
 
         except Exception:
-            pass  # nosec B110 - TUI event handling failure is non-critical
+            pass  # TUI event handling failure is non-critical
 
     def activate_search(self) -> None:
         """Focus the chat input."""
@@ -447,4 +447,4 @@ class ChatScreen(Widget):
             text_area = input_area.query_one("#chat-input", TextArea)
             text_area.focus()
         except Exception:
-            pass  # nosec B110 - Widget may not be mounted yet
+            pass  # Widget may not be mounted yet

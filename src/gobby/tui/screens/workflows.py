@@ -207,7 +207,7 @@ class WorkflowsScreen(Widget):
             panel = self.query_one("#state-panel", WorkflowStatePanel)
             panel.workflow_status = self.workflow_status
         except Exception:
-            pass  # nosec B110 - Widget may not be mounted yet
+            pass  # Widget may not be mounted yet
 
     async def _setup_table(self, workflows: list[dict[str, Any]] | None = None) -> None:
         """Set up the available workflows table."""
@@ -228,7 +228,7 @@ class WorkflowsScreen(Widget):
                 table.add_row(name, wf_type, desc, key=name)
 
         except Exception:
-            pass  # nosec B110 - TUI update failure is non-critical
+            pass  # TUI update failure is non-critical
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""

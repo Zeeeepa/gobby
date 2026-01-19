@@ -336,7 +336,7 @@ class TasksScreen(Widget):
             tree.root.expand()
 
         except Exception:
-            pass  # nosec B110 - TUI update failure is non-critical
+            pass  # TUI update failure is non-critical
 
     def _add_task_to_tree(
         self,
@@ -375,7 +375,7 @@ class TasksScreen(Widget):
                 detail_panel = self.query_one("#detail-panel", TaskDetailPanel)
                 detail_panel.update_task(task)
             except Exception:
-                pass  # nosec B110 - Widget may not be mounted yet
+                pass  # Widget may not be mounted yet
 
     async def on_filter_changed(self, event: FilterChanged) -> None:
         """Handle filter changes."""

@@ -202,7 +202,7 @@ def create_workflows_registry(
                     seen_names.add(name)
 
                 except Exception:
-                    pass  # nosec B110 - Skip invalid workflow files
+                    pass  # Skip invalid workflow files
 
         return {"workflows": workflows, "count": len(workflows)}
 
@@ -799,7 +799,7 @@ def create_workflows_registry(
         import asyncio
         import os
         import stat
-        import subprocess  # nosec B404
+        import subprocess
 
         # Script location
         gobby_dir = Path.home() / ".gobby"
@@ -878,8 +878,8 @@ def create_workflows_registry(
         try:
             # Run in background - we don't wait for it since it kills our process
             env = os.environ.copy()
-            # nosec B603
-            subprocess.Popen(  # nosec
+
+            subprocess.Popen(
                 [str(script_path), signal.upper(), "0"],  # Delay already applied
                 env=env,
                 start_new_session=True,  # Detach from parent

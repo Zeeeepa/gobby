@@ -78,7 +78,7 @@ class ConductorPanel(Widget):
                 widget = self.query_one(f"#haiku-{i}", Static)
                 widget.update(line)
             except Exception:
-                pass  # nosec B110 - Widget may not be mounted yet
+                pass  # Widget may not be mounted yet
 
 
 class TokenBudgetPanel(Widget):
@@ -188,7 +188,7 @@ class TokenBudgetPanel(Widget):
                 spent_widget.add_class("budget-normal")
 
         except Exception:
-            pass  # nosec B110 - Widget may not be mounted yet
+            pass  # Widget may not be mounted yet
 
     def update_budget(self, spent: float, limit: float, period: str = "7d") -> None:
         """Update budget values."""
@@ -706,7 +706,7 @@ class OrchestratorScreen(Widget):
             review_panel.update_tasks(tasks)
 
         except Exception:
-            pass  # nosec B110 - TUI update failure is non-critical
+            pass  # TUI update failure is non-critical
 
     def _generate_conductor_haiku(
         self,
@@ -786,7 +786,7 @@ class OrchestratorScreen(Widget):
             new_index = review_panel.selected_index + delta
             review_panel.selected_index = max(0, min(new_index, len(review_tasks) - 1))
         except Exception:
-            pass  # nosec B110 - Navigation failure is non-critical
+            pass  # Navigation failure is non-critical
 
     async def _toggle_mode(self) -> None:
         """Toggle between interactive and autonomous modes."""
@@ -808,7 +808,7 @@ class OrchestratorScreen(Widget):
             mode_panel = self.query_one("#mode-panel", ModeIndicatorPanel)
             mode_panel.set_mode(self.mode)
         except Exception:
-            pass  # nosec B110 - Widget may not be mounted yet
+            pass  # Widget may not be mounted yet
 
     async def _approve_task(self) -> None:
         """Approve the selected review task."""
@@ -901,4 +901,4 @@ class OrchestratorScreen(Widget):
                 messages_panel.add_message(session_id, content, "incoming")
 
         except Exception:
-            pass  # nosec B110 - TUI event handling failure is non-critical
+            pass  # TUI event handling failure is non-critical

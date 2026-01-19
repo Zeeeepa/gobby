@@ -134,7 +134,7 @@ class WorktreesScreen(Widget):
                 table.add_row(wt_id, branch, status, task_id, path, key=wt.get("id"))
 
         except Exception:
-            pass  # nosec B110 - TUI update failure is non-critical
+            pass  # TUI update failure is non-critical
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle worktree selection."""
