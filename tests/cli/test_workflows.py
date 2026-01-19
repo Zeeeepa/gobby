@@ -46,7 +46,10 @@ def test_list_workflows_empty(mock_loader):
     assert "No workflows found" in result.output
 
 
-def test_list_workflows_found(mock_loader):
+@patch("gobby.cli.workflows.get_project_path", return_value=None)
+@patch("gobby.cli.workflows.yaml.safe_load")
+@patch("gobby.cli.workflows.open", new_callable=MagicMock)
+def test_list_workflows_found(mock_open, mock_yaml, mock_project_path, mock_loader):
     """Test 'workflows list' finding files."""
     mock_dir = MagicMock()
     mock_dir.exists.return_value = True
@@ -57,20 +60,17 @@ def test_list_workflows_found(mock_loader):
 
     mock_loader.global_dirs = [mock_dir]
 
-    with patch("gobby.cli.workflows.open", new_callable=MagicMock) as mock_open:
-        mock_open.return_value.__enter__.return_value.read.return_value = (
-            "name: test-workflow\ntype: step\n"
-        )
-        # We need yaml.safe_load
-        with patch("gobby.cli.workflows.yaml.safe_load") as mock_yaml:
-            mock_yaml.return_value = {
-                "name": "test-workflow",
-                "type": "step",
-                "description": "desc",
-            }
-            with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                runner = CliRunner()
-                result = runner.invoke(workflows, ["list"])
+    mock_open.return_value.__enter__.return_value.read.return_value = (
+        "name: test-workflow\ntype: step\n"
+    )
+    mock_yaml.return_value = {
+        "name": "test-workflow",
+        "type": "step",
+        "description": "desc",
+    }
+
+    runner = CliRunner()
+    result = runner.invoke(workflows, ["list"])
 
     assert result.exit_code == 0
     assert "test-workflow" in result.output

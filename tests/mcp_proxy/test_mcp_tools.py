@@ -89,7 +89,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     mock_task_manager.get_task.return_value = mock_task
 
     # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+    with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call(
@@ -128,7 +128,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     mock_task_manager.get_task.return_value = mock_task
 
     # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+    with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call(
@@ -249,7 +249,7 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
     # Mock dependency manager (in task_expansion module where expand_task is defined)
     with (
         patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager") as MockDepManager,
-        patch("gobby.mcp_proxy.tools.tasks.get_project_context", return_value={"id": "p1"}),
+        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context", return_value={"id": "p1"}),
     ):
         mock_dep_instance = MockDepManager.return_value
 
@@ -319,7 +319,7 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
     # Minimal response
     mock_expander.expand_task = AsyncMock(return_value={"complexity_analysis": {}, "phases": []})
 
-    with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"):
+    with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"):
         registry = create_task_registry(
             mock_task_manager, mock_sync_manager, task_expander=mock_expander
         )
@@ -481,7 +481,7 @@ async def test_get_task_diff_tool(mock_task_manager, mock_sync_manager):
     mock_task_manager.get_task.return_value = mock_task
 
     # Patch before creating registry since functions are captured at creation time
-    with patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff:
+    with patch("gobby.tasks.commits.get_task_diff") as mock_diff:
         mock_diff.return_value = TaskDiffResult(
             diff="diff content",
             commits=["abc123"],
@@ -506,7 +506,7 @@ async def test_auto_link_commits_tool(mock_task_manager, mock_sync_manager):
     from gobby.tasks.commits import AutoLinkResult
 
     # Patch before creating registry since functions are captured at creation time
-    with patch("gobby.mcp_proxy.tools.tasks.auto_link_commits_fn") as mock_auto_link:
+    with patch("gobby.tasks.commits.auto_link_commits") as mock_auto_link:
         mock_auto_link.return_value = AutoLinkResult(
             linked_tasks={"t1": ["abc123", "def456"]},
             total_linked=2,
@@ -548,7 +548,7 @@ async def test_get_task_diff_no_commits(mock_task_manager, mock_sync_manager):
     mock_task.commits = []
     mock_task_manager.get_task.return_value = mock_task
 
-    with patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff:
+    with patch("gobby.tasks.commits.get_task_diff") as mock_diff:
         from gobby.tasks.commits import TaskDiffResult
 
         mock_diff.return_value = TaskDiffResult(

@@ -265,9 +265,9 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2 (commit linking, validation gates), workflow engine, MCP proxy with progressive discovery, session tracking and handoffs, memory, hooks integration, worktree primitives
+**Shipped:** Task system v2 (commit linking, validation gates), TDD expansion v2 (red/green/blue generation), workflow engine, MCP proxy with progressive discovery, session tracking and handoffs, memory, hooks integration, worktree primitives
 
-**In Progress:** TDD expansion v2 (more robust red/green/blue generation), Memory v3 (abstraction layer to bring your own external memory solution or use the built-in gobby-memory tool)
+**In Progress:** Memory v3 (backend abstraction layer for external memory solutions: MemU, Mem0, OpenMemory)
 
 **Next:** Autonomous orchestration, TUI, Web UI (for remote access to your agents), Observability (tool call tracing, OpenTelemetry), Security posture for MCP (allow/deny lists, audit logging)
 

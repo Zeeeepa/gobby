@@ -111,7 +111,7 @@ def run_build_check(
     try:
         result = subprocess.run(
             command,
-            shell=True,
+            shell=True,  # nosec B602 - build/test commands require shell features
             capture_output=True,
             text=True,
             timeout=timeout,

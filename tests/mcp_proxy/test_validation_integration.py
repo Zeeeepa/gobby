@@ -24,8 +24,8 @@ def mock_task_validator():
 def registry_with_patches(mock_task_manager, mock_task_validator):
     """Create a task registry with TaskDependencyManager and SessionTaskManager patched."""
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
     ):
         registry = create_task_registry(
             task_manager=mock_task_manager,
@@ -604,8 +604,8 @@ async def test_validate_task_without_changes_summary_uses_smart_context(
     mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
 
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
         patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
     ):
         mock_smart_context.return_value = "Smart context from git diff"
@@ -649,8 +649,8 @@ async def test_validate_task_no_context_available_raises_error(
     mock_task_manager.list_tasks.return_value = []
 
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
         patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
     ):
         # No context available
@@ -852,10 +852,10 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
     from gobby.tasks.commits import TaskDiffResult
 
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
-        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
-        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
+        patch("gobby.tasks.commits.get_task_diff") as mock_diff,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
     ):
         mock_diff.return_value = TaskDiffResult(
@@ -912,11 +912,11 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
     mock_task_manager.close_task.return_value = task
 
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
-        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
+        patch("gobby.tasks.commits.get_task_diff") as mock_diff,
         patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
-        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
     ):
         mock_smart_context.return_value = "Smart context fallback"
@@ -975,10 +975,10 @@ async def test_close_task_commit_diff_excludes_uncommitted_changes(
     from gobby.tasks.commits import TaskDiffResult
 
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
-        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
-        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
+        patch("gobby.tasks.commits.get_task_diff") as mock_diff,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
     ):
         mock_diff.return_value = TaskDiffResult(
@@ -1036,11 +1036,11 @@ async def test_close_task_with_commits_does_not_fallback_to_smart_context(
     from gobby.tasks.commits import TaskDiffResult
 
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
-        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
+        patch("gobby.tasks.commits.get_task_diff") as mock_diff,
         patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
-        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
     ):
         # Empty diff from commits

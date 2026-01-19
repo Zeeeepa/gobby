@@ -190,7 +190,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             result = await registry.call("create_task", {"title": "New Task", "session_id": "test-session"})
@@ -205,7 +205,7 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_blocks(self, mock_task_manager, mock_sync_manager):
         """Test create_task with blocks argument creates dependencies."""
-        with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager") as MockDepManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
             mock_dep_instance = MagicMock()
             MockDepManager.return_value = mock_dep_instance
 
@@ -220,7 +220,7 @@ class TestCreateTaskTool:
             }
             mock_task_manager.get_task.return_value = mock_task
 
-            with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
                 mock_ctx.return_value = {"id": "proj-1"}
 
                 result = await registry.call(
@@ -266,7 +266,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call(
@@ -291,7 +291,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call("create_task", {"title": "Verify that the feature works correctly", "session_id": "test-session"})
@@ -315,7 +315,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             # Title would infer "manual", but explicit value overrides
@@ -341,7 +341,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call(
@@ -385,8 +385,8 @@ class TestCreateTaskTool:
         mock_task_manager.get_task.return_value = mock_task
 
         with (
-            patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx,
-            patch("gobby.mcp_proxy.tools.tasks.initialize_project") as mock_init,
+            patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.tasks._crud.initialize_project") as mock_init,
         ):
             mock_ctx.return_value = None  # No project context
             mock_init_result = MagicMock()
@@ -425,7 +425,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             result = await registry.call("create_task", {"title": "Full Task", "session_id": "test-session"})
@@ -461,7 +461,7 @@ class TestCreateTaskTool:
         }
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             result = await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
@@ -480,7 +480,7 @@ class TestGetTaskTool:
     @pytest.mark.asyncio
     async def test_get_task_found(self, mock_task_manager, mock_sync_manager, sample_task):
         """Test get_task returns task with dependencies."""
-        with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager") as MockDepManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
             mock_dep_instance = MagicMock()
             mock_dep_instance.get_blockers.return_value = []
             mock_dep_instance.get_blocking.return_value = []
@@ -517,7 +517,7 @@ class TestGetTaskTool:
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
         """Test get_task includes dependency information."""
-        with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager") as MockDepManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
             mock_dep_instance = MagicMock()
 
             # Create mock blocker and blocking dependencies
@@ -756,7 +756,7 @@ class TestCloseTaskTool:
         mock_task.project_id = "proj-1"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager:
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
@@ -781,7 +781,7 @@ class TestCloseTaskTool:
         mock_task.project_id = "proj-1"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager:
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
@@ -815,7 +815,7 @@ class TestCloseTaskTool:
         mock_task_manager.list_tasks.return_value = []  # No children
 
         with (
-            patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
         ):
             mock_proj_instance = MagicMock()
@@ -856,7 +856,7 @@ class TestCloseTaskTool:
 
         mock_task_manager.list_tasks.return_value = [child1, child2]
 
-        with patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager:
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
@@ -889,7 +889,7 @@ class TestCloseTaskTool:
         mock_task_manager.list_tasks.return_value = []  # No children
 
         with (
-            patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
         ):
             mock_proj_instance = MagicMock()
@@ -925,7 +925,7 @@ class TestCloseTaskTool:
         mock_task_manager.list_tasks.return_value = []
 
         with (
-            patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
         ):
             mock_proj_instance = MagicMock()
@@ -961,7 +961,7 @@ class TestCloseTaskTool:
         mock_task_manager.list_tasks.return_value = []
 
         with (
-            patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
             patch("gobby.utils.git.run_git_command") as mock_git,
         ):
             mock_proj_instance = MagicMock()
@@ -1044,7 +1044,7 @@ class TestReopenTaskTool:
     @pytest.mark.asyncio
     async def test_reopen_task_reactivates_worktree(self, mock_task_manager, mock_sync_manager):
         """Test reopen_task reactivates associated worktrees."""
-        with patch("gobby.mcp_proxy.tools.tasks.LocalWorktreeManager") as MockWorktreeManager:
+        with patch("gobby.mcp_proxy.tools.tasks._lifecycle.LocalWorktreeManager") as MockWorktreeManager:
             mock_wt_instance = MagicMock()
             mock_worktree = MagicMock()
             mock_worktree.id = "wt-123"
@@ -1140,7 +1140,7 @@ class TestListTasksTool:
 
         mock_task_manager.list_tasks.return_value = [mock_task1, mock_task2]
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             result = await registry.call("list_tasks", {})
@@ -1155,7 +1155,7 @@ class TestListTasksTool:
 
         mock_task_manager.list_tasks.return_value = []
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call(
@@ -1191,7 +1191,7 @@ class TestListTasksTool:
 
         mock_task_manager.list_tasks.return_value = []
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call("list_tasks", {"all_projects": True})
@@ -1206,7 +1206,7 @@ class TestListTasksTool:
 
         mock_task_manager.list_tasks.return_value = []
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call("list_tasks", {"status": "open,in_progress"})
@@ -1226,7 +1226,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_success(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session creates a link."""
-        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -1262,7 +1262,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_error(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session handles errors."""
-        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.link_task.side_effect = ValueError("Invalid task")
             MockSessionTaskManager.return_value = mock_st_instance
@@ -1279,7 +1279,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_session_tasks(self, mock_task_manager, mock_sync_manager):
         """Test get_session_tasks returns tasks for a session."""
-        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.get_session_tasks.return_value = [
                 {"task_id": "t1", "action": "worked_on"}
@@ -1296,7 +1296,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_task_sessions(self, mock_task_manager, mock_sync_manager):
         """Test get_task_sessions returns sessions for a task."""
-        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.get_task_sessions.return_value = [
                 {"session_id": "sess-1", "action": "created"}

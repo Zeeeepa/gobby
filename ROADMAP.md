@@ -52,7 +52,7 @@ Legend:
 - ✅ `gobby-tasks` MCP: tasks, labels, dependencies, sync (`.gobby/tasks.jsonl`)
 - ✅ Commit linking (task IDs in commit messages auto-link)
 - ✅ Validation gates (criteria checked before task close)
-- 🚧 TDD expansion v2: phased workflow (parse_spec → enrich → expand → apply_tdd)
+- ✅ TDD expansion v2: integrated pipeline (context → expand → TDD sandwich)
 - 🧪 Publish comparisons + guidance: "Gobby tasks vs Beads vs Task Master"
   - Beads is dependency-graph-first for agent planning/memory  [oai_citation:2‡GitHub](https://github.com/steveyegge/beads?utm_source=chatgpt.com)
 
@@ -78,7 +78,7 @@ Legend:
 - ✅ Linear integration
 - ✅ Plugin architecture (extensible domains/tools)
 
-**Implementation sequence:** TDD expansion v2 → Memory v3 → Orchestration
+**Next up:** Memory v3 → Orchestration
 
 ---
 

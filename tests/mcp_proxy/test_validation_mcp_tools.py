@@ -40,8 +40,8 @@ def mock_task_validator():
 def registry_with_patches(mock_task_manager, mock_task_validator):
     """Create a task registry with dependency managers patched."""
     with (
-        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
     ):
         registry = create_task_registry(
             task_manager=mock_task_manager,
