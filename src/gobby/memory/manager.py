@@ -5,7 +5,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import MemoryConfig
+from gobby.memory.backends import get_backend
 from gobby.memory.context import build_memory_context
+from gobby.memory.protocol import MemoryBackendProtocol
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
@@ -27,8 +29,17 @@ class MemoryManager:
         config: MemoryConfig,
     ):
         self.db = db
-        self.storage = LocalMemoryManager(db)
         self.config = config
+
+        # Initialize storage backend based on config
+        # Note: SQLiteBackend wraps LocalMemoryManager internally
+        backend_type = getattr(config, "backend", "sqlite")
+        self._backend: MemoryBackendProtocol = get_backend(backend_type, database=db)
+
+        # Keep storage reference for backward compatibility with sync methods
+        # The SQLiteBackend uses LocalMemoryManager internally
+        self.storage = LocalMemoryManager(db)
+
         self._search_backend: SearchBackend | None = None
         self._search_backend_fitted = False
 
