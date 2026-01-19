@@ -96,3 +96,25 @@ class LLMProvider(ABC):
             Generated text response
         """
         pass
+
+    @abstractmethod
+    async def describe_image(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """
+        Generate a text description of an image.
+
+        Used for multimodal memory support - converts images to text
+        descriptions that can be stored alongside memory content.
+
+        Args:
+            image_path: Path to the image file to describe
+            context: Optional context to guide the description
+                    (e.g., "This is a screenshot of the settings page")
+
+        Returns:
+            Text description of the image suitable for memory storage
+        """
+        pass
