@@ -165,7 +165,7 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
-                assert message_manager, "Message manager not available"
+                assert message_manager, "Message manager not available"  # nosec B101
                 messages = await message_manager.get_messages(
                     session_id=session_id,
                     limit=limit,
@@ -231,7 +231,7 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
-                assert message_manager, "Message manager not available"
+                assert message_manager, "Message manager not available"  # nosec B101
                 results = await message_manager.search_messages(
                     query_text=query,
                     session_id=session_id,
@@ -273,7 +273,7 @@ def create_session_messages_registry(
             Returns:
                 Session ID, compact_markdown, and whether context exists
             """
-            assert session_manager, "Session manager not available"
+            assert session_manager, "Session manager not available"  # nosec B101
             session = session_manager.get(session_id)
             if not session:
                 return {"error": f"Session {session_id} not found", "found": False}
@@ -976,7 +976,7 @@ def create_session_messages_registry(
             Returns:
                 Success status and session details
             """
-            assert session_manager, "Session manager not available"
+            assert session_manager, "Session manager not available"  # nosec B101
 
             # Find session
             if session_id:

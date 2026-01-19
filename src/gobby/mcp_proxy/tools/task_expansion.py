@@ -468,7 +468,7 @@ def create_expansion_registry(
 
         # Batch mode - process tasks in parallel
         # At this point, task_ids is guaranteed to be a non-empty list (validated above)
-        assert task_ids is not None  # Type narrowing for mypy
+        assert task_ids is not None  # nosec B101 - Type narrowing for mypy
 
         async def expand_one(tid: str) -> dict[str, Any]:
             return await _expand_single_task(

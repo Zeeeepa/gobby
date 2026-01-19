@@ -186,8 +186,9 @@ class ToolMetricsManager:
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
         # where_clause built from hardcoded condition strings, values parameterized
+        # nosec B608: where_clause is hardcoded strings, values are parameterized
         rows = self.db.fetchall(
-            f"SELECT * FROM tool_metrics WHERE {where_clause} ORDER BY call_count DESC",
+            f"SELECT * FROM tool_metrics WHERE {where_clause} ORDER BY call_count DESC",  # nosec B608
             tuple(params),
         )
 
@@ -235,15 +236,15 @@ class ToolMetricsManager:
             order_by = "call_count"
 
         if project_id:
-            # order_by validated against allowlist above
+            # nosec B608: order_by validated against allowlist above
             rows = self.db.fetchall(
-                f"SELECT * FROM tool_metrics WHERE project_id = ? ORDER BY {order_by} DESC LIMIT ?",
+                f"SELECT * FROM tool_metrics WHERE project_id = ? ORDER BY {order_by} DESC LIMIT ?",  # nosec B608
                 (project_id, limit),
             )
         else:
-            # order_by validated against allowlist above
+            # nosec B608: order_by validated against allowlist above
             rows = self.db.fetchall(
-                f"SELECT * FROM tool_metrics ORDER BY {order_by} DESC LIMIT ?",
+                f"SELECT * FROM tool_metrics ORDER BY {order_by} DESC LIMIT ?",  # nosec B608
                 (limit,),
             )
 
@@ -364,9 +365,9 @@ class ToolMetricsManager:
 
         if conditions:
             where_clause = " AND ".join(conditions)
-            # where_clause built from hardcoded condition strings
+            # nosec B608: where_clause built from hardcoded condition strings
             cursor = self.db.execute(
-                f"DELETE FROM tool_metrics WHERE {where_clause}",
+                f"DELETE FROM tool_metrics WHERE {where_clause}",  # nosec B608
                 tuple(params),
             )
         else:
@@ -533,9 +534,9 @@ class ToolMetricsManager:
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
-        # where_clause built from hardcoded condition strings, values parameterized
+        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
-            f"SELECT * FROM tool_metrics_daily WHERE {where_clause} ORDER BY date DESC, call_count DESC",
+            f"SELECT * FROM tool_metrics_daily WHERE {where_clause} ORDER BY date DESC, call_count DESC",  # nosec B608
             tuple(params),
         )
 

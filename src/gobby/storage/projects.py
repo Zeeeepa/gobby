@@ -144,12 +144,12 @@ class LocalProjectManager:
 
         fields["updated_at"] = datetime.now(UTC).isoformat()
 
-        # Fields validated against allowlist above, values parameterized
+        # nosec B608: Fields validated against allowlist above, values parameterized
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         values = list(fields.values()) + [project_id]
 
         self.db.execute(
-            f"UPDATE projects SET {set_clause} WHERE id = ?",
+            f"UPDATE projects SET {set_clause} WHERE id = ?",  # nosec B608
             tuple(values),
         )
 

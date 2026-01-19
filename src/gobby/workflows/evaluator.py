@@ -349,7 +349,9 @@ class ConditionEvaluator:
             allowed_globals["mcp_called"] = _mcp_called
 
             # eval used with restricted allowed_globals for workflow conditions
-            return bool(eval(condition, allowed_globals, context))
+            # nosec B307: eval is intentional here for DSL evaluation with
+            # restricted globals (__builtins__={}) and controlled workflow conditions
+            return bool(eval(condition, allowed_globals, context))  # nosec B307
         except Exception as e:
             logger.warning(f"Condition evaluation failed: '{condition}'. Error: {e}")
             return False

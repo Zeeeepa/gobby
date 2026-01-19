@@ -53,9 +53,10 @@ def _get_worktree_base_dir() -> Path:
         # Windows: use %TEMP% (typically C:\\Users\\<user>\\AppData\\Local\\Temp)
         base = Path(tempfile.gettempdir()) / "gobby-worktrees"
     else:
-        # macOS/Linux: use /tmp for better isolation
+        # macOS/Linux: use /tmp for better isolation (tmpfs, cleared on reboot)
         # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
-        base = Path("/tmp").resolve() / "gobby-worktrees"
+        # nosec B108: /tmp is intentional for worktrees - they're temporary by design
+        base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
 
     base.mkdir(parents=True, exist_ok=True)
     return base
@@ -594,7 +595,7 @@ def create_worktrees_registry(
         # Check for uncommitted changes if not forcing
         if resolved_git_mgr and Path(worktree.worktree_path).exists():
             status = resolved_git_mgr.get_worktree_status(worktree.worktree_path)
-            if status and status.has_uncommitted_changes:
+            if status and status.has_uncommitted_changes and not force:
                 return {
                     "success": False,
                     "error": "Worktree has uncommitted changes. Use force=True to delete anyway.",

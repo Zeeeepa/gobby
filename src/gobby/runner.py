@@ -402,9 +402,10 @@ class GobbyRunner:
                 websocket_task = asyncio.create_task(self.websocket_server.start())
 
             # Start HTTP server
+            # nosec B104: 0.0.0.0 binding is intentional - daemon serves local network
             config = uvicorn.Config(
                 self.http_server.app,
-                host="0.0.0.0",  # local daemon needs network access
+                host="0.0.0.0",  # nosec B104 - local daemon needs network access
                 port=self.http_server.port,
                 log_level="warning",
                 access_log=False,

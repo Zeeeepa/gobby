@@ -66,8 +66,8 @@ class TaskValidator:
         placeholders = ",".join("?" for _ in ids)
 
         with self.db.transaction() as conn:
-            # placeholders are just '?' characters, values parameterized
-            conn.execute(f"DELETE FROM task_dependencies WHERE id IN ({placeholders})", tuple(ids))
+            # nosec B608: placeholders are just '?' characters, values parameterized
+            conn.execute(f"DELETE FROM task_dependencies WHERE id IN ({placeholders})", tuple(ids))  # nosec B608
 
         return len(ids)
 

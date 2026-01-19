@@ -149,7 +149,7 @@ class HeadlessSpawner:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, result.process.wait)
                 except Exception:
-                    pass
+                    pass  # nosec B110 - Best-effort process cleanup
             result.error = "Process timed out"
 
         except Exception as e:
