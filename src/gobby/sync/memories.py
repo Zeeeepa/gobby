@@ -10,6 +10,11 @@ from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "MemoryBackupManager",
+    "MemorySyncManager",  # Backward compatibility alias
+]
+
 
 class MemoryBackupManager:
     """
