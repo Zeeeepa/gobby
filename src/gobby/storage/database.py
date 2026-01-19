@@ -306,7 +306,7 @@ class LocalDatabase:
                 try:
                     conn.close()
                 except Exception:
-                    pass  # Connection may already be closed
+                    pass  # nosec B110 - connection may already be closed
             self._all_connections.clear()
 
         # Clear thread-local reference

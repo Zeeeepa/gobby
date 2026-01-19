@@ -55,7 +55,7 @@ class HaikuPanel(Static):
                 widget = self.query_one(f"#haiku-line-{i}", Static)
                 widget.update(line)
             except Exception:
-                pass  # Widget may not be mounted yet
+                pass  # nosec B110 - widget may not be mounted yet
 
     def update_haiku(self, lines: list[str]) -> None:
         """Update the haiku display."""
@@ -115,7 +115,7 @@ class StatsPanel(Static):
             widget = self.query_one(f"#stat-{stat_id}", Static)
             widget.update(str(value))
         except Exception:
-            pass  # Widget may not be mounted yet
+            pass  # nosec B110 - widget may not be mounted yet
 
 
 class ActivityPanel(Static):
@@ -174,7 +174,7 @@ class ActivityPanel(Static):
                 event = activity.get("event", "Unknown event")
                 container.mount(Static(f"[{time_str}] {event}", classes="activity-item"))
         except Exception:
-            pass  # TUI update failure is non-critical
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def add_activity(self, event: str, time_str: str | None = None) -> None:
         """Add a new activity to the list."""
@@ -355,7 +355,7 @@ class DashboardScreen(Widget):
                 activity_panel.add_activity(f"Auto: {event} ({task_id})")
 
         except Exception:
-            pass  # TUI event handling failure is non-critical
+            pass  # nosec B110 - TUI event handling failure is non-critical
 
         # Refresh stats periodically on events
         asyncio.create_task(self._refresh_stats_quietly())
@@ -374,4 +374,4 @@ class DashboardScreen(Widget):
                 sessions_summary = status.get("sessions", {})
                 stats_panel.update_stat("sessions-active", sessions_summary.get("active", 0))
         except Exception:
-            pass  # Background refresh failure is non-critical
+            pass  # nosec B110 - background refresh failure is non-critical

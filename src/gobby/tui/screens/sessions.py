@@ -409,4 +409,4 @@ class SessionsScreen(Widget):
             search = self.query_one("#session-search", Input)
             search.focus()
         except Exception:
-            pass  # Widget may not be mounted yet
+            pass  # nosec B110 - widget may not be mounted yet

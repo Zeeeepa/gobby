@@ -296,8 +296,6 @@ def determine_close_outcome(
 
     # Route to review if task requires user review OR override was used
     # This ensures tasks with HITL flag or skipped validation go through human review
-    route_to_review = bool(
-        task.requires_user_review or (override_justification and store_override)
-    )
+    route_to_review = bool(task.requires_user_review or (override_justification and store_override))
 
     return route_to_review, store_override

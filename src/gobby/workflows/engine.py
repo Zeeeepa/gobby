@@ -410,9 +410,7 @@ class WorkflowEngine:
         self, event: HookEvent, context_data: dict[str, Any]
     ) -> HookResponse | None:
         """Check if an active step workflow should handle a premature stop."""
-        template_engine = (
-            self.action_executor.template_engine if self.action_executor else None
-        )
+        template_engine = self.action_executor.template_engine if self.action_executor else None
         return await check_premature_stop(
             event, context_data, self.state_manager, self.loader, self.evaluator, template_engine
         )

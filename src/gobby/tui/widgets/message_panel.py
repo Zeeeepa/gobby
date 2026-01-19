@@ -133,7 +133,7 @@ class InterAgentMessagePanel(Widget):
             scroll = self.query_one("#messages-scroll", VerticalScroll)
             scroll.scroll_end(animate=False)
         except Exception:
-            pass  # Widget may not be mounted yet
+            pass  # nosec B110 - widget may not be mounted yet
 
     def add_message(
         self,

@@ -4,7 +4,7 @@ Provides build/test command detection and execution before LLM validation.
 """
 
 import logging
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for build commands
 from dataclasses import dataclass
 from pathlib import Path
 

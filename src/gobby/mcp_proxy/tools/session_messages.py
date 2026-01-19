@@ -314,7 +314,7 @@ def create_session_messages_registry(
                 Success status, markdown lengths, and extracted context summary
             """
             import json
-            import subprocess
+            import subprocess  # nosec B404 - subprocess needed for git commands
             import time
             from pathlib import Path
 
@@ -377,7 +377,7 @@ def create_session_messages_registry(
             # Enrich with real-time git status
             if not handoff_ctx.git_status:
                 try:
-                    result = subprocess.run(
+                    result = subprocess.run(  # nosec B603 B607 - hardcoded git command
                         ["git", "status", "--short"],
                         capture_output=True,
                         text=True,
@@ -386,11 +386,11 @@ def create_session_messages_registry(
                     )
                     handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
                 except Exception:
-                    pass  # Git status is optional, ignore failures
+                    pass  # nosec B110 - git status is optional, ignore failures
 
             # Get recent git commits
             try:
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 B607 - hardcoded git command
                     ["git", "log", "--oneline", "-10", "--format=%H|%s"],
                     capture_output=True,
                     text=True,
@@ -406,7 +406,7 @@ def create_session_messages_registry(
                     if commits:
                         handoff_ctx.git_commits = commits
             except Exception:
-                pass  # Git log is optional, ignore failures
+                pass  # nosec B110 - git log is optional, ignore failures
 
             # Determine what to generate (neither flag = both)
             generate_compact = compact or not full
@@ -840,7 +840,7 @@ def create_session_messages_registry(
             Returns:
                 Session ID, list of commits, and count
             """
-            import subprocess
+            import subprocess  # nosec B404 - subprocess needed for git commands
             from datetime import datetime
             from pathlib import Path
 
@@ -899,7 +899,7 @@ def create_session_messages_registry(
                     "--format=%H|%s|%aI",  # hash|subject|author-date-iso
                 ]
 
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 - cmd built from hardcoded git arguments
                     cmd,
                     capture_output=True,
                     text=True,

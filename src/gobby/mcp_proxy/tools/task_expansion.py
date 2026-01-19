@@ -290,7 +290,7 @@ def create_expansion_registry(
                                 task_manager.update_task(sid, validation_criteria=criteria)
                                 validation_generated += 1
                         except Exception:
-                            pass
+                            pass  # nosec B110 - best-effort validation generation
 
         # Update parent task: set is_expanded and validation criteria
         task_manager.update_task(

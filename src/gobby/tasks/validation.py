@@ -15,7 +15,7 @@ TODO: Add strategy 4 - codebase grep for test files related to the task.
 
 import logging
 import re
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for validation commands
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -99,7 +99,7 @@ def run_git_command(
         CompletedProcess on success, None if exception occurred
     """
     try:
-        return subprocess.run(
+        return subprocess.run(  # nosec B603 - cmd passed from internal callers with hardcoded git commands
             cmd,
             capture_output=True,
             text=True,

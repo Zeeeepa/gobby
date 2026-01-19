@@ -33,7 +33,7 @@ Configuration Options:
 from __future__ import annotations
 
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for code linting commands
 from pathlib import Path
 from typing import Any
 
@@ -256,7 +256,7 @@ class CodeGuardianPlugin(HookPlugin):
             return []
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607 - hardcoded ruff command
                 ["ruff", "check", "--output-format=concise", str(path)],
                 capture_output=True,
                 text=True,
@@ -285,7 +285,7 @@ class CodeGuardianPlugin(HookPlugin):
                 cmd.extend(["--ignore", rule])
             cmd.append(str(path))
 
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 - cmd built from hardcoded ruff arguments
                 cmd,
                 capture_output=True,
                 text=True,
@@ -307,7 +307,7 @@ class CodeGuardianPlugin(HookPlugin):
             return []
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607 - hardcoded mypy command
                 ["mypy", "--no-error-summary", str(path)],
                 capture_output=True,
                 text=True,
@@ -399,7 +399,7 @@ class CodeGuardianPlugin(HookPlugin):
         for file_path in target_files:
             path = Path(file_path)
             try:
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 B607 - hardcoded ruff command
                     ["ruff", "format", str(path)],
                     capture_output=True,
                     text=True,

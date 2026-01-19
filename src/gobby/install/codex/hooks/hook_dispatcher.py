@@ -34,7 +34,7 @@ def _silence_output() -> None:
         sys.stdout = devnull
         sys.stderr = devnull
     except Exception:
-        # If silencing fails, still avoid raising/printing.
+        # nosec B110 - if silencing fails, still avoid raising/printing
         pass
 
 

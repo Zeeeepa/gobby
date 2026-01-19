@@ -60,14 +60,11 @@ class TaskTreePanel(Widget):
             with Horizontal(classes="filter-row"):
                 yield Select(
                     [
-                        (label, value)
-                        for label, value in [
-                            ("All Status", "all"),
-                            ("Open", "open"),
-                            ("In Progress", "in_progress"),
-                            ("Review", "review"),
-                            ("Closed", "closed"),
-                        ]
+                        ("All Status", "all"),
+                        ("Open", "open"),
+                        ("In Progress", "in_progress"),
+                        ("Review", "review"),
+                        ("Closed", "closed"),
                     ],
                     value="all",
                     id="status-filter",
@@ -333,7 +330,7 @@ class TasksScreen(Widget):
             tree.root.expand()
 
         except Exception:
-            pass  # TUI update failure is non-critical
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def _add_task_to_tree(
         self,
@@ -372,7 +369,7 @@ class TasksScreen(Widget):
                 detail_panel = self.query_one("#detail-panel", TaskDetailPanel)
                 detail_panel.update_task(task)
             except Exception:
-                pass  # Widget may not be mounted yet
+                pass  # nosec B110 - widget may not be mounted yet
 
     async def on_filter_changed(self, event: FilterChanged) -> None:
         """Handle filter changes."""

@@ -202,7 +202,7 @@ def create_workflows_registry(
                     seen_names.add(name)
 
                 except Exception:
-                    pass  # Skip invalid workflow files
+                    pass  # nosec B110 - skip invalid workflow files
 
         return {"workflows": workflows, "count": len(workflows)}
 
@@ -799,7 +799,7 @@ def create_workflows_registry(
         import asyncio
         import os
         import stat
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for agent shutdown script
 
         # Script location
         gobby_dir = Path.home() / ".gobby"
@@ -879,7 +879,7 @@ def create_workflows_registry(
             # Run in background - we don't wait for it since it kills our process
             env = os.environ.copy()
 
-            subprocess.Popen(
+            subprocess.Popen(  # nosec B603 - script path is from gobby scripts directory
                 [str(script_path), signal.upper(), "0"],  # Delay already applied
                 env=env,
                 start_new_session=True,  # Detach from parent

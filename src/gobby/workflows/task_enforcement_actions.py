@@ -6,7 +6,7 @@ and enforce task completion before allowing agent to stop.
 """
 
 import logging
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for git commands
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
@@ -40,7 +40,7 @@ def _get_dirty_files(project_path: str | None = None) -> set[str]:
         )
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607 - hardcoded git command
             ["git", "status", "--porcelain"],
             cwd=project_path,
             capture_output=True,

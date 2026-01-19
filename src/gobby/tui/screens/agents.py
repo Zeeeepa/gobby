@@ -247,7 +247,7 @@ class AgentsScreen(Widget):
                 table.add_row(run_id, status, mode, prompt, duration_str, key=agent.get("run_id"))
 
         except Exception:
-            pass  # TUI update failure is non-critical
+            pass  # nosec B110 - TUI update failure is non-critical
 
     def watch_show_spawn_dialog(self, show: bool) -> None:
         """Toggle spawn dialog visibility."""
@@ -255,7 +255,7 @@ class AgentsScreen(Widget):
             dialog = self.query_one("#spawn-dialog", SpawnAgentDialog)
             dialog.set_class(show, "--visible")
         except Exception:
-            pass  # Widget may not be mounted yet
+            pass  # nosec B110 - widget may not be mounted yet
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle agent selection."""
@@ -274,7 +274,7 @@ class AgentsScreen(Widget):
                 dialog = self.query_one("#spawn-dialog", SpawnAgentDialog)
                 dialog.clear()
             except Exception:
-                pass  # Widget may not be mounted yet
+                pass  # nosec B110 - widget may not be mounted yet
 
         elif button_id == "btn-spawn":
             await self._spawn_agent()

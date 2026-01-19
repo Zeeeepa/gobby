@@ -263,9 +263,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             # Also resolve parent_task_id if it's a reference format
             if parent_task_id:
                 try:
-                    resolved_parent = resolve_task_id_for_mcp(
-                        ctx.task_manager, parent_task_id
-                    )
+                    resolved_parent = resolve_task_id_for_mcp(ctx.task_manager, parent_task_id)
                     kwargs["parent_task_id"] = resolved_parent
                 except (TaskNotFoundError, ValueError):
                     kwargs["parent_task_id"] = parent_task_id  # Fall back to original

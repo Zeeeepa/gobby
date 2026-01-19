@@ -213,7 +213,7 @@ class ExpansionContextGatherer:
                             if rel_path not in relevant:
                                 relevant.append(rel_path)
                 except Exception:
-                    continue  # Skip files we can't process
+                    continue  # nosec B112 - skip files we can't process
 
         return relevant
 
@@ -303,7 +303,7 @@ class ExpansionContextGatherer:
             Dict mapping module path to list of test files that import it.
         """
         import re
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for grep command
 
         result: dict[str, list[str]] = {}
         root = find_project_root()
@@ -326,7 +326,7 @@ class ExpansionContextGatherer:
                 # Use grep to find test files that import this module
                 # Pattern matches: from {module} import, import {module}
                 pattern = rf"(from\s+{re.escape(import_path)}(\.\w+)*\s+import|import\s+{re.escape(import_path)})"
-                grep_result = subprocess.run(
+                grep_result = subprocess.run(  # nosec B603 B607 - grep with constructed pattern on tests directory
                     ["grep", "-r", "-l", "-E", pattern, str(tests_dir)],
                     capture_output=True,
                     text=True,
@@ -702,7 +702,7 @@ class ExpansionContextGatherer:
                         ]
                     )
             except Exception:
-                pass  # CLAUDE.md parsing is optional
+                pass  # nosec B110 - CLAUDE.md parsing is optional
 
         # Default guidance if CLAUDE.md doesn't provide specific info
         if not guidance_lines:

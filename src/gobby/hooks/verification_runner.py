@@ -4,7 +4,7 @@ Executes configured verification commands (lint, typecheck, tests, etc.) for git
 """
 
 import logging
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for verification commands
 import time
 from dataclasses import dataclass, field
 from pathlib import Path

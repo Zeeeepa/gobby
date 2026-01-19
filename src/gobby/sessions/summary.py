@@ -8,7 +8,7 @@ Handles:
 
 import json
 import logging
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for git commands
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -482,7 +482,7 @@ class SummaryFileGenerator:
             Git status output or error message
         """
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607 - hardcoded git command
                 ["git", "status", "--short"],
                 capture_output=True,
                 text=True,
@@ -501,7 +501,7 @@ class SummaryFileGenerator:
         """
         try:
             # Get changed files with status
-            diff_result = subprocess.run(
+            diff_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
                 ["git", "diff", "HEAD", "--name-status"],
                 capture_output=True,
                 text=True,
@@ -509,7 +509,7 @@ class SummaryFileGenerator:
             )
 
             # Get untracked files
-            untracked_result = subprocess.run(
+            untracked_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
                 ["git", "ls-files", "--others", "--exclude-standard"],
                 capture_output=True,
                 text=True,

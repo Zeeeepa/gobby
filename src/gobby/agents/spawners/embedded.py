@@ -119,7 +119,7 @@ class EmbeddedSpawner:
                     os.chdir(cwd)
 
                     # Execute command
-                    os.execvpe(command[0], command, spawn_env)
+                    os.execvpe(command[0], command, spawn_env)  # nosec B606 - config
                 except Exception:
                     # Ensure we exit on any failure
                     os._exit(1)

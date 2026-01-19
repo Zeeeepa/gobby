@@ -589,7 +589,7 @@ def create_worktrees_registry(
                 if mgr:
                     resolved_git_mgr = mgr
             except Exception:
-                # If context resolution fails, continue without git manager
+                # nosec B110 - if context resolution fails, continue without git manager
                 pass
 
         # Check for uncommitted changes if not forcing

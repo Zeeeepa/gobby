@@ -6,7 +6,7 @@ import os
 import platform
 import shlex
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for terminal spawning
 import time
 from pathlib import Path
 
@@ -68,7 +68,7 @@ class KittySpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
                 env=spawn_env,
                 start_new_session=True,
@@ -124,7 +124,7 @@ class AlacrittySpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
                 env=spawn_env,
                 start_new_session=True,
@@ -233,7 +233,7 @@ class TmuxSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
                 cwd=cwd,
                 env=spawn_env,

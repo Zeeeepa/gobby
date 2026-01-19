@@ -419,7 +419,7 @@ class TaskSyncManager:
             Result with imported issue IDs
         """
         import re
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for gh CLI
 
         try:
             # Parse repo from URL
@@ -435,9 +435,7 @@ class TaskSyncManager:
 
             # Check if gh CLI is available
             try:
-                subprocess.run(
-                    ["gh", "--version"], capture_output=True, check=True
-                )
+                subprocess.run(["gh", "--version"], capture_output=True, check=True)  # nosec B603 B607
             except (subprocess.CalledProcessError, FileNotFoundError):
                 return {
                     "success": False,
@@ -459,7 +457,7 @@ class TaskSyncManager:
                 "number,title,body,labels,createdAt",
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603 - hardcoded gh arguments
             if result.returncode != 0:
                 return {
                     "success": False,

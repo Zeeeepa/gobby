@@ -115,8 +115,7 @@ async def evaluate_workflow_triggers(
         return HookResponse(decision="allow")
 
     logger.debug(
-        f"Evaluating {len(triggers)} trigger(s) for '{trigger_name}' "
-        f"in workflow '{workflow.name}'"
+        f"Evaluating {len(triggers)} trigger(s) for '{trigger_name}' in workflow '{workflow.name}'"
     )
 
     # Get or create persisted state for action execution
@@ -421,9 +420,7 @@ async def evaluate_lifecycle_triggers(
                     )
 
         except Exception as e:
-            logger.error(
-                f"Failed to execute lifecycle action '{action_type}': {e}", exc_info=True
-            )
+            logger.error(f"Failed to execute lifecycle action '{action_type}': {e}", exc_info=True)
 
     return HookResponse(
         decision="allow",

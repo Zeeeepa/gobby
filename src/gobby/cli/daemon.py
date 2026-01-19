@@ -4,7 +4,7 @@ Daemon management commands.
 
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for daemon management
 import sys
 import time
 from pathlib import Path
@@ -118,7 +118,7 @@ def start(ctx: click.Context, verbose: bool) -> None:
 
     try:
         # Start detached subprocess
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # nosec B603 - cmd built from sys.executable and module path
             cmd,
             stdout=log_f,
             stderr=error_log_f,

@@ -106,7 +106,7 @@ class MemorySyncManager:
                 project_path = Path(project_ctx["path"]).expanduser().resolve()
                 return project_path / self.export_path
         except Exception:
-            pass  # Fall back to cwd if project context unavailable
+            pass  # nosec B110 - fall back to cwd if project context unavailable
 
         # Fall back to current working directory
         return Path.cwd() / self.export_path

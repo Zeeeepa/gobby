@@ -61,7 +61,7 @@ from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
-    from gobby.workflows.engine import WorkflowEngine
+    pass
 
 # Backward-compatible alias
 TranscriptProcessor = ClaudeTranscriptParser

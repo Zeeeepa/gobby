@@ -231,7 +231,7 @@ class WorkflowsScreen(Widget):
                 table.add_row(name, wf_type, desc, key=name)
 
         except Exception:
-            pass  # TUI update failure is non-critical
+            pass  # nosec B110 - TUI update failure is non-critical
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""

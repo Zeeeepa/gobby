@@ -6,7 +6,7 @@ These functions handle session status updates, mode switching, and session chain
 
 import logging
 import shlex
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for session spawning
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def start_new_session(
         if prompt and command in ["claude", "gemini"]:
             full_cmd.extend(["-p", prompt])
 
-        proc = subprocess.Popen(
+        proc = subprocess.Popen(  # nosec B603 - cmd built from config, no shell
             full_cmd,
             cwd=cwd,
             stdout=subprocess.DEVNULL,

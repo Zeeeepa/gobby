@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for headless agent spawning
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -67,7 +67,7 @@ class HeadlessSpawner:
             # Spawn process with captured output
             # Use DEVNULL for stdin since headless mode uses -p flag (print mode)
             # which reads prompt from CLI args, not stdin. A pipe stdin would hang.
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603 - command built from config
                 command,
                 cwd=cwd,
                 env=spawn_env,

@@ -147,9 +147,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Get git commit SHA (best-effort, dynamic short format for consistency)
         from gobby.utils.git import run_git_command
 
-        current_commit_sha = run_git_command(
-            ["git", "rev-parse", "--short", "HEAD"], cwd=cwd
-        )
+        current_commit_sha = run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=cwd)
 
         if route_to_review:
             # Route to review status instead of closing
@@ -165,7 +163,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 try:
                     ctx.session_task_manager.link_task(session_id, resolved_id, "review")
                 except Exception:
-                    pass  # Best-effort linking
+                    pass  # nosec B110 - best-effort linking
 
             return {
                 "routed_to_review": True,
@@ -194,7 +192,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             try:
                 ctx.session_task_manager.link_task(session_id, resolved_id, "closed")
             except Exception:
-                pass  # Best-effort linking, don't fail the close
+                pass  # nosec B110 - best-effort linking, don't fail the close
 
         # Update worktree status based on closure reason (case-insensitive)
         try:
@@ -212,7 +210,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 elif reason_normalized == "completed":
                     worktree_manager.mark_merged(wt.id)
         except Exception:
-            pass  # Best-effort worktree update, don't fail the close
+            pass  # nosec B110 - best-effort worktree update, don't fail the close
 
         return {}
 
@@ -309,7 +307,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 ):
                     worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
             except Exception:
-                pass  # Best-effort worktree update
+                pass  # nosec B110 - best-effort worktree update
 
             return {}
         except ValueError as e:
