@@ -35,6 +35,7 @@ def memory_config_with_crossref():
     """Create a memory configuration with cross-referencing enabled."""
     return MemoryConfig(
         enabled=True,
+        backend="sqlite",  # Explicitly use SQLite backend
         importance_threshold=0.0,  # No threshold for tests
         decay_enabled=False,
         access_debounce_seconds=60,
@@ -261,6 +262,7 @@ class TestCrossReferences:
         """Test that get_related returns empty when no crossrefs exist."""
         config = MemoryConfig(
             enabled=True,
+            backend="sqlite",
             auto_crossref=False,  # Disabled
             importance_threshold=0.0,
         )
@@ -276,6 +278,7 @@ class TestCrossReferences:
         """Test that crossrefs respect similarity threshold."""
         config = MemoryConfig(
             enabled=True,
+            backend="sqlite",
             auto_crossref=True,
             crossref_threshold=0.99,  # Very high threshold
             crossref_max_links=5,
@@ -298,6 +301,7 @@ class TestCrossReferences:
         """Test that crossrefs respect max_links limit."""
         config = MemoryConfig(
             enabled=True,
+            backend="sqlite",
             auto_crossref=True,
             crossref_threshold=0.01,  # Very low threshold
             crossref_max_links=2,
