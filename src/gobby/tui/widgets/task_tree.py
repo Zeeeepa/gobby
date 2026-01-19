@@ -8,7 +8,7 @@ from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
 
-class TaskTree(Tree):
+class TaskTree(Tree[str]):
     """Hierarchical tree view for tasks."""
 
     DEFAULT_CSS = """
@@ -66,7 +66,7 @@ class TaskTree(Tree):
 
     def _add_task_node(
         self,
-        parent: TreeNode,
+        parent: TreeNode[str],
         task: dict[str, Any],
         children_map: dict[str | None, list[dict[str, Any]]],
     ) -> None:

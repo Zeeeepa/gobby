@@ -128,7 +128,7 @@ class ContentArea(Container):
     """
 
 
-class GobbyApp(App):
+class GobbyApp(App[None]):
     """Gobby TUI Dashboard Application."""
 
     TITLE = "Gobby TUI"
@@ -174,7 +174,7 @@ class GobbyApp(App):
         self._screens: dict[str, Any] = {}
 
         # WebSocket task
-        self._ws_task: asyncio.Task | None = None
+        self._ws_task: asyncio.Task[None] | None = None
 
     def compose(self) -> ComposeResult:
         yield GobbyHeader()

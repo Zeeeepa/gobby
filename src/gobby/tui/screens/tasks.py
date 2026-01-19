@@ -340,7 +340,7 @@ class TasksScreen(Widget):
 
     def _add_task_to_tree(
         self,
-        parent: TreeNode,
+        parent: TreeNode[str],
         task: dict[str, Any],
         children_map: dict[str | None, list[dict[str, Any]]],
     ) -> None:
@@ -365,7 +365,7 @@ class TasksScreen(Widget):
         for child in sorted(children, key=lambda t: t.get("priority", 3)):
             self._add_task_to_tree(node, child, children_map)
 
-    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+    def on_tree_node_selected(self, event: Tree.NodeSelected[str]) -> None:
         """Handle task selection in tree."""
         task_id = event.node.data
         if task_id and task_id in self._task_map:
