@@ -78,6 +78,8 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
 
             if source == "claude":
                 adapter: BaseAdapter = ClaudeCodeAdapter(hook_manager=hook_manager)
+            elif source == "antigravity":
+                adapter = ClaudeCodeAdapter(hook_manager=hook_manager)  # Same format as Claude
             elif source == "gemini":
                 adapter = GeminiAdapter(hook_manager=hook_manager)
             elif source == "codex":
@@ -85,7 +87,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported source: {source}. Supported: claude, gemini, codex",
+                    detail=f"Unsupported source: {source}. Supported: claude, antigravity, gemini, codex",
                 )
 
             # Execute hook via adapter

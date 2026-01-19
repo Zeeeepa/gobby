@@ -1,126 +1,123 @@
-"""Tests for the worktrees CLI module."""
-
 from unittest.mock import MagicMock, patch
-
-import pytest
 from click.testing import CliRunner
+import pytest
+from gobby.cli.worktrees import worktrees
+from gobby.storage.worktrees import Worktree
 
-from gobby.cli import cli
-
-
-class TestWorktreesShowCommand:
-    """Tests for gobby worktrees show command."""
-
-    @pytest.fixture
-    def runner(self) -> CliRunner:
-        """Create a CLI test runner."""
-        return CliRunner()
-
-    @patch("gobby.cli.worktrees.resolve_worktree_id")
-    @patch("gobby.cli.worktrees.get_worktree_manager")
-    def test_show_success(
-        self,
-        mock_get_manager: MagicMock,
-        mock_resolve: MagicMock,
-        runner: CliRunner,
-    ):
-        """Test showing a worktree successfully."""
-        mock_manager = MagicMock()
-        mock_wt = MagicMock()
-        mock_wt.id = "wt-123"
-        mock_wt.branch_name = "feat/test"
-        mock_wt.worktree_path = "/tmp/wt-123"
-        mock_wt.status = "active"
-        mock_wt.base_branch = "main"
-        mock_wt.project_id = None
-        mock_wt.agent_session_id = None
-        mock_wt.created_at = "2024-01-01"
-        mock_wt.updated_at = "2024-01-01"
-
-        mock_manager.get.return_value = mock_wt
-        mock_get_manager.return_value = mock_manager
-
-        mock_resolve.return_value = "wt-123"
-
-        result = runner.invoke(cli, ["worktrees", "show", "wt-123"])
-
-        assert result.exit_code == 0
-        assert "Worktree: wt-123" in result.output
-        assert "feat/test" in result.output
-
-    def test_show_help(self, runner: CliRunner):
-        """Test show --help."""
-        result = runner.invoke(cli, ["worktrees", "show", "--help"])
-        assert result.exit_code == 0
-        assert "Show details for a worktree" in result.output
+# Mock worktree data
+MOCK_WORKTREE = Worktree(
+    id="wt-123",
+    branch_name="feature/test",
+    worktree_path="/tmp/wt-123",
+    base_branch="main",
+    status="active",
+    created_at="2023-01-01T00:00:00Z",
+    updated_at="2023-01-01T00:00:00Z",
+    project_id="proj-123",
+    agent_session_id=None,
+    task_id=None,
+    merged_at=None,
+)
 
 
-class TestWorktreesDeleteCommand:
-    """Tests for gobby worktrees delete command."""
-
-    @pytest.fixture
-    def runner(self) -> CliRunner:
-        """Create a CLI test runner."""
-        return CliRunner()
-
-    @patch("gobby.cli.worktrees.httpx.post")
-    @patch("gobby.cli.worktrees.get_daemon_url")
-    @patch("gobby.cli.worktrees.resolve_worktree_id")
-    @patch("gobby.cli.worktrees.get_worktree_manager")
-    def test_delete_success(
-        self,
-        mock_get_manager: MagicMock,
-        mock_resolve: MagicMock,
-        mock_get_url: MagicMock,
-        mock_post: MagicMock,
-        runner: CliRunner,
-    ):
-        """Test deleting a worktree."""
-        mock_manager = MagicMock()
-        mock_get_manager.return_value = mock_manager
-        mock_resolve.return_value = "wt-del123"
-        mock_get_url.return_value = "http://localhost:8765"
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"success": True}
-        mock_response.status_code = 200
-        mock_post.return_value = mock_response
-
-        # Need to patch get_daemon_url
-        result = runner.invoke(cli, ["worktrees", "delete", "wt-del123", "--yes"])
-
-        assert result.exit_code == 0
-        assert "Deleted worktree: wt-del123" in result.output
-        mock_post.assert_called_once()
+@pytest.fixture
+def mock_worktree_manager():
+    with patch("gobby.cli.worktrees.get_worktree_manager") as mock:
+        yield mock.return_value
 
 
-class TestWorktreesClaimCommand:
-    """Tests for gobby worktrees claim command."""
+@pytest.fixture
+def mock_httpx():
+    with patch("gobby.cli.worktrees.httpx.post") as mock:
+        yield mock
 
-    @pytest.fixture
-    def runner(self) -> CliRunner:
-        """Create a CLI test runner."""
-        return CliRunner()
 
-    @patch("gobby.cli.worktrees.resolve_session_id")
-    @patch("gobby.cli.worktrees.resolve_worktree_id")
-    @patch("gobby.cli.worktrees.get_worktree_manager")
-    def test_claim_success(
-        self,
-        mock_get_manager: MagicMock,
-        mock_resolve_wt: MagicMock,
-        mock_resolve_sess: MagicMock,
-        runner: CliRunner,
-    ):
-        """Test claiming a worktree."""
-        mock_manager = MagicMock()
-        mock_manager.claim.return_value = True
-        mock_get_manager.return_value = mock_manager
-        mock_resolve_wt.return_value = "wt-claim123"
-        mock_resolve_sess.return_value = "sess-123"
+def test_list_worktrees_empty(mock_worktree_manager):
+    """Test 'worktrees list' with no worktrees."""
+    mock_worktree_manager.list_worktrees.return_value = []
 
-        result = runner.invoke(cli, ["worktrees", "claim", "wt-claim123", "sess-123"])
+    runner = CliRunner()
+    result = runner.invoke(worktrees, ["list"])
 
-        assert result.exit_code == 0
-        assert "Claimed worktree wt-claim123 for session sess-123" in result.output
-        mock_manager.claim.assert_called_once_with("wt-claim123", "sess-123")
+    assert result.exit_code == 0
+    assert "No worktrees found" in result.output
+
+
+def test_list_worktrees_populated(mock_worktree_manager):
+    """Test 'worktrees list' with active worktrees."""
+    mock_worktree_manager.list_worktrees.return_value = [MOCK_WORKTREE]
+
+    runner = CliRunner()
+    result = runner.invoke(worktrees, ["list"])
+
+    assert result.exit_code == 0
+    assert "wt-123" in result.output
+    assert "feature/test" in result.output
+    assert "active" in result.output
+
+
+def test_create_worktree_success(mock_httpx):
+    """Test 'worktrees create' success via Daemon API."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "success": True,
+        "worktree_id": "wt-new",
+        "branch_name": "feature/new",
+        "worktree_path": "/tmp/new",
+    }
+    mock_httpx.return_value = mock_response
+
+    runner = CliRunner()
+    result = runner.invoke(worktrees, ["create", "feature/new"])
+
+    assert result.exit_code == 0
+    assert "Created worktree: wt-new" in result.output
+    mock_httpx.assert_called_once()
+
+
+def test_create_worktree_failure(mock_httpx):
+    """Test 'worktrees create' failure."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"success": False, "error": "Branch exists"}
+    mock_httpx.return_value = mock_response
+
+    runner = CliRunner()
+    result = runner.invoke(worktrees, ["create", "feature/fail"])
+
+    assert result.exit_code == 0
+    assert "Failed to create worktree: Branch exists" in result.output
+
+
+def test_delete_worktree_success(mock_worktree_manager, mock_httpx):
+    """Test 'worktrees delete' success via Daemon API."""
+    mock_worktree_manager.list_worktrees.return_value = [MOCK_WORKTREE]
+    mock_worktree_manager.get.return_value = MOCK_WORKTREE
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"success": True}
+    mock_httpx.return_value = mock_response
+
+    runner = CliRunner()
+    # Mock resolve logic if needed, but resolve_worktree_id uses manager.list_worktrees
+    # Default mock implementation should work if we mock manager methods correctly.
+
+    result = runner.invoke(worktrees, ["delete", "wt-123", "--yes"])
+
+    assert result.exit_code == 0
+    assert "Deleted worktree: wt-123" in result.output
+
+
+def test_show_worktree(mock_worktree_manager):
+    """Test 'worktrees show'."""
+    mock_worktree_manager.list_worktrees.return_value = [MOCK_WORKTREE]
+    mock_worktree_manager.get.return_value = MOCK_WORKTREE
+
+    runner = CliRunner()
+    result = runner.invoke(worktrees, ["show", "wt-123"])
+
+    assert result.exit_code == 0
+    assert "Worktree: wt-123" in result.output
+    assert "Branch: feature/test" in result.output

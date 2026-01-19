@@ -42,6 +42,8 @@ def start_new_session(
         source = getattr(session, "source", "claude")
         if source == "claude":
             command = "claude"
+        elif source == "antigravity":
+            command = "claude"  # Antigravity uses Claude Code
         elif source == "gemini":
             command = "gemini"
         else:

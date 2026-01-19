@@ -1,0 +1,133 @@
+import json
+from unittest.mock import MagicMock, patch
+from click.testing import CliRunner
+import pytest
+from gobby.cli.sessions import sessions
+from gobby.storage.sessions import Session
+from datetime import datetime, timezone
+
+# Mock session data
+MOCK_SESSION = Session(
+    id="019bbaea-3e0f-7d61-afc4-56a9456c2c7d",
+    external_id="ext-123",
+    machine_id="machine-123",
+    source="claude_code",
+    project_id="test-project",
+    title="Test Session",
+    status="active",
+    jsonl_path="/tmp/test.jsonl",
+    summary_path=None,
+    summary_markdown=None,
+    compact_markdown=None,
+    git_branch="main",
+    parent_session_id=None,
+    created_at=datetime.now(timezone.utc).isoformat(),
+    updated_at=datetime.now(timezone.utc).isoformat(),
+    usage_total_cost_usd=0.02,
+    seq_num=42,
+)
+
+
+@pytest.fixture
+def mock_session_manager():
+    with patch("gobby.cli.sessions.get_session_manager") as mock:
+        yield mock.return_value
+
+
+@pytest.fixture
+def mock_message_manager():
+    with patch("gobby.cli.sessions.get_message_manager") as mock:
+        yield mock.return_value
+
+
+def test_list_sessions_empty(mock_session_manager):
+    """Test 'sessions list' with no sessions."""
+    mock_session_manager.list.return_value = []
+
+    runner = CliRunner()
+    result = runner.invoke(sessions, ["list"])
+
+    assert result.exit_code == 0
+    assert "No sessions found" in result.output
+    mock_session_manager.list.assert_called_once()
+
+
+def test_list_sessions_populated(mock_session_manager):
+    """Test 'sessions list' with active sessions."""
+    mock_session_manager.list.return_value = [MOCK_SESSION]
+
+    runner = CliRunner()
+    result = runner.invoke(sessions, ["list"])
+
+    assert result.exit_code == 0
+    # Check for icon, sequence number, and title
+    assert "●" in result.output
+    assert "#42" in result.output
+    assert "Test Session" in result.output
+    assert "$0.02" in result.output  # formatted cost
+
+
+def test_show_session_found(mock_session_manager):
+    """Test 'sessions show' with valid ID."""
+    mock_session_manager.get.return_value = MOCK_SESSION
+
+    runner = CliRunner()
+    with patch("gobby.cli.sessions.resolve_session_id", return_value=MOCK_SESSION.id):
+        result = runner.invoke(sessions, ["show", MOCK_SESSION.id])
+
+    assert result.exit_code == 0
+    assert f"Session: {MOCK_SESSION.id}" in result.output
+    assert "Status: active" in result.output
+    assert "Title: Test Session" in result.output
+
+
+def test_show_session_not_found(mock_session_manager):
+    """Test 'sessions show' with invalid ID."""
+    mock_session_manager.get.return_value = None
+
+    runner = CliRunner()
+    # Mock resolve_session_id to return input
+    with patch("gobby.cli.sessions.resolve_session_id", side_effect=lambda x: x):
+        result = runner.invoke(sessions, ["show", "invalid-id"])
+
+    assert result.exit_code == 0
+    assert "Session not found: invalid-id" in result.output
+
+
+def test_delete_session_success(mock_session_manager):
+    """Test 'sessions delete' with confirmation."""
+    mock_session_manager.get.return_value = MOCK_SESSION
+    mock_session_manager.delete.return_value = True
+
+    runner = CliRunner()
+    with patch("gobby.cli.sessions.resolve_session_id", return_value=MOCK_SESSION.id):
+        # Pass input="y" for confirmation
+        result = runner.invoke(sessions, ["delete", MOCK_SESSION.id], input="y\n")
+
+    assert result.exit_code == 0
+    assert f"Deleted session: {MOCK_SESSION.id}" in result.output
+    mock_session_manager.delete.assert_called_once_with(MOCK_SESSION.id)
+
+
+def test_session_stats(mock_session_manager, mock_message_manager):
+    """Test 'sessions stats' command."""
+    mock_session_manager.list.return_value = [MOCK_SESSION]
+
+    # Mock message_manager.get_all_counts (async)
+    # Since get_all_counts is awaited with asyncio.run, we need to mock it properly.
+    # The command does: asyncio.run(message_manager.get_all_counts())
+    # So get_all_counts needs to be an async func or return a future.
+    # But since it's mocked, we can just return a coroutine.
+    async def mock_counts():
+        return {MOCK_SESSION.id: 10}
+
+    mock_message_manager.get_all_counts.side_effect = mock_counts
+
+    runner = CliRunner()
+    result = runner.invoke(sessions, ["stats"])
+
+    assert result.exit_code == 0
+    assert "Total Sessions: 1" in result.output
+    assert "Total Messages: 10" in result.output
+    assert "active: 1" in result.output
+    assert "claude_code: 1" in result.output

@@ -62,6 +62,7 @@ class SessionSource(str, Enum):
     GEMINI = "gemini"
     CODEX = "codex"
     CLAUDE_SDK = "claude_sdk"
+    ANTIGRAVITY = "antigravity"  # Antigravity IDE (uses Claude Code format)
 
 
 @dataclass
