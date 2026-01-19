@@ -249,6 +249,24 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 })
 ```
 
+### ⚠️ Common Mistake: Using list_sessions to Find Your Session
+
+**WRONG:**
+```python
+# ❌ This will NOT work with multiple active sessions!
+result = list_sessions(status="active", limit=1)
+my_session_id = result["sessions"][0]["id"]  # Could be ANY active session!
+```
+
+**CORRECT:**
+```python
+# ✅ Use get_current with your unique identifiers
+result = get_current(external_id="...", source="claude")
+my_session_id = result["session_id"]
+```
+
+Multiple sessions can be active simultaneously (parallel agents, multiple terminals). The `get_current` tool uses a composite key (external_id + source + machine_id + project_id) to reliably find YOUR session.
+
 ### Workflow Requirements
 
 **BEFORE editing files (Edit/Write tools), you MUST have a task with `status: in_progress`.**

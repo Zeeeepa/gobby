@@ -876,6 +876,28 @@ class TestListSessions:
             project_id="proj-1", status="active", source="claude_code", limit=10
         )
 
+    def test_list_sessions_misuse_warning(self):
+        """Test that list_sessions warns about misuse pattern (status='active', limit=1)."""
+        session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.to_dict.return_value = {"id": "sess-1", "status": "active"}
+        session_manager.list.return_value = [mock_session]
+        session_manager.count.return_value = 1
+
+        registry = create_test_registry(session_manager=session_manager)
+        list_sessions = registry.get_tool("list_sessions")
+
+        # This is the misuse pattern - trying to find "my session" by listing active sessions
+        result = list_sessions(status="active", limit=1)
+
+        # Should return a warning about this pattern
+        assert "warning" in result
+        assert "get_current" in result["warning"]
+        assert "hint" in result
+        # Should still return the sessions
+        assert result["count"] == 1
+        assert len(result["sessions"]) == 1
+
 
 class TestSessionStats:
     """Tests for session_stats tool."""
@@ -1100,7 +1122,6 @@ class TestMarkLoopComplete:
         """Test when session not found."""
         session_manager = MagicMock()
         session_manager.get.return_value = None
-        session_manager.list.return_value = []
 
         registry = create_test_registry(session_manager=session_manager)
         mark_complete = registry.get_tool("mark_loop_complete")
@@ -1108,14 +1129,14 @@ class TestMarkLoopComplete:
         result = mark_complete(session_id="nonexistent")
 
         assert "error" in result
-        assert "No session found" in result["error"]
+        assert "not found" in result["error"]
 
     def test_mark_loop_complete_creates_state(self):
         """Test that state is created if it doesn't exist."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.id = "sess-123"
-        session_manager.list.return_value = [mock_session]
+        session_manager.get.return_value = mock_session
 
         mock_state_manager = MagicMock()
         mock_state_manager.get_state.return_value = None  # No existing state
@@ -1132,7 +1153,8 @@ class TestMarkLoopComplete:
             mock_wsm_class.return_value = mock_state_manager
             mock_ws_class.return_value = MagicMock()
 
-            result = mark_complete()  # No session_id, uses active session
+            # session_id is now required
+            result = mark_complete(session_id="sess-123")
 
         assert result["success"] is True
         mock_ws_class.assert_called_once()

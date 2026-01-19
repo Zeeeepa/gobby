@@ -95,7 +95,7 @@ Example: `/gobby-sessions search error --session=sess-abc123` → `search_messag
 
 ### `/gobby-sessions handoff` - Create session handoff
 Call `gobby-sessions.create_handoff` with:
-- `session_id`: Optional (defaults to current session)
+- `session_id`: (REQUIRED) Your session ID - from injected context or `get_current()`
 - `notes`: Optional notes to include
 - `compact`: Generate compact markdown
 - `full`: Generate full transcript
@@ -104,8 +104,8 @@ Call `gobby-sessions.create_handoff` with:
 
 Creates handoff context by extracting structured data from the session transcript.
 
-Example: `/gobby-sessions handoff` → `create_handoff()`
-Example: `/gobby-sessions handoff --notes="Continue with auth feature"` → `create_handoff(notes="Continue with auth feature")`
+Example: `/gobby-sessions handoff` → `create_handoff(session_id="<your session_id>")`
+Example: `/gobby-sessions handoff --notes="Continue with auth feature"` → `create_handoff(session_id="...", notes="Continue with auth feature")`
 
 ### `/gobby-sessions get-handoff <session-id>` - Get existing handoff
 Call `gobby-sessions.get_handoff_context` with:
@@ -145,9 +145,12 @@ Returns session statistics for the project.
 Example: `/gobby-sessions stats` → `session_stats()`
 
 ### `/gobby-sessions mark-complete` - Mark loop complete
-Call `gobby-sessions.mark_loop_complete` to mark the autonomous loop as complete, preventing session chaining.
+Call `gobby-sessions.mark_loop_complete` with:
+- `session_id`: (REQUIRED) Your session ID - from injected context or `get_current()`
 
-Example: `/gobby-sessions mark-complete` → `mark_loop_complete()`
+Marks the autonomous loop as complete, preventing session chaining.
+
+Example: `/gobby-sessions mark-complete` → `mark_loop_complete(session_id="<your session_id>")`
 
 ## Response Format
 
@@ -169,6 +172,24 @@ After executing the appropriate MCP tool, present the results clearly:
 - **Handoff**: Context preservation across sessions via /compact
 - **Pickup**: Resuming work from a previous session's context
 - **Source**: Which CLI tool created the session
+
+## ⚠️ Common Mistake: Using list_sessions to Find Your Session
+
+**WRONG:**
+```python
+# ❌ This will NOT work with multiple active sessions!
+result = list_sessions(status="active", limit=1)
+my_session_id = result["sessions"][0]["id"]  # Could be ANY active session!
+```
+
+**CORRECT:**
+```python
+# ✅ Use get_current with your unique identifiers
+result = get_current(external_id="...", source="claude")
+my_session_id = result["session_id"]
+```
+
+Multiple sessions can be active simultaneously (parallel agents, multiple terminals). The `get_current` tool uses a composite key to reliably find YOUR session.
 
 ## Error Handling
 

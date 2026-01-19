@@ -286,10 +286,15 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="create_handoff",
-            description="Create handoff context by extracting structured data from the session transcript.",
+            description="""Create handoff context by extracting structured data from the session transcript.
+
+Args:
+    session_id: (REQUIRED) Your session ID. Get it from:
+        1. Your injected context (look for 'session_id: xxx')
+        2. Or call get_current(external_id, source) first""",
         )
         async def create_handoff(
-            session_id: str | None = None,
+            session_id: str,
             notes: str | None = None,
             compact: bool = False,
             full: bool = False,
@@ -303,7 +308,7 @@ def create_session_messages_registry(
             Always saves to database. Optionally writes to file.
 
             Args:
-                session_id: Session ID (optional, defaults to current active session)
+                session_id: Session ID (REQUIRED)
                 notes: Additional notes to include in handoff
                 compact: Generate compact summary only (default: False, neither = both)
                 full: Generate full LLM summary only (default: False, neither = both)
@@ -323,25 +328,19 @@ def create_session_messages_registry(
             if session_manager is None:
                 return {"success": False, "error": "Session manager not available"}
 
-            # Find session
-            session = None
-            if session_id:
-                session = session_manager.get(session_id)
-                if not session:
-                    # Try prefix match
-                    sessions = session_manager.list(limit=100)
-                    matches = [s for s in sessions if s.id.startswith(session_id)]
-                    if len(matches) == 1:
-                        session = matches[0]
-                    elif len(matches) > 1:
-                        return {
-                            "error": f"Ambiguous session ID prefix '{session_id}'",
-                            "matches": [s.id for s in matches[:5]],
-                        }
-            else:
-                # Get most recent active session
-                sessions = session_manager.list(status="active", limit=1)
-                session = sessions[0] if sessions else None
+            # Find session - session_id is now required
+            session = session_manager.get(session_id)
+            if not session:
+                # Try prefix match
+                sessions = session_manager.list(limit=100)
+                matches = [s for s in sessions if s.id.startswith(session_id)]
+                if len(matches) == 1:
+                    session = matches[0]
+                elif len(matches) > 1:
+                    return {
+                        "error": f"Ambiguous session ID prefix '{session_id}'",
+                        "matches": [s.id for s in matches[:5]],
+                    }
 
             if not session:
                 return {"success": False, "error": "No session found", "session_id": session_id}
@@ -670,7 +669,12 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="get_current",
-            description="Get your current session ID. Pass your external_id (from context) and source.",
+            description="""Get YOUR current session ID - the CORRECT way to look up your session.
+
+Use this when session_id wasn't in your injected context. Pass your external_id
+(from transcript path or GOBBY_SESSION_ID env) and source (claude, gemini, codex).
+
+DO NOT use list_sessions to find your session - it won't work with multiple active sessions.""",
         )
         def get_current(
             external_id: str,
@@ -737,7 +741,14 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="list_sessions",
-            description="List sessions with optional filtering.",
+            description="""List sessions with optional filtering.
+
+WARNING: Do NOT use this to find your own session_id!
+- `list_sessions(status="active", limit=1)` will NOT reliably return YOUR session
+- Multiple sessions can be active simultaneously (parallel agents, multiple terminals)
+- Use `get_current(external_id, source)` instead - it uses your unique session key
+
+This tool is for browsing/listing sessions, not for self-identification.""",
         )
         def list_sessions(
             project_id: str | None = None,
@@ -772,6 +783,26 @@ def create_session_messages_registry(
                 status=status,
                 source=source,
             )
+
+            # Detect likely misuse pattern: trying to find own session
+            if status == "active" and limit == 1:
+                return {
+                    "warning": (
+                        "list_sessions(status='active', limit=1) will NOT reliably get YOUR session_id! "
+                        "Multiple sessions can be active simultaneously. "
+                        "Use get_current(external_id='<your-external-id>', source='claude') instead."
+                    ),
+                    "hint": "Your external_id is in your transcript path: /path/to/<external_id>.jsonl",
+                    "sessions": [s.to_dict() for s in sessions],
+                    "count": len(sessions),
+                    "total": total,
+                    "limit": limit,
+                    "filters": {
+                        "project_id": project_id,
+                        "status": status,
+                        "source": source,
+                    },
+                }
 
             return {
                 "sessions": [s.to_dict() for s in sessions],
@@ -955,9 +986,14 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="mark_loop_complete",
-            description="Mark the autonomous loop as complete, preventing session chaining.",
+            description="""Mark the autonomous loop as complete, preventing session chaining.
+
+Args:
+    session_id: (REQUIRED) Your session ID. Get it from:
+        1. Your injected context (look for 'session_id: xxx')
+        2. Or call get_current(external_id, source) first""",
         )
-        def mark_loop_complete(session_id: str | None = None) -> dict[str, Any]:
+        def mark_loop_complete(session_id: str) -> dict[str, Any]:
             """
             Mark the autonomous loop as complete for a session.
 
@@ -971,23 +1007,18 @@ def create_session_messages_registry(
             - The user has explicitly asked to stop
 
             Args:
-                session_id: Session ID (optional, defaults to current active session)
+                session_id: Session ID (REQUIRED)
 
             Returns:
                 Success status and session details
             """
             assert session_manager, "Session manager not available"  # nosec B101
 
-            # Find session
-            if session_id:
-                session = session_manager.get(session_id)
-            else:
-                # Get most recent active session
-                sessions = session_manager.list(status="active", limit=1)
-                session = sessions[0] if sessions else None
+            # Find session - session_id is now required
+            session = session_manager.get(session_id)
 
             if not session:
-                return {"error": "No session found", "session_id": session_id}
+                return {"error": f"Session {session_id} not found", "session_id": session_id}
 
             # Load and update workflow state
             from gobby.storage.database import LocalDatabase

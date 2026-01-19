@@ -83,6 +83,24 @@ call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
 # Returns: {"session_id": "...", "found": true, ...}
 ```
 
+### ⚠️ Common Mistake: Using list_sessions to Find Your Session
+
+**WRONG:**
+```python
+# ❌ This will NOT work with multiple active sessions!
+result = call_tool("gobby-sessions", "list_sessions", {"status": "active", "limit": 1})
+my_session_id = result["sessions"][0]["id"]  # Could be ANY active session!
+```
+
+**CORRECT:**
+```python
+# ✅ Use get_current with your unique identifiers
+result = call_tool("gobby-sessions", "get_current", {"external_id": "...", "source": "codex"})
+my_session_id = result["session_id"]
+```
+
+Multiple sessions can be active simultaneously (parallel agents, multiple terminals). The `get_current` tool uses a composite key (external_id + source + machine_id + project_id) to reliably find YOUR session.
+
 ### CRITICAL: Workflow Requirement
 
 **Before editing files (Edit/Write), you MUST have a task with `status: in_progress`.** The hook blocks file modifications without an active task.
