@@ -77,7 +77,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run tests
-        run: uv run pytest --cov-report=xml
+        run: uv run pytest --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'

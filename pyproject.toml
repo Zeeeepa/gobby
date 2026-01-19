@@ -78,9 +78,10 @@ addopts = [
     "--cov=gobby",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=80",
     "-v",
 ]
+# Note: --cov-fail-under=80 is enforced in CI via the test command
+# To run locally with coverage threshold: uv run pytest --cov-fail-under=80
 markers = [
     "unit: marks tests as fast unit tests",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -99,6 +100,7 @@ filterwarnings = [
     # Ignore ResourceWarnings from test infrastructure (coverage, unittest.mock)
     "ignore:unclosed database:ResourceWarning:coverage",
     "ignore:unclosed database:ResourceWarning:unittest.mock",
+    "ignore:unclosed database:ResourceWarning",
 ]
 
 [tool.ruff]
