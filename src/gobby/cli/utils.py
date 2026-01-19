@@ -32,6 +32,31 @@ def get_gobby_home() -> Path:
     return Path.home() / ".gobby"
 
 
+def get_resources_dir(project_path: str | None = None) -> Path:
+    """Get the resources directory for storing media files.
+
+    If a project path is provided, returns the project-local resources directory
+    (.gobby/resources/ within the project). Otherwise, returns the global
+    resources directory (~/.gobby/resources/).
+
+    The directory is created if it doesn't exist.
+
+    Args:
+        project_path: Optional project root path for project-local resources
+
+    Returns:
+        Path to the resources directory
+    """
+    if project_path:
+        resources_dir = Path(project_path) / ".gobby" / "resources"
+    else:
+        resources_dir = get_gobby_home() / "resources"
+
+    # Ensure directory exists
+    resources_dir.mkdir(parents=True, exist_ok=True)
+    return resources_dir
+
+
 def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True) -> str | None:
     """Resolve a project reference (name or UUID) to project ID.
 

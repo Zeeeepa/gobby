@@ -323,20 +323,15 @@ class MemoryManager:
         if not screenshot_bytes:
             raise ValueError("Screenshot bytes cannot be empty")
 
-        # Determine resources directory
-        # Use project .gobby/resources if in a project, else ~/.gobby/resources
+        # Determine resources directory using centralized utility
         from datetime import datetime as dt
 
+        from gobby.cli.utils import get_resources_dir
         from gobby.utils.project_context import get_project_context
 
         ctx = get_project_context()
-        if ctx and ctx.get("path"):
-            resources_dir = Path(ctx["path"]) / ".gobby" / "resources"
-        else:
-            resources_dir = Path.home() / ".gobby" / "resources"
-
-        # Ensure directory exists
-        resources_dir.mkdir(parents=True, exist_ok=True)
+        project_path = ctx.get("path") if ctx else None
+        resources_dir = get_resources_dir(project_path)
 
         # Generate timestamp-based filename
         timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
