@@ -3,7 +3,7 @@ Internal MCP tools for Gobby Memory System.
 
 Exposes functionality for:
 - Creating memories (create_memory)
-- Retrieving memories (recall_memory)
+- Searching memories (search_memories, formerly recall_memory)
 - Deleting memories (delete_memory)
 - Listing memories (list_memories)
 - Getting memory details (get_memory)
@@ -53,7 +53,7 @@ def create_memory_registry(
     """
     registry = InternalToolRegistry(
         name="gobby-memory",
-        description="Memory management - create_memory, recall_memory, delete_memory, get_related_memories",
+        description="Memory management - create_memory, search_memories, delete_memory, get_related_memories",
     )
 
     @registry.tool(
@@ -94,10 +94,10 @@ def create_memory_registry(
             return {"success": False, "error": str(e)}
 
     @registry.tool(
-        name="recall_memory",
-        description="Recall memories based on query and filters. Supports tag-based filtering.",
+        name="search_memories",
+        description="Search memories based on query and filters. Supports tag-based filtering.",
     )
-    def recall_memory(
+    def search_memories(
         query: str | None = None,
         limit: int = 10,
         min_importance: float | None = None,
@@ -106,7 +106,7 @@ def create_memory_registry(
         tags_none: list[str] | None = None,
     ) -> dict[str, Any]:
         """
-        Recall memories.
+        Search memories based on query and filters.
 
         Args:
             query: Search query string
@@ -143,6 +143,29 @@ def create_memory_registry(
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    # Backward compatibility alias for recall_memory -> search_memories
+    @registry.tool(
+        name="recall_memory",
+        description="[DEPRECATED: Use search_memories] Search memories based on query.",
+    )
+    def recall_memory(
+        query: str | None = None,
+        limit: int = 10,
+        min_importance: float | None = None,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Deprecated alias for search_memories. Use search_memories instead."""
+        return search_memories(
+            query=query,
+            limit=limit,
+            min_importance=min_importance,
+            tags_all=tags_all,
+            tags_any=tags_any,
+            tags_none=tags_none,
+        )
 
     @registry.tool(
         name="delete_memory",
