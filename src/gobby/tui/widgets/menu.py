@@ -7,6 +7,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -115,7 +116,7 @@ class MenuPanel(Widget):
             try:
                 widget = self.query_one(f"#menu-{item.screen_id}", MenuItemWidget)
                 widget.selected = item.screen_id == screen_id
-            except Exception:
+            except NoMatches:
                 pass  # nosec B110 - Widget not yet mounted
 
     def select_screen(self, screen_id: str) -> None:
