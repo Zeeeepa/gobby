@@ -40,6 +40,8 @@ dependencies = [
     # scikit-learn for TF-IDF memory search
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",
+    "mem0ai",
+    "memu-sdk",
 ]
 
 [project.scripts]
