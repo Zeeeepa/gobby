@@ -29,6 +29,7 @@ def temp_db():
         db = LocalDatabase(str(db_path))
         run_migrations(db)
         yield db
+        db.close()
 
 
 @pytest.fixture

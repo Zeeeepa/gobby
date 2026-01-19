@@ -137,6 +137,9 @@ class LocalDatabase:
         self._local = threading.local()
         self._artifact_manager: LocalArtifactManager | None = None
         self._artifact_manager_lock = threading.Lock()
+        # Track all connections for proper cleanup across threads
+        self._all_connections: set[sqlite3.Connection] = set()
+        self._connections_lock = threading.Lock()
         self._ensure_directory()
 
     def _ensure_directory(self) -> None:
@@ -146,15 +149,19 @@ class LocalDatabase:
     def _get_connection(self) -> sqlite3.Connection:
         """Get thread-local database connection."""
         if not hasattr(self._local, "connection") or self._local.connection is None:
-            self._local.connection = sqlite3.connect(
+            conn = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
                 isolation_level=None,  # Autocommit mode
             )
-            self._local.connection.row_factory = sqlite3.Row
+            conn.row_factory = sqlite3.Row
             # Enable foreign keys
-            self._local.connection.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA foreign_keys = ON")
             # Use default DELETE journal mode (more reliable than WAL for dual-write)
+            self._local.connection = conn
+            # Track for cleanup in close()
+            with self._connections_lock:
+                self._all_connections.add(conn)
         return cast(sqlite3.Connection, self._local.connection)
 
     @property
@@ -289,11 +296,19 @@ class LocalDatabase:
             raise
 
     def close(self) -> None:
-        """Close current thread's database connection and clean up managers."""
+        """Close all database connections and clean up managers."""
         # Clean up artifact manager
         self._artifact_manager = None
 
-        # Close connection
-        if hasattr(self._local, "connection") and self._local.connection:
-            self._local.connection.close()
+        # Close all connections from all threads
+        with self._connections_lock:
+            for conn in self._all_connections:
+                try:
+                    conn.close()
+                except Exception:
+                    pass  # Connection may already be closed
+            self._all_connections.clear()
+
+        # Clear thread-local reference
+        if hasattr(self._local, "connection"):
             self._local.connection = None
