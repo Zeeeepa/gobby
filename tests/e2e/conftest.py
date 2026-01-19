@@ -72,12 +72,32 @@ class DaemonInstance:
         return ""
 
 
-def find_free_port() -> int:
-    """Find an available port on localhost."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("localhost", 0))
-        return s.getsockname()[1]
+def find_free_port(max_retries: int = 5) -> int:
+    """Find an available port on localhost with verification.
+
+    Uses multiple retries to handle race conditions when ports are
+    being released by other processes.
+    """
+    for attempt in range(max_retries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("localhost", 0))
+            port = s.getsockname()[1]
+
+        # Verify port is actually available by trying to bind again
+        time.sleep(0.1)  # Brief delay to let OS release the port
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as verify_sock:
+                verify_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                verify_sock.bind(("localhost", port))
+                return port
+        except OSError:
+            if attempt < max_retries - 1:
+                time.sleep(0.2)  # Wait before retry
+                continue
+            raise
+
+    raise RuntimeError("Could not find an available port after retries")
 
 
 def wait_for_port(port: int, timeout: float = 10.0) -> bool:
@@ -92,16 +112,16 @@ def wait_for_port(port: int, timeout: float = 10.0) -> bool:
     return False
 
 
-def wait_for_daemon_health(port: int, timeout: float = 15.0) -> bool:
+def wait_for_daemon_health(port: int, timeout: float = 30.0) -> bool:
     """Wait for daemon to respond to health check."""
     start = time.time()
     while time.time() - start < timeout:
         try:
-            response = httpx.get(f"http://localhost:{port}/admin/status", timeout=1.0)
+            response = httpx.get(f"http://localhost:{port}/admin/status", timeout=2.0)
             if response.status_code == 200:
                 return True
-        except (httpx.ConnectError, httpx.TimeoutException):
-            time.sleep(0.3)
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadTimeout):
+            time.sleep(0.5)
     return False
 
 
@@ -269,8 +289,8 @@ def daemon_instance(
         config_path=config_path,
     )
 
-    # Wait for daemon to be healthy
-    if not wait_for_daemon_health(http_port, timeout=20.0):
+    # Wait for daemon to be healthy (longer timeout for when running with full test suite)
+    if not wait_for_daemon_health(http_port, timeout=30.0):
         # Daemon failed to start - capture logs for debugging
         logs = instance.read_logs()
         error_logs = instance.read_error_logs()
@@ -591,12 +611,13 @@ async def async_mcp_client(
 # --- Process Cleanup ---
 
 
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_orphan_processes() -> Generator[None, None, None]:
-    """Clean up any orphan gobby processes after test session."""
-    yield
+def _cleanup_orphan_gobby_processes() -> None:
+    """Clean up any orphan gobby processes from previous e2e test runs.
 
-    # Post-session cleanup
+    IMPORTANT: Only kills processes that are clearly from e2e tests
+    (identified by gobby_e2e_ temp directory in cmdline), NOT the user's
+    actual running daemon.
+    """
     import psutil
 
     current_pid = os.getpid()
@@ -606,7 +627,8 @@ def cleanup_orphan_processes() -> Generator[None, None, None]:
                 continue
 
             cmdline = " ".join(proc.cmdline())
-            if "gobby.runner" in cmdline and "e2e" in cmdline:
+            # Only kill if it's a gobby runner AND has e2e test markers in path
+            if "gobby.runner" in cmdline and "gobby_e2e_" in cmdline:
                 proc.terminate()
                 try:
                     proc.wait(timeout=3)
@@ -614,6 +636,15 @@ def cleanup_orphan_processes() -> Generator[None, None, None]:
                     proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_orphan_processes() -> Generator[None, None, None]:
+    """Clean up any orphan gobby e2e test processes after test session."""
+    yield
+
+    # Post-session cleanup only (don't kill user's daemon on startup)
+    _cleanup_orphan_gobby_processes()
 
 
 # --- Utility Fixtures ---
