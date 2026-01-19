@@ -75,14 +75,11 @@ class TaskTreePanel(Widget):
                 )
                 yield Select(
                     [
-                        (label, value)
-                        for label, value in [
-                            ("All Types", "all"),
-                            ("Task", "task"),
-                            ("Bug", "bug"),
-                            ("Feature", "feature"),
-                            ("Epic", "epic"),
-                        ]
+                        ("All Types", "all"),
+                        ("Task", "task"),
+                        ("Bug", "bug"),
+                        ("Feature", "feature"),
+                        ("Epic", "epic"),
                     ],
                     value="all",
                     id="type-filter",
