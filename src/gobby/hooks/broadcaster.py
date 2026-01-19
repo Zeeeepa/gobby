@@ -112,6 +112,11 @@ class HookEventBroadcaster:
                 if "prompt_text" not in raw_input and "prompt" in raw_input:
                     raw_input["prompt_text"] = raw_input["prompt"]
 
+            # Ensure 'permission_type' has a default for PermissionRequest
+            if enum_hook_type == HookType.PERMISSION_REQUEST:
+                if "permission_type" not in raw_input:
+                    raw_input["permission_type"] = "unknown"
+
             # Validate input data structure matches Pydantic model
             # Use construct/model_validate to avoid strict validation errors if possible,
             # or just try/except. Let's rely on standard validation.
