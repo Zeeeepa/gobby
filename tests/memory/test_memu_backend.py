@@ -1,6 +1,5 @@
-"""TDD tests for MemU memory backend.
+"""Tests for MemU memory backend.
 
-RED phase - these tests define expected behavior before implementation exists.
 Tests cover:
 - MemUBackend class import and instantiation
 - MemoryBackendProtocol implementation
@@ -8,8 +7,8 @@ Tests cover:
 - Search and list operations
 - Close method for cleanup
 
-Note: MemU (nevamind-ai/memu-sdk) is a markdown-based memory service,
-distinct from Mem0 (mem0ai) which is in a separate file (test_mem0_backend.py).
+Note: MemU (NevaMind-AI/memU via memu-py) is a structured memory service
+with semantic search, distinct from Mem0 (mem0ai) which is in a separate file.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
 
 
 class TestMemUBackendImport:
-    """TDD tests for MemUBackend import and factory."""
+    """Tests for MemUBackend import and factory."""
 
     def test_memu_backend_importable(self):
         """Test that MemUBackend can be imported from backends module."""
@@ -42,20 +41,20 @@ class TestMemUBackendImport:
         # (will need config/mock for actual instantiation)
         with patch("gobby.memory.backends.memu.MemUBackend") as MockBackend:
             MockBackend.return_value = MagicMock(spec=MemoryBackendProtocol)
-            backend = get_backend("memu", api_key="test-key")
+            backend = get_backend("memu", database_type="inmemory")
             assert backend is not None
 
 
 class TestMemUBackendInstantiation:
-    """TDD tests for MemUBackend instantiation."""
+    """Tests for MemUBackend instantiation."""
 
-    def test_instantiate_with_api_key(self):
-        """Test that MemUBackend can be instantiated with API key."""
+    def test_instantiate_with_defaults(self):
+        """Test that MemUBackend can be instantiated with defaults."""
         from gobby.memory.backends.memu import MemUBackend
 
-        # Mock the underlying MemU client
-        with patch("memu.MemUClient"):
-            backend = MemUBackend(api_key="test-api-key")
+        # Mock the underlying MemU service
+        with patch("memu.app.service.MemoryService"):
+            backend = MemUBackend()
             assert backend is not None
 
     def test_instantiate_with_config(self):
@@ -63,13 +62,24 @@ class TestMemUBackendInstantiation:
         from gobby.memory.backends.memu import MemUBackend
 
         config = {
-            "api_key": "test-key",
+            "database_type": "inmemory",
             "user_id": "default-user",
         }
 
-        with patch("memu.MemUClient"):
+        with patch("memu.app.service.MemoryService"):
             backend = MemUBackend(**config)
             assert backend is not None
+
+    def test_instantiate_with_sqlite(self):
+        """Test MemUBackend with SQLite configuration."""
+        from gobby.memory.backends.memu import MemUBackend
+
+        with patch("memu.app.service.MemoryService") as MockService:
+            backend = MemUBackend(database_type="sqlite", database_url="sqlite:///test.db")
+            assert backend is not None
+            # Verify database config was passed
+            call_kwargs = MockService.call_args[1]
+            assert call_kwargs.get("database_config", {}).get("type") == "sqlite"
 
 
 # =============================================================================
@@ -78,26 +88,26 @@ class TestMemUBackendInstantiation:
 
 
 class TestMemUBackendProtocol:
-    """TDD tests for MemoryBackendProtocol compliance."""
+    """Tests for MemoryBackendProtocol compliance."""
 
     def test_implements_protocol(self):
         """Test that MemUBackend implements MemoryBackendProtocol."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient"):
-            backend = MemUBackend(api_key="test-key")
+        with patch("memu.app.service.MemoryService"):
+            backend = MemUBackend()
             assert isinstance(backend, MemoryBackendProtocol)
 
     def test_capabilities_returns_set(self):
         """Test that capabilities() returns a set of MemoryCapability."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient"):
-            backend = MemUBackend(api_key="test-key")
+        with patch("memu.app.service.MemoryService"):
+            backend = MemUBackend()
             caps = backend.capabilities()
 
             assert isinstance(caps, set)
-            # MemU should support at least basic CRUD
+            # MemU should support basic CRUD
             assert MemoryCapability.CREATE in caps
             assert MemoryCapability.READ in caps
             assert MemoryCapability.DELETE in caps
@@ -111,7 +121,7 @@ class TestMemUBackendProtocol:
 
 
 class TestMemUBackendCreate:
-    """TDD tests for MemUBackend.create() method."""
+    """Tests for MemUBackend.create() method."""
 
     @pytest.mark.asyncio
     async def test_create_returns_memory_record(self):
@@ -119,12 +129,12 @@ class TestMemUBackendCreate:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryRecord
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.add_memory.return_value = {"id": "mem-123"}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.create_memory_item.return_value = {"id": "mem-123"}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             record = await backend.create(
                 content="Test memory content",
                 memory_type="fact",
@@ -140,43 +150,45 @@ class TestMemUBackendCreate:
         """Test that create() passes user_id to MemU."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.add_memory.return_value = {"id": "mem-456"}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.create_memory_item.return_value = {"id": "mem-456"}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             await backend.create(
                 content="User preference",
                 user_id="user-abc",
             )
 
-            # Verify user_id was passed to MemU client
-            mock_client.add_memory.assert_called_once()
-            call_kwargs = mock_client.add_memory.call_args[1]
-            assert call_kwargs.get("user_id") == "user-abc"
+            # Verify user was passed to MemU service
+            mock_service.create_memory_item.assert_called_once()
+            call_kwargs = mock_service.create_memory_item.call_args[1]
+            assert call_kwargs.get("user", {}).get("user_id") == "user-abc"
 
     @pytest.mark.asyncio
-    async def test_create_with_metadata(self):
-        """Test that create() passes metadata to MemU."""
+    async def test_create_with_tags_as_categories(self):
+        """Test that create() passes tags as categories to MemU."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.add_memory.return_value = {"id": "mem-789"}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.create_memory_item.return_value = {"id": "mem-789"}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             await backend.create(
-                content="Memory with metadata",
-                metadata={"custom_field": "value"},
+                content="Memory with tags",
+                tags=["tag1", "tag2"],
             )
 
-            mock_client.add_memory.assert_called_once()
+            mock_service.create_memory_item.assert_called_once()
+            call_kwargs = mock_service.create_memory_item.call_args[1]
+            assert call_kwargs.get("memory_categories") == ["tag1", "tag2"]
 
 
 class TestMemUBackendGet:
-    """TDD tests for MemUBackend.get() method."""
+    """Tests for MemUBackend.get() method."""
 
     @pytest.mark.asyncio
     async def test_get_returns_memory_record(self):
@@ -184,16 +196,20 @@ class TestMemUBackendGet:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryRecord
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.get_memory.return_value = {
-                "id": "mem-123",
-                "content": "Test content",
-                "created_at": "2026-01-19T12:00:00Z",
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.list_memory_items.return_value = {
+                "items": [
+                    {
+                        "id": "mem-123",
+                        "memory_content": "Test content",
+                        "created_at": "2026-01-19T12:00:00Z",
+                    }
+                ]
             }
-            MockClient.return_value = mock_client
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             record = await backend.get("mem-123")
 
             assert isinstance(record, MemoryRecord)
@@ -204,19 +220,19 @@ class TestMemUBackendGet:
         """Test that get() returns None when memory not found."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.get_memory.return_value = None
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.list_memory_items.return_value = {"items": []}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             result = await backend.get("nonexistent-id")
 
             assert result is None
 
 
 class TestMemUBackendUpdate:
-    """TDD tests for MemUBackend.update() method."""
+    """Tests for MemUBackend.update() method."""
 
     @pytest.mark.asyncio
     async def test_update_returns_updated_record(self):
@@ -224,56 +240,74 @@ class TestMemUBackendUpdate:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryRecord
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.update_memory.return_value = {"id": "mem-123"}
-            mock_client.get_memory.return_value = {
-                "id": "mem-123",
-                "content": "Updated content",
-                "created_at": "2026-01-19T12:00:00Z",
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.update_memory_item.return_value = {"id": "mem-123"}
+            mock_service.list_memory_items.return_value = {
+                "items": [
+                    {
+                        "id": "mem-123",
+                        "memory_content": "Updated content",
+                        "created_at": "2026-01-19T12:00:00Z",
+                    }
+                ]
             }
-            MockClient.return_value = mock_client
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             record = await backend.update(
                 memory_id="mem-123",
                 content="Updated content",
             )
 
             assert isinstance(record, MemoryRecord)
-            mock_client.update_memory.assert_called_once()
+            mock_service.update_memory_item.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_raises_when_not_found(self):
+        """Test that update() raises ValueError when memory not found."""
+        from gobby.memory.backends.memu import MemUBackend
+
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.list_memory_items.return_value = {"items": []}
+            MockService.return_value = mock_service
+
+            backend = MemUBackend()
+            with pytest.raises(ValueError, match="Memory not found"):
+                await backend.update(memory_id="nonexistent", content="New content")
 
 
 class TestMemUBackendDelete:
-    """TDD tests for MemUBackend.delete() method."""
+    """Tests for MemUBackend.delete() method."""
 
     @pytest.mark.asyncio
     async def test_delete_returns_true_on_success(self):
         """Test that delete() returns True when successful."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.delete_memory.return_value = {"status": "deleted"}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.delete_memory_item.return_value = {"status": "deleted"}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             result = await backend.delete("mem-123")
 
             assert result is True
-            mock_client.delete_memory.assert_called_once_with("mem-123")
+            mock_service.delete_memory_item.assert_called_once_with(memory_id="mem-123")
 
     @pytest.mark.asyncio
     async def test_delete_returns_false_when_not_found(self):
         """Test that delete() returns False when memory not found."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.delete_memory.side_effect = Exception("Memory not found")
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.delete_memory_item.side_effect = Exception("Memory not found")
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             result = await backend.delete("nonexistent-id")
 
             assert result is False
@@ -285,7 +319,7 @@ class TestMemUBackendDelete:
 
 
 class TestMemUBackendSearch:
-    """TDD tests for MemUBackend.search() method."""
+    """Tests for MemUBackend.search() method."""
 
     @pytest.mark.asyncio
     async def test_search_returns_list_of_records(self):
@@ -293,17 +327,17 @@ class TestMemUBackendSearch:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryQuery, MemoryRecord
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.search_memories.return_value = {
-                "results": [
-                    {"id": "mem-1", "content": "Result 1", "score": 0.9},
-                    {"id": "mem-2", "content": "Result 2", "score": 0.8},
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.retrieve.return_value = {
+                "items": [
+                    {"id": "mem-1", "memory_content": "Result 1"},
+                    {"id": "mem-2", "memory_content": "Result 2"},
                 ]
             }
-            MockClient.return_value = mock_client
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             query = MemoryQuery(text="search query")
             results = await backend.search(query)
 
@@ -317,18 +351,18 @@ class TestMemUBackendSearch:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryQuery
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.search_memories.return_value = {"results": []}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.retrieve.return_value = {"items": []}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             query = MemoryQuery(text="query", user_id="user-123")
             await backend.search(query)
 
-            mock_client.search_memories.assert_called_once()
-            call_kwargs = mock_client.search_memories.call_args[1]
-            assert call_kwargs.get("user_id") == "user-123"
+            mock_service.retrieve.assert_called_once()
+            call_kwargs = mock_service.retrieve.call_args[1]
+            assert call_kwargs.get("where", {}).get("user_id") == "user-123"
 
     @pytest.mark.asyncio
     async def test_search_with_limit(self):
@@ -336,22 +370,25 @@ class TestMemUBackendSearch:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryQuery
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.search_memories.return_value = {"results": []}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.retrieve.return_value = {
+                "items": [
+                    {"id": f"mem-{i}", "memory_content": f"Result {i}"} for i in range(10)
+                ]
+            }
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             query = MemoryQuery(text="query", limit=5)
-            await backend.search(query)
+            results = await backend.search(query)
 
-            mock_client.search_memories.assert_called_once()
-            call_kwargs = mock_client.search_memories.call_args[1]
-            assert call_kwargs.get("limit") == 5
+            # Should be limited to 5 results
+            assert len(results) <= 5
 
 
 class TestMemUBackendListMemories:
-    """TDD tests for MemUBackend.list_memories() method."""
+    """Tests for MemUBackend.list_memories() method."""
 
     @pytest.mark.asyncio
     async def test_list_memories_returns_list(self):
@@ -359,17 +396,17 @@ class TestMemUBackendListMemories:
         from gobby.memory.backends.memu import MemUBackend
         from gobby.memory.protocol import MemoryRecord
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.list_memories.return_value = {
-                "results": [
-                    {"id": "mem-1", "content": "Memory 1"},
-                    {"id": "mem-2", "content": "Memory 2"},
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.list_memory_items.return_value = {
+                "items": [
+                    {"id": "mem-1", "memory_content": "Memory 1"},
+                    {"id": "mem-2", "memory_content": "Memory 2"},
                 ]
             }
-            MockClient.return_value = mock_client
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             results = await backend.list_memories()
 
             assert isinstance(results, list)
@@ -380,32 +417,35 @@ class TestMemUBackendListMemories:
         """Test that list_memories() filters by user_id."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.list_memories.return_value = {"results": []}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.list_memory_items.return_value = {"items": []}
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
+            backend = MemUBackend()
             await backend.list_memories(user_id="user-456")
 
-            mock_client.list_memories.assert_called_once()
-            call_kwargs = mock_client.list_memories.call_args[1]
-            assert call_kwargs.get("user_id") == "user-456"
+            mock_service.list_memory_items.assert_called_once()
+            call_kwargs = mock_service.list_memory_items.call_args[1]
+            assert call_kwargs.get("where", {}).get("user_id") == "user-456"
 
     @pytest.mark.asyncio
     async def test_list_memories_with_limit(self):
         """Test that list_memories() respects limit parameter."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient") as MockClient:
-            mock_client = MagicMock()
-            mock_client.list_memories.return_value = {"results": []}
-            MockClient.return_value = mock_client
+        with patch("memu.app.service.MemoryService") as MockService:
+            mock_service = MagicMock()
+            mock_service.list_memory_items.return_value = {
+                "items": [{"id": f"mem-{i}", "memory_content": f"Memory {i}"} for i in range(20)]
+            }
+            MockService.return_value = mock_service
 
-            backend = MemUBackend(api_key="test-key")
-            await backend.list_memories(limit=10)
+            backend = MemUBackend()
+            results = await backend.list_memories(limit=10)
 
-            mock_client.list_memories.assert_called_once()
+            # Should be limited to 10 results
+            assert len(results) <= 10
 
 
 # =============================================================================
@@ -414,26 +454,24 @@ class TestMemUBackendListMemories:
 
 
 class TestMemUBackendClose:
-    """TDD tests for MemUBackend.close() method."""
+    """Tests for MemUBackend.close() method."""
 
-    @pytest.mark.asyncio
-    async def test_close_exists(self):
+    def test_close_exists(self):
         """Test that close() method exists for cleanup."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient"):
-            backend = MemUBackend(api_key="test-key")
+        with patch("memu.app.service.MemoryService"):
+            backend = MemUBackend()
 
             # close() should exist and not raise
             assert hasattr(backend, "close")
 
-    @pytest.mark.asyncio
-    async def test_close_is_idempotent(self):
+    def test_close_is_idempotent(self):
         """Test that close() can be called multiple times safely."""
         from gobby.memory.backends.memu import MemUBackend
 
-        with patch("memu.MemUClient"):
-            backend = MemUBackend(api_key="test-key")
+        with patch("memu.app.service.MemoryService"):
+            backend = MemUBackend()
 
             # Should not raise when called multiple times
             if hasattr(backend, "close"):
