@@ -53,6 +53,7 @@ class Memory:
     access_count: int = 0
     last_accessed_at: str | None = None
     tags: list[str] | None = None
+    media: str | None = None  # JSON-serialized MediaAttachment data
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Memory":
@@ -96,6 +97,7 @@ class Memory:
             "access_count": self.access_count,
             "last_accessed_at": self.last_accessed_at,
             "tags": self.tags,
+            "media": self.media,
         }
 
 
