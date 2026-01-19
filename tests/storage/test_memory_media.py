@@ -147,7 +147,7 @@ class TestMemoryFromRowMedia:
         """, ("mm-test", media_data))
 
         cursor = db.execute("SELECT * FROM memories WHERE id = 'mm-test'")
-        cursor.row_factory = db._connection.row_factory
+        cursor.row_factory = db.connection.row_factory
         row = cursor.fetchone()
 
         memory = Memory.from_row(row)
@@ -163,7 +163,7 @@ class TestMemoryFromRowMedia:
         """)
 
         cursor = db.execute("SELECT * FROM memories WHERE id = 'mm-test'")
-        cursor.row_factory = db._connection.row_factory
+        cursor.row_factory = db.connection.row_factory
         row = cursor.fetchone()
 
         memory = Memory.from_row(row)

@@ -11,6 +11,9 @@ from gobby.utils.id import generate_prefixed_id
 
 logger = logging.getLogger(__name__)
 
+# Sentinel for distinguishing "not provided" from explicit None
+_UNSET: Any = object()
+
 
 @dataclass
 class MemoryCrossRef:
@@ -68,6 +71,9 @@ class Memory:
         else:
             importance = float(importance_raw) if importance_raw is not None else 0.5
 
+        # Handle media column (may not exist in older databases)
+        media = row["media"] if "media" in row.keys() else None
+
         return cls(
             id=row["id"],
             memory_type=row["memory_type"],
@@ -81,6 +87,7 @@ class Memory:
             access_count=row["access_count"],
             last_accessed_at=row["last_accessed_at"],
             tags=tags,
+            media=media,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -125,6 +132,7 @@ class LocalMemoryManager:
         source_session_id: str | None = None,
         importance: float = 0.5,
         tags: list[str] | None = None,
+        media: str | None = None,
     ) -> Memory:
         now = datetime.now(UTC).isoformat()
         # Ensure consistent ID for same content/project to avoid dupes?
@@ -144,8 +152,8 @@ class LocalMemoryManager:
                 INSERT INTO memories (
                     id, project_id, memory_type, content, source_type,
                     source_session_id, importance, access_count, tags,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                    media, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
                 """,
                 (
                     memory_id,
@@ -156,6 +164,7 @@ class LocalMemoryManager:
                     source_session_id,
                     importance,
                     tags_json,
+                    media,
                     now,
                     now,
                 ),
@@ -195,6 +204,7 @@ class LocalMemoryManager:
         content: str | None = None,
         importance: float | None = None,
         tags: list[str] | None = None,
+        media: Any = _UNSET,  # Use sentinel to distinguish None from not-provided
     ) -> Memory:
         updates = []
         params: list[Any] = []
@@ -208,6 +218,9 @@ class LocalMemoryManager:
         if tags is not None:
             updates.append("tags = ?")
             params.append(json.dumps(tags))
+        if media is not _UNSET:  # Allow explicit None to clear media
+            updates.append("media = ?")
+            params.append(media)
 
         if not updates:
             return self.get_memory(memory_id)

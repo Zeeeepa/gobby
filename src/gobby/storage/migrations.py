@@ -477,6 +477,7 @@ CREATE TABLE memories (
     access_count INTEGER DEFAULT 0,
     last_accessed_at TEXT,
     tags TEXT,
+    media TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -702,6 +703,17 @@ def _migrate_add_inter_session_messages(db: LocalDatabase) -> None:
     logger.info("Created inter_session_messages table with indexes")
 
 
+def _migrate_add_media_column(db: LocalDatabase) -> None:
+    """Add media column to memories table for multimodal support."""
+    # Check if media column already exists (fresh database from baseline)
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='memories'")
+    if row and "media" not in row["sql"].lower():
+        db.execute("ALTER TABLE memories ADD COLUMN media TEXT")
+        logger.info("Added media column to memories table")
+    else:
+        logger.debug("media column already exists, skipping")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -717,6 +729,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (66, "Drop is_enriched column from tasks", _migrate_drop_is_enriched),
     # Inter-session messaging: Add table for parent-child agent communication
     (67, "Add inter_session_messages table", _migrate_add_inter_session_messages),
+    # Memory V3 Phase 2: Add media column for multimodal support
+    (68, "Add media column to memories", _migrate_add_media_column),
 ]
 
 
