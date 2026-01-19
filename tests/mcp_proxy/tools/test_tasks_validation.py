@@ -869,7 +869,13 @@ class TestValidateAndFixTool:
             feedback="All criteria met",
         )
 
-        result = await validation_registry.call("validate_and_fix", {"task_id": "t1"})
+        # Mock git context to avoid real git operations in tests
+        # Patch where the function is defined (not where it's imported from)
+        with patch(
+            "gobby.tasks.validation.get_validation_context_smart"
+        ) as mock_context:
+            mock_context.return_value = "Mocked validation context for test"
+            result = await validation_registry.call("validate_and_fix", {"task_id": "t1"})
 
         assert result["success"] is True
         assert result["is_valid"] is True

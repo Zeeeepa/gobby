@@ -12,7 +12,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -419,7 +419,17 @@ class HTTPServer:
             request: Request,
             exc: Exception,
         ) -> JSONResponse:
-            """Handle all uncaught exceptions."""
+            """Handle all uncaught exceptions.
+
+            HTTPException is re-raised to let FastAPI's built-in handler
+            return proper status codes (404, 422, etc.). All other exceptions
+            return 200 OK to prevent hook failures.
+            """
+            # Let HTTPException pass through to FastAPI's built-in handler
+            # so proper status codes (404, 422, etc.) are returned
+            if isinstance(exc, HTTPException):
+                raise exc
+
             logger.error(
                 "Unhandled exception in HTTP server: %s",
                 exc,
@@ -431,7 +441,7 @@ class HTTPServer:
                 },
             )
 
-            # Return 200 OK to prevent hook failure
+            # Return 200 OK to prevent hook failure for non-HTTP exceptions
             return JSONResponse(
                 status_code=200,
                 content={

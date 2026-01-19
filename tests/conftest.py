@@ -26,6 +26,17 @@ def temp_dir() -> Iterator[Path]:
         yield Path(tmpdir)
 
 
+@pytest.fixture(scope="session")
+def safe_db_dir() -> Iterator[Path]:
+    """Session-scoped temp directory for safe database.
+
+    This directory persists for the entire test session to avoid the race condition
+    where the database file is deleted before all tests finish using it.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
 @pytest.fixture
 def temp_db(temp_dir: Path) -> Iterator["LocalDatabase"]:
     """Create a temporary database for testing."""
@@ -99,12 +110,17 @@ def mock_llm_service() -> MagicMock:
 
 
 @pytest.fixture(autouse=True)
-def protect_production_resources(request: pytest.FixtureRequest, temp_dir: Path) -> Iterator[None]:
+def protect_production_resources(
+    request: pytest.FixtureRequest, temp_dir: Path, safe_db_dir: Path
+) -> Iterator[None]:
     """
     Defensive fixture to prevent tests from touching production resources.
 
     Forces all tests to use temporary paths for database and logging,
     unless explicitly opting out with @pytest.mark.no_config_protection.
+
+    Uses a session-scoped directory for the database to avoid race conditions
+    where the database file gets deleted before all tests finish using it.
     """
     if request.node.get_closest_marker("no_config_protection"):
         yield
@@ -114,20 +130,23 @@ def protect_production_resources(request: pytest.FixtureRequest, temp_dir: Path)
 
     from gobby.config.app import DaemonConfig
 
-    # Create safe paths
-    safe_db_path = temp_dir / "test-safe.db"
+    # Use session-scoped directory for database (persists for entire test session)
+    # Use function-scoped temp_dir for logs (per-test isolation)
+    safe_db_path = safe_db_dir / "test-safe.db"
     safe_logs_dir = temp_dir / "logs"
-    safe_logs_dir.mkdir()
+    safe_logs_dir.mkdir(exist_ok=True)
 
     # Run migrations on safe database - this is CRITICAL!
     # Code that calls LocalDatabase() without arguments will use this path via GOBBY_DATABASE_PATH.
     # Without migrations, queries will fail with "file is not a database" errors.
+    # Only run migrations if the database doesn't exist yet (session-scoped, reused across tests).
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
-    safe_db = LocalDatabase(safe_db_path)
-    run_migrations(safe_db)
-    safe_db.close()
+    if not safe_db_path.exists():
+        safe_db = LocalDatabase(safe_db_path)
+        run_migrations(safe_db)
+        safe_db.close()
 
     safe_log_client = safe_logs_dir / "gobby.log"
     safe_log_error = safe_logs_dir / "gobby-error.log"
