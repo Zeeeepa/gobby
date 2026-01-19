@@ -127,10 +127,8 @@ class WorktreesScreen(Widget):
                 branch = wt.get("branch_name", "N/A")
                 status = wt.get("status", "unknown")
                 task_id = wt.get("task_id", "-")[:12] if wt.get("task_id") else "-"
-                path = (
-                    wt.get("path", "")[-30:] if len(wt.get("path", "")) > 30 else wt.get("path", "")
-                )
-
+                wt_path = wt.get("path", "")
+                path = wt_path[-30:] if len(wt_path) > 30 else wt_path
                 table.add_row(wt_id, branch, status, task_id, path, key=wt.get("id"))
 
         except Exception:
