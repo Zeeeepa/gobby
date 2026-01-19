@@ -191,7 +191,9 @@ class SessionLifecycleManager:
             parser = GeminiTranscriptParser()
         elif session.source == "codex":
             parser = CodexTranscriptParser()
-        # antigravity uses Claude transcript format (default parser)
+        elif session.source == "antigravity":
+            parser = ClaudeTranscriptParser()
+        # Default (claude or unknown) uses Claude transcript format
 
         messages = parser.parse_lines(lines, start_index=0)
 
