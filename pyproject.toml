@@ -94,6 +94,11 @@ filterwarnings = [
     "ignore:The `dict` method is deprecated:DeprecationWarning",
     # Ignore coverage module-not-measured warning
     "ignore:Module gobby was previously imported:coverage.exceptions.CoverageWarning",
+    # Ignore pathspec GitWildMatchPattern deprecation (upstream dependency issue)
+    "ignore:GitWildMatchPattern.*is deprecated:DeprecationWarning:pathspec",
+    # Ignore ResourceWarnings from test infrastructure (coverage, unittest.mock)
+    "ignore:unclosed database:ResourceWarning:coverage",
+    "ignore:unclosed database:ResourceWarning:unittest.mock",
 ]
 
 [tool.ruff]

@@ -9,8 +9,41 @@ import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
+from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
+
+# Register custom datetime adapters/converters (required since Python 3.12)
+# See: https://docs.python.org/3/library/sqlite3.html#default-adapters-and-converters-deprecated
+
+
+def _adapt_datetime(val: datetime) -> str:
+    """Adapt datetime to ISO format string for SQLite storage."""
+    return val.isoformat(" ")
+
+
+def _adapt_date(val: date) -> str:
+    """Adapt date to ISO format string for SQLite storage."""
+    return val.isoformat()
+
+
+def _convert_datetime(val: bytes) -> datetime:
+    """Convert SQLite datetime string back to datetime object."""
+    return datetime.fromisoformat(val.decode())
+
+
+def _convert_date(val: bytes) -> date:
+    """Convert SQLite date string back to date object."""
+    return date.fromisoformat(val.decode())
+
+
+# Register adapters (Python -> SQLite)
+sqlite3.register_adapter(datetime, _adapt_datetime)
+sqlite3.register_adapter(date, _adapt_date)
+
+# Register converters (SQLite -> Python) - used with detect_types
+sqlite3.register_converter("datetime", _convert_datetime)
+sqlite3.register_converter("date", _convert_date)
 
 if TYPE_CHECKING:
     from gobby.storage.artifacts import LocalArtifactManager
