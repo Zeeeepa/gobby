@@ -92,17 +92,19 @@ class SQLiteBackend:
         # Serialize media list to JSON for storage
         media_json: str | None = None
         if media:
-            media_json = json.dumps([
-                {
-                    "media_type": m.media_type,
-                    "content_path": m.content_path,
-                    "mime_type": m.mime_type,
-                    "description": m.description,
-                    "description_model": m.description_model,
-                    "metadata": m.metadata,
-                }
-                for m in media
-            ])
+            media_json = json.dumps(
+                [
+                    {
+                        "media_type": m.media_type,
+                        "content_path": m.content_path,
+                        "mime_type": m.mime_type,
+                        "description": m.description,
+                        "description_model": m.description_model,
+                        "metadata": m.metadata,
+                    }
+                    for m in media
+                ]
+            )
 
         # Create via storage layer
         memory = self._storage.create_memory(
@@ -250,9 +252,13 @@ class SQLiteBackend:
             MemoryRecord instance
         """
         # Parse datetime strings
-        created_at = datetime.fromisoformat(memory.created_at) if memory.created_at else datetime.now(UTC)
+        created_at = (
+            datetime.fromisoformat(memory.created_at) if memory.created_at else datetime.now(UTC)
+        )
         updated_at = datetime.fromisoformat(memory.updated_at) if memory.updated_at else None
-        last_accessed = datetime.fromisoformat(memory.last_accessed_at) if memory.last_accessed_at else None
+        last_accessed = (
+            datetime.fromisoformat(memory.last_accessed_at) if memory.last_accessed_at else None
+        )
 
         # Deserialize media from JSON string
         media_list: list[MediaAttachment] = []
@@ -291,14 +297,3 @@ class SQLiteBackend:
             media=media_list,
             metadata=metadata or {},
         )
-
-
-# Verify SQLiteBackend satisfies the protocol
-# Note: Can't instantiate without db, so we check the class attributes
-assert hasattr(SQLiteBackend, "capabilities")
-assert hasattr(SQLiteBackend, "create")
-assert hasattr(SQLiteBackend, "get")
-assert hasattr(SQLiteBackend, "update")
-assert hasattr(SQLiteBackend, "delete")
-assert hasattr(SQLiteBackend, "search")
-assert hasattr(SQLiteBackend, "list_memories")

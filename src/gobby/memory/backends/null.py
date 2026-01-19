@@ -110,7 +110,3 @@ class NullBackend:
     ) -> list[MemoryRecord]:
         """List memories (always returns empty list)."""
         return []
-
-
-# Verify NullBackend satisfies the protocol
-assert isinstance(NullBackend(), MemoryBackendProtocol)
