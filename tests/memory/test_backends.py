@@ -35,9 +35,9 @@ class TestGetBackend:
         """Test that get_backend function is importable."""
         assert callable(get_backend)
 
-    def test_get_backend_returns_protocol(self, db: "LocalDatabase"):
+    def test_get_backend_returns_protocol(self, temp_db: LocalDatabase):
         """Test that get_backend returns a MemoryBackendProtocol instance."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
         assert isinstance(backend, MemoryBackendProtocol)
 
     def test_get_backend_unknown_type_raises(self):
@@ -50,9 +50,9 @@ class TestGetBackend:
         backend = get_backend("null")
         assert isinstance(backend, MemoryBackendProtocol)
 
-    def test_get_backend_sqlite_type(self, db: "LocalDatabase"):
+    def test_get_backend_sqlite_type(self, temp_db: LocalDatabase):
         """Test that 'sqlite' backend type returns SQLite backend."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
         assert isinstance(backend, MemoryBackendProtocol)
         # SQLite backend should support full CRUD capabilities
         caps = backend.capabilities()
@@ -128,9 +128,9 @@ class TestNullBackend:
 class TestSQLiteBackend:
     """Tests for the SQLiteBackend implementation."""
 
-    def test_sqlite_backend_capabilities(self, db: "LocalDatabase"):
+    def test_sqlite_backend_capabilities(self, temp_db: LocalDatabase):
         """Test that SQLiteBackend declares full capabilities."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
         caps = backend.capabilities()
         assert isinstance(caps, set)
         # SQLite should support all basic operations
@@ -143,9 +143,9 @@ class TestSQLiteBackend:
         assert MemoryCapability.IMPORTANCE in caps
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_create_and_get(self, db: "LocalDatabase"):
+    async def test_sqlite_backend_create_and_get(self, temp_db: LocalDatabase):
         """Test SQLiteBackend create and get operations."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
 
         # Create a memory
         record = await backend.create(
@@ -166,9 +166,9 @@ class TestSQLiteBackend:
         assert retrieved.content == record.content
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_update(self, db: "LocalDatabase"):
+    async def test_sqlite_backend_update(self, temp_db: LocalDatabase):
         """Test SQLiteBackend update operation."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
 
         # Create a memory
         record = await backend.create(content="Original content")
@@ -183,9 +183,9 @@ class TestSQLiteBackend:
         assert updated.importance == 0.9
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_delete(self, db: "LocalDatabase"):
+    async def test_sqlite_backend_delete(self, temp_db: LocalDatabase):
         """Test SQLiteBackend delete operation."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
 
         # Create a memory
         record = await backend.create(content="To be deleted")
@@ -199,11 +199,11 @@ class TestSQLiteBackend:
         assert retrieved is None
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_search(self, db: "LocalDatabase"):
+    async def test_sqlite_backend_search(self, temp_db: LocalDatabase):
         """Test SQLiteBackend search operation."""
         from gobby.memory.protocol import MemoryQuery
 
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
 
         # Create some memories
         await backend.create(content="Python programming language")
@@ -218,9 +218,9 @@ class TestSQLiteBackend:
         assert all("Python" in r.content for r in results)
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_list_memories(self, db: "LocalDatabase"):
+    async def test_sqlite_backend_list_memories(self, temp_db: LocalDatabase):
         """Test SQLiteBackend list_memories operation."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
 
         # Create some memories
         await backend.create(content="Memory 1", memory_type="fact")
@@ -236,9 +236,9 @@ class TestSQLiteBackend:
         assert all(r.memory_type == "fact" for r in facts)
 
     @pytest.mark.asyncio
-    async def test_sqlite_backend_list_with_limit(self, db: "LocalDatabase"):
+    async def test_sqlite_backend_list_with_limit(self, temp_db: LocalDatabase):
         """Test SQLiteBackend list_memories with limit."""
-        backend = get_backend("sqlite", database=db)
+        backend = get_backend("sqlite", database=temp_db)
 
         # Create several memories
         for i in range(5):
