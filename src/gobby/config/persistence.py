@@ -25,6 +25,14 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Enable persistent memory system",
     )
+    backend: str = Field(
+        default="sqlite",
+        description=(
+            "Storage backend for memories. Options: "
+            "'sqlite' (default, local SQLite database), "
+            "'null' (no persistence, for testing)"
+        ),
+    )
     importance_threshold: float = Field(
         default=0.7,
         description="Minimum importance score for memory injection",
@@ -90,6 +98,17 @@ class MemoryConfig(BaseModel):
         if v not in valid_backends:
             raise ValueError(
                 f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}"
+            )
+        return v
+
+    @field_validator("backend")
+    @classmethod
+    def validate_backend(cls, v: str) -> str:
+        """Validate backend is a supported storage option."""
+        valid_backends = {"sqlite", "null"}
+        if v not in valid_backends:
+            raise ValueError(
+                f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}"
             )
         return v
 
