@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from unittest.mock import MagicMock, patch
@@ -58,30 +59,26 @@ class TestTaskSyncManager:
         assert task2_data["title"] == "Task 2"
         assert task2_data["deps_on"] == [t1.id]
 
+    @pytest.mark.asyncio
     @pytest.mark.integration
-    def test_trigger_export_debounced(self, sync_manager):
-        # Mock export_to_jsonl
-        # We need to patch the method on the instance or class
-        # Using a safer approach with a mock side_effect check in a real scenario would be better,
-        # but for threading, we just want to ensure it runs eventually.
-
+    async def test_trigger_export_debounced(self, sync_manager):
+        """Test that multiple rapid trigger_export calls result in single debounced export."""
         # Reduce interval for test
         sync_manager._debounce_interval = 0.1
 
         with patch.object(sync_manager, "export_to_jsonl") as mock_export:
+            # Trigger multiple times in quick succession
             sync_manager.trigger_export()
             sync_manager.trigger_export()
             sync_manager.trigger_export()
 
-            assert mock_export.call_count == 0
+            # With async debounce, the task should be pending
+            assert sync_manager._export_task is not None
 
-            # Wait for call (polling)
-            start = time.time()
-            while mock_export.call_count == 0:
-                if time.time() - start > 1.0:
-                    break
-                time.sleep(0.05)
+            # Wait for debounce + execution
+            await asyncio.sleep(0.3)
 
+            # Should have been called exactly once (debounced)
             assert mock_export.call_count == 1
 
     @pytest.mark.integration
@@ -613,30 +610,49 @@ class TestExportEdgeCases:
 class TestStopMethod:
     """Tests for the stop method."""
 
+    @pytest.mark.asyncio
     @pytest.mark.integration
-    def test_stop_cancels_timer(self, sync_manager):
-        """Test stop cancels pending debounce timer."""
+    async def test_stop_cancels_export_task(self, sync_manager):
+        """Test stop cancels pending export task."""
         sync_manager._debounce_interval = 10  # Long interval
 
         with patch.object(sync_manager, "export_to_jsonl") as mock_export:
             sync_manager.trigger_export()
-            assert sync_manager._debounce_timer is not None
+            assert sync_manager._export_task is not None
 
             sync_manager.stop()
 
-            # Wait a bit to ensure timer would have fired if not cancelled
-            time.sleep(0.1)
+            # Wait a bit to ensure task would have fired if not cancelled
+            await asyncio.sleep(0.1)
 
-            # Export should not have been called because timer was cancelled
+            # Export should not have been called because task was cancelled
             assert mock_export.call_count == 0
+            assert sync_manager._shutdown_requested is True
 
     @pytest.mark.integration
-    def test_stop_without_timer(self, sync_manager):
-        """Test stop when no timer is running."""
-        assert sync_manager._debounce_timer is None
+    def test_stop_without_export_task(self, sync_manager):
+        """Test stop when no export task is running."""
+        assert sync_manager._export_task is None
 
         # Should not raise
         sync_manager.stop()
+        assert sync_manager._shutdown_requested is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_shutdown_graceful(self, sync_manager):
+        """Test graceful async shutdown."""
+        sync_manager._debounce_interval = 0.05
+
+        with patch.object(sync_manager, "export_to_jsonl") as mock_export:
+            sync_manager.trigger_export()
+
+            # Graceful shutdown waits for task completion
+            await sync_manager.shutdown()
+
+            # Task should complete and export called
+            assert sync_manager._export_task is None
+            assert mock_export.call_count == 1
 
 
 class TestImportFromGitHubIssues:
