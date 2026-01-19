@@ -249,3 +249,74 @@ class CodexProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to generate text with Codex: {e}")
             return f"Generation failed: {e}"
+
+    async def describe_image(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """
+        Generate a text description of an image using OpenAI's vision capabilities.
+
+        Uses GPT-4o for vision tasks.
+
+        Args:
+            image_path: Path to the image file
+            context: Optional context to guide the description
+
+        Returns:
+            Text description of the image
+        """
+        import base64
+        import mimetypes
+
+        if not self._client:
+            return "Image description unavailable (Codex client not initialized)"
+
+        path = Path(image_path)
+        if not path.exists():
+            return f"Image not found: {image_path}"
+
+        try:
+            # Read and encode image
+            image_data = path.read_bytes()
+            image_base64 = base64.standard_b64encode(image_data).decode("utf-8")
+
+            # Determine MIME type
+            mime_type, _ = mimetypes.guess_type(str(path))
+            if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+                mime_type = "image/png"  # Default to PNG
+
+            # Build prompt
+            prompt = (
+                "Please describe this image in detail, focusing on key visual elements, "
+                "any text visible, and the overall context or meaning."
+            )
+            if context:
+                prompt = f"{context}\n\n{prompt}"
+
+            # Use GPT-4o for vision
+            response = await self._client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_base64}",
+                                },
+                            },
+                            {"type": "text", "text": prompt},
+                        ],
+                    }
+                ],
+                max_tokens=1024,
+            )
+
+            return response.choices[0].message.content or "No description generated"
+
+        except Exception as e:
+            self.logger.error(f"Failed to describe image with Codex: {e}")
+            return f"Image description failed: {e}"

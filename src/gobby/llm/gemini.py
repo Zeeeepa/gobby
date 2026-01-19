@@ -201,3 +201,58 @@ class GeminiProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to generate text with Gemini: {e}")
             return f"Generation failed: {e}"
+
+    async def describe_image(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """
+        Generate a text description of an image using Gemini's vision capabilities.
+
+        Uses Gemini 1.5 Flash for efficient image description.
+
+        Args:
+            image_path: Path to the image file
+            context: Optional context to guide the description
+
+        Returns:
+            Text description of the image
+        """
+        from pathlib import Path
+
+        if not self.genai:
+            return "Image description unavailable (Gemini client not initialized)"
+
+        path = Path(image_path)
+        if not path.exists():
+            return f"Image not found: {image_path}"
+
+        try:
+            # Use PIL to load the image - Gemini accepts PIL images directly
+            from PIL import Image
+
+            image = Image.open(path)
+
+            # Build prompt
+            prompt = (
+                "Please describe this image in detail, focusing on key visual elements, "
+                "any text visible, and the overall context or meaning."
+            )
+            if context:
+                prompt = f"{context}\n\n{prompt}"
+
+            # Use gemini-1.5-flash for efficient vision tasks
+            model = self.genai.GenerativeModel("gemini-1.5-flash")
+
+            # Generate content with image and prompt
+            response = await model.generate_content_async([prompt, image])
+
+            return response.text or "No description generated"
+
+        except ImportError:
+            self.logger.error("PIL/Pillow not installed. Required for image description.")
+            return "Image description unavailable (PIL not installed)"
+        except Exception as e:
+            self.logger.error(f"Failed to describe image with Gemini: {e}")
+            return f"Image description failed: {e}"
