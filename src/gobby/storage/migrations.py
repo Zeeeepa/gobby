@@ -663,6 +663,45 @@ def _migrate_drop_is_enriched(db: LocalDatabase) -> None:
             logger.warning(f"Could not drop is_enriched column (SQLite < 3.35?): {e}")
 
 
+def _migrate_add_inter_session_messages(db: LocalDatabase) -> None:
+    """Add inter_session_messages table for parent-child agent communication.
+
+    This table enables asynchronous messaging between agent sessions,
+    allowing parent agents to send instructions to child agents and
+    receive status updates back.
+    """
+    # Check if table already exists (fresh database with baseline)
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='inter_session_messages'"
+    )
+    if row:
+        logger.debug("inter_session_messages table already exists, skipping")
+        return
+
+    # Create the table
+    db.execute("""
+        CREATE TABLE inter_session_messages (
+            id TEXT PRIMARY KEY,
+            from_session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            to_session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            sent_at TEXT NOT NULL,
+            read_at TEXT
+        )
+    """)
+
+    # Create indexes for efficient querying
+    db.execute("CREATE INDEX idx_inter_session_messages_from_session ON inter_session_messages(from_session)")
+    db.execute("CREATE INDEX idx_inter_session_messages_to_session ON inter_session_messages(to_session)")
+    db.execute(
+        "CREATE INDEX idx_inter_session_messages_unread ON inter_session_messages(to_session, read_at) "
+        "WHERE read_at IS NULL"
+    )
+
+    logger.info("Created inter_session_messages table with indexes")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -676,6 +715,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (65, "Add review columns to tasks", _migrate_add_review_columns),
     # Task Expansion V3: Drop unused is_enriched column
     (66, "Drop is_enriched column from tasks", _migrate_drop_is_enriched),
+    # Inter-session messaging: Add table for parent-child agent communication
+    (67, "Add inter_session_messages table", _migrate_add_inter_session_messages),
 ]
 
 
