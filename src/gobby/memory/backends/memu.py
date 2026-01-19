@@ -116,7 +116,62 @@ class MemUBackend:
         Returns:
             The created MemoryRecord
         """
-        raise NotImplementedError("MemUBackend.create not yet implemented")
+        effective_user_id = user_id or self._default_user_id or "default"
+
+        # Build metadata for Mem0
+        mem0_metadata: dict[str, Any] = {
+            "memory_type": memory_type,
+            "importance": importance,
+            "source_type": source_type,
+            "source_session_id": source_session_id,
+            **(metadata or {}),
+        }
+        if project_id:
+            mem0_metadata["project_id"] = project_id
+        if tags:
+            mem0_metadata["tags"] = tags
+        if media:
+            # Serialize media attachments
+            mem0_metadata["media"] = [
+                {
+                    "media_type": m.media_type,
+                    "content_path": m.content_path,
+                    "mime_type": m.mime_type,
+                    "description": m.description,
+                }
+                for m in media
+            ]
+
+        # Mem0 add() expects messages in OpenAI chat format
+        messages = [{"role": "user", "content": content}]
+
+        # Add memory via Mem0 API
+        result = self._client.add(
+            messages=messages,
+            user_id=effective_user_id,
+            metadata=mem0_metadata,
+        )
+
+        # Extract memory ID from result
+        # Mem0 returns {"results": [{"id": "...", "memory": "...", ...}]}
+        if result and "results" in result and len(result["results"]) > 0:
+            mem0_memory = result["results"][0]
+            return self._mem0_to_record(mem0_memory)
+
+        # Fallback: create a synthetic record
+        return MemoryRecord(
+            id=result.get("id", "unknown"),
+            content=content,
+            created_at=datetime.now(UTC),
+            memory_type=memory_type,
+            importance=importance,
+            project_id=project_id,
+            user_id=effective_user_id,
+            tags=tags or [],
+            source_type=source_type,
+            source_session_id=source_session_id,
+            metadata=mem0_metadata,
+        )
 
     async def get(self, memory_id: str) -> MemoryRecord | None:
         """Retrieve a memory by ID from Mem0.
@@ -127,7 +182,14 @@ class MemUBackend:
         Returns:
             The MemoryRecord if found, None otherwise
         """
-        raise NotImplementedError("MemUBackend.get not yet implemented")
+        try:
+            result = self._client.get(memory_id)
+            if result:
+                return self._mem0_to_record(result)
+            return None
+        except Exception:
+            # Memory not found or API error
+            return None
 
     async def update(
         self,
@@ -150,7 +212,37 @@ class MemUBackend:
         Raises:
             ValueError: If memory not found
         """
-        raise NotImplementedError("MemUBackend.update not yet implemented")
+        # Get existing memory first
+        existing = await self.get(memory_id)
+        if not existing:
+            raise ValueError(f"Memory not found: {memory_id}")
+
+        # Build update data
+        update_data: dict[str, Any] = {}
+        if content is not None:
+            update_data["text"] = content
+
+        # Update via Mem0 API
+        result = self._client.update(memory_id, data=content or existing.content)
+
+        # Return updated record
+        if result:
+            return self._mem0_to_record(result)
+
+        # Fallback: return synthetic updated record
+        return MemoryRecord(
+            id=memory_id,
+            content=content or existing.content,
+            created_at=existing.created_at,
+            memory_type=existing.memory_type,
+            importance=importance if importance is not None else existing.importance,
+            project_id=existing.project_id,
+            user_id=existing.user_id,
+            tags=tags if tags is not None else existing.tags,
+            source_type=existing.source_type,
+            source_session_id=existing.source_session_id,
+            metadata=existing.metadata,
+        )
 
     async def delete(self, memory_id: str) -> bool:
         """Delete a memory from Mem0.
@@ -161,7 +253,11 @@ class MemUBackend:
         Returns:
             True if deleted, False if not found
         """
-        raise NotImplementedError("MemUBackend.delete not yet implemented")
+        try:
+            self._client.delete(memory_id)
+            return True
+        except Exception:
+            return False
 
     async def search(self, query: MemoryQuery) -> list[MemoryRecord]:
         """Search for memories using Mem0's semantic search.
@@ -172,7 +268,35 @@ class MemUBackend:
         Returns:
             List of matching MemoryRecords
         """
-        raise NotImplementedError("MemUBackend.search not yet implemented")
+        user_id = query.user_id or self._default_user_id or "default"
+
+        # Build search kwargs
+        search_kwargs: dict[str, Any] = {
+            "query": query.text or "",
+            "user_id": user_id,
+        }
+        if query.limit:
+            search_kwargs["limit"] = query.limit
+
+        # Execute search via Mem0 API
+        results = self._client.search(**search_kwargs)
+
+        # Convert results to MemoryRecords
+        records = []
+        for mem0_memory in results.get("results", []):
+            record = self._mem0_to_record(mem0_memory)
+
+            # Apply additional filters not supported by Mem0 API
+            if query.min_importance is not None and record.importance < query.min_importance:
+                continue
+            if query.memory_type is not None and record.memory_type != query.memory_type:
+                continue
+            if query.project_id is not None and record.project_id != query.project_id:
+                continue
+
+            records.append(record)
+
+        return records
 
     async def list_memories(
         self,
@@ -194,7 +318,35 @@ class MemUBackend:
         Returns:
             List of MemoryRecords
         """
-        raise NotImplementedError("MemUBackend.list_memories not yet implemented")
+        effective_user_id = user_id or self._default_user_id or "default"
+
+        # Get all memories for user via Mem0 API
+        results = self._client.get_all(user_id=effective_user_id)
+
+        # Convert and filter results
+        records = []
+        skipped = 0
+        for mem0_memory in results.get("results", []):
+            record = self._mem0_to_record(mem0_memory)
+
+            # Apply filters
+            if project_id is not None and record.project_id != project_id:
+                continue
+            if memory_type is not None and record.memory_type != memory_type:
+                continue
+
+            # Handle offset
+            if skipped < offset:
+                skipped += 1
+                continue
+
+            records.append(record)
+
+            # Handle limit
+            if len(records) >= limit:
+                break
+
+        return records
 
     def close(self) -> None:
         """Clean up resources.
