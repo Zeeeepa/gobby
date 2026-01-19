@@ -73,17 +73,13 @@ def _resolve_session_task_value(
 
     # Need session to get project_id
     if not session_id:
-        logger.warning(
-            f"Cannot resolve task reference '{value}': no session_id provided"
-        )
+        logger.warning(f"Cannot resolve task reference '{value}': no session_id provided")
         return value
 
     # Get project_id from session
     session = session_manager.get(session_id)
     if not session or not session.project_id:
-        logger.warning(
-            f"Cannot resolve task reference '{value}': session has no project_id"
-        )
+        logger.warning(f"Cannot resolve task reference '{value}': session has no project_id")
         return value
 
     # Resolve the reference

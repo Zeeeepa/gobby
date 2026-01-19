@@ -313,7 +313,7 @@ async def test_create_handoff_no_session(mock_session_manager, full_sessions_reg
     mock_session_manager.get.return_value = None
     mock_session_manager.list.return_value = []
 
-    result = await full_sessions_registry.call("create_handoff", {})
+    result = await full_sessions_registry.call("create_handoff", {"session_id": "nonexistent"})
 
     assert "error" in result
     assert "No session found" in result["error"]

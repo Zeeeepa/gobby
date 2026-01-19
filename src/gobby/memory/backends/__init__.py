@@ -36,9 +36,15 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
         backend_type: Type of backend to create:
             - "sqlite": SQLite-based persistent storage (requires database kwarg)
             - "null": No-op backend for testing
+            - "mem0": Mem0 cloud-based semantic memory (requires api_key kwarg)
+            - "memu": MemU markdown-based memory (requires api_key kwarg)
+            - "openmemory": Self-hosted OpenMemory REST API (requires base_url kwarg)
 
         **kwargs: Backend-specific configuration:
             - database: DatabaseProtocol instance (required for "sqlite")
+            - api_key: API key (required for "mem0", "memu")
+            - base_url: Server URL (required for "openmemory")
+            - user_id: Default user ID (optional for "mem0", "memu", "openmemory")
 
     Returns:
         A MemoryBackendProtocol instance
@@ -66,16 +72,27 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
 
         return NullBackend()
 
-    elif backend_type == "memu":
-        from gobby.memory.backends.memu import MemUBackend
+    elif backend_type == "mem0":
+        from gobby.memory.backends.mem0 import Mem0Backend
 
         api_key: str | None = kwargs.get("api_key")
         if api_key is None:
-            raise ValueError("MemU backend requires 'api_key' parameter")
-        return MemUBackend(
+            raise ValueError("Mem0 backend requires 'api_key' parameter")
+        return Mem0Backend(
             api_key=api_key,
             user_id=kwargs.get("user_id"),
             org_id=kwargs.get("org_id"),
+        )
+
+    elif backend_type == "memu":
+        from gobby.memory.backends.memu import MemUBackend
+
+        memu_api_key: str | None = kwargs.get("api_key")
+        if memu_api_key is None:
+            raise ValueError("MemU backend requires 'api_key' parameter")
+        return MemUBackend(
+            api_key=memu_api_key,
+            user_id=kwargs.get("user_id"),
         )
 
     elif backend_type == "openmemory":
@@ -92,5 +109,5 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
 
     else:
         raise ValueError(
-            f"Unknown backend type: '{backend_type}'. Supported types: 'sqlite', 'null', 'memu', 'openmemory'"
+            f"Unknown backend type: '{backend_type}'. Supported types: 'sqlite', 'null', 'mem0', 'memu', 'openmemory'"
         )

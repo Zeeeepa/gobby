@@ -308,7 +308,7 @@ def main() -> int:
                 "input_data": input_data,
                 "source": "claude",  # Required: identifies CLI source
             },
-            timeout=30.0,  # Generous timeout for hook processing
+            timeout=90.0,  # LLM-powered hooks (pre-compact summary) need more time
         )
 
         if response.status_code == 200:

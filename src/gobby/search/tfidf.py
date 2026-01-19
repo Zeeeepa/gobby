@@ -7,7 +7,7 @@ No API calls required - works completely offline.
 Features:
 - Unigram + bigram matching for better phrase detection
 - Cosine similarity ranking
-- Fast sub-millisecond search for thousands of memories
+- Fast sub-millisecond search for thousands of items
 - Incremental updates without full refit
 """
 
@@ -29,7 +29,7 @@ class TFIDFSearcher:
     """
     TF-IDF based search backend using sklearn.
 
-    This is the default search backend for memory recall.
+    This is the default search backend for memory recall and task search.
     It uses TF-IDF (Term Frequency-Inverse Document Frequency) vectorization
     with cosine similarity for ranking.
 
@@ -72,7 +72,7 @@ class TFIDFSearcher:
         # Lazy-loaded sklearn components
         self._vectorizer: TfidfVectorizer | None = None
         self._vectors: csr_matrix | None = None
-        self._memory_ids: list[str] = []
+        self._item_ids: list[str] = []
         self._fitted = False
         self._pending_updates = 0
 
@@ -96,36 +96,36 @@ class TFIDFSearcher:
                 ) from e
         return self._vectorizer
 
-    def fit(self, memories: list[tuple[str, str]]) -> None:
+    def fit(self, items: list[tuple[str, str]]) -> None:
         """
-        Build TF-IDF index from all memories.
+        Build TF-IDF index from all items.
 
         This should be called:
         - On startup to build initial index
-        - After bulk memory operations
+        - After bulk item operations
         - When needs_refit() returns True
 
         Args:
-            memories: List of (memory_id, content) tuples to index
+            items: List of (item_id, content) tuples to index
         """
-        if not memories:
+        if not items:
             self._fitted = False
-            self._memory_ids = []
+            self._item_ids = []
             self._vectors = None
             self._pending_updates = 0
-            logger.debug("TF-IDF index cleared (no memories)")
+            logger.debug("TF-IDF index cleared (no items)")
             return
 
         vectorizer = self._ensure_vectorizer()
 
-        self._memory_ids = [mid for mid, _ in memories]
-        contents = [content for _, content in memories]
+        self._item_ids = [item_id for item_id, _ in items]
+        contents = [content for _, content in items]
 
         try:
             self._vectors = vectorizer.fit_transform(contents)
             self._fitted = True
             self._pending_updates = 0
-            logger.info(f"TF-IDF index built with {len(memories)} memories")
+            logger.info(f"TF-IDF index built with {len(items)} items")
         except Exception as e:
             logger.error(f"Failed to build TF-IDF index: {e}")
             self._fitted = False
@@ -133,17 +133,17 @@ class TFIDFSearcher:
 
     def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         """
-        Search for memories matching the query.
+        Search for items matching the query.
 
         Args:
             query: Search query text
             top_k: Maximum number of results to return
 
         Returns:
-            List of (memory_id, similarity_score) tuples, sorted by
+            List of (item_id, similarity_score) tuples, sorted by
             similarity descending. Scores are in range [0, 1].
         """
-        if not self._fitted or self._vectors is None or len(self._memory_ids) == 0:
+        if not self._fitted or self._vectors is None or len(self._item_ids) == 0:
             return []
 
         try:
@@ -170,7 +170,7 @@ class TFIDFSearcher:
 
             # Return results with non-zero similarity
             results = [
-                (self._memory_ids[i], float(similarities[i]))
+                (self._item_ids[i], float(similarities[i]))
                 for i in top_indices
                 if similarities[i] > 0
             ]
@@ -192,9 +192,9 @@ class TFIDFSearcher:
 
     def mark_update(self) -> None:
         """
-        Mark that a memory update occurred.
+        Mark that an item update occurred.
 
-        Call this after adding/updating/removing memories to track
+        Call this after adding/updating/removing items to track
         when a refit is needed.
         """
         self._pending_updates += 1
@@ -208,7 +208,7 @@ class TFIDFSearcher:
         """
         stats: dict[str, Any] = {
             "fitted": self._fitted,
-            "memory_count": len(self._memory_ids),
+            "item_count": len(self._item_ids),
             "pending_updates": self._pending_updates,
             "refit_threshold": self._refit_threshold,
         }
@@ -223,7 +223,7 @@ class TFIDFSearcher:
 
     def clear(self) -> None:
         """Clear the search index."""
-        self._memory_ids = []
+        self._item_ids = []
         self._vectors = None
         self._fitted = False
         self._pending_updates = 0

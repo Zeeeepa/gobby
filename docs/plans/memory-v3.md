@@ -428,7 +428,7 @@ class NullMemoryBackend:
 
 memory:
   # Backend selection
-  backend: sqlite  # sqlite (default), memu, mem0, openmemory, null
+  backend: memu  # memu (default), sqlite, mem0, openmemory, null
 
   # Common settings
   enabled: true

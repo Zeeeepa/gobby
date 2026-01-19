@@ -693,8 +693,12 @@ def _migrate_add_inter_session_messages(db: LocalDatabase) -> None:
     """)
 
     # Create indexes for efficient querying
-    db.execute("CREATE INDEX idx_inter_session_messages_from_session ON inter_session_messages(from_session)")
-    db.execute("CREATE INDEX idx_inter_session_messages_to_session ON inter_session_messages(to_session)")
+    db.execute(
+        "CREATE INDEX idx_inter_session_messages_from_session ON inter_session_messages(from_session)"
+    )
+    db.execute(
+        "CREATE INDEX idx_inter_session_messages_to_session ON inter_session_messages(to_session)"
+    )
     db.execute(
         "CREATE INDEX idx_inter_session_messages_unread ON inter_session_messages(to_session, read_at) "
         "WHERE read_at IS NULL"

@@ -15,7 +15,6 @@ from uuid import uuid4
 
 from gobby.memory.protocol import (
     MediaAttachment,
-    MemoryBackendProtocol,
     MemoryCapability,
     MemoryQuery,
     MemoryRecord,

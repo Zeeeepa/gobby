@@ -10,8 +10,8 @@ import pytest
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.manager import MemoryManager
-from gobby.memory.search.tfidf import TFIDFSearcher
 from gobby.memory.viz import export_memory_graph
+from gobby.search import TFIDFSearcher
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import Memory, MemoryCrossRef
 from gobby.storage.migrations import run_migrations
@@ -77,7 +77,7 @@ class TestTFIDFSearcher:
 
         assert searcher._fitted is True
         assert searcher.needs_refit() is False
-        assert len(searcher._memory_ids) == 3
+        assert len(searcher._item_ids) == 3
 
     def test_fit_with_empty_list(self):
         """Test fitting with empty list clears the index."""
@@ -89,7 +89,7 @@ class TestTFIDFSearcher:
         # Then fit with empty list
         searcher.fit([])
         assert searcher._fitted is False
-        assert len(searcher._memory_ids) == 0
+        assert len(searcher._item_ids) == 0
 
     def test_search_returns_relevant_results(self):
         """Test that search returns relevant memories."""
@@ -183,7 +183,7 @@ class TestTFIDFSearcher:
         stats = searcher.get_stats()
 
         assert stats["fitted"] is True
-        assert stats["memory_count"] == 2
+        assert stats["item_count"] == 2
         assert "vocabulary_size" in stats
         assert stats["vocabulary_size"] > 0
 
@@ -196,7 +196,7 @@ class TestTFIDFSearcher:
         searcher.clear()
 
         assert searcher._fitted is False
-        assert len(searcher._memory_ids) == 0
+        assert len(searcher._item_ids) == 0
 
 
 # =============================================================================

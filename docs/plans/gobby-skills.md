@@ -2,15 +2,32 @@
 title: 'gobby-skills: SkillPort-compatible Skill Management'
 slug: 'gobby-skills'
 created: '2026-01-14'
+updated: '2026-01-19'
 status: 'draft'
 stepsCompleted: []
 files_to_modify:
+  - src/gobby/storage/skills.py
+  - src/gobby/skills/__init__.py
+  - src/gobby/skills/parser.py
+  - src/gobby/skills/validator.py
+  - src/gobby/skills/search.py
+  - src/gobby/skills/embeddings.py
+  - src/gobby/skills/loader.py
+  - src/gobby/skills/updater.py
+  - src/gobby/skills/manager.py
+  - src/gobby/mcp_proxy/tools/skills.py
   - src/gobby/mcp_proxy/registries.py
+  - src/gobby/cli/skills.py
+  - src/gobby/cli/__init__.py
+  - src/gobby/hooks/skill_injection.py
   - src/gobby/storage/migrations.py
+  - CLAUDE.md
 code_patterns:
   - InternalToolRegistry pattern from src/gobby/mcp_proxy/tools/internal.py
   - TF-IDF search from src/gobby/memory/search/tfidf.py
-  - YAML frontmatter parsing (similar to spec_parser.py)
+  - YAML frontmatter parsing (similar to prompts/loader.py)
+  - Storage CRUD from src/gobby/storage/memories.py
+  - CLI command group from src/gobby/cli/memory.py
 ---
 
 ## Overview
@@ -19,33 +36,84 @@ code_patterns:
 
 AI agents benefit from structured instructions ("skills") for common tasks like writing commit messages, reviewing PRs, or following coding conventions. Currently, there's no way to store, discover, or inject these skills into Gobby sessions.
 
-SkillPort (github.com/gotalab/skillport) solves this for other AI tools. Gobby should provide compatible skill management that integrates with its existing MCP proxy architecture.
+SkillPort (github.com/gotalab/skillport) solves this for other AI tools. Gobby should provide **full SkillPort feature parity** plus Gobby-specific advantages, following the Agent Skills specification (agentskills.io).
 
 ### Solution
 
-Add a `gobby-skills` internal MCP server that:
+Add a `gobby-skills` internal MCP server with:
 
-1. Stores skills as markdown files with YAML frontmatter (SkillPort format)
-2. Uses progressive disclosure (lightweight metadata until full content needed)
-3. Integrates with existing hook system for context injection
-4. Provides CLI commands for skill management
+1. Full Agent Skills spec compliance (SKILL.md format)
+2. All SkillPort CLI commands (list, show, install, remove, update, validate, meta, init, doc, new)
+3. All SkillPort MCP tools (list_skills, get_skill, search_skills, install_skill, etc.)
+4. TF-IDF search + optional embedding support (like SkillPort)
+5. Gobby-specific advantages (project-scoping, hook integration, workflow binding)
 
 ### Scope
 
-**In Scope:**
+**In Scope (Full SkillPort Parity):**
 
-- SKILL.md file format with YAML frontmatter
+- SKILL.md file format with YAML frontmatter (Agent Skills spec)
 - SQLite storage for skill metadata
-- `gobby-skills` MCP registry with CRUD + search tools
-- Import from GitHub repos (SkillPort-compatible)
-- TF-IDF search for skill discovery
-- CLI commands (`gobby skills list|show|install|remove`)
+- `gobby-skills` MCP registry with all SkillPort tools
+- Import from GitHub repos, local paths, ZIP archives
+- TF-IDF search + optional embeddings (multi-provider)
+- Category and tag filtering
+- Core skills (`alwaysApply` flag)
+- Skill update from source
+- Full CLI parity: list, show, install, remove, update, validate, meta get/set/unset, init, doc, new
+- `--json` output for CI pipelines
+- Spec validation
 
-**Out of Scope:**
+**Gobby Advantages (Beyond SkillPort):**
 
-- Skill versioning/updates (future)
-- Skill marketplace/registry (future)
-- Auto-injection based on context detection (future - agent-driven for now)
+- Project-scoped skills (vs SkillPort's env var filtering)
+- Enable/disable per-skill toggle
+- Hook integration (auto-inject core skills at session start)
+- Task system integration
+- Workflow binding (skills as step requirements)
+
+**Out of Scope (Not in SkillPort either):**
+
+- Skill versioning history/changelog tracking
+- Skill marketplace/central registry
+- Script execution sandboxing (beyond allowed_commands)
+- Skill dependencies (skill A requires skill B)
+
+---
+
+## SkillPort Feature Parity Checklist
+
+| SkillPort Feature | gobby-skills Equivalent | Phase |
+|-------------------|------------------------|-------|
+| `skillport add <url>` | `gobby skills install <source>` | 5 |
+| `skillport update [--all]` | `gobby skills update [name] [--all]` | 5 |
+| `skillport list` | `gobby skills list [--category] [--tags] [--json]` | 5 |
+| `skillport remove <id>` | `gobby skills remove <name>` | 5 |
+| `skillport validate [path]` | `gobby skills validate [path] [--json]` | 5 |
+| `skillport meta get/set/unset` | `gobby skills meta get/set/unset` | 5 |
+| `skillport init` | `gobby skills init` | 5 |
+| `skillport doc` | `gobby skills doc` | 5 |
+| `skillport show <id>` | `gobby skills show <name>` | 5 |
+| MCP `search_skills(query)` | `search_skills(query, category, tags)` | 4 |
+| MCP `load_skill(skill_id)` | `get_skill(name)` | 4 |
+| Progressive disclosure | Same (~100 tokens metadata) | 4 |
+| GitHub import | GitHub import (all URL formats) | 3 |
+| Local directory import | Local directory import | 3 |
+| ZIP archive import | ZIP archive import | 3 |
+| Category filtering | Category filtering | 2 |
+| Tag filtering | Tag filtering (tags_any, tags_all) | 2 |
+| `alwaysApply` flag | Core skills + auto-injection | 2, 6 |
+| BM25/Tantivy search | TF-IDF search | 2 |
+| Optional embeddings (OpenAI) | Optional embeddings (multi-provider) | 2 |
+| Validation against spec | Full spec validation | 1 |
+| CI-friendly JSON output | `--json` flag | 5 |
+| Auto-reindex on changes | Change listeners + reindex | 2 |
+| scripts/ directory | scripts/ directory support | 3 |
+| references/ directory | references/ directory support | 3 |
+| assets/ directory | assets/ directory support | 3 |
+| Template scaffolding | `gobby skills new <name>` | 5 |
+
+---
 
 ## Architecture
 
@@ -54,7 +122,8 @@ Add a `gobby-skills` internal MCP server that:
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                        MCP Layer (stdio)                        │
-│  gobby-skills: list_skills, get_skill, search_skills, etc.      │
+│  gobby-skills: list_skills, get_skill, search_skills,           │
+│                install_skill, remove_skill, update_skill        │
 └─────────────────────────────────┬───────────────────────────────┘
                                   │
 ┌─────────────────────────────────▼───────────────────────────────┐
@@ -62,34 +131,17 @@ Add a `gobby-skills` internal MCP server that:
 │  - load_skill(path) → Skill                                      │
 │  - search(query) → list[SkillMetadata]                           │
 │  - get_content(skill_id) → str                                   │
+│  - update_skill(name) → Skill                                    │
+│  - list_core_skills() → list[Skill]                              │
 └─────────────────────────────────┬───────────────────────────────┘
                                   │
-    ┌─────────────────────────────┼─────────────────────────────┐
-    │                             │                             │
-┌───▼───────────────┐    ┌───────▼───────────┐    ┌────────────▼────┐
-│   SkillStorage    │    │    SkillLoader    │    │   SkillSearch   │
-│   (SQLite CRUD)   │    │  (SKILL.md parse) │    │   (TF-IDF)      │
-└───────────────────┘    └───────────────────┘    └─────────────────┘
-```
-
-### Data Flow
-
-**Skill Discovery (MCP proxy pattern):**
-
-```text
-1. list_skills()        → Lightweight metadata (~100 tokens/skill)
-2. search_skills(query) → TF-IDF search on descriptions/tags
-3. get_skill(name)      → Full skill content (on demand)
-```
-
-**Skill Import:**
-
-```text
-1. User: gobby skills install github:anthropics/skills
-2. SkillLoader fetches SKILL.md files from repo
-3. Parser extracts frontmatter + content
-4. SkillStorage inserts into SQLite
-5. SkillSearch reindexes for TF-IDF
+    ┌───────────────┬─────────────┼─────────────┬──────────────┐
+    │               │             │             │              │
+┌───▼─────────┐ ┌───▼─────────┐ ┌─▼───────────┐ ┌▼────────────┐ ┌▼──────────┐
+│ LocalSkill  │ │ SkillLoader │ │ SkillSearch │ │ SkillUpdate │ │ Validator │
+│ Manager     │ │ (parse/load)│ │ (TF-IDF +   │ │ r (refresh) │ │ (spec     │
+│ (SQLite)    │ │             │ │ embeddings) │ │             │ │ checks)   │
+└─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ └───────────┘
 ```
 
 ### Key Abstractions
@@ -99,33 +151,52 @@ Add a `gobby-skills` internal MCP server that:
 ```python
 @dataclass
 class Skill:
-    id: str              # Prefixed ID (skl-...)
-    name: str            # Unique name (e.g., "commit-message")
-    description: str     # Short description for search
-    version: str | None
-    category: str | None
-    tags: list[str]
-    triggers: list[str]  # Slash commands (e.g., ["/commit"])
-    content: str         # Full markdown content
-    source_path: str     # File path or URL
-    source_type: str     # 'local', 'github', 'url'
-    enabled: bool
-    project_id: str | None  # NULL = global
-    created_at: datetime
-    updated_at: datetime
+    # Identity
+    id: str                          # Prefixed ID (skl-...)
+    name: str                        # Required, max 64 chars, lowercase+hyphens
+
+    # Agent Skills Spec Fields
+    description: str                 # Required, max 1024 chars
+    version: str | None              # Optional (from metadata.version)
+    license: str | None              # Optional
+    compatibility: str | None        # Optional, max 500 chars
+    allowed_tools: list[str] | None  # Optional (for tool pre-approval)
+    metadata: dict[str, Any] | None  # Free-form extensions
+    content: str                     # Full markdown body
+
+    # Source Tracking
+    source_path: str                 # File path or URL
+    source_type: str                 # 'local', 'github', 'url', 'zip'
+    source_ref: str | None           # Git ref (branch/tag/commit) for updates
+
+    # Gobby-specific
+    enabled: bool                    # Toggle without removing
+    project_id: str | None           # NULL = global, else project-scoped
+
+    # Timestamps
+    created_at: str
+    updated_at: str
 ```
 
-**Skill File Format** (SkillPort-compatible):
+**Metadata Structure** (SkillPort-compatible extensions in `metadata.skillport`):
 
-```markdown
+```yaml
 ---
 name: commit-message
-description: Generate conventional commit messages
-version: 1.0.0
+description: Generate conventional commit messages following Angular conventions
+license: MIT
+compatibility: Requires git CLI
 metadata:
-  category: git
-  tags: [git, commits, workflow]
-  triggers: ["/commit"]
+  author: anthropic
+  version: "1.0"
+  skillport:                    # SkillPort extensions namespace
+    category: git
+    tags: [git, commits, workflow]
+    alwaysApply: false
+  gobby:                        # Gobby extensions namespace
+    triggers: ["/commit"]
+    workflow_hint: "git-workflow"
+allowed-tools: Bash(git:*)
 ---
 
 # Commit Message Generator
@@ -134,112 +205,113 @@ metadata:
 When generating commit messages, follow these conventions...
 ```
 
-## Codebase Patterns
+---
 
-### Existing Patterns to Follow
+## Phase 1: Storage Layer + Parser + Validation
 
-1. **InternalToolRegistry**: Use decorator-based tool registration (see memory, workflows)
-2. **Progressive disclosure**: `list_*` returns metadata, `get_*` returns full content
-3. **TF-IDF search**: Reuse sklearn pattern from memory system
-4. **YAML frontmatter**: Parse like spec documents (similar to spec_parser.py)
-5. **Registry setup**: Add to `setup_internal_registries()` in registries.py
-
-### Files to Reference
-
-| File | Purpose |
-| :--- | :--- |
-| `src/gobby/mcp_proxy/tools/memory.py` | Registry pattern, TF-IDF integration |
-| `src/gobby/mcp_proxy/tools/internal.py` | InternalToolRegistry, @registry.tool decorator |
-| `src/gobby/mcp_proxy/registries.py` | Where to register gobby-skills |
-| `src/gobby/memory/search/tfidf.py` | TF-IDF search implementation to adapt |
-| `src/gobby/storage/memories.py` | Storage CRUD pattern |
-| `src/gobby/tasks/spec_parser.py` | Markdown parsing patterns |
-
-## Design Decisions
-
-| Decision | Choice | Rationale |
-| :--- | :--- | :--- |
-| Storage backend | SQLite | Already in use, no new dependencies |
-| File format | SKILL.md + YAML frontmatter | SkillPort compatibility |
-| Search | TF-IDF (reuse from memory) | No external dependencies, proven pattern |
-| Discovery | MCP proxy pattern | Consistent with existing tools |
-| Trigger handling | Agent-driven | Agent decides when to load skills |
-
-## Phase 1: Storage Layer
-
-**Goal**: Skill storage and CRUD operations.
+**Goal**: Skill storage with full Agent Skills spec validation.
 
 **Files:**
 
 - `src/gobby/storage/skills.py` - Skill dataclass + LocalSkillManager
-- `src/gobby/storage/migrations.py` - Add skills table migration
+- `src/gobby/skills/__init__.py` - Module init
+- `src/gobby/skills/parser.py` - YAML frontmatter parser
+- `src/gobby/skills/validator.py` - Agent Skills spec validation
+- `src/gobby/storage/migrations.py` - Add skills table (v67)
 
 **Tasks:**
 
-- [ ] Create Skill dataclass with all fields (id, name, description, version, category, tags, triggers, content, source_path, source_type, enabled, project_id, timestamps)
-- [ ] Create LocalSkillManager with CRUD methods (create, get, list, update, delete)
-- [ ] Add skills table migration to migrations.py
-- [ ] Add tag filtering support (tags_any, tags_all patterns from memories)
-- [ ] Add unit tests for storage layer
+- [ ] Create Skill dataclass with all spec fields + Gobby extensions (category: code)
+- [ ] Create `validate_skill_name()` per spec: max 64, lowercase+hyphens, no --/leading/trailing - (category: code)
+- [ ] Create `validate_skill_description()`: max 1024 chars, non-empty (category: code)
+- [ ] Create `validate_skill_compatibility()`: max 500 chars (category: code)
+- [ ] Create YAML frontmatter parser for SKILL.md files (category: code)
+- [ ] Create `SkillValidator` class with full spec validation (category: code)
+- [ ] Create LocalSkillManager with CRUD methods (category: code)
+- [ ] Add change listener pattern to LocalSkillManager (category: code)
+- [ ] Add skills table migration (v67) (category: config)
 
 **Acceptance Criteria:**
 
 - [ ] Can create, read, update, delete skills in SQLite
-- [ ] Tag filtering works correctly
-- [ ] Tests pass with 80%+ coverage
+- [ ] Name validation rejects: uppercase, leading/trailing hyphens, consecutive hyphens, >64 chars
+- [ ] Description validation rejects: empty, >1024 chars
+- [ ] Parser extracts all frontmatter fields correctly
+- [ ] Change listeners fire on mutations
 
-## Phase 2: Skill Loader
+---
 
-**Goal**: Parse SKILL.md files and import from sources.
+## Phase 2: Search Integration
 
-**Files:**
-
-- `src/gobby/skills/__init__.py` - Module init
-- `src/gobby/skills/loader.py` - SkillLoader class
-- `src/gobby/skills/parser.py` - YAML frontmatter parser
-
-**Tasks:**
-
-- [ ] Create YAML frontmatter parser for SKILL.md files (depends: Phase 1)
-- [ ] Create SkillLoader.load_skill(path) method
-- [ ] Create SkillLoader.load_directory(path) for batch loading
-- [ ] Add GitHub repo import support (fetch raw SKILL.md files)
-- [ ] Add validation for required fields (name, description)
-- [ ] Add unit tests for loader
-
-**Acceptance Criteria:**
-
-- [ ] Can parse SKILL.md files with YAML frontmatter
-- [ ] Can load all skills from a directory
-- [ ] Can import from GitHub repos
-
-## Phase 3: Search Integration
-
-**Goal**: TF-IDF search for skill discovery.
+**Goal**: TF-IDF search with category/tag filtering + optional embeddings.
 
 **Files:**
 
 - `src/gobby/skills/search.py` - SkillSearch class
-- `src/gobby/skills/manager.py` - SkillManager (coordinator)
+- `src/gobby/skills/embeddings.py` - Optional embedding provider support
+- `src/gobby/skills/manager.py` - SkillManager coordinator
 
 **Tasks:**
 
-- [ ] Create SkillSearch class adapting TF-IDF from memory/search/ (depends: Phase 2)
-- [ ] Implement search on name + description + tags
-- [ ] Add category filtering to search
-- [ ] Create SkillManager that coordinates storage + loader + search
-- [ ] Add lazy initialization for search backend
-- [ ] Add unit tests for search
+- [ ] Create SkillSearch adapting TF-IDF from memory system (category: code)
+- [ ] Implement search on name + description + tags + category (category: code)
+- [ ] Add category filtering to search (category: code)
+- [ ] Add tag filtering (tags_any, tags_all) to search (category: code)
+- [ ] Create optional embedding provider abstraction (category: code)
+- [ ] Implement OpenAI embedding provider (via existing LLM abstraction) (category: code)
+- [ ] Add hybrid search: TF-IDF + optional embedding similarity (category: code)
+- [ ] Create SkillManager coordinating storage + search + loader (category: code)
+- [ ] Wire change listener to trigger search reindex (category: code)
+- [ ] Add `list_core_skills()` for alwaysApply=true skills (category: code)
 
 **Acceptance Criteria:**
 
-- [ ] TF-IDF search finds relevant skills by query
-- [ ] Category filtering works
-- [ ] Search is lazy-initialized (no sklearn import until needed)
+- [ ] TF-IDF search returns relevant skills (default, no API needed)
+- [ ] Category filtering works: `search_skills(query="...", category="git")`
+- [ ] Tag filtering works: `search_skills(query="...", tags_any=["git", "workflow"])`
+- [ ] Optional embedding search works when configured
+- [ ] Core skills (alwaysApply) can be listed separately
+- [ ] Changes trigger search index rebuild
+
+---
+
+## Phase 3: Skill Loader + Updater
+
+**Goal**: Load skills from filesystem, GitHub, and ZIP archives; support updates.
+
+**Files:**
+
+- `src/gobby/skills/loader.py` - SkillLoader class
+- `src/gobby/skills/updater.py` - SkillUpdater class
+
+**Tasks:**
+
+- [ ] Create SkillLoader.load_skill(path) method (category: code)
+- [ ] Create SkillLoader.load_directory(path) for batch loading (category: code)
+- [ ] Add GitHub import support via httpx (category: code)
+- [ ] Support GitHub URL formats: `owner/repo`, full URL, branch/path (category: code)
+- [ ] Add ZIP archive import support (category: code)
+- [ ] Support skill directory structure (scripts/, references/, assets/) (category: code)
+- [ ] Store `source_ref` for GitHub imports (branch/commit) (category: code)
+- [ ] Create SkillUpdater.update_skill(name) to refresh from source (category: code)
+- [ ] Create SkillUpdater.update_all() for bulk refresh (category: code)
+- [ ] Validate directory name matches skill name (category: code)
+
+**Acceptance Criteria:**
+
+- [ ] Can load individual SKILL.md files
+- [ ] Can load all skills from a directory
+- [ ] Can import from `github:owner/repo` and `github:owner/repo/tree/branch/path`
+- [ ] Can import from ZIP archives
+- [ ] Handles skill directories with scripts/references/assets
+- [ ] Can update skills from original source
+- [ ] Validates skill directory name matches frontmatter name
+
+---
 
 ## Phase 4: MCP Registry
 
-**Goal**: gobby-skills MCP server with tools.
+**Goal**: gobby-skills MCP server with all SkillPort-equivalent tools.
 
 **Files:**
 
@@ -248,26 +320,29 @@ When generating commit messages, follow these conventions...
 
 **Tasks:**
 
-- [ ] Create create_skills_registry() factory function (depends: Phase 3)
-- [ ] Implement list_skills tool (metadata only, ~100 tokens each)
-- [ ] Implement get_skill tool (full content)
-- [ ] Implement search_skills tool (TF-IDF search)
-- [ ] Implement install_skill tool (from path/URL/GitHub)
-- [ ] Implement remove_skill tool
-- [ ] Add gobby-skills to setup_internal_registries()
-- [ ] Add integration tests for MCP tools
+- [ ] Create create_skills_registry() factory function (category: code)
+- [ ] Implement `list_skills` tool (metadata only, ~100 tokens each) (category: code)
+- [ ] Implement `get_skill` tool (full content + file paths) (category: code)
+- [ ] Implement `search_skills` tool with category/tag filtering (category: code)
+- [ ] Implement `install_skill` tool (from path/URL/GitHub/ZIP) (category: code)
+- [ ] Implement `remove_skill` tool (category: code)
+- [ ] Implement `update_skill` tool (refresh from source) (category: code)
+- [ ] Implement `list_core_skills` tool (alwaysApply skills) (category: code)
+- [ ] Add gobby-skills to setup_internal_registries() (category: config)
 
 **Acceptance Criteria:**
 
 - [ ] gobby-skills appears in list_mcp_servers()
-- [ ] list_skills returns lightweight metadata
-- [ ] get_skill returns full skill content
-- [ ] search_skills finds relevant skills
-- [ ] install_skill imports from GitHub repos
+- [ ] list_skills returns lightweight metadata (~100 tokens/skill)
+- [ ] get_skill returns full content with references to scripts/assets
+- [ ] search_skills supports category and tag filtering
+- [ ] install_skill works with all source types
 
-## Phase 5: CLI Commands
+---
 
-**Goal**: CLI for skill management.
+## Phase 5: CLI Commands (Full SkillPort Parity)
+
+**Goal**: CLI with all SkillPort commands plus Gobby extras.
 
 **Files:**
 
@@ -276,40 +351,82 @@ When generating commit messages, follow these conventions...
 
 **Tasks:**
 
-- [ ] Create skills command group in cli/skills.py (depends: Phase 4)
-- [ ] Implement `gobby skills list` command
-- [ ] Implement `gobby skills show <name>` command
-- [ ] Implement `gobby skills install <source>` command
-- [ ] Implement `gobby skills remove <name>` command
-- [ ] Implement `gobby skills sync` command (sync file system to DB)
-- [ ] Register skills group in `cli/__init__.py`
-- [ ] Add CLI integration tests
+- [ ] Create skills command group (category: code)
+- [ ] Implement `gobby skills list [--category] [--tags] [--json]` (category: code)
+- [ ] Implement `gobby skills show <name> [--json]` (category: code)
+- [ ] Implement `gobby skills install <source> [--project]` (category: code)
+- [ ] Implement `gobby skills remove <name>` (category: code)
+- [ ] Implement `gobby skills update [name] [--all]` (category: code)
+- [ ] Implement `gobby skills validate [path] [--json]` (category: code)
+- [ ] Implement `gobby skills meta get <skill> <key>` (category: code)
+- [ ] Implement `gobby skills meta set <skill> <key> <value>` (category: code)
+- [ ] Implement `gobby skills meta unset <skill> <key>` (category: code)
+- [ ] Implement `gobby skills init` (create .gobby/skills/ + config) (category: code)
+- [ ] Implement `gobby skills new <name>` (scaffold new skill from template) (category: code)
+- [ ] Implement `gobby skills doc` (generate AGENTS.md reference table) (category: code)
+- [ ] Implement `gobby skills enable/disable <name>` (category: code)
+- [ ] Implement `gobby skills sync` (sync filesystem to DB) (category: code)
+- [ ] Register skills group in cli/__init__.py (category: config)
 
 **Acceptance Criteria:**
 
-- [ ] `gobby skills list` shows installed skills
-- [ ] `gobby skills install github:anthropics/skills` imports skills
-- [ ] `gobby skills show commit-message` displays full content
+- [ ] All SkillPort CLI commands have equivalents
+- [ ] `--json` flag produces CI-friendly JSON output
+- [ ] `gobby skills validate` catches all spec violations
+- [ ] `gobby skills new` creates a complete skill scaffold
+- [ ] `gobby skills doc` generates markdown reference table
 
-## Phase 6: Documentation
+---
 
-**Goal**: Update docs and CLAUDE.md.
+## Phase 6: Hook Integration (Gobby Advantage)
+
+**Goal**: Integrate skills with Gobby's hook system.
 
 **Files:**
 
-- `CLAUDE.md` - Add skills section
-- `docs/guides/skills.md` - User guide (if requested)
+- `src/gobby/hooks/skill_injection.py` - Skill injection logic
+- `src/gobby/adapters/claude_code.py` - Update adapter
 
 **Tasks:**
 
-- [ ] Add gobby-skills to internal MCP servers table in CLAUDE.md (parallel)
-- [ ] Document skill file format in CLAUDE.md
-- [ ] Add skills CLI commands to CLAUDE.md
+- [ ] Add `inject_core_skills` option to session-start hook (category: code)
+- [ ] Implement core skill injection (alwaysApply=true skills) (category: code)
+- [ ] Add skill context to session handoff (category: code)
+- [ ] Support skill recommendation in suggest_next_task (category: code)
+
+**Acceptance Criteria:**
+
+- [ ] Core skills are automatically injected at session start
+- [ ] Skills persist across session handoffs
+- [ ] Task suggestions can include relevant skills
+
+---
+
+## Phase 7: Documentation
+
+**Goal**: Comprehensive documentation.
+
+**Files:**
+
+- `CLAUDE.md`
+- `docs/guides/skills.md`
+
+**Tasks:**
+
+- [ ] Add gobby-skills to internal MCP servers table in CLAUDE.md (category: docs)
+- [ ] Document skill file format (Agent Skills spec) (category: docs)
+- [ ] Document all CLI commands (category: docs)
+- [ ] Document MCP tools (category: docs)
+- [ ] Document Gobby-specific extensions (triggers, project-scoping) (category: docs)
+- [ ] Create docs/guides/skills.md user guide (category: docs)
 
 **Acceptance Criteria:**
 
 - [ ] CLAUDE.md documents gobby-skills server and tools
 - [ ] Skill file format is documented
+- [ ] All CLI commands documented with examples
+
+---
 
 ## Dependencies
 
@@ -317,10 +434,13 @@ When generating commit messages, follow these conventions...
 
 - PyYAML (already in dependencies)
 - sklearn (already used by memory system)
+- httpx (already in dependencies)
 
 ### Blockers
 
 - None
+
+---
 
 ## Testing Strategy
 
@@ -328,30 +448,40 @@ When generating commit messages, follow these conventions...
 
 - Storage CRUD operations
 - YAML frontmatter parsing
+- Name/description/compatibility validation
 - TF-IDF search accuracy
+- Embedding search (when configured)
 - Tool input validation
 
 ### Integration Tests
 
-- Full import flow: GitHub → parse → store → search
-- MCP tool round-trip: list → search → get
-- CLI commands
+- Full import flow: GitHub → parse → validate → store → search
+- MCP tool round-trip: list → search → get → update
+- CLI commands end-to-end
+- Hook injection flow
 
 ### Manual Verification
 
-1. `gobby skills install github:anthropics/skills`
-2. `gobby skills list` - verify skills imported
-3. Start Claude Code session
-4. `list_tools(server="gobby-skills")` - verify tools appear
-5. `search_skills(query="commit")` - verify search works
-6. `get_skill(name="commit-message")` - verify full content returned
+1. `gobby skills init` - creates .gobby/skills/
+2. `gobby skills new my-skill` - scaffolds template
+3. `gobby skills validate ./my-skill` - validates against spec
+4. `gobby skills install github:anthropics/skills` - imports from GitHub
+5. `gobby skills list --json` - lists with JSON output
+6. `gobby skills update --all` - updates from sources
+7. Start Claude Code session - verify core skills injected
+8. `list_tools(server="gobby-skills")` - verify MCP tools
+9. `search_skills(query="commit", category="git")` - verify search
+
+---
 
 ## Task Mapping
 
-<!-- Populated by parse_spec, maintained by agents -->
+<!-- Populated by /gobby-plan task creation -->
 
 | Task # | Checkbox | Status |
 | :--- | :--- | :--- |
+
+---
 
 ## Completion Instructions
 
@@ -364,3 +494,12 @@ When completing a task:
 5. Update the checkbox above to `[x]`
 
 Never close a task without committing first unless it's a non-code task.
+
+---
+
+## Sources
+
+- [SkillPort GitHub](https://github.com/gotalab/skillport)
+- [Agent Skills Specification](https://agentskills.io/specification)
+- [SkillPort Configuration Guide](https://github.com/gotalab/skillport/blob/main/guide/configuration.md)
+- [SkillPort Creating Skills Guide](https://github.com/gotalab/skillport/blob/main/guide/creating-skills.md)

@@ -17,6 +17,7 @@ from gobby.mcp_proxy.tools.task_validation import create_validation_registry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._crud import create_crud_registry
 from gobby.mcp_proxy.tools.tasks._lifecycle import create_lifecycle_registry
+from gobby.mcp_proxy.tools.tasks._search import create_search_registry
 from gobby.mcp_proxy.tools.tasks._session import create_session_registry
 from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
@@ -90,6 +91,11 @@ def create_task_registry(
     # Merge session tools
     session_registry = create_session_registry(ctx)
     for tool_name, tool in session_registry._tools.items():
+        registry._tools[tool_name] = tool
+
+    # Merge search tools
+    search_registry = create_search_registry(ctx)
+    for tool_name, tool in search_registry._tools.items():
         registry._tools[tool_name] = tool
 
     # Merge validation tools from extracted module (Strangler Fig pattern)

@@ -1,15 +1,15 @@
-"""Mem0 memory backend integration.
+"""MemU memory backend integration.
 
-This backend wraps the Mem0 AI memory service to provide a
-MemoryBackendProtocol-compliant interface. Mem0 offers semantic
-search and automatic memory organization.
+This backend wraps the MemU SDK (nevamind-ai/memu-sdk-py) to provide a
+MemoryBackendProtocol-compliant interface. MemU offers conversation-based
+memory storage with semantic search.
 
-Requires: pip install mem0ai
+Requires: pip install memu-sdk
 
 Example:
     from gobby.memory.backends import get_backend
 
-    backend = get_backend("memu", api_key="your-mem0-api-key")
+    backend = get_backend("memu", api_key="your-memu-api-key")
     record = await backend.create("User prefers dark mode")
 """
 
@@ -26,64 +26,62 @@ from gobby.memory.protocol import (
 )
 
 if TYPE_CHECKING:
-    from mem0 import MemoryClient
+    from memu_sdk import MemUClient
 
 
 class MemUBackend:
-    """Mem0-based memory backend.
+    """MemU-based memory backend.
 
-    Wraps the Mem0 MemoryClient to provide MemoryBackendProtocol interface.
-    Supports semantic search and automatic memory organization.
+    Wraps the MemU SDK to provide MemoryBackendProtocol interface.
+    Uses conversation-based memory storage and semantic search.
+
+    Note: MemU SDK uses a conversation-based API (memorize/retrieve) rather
+    than individual CRUD operations. This backend adapts that API to the
+    MemoryBackendProtocol interface.
 
     Args:
-        api_key: Mem0 API key for authentication
+        api_key: MemU API key for authentication
         user_id: Default user ID for memories (optional)
-        org_id: Organization ID for multi-tenant use (optional)
-        **kwargs: Additional configuration passed to MemoryClient
+        agent_id: Agent ID for MemU API (default: "gobby")
     """
 
     def __init__(
         self,
         api_key: str,
         user_id: str | None = None,
-        org_id: str | None = None,
+        agent_id: str = "gobby",
         **kwargs: Any,
     ):
-        """Initialize the Mem0 backend.
+        """Initialize the MemU backend.
 
         Args:
-            api_key: Mem0 API key
+            api_key: MemU API key
             user_id: Default user ID for operations
-            org_id: Organization ID
-            **kwargs: Additional MemoryClient configuration
+            agent_id: Agent ID for MemU API
+            **kwargs: Additional MemUClient configuration
         """
-        # Lazy import to avoid requiring mem0ai when not used
-        from mem0 import MemoryClient
+        # Lazy import to avoid requiring memu-sdk when not used
+        from memu_sdk import MemUClient
 
-        self._client: MemoryClient = MemoryClient(api_key=api_key, **kwargs)
-        self._default_user_id = user_id
-        self._org_id = org_id
+        self._client: MemUClient = MemUClient(api_key=api_key, **kwargs)
+        self._default_user_id = user_id or "default"
+        self._agent_id = agent_id
 
     def capabilities(self) -> set[MemoryCapability]:
         """Return supported capabilities.
 
-        Mem0 supports semantic search and basic CRUD operations.
+        MemU uses conversation-based storage - supports create and semantic search.
+        Individual get/update/delete not supported by the SDK.
         """
         return {
-            # Basic CRUD
+            # Basic operations
             MemoryCapability.CREATE,
-            MemoryCapability.READ,
-            MemoryCapability.UPDATE,
-            MemoryCapability.DELETE,
             # Search
             MemoryCapability.SEARCH_SEMANTIC,
             MemoryCapability.SEARCH,
-            # Advanced
-            MemoryCapability.LIST,
             # MCP-aligned
             MemoryCapability.REMEMBER,
             MemoryCapability.RECALL,
-            MemoryCapability.FORGET,
         }
 
     async def create(
@@ -99,7 +97,9 @@ class MemUBackend:
         media: list[MediaAttachment] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> MemoryRecord:
-        """Create a new memory in Mem0.
+        """Create a new memory in MemU.
+
+        Uses the memorize API with a synthetic conversation format.
 
         Args:
             content: The memory content text
@@ -107,19 +107,19 @@ class MemUBackend:
             importance: Importance score (stored in metadata)
             project_id: Associated project ID
             user_id: User ID (uses default if not provided)
-            tags: List of tags (stored in metadata)
+            tags: List of tags
             source_type: Origin of memory
             source_session_id: Session that created the memory
-            media: List of media attachments (stored in metadata)
+            media: List of media attachments (not supported by MemU)
             metadata: Additional metadata
 
         Returns:
             The created MemoryRecord
         """
-        effective_user_id = user_id or self._default_user_id or "default"
+        effective_user_id = user_id or self._default_user_id
 
-        # Build metadata for Mem0
-        mem0_metadata: dict[str, Any] = {
+        # Build metadata for tracking
+        record_metadata: dict[str, Any] = {
             "memory_type": memory_type,
             "importance": importance,
             "source_type": source_type,
@@ -127,40 +127,29 @@ class MemUBackend:
             **(metadata or {}),
         }
         if project_id:
-            mem0_metadata["project_id"] = project_id
+            record_metadata["project_id"] = project_id
         if tags:
-            mem0_metadata["tags"] = tags
-        if media:
-            # Serialize media attachments
-            mem0_metadata["media"] = [
-                {
-                    "media_type": m.media_type,
-                    "content_path": m.content_path,
-                    "mime_type": m.mime_type,
-                    "description": m.description,
-                }
-                for m in media
-            ]
+            record_metadata["tags"] = tags
 
-        # Mem0 add() expects messages in OpenAI chat format
-        messages = [{"role": "user", "content": content}]
+        # MemU uses conversation format - wrap content as a user message
+        conversation_text = f"Remember: {content}"
 
-        # Add memory via Mem0 API
-        result = self._client.add(
-            messages=messages,
+        # Memorize via MemU API (synchronous call)
+        result = self._client.memorize_sync(
+            conversation_text=conversation_text,
             user_id=effective_user_id,
-            metadata=mem0_metadata,
+            agent_id=self._agent_id,
+            wait_for_completion=True,
         )
 
         # Extract memory ID from result
-        # Mem0 returns {"results": [{"id": "...", "memory": "...", ...}]}
-        if result and "results" in result and len(result["results"]) > 0:
-            mem0_memory = result["results"][0]
-            return self._mem0_to_record(mem0_memory)
+        memory_id = "unknown"
+        if result and result.items:
+            first_item = result.items[0]
+            memory_id = getattr(first_item, "memory_id", "unknown")
 
-        # Fallback: create a synthetic record
         return MemoryRecord(
-            id=result.get("id", "unknown"),
+            id=memory_id,
             content=content,
             created_at=datetime.now(UTC),
             memory_type=memory_type,
@@ -170,26 +159,23 @@ class MemUBackend:
             tags=tags or [],
             source_type=source_type,
             source_session_id=source_session_id,
-            metadata=mem0_metadata,
+            metadata=record_metadata,
         )
 
     async def get(self, memory_id: str) -> MemoryRecord | None:
-        """Retrieve a memory by ID from Mem0.
+        """Retrieve a memory by ID from MemU.
+
+        Note: MemU SDK does not support direct memory retrieval by ID.
+        Use search() instead.
 
         Args:
             memory_id: The memory ID to retrieve
 
         Returns:
-            The MemoryRecord if found, None otherwise
+            None (not supported)
         """
-        try:
-            result = self._client.get(memory_id)
-            if result:
-                return self._mem0_to_record(result)
-            return None
-        except Exception:
-            # Memory not found or API error
-            return None
+        # MemU SDK doesn't support direct get by ID
+        return None
 
     async def update(
         self,
@@ -198,7 +184,9 @@ class MemUBackend:
         importance: float | None = None,
         tags: list[str] | None = None,
     ) -> MemoryRecord:
-        """Update an existing memory in Mem0.
+        """Update an existing memory in MemU.
+
+        Note: MemU SDK does not support memory updates. Create a new memory instead.
 
         Args:
             memory_id: The memory ID to update
@@ -206,61 +194,27 @@ class MemUBackend:
             importance: New importance score (optional)
             tags: New tags (optional)
 
-        Returns:
-            The updated MemoryRecord
-
         Raises:
-            ValueError: If memory not found
+            NotImplementedError: MemU SDK doesn't support updates
         """
-        # Get existing memory first
-        existing = await self.get(memory_id)
-        if not existing:
-            raise ValueError(f"Memory not found: {memory_id}")
-
-        # Build update data
-        update_data: dict[str, Any] = {}
-        if content is not None:
-            update_data["text"] = content
-
-        # Update via Mem0 API
-        result = self._client.update(memory_id, data=content or existing.content)
-
-        # Return updated record
-        if result:
-            return self._mem0_to_record(result)
-
-        # Fallback: return synthetic updated record
-        return MemoryRecord(
-            id=memory_id,
-            content=content or existing.content,
-            created_at=existing.created_at,
-            memory_type=existing.memory_type,
-            importance=importance if importance is not None else existing.importance,
-            project_id=existing.project_id,
-            user_id=existing.user_id,
-            tags=tags if tags is not None else existing.tags,
-            source_type=existing.source_type,
-            source_session_id=existing.source_session_id,
-            metadata=existing.metadata,
-        )
+        raise NotImplementedError("MemU backend does not support memory updates")
 
     async def delete(self, memory_id: str) -> bool:
-        """Delete a memory from Mem0.
+        """Delete a memory from MemU.
+
+        Note: MemU SDK does not support memory deletion.
 
         Args:
             memory_id: The memory ID to delete
 
         Returns:
-            True if deleted, False if not found
+            False (not supported)
         """
-        try:
-            self._client.delete(memory_id)
-            return True
-        except Exception:
-            return False
+        # MemU SDK doesn't support deletion
+        return False
 
     async def search(self, query: MemoryQuery) -> list[MemoryRecord]:
-        """Search for memories using Mem0's semantic search.
+        """Search for memories using MemU's semantic search.
 
         Args:
             query: Search parameters
@@ -268,33 +222,24 @@ class MemUBackend:
         Returns:
             List of matching MemoryRecords
         """
-        user_id = query.user_id or self._default_user_id or "default"
+        user_id = query.user_id or self._default_user_id
 
-        # Build search kwargs
-        search_kwargs: dict[str, Any] = {
-            "query": query.text or "",
-            "user_id": user_id,
-        }
-        if query.limit:
-            search_kwargs["limit"] = query.limit
+        # Use retrieve API for semantic search
+        result = self._client.retrieve_sync(
+            query=query.text or "",
+            user_id=user_id,
+            agent_id=self._agent_id,
+        )
 
-        # Execute search via Mem0 API
-        results = self._client.search(**search_kwargs)
-
-        # Convert results to MemoryRecords
         records = []
-        for mem0_memory in results.get("results", []):
-            record = self._mem0_to_record(mem0_memory)
+        if result and result.items:
+            for item in result.items:
+                record = self._memu_item_to_record(item)
+                records.append(record)
 
-            # Apply additional filters not supported by Mem0 API
-            if query.min_importance is not None and record.importance < query.min_importance:
-                continue
-            if query.memory_type is not None and record.memory_type != query.memory_type:
-                continue
-            if query.project_id is not None and record.project_id != query.project_id:
-                continue
-
-            records.append(record)
+        # Apply limit if specified
+        if query.limit and len(records) > query.limit:
+            records = records[: query.limit]
 
         return records
 
@@ -306,10 +251,13 @@ class MemUBackend:
         limit: int = 50,
         offset: int = 0,
     ) -> list[MemoryRecord]:
-        """List memories from Mem0 with optional filtering.
+        """List memories from MemU with optional filtering.
+
+        Note: MemU SDK uses semantic search, not listing. This performs
+        a broad search to approximate listing behavior.
 
         Args:
-            project_id: Filter by project ID (stored in metadata)
+            project_id: Filter by project ID (not supported)
             user_id: Filter by user ID
             memory_type: Filter by memory type
             limit: Maximum number of results
@@ -318,33 +266,31 @@ class MemUBackend:
         Returns:
             List of MemoryRecords
         """
-        effective_user_id = user_id or self._default_user_id or "default"
+        effective_user_id = user_id or self._default_user_id
 
-        # Get all memories for user via Mem0 API
-        results = self._client.get_all(user_id=effective_user_id)
+        # MemU doesn't have a list API - use a broad search
+        result = self._client.retrieve_sync(
+            query="*",  # Broad query to get all memories
+            user_id=effective_user_id,
+            agent_id=self._agent_id,
+        )
 
-        # Convert and filter results
         records = []
-        skipped = 0
-        for mem0_memory in results.get("results", []):
-            record = self._mem0_to_record(mem0_memory)
+        if result and result.items:
+            for item in result.items:
+                record = self._memu_item_to_record(item)
 
-            # Apply filters
-            if project_id is not None and record.project_id != project_id:
-                continue
-            if memory_type is not None and record.memory_type != memory_type:
-                continue
+                # Apply memory_type filter if specified
+                if memory_type is not None and record.memory_type != memory_type:
+                    continue
 
-            # Handle offset
-            if skipped < offset:
-                skipped += 1
-                continue
+                records.append(record)
 
-            records.append(record)
-
-            # Handle limit
-            if len(records) >= limit:
-                break
+        # Apply offset and limit
+        if offset > 0:
+            records = records[offset:]
+        if limit and len(records) > limit:
+            records = records[:limit]
 
         return records
 
@@ -353,39 +299,44 @@ class MemUBackend:
 
         Called when the backend is no longer needed.
         """
-        # Mem0 client doesn't require explicit cleanup
-        pass
+        # Close the sync connection
+        self._client.close_sync()
 
-    def _mem0_to_record(
+    def _memu_item_to_record(
         self,
-        mem0_memory: dict[str, Any],
+        item: Any,
     ) -> MemoryRecord:
-        """Convert a Mem0 memory dict to MemoryRecord.
+        """Convert a MemU MemoryItem to MemoryRecord.
 
         Args:
-            mem0_memory: Memory dict from Mem0 API
+            item: MemoryItem from MemU SDK
 
         Returns:
             MemoryRecord instance
         """
-        # Parse created_at if present
-        created_at_str = mem0_memory.get("created_at")
+        # Extract fields from MemoryItem object
+        memory_id = getattr(item, "memory_id", "unknown")
+        content = getattr(item, "content", "")
+        memory_type = getattr(item, "memory_type", "fact")
+        created_at_str = getattr(item, "created_at", None)
+        metadata = getattr(item, "metadata", {}) or {}
+
         if created_at_str:
-            created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            if isinstance(created_at_str, str):
+                created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            else:
+                created_at = created_at_str
         else:
             created_at = datetime.now(UTC)
 
-        # Extract metadata fields
-        metadata = mem0_memory.get("metadata", {})
-
         return MemoryRecord(
-            id=mem0_memory["id"],
-            content=mem0_memory.get("memory", ""),
+            id=memory_id,
+            content=content,
             created_at=created_at,
-            memory_type=metadata.get("memory_type", "fact"),
+            memory_type=memory_type,
             importance=metadata.get("importance", 0.5),
             project_id=metadata.get("project_id"),
-            user_id=mem0_memory.get("user_id"),
+            user_id=self._default_user_id,
             tags=metadata.get("tags", []),
             source_type=metadata.get("source_type"),
             source_session_id=metadata.get("source_session_id"),
