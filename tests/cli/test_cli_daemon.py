@@ -676,12 +676,12 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "Show Gobby daemon status" in result.output
 
-    @patch("gobby.cli.daemon.Path")
+    @patch("gobby.cli.daemon.get_gobby_home")
     @patch("gobby.cli.load_config")
     def test_status_no_pid_file(
         self,
         mock_load_config: MagicMock,
-        mock_path: MagicMock,
+        mock_get_gobby_home: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
@@ -689,22 +689,23 @@ class TestStatusCommand:
         """Test status when no PID file exists."""
         mock_load_config.return_value = mock_config
 
-        # Mock Path.home() to return temp_dir, and make PID file not exist
-        mock_pid_file = MagicMock()
-        mock_pid_file.exists.return_value = False
-        mock_path.home.return_value.__truediv__.return_value.__truediv__.return_value = (
-            mock_pid_file
-        )
+        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
+            # Create gobby dir without PID file
+            gobby_dir = temp_dir / ".gobby"
+            gobby_dir.mkdir(parents=True, exist_ok=True)
+            mock_get_gobby_home.return_value = gobby_dir
 
-        result = runner.invoke(cli, ["status"])
+            result = runner.invoke(cli, ["status"])
 
-        assert result.exit_code == 0
-        assert "Stopped" in result.output
+            assert result.exit_code == 0
+            assert "Stopped" in result.output
 
+    @patch("gobby.cli.daemon.get_gobby_home")
     @patch("gobby.cli.load_config")
     def test_status_invalid_pid_file(
         self,
         mock_load_config: MagicMock,
+        mock_get_gobby_home: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
@@ -712,12 +713,10 @@ class TestStatusCommand:
         """Test status with invalid PID file content."""
         mock_load_config.return_value = mock_config
 
-        with (
-            runner.isolated_filesystem(temp_dir=str(temp_dir)),
-            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
-        ):
+        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
+            mock_get_gobby_home.return_value = gobby_dir
 
             # Create invalid PID file
             pid_file = gobby_dir / "gobby.pid"
@@ -728,10 +727,12 @@ class TestStatusCommand:
             assert result.exit_code == 0
             assert "Stopped" in result.output
 
+    @patch("gobby.cli.daemon.get_gobby_home")
     @patch("gobby.cli.load_config")
     def test_status_stale_pid_file(
         self,
         mock_load_config: MagicMock,
+        mock_get_gobby_home: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
@@ -739,13 +740,11 @@ class TestStatusCommand:
         """Test status with stale PID file (process not running)."""
         mock_load_config.return_value = mock_config
 
-        with (
-            runner.isolated_filesystem(temp_dir=str(temp_dir)),
-            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
-        ):
+        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
+            mock_get_gobby_home.return_value = gobby_dir
 
             # Create PID file with non-existent process
             pid_file = gobby_dir / "gobby.pid"
@@ -757,6 +756,7 @@ class TestStatusCommand:
             assert "Stopped" in result.output
             assert "Stale PID file found" in result.output
 
+    @patch("gobby.cli.daemon.get_gobby_home")
     @patch("gobby.cli.daemon.fetch_rich_status")
     @patch("gobby.cli.daemon.psutil.Process")
     @patch("gobby.cli.load_config")
@@ -765,6 +765,7 @@ class TestStatusCommand:
         mock_load_config: MagicMock,
         mock_psutil_process: MagicMock,
         mock_fetch_status: MagicMock,
+        mock_get_gobby_home: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
@@ -782,13 +783,11 @@ class TestStatusCommand:
         mock_proc.create_time.return_value = time.time() - 3600  # 1 hour ago
         mock_psutil_process.return_value = mock_proc
 
-        with (
-            runner.isolated_filesystem(temp_dir=str(temp_dir)),
-            patch("gobby.cli.daemon.Path.home", return_value=temp_dir),
-        ):
+        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
+            mock_get_gobby_home.return_value = gobby_dir
 
             # Create PID file with current process PID
             pid_file = gobby_dir / "gobby.pid"

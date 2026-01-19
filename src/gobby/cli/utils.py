@@ -20,6 +20,18 @@ from gobby.utils.project_context import get_project_context
 logger = logging.getLogger(__name__)
 
 
+def get_gobby_home() -> Path:
+    """Get gobby home directory, respecting GOBBY_HOME env var.
+
+    Returns:
+        Path to gobby home (~/.gobby by default, or GOBBY_HOME if set)
+    """
+    gobby_home = os.environ.get("GOBBY_HOME")
+    if gobby_home:
+        return Path(gobby_home)
+    return Path.home() / ".gobby"
+
+
 def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True) -> str | None:
     """Resolve a project reference (name or UUID) to project ID.
 
@@ -397,7 +409,7 @@ def stop_daemon(quiet: bool = False) -> bool:
     Returns:
         True if daemon was stopped successfully or wasn't running, False on error
     """
-    pid_file = Path.home() / ".gobby" / "gobby.pid"
+    pid_file = get_gobby_home() / "gobby.pid"
 
     # Read PID from file
     if not pid_file.exists():

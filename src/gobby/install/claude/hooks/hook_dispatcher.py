@@ -167,7 +167,7 @@ def main() -> int:
     if not check_daemon_running():
         # Critical hooks that manage session state MUST have daemon running
         # Without daemon, we lose handoff context, session tracking, etc.
-        critical_hooks = {"session-start", "session-end", "pre-compact", "stop"}
+        critical_hooks = {"session-start", "session-end", "pre-compact"}
         if hook_type in critical_hooks:
             # Block the hook - forces user to start daemon before critical lifecycle events
             print(

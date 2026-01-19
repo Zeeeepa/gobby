@@ -18,6 +18,7 @@ from gobby.utils.status import fetch_rich_status, format_status_message
 
 from .utils import (
     format_uptime,
+    get_gobby_home,
     init_local_storage,
     is_port_available,
     kill_all_gobby_daemons,
@@ -44,8 +45,8 @@ def start(ctx: click.Context, verbose: bool) -> None:
     # Get config object
     config = ctx.obj["config"]
 
-    # Get paths from config
-    gobby_dir = Path.home() / ".gobby"
+    # Get paths from config (respects GOBBY_HOME env var)
+    gobby_dir = get_gobby_home()
     pid_file = gobby_dir / "gobby.pid"
     log_file = Path(config.logging.client).expanduser()
     error_log_file = Path(config.logging.client_error).expanduser()
@@ -231,7 +232,7 @@ def restart(ctx: click.Context, verbose: bool) -> None:
 def status(ctx: click.Context) -> None:
     """Show Gobby daemon status and information."""
     config = ctx.obj["config"]
-    pid_file = Path.home() / ".gobby" / "gobby.pid"
+    pid_file = get_gobby_home() / "gobby.pid"
     log_dir = Path(config.logging.client).expanduser().parent
 
     # Read PID from file
