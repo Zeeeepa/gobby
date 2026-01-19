@@ -66,8 +66,20 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
 
         return NullBackend()
 
+    elif backend_type == "memu":
+        from gobby.memory.backends.memu import MemUBackend
+
+        api_key: str | None = kwargs.get("api_key")
+        if api_key is None:
+            raise ValueError("MemU backend requires 'api_key' parameter")
+        return MemUBackend(
+            api_key=api_key,
+            user_id=kwargs.get("user_id"),
+            org_id=kwargs.get("org_id"),
+        )
+
     else:
         raise ValueError(
             f"Unknown backend type: '{backend_type}'. "
-            f"Supported types: 'sqlite', 'null'"
+            f"Supported types: 'sqlite', 'null', 'memu'"
         )
