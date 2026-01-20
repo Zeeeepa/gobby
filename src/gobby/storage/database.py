@@ -312,3 +312,18 @@ class LocalDatabase:
         # Clear thread-local reference
         if hasattr(self._local, "connection"):
             self._local.connection = None
+
+    def __del__(self) -> None:
+        """Clean up connections when object is garbage collected."""
+        try:
+            self.close()
+        except Exception:
+            pass  # nosec B110 - ignore errors during gc
+
+    def __enter__(self) -> LocalDatabase:
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_val: Exception | None, exc_tb: object) -> None:
+        """Exit context manager, closing connections."""
+        self.close()
