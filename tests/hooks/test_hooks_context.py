@@ -30,7 +30,15 @@ def mock_hook_manager():
         if manager._event_handlers._session_storage:
             manager._event_handlers._session_storage.get = MagicMock(return_value=None)
 
-        return manager
+        yield manager
+
+        # Cleanup: close and remove handlers from the logger to prevent file descriptor issues
+        import logging
+
+        logger = logging.getLogger("gobby.hooks")
+        for handler in logger.handlers[:]:
+            handler.close()
+            logger.removeHandler(handler)
 
 
 def test_hook_event_task_id(mock_hook_manager):

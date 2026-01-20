@@ -8,6 +8,7 @@ Tests use Click's CliRunner and mock external dependencies.
 """
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -2361,3 +2362,625 @@ class TestFormatTaskHeader:
 
         assert "#" in result  # Column header changed from ID to #
         assert "TITLE" in result
+
+
+# ==============================================================================
+# Tests for main.py - Task Sync Command
+# ==============================================================================
+
+
+class TestSyncTasksCommand:
+    """Tests for gobby tasks sync command."""
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_sync_default_both(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test sync with default behavior (both import and export)."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        result = runner.invoke(cli, ["tasks", "sync"])
+
+        assert result.exit_code == 0
+        mock_manager.import_from_jsonl.assert_called_once()
+        mock_manager.export_to_jsonl.assert_called_once()
+        assert "Sync completed" in result.output
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_sync_import_only(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test sync with --import flag only."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        result = runner.invoke(cli, ["tasks", "sync", "--import"])
+
+        assert result.exit_code == 0
+        mock_manager.import_from_jsonl.assert_called_once()
+        mock_manager.export_to_jsonl.assert_not_called()
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_sync_export_only(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test sync with --export flag only."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        result = runner.invoke(cli, ["tasks", "sync", "--export"])
+
+        assert result.exit_code == 0
+        mock_manager.import_from_jsonl.assert_not_called()
+        mock_manager.export_to_jsonl.assert_called_once()
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_sync_quiet_mode(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test sync with --quiet flag suppresses output."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        result = runner.invoke(cli, ["tasks", "sync", "--quiet"])
+
+        assert result.exit_code == 0
+        assert "Importing" not in result.output
+        assert "Exporting" not in result.output
+
+
+# ==============================================================================
+# Tests for main.py - Compact Commands
+# ==============================================================================
+
+
+class TestCompactAnalyzeCommand:
+    """Tests for gobby tasks compact analyze command."""
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_analyze_no_candidates(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test compact analyze with no candidates found."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            mock_compactor.find_candidates.return_value = []
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(cli, ["tasks", "compact", "analyze"])
+
+            assert result.exit_code == 0
+            assert "No compaction candidates found" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_analyze_with_candidates(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test compact analyze with candidates found."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        candidate = {
+            "id": "gt-123",
+            "title": "Old Task",
+            "updated_at": "2024-01-01T00:00:00Z",
+        }
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            mock_compactor.find_candidates.return_value = [candidate]
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(cli, ["tasks", "compact", "analyze"])
+
+            assert result.exit_code == 0
+            assert "Found 1 candidates" in result.output
+            assert "gt-123" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_analyze_custom_days(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test compact analyze with custom days threshold."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            mock_compactor.find_candidates.return_value = []
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(cli, ["tasks", "compact", "analyze", "--days", "60"])
+
+            assert result.exit_code == 0
+            mock_compactor.find_candidates.assert_called_once_with(days_closed=60)
+
+
+class TestCompactApplyCommand:
+    """Tests for gobby tasks compact apply command."""
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_apply_with_summary(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test compact apply with direct summary."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(
+                cli, ["tasks", "compact", "apply", "--id", "gt-123", "--summary", "Task summary"]
+            )
+
+            assert result.exit_code == 0
+            mock_compactor.compact_task.assert_called_once_with("gt-123", "Task summary")
+            assert "Compacted task gt-123" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_apply_with_file(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+        tmp_path: Path,
+    ):
+        """Test compact apply with summary from file."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        # Create summary file
+        summary_file = tmp_path / "summary.txt"
+        summary_file.write_text("Summary from file")
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(
+                cli,
+                ["tasks", "compact", "apply", "--id", "gt-123", "--summary", f"@{summary_file}"],
+            )
+
+            assert result.exit_code == 0
+            mock_compactor.compact_task.assert_called_once_with("gt-123", "Summary from file")
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_apply_error(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test compact apply with error."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            mock_compactor.compact_task.side_effect = Exception("Compaction failed")
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(
+                cli, ["tasks", "compact", "apply", "--id", "gt-123", "--summary", "Summary"]
+            )
+
+            assert result.exit_code == 0  # CLI handles error gracefully
+            assert "Error compacting task" in result.output
+
+
+class TestCompactStatsCommand:
+    """Tests for gobby tasks compact stats command."""
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_compact_stats(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test compact stats display."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.storage.compaction.TaskCompactor") as MockCompactor:
+            mock_compactor = MagicMock()
+            mock_compactor.get_stats.return_value = {
+                "total_closed": 100,
+                "compacted": 25,
+                "rate": 25.0,
+            }
+            MockCompactor.return_value = mock_compactor
+
+            result = runner.invoke(cli, ["tasks", "compact", "stats"])
+
+            assert result.exit_code == 0
+            assert "Compaction Statistics" in result.output
+            assert "Total Closed: 100" in result.output
+            assert "Compacted:    25" in result.output
+            assert "Rate:         25.0%" in result.output
+
+
+# ==============================================================================
+# Tests for main.py - Import Commands
+# ==============================================================================
+
+
+class TestImportGitHubCommand:
+    """Tests for gobby tasks import github command."""
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_import_github_success(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test successful GitHub import."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        # Mock the async method
+        import asyncio
+
+        async def mock_import(*args, **kwargs):
+            return {
+                "success": True,
+                "message": "Imported 5 issues",
+                "imported": ["issue-1", "issue-2", "issue-3", "issue-4", "issue-5"],
+            }
+
+        mock_manager.import_from_github_issues = mock_import
+
+        result = runner.invoke(cli, ["tasks", "import", "github", "https://github.com/user/repo"])
+
+        assert result.exit_code == 0
+        assert "Imported 5 issues" in result.output
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_import_github_error(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test GitHub import error handling."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        async def mock_import(*args, **kwargs):
+            return {
+                "success": False,
+                "error": "Invalid GitHub URL",
+            }
+
+        mock_manager.import_from_github_issues = mock_import
+
+        result = runner.invoke(cli, ["tasks", "import", "github", "invalid-url"])
+
+        assert result.exit_code == 0
+        assert "Error: Invalid GitHub URL" in result.output
+
+    @patch("gobby.cli.tasks.main.get_sync_manager")
+    def test_import_github_with_limit(
+        self,
+        mock_get_sync: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test GitHub import with custom limit."""
+        mock_manager = MagicMock()
+        mock_get_sync.return_value = mock_manager
+
+        async def mock_import(url, limit=50):
+            assert limit == 100
+            return {"success": True, "message": "Done", "imported": []}
+
+        mock_manager.import_from_github_issues = mock_import
+
+        result = runner.invoke(
+            cli, ["tasks", "import", "github", "https://github.com/user/repo", "--limit", "100"]
+        )
+
+        assert result.exit_code == 0
+
+
+# ==============================================================================
+# Tests for main.py - Doctor Command
+# ==============================================================================
+
+
+class TestDoctorCommand:
+    """Tests for gobby tasks doctor command."""
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_doctor_no_issues(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test doctor with no issues found."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.utils.validation.TaskValidator") as MockValidator:
+            mock_validator = MagicMock()
+            mock_validator.validate_all.return_value = {
+                "orphan_dependencies": [],
+                "invalid_projects": [],
+                "cycles": [],
+            }
+            MockValidator.return_value = mock_validator
+
+            result = runner.invoke(cli, ["tasks", "doctor"])
+
+            assert result.exit_code == 0
+            assert "✓ No orphan dependencies" in result.output
+            assert "✓ No invalid projects" in result.output
+            assert "✓ No dependency cycles" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_doctor_with_orphans(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test doctor with orphan dependencies."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.utils.validation.TaskValidator") as MockValidator:
+            mock_validator = MagicMock()
+            mock_validator.validate_all.return_value = {
+                "orphan_dependencies": [
+                    {"id": "dep-1", "task_id": "task-1", "depends_on": "missing-task"}
+                ],
+                "invalid_projects": [],
+                "cycles": [],
+            }
+            MockValidator.return_value = mock_validator
+
+            result = runner.invoke(cli, ["tasks", "doctor"])
+
+            assert result.exit_code == 0
+            assert "Found 1 orphan dependencies" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_doctor_with_invalid_projects(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test doctor with invalid projects."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.utils.validation.TaskValidator") as MockValidator:
+            mock_validator = MagicMock()
+            mock_validator.validate_all.return_value = {
+                "orphan_dependencies": [],
+                "invalid_projects": [
+                    {"id": "task-1", "title": "Bad Task", "project_id": "invalid-proj"}
+                ],
+                "cycles": [],
+            }
+            MockValidator.return_value = mock_validator
+
+            result = runner.invoke(cli, ["tasks", "doctor"])
+
+            assert result.exit_code == 0
+            assert "Found 1 tasks with invalid projects" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_doctor_with_cycles(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test doctor with dependency cycles."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.utils.validation.TaskValidator") as MockValidator:
+            mock_validator = MagicMock()
+            mock_validator.validate_all.return_value = {
+                "orphan_dependencies": [],
+                "invalid_projects": [],
+                "cycles": [["task-1", "task-2", "task-1"]],
+            }
+            MockValidator.return_value = mock_validator
+
+            result = runner.invoke(cli, ["tasks", "doctor"])
+
+            assert result.exit_code == 0
+            assert "Found 1 dependency cycles" in result.output
+
+
+# ==============================================================================
+# Tests for main.py - Clean Command
+# ==============================================================================
+
+
+class TestCleanCommand:
+    """Tests for gobby tasks clean command."""
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_clean_removes_orphans(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test clean removes orphan dependencies."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.utils.validation.TaskValidator") as MockValidator:
+            mock_validator = MagicMock()
+            mock_validator.clean_orphans.return_value = 5
+            MockValidator.return_value = mock_validator
+
+            # Need to confirm the operation
+            result = runner.invoke(cli, ["tasks", "clean"], input="y\n")
+
+            assert result.exit_code == 0
+            assert "Removed 5 orphan dependencies" in result.output
+
+    @patch("gobby.cli.tasks.main.get_task_manager")
+    def test_clean_no_orphans(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test clean with no orphans to remove."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.utils.validation.TaskValidator") as MockValidator:
+            mock_validator = MagicMock()
+            mock_validator.clean_orphans.return_value = 0
+            MockValidator.return_value = mock_validator
+
+            result = runner.invoke(cli, ["tasks", "clean"], input="y\n")
+
+            assert result.exit_code == 0
+            assert "No orphan dependencies found" in result.output
+
+
+# ==============================================================================
+# Tests for _utils.py - Additional Coverage
+# ==============================================================================
+
+
+class TestTaskUtilsFunctions:
+    """Additional tests for cli/tasks/_utils.py functions."""
+
+    def test_check_tasks_enabled_disabled(self):
+        """Test check_tasks_enabled when tasks are disabled."""
+        from gobby.cli.tasks._utils import check_tasks_enabled
+
+        mock_config = MagicMock()
+        mock_config.gobby_tasks.enabled = False
+
+        with patch("gobby.cli.tasks._utils.load_config", return_value=mock_config):
+            with pytest.raises(SystemExit) as exc_info:
+                check_tasks_enabled()
+            assert exc_info.value.code == 1
+
+    def test_check_tasks_enabled_config_error(self):
+        """Test check_tasks_enabled handles config errors gracefully."""
+        from gobby.cli.tasks._utils import check_tasks_enabled
+
+        with patch("gobby.cli.tasks._utils.load_config", side_effect=FileNotFoundError):
+            # Should not raise, fail open
+            check_tasks_enabled()
+
+    def test_normalize_status(self):
+        """Test status normalization."""
+        from gobby.cli.tasks._utils import normalize_status
+
+        assert normalize_status("in-progress") == "in_progress"
+        assert normalize_status("needs-decomposition") == "needs_decomposition"
+        assert normalize_status("open") == "open"
+
+    def test_pad_to_width(self):
+        """Test pad_to_width function."""
+        from gobby.cli.tasks._utils import pad_to_width
+
+        result = pad_to_width("test", 10)
+        assert len(result) == 10
+        assert result == "test      "
+
+    def test_pad_to_width_emoji(self):
+        """Test pad_to_width with emoji."""
+        from gobby.cli.tasks._utils import pad_to_width
+
+        result = pad_to_width("🔴", 4)
+        # Emoji takes 2 visual chars, so 2 spaces padding
+        assert result == "🔴  "
+
+    def test_sort_tasks_for_tree(self, mock_task: MagicMock):
+        """Test sorting tasks for tree display."""
+        from gobby.cli.tasks._utils import sort_tasks_for_tree
+
+        parent = MagicMock()
+        parent.id = "parent-1"
+        parent.parent_task_id = None
+
+        child1 = MagicMock()
+        child1.id = "child-1"
+        child1.parent_task_id = "parent-1"
+
+        child2 = MagicMock()
+        child2.id = "child-2"
+        child2.parent_task_id = "parent-1"
+
+        tasks = [child2, child1, parent]  # Out of order
+        result = sort_tasks_for_tree(tasks)
+
+        # Parent should come before children
+        assert result[0].id == "parent-1"
+        assert result[1].id in ["child-1", "child-2"]
+        assert result[2].id in ["child-1", "child-2"]
+
+    def test_parse_task_refs(self):
+        """Test parse_task_refs function."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        # Single reference
+        result = parse_task_refs(("42",))
+        assert result == ["#42"]
+
+        # Comma-separated
+        result = parse_task_refs(("#1,#2,#3",))
+        assert result == ["#1", "#2", "#3"]
+
+        # Mixed
+        result = parse_task_refs(("1", "2,3"))
+        assert result == ["#1", "#2", "#3"]
+
+        # UUID passthrough
+        result = parse_task_refs(("abc123-def",))
+        assert result == ["abc123-def"]
+
+    def test_get_all_descendants(self, mock_task: MagicMock):
+        """Test get_all_descendants function."""
+        from gobby.cli.tasks._utils import get_all_descendants
+
+        child = MagicMock()
+        child.id = "child-1"
+        grandchild = MagicMock()
+        grandchild.id = "grandchild-1"
+
+        mock_manager = MagicMock()
+
+        def list_tasks_side_effect(**kwargs):
+            parent_id = kwargs.get("parent_task_id")
+            if parent_id == "parent-1":
+                return [child]
+            elif parent_id == "child-1":
+                return [grandchild]
+            return []
+
+        mock_manager.list_tasks.side_effect = list_tasks_side_effect
+
+        result = get_all_descendants(mock_manager, "parent-1")
+
+        assert len(result) == 2
+        assert result[0].id == "child-1"
+        assert result[1].id == "grandchild-1"
