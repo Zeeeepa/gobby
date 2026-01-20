@@ -428,6 +428,51 @@ Keep tasks out of git (store in `~/.gobby/` instead):
 gobby tasks config --stealth on
 ```
 
+## Search
+
+Find tasks by content using TF-IDF full-text search. Complements `list_tasks` (filters by metadata) with content-based discovery.
+
+### MCP Tools
+
+```python
+# Search tasks by content
+call_tool(server_name="gobby-tasks", tool_name="search_tasks", arguments={
+    "query": "authentication login",
+    "status": "open",           # Optional: filter by status
+    "task_type": "bug",         # Optional: filter by type
+    "priority": 1,              # Optional: filter by priority
+    "limit": 10,                # Optional: max results (default 10)
+    "min_score": 0.1,           # Optional: minimum relevance score
+    "all_projects": False       # Optional: search across all projects
+})
+
+# Rebuild search index (usually automatic)
+call_tool(server_name="gobby-tasks", tool_name="reindex_tasks", arguments={
+    "all_projects": False       # Optional: reindex all projects
+})
+```
+
+### CLI Commands
+
+```bash
+# Search tasks
+gobby tasks search "authentication bug"
+gobby tasks search "login" --status open --type bug --limit 5
+gobby tasks search "OAuth" --all-projects --json
+
+# Rebuild search index
+gobby tasks reindex
+gobby tasks reindex --all-projects
+```
+
+### How It Works
+
+- Uses TF-IDF (Term Frequency-Inverse Document Frequency) for relevance scoring
+- Searches task titles and descriptions
+- Results sorted by relevance score (higher = better match)
+- Index automatically updates when tasks change
+- Same TF-IDF backend as `gobby-memory` search
+
 ## Complete MCP Tool Reference
 
 ### Task CRUD
@@ -510,6 +555,13 @@ task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"ta
 | `reset_validation_count` | Reset failure count for retry |
 | `generate_validation_criteria` | Generate validation criteria using LLM |
 
+### Search
+
+| Tool | Description |
+|------|-------------|
+| `search_tasks` | Full-text search tasks by content (TF-IDF) |
+| `reindex_tasks` | Rebuild search index |
+
 ## CLI Command Reference
 
 ```bash
@@ -537,6 +589,10 @@ gobby tasks blocked
 
 # Sync
 gobby tasks sync [--import] [--export]
+
+# Search
+gobby tasks search <QUERY> [--status S] [--type T] [--priority P] [--limit N] [--min-score F] [--all-projects] [--json]
+gobby tasks reindex [--all-projects]
 
 # Task Decomposition
 gobby tasks expand TASKS... [--cascade] [--force]

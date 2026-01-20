@@ -195,7 +195,7 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 
 | Server            | Purpose               | Key Tools                                                        |
 |-------------------|-----------------------|------------------------------------------------------------------|
-| `gobby-tasks`     | Task management       | `create_task`, `expand_task`, `close_task`, `suggest_next_task`  |
+| `gobby-tasks`     | Task management       | `create_task`, `expand_task`, `close_task`, `suggest_next_task`, `search_tasks` |
 | `gobby-sessions`  | Session handoff       | `pickup`, `get_handoff_context`, `list_sessions`                 |
 | `gobby-memory`    | Persistent memory     | `remember`, `recall`, `forget`                                   |
 | `gobby-workflows` | Workflow control      | `activate_workflow`, `set_variable`, `get_status`                |

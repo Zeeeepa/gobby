@@ -53,6 +53,7 @@ Legend:
 - ✅ Commit linking (task IDs in commit messages auto-link)
 - ✅ Validation gates (criteria checked before task close)
 - ✅ TDD expansion v2: integrated pipeline (context → expand → TDD sandwich)
+- ✅ TF-IDF task search with MCP and CLI interfaces
 - 🧪 Publish comparisons + guidance: "Gobby tasks vs Beads vs Task Master"
   - Beads is dependency-graph-first for agent planning/memory  [oai_citation:2‡GitHub](https://github.com/steveyegge/beads?utm_source=chatgpt.com)
 

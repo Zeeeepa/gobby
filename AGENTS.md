@@ -53,7 +53,7 @@ Use progressive disclosure to minimize tokens:
 
 | Server | Purpose |
 |--------|---------|
-| `gobby-tasks` | Task CRUD, dependencies, ready work, validation |
+| `gobby-tasks` | Task CRUD, dependencies, ready work, validation, search |
 | `gobby-agents` | Subagent spawning with context injection |
 | `gobby-worktrees` | Git worktree management |
 | `gobby-memory` | Persistent memory across sessions |

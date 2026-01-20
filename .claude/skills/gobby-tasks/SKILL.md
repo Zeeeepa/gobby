@@ -257,6 +257,31 @@ Call `gobby-tasks.sync_tasks`
 ### `/gobby-tasks sync-status` - Get sync status
 Call `gobby-tasks.get_sync_status`
 
+## Search
+
+### `/gobby-tasks search <query>` - Search tasks by content
+Call `gobby-tasks.search_tasks` with:
+- `query`: (required) Search query string
+- `status`: Filter by status (open, in_progress, etc.)
+- `task_type`: Filter by type (task, bug, feature, epic)
+- `priority`: Filter by priority (1, 2, 3)
+- `limit`: Max results (default 10)
+- `min_score`: Minimum relevance score (0.0-1.0)
+- `all_projects`: Search across all projects
+
+Uses TF-IDF for relevance scoring. Searches task titles and descriptions.
+
+Example: `/gobby-tasks search authentication` → `search_tasks(query="authentication")`
+Example: `/gobby-tasks search "login bug" --status=open` → `search_tasks(query="login bug", status="open")`
+
+### `/gobby-tasks reindex` - Rebuild search index
+Call `gobby-tasks.reindex_tasks` with:
+- `all_projects`: Reindex all projects (default: current project only)
+
+Rebuilds the TF-IDF search index. Usually not needed as index auto-updates.
+
+Example: `/gobby-tasks reindex` → `reindex_tasks()`
+
 ## Response Format
 
 After executing the appropriate MCP tool, present the results clearly:
@@ -279,3 +304,4 @@ If the subcommand is not recognized, show available subcommands:
 - link-commit, unlink-commit, auto-link, diff
 - orchestrate, orchestration-status, poll-agents
 - sync, sync-status
+- search, reindex
