@@ -636,7 +636,7 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "transport": "stdio",
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-github"],
-        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"},
+        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"},  # nosec B105 - env var placeholder
         "description": "GitHub API integration for issues, PRs, repos, and code search",
     },
     {
