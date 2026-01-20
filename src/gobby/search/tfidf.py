@@ -21,8 +21,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import numpy as np
-    import numpy.typing as npt
     from scipy.sparse import csr_matrix
     from sklearn.feature_extraction.text import TfidfVectorizer
 

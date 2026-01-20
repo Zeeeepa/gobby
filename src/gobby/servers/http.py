@@ -288,7 +288,7 @@ class HTTPServer:
             logger.debug("MCP HTTP app created")
 
         @asynccontextmanager
-        async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             """Handle application startup and shutdown with combined lifespans."""
             logger.debug("Starting Gobby HTTP server on port %d", self.port)
             self._running = True

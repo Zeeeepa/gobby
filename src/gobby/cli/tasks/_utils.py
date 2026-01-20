@@ -534,7 +534,7 @@ def cascade_progress(
     tasks: list[Task],
     label: str = "Processing",
     on_error: Callable[[Task, Exception], bool] | None = None,
-) -> Generator[Iterator[tuple[Task, Callable[[], None]]], None, None]:
+) -> Generator[Iterator[tuple[Task, Callable[[], None]]]]:
     """Context manager for cascade operations with progress display.
 
     Yields (task, update) pairs for each task. Call update() after
