@@ -200,8 +200,20 @@ class MemUBackend:
         Returns:
             The MemoryRecord if found, None otherwise
         """
+        # Try direct lookup first (O(1) if SDK supports it)
         try:
-            # List all items and filter by ID
+            result = self._service.get_memory_item(memory_id=memory_id)
+            if result:
+                return self._memu_to_record(result)
+            return None
+        except AttributeError:
+            # SDK may not have get_memory_item, fall back to list scan
+            pass
+        except Exception:
+            return None
+
+        # Fallback: list and filter (O(n))
+        try:
             result = self._service.list_memory_items()
             items = result.get("items", result.get("memories", []))
 
@@ -307,7 +319,7 @@ class MemUBackend:
         records = []
         items = results.get("items", results.get("memories", []))
 
-        for memu_item in items[: query.limit] if query.limit else items:
+        for memu_item in items:  # Don't slice here - filter first, then limit
             record = self._memu_to_record(memu_item)
 
             # Apply additional filters not supported by MemU API
@@ -317,6 +329,10 @@ class MemUBackend:
                 continue
 
             records.append(record)
+
+            # Apply limit after filtering
+            if query.limit and len(records) >= query.limit:
+                break
 
         return records
 
@@ -349,19 +365,18 @@ class MemUBackend:
 
         results = self._service.list_memory_items(where=where_filter)
 
-        records = []
         items = results.get("items", results.get("memories", []))
 
-        for memu_item in items[offset : offset + limit]:
+        # First filter all items by memory_type
+        filtered_items = []
+        for memu_item in items:
             record = self._memu_to_record(memu_item)
-
-            # Apply filters
             if memory_type is not None and record.memory_type != memory_type:
                 continue
+            filtered_items.append(record)
 
-            records.append(record)
-
-        return records
+        # Then apply pagination
+        return filtered_items[offset : offset + limit]
 
     def close(self) -> None:
         """Clean up resources.

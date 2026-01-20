@@ -17,11 +17,14 @@ Example:
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from gobby.memory.protocol import (
     MediaAttachment,
@@ -214,8 +217,12 @@ class OpenMemoryBackend:
                 f"OpenMemory API error: {e.response.text}",
                 status_code=e.response.status_code,
             ) from e
-        except Exception:
+        except Exception as e:
             # Fallback: create synthetic record on failure
+            logger.warning(
+                f"OpenMemory create failed, returning synthetic record: {e}",
+                exc_info=True,
+            )
             now = datetime.now(UTC)
             return MemoryRecord(
                 id=f"openmem-{uuid4().hex[:8]}",
@@ -229,7 +236,10 @@ class OpenMemoryBackend:
                 source_type=source_type,
                 source_session_id=source_session_id,
                 media=media or [],
-                metadata=payload.get("metadata", {}),
+                metadata={
+                    **payload.get("metadata", {}),
+                    "_synthetic": True,  # Flag indicating not persisted
+                },
             )
 
     async def get(self, memory_id: str) -> MemoryRecord | None:
@@ -260,7 +270,8 @@ class OpenMemoryBackend:
                 f"OpenMemory API error: {e.response.text}",
                 status_code=e.response.status_code,
             ) from e
-        except Exception:
+        except Exception as e:
+            logger.error(f"OpenMemory get failed for {memory_id}: {e}", exc_info=True)
             return None
 
     async def update(
@@ -341,7 +352,8 @@ class OpenMemoryBackend:
                 f"OpenMemory API error: {e.response.text}",
                 status_code=e.response.status_code,
             ) from e
-        except Exception:
+        except Exception as e:
+            logger.error(f"OpenMemory delete failed for {memory_id}: {e}", exc_info=True)
             return False
 
     async def search(self, query: MemoryQuery) -> list[MemoryRecord]:
@@ -400,7 +412,8 @@ class OpenMemoryBackend:
                 f"OpenMemory API error: {e.response.text}",
                 status_code=e.response.status_code,
             ) from e
-        except Exception:
+        except Exception as e:
+            logger.error(f"OpenMemory search failed for query '{query.text}': {e}", exc_info=True)
             return []
 
     async def list_memories(
@@ -456,7 +469,11 @@ class OpenMemoryBackend:
                 f"OpenMemory API error: {e.response.text}",
                 status_code=e.response.status_code,
             ) from e
-        except Exception:
+        except Exception as e:
+            logger.error(
+                f"OpenMemory list_memories failed (project={project_id}, user={user_id}): {e}",
+                exc_info=True,
+            )
             return []
 
     async def health_check(self) -> bool:
@@ -485,9 +502,7 @@ class OpenMemoryBackend:
         created_at_str = data.get("created_at")
         if created_at_str:
             if isinstance(created_at_str, str):
-                created_at = datetime.fromisoformat(
-                    created_at_str.replace("Z", "+00:00")
-                )
+                created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
             else:
                 created_at = datetime.now(UTC)
         else:

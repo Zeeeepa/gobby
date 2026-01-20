@@ -476,7 +476,7 @@ When generating commit messages, follow these conventions...
 
 ## Task Mapping
 
-<!-- Populated by /gobby-plan task creation -->
+<!-- To auto-generate tasks: create a parent task for this phase, then use expand_task(task_id) to decompose it into subtasks with TDD pairs -->
 
 | Task # | Checkbox | Status |
 | :--- | :--- | :--- |

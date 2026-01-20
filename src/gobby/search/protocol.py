@@ -83,14 +83,14 @@ def get_search_backend(backend_type: str, **kwargs: Any) -> SearchBackend:
     Factory function for search backends.
 
     Args:
-        backend_type: Type of backend - "tfidf" or "text"
+        backend_type: Type of backend - currently only "tfidf" is supported
         **kwargs: Backend-specific configuration
 
     Returns:
         SearchBackend instance
 
     Raises:
-        ValueError: If backend_type is unknown
+        ValueError: If backend_type is not "tfidf"
         ImportError: If required dependencies are not installed
     """
     from typing import cast

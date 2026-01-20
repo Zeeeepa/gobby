@@ -285,7 +285,24 @@ class MemoryManager:
 
         # Return as Memory object for backward compatibility
         # Note: The backend returns MemoryRecord, but we need Memory
-        return self.storage.get_memory(record.id)
+        memory = self.storage.get_memory(record.id)
+        if memory is not None:
+            return memory
+
+        # Fallback: construct Memory from MemoryRecord if storage lookup fails
+        # This can happen with synthetic records from failed backend calls
+        return Memory(
+            id=record.id,
+            content=record.content,
+            memory_type=record.memory_type,
+            created_at=record.created_at.isoformat(),
+            updated_at=record.updated_at.isoformat() if record.updated_at else record.created_at.isoformat(),
+            project_id=record.project_id,
+            source_type=record.source_type,
+            source_session_id=record.source_session_id,
+            importance=record.importance,
+            tags=record.tags,
+        )
 
     async def remember_screenshot(
         self,

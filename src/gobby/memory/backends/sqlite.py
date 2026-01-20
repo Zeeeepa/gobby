@@ -6,6 +6,7 @@ MemoryBackendProtocol-compliant interface for SQLite storage.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -106,8 +107,9 @@ class SQLiteBackend:
                 ]
             )
 
-        # Create via storage layer
-        memory = self._storage.create_memory(
+        # Create via storage layer (wrap sync call to avoid blocking event loop)
+        memory = await asyncio.to_thread(
+            self._storage.create_memory,
             content=content,
             memory_type=memory_type,
             importance=importance,
@@ -131,7 +133,7 @@ class SQLiteBackend:
             The MemoryRecord if found, None otherwise
         """
         try:
-            memory = self._storage.get_memory(memory_id)
+            memory = await asyncio.to_thread(self._storage.get_memory, memory_id)
             return self._memory_to_record(memory)
         except ValueError:
             # Storage layer raises ValueError when memory not found
@@ -158,7 +160,8 @@ class SQLiteBackend:
         Raises:
             ValueError: If memory not found
         """
-        memory = self._storage.update_memory(
+        memory = await asyncio.to_thread(
+            self._storage.update_memory,
             memory_id=memory_id,
             content=content,
             importance=importance,
@@ -177,7 +180,7 @@ class SQLiteBackend:
         Returns:
             True if deleted, False if not found
         """
-        return self._storage.delete_memory(memory_id)
+        return await asyncio.to_thread(self._storage.delete_memory, memory_id)
 
     async def search(self, query: MemoryQuery) -> list[MemoryRecord]:
         """Search for memories.
@@ -188,8 +191,9 @@ class SQLiteBackend:
         Returns:
             List of matching MemoryRecords
         """
-        # Use storage layer's search
-        memories = self._storage.search_memories(
+        # Use storage layer's search (wrap sync call to avoid blocking event loop)
+        memories = await asyncio.to_thread(
+            self._storage.search_memories,
             query_text=query.text,
             project_id=query.project_id,
             limit=query.limit,
@@ -226,7 +230,8 @@ class SQLiteBackend:
         Returns:
             List of MemoryRecords
         """
-        memories = self._storage.list_memories(
+        memories = await asyncio.to_thread(
+            self._storage.list_memories,
             project_id=project_id,
             memory_type=memory_type,
             limit=limit,
