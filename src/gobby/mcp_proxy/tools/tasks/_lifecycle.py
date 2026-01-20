@@ -433,4 +433,85 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=remove_label,
     )
 
+    def claim_task(
+        task_id: str,
+        session_id: str,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Claim a task for the current session.
+
+        Combines setting the assignee and marking as in_progress in a single
+        atomic operation. Detects conflicts when another session has already
+        claimed the task.
+
+        Args:
+            task_id: Task reference (#N, path, or UUID)
+            session_id: Session ID claiming the task
+            force: Override existing claim by another session (default: False)
+
+        Returns:
+            Empty dict on success, or error dict with conflict information.
+        """
+        # Resolve task reference (supports #N, path, UUID formats)
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"error": str(e)}
+        except ValueError as e:
+            return {"error": str(e)}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Check if already claimed by another session
+        if task.assignee and task.assignee != session_id and not force:
+            return {
+                "error": "Task already claimed by another session",
+                "claimed_by": task.assignee,
+                "message": f"Task is already claimed by session '{task.assignee}'. Use force=True to override.",
+            }
+
+        # Update task with assignee and status in single atomic call
+        updated = ctx.task_manager.update_task(
+            resolved_id,
+            assignee=session_id,
+            status="in_progress",
+        )
+        if not updated:
+            return {"error": f"Failed to claim task {task_id}"}
+
+        # Link task to session (best-effort, don't fail the claim if this fails)
+        try:
+            ctx.session_task_manager.link_task(session_id, resolved_id, "claimed")
+        except Exception:
+            pass  # nosec B110 - best-effort linking
+
+        return {}
+
+    registry.register(
+        name="claim_task",
+        description="Claim a task for your session. Sets assignee to session_id and status to in_progress. Detects conflicts if already claimed by another session.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Your session ID (from system context). The session claiming the task.",
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "Override existing claim by another session (default: False)",
+                    "default": False,
+                },
+            },
+            "required": ["task_id", "session_id"],
+        },
+        func=claim_task,
+    )
+
     return registry
