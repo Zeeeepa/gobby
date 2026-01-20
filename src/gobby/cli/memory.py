@@ -277,7 +277,7 @@ def export_memories(
             path.write_text(markdown, encoding="utf-8")
             click.echo(f"Exported memories to {output_file}")
         except OSError as e:
-            raise click.ClickException(f"Failed to write to {output_file}: {e}")
+            raise click.ClickException(f"Failed to write to {output_file}: {e}") from e
     else:
         click.echo(markdown)
 

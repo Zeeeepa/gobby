@@ -10,13 +10,11 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, TypeVar
+from typing import Any
 
 import msgspec
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 
 def extract_json_from_text(text: str) -> str | None:
@@ -111,7 +109,7 @@ def extract_json_object(text: str) -> dict[str, Any] | None:
         return None
 
 
-def decode_llm_response(
+def decode_llm_response[T](
     text: str,
     response_type: type[T],
     *,
