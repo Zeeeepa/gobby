@@ -4,7 +4,7 @@
 # Update hooks: pre-commit autoupdate
 
 default_language_version:
-  python: python3.11
+  python: python3.13
 
 # Fail fast on first error (set to false for CI)
 fail_fast: false

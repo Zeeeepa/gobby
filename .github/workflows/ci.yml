@@ -23,7 +23,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync --dev
@@ -46,7 +46,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync --dev
@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +80,7 @@ jobs:
         run: uv run pytest --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
@@ -100,7 +100,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync --dev
@@ -125,7 +125,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Build package
         run: uv build

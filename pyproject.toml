@@ -12,11 +12,11 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.75.0",
     "click>=8.1.0",
@@ -41,11 +41,8 @@ dependencies = [
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",
     "mem0ai",
+    "memu-py>=1.0.0",
 ]
-
-# Note: memu-py is NOT included due to httpx version conflict with fastmcp.
-# memu-py requires httpx<0.28, fastmcp>=2.14.0 requires httpx>=0.28.1.
-# To use MemU backend: pip install memu-py separately (may cause conflicts).
 
 [project.scripts]
 gobby = "gobby.cli:cli"
@@ -110,7 +107,7 @@ filterwarnings = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 exclude = [".archive"]
 
 [tool.ruff.lint]
@@ -133,7 +130,7 @@ ignore = [
 "__init__.py" = ["F401"]  # unused imports in __init__.py
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 plugins = ["pydantic.mypy"]
 strict = true
 warn_return_any = true
@@ -166,7 +163,7 @@ skips = ["B101", "B104", "B108", "B110", "B112", "B307", "B404", "B602", "B603",
 
 [tool.black]
 line-length = 100
-target-version = ['py311']
+target-version = ['py313']
 include = '\.pyi?$'
 exclude = '''
 /(
