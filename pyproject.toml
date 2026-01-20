@@ -1,7 +1,7 @@
 [project]
 name = "gobby"
-version = "0.2.4"
-description = "Gobby is a local daemon that unifies Claude Code, Gemini CLI, and Codex through a hook interface for session tracking, and provides an MCP proxy with progressive tool discovery for efficient access to downstream servers."
+version = "0.2.5"
+description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -81,6 +81,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "-v",
+    "-p", "no:faulthandler",  # Disable faulthandler - gitingest closes FDs during logging config
 ]
 # Note: --cov-fail-under=80 is enforced in CI via the test command
 # To run locally with coverage threshold: uv run pytest --cov-fail-under=80
