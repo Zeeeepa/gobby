@@ -55,6 +55,22 @@ Call `gobby-tasks.update_task` with:
 
 Example: `/gobby-tasks update #1 status=in_progress` → `update_task(task_id="#1", status="in_progress")`
 
+### `/gobby-tasks claim <task-id>` - Claim a task for your session
+Call `gobby-tasks.claim_task` with:
+- `task_id`: (required) Task reference
+- `session_id`: (required) Your session ID from SessionStart context
+- `force`: Override existing claim by another session (default: false)
+
+Atomically sets assignee to your session_id and status to `in_progress`. Detects conflicts if already claimed by another session.
+
+**Conflict behavior**:
+- If task is unclaimed: claims successfully
+- If claimed by same session: succeeds (idempotent)
+- If claimed by another session: returns error unless `force=true`
+
+Example: `/gobby-tasks claim #1` → `claim_task(task_id="#1", session_id="<your_session_id>")`
+Example: `/gobby-tasks claim #1 --force` → `claim_task(task_id="#1", session_id="<your_session_id>", force=true)`
+
 ### `/gobby-tasks list [status]` - List tasks
 Call `gobby-tasks.list_tasks` with:
 - `status`: Filter (open, in_progress, review, closed, or comma-separated)
@@ -258,31 +274,6 @@ Call `gobby-tasks.sync_tasks`
 ### `/gobby-tasks sync-status` - Get sync status
 Call `gobby-tasks.get_sync_status`
 
-## Search
-
-### `/gobby-tasks search <query>` - Search tasks by content
-Call `gobby-tasks.search_tasks` with:
-- `query`: (required) Search query string
-- `status`: Filter by status (open, in_progress, etc.)
-- `task_type`: Filter by type (task, bug, feature, epic)
-- `priority`: Filter by priority (1, 2, 3)
-- `limit`: Max results (default 10)
-- `min_score`: Minimum relevance score (0.0-1.0)
-- `all_projects`: Search across all projects
-
-Uses TF-IDF for relevance scoring. Searches task titles and descriptions.
-
-Example: `/gobby-tasks search authentication` → `search_tasks(query="authentication")`
-Example: `/gobby-tasks search "login bug" --status=open` → `search_tasks(query="login bug", status="open")`
-
-### `/gobby-tasks reindex` - Rebuild search index
-Call `gobby-tasks.reindex_tasks` with:
-- `all_projects`: Reindex all projects (default: current project only)
-
-Rebuilds the TF-IDF search index. Usually not needed as index auto-updates.
-
-Example: `/gobby-tasks reindex` → `reindex_tasks()`
-
 ## Response Format
 
 After executing the appropriate MCP tool, present the results clearly:
@@ -297,7 +288,7 @@ After executing the appropriate MCP tool, present the results clearly:
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
-- create, show, update, list, close, reopen, delete
+- create, show, update, claim, list, close, reopen, delete
 - expand, suggest, ready, blocked
 - depend, undepend, deps, check-cycles
 - validate, validation-status, validation-history, generate-criteria, fix, validate-fix
@@ -305,4 +296,3 @@ If the subcommand is not recognized, show available subcommands:
 - link-commit, unlink-commit, auto-link, diff
 - orchestrate, orchestration-status, poll-agents
 - sync, sync-status
-- search, reindex

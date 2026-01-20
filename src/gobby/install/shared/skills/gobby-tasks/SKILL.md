@@ -55,6 +55,22 @@ Call `gobby-tasks.update_task` with:
 
 Example: `/gobby-tasks update #1 status=in_progress` → `update_task(task_id="#1", status="in_progress")`
 
+### `/gobby-tasks claim <task-id>` - Claim a task for your session
+Call `gobby-tasks.claim_task` with:
+- `task_id`: (required) Task reference
+- `session_id`: (required) Your session ID from SessionStart context
+- `force`: Override existing claim by another session (default: false)
+
+Atomically sets assignee to your session_id and status to `in_progress`. Detects conflicts if already claimed by another session.
+
+**Conflict behavior**:
+- If task is unclaimed: claims successfully
+- If claimed by same session: succeeds (idempotent)
+- If claimed by another session: returns error unless `force=true`
+
+Example: `/gobby-tasks claim #1` → `claim_task(task_id="#1", session_id="<your_session_id>")`
+Example: `/gobby-tasks claim #1 --force` → `claim_task(task_id="#1", session_id="<your_session_id>", force=true)`
+
 ### `/gobby-tasks list [status]` - List tasks
 Call `gobby-tasks.list_tasks` with:
 - `status`: Filter (open, in_progress, review, closed, or comma-separated)
@@ -272,7 +288,7 @@ After executing the appropriate MCP tool, present the results clearly:
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
-- create, show, update, list, close, reopen, delete
+- create, show, update, claim, list, close, reopen, delete
 - expand, suggest, ready, blocked
 - depend, undepend, deps, check-cycles
 - validate, validation-status, validation-history, generate-criteria, fix, validate-fix
