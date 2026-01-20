@@ -198,7 +198,7 @@ class InternalToolRegistry:
             raise ValueError(f"Tool '{name}' not found on '{self.name}'. Available: {available}")
 
         # Call the function (handle both sync and async)
-        if asyncio.iscoroutinefunction(tool.func):
+        if inspect.iscoroutinefunction(tool.func):
             return await tool.func(**args)
         return tool.func(**args)
 
