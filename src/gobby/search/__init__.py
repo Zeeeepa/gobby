@@ -2,7 +2,7 @@
 Shared search backend abstraction.
 
 Provides pluggable search backends for semantic search:
-- TF-IDF (default) - Zero-dependency local search using sklearn
+- TF-IDF (default) - Built-in local search using scikit-learn (sklearn)
 
 Usage:
     from gobby.search import SearchBackend, get_search_backend, TFIDFSearcher

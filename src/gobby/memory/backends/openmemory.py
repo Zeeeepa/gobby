@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 import httpx
 
@@ -480,7 +479,14 @@ class OpenMemoryBackend:
 
         Returns:
             MemoryRecord instance
+
+        Raises:
+            ValueError: If response is missing required 'id' field
         """
+        # Validate that id exists - don't generate synthetic IDs
+        if "id" not in data:
+            raise ValueError("OpenMemory API response missing required 'id' field")
+
         # Parse created_at
         created_at_str = data.get("created_at")
         if created_at_str:
@@ -515,7 +521,7 @@ class OpenMemoryBackend:
                 )
 
         return MemoryRecord(
-            id=data.get("id", f"openmem-{uuid4().hex[:8]}"),
+            id=data["id"],
             content=data.get("content", ""),
             created_at=created_at,
             updated_at=updated_at,

@@ -496,6 +496,10 @@ class TestTestHookEvent:
         # Verify the event was created with the source (defaulting to claude internally)
         call_args = mock_hook_manager.process_event.call_args
         assert call_args is not None
+        # Extract the event from call args and verify source defaulted to "claude"
+        event = call_args[0][0] if call_args[0] else call_args.kwargs.get("event")
+        assert event is not None
+        assert event.get("source") == "claude"
 
     @pytest.mark.asyncio
     async def test_test_hook_event_gemini_source(self, mock_mcp_manager, mock_internal_manager):

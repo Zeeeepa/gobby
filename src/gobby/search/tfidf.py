@@ -1,14 +1,18 @@
 """
 TF-IDF based semantic search backend.
 
-Provides zero-dependency local semantic search using sklearn's TfidfVectorizer.
+Provides local semantic search using scikit-learn's TfidfVectorizer.
 No API calls required - works completely offline.
+
+Requires: scikit-learn (pip install scikit-learn)
 
 Features:
 - Unigram + bigram matching for better phrase detection
 - Cosine similarity ranking
 - Fast sub-millisecond search for thousands of items
-- Incremental updates without full refit
+
+Note: Only full fit() is implemented. Incremental updates are tracked via
+mark_update() and needs_refit() but require calling fit() to rebuild the index.
 """
 
 from __future__ import annotations
@@ -156,9 +160,7 @@ class TFIDFSearcher:
             query_vec = vectorizer.transform([query])
 
             # Compute cosine similarities
-            similarities: npt.NDArray[np.floating[Any]] = cosine_similarity(
-                query_vec, self._vectors
-            )[0]
+            similarities = cosine_similarity(query_vec, self._vectors)[0]
 
             # Get top-k indices (handling case where we have fewer results)
             k = min(top_k, len(similarities))
@@ -177,9 +179,12 @@ class TFIDFSearcher:
 
             return results
 
+        except ImportError as e:
+            logger.error(f"TF-IDF search requires scikit-learn: {e}", exc_info=True)
+            raise
         except Exception as e:
-            logger.error(f"TF-IDF search failed: {e}")
-            return []
+            logger.error(f"TF-IDF search failed: {e}", exc_info=True)
+            raise
 
     def needs_refit(self) -> bool:
         """

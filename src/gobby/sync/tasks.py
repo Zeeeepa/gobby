@@ -420,13 +420,13 @@ class TaskSyncManager:
         """
         self._last_change_time = time.time()
 
-        # Store project_id for the async task to use
-        self._pending_project_id = project_id
-
         if self._export_task is None or self._export_task.done():
             try:
                 loop = asyncio.get_running_loop()
-                self._export_task = loop.create_task(self._process_export_queue())
+                # Capture project_id at task creation to avoid race condition
+                self._export_task = loop.create_task(
+                    self._process_export_queue(project_id)
+                )
             except RuntimeError:
                 # No running event loop (e.g. CLI usage) - run sync immediately
                 # Skip debounce and export directly
@@ -435,12 +435,15 @@ class TaskSyncManager:
                 except Exception as e:
                     logger.warning(f"Failed to sync task export: {e}")
 
-    async def _process_export_queue(self) -> None:
+    async def _process_export_queue(self, project_id: str | None = None) -> None:
         """
         Process export task with debounce.
 
         Waits for debounce interval, then runs export in executor to avoid
         blocking the event loop during file I/O and hash computation.
+
+        Args:
+            project_id: Project ID captured at task creation time to avoid race conditions.
         """
         while not self._shutdown_requested:
             # Check if debounce time has passed
@@ -451,7 +454,6 @@ class TaskSyncManager:
                 try:
                     # Run the blocking export in a thread pool to avoid blocking event loop
                     loop = asyncio.get_running_loop()
-                    project_id = getattr(self, "_pending_project_id", None)
                     await loop.run_in_executor(None, self.export_to_jsonl, project_id)
                     return
                 except Exception as e:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # Pre-push CI/CD test suite (no pytest)
 # Runs linting, type checking, security scanning
@@ -21,10 +21,16 @@ uv run ruff check src/ --fix --no-unsafe-fixes 2>&1 | tee "$REPORTS_DIR/ruff-$TI
 ruff_status=${PIPESTATUS[0]}
 if [ "$ruff_status" -eq 0 ]; then
     uv run ruff format src/
-    echo "✓ Ruff passed"
+    format_status=$?
+    if [ "$format_status" -eq 0 ]; then
+        echo "✓ Ruff passed"
+    else
+        echo "✗ Ruff format failed"
+        FAILED=$((FAILED+1))
+    fi
 else
-    echo "✗ Ruff failed"
-    FAILED=1
+    echo "✗ Ruff check failed"
+    FAILED=$((FAILED+1))
 fi
 echo ""
 
@@ -36,7 +42,7 @@ if [ "$mypy_status" -eq 0 ]; then
     echo "✓ Mypy passed"
 else
     echo "✗ Mypy failed"
-    FAILED=1
+    FAILED=$((FAILED+1))
 fi
 echo ""
 
@@ -48,7 +54,7 @@ if [ "$bandit_status" -eq 0 ]; then
     echo "✓ Bandit passed"
 else
     echo "✗ Bandit failed"
-    FAILED=1
+    FAILED=$((FAILED+1))
 fi
 echo ""
 

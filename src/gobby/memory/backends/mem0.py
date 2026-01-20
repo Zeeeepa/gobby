@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from gobby.memory.protocol import (
     MediaAttachment,
@@ -392,7 +393,7 @@ class Mem0Backend:
         metadata = mem0_memory.get("metadata", {})
 
         return MemoryRecord(
-            id=mem0_memory["id"],
+            id=mem0_memory.get("id") or f"mem0-{uuid4().hex[:8]}",
             content=mem0_memory.get("memory", ""),
             created_at=created_at,
             memory_type=metadata.get("memory_type", "fact"),

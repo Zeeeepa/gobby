@@ -232,7 +232,9 @@ def memory_stats(ctx: click.Context, project_ref: str | None) -> None:
 
 @memory.command("export")
 @click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
-@click.option("--output", "-o", "output_file", type=click.Path(), help="Output file (stdout if not specified)")
+@click.option(
+    "--output", "-o", "output_file", type=click.Path(), help="Output file (stdout if not specified)"
+)
 @click.option("--no-metadata", is_flag=True, help="Exclude memory metadata")
 @click.option("--no-stats", is_flag=True, help="Exclude summary statistics")
 @click.pass_context
@@ -271,8 +273,11 @@ def export_memories(
         from pathlib import Path
 
         path = Path(output_file)
-        path.write_text(markdown)
-        click.echo(f"Exported memories to {output_file}")
+        try:
+            path.write_text(markdown, encoding="utf-8")
+            click.echo(f"Exported memories to {output_file}")
+        except OSError as e:
+            raise click.ClickException(f"Failed to write to {output_file}: {e}")
     else:
         click.echo(markdown)
 

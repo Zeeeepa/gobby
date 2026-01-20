@@ -87,7 +87,7 @@ class NullBackend:
             content=content or "",
             created_at=now,
             updated_at=now,
-            importance=importance or 0.5,
+            importance=importance if importance is not None else 0.5,
             tags=tags or [],
         )
 

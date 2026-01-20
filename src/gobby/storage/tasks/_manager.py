@@ -760,11 +760,18 @@ class LocalTaskManager:
 
         # Always fetch ALL tasks to build a global index
         # Project-scoped filtering happens in search_tasks() after ranking
+        index_limit = 10000
         tasks = _list_tasks(
             self.db,
             project_id=None,  # Always global
-            limit=10000,  # High limit for indexing
+            limit=index_limit,
         )
+
+        if len(tasks) == index_limit:
+            logger.warning(
+                f"Task search index may be incomplete: fetched exactly {index_limit} tasks. "
+                "Consider increasing the index limit or implementing pagination."
+            )
 
         searcher.fit(tasks)
         logger.info(f"Task search index fitted with {len(tasks)} tasks")
@@ -862,8 +869,11 @@ class LocalTaskManager:
     def reindex_search(self, project_id: str | None = None) -> dict[str, Any]:
         """Force rebuild of the task search index.
 
+        Note: The index is always global (includes all tasks). Project-scoped
+        filtering is applied at search time in search_tasks().
+
         Args:
-            project_id: Optional project filter for the search index
+            project_id: Unused - kept for API compatibility. Index always rebuilds globally.
 
         Returns:
             Dict with index statistics
