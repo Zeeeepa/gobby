@@ -356,6 +356,16 @@ class TaskSyncManager:
                     f"Import complete: {imported_count} imported, "
                     f"{updated_count} updated, {skipped_count} skipped"
                 )
+
+                # Rebuild search index to include imported tasks
+                if imported_count > 0 or updated_count > 0:
+                    try:
+                        stats = self.task_manager.reindex_search(project_id)
+                        logger.debug(
+                            f"Search index rebuilt with {stats.get('item_count', 0)} tasks"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to rebuild search index: {e}")
             finally:
                 # Re-enable foreign keys
                 self.db.execute("PRAGMA foreign_keys = ON")
