@@ -115,7 +115,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 
 ### Task Workflow
 
-1. **Start of session**: `list_ready_tasks` or `suggest_next_task`
+1. **Start of session**: `list_ready_tasks` or `suggest_next_task(session_id)`
 2. **New work**: `create_task(title, description, session_id)` - session_id required
 3. **Complex work**: `expand_task` for subtasks
 4. **Track progress**: `update_task(status="in_progress")`

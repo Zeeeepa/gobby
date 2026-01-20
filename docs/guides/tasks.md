@@ -309,7 +309,7 @@ call_tool(server_name="gobby-tasks", tool_name="analyze_complexity", arguments={
 })
 
 # Get AI suggestion for next task
-call_tool(server_name="gobby-tasks", tool_name="suggest_next_task", arguments={})
+call_tool(server_name="gobby-tasks", tool_name="suggest_next_task", arguments={"session_id": "<your_session_id>"})
 ```
 
 ## Task Validation

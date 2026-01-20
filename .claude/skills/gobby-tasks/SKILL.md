@@ -151,13 +151,14 @@ Example (epic cascade): `/gobby-tasks expand #1 --cascade` → loops with `itera
 
 ### `/gobby-tasks suggest` - Suggest next task
 Call `gobby-tasks.suggest_next_task` with:
+- `session_id`: **Required** - your session ID (from system context)
 - `task_type`: Optional type filter
 - `prefer_subtasks`: Prefer leaf tasks (default true)
 - `parent_id`: Scope to specific epic/feature hierarchy
 
-Returns the highest-priority ready task.
+Returns the highest-priority ready task, auto-scoped via workflow's session_task variable.
 
-Example: `/gobby-tasks suggest` → `suggest_next_task()`
+Example: `/gobby-tasks suggest` → `suggest_next_task(session_id="<your_session_id>")`
 
 ### `/gobby-tasks ready` - List ready tasks
 Call `gobby-tasks.list_ready_tasks` with:

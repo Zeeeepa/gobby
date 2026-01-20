@@ -305,7 +305,7 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
 ### Task Workflow
 
 1. **Start of session**:
-   - `suggest_next_task()` - Get recommended next task based on priorities and dependencies
+   - `suggest_next_task(session_id)` - Get recommended next task based on priorities and dependencies (session_id required)
    - `list_ready_tasks()` - List all tasks ready to work on
 
 2. **Create new work**:
@@ -836,7 +836,7 @@ call_tool("gobby-tasks", "expand_task", {
 })
 
 # 3. Get next task to work on
-next_task = call_tool("gobby-tasks", "suggest_next_task", {})
+next_task = call_tool("gobby-tasks", "suggest_next_task", {"session_id": "<your_session_id>"})
 
 # 4. Set to in_progress
 call_tool("gobby-tasks", "update_task", {
