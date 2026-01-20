@@ -95,6 +95,10 @@ def kill(
     - terminal: pgrep by session_id to find inner CLI process
     - in_process: Cancel asyncio task
 
+    Platform-aware:
+    - POSIX: Uses os.kill with signals (SIGTERM, SIGKILL)
+    - Windows: Uses taskkill command
+
     Args:
         run_id: Agent run ID
         signal_name: Signal without SIG prefix (TERM, KILL, INT)
@@ -104,8 +108,16 @@ def kill(
         Dict with success status and details
     """
     import os
-    import signal
+    import platform
     import subprocess
+    import sys
+
+    # Platform detection
+    is_windows = os.name == "nt" or sys.platform == "win32"
+
+    # Import signal only on POSIX (not available on Windows in same way)
+    if not is_windows:
+        import signal
 
     agent = self.get(run_id)
     if not agent:
@@ -135,74 +147,137 @@ def kill(
         except Exception as e:
             self._logger.debug(f"terminal_context lookup failed: {e}")
 
-        # Strategy 2: pgrep fallback (for Codex/Gemini without hooks)
+        # Strategy 2: Platform-specific process finder fallback
         if target_pid == agent.pid or not target_pid:
             try:
-                result = subprocess.run(
-                    ["pgrep", "-f", f"Your Gobby session_id is: {agent.session_id}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5.0,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    pids = result.stdout.strip().split("\n")
-                    target_pid = int(pids[0])
-                    self._logger.info(f"Found PID via pgrep: {target_pid}")
+                if is_windows:
+                    # Windows: Use WMIC to find process by command line
+                    result = subprocess.run(
+                        [
+                            "wmic", "process", "where",
+                            f"CommandLine like '%Your Gobby session_id is: {agent.session_id}%'",
+                            "get", "ProcessId"
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5.0,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        # WMIC output has header line, parse PIDs from remaining lines
+                        lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+                        if len(lines) > 1:  # Skip header
+                            for line in lines[1:]:
+                                if line.isdigit():
+                                    target_pid = int(line)
+                                    self._logger.info(f"Found PID via WMIC: {target_pid}")
+                                    break
+                else:
+                    # POSIX: Use pgrep
+                    result = subprocess.run(
+                        ["pgrep", "-f", f"Your Gobby session_id is: {agent.session_id}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5.0,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        pids = result.stdout.strip().split("\n")
+                        target_pid = int(pids[0])
+                        self._logger.info(f"Found PID via pgrep: {target_pid}")
             except Exception as e:
-                self._logger.warning(f"pgrep fallback failed: {e}")
+                self._logger.warning(f"Process finder fallback failed: {e}")
 
     if not target_pid:
         return {"success": False, "error": "No target PID found"}
 
+    # Platform-specific process aliveness check
+    def is_process_alive(pid: int) -> bool | None:
+        """Check if process is alive. Returns True/False, or None on permission error."""
+        if is_windows:
+            try:
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5.0,
+                )
+                return str(pid) in result.stdout
+            except Exception:
+                return None
+        else:
+            try:
+                os.kill(pid, 0)
+                return True
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return None
+
     # Check if process is alive
-    try:
-        os.kill(target_pid, 0)
-    except ProcessLookupError:
+    alive_status = is_process_alive(target_pid)
+    if alive_status is False:
         self.remove(run_id, status="completed")
         return {"success": True, "message": f"Process {target_pid} already dead", "already_dead": True}
-    except PermissionError:
-        return {"success": False, "error": f"No permission to signal PID {target_pid}"}
+    elif alive_status is None:
+        return {"success": False, "error": f"No permission to check PID {target_pid}"}
 
-    # Close PTY if embedded mode
-    if agent.master_fd is not None:
+    # Close PTY if embedded mode (POSIX only)
+    if agent.master_fd is not None and not is_windows:
         try:
             os.close(agent.master_fd)
         except OSError:
             pass
 
-    # Send signal
-    sig = getattr(signal, f"SIG{signal_name}", signal.SIGTERM)
-    try:
-        os.kill(target_pid, sig)
-    except ProcessLookupError:
-        self.remove(run_id, status="completed")
-        return {"success": True, "message": "Process died during signal", "already_dead": True}
+    # Platform-specific process termination
+    def terminate_process(pid: int, force: bool = False) -> bool:
+        """Terminate process. Returns True if signal sent successfully."""
+        if is_windows:
+            try:
+                # /T = terminate child processes, /F = force
+                cmd = ["taskkill", "/PID", str(pid), "/T"]
+                if force:
+                    cmd.append("/F")
+                result = subprocess.run(cmd, capture_output=True, timeout=5.0)
+                return result.returncode == 0
+            except Exception:
+                return False
+        else:
+            try:
+                sig = signal.SIGKILL if force else getattr(signal, f"SIG{signal_name}", signal.SIGTERM)
+                os.kill(pid, sig)
+                return True
+            except ProcessLookupError:
+                return False
 
-    # Wait for termination with optional SIGKILL escalation
+    # Send initial termination signal
+    force_kill = signal_name == "KILL"
+    if not terminate_process(target_pid, force=force_kill):
+        # Process may have died during termination attempt
+        if is_process_alive(target_pid) is False:
+            self.remove(run_id, status="completed")
+            return {"success": True, "message": "Process died during signal", "already_dead": True}
+
+    # Wait for termination with optional force escalation
     if signal_name == "TERM" and timeout > 0:
         import time
         deadline = time.time() + timeout
         while time.time() < deadline:
-            try:
-                os.kill(target_pid, 0)
-                time.sleep(0.1)
-            except ProcessLookupError:
+            if is_process_alive(target_pid) is False:
                 break
+            time.sleep(0.1)
         else:
-            # Still alive - escalate to SIGKILL
-            try:
-                os.kill(target_pid, signal.SIGKILL)
-                self._logger.info(f"Escalated to SIGKILL for PID {target_pid}")
-            except ProcessLookupError:
-                pass
+            # Still alive - escalate to force kill
+            terminate_process(target_pid, force=True)
+            self._logger.info(f"Escalated to force kill for PID {target_pid}")
 
     self.remove(run_id, status="killed")
     return {
         "success": True,
-        "message": f"Sent SIG{signal_name} to PID {target_pid}",
+        "message": f"Sent {'force kill' if force_kill else signal_name} to PID {target_pid}",
         "pid": target_pid,
         "signal": signal_name,
-        "found_via": "pgrep" if target_pid != agent.pid else "registry",
+        "found_via": "wmic" if is_windows and target_pid != agent.pid else (
+            "pgrep" if target_pid != agent.pid else "registry"
+        ),
     }
 ```
 

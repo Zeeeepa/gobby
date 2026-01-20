@@ -16,9 +16,9 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 from gobby.memory.protocol import (
     MediaAttachment,
@@ -392,8 +392,16 @@ class Mem0Backend:
         # Extract metadata fields
         metadata = mem0_memory.get("metadata", {})
 
+        # Generate deterministic ID from memory content if not provided
+        memory_id = mem0_memory.get("id")
+        if not memory_id:
+            # Create stable hash from memory content for deterministic ID
+            content_for_hash = mem0_memory.get("memory", "") + str(mem0_memory.get("user_id", ""))
+            hash_digest = hashlib.sha256(content_for_hash.encode()).hexdigest()[:8]
+            memory_id = f"mem0-{hash_digest}"
+
         return MemoryRecord(
-            id=mem0_memory.get("id") or f"mem0-{uuid4().hex[:8]}",
+            id=memory_id,
             content=mem0_memory.get("memory", ""),
             created_at=created_at,
             memory_type=metadata.get("memory_type", "fact"),

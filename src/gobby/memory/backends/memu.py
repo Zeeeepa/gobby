@@ -85,6 +85,11 @@ class MemUBackend:
                 "url": database_url or "sqlite:///memu.db",
             }
         elif database_type == "postgres":
+            if not database_url:
+                raise ValueError(
+                    "database_url is required when database_type is 'postgres'. "
+                    "Please provide a valid PostgreSQL connection URL."
+                )
             config["database_config"] = {
                 "type": "postgres",
                 "url": database_url,
@@ -96,6 +101,15 @@ class MemUBackend:
                 "default": {
                     "api_key": llm_api_key,
                     "base_url": llm_base_url,
+                }
+            }
+
+        # Embedding configuration (optional - uses OpenAI by default)
+        if embedding_api_key or embedding_base_url:
+            config["embedding_profiles"] = {
+                "default": {
+                    "api_key": embedding_api_key,
+                    "base_url": embedding_base_url,
                 }
             }
 

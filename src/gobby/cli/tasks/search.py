@@ -163,8 +163,6 @@ def reindex_tasks(all_projects: bool) -> None:
 
     Use this after bulk operations or if search results seem stale.
     """
-    from gobby.cli.utils import resolve_project_ref
-
     # Resolve project
     project_id = None
     if not all_projects:

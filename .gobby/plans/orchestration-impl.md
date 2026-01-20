@@ -30,13 +30,14 @@ Implementation of the orchestration system from `docs/plans/orchestration.md`. T
 **Goal**: Add blocking wait tools and review workflow support
 
 **Tasks:**
-- [ ] Add `review_at` timestamp column to tasks table (category: code)
-- [ ] Modify `close_task` to transition to `review` when agent_depth > 0 (category: code) (depends: review_at migration)
-- [ ] Add `wait_for_task` blocking MCP tool (category: code) (depends: close_task modification)
+- [ ] Add `review` status to tasks table migration (category: code)
+- [ ] Add `review_at` timestamp column to tasks table (category: code) (depends: review status migration)
+- [ ] Modify `close_task` to transition to `review` when agent_depth > 0 (category: code) (depends: review status migration, review_at migration)
+- [ ] Add `wait_for_task` blocking MCP tool (category: code) (depends: review status migration, close_task modification)
 - [ ] Add `wait_for_any_task` blocking MCP tool (category: code) (depends: wait_for_task)
 - [ ] Add `wait_for_all_tasks` blocking MCP tool (category: code) (depends: wait_for_task)
-- [ ] Add `reopen_task` MCP tool for review → in_progress transition (category: code) (depends: close_task modification)
-- [ ] Add `approve_and_cleanup` MCP tool (category: code) (depends: reopen_task)
+- [ ] Add `reopen_task` MCP tool for review → in_progress transition (category: code) (depends: review status migration, close_task modification)
+- [ ] Add `approve_and_cleanup` MCP tool (category: code) (depends: review status migration, reopen_task)
 
 ## Phase 3: Interactive Orchestration Workflows (depends: Phase 2)
 
@@ -107,18 +108,22 @@ Phase 1: Inter-Agent Messaging
     ▼
 Phase 2: Task Status Extensions
     │
-    ├── review_at migration
+    ├── review status migration
     │       │
-    │       └── close_task modification
-    │               │
-    │               ├── wait_for_task tool
-    │               │       │
-    │               │       ├── wait_for_any_task tool
-    │               │       └── wait_for_all_tasks tool
-    │               │
-    │               └── reopen_task tool
-    │                       │
-    │                       └── approve_and_cleanup tool
+    │       ├── review_at migration
+    │       │       │
+    │       │       └── close_task modification
+    │       │               │
+    │       │               ├── wait_for_task tool
+    │       │               │       │
+    │       │               │       ├── wait_for_any_task tool
+    │       │               │       └── wait_for_all_tasks tool
+    │       │               │
+    │       │               └── reopen_task tool
+    │       │                       │
+    │       │                       └── approve_and_cleanup tool
+    │       │
+    │       └── (all Phase 2 tools depend on review status)
     │
     ▼
 Phase 3: Workflows ◄──────────────────────────────┐
@@ -186,6 +191,7 @@ Phase 6: Documentation & Testing
 | mark_read MCP tool | #4972 | open |
 | WebSocket broadcast | #4973 | open |
 | **Phase 2: Task Status Extensions** | #4962 | open |
+| review status migration | TBD | open |
 | review_at migration | #4974 | open |
 | close_task review transition | #4975 | open |
 | wait_for_task tool | #4976 | open |

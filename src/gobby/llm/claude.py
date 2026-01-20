@@ -555,7 +555,7 @@ class ClaudeLLMProvider(LLMProvider):
                 "text": prompt,
             }
             message = await client.messages.create(
-                model="claude-haiku-4-5",  # Use haiku for cost efficiency
+                model="claude-haiku-4-5-latest",  # Use haiku for cost efficiency
                 max_tokens=1024,
                 messages=[
                     {
