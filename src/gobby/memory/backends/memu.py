@@ -70,14 +70,8 @@ class MemUBackend:
             user_id: Default user ID for operations
             **kwargs: Additional configuration
         """
-        # Lazy import - memu-py is an optional dependency
-        try:
-            from memu.app.service import MemoryService
-        except ImportError as e:
-            raise ImportError(
-                "memu-py is required for the MemU backend but not installed. "
-                "Install with: pip install 'gobby[memu]' or pip install memu-py"
-            ) from e
+        # Lazy import to avoid circular dependencies
+        from memu.app.service import MemoryService
 
         # Build configuration
         config: dict[str, Any] = {}
