@@ -359,10 +359,11 @@ def create_readiness_registry(
             prefer_subtasks: Prefer leaf tasks over parent tasks (default: True)
             parent_task_id: Filter to descendants of this task (optional).
                       When set, only tasks under this parent hierarchy are considered.
-                      Use this to scope suggestions to a specific epic/feature.
-            session_id: Your session ID (optional). If provided and parent_task_id is not set,
-                       checks workflow state for session_task variable and auto-scopes
-                       suggestions to that task's hierarchy.
+                      Use this to explicitly scope suggestions to a specific epic/feature.
+            session_id: Your session ID (required for MCP callers, from system context).
+                       When provided and parent_task_id is not set, checks workflow state
+                       for session_task variable and auto-scopes suggestions to that task's
+                       hierarchy. Function signature is optional for TUI/internal callers.
 
         Returns:
             Suggested task with reasoning
@@ -486,8 +487,8 @@ def create_readiness_registry(
     registry.register(
         name="suggest_next_task",
         description="Suggest the best next task to work on based on priority, readiness, and complexity. "
-        "Use parent_task_id to scope suggestions to a specific epic/feature hierarchy. "
-        "Pass session_id to auto-scope based on workflow's session_task variable.",
+        "Requires session_id to check workflow's session_task variable for automatic scoping. "
+        "Use parent_task_id to explicitly scope suggestions to a specific epic/feature hierarchy.",
         input_schema={
             "type": "object",
             "properties": {
@@ -510,11 +511,10 @@ def create_readiness_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (optional). If provided and parent_task_id is not set, "
-                    "auto-scopes suggestions based on workflow's session_task variable.",
-                    "default": None,
+                    "description": "Your session ID (from system context). Used to auto-scope suggestions based on workflow's session_task variable.",
                 },
             },
+            "required": ["session_id"],
         },
         func=suggest_next_task,
     )
