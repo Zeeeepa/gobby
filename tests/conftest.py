@@ -1,13 +1,14 @@
 """Pytest configuration and shared fixtures for Gobby tests."""
 
 import tempfile
+import tracemalloc
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
-import tracemalloc
 from unittest.mock import MagicMock, patch
 
 import pytest
+from filelock import FileLock
 
 tracemalloc.start()
 
@@ -143,10 +144,15 @@ def protect_production_resources(
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
-    if not safe_db_path.exists():
-        safe_db = LocalDatabase(safe_db_path)
-        run_migrations(safe_db)
-        safe_db.close()
+    # Use file lock to prevent TOCTOU race condition during parallel test execution.
+    # Without this, multiple pytest workers can simultaneously check exists() -> False,
+    # then race to create the database, causing "file is not a database" errors.
+    lock_path = safe_db_dir / "test-safe.db.lock"
+    with FileLock(lock_path, timeout=60):
+        if not safe_db_path.exists():
+            safe_db = LocalDatabase(safe_db_path)
+            run_migrations(safe_db)
+            safe_db.close()
 
     safe_log_client = safe_logs_dir / "gobby.log"
     safe_log_error = safe_logs_dir / "gobby-error.log"
@@ -170,11 +176,10 @@ def protect_production_resources(
         # However, many tests mock load_config themselves.
         # We'll use a wrapper that returns our safe config unless arguments suggest otherwise.
 
-        real_load_config = None
         try:
             from gobby.config import app
 
-            real_load_config = app.load_config
+            _real_load_config = app.load_config  # noqa: F841 - kept for potential future use
         except ImportError:
             pass
 

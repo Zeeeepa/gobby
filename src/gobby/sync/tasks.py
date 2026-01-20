@@ -440,23 +440,26 @@ class TaskSyncManager:
         Waits for debounce interval, then runs export in executor to avoid
         blocking the event loop during file I/O and hash computation.
 
+        During graceful shutdown, flushes any pending export immediately rather
+        than abandoning it.
+
         Args:
             project_id: Project ID captured at task creation time to avoid race conditions.
         """
-        while not self._shutdown_requested:
+        while True:
             # Check if debounce time has passed
             now = time.time()
             elapsed = now - self._last_change_time
 
-            if elapsed >= self._debounce_interval:
+            # Export if debounce time passed OR shutdown requested (flush pending)
+            if elapsed >= self._debounce_interval or self._shutdown_requested:
                 try:
                     # Run the blocking export in a thread pool to avoid blocking event loop
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, self.export_to_jsonl, project_id)
-                    return
                 except Exception as e:
                     logger.error(f"Error during task sync export: {e}")
-                    return
+                return
 
             # Wait for remaining debounce time
             wait_time = max(0.1, self._debounce_interval - elapsed)
