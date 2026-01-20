@@ -219,9 +219,7 @@ class MemUBackend:
         # Try direct lookup first (O(1) if SDK supports it)
         try:
             # Run in thread to avoid blocking event loop
-            result = await asyncio.to_thread(
-                self._service.get_memory_item, memory_id=memory_id
-            )
+            result = await asyncio.to_thread(self._service.get_memory_item, memory_id=memory_id)
             if result:
                 return self._memu_to_record(result)
             return None
@@ -278,9 +276,7 @@ class MemUBackend:
             update_kwargs["memory_categories"] = tags
 
         # Run in thread to avoid blocking event loop
-        result = await asyncio.to_thread(
-            lambda: self._service.update_memory_item(**update_kwargs)
-        )
+        result = await asyncio.to_thread(lambda: self._service.update_memory_item(**update_kwargs))
 
         if result:
             # Re-fetch to get updated record
@@ -314,9 +310,7 @@ class MemUBackend:
         """
         try:
             # Run in thread to avoid blocking event loop
-            await asyncio.to_thread(
-                self._service.delete_memory_item, memory_id=memory_id
-            )
+            await asyncio.to_thread(self._service.delete_memory_item, memory_id=memory_id)
             return True
         except Exception:
             return False
@@ -393,9 +387,7 @@ class MemUBackend:
             where_filter["project_id"] = project_id
 
         # Run in thread to avoid blocking event loop
-        results = await asyncio.to_thread(
-            self._service.list_memory_items, where=where_filter
-        )
+        results = await asyncio.to_thread(self._service.list_memory_items, where=where_filter)
 
         items = results.get("items", results.get("memories", []))
 

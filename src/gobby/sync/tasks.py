@@ -424,9 +424,7 @@ class TaskSyncManager:
             try:
                 loop = asyncio.get_running_loop()
                 # Capture project_id at task creation to avoid race condition
-                self._export_task = loop.create_task(
-                    self._process_export_queue(project_id)
-                )
+                self._export_task = loop.create_task(self._process_export_queue(project_id))
             except RuntimeError:
                 # No running event loop (e.g. CLI usage) - run sync immediately
                 # Skip debounce and export directly

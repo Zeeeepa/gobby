@@ -9,7 +9,6 @@ This enables progressive disclosure for internal tools and reduces the
 number of tools exposed on the main MCP server.
 """
 
-import asyncio
 import inspect
 import logging
 import types

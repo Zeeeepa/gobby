@@ -148,9 +148,7 @@ class InterSessionMessageManager:
             return InterSessionMessage.from_row(row)
         return None
 
-    def get_messages(
-        self, to_session: str, unread_only: bool = False
-    ) -> list[InterSessionMessage]:
+    def get_messages(self, to_session: str, unread_only: bool = False) -> list[InterSessionMessage]:
         """Get messages for a recipient session.
 
         Args:

@@ -296,7 +296,9 @@ class MemoryManager:
             content=record.content,
             memory_type=record.memory_type,
             created_at=record.created_at.isoformat(),
-            updated_at=record.updated_at.isoformat() if record.updated_at else record.created_at.isoformat(),
+            updated_at=record.updated_at.isoformat()
+            if record.updated_at
+            else record.created_at.isoformat(),
             project_id=record.project_id,
             source_type=record.source_type,
             source_session_id=record.source_session_id,
