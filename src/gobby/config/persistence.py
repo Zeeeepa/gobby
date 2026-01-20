@@ -47,15 +47,27 @@ class Mem0Config(BaseModel):
 class MemUConfig(BaseModel):
     """MemU backend configuration.
 
-    Configure this section when using backend: 'memu' for markdown-based
-    memory storage via the MemU service (nevamind-ai/memu-sdk).
+    Configure this section when using backend: 'memu' for structured
+    memory storage via the MemU SDK (NevaMind-AI/memU via memu-py).
 
-    Requires: pip install memu-sdk
+    Requires: pip install memu-py
     """
 
-    api_key: str | None = Field(
+    database_type: str = Field(
+        default="inmemory",
+        description="Database type: 'inmemory', 'sqlite', or 'postgres'",
+    )
+    database_url: str | None = Field(
         default=None,
-        description="MemU API key for authentication (required when backend='memu')",
+        description="Database connection URL (for sqlite/postgres)",
+    )
+    llm_api_key: str | None = Field(
+        default=None,
+        description="LLM API key for embeddings (optional, uses OpenAI by default)",
+    )
+    llm_base_url: str | None = Field(
+        default=None,
+        description="LLM API base URL (optional)",
     )
     user_id: str | None = Field(
         default=None,
@@ -108,7 +120,7 @@ class MemoryConfig(BaseModel):
             "Storage backend for memories. Options: "
             "'sqlite' (default, local SQLite database), "
             "'mem0' (Mem0 cloud-based semantic memory via mem0ai), "
-            "'memu' (MemU markdown-based memory via memu-sdk), "
+            "'memu' (MemU structured memory via memu-py), "
             "'openmemory' (self-hosted OpenMemory REST API), "
             "'null' (no persistence, for testing)"
         ),

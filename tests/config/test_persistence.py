@@ -265,23 +265,26 @@ class TestMemUConfigDefaults:
     """Test MemUConfig default values."""
 
     def test_default_instantiation(self) -> None:
-        """Test MemUConfig creates with all defaults (None values)."""
+        """Test MemUConfig creates with all defaults."""
         from gobby.config.persistence import MemUConfig
 
         config = MemUConfig()
-        assert config.api_key is None
+        assert config.database_type == "inmemory"
+        assert config.database_url is None
+        assert config.llm_api_key is None
+        assert config.llm_base_url is None
         assert config.user_id is None
 
 
 class TestMemUConfigCustom:
     """Test MemUConfig with custom values."""
 
-    def test_with_api_key(self) -> None:
-        """Test setting API key."""
+    def test_with_database_type(self) -> None:
+        """Test setting database type."""
         from gobby.config.persistence import MemUConfig
 
-        config = MemUConfig(api_key="test-api-key")
-        assert config.api_key == "test-api-key"
+        config = MemUConfig(database_type="sqlite")
+        assert config.database_type == "sqlite"
 
     def test_with_user_id(self) -> None:
         """Test setting user ID."""
@@ -295,10 +298,16 @@ class TestMemUConfigCustom:
         from gobby.config.persistence import MemUConfig
 
         config = MemUConfig(
-            api_key="my-api-key",
+            database_type="sqlite",
+            database_url="sqlite:///test.db",
+            llm_api_key="my-api-key",
+            llm_base_url="https://api.openai.com",
             user_id="my-user",
         )
-        assert config.api_key == "my-api-key"
+        assert config.database_type == "sqlite"
+        assert config.database_url == "sqlite:///test.db"
+        assert config.llm_api_key == "my-api-key"
+        assert config.llm_base_url == "https://api.openai.com"
         assert config.user_id == "my-user"
 
 
@@ -311,7 +320,7 @@ class TestMemoryConfigMemUIntegration:
 
         config = MemoryConfig()
         assert config.memu is not None
-        assert config.memu.api_key is None
+        assert config.memu.database_type == "inmemory"
 
     def test_memu_backend_selection(self) -> None:
         """Test selecting memu backend."""
@@ -319,10 +328,11 @@ class TestMemoryConfigMemUIntegration:
 
         config = MemoryConfig(
             backend="memu",
-            memu=MemUConfig(api_key="test-key"),
+            memu=MemUConfig(database_type="sqlite", llm_api_key="test-key"),
         )
         assert config.backend == "memu"
-        assert config.memu.api_key == "test-key"
+        assert config.memu.database_type == "sqlite"
+        assert config.memu.llm_api_key == "test-key"
 
     def test_backend_validator_accepts_memu(self) -> None:
         """Test that 'memu' is a valid backend option."""

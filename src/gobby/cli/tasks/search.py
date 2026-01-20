@@ -7,7 +7,6 @@ import json
 import click
 
 from gobby.cli.tasks._utils import (
-    format_task_row,
     get_task_manager,
     normalize_status,
 )
@@ -147,7 +146,9 @@ def search_tasks(
         pri_display = str(task.priority) if task.priority else ""
         title_display = task.title[:45] if task.title else ""
 
-        click.echo(f"{seq_ref:<6} {score:<7.3f} {status_display:<12} {pri_display:<4} {title_display}")
+        click.echo(
+            f"{seq_ref:<6} {score:<7.3f} {status_display:<12} {pri_display:<4} {title_display}"
+        )
 
 
 @click.command("reindex")
