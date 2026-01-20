@@ -24,8 +24,6 @@ from uuid import uuid4
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 from gobby.memory.protocol import (
     MediaAttachment,
     MemoryCapability,
@@ -35,6 +33,8 @@ from gobby.memory.protocol import (
 
 if TYPE_CHECKING:
     pass
+
+logger = logging.getLogger(__name__)
 
 
 class OpenMemoryError(Exception):
@@ -508,8 +508,8 @@ class OpenMemoryBackend:
                 media_list.append(
                     MediaAttachment(
                         media_type=m.get("media_type", ""),
-                        content_path=m.get("content_path"),
-                        mime_type=m.get("mime_type"),
+                        content_path=m.get("content_path", ""),
+                        mime_type=m.get("mime_type", ""),
                         description=m.get("description"),
                     )
                 )
