@@ -7,6 +7,7 @@ from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
+from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.utils.project_context import get_project_context
 
 
@@ -29,6 +30,8 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
         status: str | list[str] | None = None,
         task_type: str | None = None,
         priority: int | None = None,
+        parent_task_id: str | None = None,
+        category: str | None = None,
         limit: int = 20,
         min_score: float = 0.0,
         all_projects: bool = False,
@@ -44,6 +47,8 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 Can be a single status or comma-separated list.
             task_type: Filter by task type (task, bug, feature, epic)
             priority: Filter by priority (1=High, 2=Medium, 3=Low)
+            parent_task_id: Filter by parent task ID (UUID, #N, or N format)
+            category: Filter by task category
             limit: Maximum number of results (default: 20)
             min_score: Minimum similarity score 0.0-1.0 (default: 0.0)
             all_projects: If true, search all projects instead of current project
@@ -66,6 +71,20 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if isinstance(status, str) and "," in status:
             status_filter = [s.strip() for s in status.split(",")]
 
+        # Resolve parent_task_id if provided (#N, N, or UUID -> UUID)
+        resolved_parent_id = None
+        if parent_task_id:
+            try:
+                resolved_parent_id = resolve_task_id_for_mcp(
+                    ctx.task_manager, parent_task_id, project_id
+                )
+            except Exception:
+                return {
+                    "error": f"Invalid parent_task_id: {parent_task_id}",
+                    "tasks": [],
+                    "count": 0,
+                }
+
         # Perform search
         results = ctx.task_manager.search_tasks(
             query=query.strip(),
@@ -73,6 +92,8 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
             status=status_filter,
             task_type=task_type,
             priority=priority,
+            parent_task_id=resolved_parent_id,
+            category=category,
             limit=limit,
             min_score=min_score,
         )
@@ -115,6 +136,16 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "priority": {
                     "type": "integer",
                     "description": "Filter by priority (1=High, 2=Medium, 3=Low)",
+                    "default": None,
+                },
+                "parent_task_id": {
+                    "type": "string",
+                    "description": "Filter by parent task ID (UUID, #N, or N format)",
+                    "default": None,
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Filter by task category",
                     "default": None,
                 },
                 "limit": {

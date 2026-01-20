@@ -781,6 +781,8 @@ class LocalTaskManager:
         status: str | list[str] | None = None,
         task_type: str | None = None,
         priority: int | None = None,
+        parent_task_id: str | None = None,
+        category: str | None = None,
         limit: int = 20,
         min_score: float = 0.0,
     ) -> list[tuple[Task, float]]:
@@ -794,6 +796,8 @@ class LocalTaskManager:
             status: Filter by status (string or list of strings)
             task_type: Filter by task type
             priority: Filter by priority
+            parent_task_id: Filter by parent task ID (UUID)
+            category: Filter by task category
             limit: Maximum results to return
             min_score: Minimum similarity score threshold (0.0-1.0)
 
@@ -840,6 +844,12 @@ class LocalTaskManager:
                 continue
 
             if priority is not None and task.priority != priority:
+                continue
+
+            if parent_task_id and task.parent_task_id != parent_task_id:
+                continue
+
+            if category and task.category != category:
                 continue
 
             results.append((task, score))
