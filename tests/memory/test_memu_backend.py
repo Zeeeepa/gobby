@@ -198,6 +198,8 @@ class TestMemUBackendGet:
 
         with patch("memu.app.service.MemoryService") as MockService:
             mock_service = MagicMock()
+            # Mock get_memory_item to raise AttributeError so fallback to list is used
+            mock_service.get_memory_item.side_effect = AttributeError()
             mock_service.list_memory_items.return_value = {
                 "items": [
                     {
@@ -222,6 +224,8 @@ class TestMemUBackendGet:
 
         with patch("memu.app.service.MemoryService") as MockService:
             mock_service = MagicMock()
+            # Mock get_memory_item to raise AttributeError so fallback to list is used
+            mock_service.get_memory_item.side_effect = AttributeError()
             mock_service.list_memory_items.return_value = {"items": []}
             MockService.return_value = mock_service
 
@@ -270,6 +274,8 @@ class TestMemUBackendUpdate:
 
         with patch("memu.app.service.MemoryService") as MockService:
             mock_service = MagicMock()
+            # Mock get_memory_item to raise AttributeError so fallback to list is used
+            mock_service.get_memory_item.side_effect = AttributeError()
             mock_service.list_memory_items.return_value = {"items": []}
             MockService.return_value = mock_service
 

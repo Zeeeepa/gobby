@@ -97,9 +97,13 @@ class LiteLLMProvider(LLMProvider):
             Model name string
         """
         if task == "summary":
-            return self.config.session_summary.model or "gpt-4o-mini"
+            if self.config.session_summary:
+                return self.config.session_summary.model or "gpt-4o-mini"
+            return "gpt-4o-mini"
         elif task == "title":
-            return self.config.title_synthesis.model or "gpt-4o-mini"
+            if self.config.title_synthesis:
+                return self.config.title_synthesis.model or "gpt-4o-mini"
+            return "gpt-4o-mini"
         else:
             return "gpt-4o-mini"
 

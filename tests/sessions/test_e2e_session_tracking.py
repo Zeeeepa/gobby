@@ -55,6 +55,8 @@ async def env(tmp_path) -> AsyncGenerator[dict, None]:
         mock_config.workflow.enabled = True
         # Also need daemon config
         mock_config.daemon_health_check_interval = 10.0
+        # Memory config must be None (not MagicMock) so default MemoryConfig is used
+        mock_config.memory = None
 
         # Create HookManager
         hm = HookManager(daemon_host="test", message_processor=processor, config=mock_config)
