@@ -17,7 +17,9 @@ FAILED=0
 
 # Ruff - autofix safe changes only (no unsafe fixes)
 echo ">>> Running ruff check + format..."
-if uv run ruff check src/ --fix --no-unsafe-fixes 2>&1 | tee "$REPORTS_DIR/ruff-$TIMESTAMP.txt"; then
+uv run ruff check src/ --fix --no-unsafe-fixes 2>&1 | tee "$REPORTS_DIR/ruff-$TIMESTAMP.txt"
+ruff_status=${PIPESTATUS[0]}
+if [ "$ruff_status" -eq 0 ]; then
     uv run ruff format src/
     echo "✓ Ruff passed"
 else
@@ -28,7 +30,9 @@ echo ""
 
 # Mypy - strict mode
 echo ">>> Running mypy (strict)..."
-if uv run mypy src/ --strict 2>&1 | tee "$REPORTS_DIR/mypy-$TIMESTAMP.txt"; then
+uv run mypy src/ --strict 2>&1 | tee "$REPORTS_DIR/mypy-$TIMESTAMP.txt"
+mypy_status=${PIPESTATUS[0]}
+if [ "$mypy_status" -eq 0 ]; then
     echo "✓ Mypy passed"
 else
     echo "✗ Mypy failed"
@@ -38,7 +42,9 @@ echo ""
 
 # Bandit - security linting
 echo ">>> Running bandit..."
-if uv run bandit -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"; then
+uv run bandit -r src/ -q 2>&1 | tee "$REPORTS_DIR/bandit-$TIMESTAMP.txt"
+bandit_status=${PIPESTATUS[0]}
+if [ "$bandit_status" -eq 0 ]; then
     echo "✓ Bandit passed"
 else
     echo "✗ Bandit failed"

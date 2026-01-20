@@ -99,12 +99,10 @@ Phase 1: Inter-Agent Messaging
     │       │
     │       └── inter_session_messages storage
     │               │
-    │               ├── send_to_parent tool
-    │               ├── send_to_child tool
+    │               ├── send_to_parent tool ──┐
+    │               ├── send_to_child tool ───┼─→ WebSocket broadcast
     │               ├── poll_messages tool
     │               └── mark_read tool
-    │                       │
-    │                       └── WebSocket broadcast
     │
     ▼
 Phase 2: Task Status Extensions

@@ -573,8 +573,15 @@ class ExpansionContextGatherer:
             # Import gitingest (this will hijack logging via configure_logging())
             import logging as _logging
 
-            from gitingest import ingest_async
             from loguru import logger as loguru_logger
+
+            # Capture existing loguru sink IDs before gitingest adds its own
+            # loguru._core.core.handlers is a dict mapping sink_id -> handler
+            existing_sink_ids: set[int] = set()
+            if hasattr(loguru_logger, "_core") and hasattr(loguru_logger._core, "handlers"):
+                existing_sink_ids = set(loguru_logger._core.handlers.keys())
+
+            from gitingest import ingest_async
 
             # Undo gitingest's logging hijack:
             # gitingest installs an InterceptHandler on Python's root logger and adds
@@ -585,8 +592,15 @@ class ExpansionContextGatherer:
             _root.handlers = [
                 h for h in _root.handlers if h.__class__.__name__ != "InterceptHandler"
             ]
-            # 2. Remove loguru's stderr sink to prevent duplicate output
-            loguru_logger.remove()
+            # 2. Remove only the loguru sinks added by gitingest (not pre-existing ones)
+            if hasattr(loguru_logger, "_core") and hasattr(loguru_logger._core, "handlers"):
+                current_sink_ids = set(loguru_logger._core.handlers.keys())
+                new_sink_ids = current_sink_ids - existing_sink_ids
+                for sink_id in new_sink_ids:
+                    try:
+                        loguru_logger.remove(sink_id)
+                    except ValueError:
+                        pass  # Sink already removed
 
             # Now run gitingest (it won't reconfigure logging on subsequent calls)
             loguru_logger.disable("gitingest")

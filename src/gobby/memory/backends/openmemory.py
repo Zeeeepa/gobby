@@ -218,29 +218,12 @@ class OpenMemoryBackend:
                 status_code=e.response.status_code,
             ) from e
         except Exception as e:
-            # Fallback: create synthetic record on failure
-            logger.warning(
-                f"OpenMemory create failed, returning synthetic record: {e}",
+            # Log and re-raise - callers should handle failures explicitly
+            logger.error(
+                f"OpenMemory create failed: {e}",
                 exc_info=True,
             )
-            now = datetime.now(UTC)
-            return MemoryRecord(
-                id=f"openmem-{uuid4().hex[:8]}",
-                content=content,
-                created_at=now,
-                memory_type=memory_type,
-                importance=importance,
-                project_id=project_id,
-                user_id=effective_user_id,
-                tags=tags or [],
-                source_type=source_type,
-                source_session_id=source_session_id,
-                media=media or [],
-                metadata={
-                    **payload.get("metadata", {}),
-                    "_synthetic": True,  # Flag indicating not persisted
-                },
-            )
+            raise
 
     async def get(self, memory_id: str) -> MemoryRecord | None:
         """Retrieve a memory by ID from OpenMemory.
@@ -517,6 +500,20 @@ class OpenMemoryBackend:
         # Extract metadata
         metadata = data.get("metadata", {})
 
+        # Restore media attachments from metadata
+        media_list: list[MediaAttachment] = []
+        raw_media = metadata.get("media", [])
+        for m in raw_media:
+            if isinstance(m, dict):
+                media_list.append(
+                    MediaAttachment(
+                        media_type=m.get("media_type", ""),
+                        content_path=m.get("content_path"),
+                        mime_type=m.get("mime_type"),
+                        description=m.get("description"),
+                    )
+                )
+
         return MemoryRecord(
             id=data.get("id", f"openmem-{uuid4().hex[:8]}"),
             content=data.get("content", ""),
@@ -529,5 +526,6 @@ class OpenMemoryBackend:
             tags=data.get("tags", []),
             source_type=metadata.get("source_type"),
             source_session_id=metadata.get("source_session_id"),
+            media=media_list,
             metadata=metadata,
         )

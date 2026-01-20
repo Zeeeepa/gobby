@@ -15,6 +15,7 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -166,8 +167,9 @@ class MemUBackend:
         if project_id:
             user_scope["project_id"] = project_id
 
-        # Create memory via MemU service
-        result = self._service.create_memory_item(
+        # Create memory via MemU service (run in thread to avoid blocking event loop)
+        result = await asyncio.to_thread(
+            self._service.create_memory_item,
             memory_type=memu_type,
             memory_content=content,
             memory_categories=categories,
@@ -202,7 +204,10 @@ class MemUBackend:
         """
         # Try direct lookup first (O(1) if SDK supports it)
         try:
-            result = self._service.get_memory_item(memory_id=memory_id)
+            # Run in thread to avoid blocking event loop
+            result = await asyncio.to_thread(
+                self._service.get_memory_item, memory_id=memory_id
+            )
             if result:
                 return self._memu_to_record(result)
             return None
@@ -214,7 +219,8 @@ class MemUBackend:
 
         # Fallback: list and filter (O(n))
         try:
-            result = self._service.list_memory_items()
+            # Run in thread to avoid blocking event loop
+            result = await asyncio.to_thread(self._service.list_memory_items)
             items = result.get("items", result.get("memories", []))
 
             for item in items:
@@ -257,7 +263,10 @@ class MemUBackend:
         if tags is not None:
             update_kwargs["memory_categories"] = tags
 
-        result = self._service.update_memory_item(**update_kwargs)
+        # Run in thread to avoid blocking event loop
+        result = await asyncio.to_thread(
+            lambda: self._service.update_memory_item(**update_kwargs)
+        )
 
         if result:
             # Re-fetch to get updated record
@@ -290,7 +299,10 @@ class MemUBackend:
             True if deleted, False if not found
         """
         try:
-            self._service.delete_memory_item(memory_id=memory_id)
+            # Run in thread to avoid blocking event loop
+            await asyncio.to_thread(
+                self._service.delete_memory_item, memory_id=memory_id
+            )
             return True
         except Exception:
             return False
@@ -314,7 +326,10 @@ class MemUBackend:
         if query.project_id:
             where_filter["project_id"] = query.project_id
 
-        results = self._service.retrieve(queries=queries, where=where_filter)
+        # Run in thread to avoid blocking event loop
+        results = await asyncio.to_thread(
+            self._service.retrieve, queries=queries, where=where_filter
+        )
 
         records = []
         items = results.get("items", results.get("memories", []))
@@ -363,7 +378,10 @@ class MemUBackend:
         if project_id:
             where_filter["project_id"] = project_id
 
-        results = self._service.list_memory_items(where=where_filter)
+        # Run in thread to avoid blocking event loop
+        results = await asyncio.to_thread(
+            self._service.list_memory_items, where=where_filter
+        )
 
         items = results.get("items", results.get("memories", []))
 

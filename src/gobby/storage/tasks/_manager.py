@@ -745,18 +745,24 @@ class LocalTaskManager:
     def _ensure_search_fitted(self, project_id: str | None = None) -> None:
         """Ensure the search index is fitted with current tasks.
 
+        Note: The index is always built from ALL tasks (not project-scoped) to ensure
+        the index remains valid for searches against any project. Project filtering
+        is applied in search_tasks() after TF-IDF ranking.
+
         Args:
-            project_id: Optional project filter for the search index
+            project_id: Unused - kept for API compatibility. Index always includes all tasks.
         """
+        _ = project_id  # Unused - index is always global
         searcher = self._ensure_searcher()
 
         if not searcher.needs_refit():
             return
 
-        # Fetch all tasks (or filtered by project) to build the index
+        # Always fetch ALL tasks to build a global index
+        # Project-scoped filtering happens in search_tasks() after ranking
         tasks = _list_tasks(
             self.db,
-            project_id=project_id,
+            project_id=None,  # Always global
             limit=10000,  # High limit for indexing
         )
 

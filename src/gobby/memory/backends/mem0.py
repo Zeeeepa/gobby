@@ -15,6 +15,7 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -145,8 +146,9 @@ class Mem0Backend:
         # Mem0 add() expects messages in OpenAI chat format
         messages = [{"role": "user", "content": content}]
 
-        # Add memory via Mem0 API
-        result = self._client.add(
+        # Add memory via Mem0 API (run in thread to avoid blocking event loop)
+        result = await asyncio.to_thread(
+            self._client.add,
             messages=messages,
             user_id=effective_user_id,
             metadata=mem0_metadata,
@@ -183,7 +185,8 @@ class Mem0Backend:
             The MemoryRecord if found, None otherwise
         """
         try:
-            result = self._client.get(memory_id)
+            # Run in thread to avoid blocking event loop
+            result = await asyncio.to_thread(self._client.get, memory_id)
             if result:
                 return self._mem0_to_record(result)
             return None
@@ -229,8 +232,10 @@ class Mem0Backend:
         # The update_data dict is prepared for future API expansion.
         _ = update_data  # Silence unused variable warning
 
-        # Update via Mem0 API
-        result = self._client.update(memory_id, data=content or existing.content)
+        # Update via Mem0 API (run in thread to avoid blocking event loop)
+        result = await asyncio.to_thread(
+            self._client.update, memory_id, data=content or existing.content
+        )
 
         # Return updated record
         if result:
@@ -261,7 +266,8 @@ class Mem0Backend:
             True if deleted, False if not found
         """
         try:
-            self._client.delete(memory_id)
+            # Run in thread to avoid blocking event loop
+            await asyncio.to_thread(self._client.delete, memory_id)
             return True
         except Exception:
             return False
@@ -285,8 +291,8 @@ class Mem0Backend:
         if query.limit:
             search_kwargs["limit"] = query.limit
 
-        # Execute search via Mem0 API
-        results = self._client.search(**search_kwargs)
+        # Execute search via Mem0 API (run in thread to avoid blocking event loop)
+        results = await asyncio.to_thread(lambda: self._client.search(**search_kwargs))
 
         # Convert results to MemoryRecords
         records = []
@@ -327,8 +333,8 @@ class Mem0Backend:
         """
         effective_user_id = user_id or self._default_user_id or "default"
 
-        # Get all memories for user via Mem0 API
-        results = self._client.get_all(user_id=effective_user_id)
+        # Get all memories for user via Mem0 API (run in thread to avoid blocking event loop)
+        results = await asyncio.to_thread(self._client.get_all, user_id=effective_user_id)
 
         # Convert and filter results
         records = []

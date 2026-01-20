@@ -40,6 +40,7 @@ class TaskSyncManager:
         self._last_change_time: float = 0
         self._debounce_interval = 5.0  # seconds
         self._shutdown_requested = False
+        self._pending_project_id: str | None = None
 
     def _get_export_path(self, project_id: str | None) -> Path:
         """
