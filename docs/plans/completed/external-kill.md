@@ -66,6 +66,14 @@ result = subprocess.run(
 )
 ```
 
+**Security Note:** The `session_id` embedded in WMIC/pgrep queries must be validated before use to prevent command injection. Gobby session IDs are UUIDs, so validation should:
+
+1. **Validate format**: Ensure session_id matches UUID pattern (`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+2. **Escape special characters**: If non-UUID formats are ever supported, escape quotes (`"`), percent signs (`%`), ampersands (`&`), and other shell/WMIC metacharacters
+3. **Reject invalid input**: Never pass unvalidated user input to subprocess commands
+
+The current implementation in `registry.py` uses session IDs from the database (already validated on creation), but any future changes should maintain this validation.
+
 ## Implementation
 
 ### Files Modified

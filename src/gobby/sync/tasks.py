@@ -622,8 +622,12 @@ class TaskSyncManager:
     async def shutdown(self) -> None:
         """Gracefully shutdown the export task.
 
-        Waits for any pending export to complete before marking shutdown.
+        Sets the shutdown flag first so the exporter loop can observe it and
+        exit early, then waits for any pending export to complete.
         """
+        # Set flag BEFORE awaiting so _process_export_queue can see it
+        self._shutdown_requested = True
+
         if self._export_task:
             if not self._export_task.done():
                 try:
@@ -632,4 +636,3 @@ class TaskSyncManager:
                 except asyncio.CancelledError:
                     pass
             self._export_task = None
-        self._shutdown_requested = True

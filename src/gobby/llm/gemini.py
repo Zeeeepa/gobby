@@ -232,23 +232,23 @@ class GeminiProvider(LLMProvider):
             # Use PIL to load the image - Gemini accepts PIL images directly
             from PIL import Image
 
-            image = Image.open(path)
+            # Use context manager to ensure image file handle is properly closed
+            with Image.open(path) as image:
+                # Build prompt
+                prompt = (
+                    "Please describe this image in detail, focusing on key visual elements, "
+                    "any text visible, and the overall context or meaning."
+                )
+                if context:
+                    prompt = f"{context}\n\n{prompt}"
 
-            # Build prompt
-            prompt = (
-                "Please describe this image in detail, focusing on key visual elements, "
-                "any text visible, and the overall context or meaning."
-            )
-            if context:
-                prompt = f"{context}\n\n{prompt}"
+                # Use gemini-1.5-flash for efficient vision tasks
+                model = self.genai.GenerativeModel("gemini-1.5-flash")
 
-            # Use gemini-1.5-flash for efficient vision tasks
-            model = self.genai.GenerativeModel("gemini-1.5-flash")
+                # Generate content with image and prompt
+                response = await model.generate_content_async([prompt, image])
 
-            # Generate content with image and prompt
-            response = await model.generate_content_async([prompt, image])
-
-            return response.text or "No description generated"
+                return response.text or "No description generated"
 
         except ImportError:
             self.logger.error("PIL/Pillow not installed. Required for image description.")

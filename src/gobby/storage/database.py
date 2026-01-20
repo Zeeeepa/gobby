@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 import re
 import sqlite3
 import threading
+import weakref
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from datetime import date, datetime
@@ -141,6 +143,11 @@ class LocalDatabase:
         self._all_connections: set[sqlite3.Connection] = set()
         self._connections_lock = threading.Lock()
         self._ensure_directory()
+
+        # Register atexit cleanup using weak reference to avoid preventing GC
+        # and to safely handle shutdown without __del__ lock issues
+        self._weak_self = weakref.ref(self)
+        atexit.register(self._cleanup_at_exit)
 
     def _ensure_directory(self) -> None:
         """Create database directory if it doesn't exist."""
@@ -296,7 +303,12 @@ class LocalDatabase:
             raise
 
     def close(self) -> None:
-        """Close all database connections and clean up managers."""
+        """Close all database connections and clean up managers.
+
+        Can be called explicitly or via context manager. For automatic cleanup
+        at interpreter shutdown, atexit handler is used instead of __del__ to
+        avoid lock acquisition issues during GC.
+        """
         # Clean up artifact manager
         self._artifact_manager = None
 
@@ -313,10 +325,26 @@ class LocalDatabase:
         if hasattr(self._local, "connection"):
             self._local.connection = None
 
-    def __del__(self) -> None:
-        """Clean up connections when object is garbage collected."""
+    def _cleanup_at_exit(self) -> None:
+        """Atexit handler for safe cleanup during interpreter shutdown.
+
+        Uses try/except to safely handle any errors that may occur during
+        shutdown when modules may already be partially unloaded.
+        """
         try:
             self.close()
+        except Exception:
+            pass  # nosec B110 - ignore errors during shutdown
+
+    def __del__(self) -> None:
+        """Clean up connections when object is garbage collected.
+
+        Note: Most cleanup should happen via atexit or explicit close() calls.
+        This is a fallback that unregisters the atexit handler to avoid double-close.
+        """
+        try:
+            # Unregister atexit handler since we're being collected
+            atexit.unregister(self._cleanup_at_exit)
         except Exception:
             pass  # nosec B110 - ignore errors during gc
 

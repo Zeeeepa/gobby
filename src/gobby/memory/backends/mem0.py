@@ -221,17 +221,10 @@ class Mem0Backend:
         if not existing:
             raise ValueError(f"Memory not found: {memory_id}")
 
-        # Build update data
-        update_data: dict[str, Any] = {}
-        if content is not None:
-            update_data["text"] = content
-
         # Note: Mem0's update API only supports content updates.
         # Importance and tags changes are reflected in the returned record
         # but not persisted to Mem0 (they're stored in metadata which Mem0
         # doesn't allow updating via the update endpoint).
-        # The update_data dict is prepared for future API expansion.
-        _ = update_data  # Silence unused variable warning
 
         # Update via Mem0 API (run in thread to avoid blocking event loop)
         result = await asyncio.to_thread(

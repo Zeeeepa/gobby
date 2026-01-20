@@ -476,11 +476,6 @@ When generating commit messages, follow these conventions...
 
 ## Task Mapping
 
-<!-- To auto-generate tasks: create a parent task for this phase, then use expand_from_spec(spec_path) to decompose it into subtasks with TDD pairs.
-     The expand_from_spec tool reads this specification file and generates properly ordered subtasks with dependencies.
-     TDD pairing behavior: creates ONE [TEST] task before implementation tasks, then ONE [REFACTOR] task at the end.
-     Example: expand_from_spec(spec_path="docs/plans/gobby-skills.md") -->
-
 | Task # | Checkbox | Status |
 | :--- | :--- | :--- |
 
