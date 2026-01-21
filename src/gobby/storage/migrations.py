@@ -729,6 +729,52 @@ def _migrate_add_expansion_status(db: LocalDatabase) -> None:
         logger.debug("expansion_status column already exists, skipping")
 
 
+def _migrate_add_skills_table(db: LocalDatabase) -> None:
+    """Add skills table for Agent Skills spec compliant skill storage.
+
+    Skills provide structured instructions for AI agents following the
+    Agent Skills specification (agentskills.io) with Gobby-specific extensions.
+    """
+    # Check if table already exists
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='skills'"
+    )
+    if row:
+        logger.debug("skills table already exists, skipping")
+        return
+
+    # Create the skills table
+    db.execute("""
+        CREATE TABLE skills (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            content TEXT NOT NULL,
+            version TEXT,
+            license TEXT,
+            compatibility TEXT,
+            allowed_tools TEXT,
+            metadata TEXT,
+            source_path TEXT,
+            source_type TEXT,
+            source_ref TEXT,
+            enabled INTEGER DEFAULT 1,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
+    # Create indexes
+    db.execute("CREATE INDEX idx_skills_name ON skills(name)")
+    db.execute("CREATE INDEX idx_skills_project_id ON skills(project_id)")
+    db.execute("CREATE INDEX idx_skills_enabled ON skills(enabled)")
+    # Unique constraint: name must be unique within a project scope
+    db.execute("CREATE UNIQUE INDEX idx_skills_name_project ON skills(name, project_id)")
+
+    logger.info("Created skills table with indexes")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -748,6 +794,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (68, "Add media column to memories", _migrate_add_media_column),
     # Skill-based expansion: Add expansion_status column to tasks
     (69, "Add expansion_status column to tasks", _migrate_add_expansion_status),
+    # Skills storage: Add skills table for Agent Skills spec
+    (70, "Add skills table", _migrate_add_skills_table),
 ]
 
 
