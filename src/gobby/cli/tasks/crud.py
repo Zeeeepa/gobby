@@ -320,9 +320,7 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
 @click.option("--description", "-d", help="Task description")
 @click.option("--priority", "-p", type=int, default=2, help="Priority (1=High, 2=Med, 3=Low)")
 @click.option("--type", "-t", "task_type", default="task", help="Task type")
-@click.option(
-    "--depends-on", "-D", multiple=True, help="Task(s) this task depends on (#N, UUID)"
-)
+@click.option("--depends-on", "-D", multiple=True, help="Task(s) this task depends on (#N, UUID)")
 def create_task(
     title: str,
     description: str | None,
@@ -572,9 +570,7 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     "--unlink", "-u", is_flag=True, help="Remove dependency links but preserve dependent tasks"
 )
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
-def delete_task(
-    task_refs: tuple[str, ...], cascade: bool, unlink: bool, yes: bool
-) -> None:
+def delete_task(task_refs: tuple[str, ...], cascade: bool, unlink: bool, yes: bool) -> None:
     """Delete one or more tasks.
 
     TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.

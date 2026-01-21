@@ -85,7 +85,9 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
             expansion_status="pending",
         )
 
-        logger.info(f"Saved expansion spec for task {task_id} with {len(spec['subtasks'])} subtasks")
+        logger.info(
+            f"Saved expansion spec for task {task_id} with {len(spec['subtasks'])} subtasks"
+        )
 
         return {
             "saved": True,
@@ -125,7 +127,9 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Task {parent_task_id} not found"}
 
         if task.expansion_status != "pending":
-            return {"error": f"Task has no pending expansion spec (status: {task.expansion_status})"}
+            return {
+                "error": f"Task has no pending expansion spec (status: {task.expansion_status})"
+            }
 
         if not task.expansion_context:
             return {"error": "Task has no expansion_context"}
@@ -199,7 +203,9 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
             validation_criteria="All subtasks must be completed (status: closed).",
         )
 
-        logger.info(f"Executed expansion for task {parent_task_id}: created {len(created_tasks)} subtasks")
+        logger.info(
+            f"Executed expansion for task {parent_task_id}: created {len(created_tasks)} subtasks"
+        )
 
         return {
             "created": created_refs,

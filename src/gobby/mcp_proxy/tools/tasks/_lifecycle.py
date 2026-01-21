@@ -334,9 +334,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=reopen_task,
     )
 
-    def delete_task(
-        task_id: str, cascade: bool = True, unlink: bool = False
-    ) -> dict[str, Any]:
+    def delete_task(task_id: str, cascade: bool = True, unlink: bool = False) -> dict[str, Any]:
         """Delete a task.
 
         By default (cascade=True), deletes subtasks and dependent tasks.
@@ -354,9 +352,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         ref = f"#{task.seq_num}" if task.seq_num else resolved_id[:8]
 
         try:
-            deleted = ctx.task_manager.delete_task(
-                resolved_id, cascade=cascade, unlink=unlink
-            )
+            deleted = ctx.task_manager.delete_task(resolved_id, cascade=cascade, unlink=unlink)
             if not deleted:
                 return {"error": f"Task {task_id} not found"}
         except ValueError as e:

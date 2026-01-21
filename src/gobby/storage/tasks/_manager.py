@@ -464,9 +464,7 @@ class LocalTaskManager:
             self._notify_listeners()
         return self.get_task(task_id)
 
-    def delete_task(
-        self, task_id: str, cascade: bool = False, unlink: bool = False
-    ) -> bool:
+    def delete_task(self, task_id: str, cascade: bool = False, unlink: bool = False) -> bool:
         """Delete a task.
 
         Args:

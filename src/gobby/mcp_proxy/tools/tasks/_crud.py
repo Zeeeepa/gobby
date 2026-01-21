@@ -142,9 +142,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Include dependency errors if any
         if dependency_errors:
             result["dependency_errors"] = dependency_errors
-            result["warning"] = (
-                f"Task created but {len(dependency_errors)} dependency(s) failed"
-            )
+            result["warning"] = f"Task created but {len(dependency_errors)} dependency(s) failed"
 
         return result
 
