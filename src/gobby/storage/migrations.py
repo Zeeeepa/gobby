@@ -359,6 +359,7 @@ CREATE TABLE tasks (
     reference_doc TEXT,
     is_expanded INTEGER DEFAULT 0,
     is_tdd_applied INTEGER DEFAULT 0,
+    expansion_status TEXT DEFAULT 'none',
     requires_user_review INTEGER DEFAULT 0,
     accepted_by_user INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -718,6 +719,16 @@ def _migrate_add_media_column(db: LocalDatabase) -> None:
         logger.debug("media column already exists, skipping")
 
 
+def _migrate_add_expansion_status(db: LocalDatabase) -> None:
+    """Add expansion_status column to tasks table for skill-based expansion."""
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if row and "expansion_status" not in row["sql"].lower():
+        db.execute("ALTER TABLE tasks ADD COLUMN expansion_status TEXT DEFAULT 'none'")
+        logger.info("Added expansion_status column to tasks table")
+    else:
+        logger.debug("expansion_status column already exists, skipping")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -735,6 +746,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (67, "Add inter_session_messages table", _migrate_add_inter_session_messages),
     # Memory V3 Phase 2: Add media column for multimodal support
     (68, "Add media column to memories", _migrate_add_media_column),
+    # Skill-based expansion: Add expansion_status column to tasks
+    (69, "Add expansion_status column to tasks", _migrate_add_expansion_status),
 ]
 
 

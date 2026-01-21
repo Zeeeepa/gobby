@@ -134,6 +134,8 @@ class Task:
     # Processing flags for idempotent operations
     is_expanded: bool = False  # Subtasks have been created
     is_tdd_applied: bool = False  # TDD pairs have been generated
+    # Skill-based expansion status (for new /gobby-expand flow)
+    expansion_status: Literal["none", "pending", "completed"] = "none"
     # Review status fields (HITL support)
     requires_user_review: bool = False  # Task requires user sign-off before closing
     accepted_by_user: bool = False  # Set True when user moves review → closed
@@ -214,6 +216,7 @@ class Task:
             reference_doc=row["reference_doc"] if "reference_doc" in keys else None,
             is_expanded=bool(row["is_expanded"]) if "is_expanded" in keys else False,
             is_tdd_applied=bool(row["is_tdd_applied"]) if "is_tdd_applied" in keys else False,
+            expansion_status=row["expansion_status"] if "expansion_status" in keys else "none",
             requires_user_review=(
                 bool(row["requires_user_review"]) if "requires_user_review" in keys else False
             ),
@@ -269,6 +272,7 @@ class Task:
             "reference_doc": self.reference_doc,
             "is_expanded": self.is_expanded,
             "is_tdd_applied": self.is_tdd_applied,
+            "expansion_status": self.expansion_status,
             "requires_user_review": self.requires_user_review,
             "accepted_by_user": self.accepted_by_user,
             "id": self.id,  # UUID at end for backwards compat
