@@ -9,6 +9,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._helpers import _infer_category
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.task_dependencies import DependencyCycleError
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
@@ -36,6 +37,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         task_type: str = "task",
         parent_task_id: str | None = None,
         blocks: list[str] | None = None,
+        depends_on: list[str] | None = None,
         labels: list[str] | None = None,
         category: str | None = None,
         validation_criteria: str | None = None,
@@ -53,6 +55,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             task_type: Task type (task, bug, feature, epic)
             parent_task_id: Optional parent task ID
             blocks: List of task IDs that this new task blocks
+            depends_on: List of task IDs that this new task depends on (must complete first)
             labels: List of labels
             category: Task domain category (test, code, document, research, config, manual)
             validation_criteria: Acceptance criteria for validating completion.
@@ -101,7 +104,29 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Handle 'blocks' argument if provided (syntactic sugar)
         if blocks:
             for blocked_id in blocks:
-                ctx.dep_manager.add_dependency(task.id, blocked_id, "blocks")
+                try:
+                    resolved_blocked = resolve_task_id_for_mcp(
+                        ctx.task_manager, blocked_id, project_id
+                    )
+                    ctx.dep_manager.add_dependency(task.id, resolved_blocked, "blocks")
+                except (TaskNotFoundError, ValueError):
+                    pass  # Skip invalid block references silently
+
+        # Handle 'depends_on' argument if provided
+        dependency_errors: list[str] = []
+        if depends_on:
+            for blocker_ref in depends_on:
+                try:
+                    resolved_blocker = resolve_task_id_for_mcp(
+                        ctx.task_manager, blocker_ref, project_id
+                    )
+                    ctx.dep_manager.add_dependency(task.id, resolved_blocker, "blocks")
+                except TaskNotFoundError:
+                    dependency_errors.append(f"Task '{blocker_ref}' not found")
+                except ValueError as e:
+                    dependency_errors.append(f"Invalid ref '{blocker_ref}': {e}")
+                except DependencyCycleError:
+                    dependency_errors.append(f"Cycle detected for '{blocker_ref}'")
 
         # Return minimal or full result based on config
         if ctx.show_result_on_create:
@@ -112,6 +137,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "seq_num": task.seq_num,
                 "ref": f"#{task.seq_num}",
             }
+
+        # Include dependency errors if any
+        if dependency_errors:
+            result["dependency_errors"] = dependency_errors
+            result["warning"] = (
+                f"Task created but {len(dependency_errors)} dependency(s) failed"
+            )
 
         return result
 
@@ -146,6 +178,12 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "List of task IDs that this new task blocks (optional)",
+                    "default": None,
+                },
+                "depends_on": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tasks this new task depends on (must complete first): #N, N, path, or UUID",
                     "default": None,
                 },
                 "labels": {

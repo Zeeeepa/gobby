@@ -116,7 +116,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 ### Task Workflow
 
 1. **Start of session**: `list_ready_tasks` or `suggest_next_task(session_id)`
-2. **New work**: `create_task(title, description, session_id)` - session_id required
+2. **New work**: `create_task(title, description, session_id, depends_on)` - session_id required, use `depends_on` for dependencies
 3. **Complex work**: `expand_task` for subtasks
 4. **Track progress**: `update_task(status="in_progress")`
 5. **Complete work**: Commit with `[task-id]` in message, then `close_task(commit_sha="...")`
@@ -131,7 +131,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 | `get_task` | Get task details with dependencies |
 | `update_task` | Update task fields |
 | `close_task` | Close a task with reason |
-| `delete_task` | Delete a task |
+| `delete_task` | Delete a task (use `cascade` or `unlink` for dependents) |
 | `list_tasks` | List tasks with filters |
 | `add_label` | Add a label to a task |
 | `remove_label` | Remove a label from a task |

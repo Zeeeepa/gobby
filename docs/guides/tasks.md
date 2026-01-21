@@ -124,10 +124,17 @@ call_tool(server_name="gobby-tasks", tool_name="add_dependency", arguments={
     "dep_type": "blocks"
 })
 
-# Create task with dependencies in one call
+# Create task that BLOCKS other tasks (this task must complete first)
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Implement feature",
     "blocks": ["gt-parent-epic"],  # This task blocks the parent
+    "session_id": "<your_session_id>"  # Required
+})
+
+# Create task that DEPENDS ON other tasks (those tasks must complete first)
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Integration tests",
+    "depends_on": ["#1", "#2"],  # This task is blocked by #1 and #2
     "session_id": "<your_session_id>"  # Required
 })
 ```
@@ -479,11 +486,11 @@ gobby tasks reindex --all-projects
 
 | Tool | Description |
 |------|-------------|
-| `create_task` | Create a new task |
+| `create_task` | Create a new task (supports `depends_on` for inline dependencies) |
 | `get_task` | Get task details with dependencies |
 | `update_task` | Update task fields |
 | `close_task` | Close a task with reason |
-| `delete_task` | Delete a task (cascade optional) |
+| `delete_task` | Delete a task (`cascade` or `unlink` for dependents) |
 | `list_tasks` | List tasks with filters |
 | `add_label` | Add a label to a task |
 | `remove_label` | Remove a label from a task |

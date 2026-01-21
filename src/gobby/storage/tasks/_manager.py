@@ -462,13 +462,24 @@ class LocalTaskManager:
             self._notify_listeners()
         return self.get_task(task_id)
 
-    def delete_task(self, task_id: str, cascade: bool = False) -> bool:
-        """Delete a task. If cascade is True, delete children recursively.
+    def delete_task(
+        self, task_id: str, cascade: bool = False, unlink: bool = False
+    ) -> bool:
+        """Delete a task.
+
+        Args:
+            task_id: The task ID to delete
+            cascade: If True, delete children AND dependent tasks recursively
+            unlink: If True, remove dependency links but preserve dependent tasks
+                    (ignored if cascade=True)
 
         Returns:
             True if task was deleted, False if task not found.
+
+        Raises:
+            ValueError: If task has children or dependents and neither cascade nor unlink is True.
         """
-        result = _delete_task(self.db, task_id, cascade)
+        result = _delete_task(self.db, task_id, cascade=cascade, unlink=unlink)
         if result:
             self._notify_listeners()
         return result

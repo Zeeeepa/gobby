@@ -128,7 +128,7 @@ Multiple sessions can be active simultaneously (parallel agents, multiple termin
 2. **Define Work:**
     * **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
         * *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
-    * **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "...", "session_id": "<your_session_id>"})`
+    * **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "...", "session_id": "<your_session_id>", "depends_on": ["#N", ...]})`
 
 3. **Link Session:**
     * `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", {})`

@@ -33,12 +33,14 @@ Call `gobby-tasks.create_task` with:
 - `priority`: 1=High, 2=Medium (default), 3=Low
 - `parent_task_id`: Optional parent task
 - `blocks`: List of task IDs this task blocks
+- `depends_on`: List of task IDs this task depends on (must complete first)
 - `labels`: List of labels
 - `category`: "code", "config", "docs", "refactor", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
 Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature", session_id="<your_session_id>")`
+Example: `/gobby-tasks create Integrate API --depends-on=#1,#2` → `create_task(title="Integrate API", depends_on=["#1", "#2"], session_id="<your_session_id>")`
 
 ### `/gobby-tasks show <task-id>` - Show task details
 Call `gobby-tasks.get_task` with:
@@ -119,10 +121,14 @@ Example: `/gobby-tasks reopen #1` → `reopen_task(task_id="#1")`
 ### `/gobby-tasks delete <task-id>` - Delete a task
 Call `gobby-tasks.delete_task` with:
 - `task_id`: (required) Task reference
+- `cascade`: If true, delete subtasks AND dependent tasks (default: true)
+- `unlink`: If true, remove dependency links but preserve dependent tasks (ignored if cascade=true)
 
-Deletes the task and all subtasks.
+By default, deletes the task and all subtasks/dependents. If the task has dependents and neither
+`cascade` nor `unlink` is set, returns an error with suggestions.
 
 Example: `/gobby-tasks delete #1` → `delete_task(task_id="#1")`
+Example: `/gobby-tasks delete #1 --unlink` → `delete_task(task_id="#1", unlink=true)` (preserve dependents)
 
 ## Expansion & Planning
 

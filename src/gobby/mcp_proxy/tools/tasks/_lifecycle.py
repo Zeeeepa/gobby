@@ -334,8 +334,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=reopen_task,
     )
 
-    def delete_task(task_id: str, cascade: bool = True) -> dict[str, Any]:
-        """Delete a task and its children by default."""
+    def delete_task(
+        task_id: str, cascade: bool = True, unlink: bool = False
+    ) -> dict[str, Any]:
+        """Delete a task.
+
+        By default (cascade=True), deletes subtasks and dependent tasks.
+        Use unlink=True to remove dependency links but preserve dependent tasks.
+        """
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
@@ -347,9 +353,28 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": f"Task {task_id} not found"}
         ref = f"#{task.seq_num}" if task.seq_num else resolved_id[:8]
 
-        deleted = ctx.task_manager.delete_task(resolved_id, cascade=cascade)
-        if not deleted:
-            return {"error": f"Task {task_id} not found"}
+        try:
+            deleted = ctx.task_manager.delete_task(
+                resolved_id, cascade=cascade, unlink=unlink
+            )
+            if not deleted:
+                return {"error": f"Task {task_id} not found"}
+        except ValueError as e:
+            error_msg = str(e)
+            if "dependent task(s)" in error_msg:
+                return {
+                    "error": "has_dependents",
+                    "message": error_msg,
+                    "suggestion": f"Use cascade=True to delete task {ref} and its dependents, "
+                    f"or unlink=True to preserve dependent tasks.",
+                }
+            elif "has children" in error_msg:
+                return {
+                    "error": "has_children",
+                    "message": error_msg,
+                    "suggestion": f"Use cascade=True to delete task {ref} and all its subtasks.",
+                }
+            return {"error": error_msg}
 
         return {
             "ref": ref,
@@ -358,7 +383,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="delete_task",
-        description="Delete a task and its subtasks.",
+        description="Delete a task. By default (cascade=True), deletes subtasks and dependent tasks. "
+        "Set cascade=False to fail if task has children or dependents. "
+        "Use unlink=True to remove dependency links but preserve dependent tasks.",
         input_schema={
             "type": "object",
             "properties": {
@@ -368,8 +395,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "cascade": {
                     "type": "boolean",
-                    "description": "If True, delete all child tasks as well. Defaults to True.",
+                    "description": "If True, delete subtasks and dependent tasks. Defaults to True.",
                     "default": True,
+                },
+                "unlink": {
+                    "type": "boolean",
+                    "description": "If True, remove dependency links but preserve dependent tasks. "
+                    "Ignored if cascade=True.",
+                    "default": False,
                 },
             },
             "required": ["task_id"],

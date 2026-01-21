@@ -250,6 +250,102 @@ class TestCreateTaskTool:
                 )
 
     @pytest.mark.asyncio
+    async def test_create_task_with_depends_on(self, mock_task_manager, mock_sync_manager):
+        """Test create_task with depends_on argument creates dependencies."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
+            mock_dep_instance = MagicMock()
+            MockDepManager.return_value = mock_dep_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
+            mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "auto_decomposed": False,
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+                with patch(
+                    "gobby.mcp_proxy.tools.tasks._crud.resolve_task_id_for_mcp"
+                ) as mock_resolve:
+                    mock_resolve.side_effect = lambda mgr, ref, pid: ref  # Pass through
+
+                    result = await registry.call(
+                        "create_task",
+                        {
+                            "title": "Dependent Task",
+                            "session_id": "test-session",
+                            "depends_on": ["blocker-1", "blocker-2"],
+                        },
+                    )
+
+                    assert result["id"] == "550e8400-e29b-41d4-a716-446655440010"
+                    # Verify dependencies were added (task depends on blockers)
+                    assert mock_dep_instance.add_dependency.call_count == 2
+                    mock_dep_instance.add_dependency.assert_any_call(
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        "blocker-1",
+                        "blocks",
+                    )
+                    mock_dep_instance.add_dependency.assert_any_call(
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        "blocker-2",
+                        "blocks",
+                    )
+
+    @pytest.mark.asyncio
+    async def test_create_task_depends_on_with_errors(self, mock_task_manager, mock_sync_manager):
+        """Test create_task with depends_on handles invalid refs gracefully."""
+        from gobby.storage.tasks import TaskNotFoundError
+
+        with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager") as MockDepManager:
+            mock_dep_instance = MagicMock()
+            MockDepManager.return_value = mock_dep_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440011"
+            mock_task.seq_num = 1
+            mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440011"}
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "auto_decomposed": False,
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+                with patch(
+                    "gobby.mcp_proxy.tools.tasks._crud.resolve_task_id_for_mcp"
+                ) as mock_resolve:
+                    # First blocker found, second not found
+                    mock_resolve.side_effect = [
+                        "valid-blocker",
+                        TaskNotFoundError("not found"),
+                    ]
+
+                    result = await registry.call(
+                        "create_task",
+                        {
+                            "title": "Partial Deps Task",
+                            "session_id": "test-session",
+                            "depends_on": ["valid-ref", "invalid-ref"],
+                        },
+                    )
+
+                    # Task should still be created
+                    assert result["id"] == "550e8400-e29b-41d4-a716-446655440011"
+                    # But with warning about failed dependencies
+                    assert "dependency_errors" in result
+                    assert len(result["dependency_errors"]) == 1
+                    assert "warning" in result
+
+    @pytest.mark.asyncio
     async def test_create_task_with_labels(self, mock_task_manager, mock_sync_manager):
         """Test create_task with labels argument."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
@@ -1086,7 +1182,7 @@ class TestDeleteTaskTool:
         )
 
         mock_task_manager.delete_task.assert_called_with(
-            "550e8400-e29b-41d4-a716-446655440000", cascade=True
+            "550e8400-e29b-41d4-a716-446655440000", cascade=True, unlink=False
         )
         assert "error" not in result
         assert result["deleted_task_id"] == "550e8400-e29b-41d4-a716-446655440000"
@@ -1116,8 +1212,41 @@ class TestDeleteTaskTool:
         )
 
         mock_task_manager.delete_task.assert_called_with(
-            "550e8400-e29b-41d4-a716-446655440000", cascade=False
+            "550e8400-e29b-41d4-a716-446655440000", cascade=False, unlink=False
         )
+
+    @pytest.mark.asyncio
+    async def test_delete_task_with_unlink(self, mock_task_manager, mock_sync_manager):
+        """Test delete_task with unlink option preserves dependents."""
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+        mock_task_manager.delete_task.return_value = True
+
+        result = await registry.call(
+            "delete_task",
+            {"task_id": "550e8400-e29b-41d4-a716-446655440000", "cascade": False, "unlink": True},
+        )
+
+        mock_task_manager.delete_task.assert_called_with(
+            "550e8400-e29b-41d4-a716-446655440000", cascade=False, unlink=True
+        )
+        assert "error" not in result
+
+    @pytest.mark.asyncio
+    async def test_delete_task_dependents_error(self, mock_task_manager, mock_sync_manager):
+        """Test delete_task returns structured error when task has dependents."""
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+        mock_task_manager.delete_task.side_effect = ValueError(
+            "Task abc has 2 dependent task(s): #1, #2. Use cascade or unlink."
+        )
+
+        result = await registry.call(
+            "delete_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "cascade": False}
+        )
+
+        assert result["error"] == "has_dependents"
+        assert "suggestion" in result
 
 
 # =============================================================================

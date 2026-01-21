@@ -130,6 +130,68 @@ class TestLocalTaskManager:
         with pytest.raises(ValueError):
             task_manager.get_task(child.id)
 
+    def test_delete_with_dependents_no_flags_raises(self, task_manager, dep_manager, project_id):
+        """Test that deleting a task with dependents raises error without cascade/unlink."""
+        blocker = task_manager.create_task(project_id=project_id, title="Blocker")
+        dependent = task_manager.create_task(project_id=project_id, title="Dependent")
+        dep_manager.add_dependency(dependent.id, blocker.id, "blocks")
+
+        with pytest.raises(ValueError, match="dependent task"):
+            task_manager.delete_task(blocker.id)
+
+    def test_delete_with_dependents_cascade_deletes_all(
+        self, task_manager, dep_manager, project_id
+    ):
+        """Test that cascade=True deletes the task AND its dependents."""
+        blocker = task_manager.create_task(project_id=project_id, title="Blocker")
+        dependent = task_manager.create_task(project_id=project_id, title="Dependent")
+        dep_manager.add_dependency(dependent.id, blocker.id, "blocks")
+
+        task_manager.delete_task(blocker.id, cascade=True)
+
+        with pytest.raises(ValueError):
+            task_manager.get_task(blocker.id)
+        with pytest.raises(ValueError):
+            task_manager.get_task(dependent.id)
+
+    def test_delete_with_dependents_unlink_preserves(
+        self, task_manager, dep_manager, project_id
+    ):
+        """Test that unlink=True deletes task but preserves dependents."""
+        blocker = task_manager.create_task(project_id=project_id, title="Blocker")
+        dependent = task_manager.create_task(project_id=project_id, title="Dependent")
+        dep_manager.add_dependency(dependent.id, blocker.id, "blocks")
+
+        task_manager.delete_task(blocker.id, unlink=True)
+
+        # Blocker should be gone
+        with pytest.raises(ValueError):
+            task_manager.get_task(blocker.id)
+
+        # Dependent should still exist
+        preserved = task_manager.get_task(dependent.id)
+        assert preserved is not None
+        assert preserved.title == "Dependent"
+
+        # Dependency should be cleaned up by ON DELETE CASCADE
+        blockers = dep_manager.get_blockers(dependent.id)
+        assert len(blockers) == 0
+
+    def test_delete_error_includes_task_refs(self, task_manager, dep_manager, project_id):
+        """Test that error message includes human-readable task refs."""
+        blocker = task_manager.create_task(project_id=project_id, title="Blocker")
+        dep1 = task_manager.create_task(project_id=project_id, title="Dep1")
+        dep2 = task_manager.create_task(project_id=project_id, title="Dep2")
+        dep_manager.add_dependency(dep1.id, blocker.id, "blocks")
+        dep_manager.add_dependency(dep2.id, blocker.id, "blocks")
+
+        with pytest.raises(ValueError) as exc:
+            task_manager.delete_task(blocker.id)
+
+        error = str(exc.value)
+        assert "2 dependent task(s)" in error
+        assert "#" in error  # Should include seq_num refs
+
     def test_list_ready_tasks(self, task_manager, dep_manager, project_id):
         # T1 -> T2 (blocks)
         t1 = task_manager.create_task(project_id, "T1", priority=2)

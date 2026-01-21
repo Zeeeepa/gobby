@@ -309,8 +309,9 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
    - `list_ready_tasks()` - List all tasks ready to work on
 
 2. **Create new work**:
-   - `create_task(title, description, task_type, priority, session_id)` - session_id required
+   - `create_task(title, description, task_type, priority, session_id, depends_on)` - session_id required
    - Task types: `task`, `bug`, `feature`, `epic`
+   - Use `depends_on=["#1", "#2"]` to create dependencies on existing tasks
 
 3. **Complex tasks** (multi-step work):
    - `expand_task(task_id)` - LLM-based decomposition into subtasks with auto-TDD sandwich pattern

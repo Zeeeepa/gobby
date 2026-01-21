@@ -320,8 +320,23 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
 @click.option("--description", "-d", help="Task description")
 @click.option("--priority", "-p", type=int, default=2, help="Priority (1=High, 2=Med, 3=Low)")
 @click.option("--type", "-t", "task_type", default="task", help="Task type")
-def create_task(title: str, description: str | None, priority: int, task_type: str) -> None:
-    """Create a new task."""
+@click.option(
+    "--depends-on", "-D", multiple=True, help="Task(s) this task depends on (#N, UUID)"
+)
+def create_task(
+    title: str,
+    description: str | None,
+    priority: int,
+    task_type: str,
+    depends_on: tuple[str, ...],
+) -> None:
+    """Create a new task.
+
+    Examples:
+        gobby tasks create "Fix bug"
+        gobby tasks create "Implement feature" --depends-on "#1"
+        gobby tasks create "Final review" -D "#1" -D "#2"
+    """
     project_ctx = get_project_context()
     if not project_ctx or "id" not in project_ctx:
         click.echo("Error: Not in a gobby project or project.json missing 'id'.", err=True)
@@ -342,6 +357,21 @@ def create_task(title: str, description: str | None, priority: int, task_type: s
         click.echo(f"Created task {project_name}-#{task.seq_num}: {task.title}")
     else:
         click.echo(f"Created task {task_ref}: {task.title}")
+
+    # Handle depends_on
+    if depends_on:
+        from gobby.storage.task_dependencies import TaskDependencyManager
+
+        dep_manager = TaskDependencyManager(manager.db)
+        for blocker_ref in depends_on:
+            try:
+                blocker = resolve_task_id(manager, blocker_ref)
+                if blocker:
+                    dep_manager.add_dependency(task.id, blocker.id, "blocks")
+                    blocker_display = f"#{blocker.seq_num}" if blocker.seq_num else blocker.id[:8]
+                    click.echo(f"  → depends on {blocker_display}")
+            except Exception as e:
+                click.echo(f"  Warning: Could not add dependency on '{blocker_ref}': {e}", err=True)
 
 
 @click.command("show")
@@ -537,9 +567,14 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
 
 @click.command("delete")
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
-@click.option("--cascade", "-c", is_flag=True, help="Delete child tasks")
+@click.option("--cascade", "-c", is_flag=True, help="Delete child tasks and dependent tasks")
+@click.option(
+    "--unlink", "-u", is_flag=True, help="Remove dependency links but preserve dependent tasks"
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
-def delete_task(task_refs: tuple[str, ...], cascade: bool, yes: bool) -> None:
+def delete_task(
+    task_refs: tuple[str, ...], cascade: bool, unlink: bool, yes: bool
+) -> None:
     """Delete one or more tasks.
 
     TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
@@ -549,6 +584,7 @@ def delete_task(task_refs: tuple[str, ...], cascade: bool, yes: bool) -> None:
         gobby tasks delete #42
         gobby tasks delete #42,#43,#44 --cascade
         gobby tasks delete #42 #43 #44 --yes
+        gobby tasks delete #42 --unlink
     """
     from gobby.cli.tasks._utils import parse_task_refs
 
@@ -576,13 +612,18 @@ def delete_task(task_refs: tuple[str, ...], cascade: bool, yes: bool) -> None:
     deleted = 0
     for ref, resolved in resolved_tasks:
         try:
-            manager.delete_task(resolved.id, cascade=cascade)
+            manager.delete_task(resolved.id, cascade=cascade, unlink=unlink)
             click.echo(f"Deleted task {resolved.id}")
             deleted += 1
         except ValueError as e:
             msg = str(e)
-            if "has children" in msg and "cascade=True" in msg:
+            if "has children" in msg:
                 msg = f"Task {ref} has children. Use --cascade to delete with all subtasks."
+            elif "dependent task(s)" in msg:
+                msg = (
+                    f"Task {ref} has dependent tasks. "
+                    f"Use --cascade to delete them, or --unlink to preserve them."
+                )
             click.echo(f"Error: {msg}", err=True)
 
     if len(resolved_tasks) > 1:

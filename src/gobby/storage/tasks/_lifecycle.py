@@ -274,19 +274,23 @@ def unlink_commit(
     return False
 
 
-def delete_task(db: DatabaseProtocol, task_id: str, cascade: bool = False) -> bool:
-    """Delete a task. If cascade is True, delete children recursively.
+def delete_task(
+    db: DatabaseProtocol, task_id: str, cascade: bool = False, unlink: bool = False
+) -> bool:
+    """Delete a task.
 
     Args:
         db: Database protocol instance
         task_id: The task ID to delete
-        cascade: If True, delete children recursively (default: False)
+        cascade: If True, delete children AND dependent tasks recursively
+        unlink: If True, remove dependency links but preserve dependent tasks
+                (ignored if cascade=True)
 
     Returns:
         True if task was deleted, False if task not found.
 
     Raises:
-        ValueError: If task has children and cascade is False.
+        ValueError: If task has children or dependents and neither cascade nor unlink is True.
     """
     # Check if task exists first
     existing = db.fetchone("SELECT 1 FROM tasks WHERE id = ?", (task_id,))
@@ -299,12 +303,43 @@ def delete_task(db: DatabaseProtocol, task_id: str, cascade: bool = False) -> bo
         if row:
             raise ValueError(f"Task {task_id} has children. Use cascade=True to delete.")
 
+    if not cascade and not unlink:
+        # Check for dependents (tasks that depend on this task)
+        dependent_rows = db.fetchall(
+            """SELECT t.id, t.seq_num, t.title
+               FROM tasks t
+               JOIN task_dependencies d ON d.task_id = t.id
+               WHERE d.depends_on = ? AND d.dep_type = 'blocks'""",
+            (task_id,),
+        )
+        if dependent_rows:
+            refs = [f"#{r['seq_num']}" for r in dependent_rows[:5] if r["seq_num"]]
+            refs_str = ", ".join(refs) if refs else str(len(dependent_rows)) + " task(s)"
+            if len(dependent_rows) > 5:
+                refs_str += f" and {len(dependent_rows) - 5} more"
+            raise ValueError(
+                f"Task {task_id} has {len(dependent_rows)} dependent task(s): {refs_str}. "
+                f"Use cascade=True to delete dependents, or unlink=True to preserve them."
+            )
+
     if cascade:
-        # Recursive delete
-        # Find all children
+        # Recursive delete children
         children = db.fetchall("SELECT id FROM tasks WHERE parent_task_id = ?", (task_id,))
         for child in children:
             delete_task(db, child["id"], cascade=True)
+
+        # Delete tasks that depend on this task
+        dependents = db.fetchall(
+            """SELECT t.id FROM tasks t
+               JOIN task_dependencies d ON d.task_id = t.id
+               WHERE d.depends_on = ?""",
+            (task_id,),
+        )
+        for dep in dependents:
+            delete_task(db, dep["id"], cascade=True)
+
+    # Note: if unlink=True, dependency links are removed by ON DELETE CASCADE
+    # when the task is deleted - no explicit action needed
 
     with db.transaction() as conn:
         conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
