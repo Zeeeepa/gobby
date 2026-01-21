@@ -84,10 +84,12 @@ def engine(mock_loader, mock_state_manager, mock_action_executor):
 
 
 @pytest.mark.asyncio
-async def test_handle_event_no_session_id(engine):
+async def test_handle_event_no_session_id(engine, mock_state_manager):
     event = make_event(metadata={})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
+    # Should not attempt to get state when no session_id is present
+    mock_state_manager.get_state.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -96,6 +98,11 @@ async def test_handle_event_no_state(engine, mock_state_manager):
     event = make_event(metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
+    # Should look up state for the session
+    mock_state_manager.get_state.assert_called_once_with("sess-123")
+    # Should not attempt to update state when none exists
+    mock_state_manager.set_state.assert_not_called()
+    mock_state_manager.update_state.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -110,6 +117,11 @@ async def test_handle_event_disabled_workflow(engine, mock_state_manager):
     event = make_event(metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
+    # Should look up state for the session
+    mock_state_manager.get_state.assert_called_once_with("sess-123")
+    # Should not transition or update state for disabled workflows
+    mock_state_manager.set_state.assert_not_called()
+    mock_state_manager.update_state.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -123,6 +135,11 @@ async def test_handle_event_lifecycle_state(engine, mock_state_manager):
     event = make_event(metadata={"_platform_session_id": "sess-123"})
     response = await engine.handle_event(event)
     assert response.decision == "allow"
+    # Should look up state for the session
+    mock_state_manager.get_state.assert_called_once_with("sess-123")
+    # Should not transition or update state for lifecycle workflows
+    mock_state_manager.set_state.assert_not_called()
+    mock_state_manager.update_state.assert_not_called()
 
 
 @pytest.mark.asyncio
