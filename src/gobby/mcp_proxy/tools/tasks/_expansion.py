@@ -145,7 +145,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         created_refs = []
 
         for subtask in subtasks:
-            new_task = ctx.task_manager.create_task_with_decomposition(
+            result = ctx.task_manager.create_task_with_decomposition(
                 project_id=task.project_id,
                 title=subtask["title"],
                 description=subtask.get("description"),
@@ -157,8 +157,9 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 created_in_session_id=session_id,
             )
 
-            # Get the task (create_task_with_decomposition returns TaskCreationResult)
-            created_task = ctx.task_manager.get_task(new_task.task_id)
+            # Get the task (create_task_with_decomposition returns dict with task dict)
+            task_id = result["task"]["id"]
+            created_task = ctx.task_manager.get_task(task_id)
             created_tasks.append(created_task)
 
             # Build ref
@@ -250,22 +251,82 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         return {"pending": False}
 
     # Register tools
-    registry.register_tool(
+    registry.register(
         name="save_expansion_spec",
-        func=save_expansion_spec,
         description="Save expansion spec to task for later execution. Used by /gobby-expand skill.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task ID to expand (can be #N, path, or UUID)",
+                },
+                "spec": {
+                    "type": "object",
+                    "description": "Expansion specification containing subtasks array",
+                    "properties": {
+                        "subtasks": {
+                            "type": "array",
+                            "description": "List of subtask definitions",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "category": {"type": "string"},
+                                    "depends_on": {
+                                        "type": "array",
+                                        "items": {"type": "integer"},
+                                    },
+                                    "validation": {"type": "string"},
+                                    "description": {"type": "string"},
+                                    "priority": {"type": "integer"},
+                                },
+                                "required": ["title"],
+                            },
+                        },
+                    },
+                    "required": ["subtasks"],
+                },
+            },
+            "required": ["task_id", "spec"],
+        },
+        func=save_expansion_spec,
     )
 
-    registry.register_tool(
+    registry.register(
         name="execute_expansion",
-        func=execute_expansion,
         description="Execute a saved expansion spec atomically. Creates subtasks with dependencies.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task ID with saved expansion spec",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID for tracking created tasks",
+                },
+            },
+            "required": ["task_id", "session_id"],
+        },
+        func=execute_expansion,
     )
 
-    registry.register_tool(
+    registry.register(
         name="get_expansion_spec",
-        func=get_expansion_spec,
         description="Check for pending expansion spec (for resume after session compaction).",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task ID to check",
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=get_expansion_spec,
     )
 
     return registry

@@ -307,6 +307,7 @@ class LocalTaskManager:
         reference_doc: str | None | Any = UNSET,
         is_expanded: bool | None | Any = UNSET,
         is_tdd_applied: bool | None | Any = UNSET,
+        expansion_status: str | None | Any = UNSET,
         validation_override_reason: str | None | Any = UNSET,
         requires_user_review: bool | None | Any = UNSET,
     ) -> Task:
@@ -345,6 +346,7 @@ class LocalTaskManager:
             reference_doc=reference_doc,
             is_expanded=is_expanded,
             is_tdd_applied=is_tdd_applied,
+            expansion_status=expansion_status,
             validation_override_reason=validation_override_reason,
             requires_user_review=requires_user_review,
         )
