@@ -30,7 +30,7 @@ Instructions for the skill...
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,11 @@ class ParsedSkill:
         allowed_tools: List of allowed tool patterns
         metadata: Full metadata dict (includes skillport/gobby namespaces)
         source_path: Path the skill was loaded from
+        source_type: Source type (local, github, zip, etc.)
+        source_ref: Git ref for GitHub imports
+        scripts: List of script file paths (relative to skill dir)
+        references: List of reference file paths (relative to skill dir)
+        assets: List of asset file paths (relative to skill dir)
     """
 
     name: str
@@ -69,6 +74,11 @@ class ParsedSkill:
     allowed_tools: list[str] | None = None
     metadata: dict[str, Any] | None = None
     source_path: str | None = None
+    source_type: str | None = None
+    source_ref: str | None = None
+    scripts: list[str] | None = None
+    references: list[str] | None = None
+    assets: list[str] | None = None
 
     def get_category(self) -> str | None:
         """Get category from metadata.skillport.category."""
@@ -103,6 +113,11 @@ class ParsedSkill:
             "allowed_tools": self.allowed_tools,
             "metadata": self.metadata,
             "source_path": self.source_path,
+            "source_type": self.source_type,
+            "source_ref": self.source_ref,
+            "scripts": self.scripts,
+            "references": self.references,
+            "assets": self.assets,
         }
 
 

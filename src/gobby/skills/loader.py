@@ -18,7 +18,7 @@ import tempfile
 import zipfile
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from gobby.skills.parser import ParsedSkill, SkillParseError, parse_skill_file
@@ -352,11 +352,40 @@ class SkillLoader:
                     skill_file,
                 )
 
+        # Detect directory structure (scripts/, references/, assets/)
+        if is_directory_load:
+            skill.scripts = self._scan_subdirectory(path, "scripts")
+            skill.references = self._scan_subdirectory(path, "references")
+            skill.assets = self._scan_subdirectory(path, "assets")
+
         # Set source tracking
         skill.source_path = str(skill_file)
         skill.source_type = self._default_source_type
 
         return skill
+
+    def _scan_subdirectory(self, skill_dir: Path, subdir_name: str) -> list[str] | None:
+        """Scan a subdirectory for files and return relative paths.
+
+        Args:
+            skill_dir: Path to the skill directory
+            subdir_name: Name of the subdirectory (scripts, references, assets)
+
+        Returns:
+            List of relative file paths, or None if directory doesn't exist or is empty
+        """
+        subdir = skill_dir / subdir_name
+        if not subdir.exists() or not subdir.is_dir():
+            return None
+
+        files: list[str] = []
+        for file_path in subdir.rglob("*"):
+            if file_path.is_file():
+                # Get path relative to skill directory
+                rel_path = file_path.relative_to(skill_dir)
+                files.append(str(rel_path))
+
+        return sorted(files) if files else None
 
     def load_directory(
         self,
