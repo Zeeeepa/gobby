@@ -16,10 +16,14 @@ from gobby.skills.parser import (
     parse_skill_text,
 )
 from gobby.skills.validator import (
+    SkillValidator,
     ValidationResult,
+    validate_skill_category,
     validate_skill_compatibility,
     validate_skill_description,
     validate_skill_name,
+    validate_skill_tags,
+    validate_skill_version,
 )
 
 __all__ = [
@@ -30,8 +34,12 @@ __all__ = [
     "parse_skill_file",
     "parse_skill_text",
     # Validator
+    "SkillValidator",
     "ValidationResult",
-    "validate_skill_name",
-    "validate_skill_description",
+    "validate_skill_category",
     "validate_skill_compatibility",
+    "validate_skill_description",
+    "validate_skill_name",
+    "validate_skill_tags",
+    "validate_skill_version",
 ]

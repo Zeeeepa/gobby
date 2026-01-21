@@ -2,7 +2,9 @@
 
 import pytest
 
+from gobby.skills.parser import ParsedSkill
 from gobby.skills.validator import (
+    SkillValidator,
     ValidationResult,
     validate_skill_category,
     validate_skill_compatibility,
@@ -310,3 +312,176 @@ class TestValidateSkillCategory:
         """Test that categories starting with numbers are rejected."""
         result = validate_skill_category("2git")
         assert result.valid is False
+
+
+class TestSkillValidator:
+    """Tests for SkillValidator class."""
+
+    def test_validate_valid_skill_fields(self):
+        """Test validating valid skill fields."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="my-skill",
+            description="A valid skill description",
+        )
+        assert result.valid is True
+        assert len(result.errors) == 0
+
+    def test_validate_all_optional_fields(self):
+        """Test validating with all optional fields."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="full-skill",
+            description="A fully specified skill",
+            compatibility="Requires Python 3.11+",
+            tags=["git", "workflow"],
+            version="1.0.0",
+            category="git",
+        )
+        assert result.valid is True
+        assert len(result.errors) == 0
+
+    def test_validate_invalid_name(self):
+        """Test that invalid name is caught."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="InvalidName",  # Uppercase not allowed
+            description="Valid description",
+        )
+        assert result.valid is False
+        assert any("lowercase" in e.lower() for e in result.errors)
+
+    def test_validate_missing_description(self):
+        """Test that missing description is caught."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="valid-name",
+            description="",
+        )
+        assert result.valid is False
+        assert any("description" in e.lower() for e in result.errors)
+
+    def test_validate_multiple_errors(self):
+        """Test that multiple errors are collected."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="",  # Invalid - empty
+            description="",  # Invalid - empty
+            version="invalid",  # Invalid - not semver
+            category="Invalid",  # Invalid - uppercase
+        )
+        assert result.valid is False
+        assert len(result.errors) >= 4
+
+    def test_validate_parsed_skill(self):
+        """Test validating a ParsedSkill object."""
+        skill = ParsedSkill(
+            name="test-skill",
+            description="A test skill",
+            content="# Test\n\nContent here.",
+            version="1.0.0",
+        )
+        validator = SkillValidator()
+        result = validator.validate(skill)
+        assert result.valid is True
+
+    def test_validate_parsed_skill_with_metadata(self):
+        """Test validating a ParsedSkill with metadata."""
+        skill = ParsedSkill(
+            name="test-skill",
+            description="A test skill",
+            content="Content",
+            metadata={
+                "skillport": {
+                    "category": "git",
+                    "tags": ["git", "commits"],
+                }
+            },
+        )
+        validator = SkillValidator()
+        result = validator.validate(skill)
+        assert result.valid is True
+
+    def test_validate_parsed_skill_invalid_metadata(self):
+        """Test validating a ParsedSkill with invalid metadata."""
+        skill = ParsedSkill(
+            name="test-skill",
+            description="A test skill",
+            content="Content",
+            metadata={
+                "skillport": {
+                    "category": "Invalid",  # Uppercase not allowed
+                    "tags": ["git", 123],  # Non-string tag
+                }
+            },
+        )
+        validator = SkillValidator()
+        result = validator.validate(skill)
+        assert result.valid is False
+        assert len(result.errors) >= 2
+
+    def test_validate_parsed_skill_method(self):
+        """Test validate_parsed_skill convenience method."""
+        skill = ParsedSkill(
+            name="my-skill",
+            description="Description",
+            content="Content",
+        )
+        validator = SkillValidator()
+        result = validator.validate_parsed_skill(skill)
+        assert result.valid is True
+
+    def test_validate_skill_overrides_kwargs(self):
+        """Test that skill object values take precedence over kwargs."""
+        skill = ParsedSkill(
+            name="skill-name",  # This should be used
+            description="Skill description",
+            content="Content",
+        )
+        validator = SkillValidator()
+        result = validator.validate(
+            skill,
+            name="different-name",  # Should be ignored
+            description="Different description",  # Should be ignored
+        )
+        assert result.valid is True
+        # The skill's name is used, not the kwarg
+
+    def test_validate_invalid_tags_in_metadata(self):
+        """Test that invalid tags in metadata are caught."""
+        skill = ParsedSkill(
+            name="test-skill",
+            description="Description",
+            content="Content",
+            metadata={
+                "skillport": {
+                    "tags": ["", "valid"],  # Empty tag not allowed
+                }
+            },
+        )
+        validator = SkillValidator()
+        result = validator.validate(skill)
+        assert result.valid is False
+        assert any("empty" in e.lower() for e in result.errors)
+
+    def test_validate_invalid_version(self):
+        """Test that invalid version is caught."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="valid-name",
+            description="Valid description",
+            version="not-a-version",
+        )
+        assert result.valid is False
+        assert any("semver" in e.lower() for e in result.errors)
+
+    def test_validate_compatibility_too_long(self):
+        """Test that overly long compatibility is caught."""
+        validator = SkillValidator()
+        result = validator.validate(
+            name="valid-name",
+            description="Valid description",
+            compatibility="x" * 501,  # Max is 500
+        )
+        assert result.valid is False
+        assert any("500" in e for e in result.errors)

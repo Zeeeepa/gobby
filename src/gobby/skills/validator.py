@@ -266,3 +266,98 @@ def validate_skill_category(category: str | None) -> ValidationResult:
         )
 
     return result
+
+
+class SkillValidator:
+    """Validates a complete skill against the Agent Skills specification.
+
+    This class combines all field validators to provide comprehensive
+    skill validation. It can validate either a ParsedSkill object or
+    raw field values.
+
+    Example usage:
+        ```python
+        from gobby.skills.parser import parse_skill_file
+        from gobby.skills.validator import SkillValidator
+
+        skill = parse_skill_file("SKILL.md")
+        validator = SkillValidator()
+        result = validator.validate(skill)
+
+        if not result.valid:
+            for error in result.errors:
+                print(f"Error: {error}")
+        ```
+    """
+
+    def validate(
+        self,
+        skill: Any = None,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        compatibility: str | None = None,
+        tags: list[str] | None = None,
+        version: str | None = None,
+        category: str | None = None,
+    ) -> ValidationResult:
+        """Validate a skill against the Agent Skills specification.
+
+        Can accept either a ParsedSkill object or individual field values.
+        If a skill object is provided, its fields take precedence.
+
+        Args:
+            skill: A ParsedSkill object to validate (optional)
+            name: Skill name (required if no skill object)
+            description: Skill description (required if no skill object)
+            compatibility: Compatibility notes (optional)
+            tags: List of tags (optional)
+            version: Version string (optional)
+            category: Category string (optional)
+
+        Returns:
+            ValidationResult with all errors and warnings
+        """
+        result = ValidationResult()
+
+        # Extract fields from skill object if provided
+        if skill is not None:
+            name = getattr(skill, "name", name)
+            description = getattr(skill, "description", description)
+            compatibility = getattr(skill, "compatibility", compatibility)
+            version = getattr(skill, "version", version)
+
+            # Extract tags and category from metadata if available
+            metadata = getattr(skill, "metadata", None)
+            if metadata and isinstance(metadata, dict):
+                skillport = metadata.get("skillport", {})
+                if tags is None:
+                    tags = skillport.get("tags")
+                if category is None:
+                    category = skillport.get("category")
+
+        # Validate required fields
+        result.merge(validate_skill_name(name))
+        result.merge(validate_skill_description(description))
+
+        # Validate optional fields
+        result.merge(validate_skill_compatibility(compatibility))
+        result.merge(validate_skill_tags(tags))
+        result.merge(validate_skill_version(version))
+        result.merge(validate_skill_category(category))
+
+        return result
+
+    def validate_parsed_skill(self, skill: Any) -> ValidationResult:
+        """Validate a ParsedSkill object.
+
+        This is a convenience method that wraps validate() for
+        ParsedSkill objects specifically.
+
+        Args:
+            skill: A ParsedSkill object
+
+        Returns:
+            ValidationResult with all errors and warnings
+        """
+        return self.validate(skill=skill)
