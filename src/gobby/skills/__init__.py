@@ -6,8 +6,15 @@ This module provides:
 - Search integration (TF-IDF + optional embeddings)
 - Skill loading from filesystem, GitHub, and ZIP archives
 - Skill updates from source
+- Optional embedding provider abstraction for semantic search
 """
 
+from gobby.skills.embeddings import (
+    EmbeddingProvider,
+    OpenAIEmbeddingProvider,
+    get_embedding_provider,
+    is_embedding_available,
+)
 from gobby.skills.loader import (
     GitHubRef,
     SkillLoader,
@@ -45,6 +52,11 @@ from gobby.skills.validator import (
 )
 
 __all__ = [
+    # Embeddings
+    "EmbeddingProvider",
+    "OpenAIEmbeddingProvider",
+    "get_embedding_provider",
+    "is_embedding_available",
     # Loader
     "GitHubRef",
     "SkillLoadError",
