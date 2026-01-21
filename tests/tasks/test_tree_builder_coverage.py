@@ -1,7 +1,7 @@
-import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.tree_builder import TaskTreeBuilder
 
@@ -291,7 +291,7 @@ def test_duplicate_title_handling(MockDepManager, builder, mock_task_manager):
     assert len(result.errors) > 0
     assert "Duplicate task title 'A'" in result.errors[0]
     # The map should update to the latest ID
-    assert builder._title_to_id["A"] == "t2"
+    assert builder.get_id_for_title("A") == "t2"
 
 
 @patch("gobby.storage.task_dependencies.TaskDependencyManager")

@@ -110,6 +110,17 @@ class TaskTreeBuilder:
             errors=self._errors,
         )
 
+    def get_id_for_title(self, title: str) -> str | None:
+        """Get the task ID for a given title.
+
+        Args:
+            title: The task title to look up
+
+        Returns:
+            The task ID if found, None otherwise
+        """
+        return self._title_to_id.get(title)
+
     def _create_node(
         self,
         node: dict[str, Any],
