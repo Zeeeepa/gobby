@@ -218,6 +218,62 @@ class TestSkillsShowCommand:
         assert "test-skill" in result.output
         assert "A test skill for demonstration" in result.output
 
+    def test_show_help_shows_json_flag(self, runner: CliRunner):
+        """Test skills show --help shows --json flag."""
+        result = runner.invoke(cli, ["skills", "show", "--help"])
+        assert result.exit_code == 0
+        assert "--json" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_show_json_output(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test showing skill with JSON output."""
+        import json
+
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.name = "test-skill"
+        mock_skill.description = "A test skill for demonstration"
+        mock_skill.version = "1.0.0"
+        mock_skill.license = "MIT"
+        mock_skill.enabled = True
+        mock_skill.source_path = "/path/to/skill"
+        mock_skill.source_type = "local"
+        mock_skill.compatibility = "Requires Python 3.11+"
+        mock_skill.content = "# Test Skill\n\nInstructions here."
+        mock_skill.metadata = {"skillport": {"category": "test", "tags": ["demo"]}}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "show", "test-skill", "--json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["name"] == "test-skill"
+        assert data["description"] == "A test skill for demonstration"
+        assert data["version"] == "1.0.0"
+        assert data["license"] == "MIT"
+        assert data["enabled"] is True
+        assert data["content"] == "# Test Skill\n\nInstructions here."
+        assert data["category"] == "test"
+        assert data["tags"] == ["demo"]
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_show_json_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test showing non-existent skill with JSON output."""
+        import json
+
+        mock_storage = MagicMock()
+        mock_storage.get_by_name.return_value = None
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "show", "nonexistent", "--json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["error"] == "Skill not found"
+        assert data["name"] == "nonexistent"
+
 
 class TestSkillsInstallCommand:
     """Tests for gobby skills install command."""

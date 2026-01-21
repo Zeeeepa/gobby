@@ -120,14 +120,35 @@ def _output_json(skills_list: list[Any]) -> None:
 
 @skills.command()
 @click.argument("name")
+@click.option("--json", "json_output", is_flag=True, help="Output as JSON")
 @click.pass_context
-def show(ctx: click.Context, name: str) -> None:
+def show(ctx: click.Context, name: str, json_output: bool) -> None:
     """Show details of a specific skill."""
     storage = get_skill_storage()
     skill = storage.get_by_name(name)
 
     if skill is None:
-        click.echo(f"Skill not found: {name}")
+        if json_output:
+            click.echo(json.dumps({"error": "Skill not found", "name": name}))
+        else:
+            click.echo(f"Skill not found: {name}")
+        return
+
+    if json_output:
+        output = {
+            "name": skill.name,
+            "description": skill.description,
+            "version": skill.version,
+            "license": skill.license,
+            "enabled": skill.enabled,
+            "source_type": skill.source_type,
+            "source_path": skill.source_path,
+            "compatibility": skill.compatibility if hasattr(skill, "compatibility") else None,
+            "content": skill.content,
+            "category": _get_skill_category(skill),
+            "tags": _get_skill_tags(skill),
+        }
+        click.echo(json.dumps(output, indent=2))
         return
 
     click.echo(f"Name: {skill.name}")
