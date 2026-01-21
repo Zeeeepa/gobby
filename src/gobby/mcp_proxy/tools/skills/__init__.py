@@ -19,6 +19,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.skills.search import SearchFilters, SkillSearch
 from gobby.storage.skills import LocalSkillManager
 
 if TYPE_CHECKING:
@@ -190,6 +191,108 @@ def create_skills_registry(
                     "source_type": skill.source_type,
                     "source_ref": skill.source_ref,
                 },
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- search_skills tool ---
+
+    # Initialize search and index skills
+    search = SkillSearch()
+
+    def _index_skills() -> None:
+        """Index all skills for search."""
+        skills = storage.list_skills(
+            project_id=project_id,
+            limit=10000,
+            include_global=True,
+        )
+        search.index_skills(skills)
+
+    # Index on registry creation
+    _index_skills()
+
+    @registry.tool(
+        name="search_skills",
+        description="Search for skills by query. Returns ranked results with relevance scores. Supports filtering by category and tags.",
+    )
+    async def search_skills(
+        query: str,
+        category: str | None = None,
+        tags_any: list[str] | None = None,
+        tags_all: list[str] | None = None,
+        top_k: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Search for skills by natural language query.
+
+        Returns ranked results with relevance scores.
+
+        Args:
+            query: Search query (required, non-empty)
+            category: Optional category filter
+            tags_any: Optional tags filter - match any of these tags
+            tags_all: Optional tags filter - match all of these tags
+            top_k: Maximum results to return (default 10)
+
+        Returns:
+            Dict with success status and ranked search results
+        """
+        try:
+            # Validate query
+            if not query or not query.strip():
+                return {
+                    "success": False,
+                    "error": "Query is required and cannot be empty",
+                }
+
+            # Build filters
+            filters = None
+            if category or tags_any or tags_all:
+                filters = SearchFilters(
+                    category=category,
+                    tags_any=tags_any,
+                    tags_all=tags_all,
+                )
+
+            # Perform search
+            results = search.search(query=query, top_k=top_k, filters=filters)
+
+            # Format results with skill metadata
+            result_list = []
+            for r in results:
+                # Look up skill to get description, category, tags
+                skill = None
+                try:
+                    skill = storage.get_skill(r.skill_id)
+                except ValueError:
+                    pass
+
+                # Get category and tags from metadata
+                category_value = None
+                tags = []
+                if skill and skill.metadata and isinstance(skill.metadata, dict):
+                    skillport = skill.metadata.get("skillport", {})
+                    if isinstance(skillport, dict):
+                        category_value = skillport.get("category")
+                        tags = skillport.get("tags", [])
+
+                result_list.append({
+                    "skill_id": r.skill_id,
+                    "skill_name": r.skill_name,
+                    "description": skill.description if skill else None,
+                    "category": category_value,
+                    "tags": tags,
+                    "score": r.similarity,
+                })
+
+            return {
+                "success": True,
+                "count": len(result_list),
+                "results": result_list,
             }
         except Exception as e:
             return {
