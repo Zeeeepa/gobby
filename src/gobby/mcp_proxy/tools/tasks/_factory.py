@@ -15,6 +15,7 @@ from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 from gobby.mcp_proxy.tools.task_validation import create_validation_registry
 from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._crud import create_crud_registry
+from gobby.mcp_proxy.tools.tasks._expansion import create_expansion_registry
 from gobby.mcp_proxy.tools.tasks._lifecycle import create_lifecycle_registry
 from gobby.mcp_proxy.tools.tasks._search import create_search_registry
 from gobby.mcp_proxy.tools.tasks._session import create_session_registry
@@ -91,6 +92,11 @@ def create_task_registry(
     # Merge search tools
     search_registry = create_search_registry(ctx)
     for tool_name, tool in search_registry._tools.items():
+        registry._tools[tool_name] = tool
+
+    # Merge expansion tools (skill-based task decomposition)
+    expansion_registry = create_expansion_registry(ctx)
+    for tool_name, tool in expansion_registry._tools.items():
         registry._tools[tool_name] = tool
 
     # Merge validation tools from extracted module (Strangler Fig pattern)
