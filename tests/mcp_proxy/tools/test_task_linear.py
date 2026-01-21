@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from gobby.mcp_proxy.tools.task_linear import create_linear_sync_registry
-from gobby.sync.linear import LinearRateLimitError, LinearNotFoundError
+from gobby.sync.linear import LinearNotFoundError, LinearRateLimitError
 
 
 @pytest.mark.asyncio

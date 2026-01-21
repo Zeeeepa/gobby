@@ -2639,7 +2639,6 @@ class TestImportGitHubCommand:
         mock_get_sync.return_value = mock_manager
 
         # Mock the async method
-        import asyncio
 
         async def mock_import(*args, **kwargs):
             return {

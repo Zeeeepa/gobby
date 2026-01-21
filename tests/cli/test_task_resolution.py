@@ -1,5 +1,5 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
 from gobby.cli.tasks._utils import resolve_task_id
 
 

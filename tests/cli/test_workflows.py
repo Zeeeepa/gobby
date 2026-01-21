@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
-from click.testing import CliRunner
+
 import pytest
+from click.testing import CliRunner
+
 from gobby.cli.workflows import workflows
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowStep
 

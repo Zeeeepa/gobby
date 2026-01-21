@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 from gobby.mcp_proxy.registries import setup_internal_registries
 

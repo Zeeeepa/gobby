@@ -1,6 +1,5 @@
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import click
 import pytest
 from click.testing import CliRunner
 

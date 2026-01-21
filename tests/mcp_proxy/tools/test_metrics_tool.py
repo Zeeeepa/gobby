@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import MagicMock
-from typing import cast
-from gobby.mcp_proxy.tools.metrics import create_metrics_registry
+
+import pytest
+
 from gobby.mcp_proxy.metrics import ToolMetricsManager
+from gobby.mcp_proxy.tools.metrics import create_metrics_registry
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gobby.cli.sessions import sessions, _format_turns_for_llm
+from gobby.cli.sessions import _format_turns_for_llm, sessions
 from gobby.storage.sessions import Session
 
 
@@ -284,6 +284,7 @@ def test_search_messages(mock_message_manager, mock_resolve_session):
     assert "found it" in result.output
 
 
+@pytest.mark.integration
 @patch("gobby.storage.projects.LocalProjectManager")
 @patch("gobby.cli.sessions.LocalDatabase")
 @patch("subprocess.run")
@@ -345,6 +346,7 @@ def test_create_handoff(
     mock_session_manager.update_compact_markdown.assert_called()
 
 
+@pytest.mark.integration
 @patch("gobby.storage.projects.LocalProjectManager")
 @patch("gobby.cli.sessions.LocalDatabase")
 @patch("subprocess.run")
@@ -551,6 +553,7 @@ def test_format_turns_for_llm():
 
 
 
+@pytest.mark.integration
 def test_create_handoff_full_success(mock_session_manager, mock_resolve_session):
     session = Session(
         id="s1",
@@ -616,7 +619,7 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
 
         assert result.exit_code == 0
         assert "Created handoff context" in result.output
-        
+
         # Verify update called with full markdown
         mock_session_manager.update_summary.assert_called_once()
         args, kwargs = mock_session_manager.update_summary.call_args

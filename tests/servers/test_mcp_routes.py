@@ -78,7 +78,7 @@ def basic_http_server(session_storage: LocalSessionManager) -> HTTPServer:
 
 
 @pytest.fixture
-def client(basic_http_server: HTTPServer) -> Generator[TestClient, None, None]:
+def client(basic_http_server: HTTPServer) -> Generator[TestClient]:
     """Create a test client that runs lifespan to set app.state.server."""
     with TestClient(basic_http_server.app) as c:
         yield c
@@ -1889,7 +1889,7 @@ class TestCodeExecutionEndpoints:
         )
 
     @pytest.fixture
-    def code_client(self, code_server: HTTPServer) -> Generator[TestClient, None, None]:
+    def code_client(self, code_server: HTTPServer) -> Generator[TestClient]:
         """Create test client for code endpoints."""
         with TestClient(code_server.app) as c:
             yield c
@@ -2089,7 +2089,7 @@ class TestPluginsEndpoints:
         )
 
     @pytest.fixture
-    def plugins_client(self, plugins_server: HTTPServer) -> Generator[TestClient, None, None]:
+    def plugins_client(self, plugins_server: HTTPServer) -> Generator[TestClient]:
         """Create test client for plugins endpoints."""
         with TestClient(plugins_server.app) as c:
             yield c
@@ -2196,7 +2196,7 @@ class TestWebhooksEndpoints:
         )
 
     @pytest.fixture
-    def webhooks_client(self, webhooks_server: HTTPServer) -> Generator[TestClient, None, None]:
+    def webhooks_client(self, webhooks_server: HTTPServer) -> Generator[TestClient]:
         """Create test client for webhooks endpoints."""
         with TestClient(webhooks_server.app) as c:
             yield c

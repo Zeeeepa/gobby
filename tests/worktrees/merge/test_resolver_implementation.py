@@ -3,7 +3,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from gobby.worktrees.merge.resolver import MergeResolver, ResolutionTier
+
+from gobby.worktrees.merge.resolver import MergeResolver
 
 
 @pytest.fixture

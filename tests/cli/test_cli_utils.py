@@ -9,7 +9,7 @@ import signal
 import socket
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import click
 import psutil

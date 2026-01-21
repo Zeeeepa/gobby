@@ -3,7 +3,7 @@
 Targets uncovered lines: 202-233, 285-287, 298-339, 345-422, 424-461, 463-511
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

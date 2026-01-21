@@ -1,11 +1,10 @@
-import pytest
-from gobby.tui.widgets.token_budget import TokenBudgetMeter
-from gobby.tui.widgets.review_gate import ReviewGatePanel, ReviewItem
-from gobby.tui.widgets.message_panel import InterAgentMessagePanel, AgentMessage
-from gobby.tui.widgets.menu import MenuPanel, MenuItemWidget, MenuItem
+from gobby.tui.widgets.chat import ChatHistory, ChatInput, ChatMessage
 from gobby.tui.widgets.conductor import HaikuDisplay, ModeIndicator
-from gobby.tui.widgets.chat import ChatInput, ChatHistory, ChatMessage
+from gobby.tui.widgets.menu import MenuItem, MenuItemWidget, MenuPanel
+from gobby.tui.widgets.message_panel import AgentMessage, InterAgentMessagePanel
+from gobby.tui.widgets.review_gate import ReviewGatePanel, ReviewItem
 from gobby.tui.widgets.task_tree import TaskTree
+from gobby.tui.widgets.token_budget import TokenBudgetMeter
 
 
 def test_token_budget_instantiation():

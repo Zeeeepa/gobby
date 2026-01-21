@@ -7,7 +7,7 @@ Tests verify the progress bar for batch/cascade CLI operations:
 - Error continue prompt
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import click
 import pytest
@@ -169,6 +169,7 @@ class TestCascadeProgressErrorHandling:
         assert errors_handled == ["t1"]
 
 
+@pytest.mark.integration
 class TestCascadeProgressIntegration:
     """Integration tests with Click CLI runner."""
 

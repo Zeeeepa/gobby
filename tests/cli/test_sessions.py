@@ -1,10 +1,11 @@
-import json
-from unittest.mock import MagicMock, patch
-from click.testing import CliRunner
+from datetime import UTC, datetime
+from unittest.mock import patch
+
 import pytest
+from click.testing import CliRunner
+
 from gobby.cli.sessions import sessions
 from gobby.storage.sessions import Session
-from datetime import datetime, timezone
 
 # Mock session data
 MOCK_SESSION = Session(
@@ -21,8 +22,8 @@ MOCK_SESSION = Session(
     compact_markdown=None,
     git_branch="main",
     parent_session_id=None,
-    created_at=datetime.now(timezone.utc).isoformat(),
-    updated_at=datetime.now(timezone.utc).isoformat(),
+    created_at=datetime.now(UTC).isoformat(),
+    updated_at=datetime.now(UTC).isoformat(),
     usage_total_cost_usd=0.02,
     seq_num=42,
 )

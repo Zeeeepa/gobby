@@ -16,7 +16,7 @@ def mock_db(tmp_path) -> LocalDatabase:
 
 
 @pytest.fixture
-async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProcessor, None]:
+async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProcessor]:
     proc = SessionMessageProcessor(mock_db, poll_interval=0.1)
     # Ensure tables exist
     # Note: In real app, migrations run; here we must ensure schema

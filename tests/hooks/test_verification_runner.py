@@ -6,7 +6,6 @@ import pytest
 
 from gobby.config.features import HooksConfig, HookStageConfig, ProjectVerificationConfig
 from gobby.hooks.verification_runner import (
-    DEFAULT_TIMEOUT,
     StageResult,
     VerificationResult,
     VerificationRunner,

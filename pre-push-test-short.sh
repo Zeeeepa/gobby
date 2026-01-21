@@ -58,6 +58,18 @@ else
 fi
 echo ""
 
+# pip-audit - dependency CVE scanning
+echo ">>> Running pip-audit..."
+uv run pip-audit 2>&1 | tee "$REPORTS_DIR/pip-audit-$TIMESTAMP.txt"
+pipaudit_status=${PIPESTATUS[0]}
+if [ "$pipaudit_status" -eq 0 ]; then
+    echo "✓ pip-audit passed"
+else
+    echo "✗ pip-audit failed"
+    FAILED=$((FAILED+1))
+fi
+echo ""
+
 # Summary
 echo "=== Summary ==="
 echo "Reports saved to: $REPORTS_DIR/*-$TIMESTAMP.txt"

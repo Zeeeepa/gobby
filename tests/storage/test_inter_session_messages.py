@@ -6,10 +6,8 @@ Tests cover:
 - InterSessionMessageManager CRUD operations
 """
 
-import pytest
 
 from gobby.storage.database import LocalDatabase
-from gobby.storage.migrations import run_migrations
 
 
 class TestInterSessionMessageDataclass:

@@ -793,7 +793,7 @@ class TestMCPEndpointsWithManager:
         )
 
     @pytest.fixture
-    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Generator[TestClient, None, None]:
+    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Generator[TestClient]:
         """Create test client with MCP manager."""
         with TestClient(http_server_with_mcp.app) as client:
             yield client

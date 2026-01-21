@@ -1,11 +1,11 @@
 import asyncio
-import logging
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
+
 import pytest
+
 from gobby.agents.codex_session import (
-    capture_codex_session_id,
     SESSION_ID_PATTERN,
-    CodexSessionInfo,
+    capture_codex_session_id,
 )
 
 # Sample output matching the regex in codex_session.py

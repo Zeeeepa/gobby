@@ -46,6 +46,16 @@ else
 fi
 echo ""
 
+# pip-audit - dependency CVE scanning
+echo ">>> Running pip-audit..."
+if uv run pip-audit 2>&1 | tee "$REPORTS_DIR/pip-audit-$TIMESTAMP.txt"; then
+    echo "✓ pip-audit passed"
+else
+    echo "✗ pip-audit failed"
+    FAILED=1
+fi
+echo ""
+
 # Pytest - tests with compact output
 echo ">>> Running pytest..."
 if uv run pytest -q --tb=line -rFEw 2>&1 | tee "$REPORTS_DIR/pytest-$TIMESTAMP.txt"; then

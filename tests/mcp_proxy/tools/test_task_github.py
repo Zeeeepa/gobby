@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from gobby.mcp_proxy.tools.task_github import create_github_sync_registry
-from gobby.sync.github import GitHubRateLimitError, GitHubNotFoundError
+from gobby.sync.github import GitHubNotFoundError, GitHubRateLimitError
 
 
 @pytest.mark.asyncio
