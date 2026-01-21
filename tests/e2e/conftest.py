@@ -165,7 +165,7 @@ def terminate_process_tree(pid: int, timeout: float = 5.0) -> None:
 
 
 @pytest.fixture(scope="function")
-def e2e_project_dir() -> Generator[Path, None, None]:
+def e2e_project_dir() -> Generator[Path]:
     """Create an isolated project directory for E2E tests."""
     with tempfile.TemporaryDirectory(prefix="gobby_e2e_") as tmpdir:
         project_dir = Path(tmpdir)
@@ -188,7 +188,7 @@ def e2e_project_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(scope="function")
-def e2e_config(e2e_project_dir: Path) -> Generator[tuple[Path, int, int], None, None]:
+def e2e_config(e2e_project_dir: Path) -> Generator[tuple[Path, int, int]]:
     """Create an isolated config file with unique ports."""
     http_port = find_free_port()
     ws_port = find_free_port()
@@ -235,7 +235,7 @@ gobby_tasks:
 def daemon_instance(
     e2e_project_dir: Path,
     e2e_config: tuple[Path, int, int],
-) -> Generator[DaemonInstance, None, None]:
+) -> Generator[DaemonInstance]:
     """
     Spawn an isolated daemon instance for E2E testing.
 
@@ -252,6 +252,10 @@ def daemon_instance(
     env = os.environ.copy()
     env["GOBBY_CONFIG"] = str(config_path)
     env["GOBBY_HOME"] = str(gobby_home)
+    # Remove GOBBY_DATABASE_PATH so daemon uses config file's database_path
+    # (protect_production_resources sets this for test process, but we don't want
+    # the daemon subprocess to inherit it - it should use its own isolated DB)
+    env.pop("GOBBY_DATABASE_PATH", None)
     # Disable any LLM providers to avoid external calls
     env["ANTHROPIC_API_KEY"] = ""
     env["OPENAI_API_KEY"] = ""
@@ -309,13 +313,13 @@ def daemon_instance(
 @pytest_asyncio.fixture
 async def async_daemon_instance(
     daemon_instance: DaemonInstance,
-) -> AsyncGenerator[DaemonInstance, None]:
+) -> AsyncGenerator[DaemonInstance]:
     """Async-compatible daemon instance fixture."""
     yield daemon_instance
 
 
 @pytest.fixture(scope="function")
-def daemon_client(daemon_instance: DaemonInstance) -> Generator[httpx.Client, None, None]:
+def daemon_client(daemon_instance: DaemonInstance) -> Generator[httpx.Client]:
     """HTTP client configured for daemon instance."""
     with httpx.Client(base_url=daemon_instance.http_url, timeout=10.0) as client:
         yield client
@@ -324,7 +328,7 @@ def daemon_client(daemon_instance: DaemonInstance) -> Generator[httpx.Client, No
 @pytest_asyncio.fixture
 async def async_daemon_client(
     daemon_instance: DaemonInstance,
-) -> AsyncGenerator[httpx.AsyncClient, None]:
+) -> AsyncGenerator[httpx.AsyncClient]:
     """Async HTTP client configured for daemon instance."""
     async with httpx.AsyncClient(base_url=daemon_instance.http_url, timeout=10.0) as client:
         yield client
@@ -433,7 +437,7 @@ class CLIEventSimulator:
 
 
 @pytest.fixture(scope="function")
-def cli_events(daemon_instance: DaemonInstance) -> Generator[CLIEventSimulator, None, None]:
+def cli_events(daemon_instance: DaemonInstance) -> Generator[CLIEventSimulator]:
     """CLI event simulator for daemon instance."""
     simulator = CLIEventSimulator(daemon_instance.http_url)
     yield simulator
@@ -521,7 +525,7 @@ class MCPTestClient:
 
 
 @pytest.fixture(scope="function")
-def mcp_client(daemon_instance: DaemonInstance) -> Generator[MCPTestClient, None, None]:
+def mcp_client(daemon_instance: DaemonInstance) -> Generator[MCPTestClient]:
     """MCP test client for daemon instance."""
     client = MCPTestClient(daemon_instance.http_url)
     yield client
@@ -601,7 +605,7 @@ class AsyncMCPTestClient:
 @pytest_asyncio.fixture
 async def async_mcp_client(
     daemon_instance: DaemonInstance,
-) -> AsyncGenerator[AsyncMCPTestClient, None]:
+) -> AsyncGenerator[AsyncMCPTestClient]:
     """Async MCP test client for daemon instance."""
     client = AsyncMCPTestClient(daemon_instance.http_url)
     yield client
@@ -639,7 +643,7 @@ def _cleanup_orphan_gobby_processes() -> None:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_orphan_processes() -> Generator[None, None, None]:
+def cleanup_orphan_processes() -> Generator[None]:
     """Clean up any orphan gobby e2e test processes after test session."""
     yield
 
