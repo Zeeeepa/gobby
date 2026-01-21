@@ -16,9 +16,11 @@ These tools use the SkillManager for storage and search.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.search import SearchFilters, SkillSearch
 from gobby.skills.updater import SkillUpdater
 from gobby.storage.skills import LocalSkillManager
@@ -431,6 +433,141 @@ def create_skills_registry(
                 "skipped": result.skipped,
                 "skip_reason": result.skip_reason,
                 "error": result.error,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- install_skill tool ---
+
+    # Initialize loader
+    loader = SkillLoader()
+
+    @registry.tool(
+        name="install_skill",
+        description="Install a skill from a local path, GitHub URL, or ZIP archive. Auto-detects source type.",
+    )
+    async def install_skill(
+        source: str | None = None,
+        project_scoped: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Install a skill from a source location.
+
+        Auto-detects source type:
+        - Local directory or SKILL.md file
+        - GitHub URL (owner/repo, github:owner/repo, https://github.com/...)
+        - ZIP archive (.zip file)
+
+        Args:
+            source: Path or URL to the skill source (required)
+            project_scoped: If True, install skill scoped to the project
+
+        Returns:
+            Dict with success status, skill_id, skill_name, and source_type
+        """
+        try:
+            # Validate input
+            if not source or not source.strip():
+                return {
+                    "success": False,
+                    "error": "source parameter is required",
+                }
+
+            source = source.strip()
+
+            # Determine source type and load skill
+            parsed_skill = None
+            source_type = None
+
+            # Check if it's a GitHub URL/reference
+            if (
+                source.startswith("github:")
+                or source.startswith("https://github.com/")
+                or source.startswith("http://github.com/")
+                or ("/" in source and not source.startswith("/") and not Path(source).exists())
+            ):
+                # GitHub URL
+                try:
+                    parsed_skill = loader.load_from_github(source)
+                    source_type = "github"
+                except SkillLoadError as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to load from GitHub: {e}",
+                    }
+
+            # Check if it's a ZIP file
+            elif source.endswith(".zip"):
+                zip_path = Path(source)
+                if not zip_path.exists():
+                    return {
+                        "success": False,
+                        "error": f"ZIP file not found: {source}",
+                    }
+                try:
+                    parsed_skill = loader.load_from_zip(zip_path)
+                    source_type = "zip"
+                except SkillLoadError as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to load from ZIP: {e}",
+                    }
+
+            # Assume it's a local path
+            else:
+                local_path = Path(source)
+                if not local_path.exists():
+                    return {
+                        "success": False,
+                        "error": f"Path not found: {source}",
+                    }
+                try:
+                    parsed_skill = loader.load_skill(local_path)
+                    source_type = "local"
+                except SkillLoadError as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to load skill: {e}",
+                    }
+
+            if parsed_skill is None:
+                return {
+                    "success": False,
+                    "error": "Failed to load skill from source",
+                }
+
+            # Determine project ID for the skill
+            skill_project_id = project_id if project_scoped else None
+
+            # Store the skill
+            skill = storage.create_skill(
+                name=parsed_skill.name,
+                description=parsed_skill.description,
+                content=parsed_skill.content,
+                version=parsed_skill.version,
+                license=parsed_skill.license,
+                compatibility=parsed_skill.compatibility,
+                allowed_tools=parsed_skill.allowed_tools,
+                metadata=parsed_skill.metadata,
+                source_path=parsed_skill.source_path,
+                source_type=source_type,
+                source_ref=getattr(parsed_skill, "source_ref", None),
+                project_id=skill_project_id,
+                enabled=True,
+            )
+
+            # Re-index skills
+            _index_skills()
+
+            return {
+                "success": True,
+                "installed": True,
+                "skill_id": skill.id,
+                "skill_name": skill.name,
+                "source_type": source_type,
             }
         except Exception as e:
             return {
