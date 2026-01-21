@@ -2,11 +2,14 @@
 title: 'gobby-skills: SkillPort-compatible Skill Management'
 slug: 'gobby-skills'
 created: '2026-01-14'
-updated: '2026-01-19'
+updated: '2026-01-21'
 status: 'draft'
 stepsCompleted: []
 files_to_modify:
+  # Storage layer
   - src/gobby/storage/skills.py
+  - src/gobby/storage/migrations.py
+  # Skills module
   - src/gobby/skills/__init__.py
   - src/gobby/skills/parser.py
   - src/gobby/skills/validator.py
@@ -15,13 +18,26 @@ files_to_modify:
   - src/gobby/skills/loader.py
   - src/gobby/skills/updater.py
   - src/gobby/skills/manager.py
-  - src/gobby/mcp_proxy/tools/skills.py
+  # MCP tools (separate models + registry)
+  - src/gobby/mcp_proxy/tools/skills/__init__.py
+  - src/gobby/mcp_proxy/tools/skills/models.py
+  - src/gobby/mcp_proxy/tools/skills/registry.py
   - src/gobby/mcp_proxy/registries.py
+  # CLI
   - src/gobby/cli/skills.py
   - src/gobby/cli/__init__.py
+  # Hook integration
+  - src/gobby/hooks/skill_manager.py
   - src/gobby/hooks/skill_injection.py
-  - src/gobby/storage/migrations.py
+  - src/gobby/hooks/context_actions.py
+  - src/gobby/adapters/claude_code.py
+  # Config
+  - src/gobby/config/app.py
+  - src/gobby/config/features.py
+  # Documentation
   - CLAUDE.md
+  - docs/guides/skills.md
+  - docs/guides/skill-files.md
 code_patterns:
   - InternalToolRegistry pattern from src/gobby/mcp_proxy/tools/internal.py
   - TF-IDF search from src/gobby/memory/search/tfidf.py
@@ -207,6 +223,131 @@ When generating commit messages, follow these conventions...
 
 ---
 
+## Implementation Patterns
+
+This section documents key architectural patterns discovered during task expansion.
+
+### Change Event System
+
+Skill mutations fire change events to enable downstream reactions (search reindex, cache invalidation):
+
+```python
+class ChangeEventType(Enum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+@dataclass
+class ChangeEvent:
+    event_type: ChangeEventType
+    skill_id: str
+    skill_name: str
+    timestamp: str
+    metadata: dict[str, Any] | None = None
+```
+
+**SkillChangeNotifier** manages listener registration and broadcasts:
+
+```python
+class SkillChangeNotifier:
+    def register_listener(self, callback: Callable[[ChangeEvent], None]) -> None: ...
+    def unregister_listener(self, callback: Callable[[ChangeEvent], None]) -> None: ...
+    def _fire_change(self, event: ChangeEvent) -> None:
+        """Fire with try/except wrapping to prevent one failing listener from blocking others."""
+        ...
+```
+
+LocalSkillManager accepts an optional `notifier` in `__init__` and calls `_fire_change()` on mutations.
+
+### Project-Scoped Uniqueness
+
+**Key Gobby advantage over SkillPort**: Name uniqueness is enforced per-project, not globally.
+
+```sql
+-- SQLite constraint
+UNIQUE(name, project_id)
+```
+
+This allows:
+- Same skill name in different projects (project-specific customizations)
+- Global skills (project_id=NULL) with unique names
+- Project skills can shadow global skills
+
+### Protocol-Based Design
+
+Use Protocol classes for extensibility without tight coupling:
+
+```python
+class SkillSearchProtocol(Protocol):
+    """Search backend abstraction."""
+    def search(self, query: str, filters: SearchFilters) -> list[SkillSearchResult]: ...
+    def reindex(self, skills: list[Skill]) -> None: ...
+
+class EmbeddingProvider(Protocol):
+    """Embedding provider abstraction."""
+    def embed(self, text: str) -> list[float]: ...
+    def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
+    @property
+    def dimension(self) -> int: ...
+
+class SkillChangeListener(Protocol):
+    """Listener for skill mutations."""
+    def on_skill_change(self, event: ChangeEvent) -> None: ...
+```
+
+### Graceful Degradation
+
+All optional features degrade gracefully:
+
+- **Embeddings**: Fall back to TF-IDF if no provider configured or embed fails
+- **Missing files**: Log warning and skip, don't fail entire load
+- **Invalid skills**: Return validation errors, don't raise exceptions
+- **Network failures**: Cache GitHub clones, retry with backoff
+
+### Metadata Persistence
+
+Track installed skill metadata separately from skill content:
+
+```python
+@dataclass
+class SkillMetadata:
+    skill_name: str
+    source: SkillSource
+    source_url: str | None
+    source_ref: str | None  # Git ref for updates
+    install_path: str
+    installed_at: str
+    updated_at: str | None
+    update_available: bool = False
+```
+
+Store as JSON in `.metadata/skills_metadata.json` or per-skill `.metadata/{name}.json`.
+
+### Backup on Update
+
+Transaction-like behavior for skill updates:
+
+1. Backup existing skill content to temp location
+2. Attempt update from source
+3. On failure: restore from backup, log error
+4. On success: delete backup
+
+```python
+def update_skill(self, name: str) -> UpdateResult:
+    backup_path = self._backup_skill(name)
+    try:
+        new_skill = self._fetch_from_source(name)
+        self._validate_and_store(new_skill)
+        return UpdateResult(success=True, skill=new_skill)
+    except Exception as e:
+        self._restore_from_backup(name, backup_path)
+        return UpdateResult(success=False, error=str(e))
+    finally:
+        self._cleanup_backup(backup_path)
+```
+
+---
+
 ## Phase 1: Storage Layer + Parser + Validation
 
 **Goal**: Skill storage with full Agent Skills spec validation.
@@ -238,6 +379,34 @@ When generating commit messages, follow these conventions...
 - [ ] Description validation rejects: empty, >1024 chars
 - [ ] Parser extracts all frontmatter fields correctly
 - [ ] Change listeners fire on mutations
+
+**Implementation Details:**
+
+Change Listener Pattern:
+```python
+# LocalSkillManager implementation
+class LocalSkillManager:
+    def __init__(self, db: LocalDatabase, notifier: SkillChangeNotifier | None = None):
+        self.db = db
+        self._notifier = notifier
+
+    def create(self, skill: Skill) -> Skill:
+        # ... create logic ...
+        if self._notifier:
+            self._notifier._fire_change(ChangeEvent(
+                event_type=ChangeEventType.CREATE,
+                skill_id=skill.id,
+                skill_name=skill.name,
+                timestamp=datetime.utcnow().isoformat()
+            ))
+        return skill
+```
+
+Extended Metadata Validation:
+- `tags`: Validate is list of strings (not nested, not None items)
+- `version`: Validate follows semver pattern (`\d+\.\d+(\.\d+)?`)
+- `author`: Required for official/verified skills (optional otherwise)
+- `category`: Must be lowercase, alphanumeric + hyphens
 
 ---
 
@@ -273,6 +442,63 @@ When generating commit messages, follow these conventions...
 - [ ] Core skills (alwaysApply) can be listed separately
 - [ ] Changes trigger search index rebuild
 
+**Implementation Details:**
+
+SearchConfig Location (place in `src/gobby/config/features.py`, not storage):
+```python
+@dataclass
+class SearchConfig:
+    default_backend: str = "tfidf"  # "tfidf", "embedding", "hybrid"
+    embedding_provider: str | None = None  # "openai", "anthropic", "local"
+    reindex_on_change: bool = True
+    min_score_threshold: float = 0.1
+```
+
+SearchFilters Dataclass (separate concern from main search):
+```python
+@dataclass
+class SearchFilters:
+    categories: list[str] | None = None
+    tags_any: list[str] | None = None  # Match any of these tags
+    tags_all: list[str] | None = None  # Match all of these tags
+    min_score: float = 0.0  # 0.0-1.0, validated
+
+    def __post_init__(self):
+        if not 0.0 <= self.min_score <= 1.0:
+            raise ValueError("min_score must be between 0.0 and 1.0")
+```
+
+EmbeddingProvider Protocol (already defined in Implementation Patterns):
+- Methods: `embed(text)`, `embed_batch(texts)`, `dimension` property
+- Graceful fallback if no provider configured or embed fails
+
+Hybrid Search Strategy:
+1. Run TF-IDF search to get initial candidates
+2. If embedding provider available: compute embedding similarity
+3. Combine scores: `final_score = (tfidf_score * 0.4) + (embedding_score * 0.6)`
+4. Apply category/tag filters AFTER similarity ranking (not before)
+5. Apply `top_k` limit to final filtered results
+
+SkillManager Constructor:
+```python
+class SkillManager:
+    def __init__(
+        self,
+        storage: LocalSkillManager,
+        search: SkillSearch,
+        notifier: SkillChangeNotifier | None = None,
+    ):
+        self._storage = storage
+        self._search = search
+        if notifier:
+            notifier.register_listener(self._on_skill_change)
+
+    def _on_skill_change(self, event: ChangeEvent) -> None:
+        """Trigger reindex on skill mutations."""
+        if self._search.config.reindex_on_change:
+            self._search.reindex_skill(event.skill_id)
+```
+
 ---
 
 ## Phase 3: Skill Loader + Updater
@@ -307,6 +533,105 @@ When generating commit messages, follow these conventions...
 - [ ] Can update skills from original source
 - [ ] Validates skill directory name matches frontmatter name
 
+**Implementation Details:**
+
+SkillSource Enum (Pydantic model with validators):
+```python
+class SkillSource(str, Enum):
+    LOCAL = "local"       # Local filesystem path
+    GITHUB = "github"     # GitHub repository
+    ZIP = "zip"           # ZIP archive
+    FILESYSTEM = "filesystem"  # Directory structure
+
+# In SkillMetadata
+source: SkillSource = Field(...)
+
+@field_validator("source")
+def validate_source(cls, v):
+    if isinstance(v, str):
+        return SkillSource(v.lower())
+    return v
+```
+
+UpdateCheckResult (check before actual refresh):
+```python
+@dataclass
+class UpdateCheckResult:
+    skill_name: str
+    update_available: bool
+    local_version: str | None
+    remote_version: str | None
+    error: str | None = None  # Set if check failed
+
+    @property
+    def can_update(self) -> bool:
+        return self.update_available and self.error is None
+```
+
+GitHub URL Format Support:
+```python
+# Supported formats:
+# - owner/repo                    → default branch, repo root
+# - owner/repo#branch             → specific branch, repo root
+# - owner/repo/tree/branch/path   → specific branch and path
+# - https://github.com/owner/repo → full URL
+# - github:owner/repo             → prefixed shorthand
+
+def parse_github_url(url: str) -> GitHubRef:
+    """Parse various GitHub URL formats into normalized GitHubRef."""
+    ...
+```
+
+GitHub Cache Strategy:
+```python
+CACHE_DIR = Path.home() / ".gobby" / "skill_cache"
+
+def clone_skill_repo(url: str, ref: str | None = None) -> Path:
+    """Clone to cache with shallow depth for efficiency."""
+    cache_path = CACHE_DIR / _hash_url(url)
+    if cache_path.exists():
+        # Pull latest if ref matches, otherwise re-clone
+        ...
+    else:
+        cmd = ["git", "clone", "--depth", "1"]
+        if ref:
+            cmd.extend(["--branch", ref])
+        cmd.extend([url, str(cache_path)])
+        subprocess.run(cmd, check=True)
+    return cache_path
+```
+
+ZIP Context Manager (temp directory with cleanup):
+```python
+@contextmanager
+def extract_zip(zip_path: Path) -> Iterator[Path]:
+    """Extract ZIP to temp directory, cleanup on exit."""
+    temp_dir = Path(tempfile.mkdtemp(prefix="gobby_skill_"))
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            zf.extractall(temp_dir)
+        yield temp_dir
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+```
+
+Directory Name Validation:
+```python
+def validate_skill_directory(path: Path) -> ValidationResult:
+    """Validate directory name matches skill name in frontmatter."""
+    skill_file = path / "SKILL.md"
+    if not skill_file.exists():
+        return ValidationResult(valid=False, error="Missing SKILL.md")
+
+    metadata = parse_frontmatter(skill_file)
+    if path.name != metadata.name:
+        return ValidationResult(
+            valid=False,
+            error=f"Directory '{path.name}' doesn't match skill name '{metadata.name}'"
+        )
+    return ValidationResult(valid=True)
+```
+
 ---
 
 ## Phase 4: MCP Registry
@@ -337,6 +662,91 @@ When generating commit messages, follow these conventions...
 - [ ] get_skill returns full content with references to scripts/assets
 - [ ] search_skills supports category and tag filtering
 - [ ] install_skill works with all source types
+
+**Implementation Details:**
+
+Separate Models File (`src/gobby/mcp_proxy/tools/skills/models.py`):
+```python
+# Keep MCP-specific request/response models separate from storage models
+from dataclasses import dataclass
+from gobby.storage.skills import Skill, SkillMetadata
+
+@dataclass
+class SkillSearchResult:
+    """Lightweight search result for progressive disclosure."""
+    name: str
+    description: str
+    category: str | None
+    tags: list[str]
+    score: float
+
+@dataclass
+class SkillInstallRequest:
+    """Request to install a skill from various sources."""
+    source: str  # Path, URL, or GitHub reference
+    source_type: str | None = None  # Auto-detected if not provided
+    project_scoped: bool = False
+```
+
+SkillsToolRegistry Pattern (follow hub.py pattern):
+```python
+# src/gobby/mcp_proxy/tools/skills/registry.py
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+
+class SkillsToolRegistry(InternalToolRegistry):
+    """Skills-specific tool registry with manager access."""
+
+    def __init__(self, manager: SkillManager):
+        super().__init__()
+        self._manager = manager
+        self._register_tools()
+
+    def _register_tools(self) -> None:
+        self.register("list_skills", self._list_skills)
+        self.register("get_skill", self._get_skill)
+        self.register("search_skills", self._search_skills)
+        # ... etc
+```
+
+Core Skills Always Available:
+```python
+CORE_SKILLS_PATH = Path(__file__).parent.parent.parent / "install" / "shared" / "skills"
+
+def list_core_skills() -> list[Skill]:
+    """Return built-in skills that cannot be removed."""
+    skills = []
+    for skill_dir in CORE_SKILLS_PATH.iterdir():
+        if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+            skills.append(load_skill(skill_dir / "SKILL.md"))
+    return skills
+```
+
+Progressive Disclosure Response Structure:
+```python
+# list_skills returns ~100 tokens per skill
+{
+    "skills": [
+        {
+            "name": "commit-message",
+            "description": "Generate conventional commit messages",
+            "category": "git",
+            "tags": ["git", "commits"],
+            "enabled": true
+        }
+    ],
+    "total": 15,
+    "hint": "Use get_skill(name) for full content"
+}
+
+# get_skill returns full content
+{
+    "name": "commit-message",
+    "content": "# Commit Message Generator\n\n...",
+    "scripts": ["scripts/validate.sh"],
+    "assets": ["assets/template.txt"],
+    "references": ["references/conventional-commits.md"]
+}
+```
 
 ---
 
@@ -376,6 +786,94 @@ When generating commit messages, follow these conventions...
 - [ ] `gobby skills new` creates a complete skill scaffold
 - [ ] `gobby skills doc` generates markdown reference table
 
+**Implementation Details:**
+
+Meta Subcommands (frontmatter field manipulation):
+```bash
+# Get a specific metadata field
+gobby skills meta get commit-message author
+# Output: anthropic
+
+# Set a metadata field (creates if doesn't exist)
+gobby skills meta set commit-message version "1.1.0"
+
+# Remove a metadata field
+gobby skills meta unset commit-message deprecated
+```
+
+```python
+@skills.group()
+def meta():
+    """Manipulate skill metadata fields."""
+    pass
+
+@meta.command("get")
+@click.argument("skill_name")
+@click.argument("key")
+def meta_get(skill_name: str, key: str):
+    """Get a metadata field value."""
+    skill = manager.get_by_name(skill_name)
+    value = _get_nested_key(skill.metadata, key)
+    click.echo(value)
+```
+
+Doc Command Output (AGENTS.md reference table):
+```bash
+gobby skills doc                    # Print to stdout
+gobby skills doc --output AGENTS.md # Write to file
+gobby skills doc --format json      # JSON for CI pipelines
+```
+
+Output format:
+```markdown
+# Available Skills
+
+| Name | Description | Category | Tags |
+|------|-------------|----------|------|
+| commit-message | Generate conventional commit messages | git | git, commits |
+| code-review | Review code for best practices | review | quality, pr |
+```
+
+Template Contents (`gobby skills new <name>`):
+```python
+SKILL_TEMPLATE = '''---
+name: {name}
+description: {description}
+license: MIT
+metadata:
+  author: {author}
+  version: "0.1.0"
+  skillport:
+    category: general
+    tags: []
+    alwaysApply: false
+---
+
+# {title}
+
+## Overview
+
+[Describe what this skill does]
+
+## Instructions
+
+[Detailed instructions for the AI agent]
+
+## Examples
+
+[Usage examples]
+'''
+
+def create_skill_scaffold(name: str, path: Path) -> None:
+    """Create complete skill directory structure."""
+    skill_dir = path / name
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(SKILL_TEMPLATE.format(...))
+    (skill_dir / "scripts").mkdir()
+    (skill_dir / "assets").mkdir()
+    (skill_dir / "references").mkdir()
+```
+
 ---
 
 ## Phase 6: Hook Integration (Gobby Advantage)
@@ -384,21 +882,202 @@ When generating commit messages, follow these conventions...
 
 **Files:**
 
+- `src/gobby/hooks/skill_manager.py` - SkillManager for hook system (NOT in mcp_proxy/tools/skills)
 - `src/gobby/hooks/skill_injection.py` - Skill injection logic
+- `src/gobby/hooks/context_actions.py` - Add recommend_skills action
 - `src/gobby/adapters/claude_code.py` - Update adapter
 
 **Tasks:**
 
-- [ ] Add `inject_core_skills` option to session-start hook (category: code)
-- [ ] Implement core skill injection (alwaysApply=true skills) (category: code)
-- [ ] Add skill context to session handoff (category: code)
-- [ ] Support skill recommendation in suggest_next_task (category: code)
+- [ ] Create SkillManager in hooks/ module (separate from MCP tools) (category: code)
+- [ ] Add `inject_core_skills` config option to AppConfig (category: code)
+- [ ] Implement core skill discovery from `src/gobby/install/shared/skills/` (category: code)
+- [ ] Add skill injection to session-start hook response (category: code)
+- [ ] Extend handoff payload with `active_skills` field (category: code)
+- [ ] Create `recommend_skills` workflow action in context_actions.py (category: code)
+- [ ] Integrate skill recommendation with `suggest_next_task` (category: code)
+- [ ] Add workflow variable to control skill injection per-session (category: code)
 
 **Acceptance Criteria:**
 
 - [ ] Core skills are automatically injected at session start
 - [ ] Skills persist across session handoffs
 - [ ] Task suggestions can include relevant skills
+- [ ] Skill injection can be disabled via config or workflow variable
+
+**Implementation Details:**
+
+SkillManager Location (hooks/, NOT mcp_proxy/tools/skills):
+```python
+# src/gobby/hooks/skill_manager.py
+# This is a SEPARATE SkillManager from the MCP tools layer
+# Handles hook-specific skill operations: injection, handoff, recommendations
+
+class HookSkillManager:
+    """Skill management for hook system.
+
+    Note: This is separate from SkillsToolRegistry which handles MCP tools.
+    This manager focuses on:
+    - Core skill discovery and loading
+    - Session injection timing
+    - Handoff context building
+    - Task-based skill recommendations
+    """
+
+    def __init__(self, storage: LocalSkillManager):
+        self._storage = storage
+        self._core_skills: list[Skill] | None = None
+
+    def discover_core_skills(self) -> list[Skill]:
+        """Discover built-in skills from install/shared/skills/."""
+        if self._core_skills is None:
+            self._core_skills = self._load_core_skills()
+        return self._core_skills
+```
+
+Core Skill Discovery:
+```python
+CORE_SKILLS_PATH = Path(__file__).parent.parent / "install" / "shared" / "skills"
+
+def _load_core_skills(self) -> list[Skill]:
+    """Load metadata from SKILL.md files in core skills directory."""
+    skills = []
+    if not CORE_SKILLS_PATH.exists():
+        return skills
+
+    for skill_dir in CORE_SKILLS_PATH.iterdir():
+        if skill_dir.is_dir():
+            skill_file = skill_dir / "SKILL.md"
+            if skill_file.exists():
+                try:
+                    skill = parse_skill_file(skill_file)
+                    skills.append(skill)
+                except Exception as e:
+                    logger.warning(f"Failed to load core skill {skill_dir.name}: {e}")
+    return skills
+```
+
+Injection Config (in `src/gobby/config/app.py`):
+```python
+@dataclass
+class SkillsConfig:
+    inject_core_skills: bool = True  # Auto-inject alwaysApply skills
+    core_skills_path: str | None = None  # Override default path
+    injection_format: str = "markdown"  # "markdown" or "structured"
+
+@dataclass
+class DaemonConfig:
+    # ... existing fields ...
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
+```
+
+Session-Start Injection:
+```python
+# In session-start hook handler
+def handle_session_start(event: HookEvent, config: DaemonConfig) -> HookResponse:
+    response_data = {}
+
+    if config.skills.inject_core_skills:
+        skill_manager = HookSkillManager(storage)
+        core_skills = skill_manager.discover_core_skills()
+        alwaysApply = [s for s in core_skills if s.metadata.get("skillport", {}).get("alwaysApply")]
+
+        if alwaysApply:
+            response_data["injected_skills"] = format_skills_for_injection(alwaysApply)
+
+    return HookResponse(data=response_data)
+```
+
+Handoff Context Extension:
+```python
+# Extend handoff payload with active skills
+@dataclass
+class HandoffPayload:
+    # ... existing fields ...
+    active_skills: list[str] | None = None  # Skill names active in previous session
+
+def build_handoff_context(session: Session) -> HandoffPayload:
+    # ... existing logic ...
+    payload.active_skills = session.metadata.get("active_skills", [])
+    return payload
+```
+
+recommend_skills Workflow Action:
+```python
+# src/gobby/hooks/context_actions.py
+
+def recommend_skills(
+    task: Task | None = None,
+    category: str | None = None,
+    limit: int = 3
+) -> list[Skill]:
+    """Recommend skills based on task category or explicit category.
+
+    Used by workflows to suggest relevant skills when starting tasks.
+    Integrates with suggest_next_task to include skill recommendations.
+    """
+    skill_manager = get_skill_manager()
+
+    if task:
+        # Infer category from task metadata or labels
+        category = task.metadata.get("category") or _infer_category(task)
+
+    if category:
+        return skill_manager.search(
+            query="",
+            filters=SearchFilters(categories=[category]),
+            limit=limit
+        )
+    return []
+```
+
+Integration with suggest_next_task:
+```python
+# In gobby-tasks suggest_next_task tool
+def suggest_next_task(session_id: str) -> dict:
+    task = _get_next_task(session_id)
+    result = {"task": task.to_dict()}
+
+    # Include skill recommendations if available
+    recommended_skills = recommend_skills(task=task, limit=2)
+    if recommended_skills:
+        result["recommended_skills"] = [
+            {"name": s.name, "description": s.description}
+            for s in recommended_skills
+        ]
+        result["hint"] = f"Consider using skills: {', '.join(s.name for s in recommended_skills)}"
+
+    return result
+```
+
+HookManager Integration:
+```python
+# HookManager accepts optional skill_manager
+class HookManager:
+    def __init__(
+        self,
+        config: DaemonConfig,
+        skill_manager: HookSkillManager | None = None,
+    ):
+        self._config = config
+        self._skill_manager = skill_manager
+        if skill_manager is None and config.skills.inject_core_skills:
+            self._skill_manager = HookSkillManager(get_storage())
+```
+
+Workflow Variable Control:
+```python
+# Per-session control via workflow variable
+call_tool("gobby-workflows", "set_variable", {
+    "name": "inject_skills",
+    "value": False  # Disable skill injection for this session
+})
+
+# In hook handler, check workflow variable
+if workflow_engine.get_variable("inject_skills", default=True):
+    # Inject skills
+    ...
+```
 
 ---
 
@@ -439,6 +1118,172 @@ When generating commit messages, follow these conventions...
 ### Blockers
 
 - None
+
+---
+
+## Configuration Reference
+
+All skills-related configuration options:
+
+### Daemon Config (`~/.gobby/config.yaml`)
+
+```yaml
+skills:
+  # Auto-inject alwaysApply skills at session start
+  inject_core_skills: true
+
+  # Override default core skills path (default: src/gobby/install/shared/skills/)
+  core_skills_path: null
+
+  # Injection format: "markdown" (human-readable) or "structured" (JSON)
+  injection_format: markdown
+
+  # Search configuration
+  search:
+    # Default search backend: "tfidf", "embedding", "hybrid"
+    default_backend: tfidf
+
+    # Embedding provider: "openai", "anthropic", "local", null (disabled)
+    embedding_provider: null
+
+    # Auto-reindex when skills change
+    reindex_on_change: true
+
+    # Minimum similarity score threshold (0.0-1.0)
+    min_score_threshold: 0.1
+
+    # Hybrid search weights (must sum to 1.0)
+    tfidf_weight: 0.4
+    embedding_weight: 0.6
+```
+
+### Per-Session Control (Workflow Variables)
+
+```python
+# Disable skill injection for current session
+call_tool("gobby-workflows", "set_variable", {
+    "name": "inject_skills",
+    "value": False
+})
+
+# Override search backend for session
+call_tool("gobby-workflows", "set_variable", {
+    "name": "skill_search_backend",
+    "value": "embedding"
+})
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GOBBY_SKILLS_PATH` | Override core skills path | `src/gobby/install/shared/skills/` |
+| `GOBBY_SKILL_CACHE_DIR` | GitHub clone cache directory | `~/.gobby/skill_cache/` |
+| `GOBBY_EMBEDDING_PROVIDER` | Override embedding provider | (from config) |
+
+---
+
+## Cross-Cutting Patterns
+
+Patterns that apply across all phases:
+
+### TDD Pattern (Task Expansion)
+
+When expanding tasks, use the TDD sandwich pattern:
+1. **[TEST]** Write tests for the functionality
+2. **[IMPL]** Implement the functionality (depends on #1)
+3. **[REF]** Refactor if needed (depends on #2)
+
+```python
+# Task expansion generates this structure automatically
+expand_task(task_id="#42")
+# Creates:
+# - #43: [TEST] Write tests for skill storage
+# - #44: [IMPL] Implement skill storage (depends_on: #43)
+# - #45: [REF] Refactor skill storage (depends_on: #44, optional)
+```
+
+### Progressive Disclosure
+
+Token-efficient tool responses:
+- **List operations**: ~100 tokens per item (name, description, category, tags)
+- **Get operations**: Full content only when explicitly requested
+- **Search operations**: Return ranked results with scores, not full content
+
+```python
+# Efficient: ~100 tokens
+list_skills()  # Returns lightweight metadata
+
+# Full content: ~1000+ tokens
+get_skill(name="commit-message")  # Returns full skill content
+```
+
+### Protocol-Based Extensibility
+
+Use Protocol classes for all extension points:
+- `SkillSearchProtocol` - Search backend abstraction
+- `EmbeddingProvider` - Embedding provider abstraction
+- `SkillChangeListener` - Mutation listener abstraction
+- `SkillSource` - Source type abstraction
+
+This allows:
+- Swapping implementations without changing calling code
+- Testing with mocks
+- Future extensibility
+
+### Configuration-First
+
+All behaviors controllable via config without code changes:
+- Enable/disable features via YAML config
+- Override via environment variables
+- Session-specific overrides via workflow variables
+
+Priority: workflow variable > env var > config file > default
+
+### Graceful Degradation
+
+All optional features fail gracefully:
+- Embedding search falls back to TF-IDF
+- Missing skills logged and skipped
+- Network failures cached and retried
+- Invalid skills return validation errors (not exceptions)
+
+---
+
+## Integration Points
+
+How gobby-skills integrates with other Gobby systems:
+
+### Hook System
+
+| Hook | Integration |
+|------|-------------|
+| `session-start` | Inject core skills, restore active_skills from handoff |
+| `pre-compact` | Include active_skills in handoff context |
+| `pre-tool-use` | Check if skill provides tool pre-approval |
+
+### Workflow System
+
+| Workflow | Integration |
+|----------|-------------|
+| Variables | `inject_skills`, `skill_search_backend` control behavior |
+| Actions | `recommend_skills` action for task-based suggestions |
+| Steps | Future: skills as step requirements |
+
+### Task System
+
+| Feature | Integration |
+|---------|-------------|
+| `suggest_next_task` | Include skill recommendations based on task category |
+| Task categories | Map to skill categories for recommendations |
+| Task expansion | Consider skill-related subtasks |
+
+### Session Handoff
+
+| Field | Purpose |
+|-------|---------|
+| `active_skills` | Skills that were active in previous session |
+| `skill_recommendations` | Skills recommended for continuation |
 
 ---
 
