@@ -21,6 +21,7 @@ import pytest
 from tests.e2e.conftest import (
     CLIEventSimulator,
     DaemonInstance,
+    prepare_daemon_env,
     terminate_process_tree,
     wait_for_daemon_health,
 )
@@ -191,12 +192,10 @@ class TestSessionPersistence:
         log_file = log_dir / "daemon.log"
         error_log_file = log_dir / "daemon_error.log"
 
-        env = os.environ.copy()
+        # Use helper to properly prepare env (sets PYTHONPATH, removes GOBBY_DATABASE_PATH)
+        env = prepare_daemon_env()
         env["GOBBY_CONFIG"] = str(config_path)
         env["GOBBY_HOME"] = str(gobby_home)
-        env["ANTHROPIC_API_KEY"] = ""
-        env["OPENAI_API_KEY"] = ""
-        env["GEMINI_API_KEY"] = ""
 
         # Start first daemon
         with open(log_file, "w") as log_f, open(error_log_file, "w") as err_f:

@@ -72,6 +72,43 @@ class DaemonInstance:
         return ""
 
 
+def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
+    """Prepare environment variables for spawning a daemon subprocess.
+
+    This handles the critical setup that's easy to miss when manually spawning daemons:
+    1. Sets PYTHONPATH to include the src directory
+    2. Removes GOBBY_DATABASE_PATH so daemon uses its config file's database_path
+    3. Clears LLM API keys to avoid external calls
+
+    Args:
+        base_env: Base environment dict to modify. If None, copies os.environ.
+
+    Returns:
+        Environment dict ready for subprocess.Popen
+    """
+    import os
+
+    env = dict(base_env) if base_env is not None else os.environ.copy()
+
+    # Set PYTHONPATH so the daemon can import gobby modules
+    root_dir = Path(__file__).parent.parent.parent
+    src_dir = root_dir / "src"
+    current_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else str(src_dir)
+
+    # Remove GOBBY_DATABASE_PATH so daemon uses config file's database_path
+    # (protect_production_resources sets this for test process, but we don't want
+    # the daemon subprocess to inherit it - it should use its own isolated DB)
+    env.pop("GOBBY_DATABASE_PATH", None)
+
+    # Disable any LLM providers to avoid external calls
+    env["ANTHROPIC_API_KEY"] = ""
+    env["OPENAI_API_KEY"] = ""
+    env["GEMINI_API_KEY"] = ""
+
+    return env
+
+
 def find_free_port(max_retries: int = 5) -> int:
     """Find an available port on localhost with verification.
 
