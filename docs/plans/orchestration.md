@@ -97,11 +97,10 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| **ConductorLoop** | `src/gobby/conductor/loop.py` | Main async loop with configurable interval (default 30s). Calls monitors, aggregates findings, generates haiku. |
+| **ConductorLoop** | `src/gobby/conductor/loop.py` | Main async loop with configurable interval (default 30s). Calls monitors, aggregates findings. |
 | **TaskMonitor** | `src/gobby/conductor/monitors/tasks.py` | Detect stale tasks (in_progress > threshold), find orphaned subtasks, check blocked task chains. |
 | **AgentWatcher** | `src/gobby/conductor/monitors/agents.py` | Check RunningAgentRegistry for stuck processes, monitor agent depth limits, detect hung terminal sessions. |
 | **TokenTracker** | `src/gobby/conductor/monitors/tokens.py` | Aggregate token usage from session metadata, budget warnings, cost estimation. |
-| **HaikuGenerator** | `src/gobby/conductor/haiku.py` | LLM-powered status summarization with TARS-style personality. Uses Claude Haiku model for API calls. |
 | **AlertDispatcher** | `src/gobby/conductor/alerts.py` | Log to file, desktop notifications, callme integration for urgent alerts. |
 
 ### 2.3 Existing Infrastructure (DO NOT Implement)
@@ -165,11 +164,6 @@ gobby conductor status
 **Example output:**
 ```
 🎭 Conductor Status
-
-Three tasks await you
-Code review blocks the feature
-Dependencies clear
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Agents: 2
   • gemini-abc123 (feature/auth) - 12m running
@@ -204,123 +198,7 @@ gobby conductor chat
 **Interactive mode features:**
 - Real-time task/agent status updates
 - Token usage graph
-- Recent haiku history
 - Command input for queries
-
----
-
-## 4. Conductor Personality: TARS Mode (15% Humor)
-
-### 4.1 Haiku Communication
-
-The Conductor speaks in haiku with dry, deadpan wit. Think TARS from Interstellar - helpful, competent, occasionally catches you off guard with subtle sass.
-
-### 4.2 Example Haikus by Situation
-
-**Normal status:**
-```
-Three tasks await you
-Code review blocks the feature
-Dependencies clear
-```
-
-**When you've ignored a task for 3 days (sass on stale):**
-```
-Task forty-seven
-Has waited three days for you
-It's starting to judge
-```
-
-**When an agent is stuck:**
-```
-Gemini sits still
-Perhaps it found enlightenment
-Or perhaps it crashed
-```
-
-**After you close 5 tasks in a row (productivity praise):**
-```
-Five tasks completed
-Your productivity frightens
-Even the machines
-```
-
-**Budget warning:**
-```
-Tokens flow like rain
-Eighty percent of budget
-Consider a pause
-```
-
-**All clear:**
-```
-No tasks await you
-All agents rest quietly
-Peace in the codebase
-```
-
-### 4.3 Configuration
-
-```yaml
-# ~/.gobby/config.yaml
-conductor:
-  enabled: true
-  interval_seconds: 30
-  autonomous_mode: false
-
-  personality:
-    mode: haiku           # haiku | prose | terse
-    humor_setting: 0.15   # TARS-style dry wit (0.0-1.0)
-    sass_on_stale_tasks: true
-    sass_threshold_hours: 24
-
-  thresholds:
-    stale_task_minutes: 60
-    stuck_agent_minutes: 15
-
-  llm_mode: hybrid        # template | api | hybrid
-  api_model: claude-4.5-haiku
-```
-
-### 4.4 Hybrid LLM Strategy
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Haiku Generation                              │
-├─────────────────────────────────────────────────────────────────┤
-│  Common States (Templates - FREE):                               │
-│  • "all_clear" → "No tasks await / All agents rest quietly      │
-│                   / Peace in the codebase"                       │
-│  • "tasks_waiting" → "N tasks await you / Ready for your        │
-│                       attention / Choose wisely, friend"         │
-│  • "agent_stuck" → "Agent sits idle / Minutes pass without      │
-│                     word / Perhaps check on them"                │
-│                                                                  │
-│  Novel Situations (Claude API):                                  │
-│  • Complex multi-issue summaries                                 │
-│  • Unexpected error patterns                                     │
-│  • Custom user queries via `gobby conductor chat`                │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Implementation:**
-```python
-class HaikuGenerator:
-    TEMPLATES = {
-        "all_clear": "No tasks await you\nAll agents rest quietly\nPeace in the codebase",
-        "tasks_waiting": "{n} tasks await you\nReady for your attention\nChoose wisely, friend",
-        "agent_stuck": "Agent sits idle\nMinutes pass without a word\nPerhaps check on them",
-        # ... more templates
-    }
-
-    async def generate(self, context: ConductorContext) -> str:
-        # Try template first
-        if template := self._match_template(context):
-            return template.format(**context.to_dict())
-
-        # Fall back to API for novel situations
-        return await self._generate_via_api(context)
-```
 
 ---
 
@@ -1127,6 +1005,20 @@ Call `gobby-merge.merge_abort` with:
 
 ## 12. Implementation Phases
 
+### Phase Dependencies
+
+```
+A: Messaging ──► B: Status ──► C: Workflows ──┐
+                                              ├──► E: Conductor ──► F: Testing
+D: Token Budget (independent) ────────────────┘
+```
+
+- **Phase A** (Inter-Agent Messaging) must complete before **Phase B** (Task Status)
+- **Phase B** must complete before **Phase C** (Workflows)
+- **Phase D** (Token Budget) is independent and can run in parallel with A-C
+- **Phase E** (Conductor Daemon) requires both **C** and **D** to complete
+- **Phase F** (Testing) runs last after all implementation phases
+
 ### Phase A: Inter-Agent Messaging Foundation
 
 **Goal**: Enable parent↔child message passing during agent execution
@@ -1185,9 +1077,9 @@ approve_and_cleanup(task_id: str, worktree_id: str) -> bool
 **Goal**: Enable human-driven sequential and parallel review loops
 
 **Files to create**:
-- `src/gobby/workflows/definitions/worktree-agent.yaml` - Tool restrictions for spawned agents
-- `src/gobby/workflows/definitions/sequential-orchestrator.yaml` - Step-by-step orchestration
-- `src/gobby/workflows/definitions/parallel-orchestrator.yaml` - Multi-agent orchestration
+- `src/gobby/workflows/definitions/worktree-agent.yaml` - Tool restrictions for spawned agents (Section 6.4)
+- `src/gobby/workflows/definitions/sequential-orchestrator.yaml` - Step-by-step orchestration (Section 8.1)
+- `src/gobby/workflows/definitions/parallel-orchestrator.yaml` - Multi-agent orchestration (Section 8.2)
 
 **Changes to spawn_agent_in_worktree**:
 - Auto-set `workflow="worktree-agent"` if not specified
@@ -1215,7 +1107,6 @@ approve_and_cleanup(task_id: str, worktree_id: str) -> bool
 - `src/gobby/conductor/loop.py` - Main ConductorLoop class
 - `src/gobby/conductor/monitors/tasks.py` - Stale task detection
 - `src/gobby/conductor/monitors/agents.py` - Stuck agent detection
-- `src/gobby/conductor/haiku.py` - TARS personality generator
 - `src/gobby/conductor/alerts.py` - callme integration
 - `src/gobby/cli/conductor.py` - CLI commands
 
@@ -1240,16 +1131,25 @@ class ConductorLoop:
         if self.config.autonomous_mode and ready_tasks:
             await self.spawn_next_agent(ready_tasks[0])
 
-        # 5. Generate status haiku
-        status = await self.generate_status_haiku()
-        await self.broadcast_status(status)
+        # 5. Broadcast status
+        await self.broadcast_status()
 ```
 
 ### Phase F: Live Integration Testing
 
 **Goal**: Validate the new system end-to-end
 
-**Test Scenarios** (all require new test files in `tests/e2e/`):
+**Test File Mapping**:
+
+| Test Scenario | File | Validates |
+|--------------|------|-----------|
+| WebSocket Message Test | `tests/e2e/test_inter_agent_messages.py` | Phase A |
+| Sequential Review Loop | `tests/e2e/test_sequential_review_loop.py` | Phases B+C |
+| Autonomous Mode | `tests/e2e/test_autonomous_mode.py` | Phase E |
+| Token Budget Test | `tests/e2e/test_token_budget.py` | Phase D |
+| Merge System Live Test | `tests/e2e/test_worktree_merge_live.py` | Existing merge |
+
+**Test Scenarios**:
 
 1. **WebSocket Message Test** (Phase A validation):
    - Start gobby daemon
@@ -1300,7 +1200,6 @@ class ConductorLoop:
 | `src/gobby/conductor/loop.py` | E | Main ConductorLoop daemon |
 | `src/gobby/conductor/token_tracker.py` | D | Token aggregation + pricing |
 | `src/gobby/conductor/pricing.py` | D | Model pricing data |
-| `src/gobby/conductor/haiku.py` | E | TARS personality generator |
 | `src/gobby/conductor/alerts.py` | E | callme integration |
 | `src/gobby/conductor/monitors/__init__.py` | E | Monitors module init |
 | `src/gobby/conductor/monitors/tasks.py` | E | Stale task detection |
@@ -1338,7 +1237,6 @@ class ConductorLoop:
 | `tests/e2e/test_token_budget.py` | Phase D |
 | `tests/e2e/test_autonomous_mode.py` | Phase E |
 | `tests/e2e/test_worktree_merge_live.py` | Existing merge (validation only) |
-| `tests/conductor/test_haiku.py` | TARS personality |
 | `tests/conductor/test_token_tracker.py` | Token aggregation |
 | `tests/conductor/test_loop.py` | ConductorLoop behavior |
 
@@ -1357,7 +1255,6 @@ class ConductorLoop:
 - SESSION_END handler updates agent_runs
 - Token aggregation calculates costs correctly
 - Budget throttling respects thresholds
-- Haiku templates render correctly
 
 ### 14.2 Integration Tests
 
@@ -1439,21 +1336,10 @@ conductor:
   interval_seconds: 30
   autonomous_mode: false
 
-  # Personality
-  personality:
-    mode: haiku           # haiku | prose | terse
-    humor_setting: 0.15   # TARS-style dry wit
-    sass_on_stale_tasks: true
-    sass_threshold_hours: 24
-
   # Monitoring thresholds
   thresholds:
     stale_task_minutes: 60
     stuck_agent_minutes: 15
-
-  # LLM settings
-  llm_mode: hybrid        # template | api | hybrid
-  api_model: claude-4.5-haiku
 
   # Token budget
   token_budget:
