@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.skills.search import SearchFilters, SkillSearch
+from gobby.skills.updater import SkillUpdater
 from gobby.storage.skills import LocalSkillManager
 
 if TYPE_CHECKING:
@@ -105,14 +106,16 @@ def create_skills_registry(
                         category_value = skillport.get("category")
                         tags = skillport.get("tags", [])
 
-                skill_list.append({
-                    "id": skill.id,
-                    "name": skill.name,
-                    "description": skill.description,
-                    "category": category_value,
-                    "tags": tags,
-                    "enabled": skill.enabled,
-                })
+                skill_list.append(
+                    {
+                        "id": skill.id,
+                        "name": skill.name,
+                        "description": skill.description,
+                        "category": category_value,
+                        "tags": tags,
+                        "enabled": skill.enabled,
+                    }
+                )
 
             return {
                 "success": True,
@@ -280,19 +283,154 @@ def create_skills_registry(
                         category_value = skillport.get("category")
                         tags = skillport.get("tags", [])
 
-                result_list.append({
-                    "skill_id": r.skill_id,
-                    "skill_name": r.skill_name,
-                    "description": skill.description if skill else None,
-                    "category": category_value,
-                    "tags": tags,
-                    "score": r.similarity,
-                })
+                result_list.append(
+                    {
+                        "skill_id": r.skill_id,
+                        "skill_name": r.skill_name,
+                        "description": skill.description if skill else None,
+                        "category": category_value,
+                        "tags": tags,
+                        "score": r.similarity,
+                    }
+                )
 
             return {
                 "success": True,
                 "count": len(result_list),
                 "results": result_list,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- remove_skill tool ---
+
+    @registry.tool(
+        name="remove_skill",
+        description="Remove a skill by name or ID. Returns success status and removed skill name.",
+    )
+    async def remove_skill(
+        name: str | None = None,
+        skill_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Remove a skill from the database.
+
+        Args:
+            name: Skill name (used if skill_id not provided)
+            skill_id: Skill ID (takes precedence over name)
+
+        Returns:
+            Dict with success status and removed skill info
+        """
+        try:
+            # Validate input
+            if not skill_id and not name:
+                return {
+                    "success": False,
+                    "error": "Either name or skill_id is required",
+                }
+
+            # Find the skill first to get its name
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id)
+                except ValueError:
+                    pass
+
+            if skill is None and name:
+                skill = storage.get_by_name(name, project_id=project_id)
+
+            if skill is None:
+                return {
+                    "success": False,
+                    "error": f"Skill not found: {skill_id or name}",
+                }
+
+            # Store the name before deletion
+            skill_name = skill.name
+
+            # Delete the skill
+            storage.delete_skill(skill.id)
+
+            # Re-index skills after deletion
+            _index_skills()
+
+            return {
+                "success": True,
+                "removed": True,
+                "skill_name": skill_name,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- update_skill tool ---
+
+    # Initialize updater
+    updater = SkillUpdater(storage)
+
+    @registry.tool(
+        name="update_skill",
+        description="Update a skill by refreshing from its source. Returns whether the skill was updated.",
+    )
+    async def update_skill(
+        name: str | None = None,
+        skill_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Update a skill by refreshing from its source path.
+
+        Args:
+            name: Skill name (used if skill_id not provided)
+            skill_id: Skill ID (takes precedence over name)
+
+        Returns:
+            Dict with success status and update info
+        """
+        try:
+            # Validate input
+            if not skill_id and not name:
+                return {
+                    "success": False,
+                    "error": "Either name or skill_id is required",
+                }
+
+            # Find the skill first
+            skill = None
+            if skill_id:
+                try:
+                    skill = storage.get_skill(skill_id)
+                except ValueError:
+                    pass
+
+            if skill is None and name:
+                skill = storage.get_by_name(name, project_id=project_id)
+
+            if skill is None:
+                return {
+                    "success": False,
+                    "error": f"Skill not found: {skill_id or name}",
+                }
+
+            # Use SkillUpdater to refresh from source
+            result = updater.update_skill(skill.id)
+
+            # Re-index skills if updated
+            if result.updated:
+                _index_skills()
+
+            return {
+                "success": result.success,
+                "updated": result.updated,
+                "skipped": result.skipped,
+                "skip_reason": result.skip_reason,
+                "error": result.error,
             }
         except Exception as e:
             return {
