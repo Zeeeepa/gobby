@@ -62,7 +62,6 @@ class HTTPServer:
         memory_manager: "MemoryManager | None" = None,
         llm_service: "LLMService | None" = None,
         memory_sync_manager: Any | None = None,
-        task_expander: Any | None = None,
         task_validator: Any | None = None,
         metrics_manager: Any | None = None,
         agent_runner: Any | None = None,
@@ -103,7 +102,6 @@ class HTTPServer:
         self.websocket_server = websocket_server
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
-        self.task_expander = task_expander
         self.task_validator = task_validator
         self.metrics_manager = metrics_manager
         self.agent_runner = agent_runner
@@ -163,7 +161,6 @@ class HTTPServer:
                 memory_manager=memory_manager,
                 task_manager=task_manager,
                 sync_manager=task_sync_manager,
-                task_expander=self.task_expander,
                 task_validator=self.task_validator,
                 message_manager=message_manager,
                 local_session_manager=session_manager,

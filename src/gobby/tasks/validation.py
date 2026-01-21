@@ -21,10 +21,8 @@ from pathlib import Path
 from typing import Literal
 
 from gobby.config.app import TaskValidationConfig
-from gobby.config.tasks import PatternCriteriaConfig
 from gobby.llm import LLMService
 from gobby.prompts import PromptLoader
-from gobby.tasks.criteria import PatternCriteriaInjector
 from gobby.utils.json_helpers import extract_json_object
 
 logger = logging.getLogger(__name__)
@@ -655,14 +653,10 @@ class TaskValidator:
         """
         Generate validation criteria from task title and description.
 
-        When labels are provided (e.g., 'tdd', 'strangler-fig', 'refactoring'),
-        pattern-specific criteria from PatternCriteriaConfig are appended to
-        the LLM-generated criteria.
-
         Args:
             title: Task title
             description: Task description (optional)
-            labels: Task labels for pattern criteria injection (optional)
+            labels: Task labels (currently unused, kept for API compatibility)
 
         Returns:
             Generated validation criteria string, or None if generation fails
@@ -695,18 +689,7 @@ class TaskValidator:
                 system_prompt=self.config.criteria_system_prompt,
                 model=self.config.model,
             )
-            llm_criteria = response.strip()
-
-            # Inject pattern-specific criteria if labels are provided
-            if labels:
-                pattern_config = PatternCriteriaConfig()
-                injector = PatternCriteriaInjector(pattern_config=pattern_config)
-                pattern_criteria = injector.inject_for_labels(labels=labels)
-
-                if pattern_criteria:
-                    llm_criteria = f"{llm_criteria}\n\n{pattern_criteria}"
-
-            return llm_criteria
+            return response.strip()
         except Exception as e:
             logger.error(f"Failed to generate validation criteria: {e}")
             return None

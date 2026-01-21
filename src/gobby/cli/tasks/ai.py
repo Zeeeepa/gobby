@@ -422,22 +422,12 @@ def _count_unexpanded_epics(manager: LocalTaskManager, root_task_id: str) -> int
 
 @click.command("expand")
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
-@click.option("--context", "-c", help="Additional context for expansion")
-@click.option(
-    "--web-research/--no-web-research",
-    default=False,
-    help="Enable/disable agentic web research",
-)
-@click.option(
-    "--code-context/--no-code-context",
-    default=True,
-    help="Enable/disable codebase context gathering",
-)
-@click.option(
-    "--cascade", is_flag=True, help="Iteratively expand all child epics (default for epics)"
-)
-@click.option("--force", "-f", is_flag=True, help="Re-expand already expanded tasks")
-@click.option("--project", "-p", "project_name", help="Project name or ID")
+@click.option("--context", "-c", help="[DEPRECATED]")
+@click.option("--web-research/--no-web-research", default=False, help="[DEPRECATED]")
+@click.option("--code-context/--no-code-context", default=True, help="[DEPRECATED]")
+@click.option("--cascade", is_flag=True, help="[DEPRECATED]")
+@click.option("--force", "-f", is_flag=True, help="[DEPRECATED]")
+@click.option("--project", "-p", "project_name", help="[DEPRECATED]")
 def expand_task_cmd(
     task_refs: tuple[str, ...],
     context: str | None,
@@ -447,271 +437,24 @@ def expand_task_cmd(
     force: bool,
     project_name: str | None,
 ) -> None:
-    """Expand a task tree. Runs iteratively until complete.
+    """[DEPRECATED] Use /gobby-expand skill in Claude Code instead.
 
-    TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
+    The CLI expand command has been replaced with a skill-based expansion
+    that provides visible agent reasoning and survives session compaction.
 
-    For epics, automatically expands all child epics iteratively (--cascade).
-    Use --no-cascade to expand only the root task.
-
-    Examples:
-        gobby tasks expand #42           # Expands #42 and all child epics
-        gobby tasks expand #42 --force   # Re-expand even if already expanded
+    Usage in Claude Code:
+        /gobby-expand #42
     """
-    import asyncio
-
-    from gobby.cli.tasks._utils import parse_task_refs
-    from gobby.cli.utils import get_active_session_id
-    from gobby.config.app import load_config
-    from gobby.llm import LLMService
-    from gobby.storage.task_dependencies import TaskDependencyManager
-    from gobby.tasks.expansion import TaskExpander
-    from gobby.tasks.tdd import (
-        TDD_CATEGORIES,
-        apply_tdd_sandwich,
-        build_expansion_context,
-        should_skip_expansion,
-        should_skip_tdd,
-    )
-    from gobby.tasks.validation import TaskValidator
-
-    # Parse task references
-    refs = parse_task_refs(task_refs)
-    if not refs:
-        click.echo("Error: No task references provided", err=True)
-        return
-
-    manager = get_task_manager()
-
-    # Resolve all tasks
-    root_tasks: list[Task] = []
-    for ref in refs:
-        task = resolve_task_id(manager, ref)
-        if not task:
-            continue
-        root_tasks.append(task)
-
-    if not root_tasks:
-        click.echo("No valid tasks to expand.", err=True)
-        return
-
-    # Initialize services
-    try:
-        config = load_config()
-        if not config.gobby_tasks.expansion.enabled:
-            click.echo("Error: Task expansion is disabled in config.", err=True)
-            return
-
-        llm_service = LLMService(config)
-        expander = TaskExpander(
-            config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
-        )
-        dep_manager = TaskDependencyManager(manager.db)
-        validator = TaskValidator(config.gobby_tasks.validation, llm_service)
-        auto_generate_validation = config.gobby_tasks.validation.auto_generate_on_expand
-
-    except Exception as e:
-        click.echo(f"Error initializing services: {e}", err=True)
-        return
-
-    async def _post_expansion_processing(task: Task, subtask_ids: list[str]) -> dict[str, Any]:
-        """Apply MCP-parity post-expansion processing.
-
-        - Wire parent → subtask blocking dependencies
-        - Apply TDD sandwich for code/config subtasks (non-epic only)
-        - Generate validation criteria for subtasks
-        """
-        result: dict[str, Any] = {"tdd_applied": False, "validation_generated": 0}
-
-        if not subtask_ids:
-            return result
-
-        # 1. Wire parent → subtask blocking dependencies
-        for subtask_id in subtask_ids:
-            try:
-                dep_manager.add_dependency(
-                    task_id=task.id, depends_on=subtask_id, dep_type="blocks"
-                )
-            except ValueError:
-                pass  # Dependency already exists
-
-        # 2. Apply TDD sandwich (non-epic tasks with code/config subtasks)
-        if task.task_type != "epic":
-            impl_task_ids = []
-            for sid in subtask_ids:
-                subtask = manager.get_task(sid)
-                if subtask and subtask.category in TDD_CATEGORIES:
-                    if not should_skip_tdd(subtask.title):
-                        impl_task_ids.append(sid)
-
-            if impl_task_ids:
-                tdd_result = await apply_tdd_sandwich(manager, dep_manager, task.id, impl_task_ids)
-                if tdd_result.get("success"):
-                    result["tdd_applied"] = True
-
-        # 3. Generate validation criteria for subtasks
-        if auto_generate_validation:
-            for sid in subtask_ids:
-                subtask = manager.get_task(sid)
-                if subtask and not subtask.validation_criteria and subtask.task_type != "epic":
-                    try:
-                        criteria = await validator.generate_criteria(
-                            title=subtask.title,
-                            description=subtask.description,
-                        )
-                        if criteria:
-                            manager.update_task(sid, validation_criteria=criteria)
-                            result["validation_generated"] += 1
-                    except Exception:
-                        pass  # nosec B110 - best effort validation generation
-
-        # 4. Update parent task: set is_expanded and validation criteria
-        manager.update_task(
-            task.id,
-            is_expanded=True,
-            validation_criteria="All child tasks must be completed (status: closed).",
-        )
-
-        return result
-
-    # Get current session ID for expansion context
-    session_id = get_active_session_id()
-
-    # Process each root task
-    total_iterations = 0
-    total_subtasks = 0
-
-    for root_task in root_tasks:
-        root_ref = f"#{root_task.seq_num}" if root_task.seq_num else root_task.id[:8]
-
-        # For epics, default to cascade mode
-        should_cascade = cascade or root_task.task_type == "epic"
-
-        if should_cascade:
-            # Iterative expansion mode
-            click.echo(f"Expanding {root_ref}: {root_task.title[:50]}...")
-            if web_research:
-                click.echo("  • Web research enabled")
-            if code_context:
-                click.echo("  • Code context enabled")
-
-            iteration = 0
-            while True:
-                iteration += 1
-
-                # Find next unexpanded epic
-                target = _find_unexpanded_epic(manager, root_task.id)
-
-                if target is None:
-                    click.echo(f"✓ Expansion complete after {iteration - 1} iterations")
-                    break
-
-                # Re-fetch to get latest state
-                target = manager.get_task(target.id)
-                if target is None:
-                    click.echo("    Task deleted during expansion", err=True)
-                    break
-
-                # Check if task should be skipped (TDD prefixes or already expanded)
-                skip, reason = should_skip_expansion(target.title, target.is_expanded, force)
-                if skip:
-                    target_ref = f"#{target.seq_num}" if target.seq_num else target.id[:8]
-                    click.echo(f"    Skipping {target_ref}: {reason}")
-                    continue
-
-                target_ref = f"#{target.seq_num}" if target.seq_num else target.id[:8]
-                click.echo(f"[{iteration}] Expanding {target_ref}: {target.title[:40]}...")
-
-                # Build merged context from stored expansion_context + user context
-                merged_context = build_expansion_context(target.expansion_context, context)
-
-                try:
-                    result = asyncio.run(
-                        expander.expand_task(
-                            task_id=target.id,
-                            title=target.title,
-                            description=target.description,
-                            context=merged_context,
-                            enable_web_research=web_research,
-                            enable_code_context=code_context,
-                            session_id=session_id,
-                        )
-                    )
-                except Exception as e:
-                    click.echo(f"    Error: {e}", err=True)
-                    break
-
-                if "error" in result:
-                    click.echo(f"    Error: {result['error']}", err=True)
-                    break
-
-                subtasks = result.get("subtask_ids", [])
-                click.echo(f"    → Created {len(subtasks)} subtasks")
-                total_subtasks += len(subtasks)
-
-                # Apply post-expansion processing (deps, TDD sandwich, validation)
-                post_result = asyncio.run(_post_expansion_processing(target, subtasks))
-                if post_result.get("tdd_applied"):
-                    click.echo("    → Applied TDD sandwich")
-                if post_result.get("validation_generated", 0) > 0:
-                    click.echo(
-                        f"    → Generated {post_result['validation_generated']} validation criteria"
-                    )
-
-                remaining = _count_unexpanded_epics(manager, root_task.id)
-                if remaining > 0:
-                    click.echo(f"    → {remaining} epic(s) remaining")
-
-            total_iterations += iteration - 1
-
-        else:
-            # Single task expansion (non-cascade)
-            skip, reason = should_skip_expansion(root_task.title, root_task.is_expanded, force)
-            if skip:
-                click.echo(f"Skipping {root_ref}: {reason}")
-                continue
-
-            click.echo(f"Expanding {root_ref}: {root_task.title[:50]}...")
-
-            # Build merged context from stored expansion_context + user context
-            merged_context = build_expansion_context(root_task.expansion_context, context)
-
-            try:
-                result = asyncio.run(
-                    expander.expand_task(
-                        task_id=root_task.id,
-                        title=root_task.title,
-                        description=root_task.description,
-                        context=merged_context,
-                        enable_web_research=web_research,
-                        enable_code_context=code_context,
-                        session_id=session_id,
-                    )
-                )
-            except Exception as e:
-                click.echo(f"  Error: {e}", err=True)
-                continue
-
-            if "error" in result:
-                click.echo(f"  Error: {result['error']}", err=True)
-                continue
-
-            subtasks = result.get("subtask_ids", [])
-            click.echo(f"  Created {len(subtasks)} subtasks")
-
-            # Apply post-expansion processing (deps, TDD sandwich, validation)
-            post_result = asyncio.run(_post_expansion_processing(root_task, subtasks))
-            if post_result.get("tdd_applied"):
-                click.echo("  → Applied TDD sandwich")
-            if post_result.get("validation_generated", 0) > 0:
-                click.echo(
-                    f"  → Generated {post_result['validation_generated']} validation criteria"
-                )
-            total_subtasks += len(subtasks)
-            total_iterations += 1
-
-    if len(root_tasks) > 1:
-        click.echo(f"\nTotal: {total_subtasks} subtasks across {total_iterations} expansions")
+    click.echo("DEPRECATED: The 'gobby tasks expand' command has been removed.", err=True)
+    click.echo("", err=True)
+    click.echo("Use the /gobby-expand skill in Claude Code instead:", err=True)
+    click.echo("    /gobby-expand #42", err=True)
+    click.echo("", err=True)
+    click.echo("The new skill-based expansion provides:", err=True)
+    click.echo("  - Visible agent reasoning in the conversation", err=True)
+    click.echo("  - Survives session compaction and can resume", err=True)
+    click.echo("  - TDD as validation criteria (not separate tasks)", err=True)
+    sys.exit(1)
 
 
 @click.command("complexity")
@@ -830,11 +573,11 @@ def _analyze_task_complexity(manager: LocalTaskManager, task: Task) -> dict[str,
 
 
 @click.command("expand-all")
-@click.option("--max", "-m", "max_tasks", default=5, help="Maximum tasks to expand")
-@click.option("--min-complexity", default=1, help="Only expand tasks with complexity >= this")
-@click.option("--type", "task_type", help="Filter by task type")
-@click.option("--web-research/--no-web-research", default=False, help="Enable web research")
-@click.option("--dry-run", "-d", is_flag=True, help="Show what would be expanded without doing it")
+@click.option("--max", "-m", "max_tasks", default=5, help="[DEPRECATED]")
+@click.option("--min-complexity", default=1, help="[DEPRECATED]")
+@click.option("--type", "task_type", help="[DEPRECATED]")
+@click.option("--web-research/--no-web-research", default=False, help="[DEPRECATED]")
+@click.option("--dry-run", "-d", is_flag=True, help="[DEPRECATED]")
 def expand_all_cmd(
     max_tasks: int,
     min_complexity: int,
@@ -842,97 +585,18 @@ def expand_all_cmd(
     web_research: bool,
     dry_run: bool,
 ) -> None:
-    """Expand all unexpanded tasks (tasks without subtasks)."""
-    import asyncio
+    """[DEPRECATED] Use /gobby-expand skill in Claude Code instead.
 
-    from gobby.config.app import load_config
-    from gobby.llm import LLMService
-    from gobby.tasks.expansion import TaskExpander
+    The CLI expand-all command has been replaced with skill-based expansion.
 
-    manager = get_task_manager()
-
-    # Find tasks without children
-    all_tasks = manager.list_tasks(status="open", task_type=task_type, limit=100)
-
-    unexpanded = []
-    for t in all_tasks:
-        children = manager.list_tasks(parent_task_id=t.id, limit=1)
-        if not children:
-            if t.complexity_score is None or t.complexity_score >= min_complexity:
-                unexpanded.append(t)
-
-    to_expand = unexpanded[:max_tasks]
-
-    if not to_expand:
-        click.echo("No unexpanded tasks found matching criteria.")
-        return
-
-    if dry_run:
-        click.echo(f"Would expand {len(to_expand)} tasks:")
-        for t in to_expand:
-            score = t.complexity_score or "?"
-            click.echo(f"  {t.id[:12]} | Complexity: {score} | {t.title[:50]}")
-        return
-
-    # Initialize services
-    try:
-        config = load_config()
-        if not config.gobby_tasks.expansion.enabled:
-            click.echo("Error: Task expansion is disabled in config.", err=True)
-            return
-
-        llm_service = LLMService(config)
-        expander = TaskExpander(
-            config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
-        )
-    except Exception as e:
-        click.echo(f"Error initializing services: {e}", err=True)
-        return
-
-    click.echo(f"Expanding {len(to_expand)} tasks...")
-
-    async def expand_tasks() -> list[dict[str, Any]]:
-        results = []
-        for task in to_expand:
-            click.echo(f"\nExpanding: {task.title[:60]}...")
-            try:
-                result = await expander.expand_task(
-                    task_id=task.id,
-                    title=task.title,
-                    description=task.description,
-                    enable_web_research=web_research,
-                    enable_code_context=True,
-                )
-                subtask_ids = result.get("subtask_ids", [])
-                results.append(
-                    {
-                        "task_id": task.id,
-                        "title": task.title,
-                        "subtasks_created": len(subtask_ids),
-                        "status": "success" if not result.get("error") else "error",
-                        "error": result.get("error"),
-                    }
-                )
-                if result.get("error"):
-                    click.echo(f"  Error: {result['error']}")
-                else:
-                    click.echo(f"  Created {len(subtask_ids)} subtasks")
-            except Exception as e:
-                results.append(
-                    {
-                        "task_id": task.id,
-                        "title": task.title,
-                        "status": "error",
-                        "error": str(e),
-                    }
-                )
-                click.echo(f"  Error: {e}")
-        return results
-
-    results = asyncio.run(expand_tasks())
-
-    success_count = len([r for r in results if r["status"] == "success"])
-    click.echo(f"\nExpanded {success_count}/{len(results)} tasks successfully.")
+    Usage in Claude Code:
+        /gobby-expand #42
+    """
+    click.echo("DEPRECATED: The 'gobby tasks expand-all' command has been removed.", err=True)
+    click.echo("", err=True)
+    click.echo("Use the /gobby-expand skill in Claude Code instead:", err=True)
+    click.echo("    /gobby-expand #42", err=True)
+    sys.exit(1)
 
 
 @click.command("suggest")

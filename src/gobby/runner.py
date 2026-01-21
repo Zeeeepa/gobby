@@ -28,7 +28,6 @@ from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
 from gobby.sync.tasks import TaskSyncManager
-from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.logging import setup_file_logging
 from gobby.utils.machine_id import get_machine_id
@@ -134,23 +133,11 @@ class GobbyRunner:
                 poll_interval=self.config.message_tracking.poll_interval,
             )
 
-        # Initialize Task Managers (Phase 7.1)
-        self.task_expander: TaskExpander | None = None
+        # Initialize Task Validator (Phase 7.1)
         self.task_validator: TaskValidator | None = None
 
         if self.llm_service:
             gobby_tasks_config = self.config.gobby_tasks
-            if gobby_tasks_config.expansion.enabled:
-                try:
-                    self.task_expander = TaskExpander(
-                        llm_service=self.llm_service,
-                        config=gobby_tasks_config.expansion,
-                        task_manager=self.task_manager,
-                        mcp_manager=self.mcp_proxy,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to initialize TaskExpander: {e}")
-
             if gobby_tasks_config.validation.enabled:
                 try:
                     self.task_validator = TaskValidator(
@@ -207,7 +194,6 @@ class GobbyRunner:
             llm_service=self.llm_service,
             message_processor=self.message_processor,
             memory_sync_manager=self.memory_sync_manager,
-            task_expander=self.task_expander,
             task_validator=self.task_validator,
             metrics_manager=self.metrics_manager,
             agent_runner=self.agent_runner,

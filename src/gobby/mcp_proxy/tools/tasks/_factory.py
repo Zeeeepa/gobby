@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
-from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
 from gobby.mcp_proxy.tools.task_github import create_github_sync_registry
 from gobby.mcp_proxy.tools.task_orchestration import create_orchestration_registry
 from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
@@ -22,7 +21,6 @@ from gobby.mcp_proxy.tools.tasks._session import create_session_registry
 from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
-from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
 
 if TYPE_CHECKING:
@@ -35,7 +33,6 @@ if TYPE_CHECKING:
 def create_task_registry(
     task_manager: LocalTaskManager,
     sync_manager: TaskSyncManager,
-    task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
     config: "DaemonConfig | None" = None,
     agent_runner: "AgentRunner | None" = None,
@@ -50,7 +47,6 @@ def create_task_registry(
     Args:
         task_manager: LocalTaskManager instance
         sync_manager: TaskSyncManager instance
-        task_expander: TaskExpander instance (optional)
         task_validator: TaskValidator instance (optional)
         config: DaemonConfig instance (optional)
         agent_runner: AgentRunner instance for external validator agent mode (optional)
@@ -66,7 +62,6 @@ def create_task_registry(
     ctx = RegistryContext(
         task_manager=task_manager,
         sync_manager=sync_manager,
-        task_expander=task_expander,
         task_validator=task_validator,
         agent_runner=agent_runner,
         config=config,
@@ -106,17 +101,6 @@ def create_task_registry(
         get_project_repo_path=ctx.get_project_repo_path,
     )
     for tool_name, tool in validation_registry._tools.items():
-        registry._tools[tool_name] = tool
-
-    # Merge expansion tools from extracted module (Strangler Fig pattern)
-    expansion_registry = create_expansion_registry(
-        task_manager=task_manager,
-        task_expander=task_expander,
-        task_validator=task_validator,
-        auto_generate_on_expand=ctx.auto_generate_on_expand,
-        resolve_tdd_mode=ctx.resolve_tdd_mode,
-    )
-    for tool_name, tool in expansion_registry._tools.items():
         registry._tools[tool_name] = tool
 
     # Merge dependency tools from extracted module (Strangler Fig pattern)

@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.sync.tasks import TaskSyncManager
-    from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
     from gobby.worktrees.git import WorktreeGitManager
     from gobby.worktrees.merge import MergeResolver
@@ -36,7 +35,6 @@ def setup_internal_registries(
     memory_manager: MemoryManager | None = None,
     task_manager: LocalTaskManager | None = None,
     sync_manager: TaskSyncManager | None = None,
-    task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
     message_manager: LocalSessionMessageManager | None = None,
     local_session_manager: LocalSessionManager | None = None,
@@ -59,7 +57,6 @@ def setup_internal_registries(
         memory_manager: Memory manager for memory operations
         task_manager: Task storage manager
         sync_manager: Task sync manager for git sync
-        task_expander: Task expander for AI expansion
         task_validator: Task validator for validation
         message_manager: Message storage manager
         local_session_manager: Local session manager for session CRUD
@@ -99,7 +96,6 @@ def setup_internal_registries(
             tasks_registry = create_task_registry(
                 task_manager=task_manager,
                 sync_manager=sync_manager,
-                task_expander=task_expander,
                 task_validator=task_validator,
                 config=_config,
                 agent_runner=agent_runner,

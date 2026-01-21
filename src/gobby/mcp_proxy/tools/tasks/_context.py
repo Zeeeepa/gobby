@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.config.tasks import TaskValidationConfig
     from gobby.sync.tasks import TaskSyncManager
-    from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
 
 
@@ -36,7 +35,6 @@ class RegistryContext:
     sync_manager: "TaskSyncManager"
 
     # Optional managers
-    task_expander: "TaskExpander | None" = None
     task_validator: "TaskValidator | None" = None
     agent_runner: "AgentRunner | None" = None
     config: "DaemonConfig | None" = None
