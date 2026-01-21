@@ -200,6 +200,25 @@ def setup_internal_registries(
         manager.add_registry(hub_registry)
         logger.debug("Hub registry initialized")
 
+    # Initialize skills registry if config has database_path
+    if _config is not None and hasattr(_config, "database_path"):
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+        from gobby.storage.database import LocalDatabase
+
+        skills_db_path = Path(_config.database_path).expanduser()
+        if skills_db_path.exists():
+            skills_db = LocalDatabase(skills_db_path)
+            skills_registry = create_skills_registry(
+                db=skills_db,
+                project_id=project_id,
+            )
+            manager.add_registry(skills_registry)
+            logger.debug("Skills registry initialized")
+        else:
+            logger.debug("Skills registry not initialized: database not found")
+
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
 

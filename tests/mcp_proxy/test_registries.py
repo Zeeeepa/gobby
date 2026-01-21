@@ -250,3 +250,119 @@ def test_setup_merge_requires_both_storage_and_resolver():
     )
     registries2 = [r.name for r in manager2.get_all_registries()]
     assert "gobby-merge" not in registries2
+
+
+# --- Skills Registry Tests ---
+
+
+def test_setup_skills_registry_with_database_path(tmp_path):
+    """Test skills registry is created when config has database_path."""
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
+    # Create a real test database with migrations applied
+    db_path = tmp_path / "test.db"
+    db = LocalDatabase(db_path)
+    run_migrations(db)
+
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    mock_config.database_path = str(db_path)
+
+    manager = setup_internal_registries(_config=mock_config)
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-skills" in registry_names
+
+
+def test_setup_skills_registry_not_created_without_config():
+    """Test skills registry is not created when config is None."""
+    manager = setup_internal_registries(_config=None)
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-skills" not in registry_names
+
+
+def test_setup_skills_registry_not_created_without_database_path():
+    """Test skills registry is not created when database_path is missing."""
+    mock_config = MagicMock(spec=["get_gobby_tasks_config"])
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    # Note: mock_config does NOT have database_path attribute
+
+    manager = setup_internal_registries(_config=mock_config)
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-skills" not in registry_names
+
+
+def test_setup_skills_registry_has_expected_tools(tmp_path):
+    """Test skills registry has all expected skill management tools."""
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
+    # Create a real test database with migrations applied
+    db_path = tmp_path / "test.db"
+    db = LocalDatabase(db_path)
+    run_migrations(db)
+
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    mock_config.database_path = str(db_path)
+
+    manager = setup_internal_registries(_config=mock_config)
+
+    # Find the skills registry
+    skills_registry = None
+    for registry in manager.get_all_registries():
+        if registry.name == "gobby-skills":
+            skills_registry = registry
+            break
+
+    assert skills_registry is not None
+
+    # Verify expected tools are registered
+    tool_names = list(skills_registry._tools.keys())
+    expected_tools = [
+        "list_skills",
+        "get_skill",
+        "search_skills",
+        "remove_skill",
+        "update_skill",
+        "install_skill",
+    ]
+    for tool_name in expected_tools:
+        assert tool_name in tool_names, f"Expected tool '{tool_name}' not found"
+
+
+def test_setup_skills_registry_accepts_project_id(tmp_path):
+    """Test skills registry uses project_id when provided."""
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
+    # Create a real test database
+    db_path = tmp_path / "test.db"
+    db = LocalDatabase(db_path)
+    run_migrations(db)
+
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    mock_config.database_path = str(db_path)
+
+    # Create a project in the database for foreign key constraint
+    project_id = "test-project-123"
+    db.execute(
+        "INSERT INTO projects (id, name, repo_path, github_url, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
+        (project_id, "Test Project", "/tmp/test", None),
+    )
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        project_id=project_id,
+    )
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-skills" in registry_names
