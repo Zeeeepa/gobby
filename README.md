@@ -143,9 +143,25 @@ Works with your Claude, Gemini, or Codex subscriptions—or bring your own API k
 
 ## Configure Your AI CLI
 
-Add Gobby as an MCP server:
+Add Gobby as an MCP server. Choose the `command` and `args` that match your installation:
+
+- **pip/pipx install**: `"command": "gobby"`, `"args": ["mcp-server"]`
+- **uv tool install**: `"command": "uv"`, `"args": ["run", "gobby", "mcp-server"]`
 
 **Claude Code** (`.mcp.json` or `~/.claude.json`):
+
+```json
+{
+  "mcpServers": {
+    "gobby": {
+      "command": "gobby",
+      "args": ["mcp-server"]
+    }
+  }
+}
+```
+
+Or with uv:
 
 ```json
 {
@@ -164,8 +180,8 @@ Add Gobby as an MCP server:
 {
   "mcpServers": {
     "gobby": {
-      "command": "uv",
-      "args": ["run", "gobby", "mcp-server"]
+      "command": "gobby",
+      "args": ["mcp-server"]
     }
   }
 }
@@ -175,8 +191,8 @@ Add Gobby as an MCP server:
 
 ```toml
 [mcp_servers.gobby]
-command = "uv"
-args = ["run", "gobby", "mcp-server"]
+command = "gobby"
+args = ["mcp-server"]
 ```
 
 **Gemini Antigravity** (`~/.gemini/antigravity/mcp_config.json`):

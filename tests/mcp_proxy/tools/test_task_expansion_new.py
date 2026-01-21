@@ -205,7 +205,7 @@ class TestExecuteExpansion:
         await save_fn(task_id=parent_task, spec=spec)
 
         # Execute the expansion
-        result = await execute_fn(task_id=parent_task, session_id=test_session)
+        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
 
         assert "error" not in result
         assert result["count"] == 2
@@ -235,7 +235,7 @@ class TestExecuteExpansion:
         """Test executing when no pending expansion."""
         execute_fn = expansion_registry["execute_expansion"].func
 
-        result = await execute_fn(task_id=parent_task, session_id=test_session)
+        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
 
         assert "error" in result
         assert "no pending" in result["error"].lower()
@@ -263,7 +263,7 @@ class TestExecuteExpansion:
         }
         await save_fn(task_id=parent_task, spec=spec)
 
-        result = await execute_fn(task_id=parent_task, session_id=test_session)
+        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
 
         assert result["count"] == 3
 
@@ -287,7 +287,7 @@ class TestExecuteExpansion:
         """Test executing expansion on non-existent task."""
         execute_fn = expansion_registry["execute_expansion"].func
 
-        result = await execute_fn(task_id="nonexistent", session_id=test_session)
+        result = await execute_fn(parent_task_id="nonexistent", session_id=test_session)
 
         assert "error" in result
         assert "not found" in result["error"].lower()
@@ -351,7 +351,7 @@ class TestGetExpansionSpec:
         # Save and execute
         spec = {"subtasks": [{"title": "Task 1"}]}
         await save_fn(task_id=parent_task, spec=spec)
-        await execute_fn(task_id=parent_task, session_id=test_session)
+        await execute_fn(parent_task_id=parent_task, session_id=test_session)
 
         # Get should now show not pending
         result = await get_fn(task_id=parent_task)
@@ -435,7 +435,7 @@ class TestExpansionWithSeqNum:
             ]
         }
         await save_fn(task_id=parent_id, spec=spec)
-        exec_result = await execute_fn(task_id=parent_id, session_id=test_session)
+        exec_result = await execute_fn(parent_task_id=parent_id, session_id=test_session)
 
         # All refs should be #N format
         for ref in exec_result["created"]:

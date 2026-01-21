@@ -123,8 +123,12 @@ if result["pending"]:
 1. Parse input (task ref or file path)
 2. If file: Read content, `create_task(title=<first_heading>, description=<content>, task_type="epic")`
 3. Get task: `get_task(task_id="<ref>")`
-4. Check children: `list_tasks(parent_task_id="<task_id>")`
-5. If children exist: `delete_task(task_id="<task_id>", cascade=true)`
+4. Check children: `children = list_tasks(parent_task_id="<task_id>")`
+5. If children exist: Delete each child individually:
+   ```python
+   for child in children["tasks"]:
+       delete_task(task_id=child["id"])
+   ```
 
 ### Phase 2: Analyze Codebase (VISIBLE)
 Use YOUR tools to understand context:

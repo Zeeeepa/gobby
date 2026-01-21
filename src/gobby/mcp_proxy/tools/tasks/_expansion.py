@@ -94,7 +94,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         }
 
     async def execute_expansion(
-        task_id: str,
+        parent_task_id: str,
         session_id: str,
     ) -> dict[str, Any]:
         """Execute a saved expansion spec atomically.
@@ -103,7 +103,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Call save_expansion_spec first to persist the spec.
 
         Args:
-            task_id: Task ID with saved expansion spec
+            parent_task_id: Task ID with saved expansion spec
             session_id: Session ID for tracking created tasks
 
         Returns:
@@ -115,14 +115,14 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Resolve task ID
         try:
-            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id, project_id)
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, parent_task_id, project_id)
         except (TaskNotFoundError, ValueError) as e:
             return {"error": f"Task not found: {e}"}
 
         # Get task and check for pending spec
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
-            return {"error": f"Task {task_id} not found"}
+            return {"error": f"Task {parent_task_id} not found"}
 
         if task.expansion_status != "pending":
             return {"error": f"Task has no pending expansion spec (status: {task.expansion_status})"}
@@ -158,8 +158,8 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
             )
 
             # Get the task (create_task_with_decomposition returns dict with task dict)
-            task_id = result["task"]["id"]
-            created_task = ctx.task_manager.get_task(task_id)
+            subtask_id = result["task"]["id"]
+            created_task = ctx.task_manager.get_task(subtask_id)
             created_tasks.append(created_task)
 
             # Build ref
@@ -199,7 +199,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
             validation_criteria="All subtasks must be completed (status: closed).",
         )
 
-        logger.info(f"Executed expansion for task {task_id}: created {len(created_tasks)} subtasks")
+        logger.info(f"Executed expansion for task {parent_task_id}: created {len(created_tasks)} subtasks")
 
         return {
             "created": created_refs,
@@ -299,7 +299,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {
+                "parent_task_id": {
                     "type": "string",
                     "description": "Task ID with saved expansion spec",
                 },
@@ -308,7 +308,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "description": "Session ID for tracking created tasks",
                 },
             },
-            "required": ["task_id", "session_id"],
+            "required": ["parent_task_id", "session_id"],
         },
         func=execute_expansion,
     )

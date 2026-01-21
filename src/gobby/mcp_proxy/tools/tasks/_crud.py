@@ -113,6 +113,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     pass  # Skip invalid block references silently
 
         # Handle 'depends_on' argument if provided
+        # The new task depends on resolved_blocker, meaning resolved_blocker blocks the new task
         dependency_errors: list[str] = []
         if depends_on:
             for blocker_ref in depends_on:
@@ -120,7 +121,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     resolved_blocker = resolve_task_id_for_mcp(
                         ctx.task_manager, blocker_ref, project_id
                     )
-                    ctx.dep_manager.add_dependency(task.id, resolved_blocker, "blocks")
+                    ctx.dep_manager.add_dependency(resolved_blocker, task.id, "blocks")
                 except TaskNotFoundError:
                     dependency_errors.append(f"Task '{blocker_ref}' not found")
                 except ValueError as e:
