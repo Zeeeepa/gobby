@@ -16,6 +16,7 @@ from gobby.skills.parser import (
     parse_skill_text,
 )
 from gobby.skills.search import (
+    SearchFilters,
     SkillSearch,
     SkillSearchResult,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "parse_skill_file",
     "parse_skill_text",
     # Search
+    "SearchFilters",
     "SkillSearch",
     "SkillSearchResult",
     # Validator

@@ -2,7 +2,7 @@
 
 import pytest
 
-from gobby.skills.search import SkillSearch, SkillSearchResult
+from gobby.skills.search import SearchFilters, SkillSearch, SkillSearchResult
 from gobby.storage.skills import Skill
 
 
@@ -342,3 +342,154 @@ class TestSkillSearchIntegration:
         results = search.search("databases", top_k=5)
         skill_names = [r.skill_name for r in results]
         assert "new-skill-0" in skill_names
+
+
+class TestSearchFilters:
+    """Tests for SearchFilters dataclass (TDD - written before implementation)."""
+
+    def test_create_empty_filters(self):
+        """Test creating filters with no constraints."""
+        filters = SearchFilters()
+        assert filters.category is None
+        assert filters.tags_any is None
+        assert filters.tags_all is None
+
+    def test_create_with_category(self):
+        """Test creating filters with category."""
+        filters = SearchFilters(category="git")
+        assert filters.category == "git"
+
+    def test_create_with_tags_any(self):
+        """Test creating filters with tags_any."""
+        filters = SearchFilters(tags_any=["git", "workflow"])
+        assert filters.tags_any == ["git", "workflow"]
+
+    def test_create_with_tags_all(self):
+        """Test creating filters with tags_all."""
+        filters = SearchFilters(tags_all=["git", "workflow"])
+        assert filters.tags_all == ["git", "workflow"]
+
+    def test_create_with_all_options(self):
+        """Test creating filters with all options."""
+        filters = SearchFilters(
+            category="git",
+            tags_any=["git"],
+            tags_all=["workflow"],
+        )
+        assert filters.category == "git"
+        assert filters.tags_any == ["git"]
+        assert filters.tags_all == ["workflow"]
+
+
+class TestSkillSearchFiltering:
+    """Tests for skill search filtering (TDD - written before implementation)."""
+
+    def test_filter_by_category(self, sample_skills):
+        """Test filtering search results by category."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        # Search for general term that would match multiple skills
+        filters = SearchFilters(category="git")
+        results = search.search("workflow", top_k=10, filters=filters)
+
+        # Only skills with category="git" should be returned
+        for result in results:
+            skill = next(s for s in sample_skills if s.id == result.skill_id)
+            assert skill.get_category() == "git"
+
+    def test_filter_by_category_no_matches(self, sample_skills):
+        """Test filtering by category with no matches."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        filters = SearchFilters(category="nonexistent")
+        results = search.search("git", top_k=10, filters=filters)
+
+        assert results == []
+
+    def test_filter_by_tags_any(self, sample_skills):
+        """Test filtering by any of the specified tags."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        # "quality" tag exists in code-review and test-writing
+        filters = SearchFilters(tags_any=["quality", "nonexistent"])
+        results = search.search("code", top_k=10, filters=filters)
+
+        for result in results:
+            skill = next(s for s in sample_skills if s.id == result.skill_id)
+            skill_tags = skill.get_tags()
+            assert any(tag in skill_tags for tag in ["quality", "nonexistent"])
+
+    def test_filter_by_tags_all(self, sample_skills):
+        """Test filtering by all of the specified tags."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        # Only commit-message has both "git" AND "workflow" tags
+        filters = SearchFilters(tags_all=["git", "workflow"])
+        results = search.search("commit", top_k=10, filters=filters)
+
+        for result in results:
+            skill = next(s for s in sample_skills if s.id == result.skill_id)
+            skill_tags = skill.get_tags()
+            assert "git" in skill_tags and "workflow" in skill_tags
+
+    def test_filter_combined_category_and_tags(self, sample_skills):
+        """Test filtering by both category and tags."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        # category="git" AND has tag "commits"
+        filters = SearchFilters(category="git", tags_any=["commits"])
+        results = search.search("message", top_k=10, filters=filters)
+
+        for result in results:
+            skill = next(s for s in sample_skills if s.id == result.skill_id)
+            assert skill.get_category() == "git"
+            assert "commits" in skill.get_tags()
+
+    def test_filters_applied_after_ranking(self, sample_skills):
+        """Test that filters are applied after similarity ranking."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        # Get unfiltered results for comparison
+        unfiltered = search.search("git", top_k=10)
+
+        # Filter to only git category
+        filters = SearchFilters(category="git")
+        filtered = search.search("git", top_k=10, filters=filters)
+
+        # Filtered results should be a subset
+        filtered_ids = {r.skill_id for r in filtered}
+        unfiltered_ids = {r.skill_id for r in unfiltered}
+        assert filtered_ids.issubset(unfiltered_ids)
+
+        # Filtered results should maintain relative ordering
+        if len(filtered) > 1:
+            for i in range(len(filtered) - 1):
+                assert filtered[i].similarity >= filtered[i + 1].similarity
+
+    def test_search_without_filters(self, sample_skills):
+        """Test that search without filters returns all matching results."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        # No filters - should work as before
+        results = search.search("git", top_k=10)
+        assert len(results) > 0
+
+    def test_empty_filters_same_as_no_filters(self, sample_skills):
+        """Test that empty filters behave same as no filters."""
+        search = SkillSearch()
+        search.index_skills(sample_skills)
+
+        no_filter_results = search.search("git", top_k=10)
+        empty_filter_results = search.search("git", top_k=10, filters=SearchFilters())
+
+        # Should return same results
+        assert len(no_filter_results) == len(empty_filter_results)
+        for r1, r2 in zip(no_filter_results, empty_filter_results):
+            assert r1.skill_id == r2.skill_id
