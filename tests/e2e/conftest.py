@@ -86,8 +86,6 @@ def prepare_daemon_env(base_env: dict[str, str] | None = None) -> dict[str, str]
     Returns:
         Environment dict ready for subprocess.Popen
     """
-    import os
-
     env = dict(base_env) if base_env is not None else os.environ.copy()
 
     # Set PYTHONPATH so the daemon can import gobby modules
