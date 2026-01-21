@@ -28,6 +28,11 @@ from gobby.skills.search import (
     SkillSearch,
     SkillSearchResult,
 )
+from gobby.skills.updater import (
+    SkillUpdateError,
+    SkillUpdater,
+    SkillUpdateResult,
+)
 from gobby.skills.validator import (
     SkillValidator,
     ValidationResult,
@@ -48,6 +53,10 @@ __all__ = [
     "parse_github_url",
     # Manager
     "SkillManager",
+    # Updater
+    "SkillUpdateError",
+    "SkillUpdateResult",
+    "SkillUpdater",
     # Parser
     "ParsedSkill",
     "SkillParseError",
