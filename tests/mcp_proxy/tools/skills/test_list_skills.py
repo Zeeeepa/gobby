@@ -1,0 +1,202 @@
+"""Tests for list_skills MCP tool (TDD - written before implementation)."""
+
+import asyncio
+import pytest
+from pathlib import Path
+
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.skills import LocalSkillManager
+
+
+@pytest.fixture
+def db(tmp_path: Path) -> LocalDatabase:
+    """Create a fresh database with migrations applied."""
+    db_path = tmp_path / "test.db"
+    database = LocalDatabase(db_path)
+    run_migrations(database)
+    return database
+
+
+@pytest.fixture
+def storage(db: LocalDatabase) -> LocalSkillManager:
+    """Create a LocalSkillManager for storage operations."""
+    return LocalSkillManager(db)
+
+
+@pytest.fixture
+def populated_db(db: LocalDatabase, storage: LocalSkillManager) -> LocalDatabase:
+    """Create database with test skills."""
+    # Create test skills
+    storage.create_skill(
+        name="git-commit",
+        description="Generate conventional commit messages",
+        content="# Git Commit Helper\n\nContent here",
+        metadata={"skillport": {"category": "git", "tags": ["git", "commits"]}},
+        enabled=True,
+    )
+    storage.create_skill(
+        name="code-review",
+        description="AI-powered code review assistant",
+        content="# Code Review\n\nContent here",
+        metadata={"skillport": {"category": "code-quality", "tags": ["review", "quality"]}},
+        enabled=True,
+    )
+    storage.create_skill(
+        name="disabled-skill",
+        description="A disabled skill for testing",
+        content="# Disabled\n\nContent",
+        metadata={"skillport": {"category": "testing", "tags": ["test"]}},
+        enabled=False,
+    )
+    return db
+
+
+class TestListSkillsTool:
+    """Tests for list_skills MCP tool."""
+
+    def test_list_skills_returns_all_skills(self, populated_db):
+        """Test that list_skills returns all skills."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool())
+
+        assert result["success"] is True
+        assert result["count"] == 3
+        assert len(result["skills"]) == 3
+
+    def test_list_skills_returns_lightweight_metadata(self, populated_db):
+        """Test that list_skills returns only lightweight fields."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool())
+
+        assert result["success"] is True
+        skill = result["skills"][0]
+
+        # Should have lightweight fields
+        assert "name" in skill
+        assert "description" in skill
+        assert "category" in skill
+        assert "tags" in skill
+        assert "enabled" in skill
+
+        # Should NOT have heavy fields
+        assert "content" not in skill
+        assert "allowed_tools" not in skill
+        assert "compatibility" not in skill
+
+    def test_list_skills_filters_by_enabled(self, populated_db):
+        """Test that list_skills can filter by enabled status."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        # Only enabled skills
+        result = asyncio.run(tool(enabled=True))
+
+        assert result["success"] is True
+        assert result["count"] == 2
+        for skill in result["skills"]:
+            assert skill["enabled"] is True
+
+    def test_list_skills_filters_by_disabled(self, populated_db):
+        """Test that list_skills can filter by disabled status."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        # Only disabled skills
+        result = asyncio.run(tool(enabled=False))
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "disabled-skill"
+
+    def test_list_skills_filters_by_category(self, populated_db):
+        """Test that list_skills can filter by category."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool(category="git"))
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "git-commit"
+        assert result["skills"][0]["category"] == "git"
+
+    def test_list_skills_respects_limit(self, populated_db):
+        """Test that list_skills respects limit parameter."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool(limit=2))
+
+        assert result["success"] is True
+        assert result["count"] == 2
+
+    def test_list_skills_empty_database(self, db):
+        """Test list_skills handles empty database."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool())
+
+        assert result["success"] is True
+        assert result["count"] == 0
+        assert result["skills"] == []
+
+    def test_list_skills_combined_filters(self, populated_db):
+        """Test list_skills with multiple filters."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        # Git category AND enabled
+        result = asyncio.run(tool(category="git", enabled=True))
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "git-commit"
+
+    def test_list_skills_category_not_found(self, populated_db):
+        """Test list_skills with non-existent category returns empty."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool(category="nonexistent"))
+
+        assert result["success"] is True
+        assert result["count"] == 0
+        assert result["skills"] == []
+
+    def test_list_skills_has_skill_id(self, populated_db):
+        """Test that list_skills returns skill ID."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(populated_db)
+        tool = registry.get_tool("list_skills")
+
+        result = asyncio.run(tool())
+
+        assert result["success"] is True
+        for skill in result["skills"]:
+            assert "id" in skill
+            assert skill["id"] is not None

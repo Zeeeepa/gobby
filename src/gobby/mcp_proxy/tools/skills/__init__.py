@@ -19,6 +19,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.skills import LocalSkillManager
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
@@ -54,10 +55,73 @@ def create_skills_registry(
         description="Skill management - list_skills, get_skill, search_skills, create_skill, install_skill, update_skill, delete_skill",
     )
 
-    # Tools will be added by subsequent tasks:
-    # - #5883: list_skills, get_skill tools
-    # - #5884: search_skills tool
-    # - #5885: create_skill, update_skill, delete_skill tools
-    # - etc.
+    # Initialize storage
+    storage = LocalSkillManager(db)
+
+    # --- list_skills tool ---
+
+    @registry.tool(
+        name="list_skills",
+        description="List all skills with lightweight metadata. Supports filtering by category and enabled status.",
+    )
+    async def list_skills(
+        category: str | None = None,
+        enabled: bool | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """
+        List skills with lightweight metadata.
+
+        Returns ~100 tokens per skill: name, description, category, tags, enabled.
+        Does NOT include content, allowed_tools, or compatibility.
+
+        Args:
+            category: Optional category filter
+            enabled: Optional enabled status filter (True/False/None for all)
+            limit: Maximum skills to return (default 50)
+
+        Returns:
+            Dict with success status and list of skill metadata
+        """
+        try:
+            skills = storage.list_skills(
+                project_id=project_id,
+                category=category,
+                enabled=enabled,
+                limit=limit,
+                include_global=True,
+            )
+
+            # Extract lightweight metadata only
+            skill_list = []
+            for skill in skills:
+                # Get category and tags from metadata
+                category_value = None
+                tags = []
+                if skill.metadata and isinstance(skill.metadata, dict):
+                    skillport = skill.metadata.get("skillport", {})
+                    if isinstance(skillport, dict):
+                        category_value = skillport.get("category")
+                        tags = skillport.get("tags", [])
+
+                skill_list.append({
+                    "id": skill.id,
+                    "name": skill.name,
+                    "description": skill.description,
+                    "category": category_value,
+                    "tags": tags,
+                    "enabled": skill.enabled,
+                })
+
+            return {
+                "success": True,
+                "count": len(skill_list),
+                "skills": skill_list,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
 
     return registry
