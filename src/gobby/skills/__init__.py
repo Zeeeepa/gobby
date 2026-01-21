@@ -8,6 +8,7 @@ This module provides:
 - Skill updates from source
 """
 
+from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.manager import SkillManager
 from gobby.skills.parser import (
     ParsedSkill,
@@ -33,6 +34,9 @@ from gobby.skills.validator import (
 )
 
 __all__ = [
+    # Loader
+    "SkillLoader",
+    "SkillLoadError",
     # Manager
     "SkillManager",
     # Parser
