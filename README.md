@@ -105,26 +105,39 @@ call_tool("gobby-worktrees", "spawn_agent_in_worktree", {
 })
 ```
 
+## Installation
+
+### Try it instantly
+```bash
+uvx gobby --help
+```
+
+### Install globally
+```bash
+# With uv (recommended)
+uv tool install gobby
+
+# With pipx
+pipx install gobby
+
+# With pip
+pip install gobby
+```
+
+**Requirements:** Python 3.11+
+
 ## Quick Start
 
 ```bash
-# Clone and install
-git clone https://github.com/GobbyAI/gobby.git
-cd gobby
-uv sync
-
 # Start the daemon
-uv run gobby start
+gobby start
 
 # In your project directory
-uv run gobby init
-uv run gobby install  # Installs hooks for detected CLIs
-
-# Optional: install globally
-uv pip install -e .
+gobby init
+gobby install  # Installs hooks for detected CLIs
 ```
 
-**Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv), at least one AI CLI ([Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), or [Codex CLI](https://github.com/openai/codex))
+**Requirements:** At least one AI CLI ([Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), or [Codex CLI](https://github.com/openai/codex))
 
 Works with your Claude, Gemini, or Codex subscriptions—or bring your own API keys. Local model support coming soon.
 
