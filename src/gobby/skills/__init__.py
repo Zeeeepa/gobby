@@ -8,6 +8,13 @@ This module provides:
 - Skill updates from source
 """
 
+from gobby.skills.parser import (
+    ParsedSkill,
+    SkillParseError,
+    parse_frontmatter,
+    parse_skill_file,
+    parse_skill_text,
+)
 from gobby.skills.validator import (
     ValidationResult,
     validate_skill_compatibility,
@@ -16,6 +23,13 @@ from gobby.skills.validator import (
 )
 
 __all__ = [
+    # Parser
+    "ParsedSkill",
+    "SkillParseError",
+    "parse_frontmatter",
+    "parse_skill_file",
+    "parse_skill_text",
+    # Validator
     "ValidationResult",
     "validate_skill_name",
     "validate_skill_description",

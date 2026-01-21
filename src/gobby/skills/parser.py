@@ -1,0 +1,236 @@
+"""YAML frontmatter parser for SKILL.md files.
+
+This module parses skill files following the Agent Skills specification format:
+- YAML frontmatter delimited by ---
+- Markdown content body
+
+Example SKILL.md format:
+```markdown
+---
+name: commit-message
+description: Generate conventional commit messages
+license: MIT
+compatibility: Requires git CLI
+metadata:
+  author: anthropic
+  version: "1.0"
+  skillport:
+    category: git
+    tags: [git, commits]
+    alwaysApply: false
+  gobby:
+    triggers: ["/commit"]
+allowed-tools: Bash(git:*)
+---
+
+# Commit Message Generator
+
+Instructions for the skill...
+```
+"""
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+# Pattern to extract YAML frontmatter (content between --- delimiters)
+# Allows empty frontmatter (---\n---) or content between delimiters
+FRONTMATTER_PATTERN = re.compile(
+    r"^---[ \t]*\n(.*?)^---[ \t]*\n?",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+@dataclass
+class ParsedSkill:
+    """Parsed skill data from a SKILL.md file.
+
+    Attributes:
+        name: Skill name (required)
+        description: Skill description (required)
+        content: Markdown body content
+        version: Version string (from metadata.version or top-level)
+        license: License identifier
+        compatibility: Compatibility notes
+        allowed_tools: List of allowed tool patterns
+        metadata: Full metadata dict (includes skillport/gobby namespaces)
+        source_path: Path the skill was loaded from
+    """
+
+    name: str
+    description: str
+    content: str
+    version: str | None = None
+    license: str | None = None
+    compatibility: str | None = None
+    allowed_tools: list[str] | None = None
+    metadata: dict[str, Any] | None = None
+    source_path: str | None = None
+
+    def get_category(self) -> str | None:
+        """Get category from metadata.skillport.category."""
+        if not self.metadata:
+            return None
+        skillport = self.metadata.get("skillport", {})
+        return skillport.get("category")
+
+    def get_tags(self) -> list[str]:
+        """Get tags from metadata.skillport.tags."""
+        if not self.metadata:
+            return []
+        skillport = self.metadata.get("skillport", {})
+        return skillport.get("tags", [])
+
+    def is_always_apply(self) -> bool:
+        """Check if this is a core skill (alwaysApply=true)."""
+        if not self.metadata:
+            return False
+        skillport = self.metadata.get("skillport", {})
+        return skillport.get("alwaysApply", False)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "content": self.content,
+            "version": self.version,
+            "license": self.license,
+            "compatibility": self.compatibility,
+            "allowed_tools": self.allowed_tools,
+            "metadata": self.metadata,
+            "source_path": self.source_path,
+        }
+
+
+class SkillParseError(Exception):
+    """Error parsing a skill file."""
+
+    def __init__(self, message: str, path: str | None = None):
+        self.path = path
+        super().__init__(f"{message}" + (f" in {path}" if path else ""))
+
+
+def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """Parse YAML frontmatter from text.
+
+    Args:
+        text: Full text content with frontmatter
+
+    Returns:
+        Tuple of (frontmatter dict, content body)
+
+    Raises:
+        SkillParseError: If frontmatter is missing or invalid
+    """
+    match = FRONTMATTER_PATTERN.match(text)
+    if not match:
+        raise SkillParseError("Missing or invalid YAML frontmatter (must start with ---)")
+
+    frontmatter_yaml = match.group(1)
+    content = text[match.end() :].strip()
+
+    try:
+        frontmatter = yaml.safe_load(frontmatter_yaml)
+    except yaml.YAMLError as e:
+        raise SkillParseError(f"Invalid YAML in frontmatter: {e}") from e
+
+    if frontmatter is None:
+        frontmatter = {}
+
+    if not isinstance(frontmatter, dict):
+        raise SkillParseError("Frontmatter must be a YAML mapping")
+
+    return frontmatter, content
+
+
+def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
+    """Parse a skill from text content.
+
+    Args:
+        text: Full skill file content (frontmatter + markdown)
+        source_path: Optional path for error messages
+
+    Returns:
+        ParsedSkill with extracted data
+
+    Raises:
+        SkillParseError: If parsing fails or required fields missing
+    """
+    try:
+        frontmatter, content = parse_frontmatter(text)
+    except SkillParseError as e:
+        e.path = source_path
+        raise
+
+    # Extract required fields
+    name = frontmatter.get("name")
+    if not name:
+        raise SkillParseError("Missing required field: name", source_path)
+
+    description = frontmatter.get("description")
+    if not description:
+        raise SkillParseError("Missing required field: description", source_path)
+
+    # Extract optional fields
+    license_str = frontmatter.get("license")
+    compatibility = frontmatter.get("compatibility")
+
+    # Handle allowed-tools (can be string or list)
+    allowed_tools_raw = frontmatter.get("allowed-tools") or frontmatter.get("allowed_tools")
+    allowed_tools: list[str] | None = None
+    if allowed_tools_raw:
+        if isinstance(allowed_tools_raw, str):
+            # Single tool or comma-separated
+            allowed_tools = [t.strip() for t in allowed_tools_raw.split(",")]
+        elif isinstance(allowed_tools_raw, list):
+            allowed_tools = [str(t) for t in allowed_tools_raw]
+
+    # Extract metadata (may contain version, skillport, gobby namespaces)
+    metadata = frontmatter.get("metadata")
+
+    # Version can be at top level or in metadata
+    version = frontmatter.get("version")
+    if version is None and metadata and isinstance(metadata, dict):
+        version = metadata.get("version")
+
+    # Convert version to string if it's a number (e.g., 1.0 parsed as float)
+    if version is not None:
+        version = str(version)
+
+    return ParsedSkill(
+        name=name,
+        description=description,
+        content=content,
+        version=version,
+        license=license_str,
+        compatibility=compatibility,
+        allowed_tools=allowed_tools,
+        metadata=metadata,
+        source_path=source_path,
+    )
+
+
+def parse_skill_file(path: str | Path) -> ParsedSkill:
+    """Parse a skill from a file path.
+
+    Args:
+        path: Path to SKILL.md file
+
+    Returns:
+        ParsedSkill with extracted data
+
+    Raises:
+        SkillParseError: If file not found or parsing fails
+        FileNotFoundError: If file doesn't exist
+    """
+    path = Path(path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Skill file not found: {path}")
+
+    text = path.read_text(encoding="utf-8")
+    return parse_skill_text(text, source_path=str(path))
