@@ -45,6 +45,18 @@ class TestSkillsListCommand:
         assert result.exit_code == 0
         assert "List" in result.output or "list" in result.output
 
+    def test_list_help_shows_json_flag(self, runner: CliRunner):
+        """Test skills list --help shows --json flag."""
+        result = runner.invoke(cli, ["skills", "list", "--help"])
+        assert result.exit_code == 0
+        assert "--json" in result.output
+
+    def test_list_help_shows_tags_flag(self, runner: CliRunner):
+        """Test skills list --help shows --tags flag."""
+        result = runner.invoke(cli, ["skills", "list", "--help"])
+        assert result.exit_code == 0
+        assert "--tags" in result.output
+
     @patch("gobby.cli.skills.get_skill_storage")
     def test_list_no_skills(self, mock_get_storage: MagicMock, runner: CliRunner):
         """Test listing skills when none exist."""
@@ -73,6 +85,88 @@ class TestSkillsListCommand:
 
         assert result.exit_code == 0
         assert "test-skill" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_list_json_output(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test listing skills with JSON output."""
+        import json
+
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        mock_skill.description = "A test skill"
+        mock_skill.enabled = True
+        mock_skill.version = "1.0.0"
+        mock_skill.metadata = {"skillport": {"category": "test", "tags": ["tag1"]}}
+        mock_storage.list_skills.return_value = [mock_skill]
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "list", "--json"])
+
+        assert result.exit_code == 0
+        # Parse JSON output
+        data = json.loads(result.output)
+        assert len(data) == 1
+        assert data[0]["name"] == "test-skill"
+        assert data[0]["category"] == "test"
+        assert data[0]["tags"] == ["tag1"]
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_list_empty_json_output(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test listing no skills with JSON output."""
+        import json
+
+        mock_storage = MagicMock()
+        mock_storage.list_skills.return_value = []
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "list", "--json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data == []
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_list_with_tags_filter(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test listing skills with tags filter."""
+        mock_storage = MagicMock()
+        mock_skill1 = MagicMock()
+        mock_skill1.name = "skill-with-tag"
+        mock_skill1.description = "Has matching tag"
+        mock_skill1.enabled = True
+        mock_skill1.metadata = {"skillport": {"tags": ["git", "workflow"]}}
+
+        mock_skill2 = MagicMock()
+        mock_skill2.name = "skill-no-tag"
+        mock_skill2.description = "No matching tag"
+        mock_skill2.enabled = True
+        mock_skill2.metadata = {"skillport": {"tags": ["other"]}}
+
+        mock_storage.list_skills.return_value = [mock_skill1, mock_skill2]
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "list", "--tags", "git"])
+
+        assert result.exit_code == 0
+        assert "skill-with-tag" in result.output
+        assert "skill-no-tag" not in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_list_with_category_display(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test that category is displayed in list output."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        mock_skill.description = "A test skill"
+        mock_skill.enabled = True
+        mock_skill.metadata = {"skillport": {"category": "git"}}
+        mock_storage.list_skills.return_value = [mock_skill]
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "list"])
+
+        assert result.exit_code == 0
+        assert "[git]" in result.output
 
 
 class TestSkillsShowCommand:

@@ -7,7 +7,9 @@ This module provides CLI commands for managing skills:
 - remove: Remove an installed skill
 """
 
+import json
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -27,16 +29,20 @@ def skills() -> None:
     pass
 
 
-@skills.command()
+@skills.command("list")
 @click.option("--category", "-c", help="Filter by category")
+@click.option("--tags", "-t", help="Filter by tags (comma-separated)")
 @click.option("--enabled/--disabled", default=None, help="Filter by enabled status")
 @click.option("--limit", "-n", default=50, help="Maximum skills to show")
+@click.option("--json", "json_output", is_flag=True, help="Output as JSON")
 @click.pass_context
-def list(
+def list_skills(
     ctx: click.Context,
     category: str | None,
+    tags: str | None,
     enabled: bool | None,
     limit: int,
+    json_output: bool,
 ) -> None:
     """List installed skills."""
     storage = get_skill_storage()
@@ -47,6 +53,21 @@ def list(
         include_global=True,
     )
 
+    # Filter by tags if specified
+    if tags:
+        tags_list = [t.strip() for t in tags.split(",") if t.strip()]
+        if tags_list:
+            filtered_skills = []
+            for skill in skills_list:
+                skill_tags = _get_skill_tags(skill)
+                if any(tag in skill_tags for tag in tags_list):
+                    filtered_skills.append(skill)
+            skills_list = filtered_skills
+
+    if json_output:
+        _output_json(skills_list)
+        return
+
     if not skills_list:
         click.echo("No skills found.")
         return
@@ -54,13 +75,47 @@ def list(
     for skill in skills_list:
         # Get category from metadata if available
         cat_str = ""
-        if skill.metadata and isinstance(skill.metadata, dict):
-            skillport = skill.metadata.get("skillport", {})
-            if isinstance(skillport, dict) and skillport.get("category"):
-                cat_str = f" [{skillport['category']}]"
+        skill_category = _get_skill_category(skill)
+        if skill_category:
+            cat_str = f" [{skill_category}]"
 
         status = "✓" if skill.enabled else "✗"
-        click.echo(f"{status} {skill.name}{cat_str} - {skill.description[:60]}")
+        desc = skill.description[:60] if skill.description else ""
+        click.echo(f"{status} {skill.name}{cat_str} - {desc}")
+
+
+def _get_skill_tags(skill: Any) -> list[str]:
+    """Extract tags from skill metadata."""
+    if skill.metadata and isinstance(skill.metadata, dict):
+        skillport = skill.metadata.get("skillport", {})
+        if isinstance(skillport, dict):
+            return skillport.get("tags", [])
+    return []
+
+
+def _get_skill_category(skill: Any) -> str | None:
+    """Extract category from skill metadata."""
+    if skill.metadata and isinstance(skill.metadata, dict):
+        skillport = skill.metadata.get("skillport", {})
+        if isinstance(skillport, dict):
+            return skillport.get("category")
+    return None
+
+
+def _output_json(skills_list: list[Any]) -> None:
+    """Output skills as JSON."""
+    output = []
+    for skill in skills_list:
+        item = {
+            "name": skill.name,
+            "description": skill.description,
+            "enabled": skill.enabled,
+            "version": skill.version,
+            "category": _get_skill_category(skill),
+            "tags": _get_skill_tags(skill),
+        }
+        output.append(item)
+    click.echo(json.dumps(output, indent=2))
 
 
 @skills.command()
