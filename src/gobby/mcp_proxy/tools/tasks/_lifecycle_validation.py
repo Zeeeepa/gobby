@@ -35,6 +35,7 @@ def validate_commit_requirements(
     reason: str,
     no_commit_needed: bool,
     override_justification: str | None,
+    repo_path: str | None = None,
 ) -> ValidationResult:
     """Check if task meets commit requirements for closing.
 
@@ -43,6 +44,7 @@ def validate_commit_requirements(
         reason: Reason for closing
         no_commit_needed: If True, allow closing without commits
         override_justification: Justification for skipping commit check
+        repo_path: Path to the repository for git operations
 
     Returns:
         ValidationResult indicating if task can be closed
@@ -62,6 +64,12 @@ def validate_commit_requirements(
                         "override_justification explaining why no commit was needed."
                     ),
                 )
+
+            # Check for uncommitted changes - contradicts no_commit_needed claim
+            uncommitted_result = _check_uncommitted_changes(repo_path)
+            if uncommitted_result:
+                return uncommitted_result
+
             # Allowed to proceed - agent confirmed no commit needed
         else:
             return ValidationResult(
@@ -75,6 +83,51 @@ def validate_commit_requirements(
             )
 
     return ValidationResult(can_close=True)
+
+
+def _check_uncommitted_changes(repo_path: str | None) -> ValidationResult | None:
+    """Check if there are uncommitted changes to tracked files.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        ValidationResult if uncommitted changes detected, None otherwise
+    """
+    from gobby.utils.git import run_git_command
+
+    cwd = repo_path or "."
+
+    try:
+        # Check for staged changes
+        staged = run_git_command(["git", "diff", "--cached", "--name-only"], cwd=cwd)
+        # Check for unstaged changes to tracked files
+        unstaged = run_git_command(["git", "diff", "--name-only"], cwd=cwd)
+
+        staged_files = [f for f in (staged or "").strip().split("\n") if f]
+        unstaged_files = [f for f in (unstaged or "").strip().split("\n") if f]
+
+        if staged_files or unstaged_files:
+            all_files = sorted(set(staged_files + unstaged_files))
+            file_list = ", ".join(all_files[:5])
+            if len(all_files) > 5:
+                file_list += f" and {len(all_files) - 5} more"
+
+            return ValidationResult(
+                can_close=False,
+                error_type="uncommitted_changes",
+                message=(
+                    f"Cannot use no_commit_needed=True: tracked files have uncommitted changes "
+                    f"({file_list}). Commit your changes first: "
+                    "git add . && git commit -m '[task-id] ...'"
+                ),
+                extra={"uncommitted_files": all_files},
+            )
+    except Exception as e:
+        # If git operations fail (not a git repo, etc.), allow proceed
+        logger.debug(f"Git check failed (allowing proceed): {e}")
+
+    return None
 
 
 def validate_parent_task(

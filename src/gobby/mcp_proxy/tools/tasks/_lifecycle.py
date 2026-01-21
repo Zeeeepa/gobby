@@ -86,7 +86,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Check for linked commits (unless task type doesn't require commits)
         commit_result = validate_commit_requirements(
-            task, reason, no_commit_needed, override_justification
+            task, reason, no_commit_needed, override_justification, repo_path
         )
         if not commit_result.can_close:
             return {
