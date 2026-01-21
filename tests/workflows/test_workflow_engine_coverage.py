@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
-from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
 
 
@@ -39,7 +39,29 @@ def mock_state_manager():
 
 @pytest.fixture
 def mock_action_executor():
-    executor = AsyncMock()
+    """Create a mock ActionExecutor for WorkflowEngine tests.
+
+    Attributes exercised by tests in this file:
+    - execute(): Called in test_evaluate_lifecycle_workflows_blocked
+
+    Attributes NOT exercised (but set up for interface compatibility):
+    - session_manager: WorkflowEngine accesses .find_by_external_id() in handle_event
+      but tests exit early before reaching that code path
+    - db, template_engine, llm_service, transcript_processor, config,
+      mcp_manager, memory_manager, memory_sync_manager, task_sync_manager,
+      session_task_manager: Only passed through to ActionContext, not
+      directly called in these tests
+    """
+    # Import here to avoid circular imports and for spec
+    from gobby.workflows.actions import ActionExecutor
+
+    # Use spec (not spec_set) since we need to set instance attributes that
+    # are only defined in __init__. spec still catches typos in method names.
+    executor = AsyncMock(spec=ActionExecutor)
+
+    # Sub-mocks: these are accessed as attributes but not called in current tests.
+    # Using plain Mock() since the tests don't exercise their methods.
+    # TODO: Add spec_set when tests are expanded to exercise these collaborators.
     executor.session_manager = Mock()
     executor.db = Mock()
     executor.template_engine = Mock()

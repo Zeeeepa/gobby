@@ -1,44 +1,82 @@
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.hook_manager import HookManager
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.projects import LocalProjectManager
 from gobby.storage.tasks import Task
 
 
 @pytest.fixture
-def mock_hook_manager():
-    # Mock dependencies
-    with (
-        patch("gobby.hooks.hook_manager.LocalDatabase"),
-        patch("gobby.hooks.hook_manager.LocalSessionManager") as MockSessionManager,
-        patch("gobby.hooks.hook_manager.SessionTaskManager") as MockSessionTaskManager,
-        patch("gobby.hooks.hook_manager.DaemonClient"),
-    ):
-        manager = HookManager(log_file="/tmp/test_hook_manager.log")
-        manager._session_manager = MockSessionManager.return_value
-        manager._session_task_manager = MockSessionTaskManager.return_value
+def mock_hook_manager(temp_dir: Path):
+    """Create a HookManager with a real test database but mocked external dependencies.
 
-        # Mock cached daemon status via HealthMonitor
+    Uses a real SQLite database (like hook_manager_with_mocks) to avoid 'file is not
+    a database' errors from incomplete LocalDatabase patching.
+    """
+    # Create temp database
+    db_path = temp_dir / "test_context.db"
+    db = LocalDatabase(db_path)
+    run_migrations(db)
+
+    # Create a test project for project_id resolution
+    project_mgr = LocalProjectManager(db)
+    project = project_mgr.create(name="test-project", repo_path=str(temp_dir))
+
+    # Create project.json for auto-discovery
+    gobby_dir = temp_dir / ".gobby"
+    gobby_dir.mkdir(exist_ok=True)
+    (gobby_dir / "project.json").write_text(f'{{"id": "{project.id}", "name": "test-project"}}')
+
+    from gobby.config.app import DaemonConfig, HookExtensionsConfig, PluginsConfig, WebhooksConfig
+
+    # Create config with temp DB and disabled external services
+    test_config = DaemonConfig(
+        database_path=str(db_path),
+        hook_extensions=HookExtensionsConfig(
+            webhooks=WebhooksConfig(enabled=False),
+            plugins=PluginsConfig(enabled=False),
+        ),
+    )
+
+    with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+        mock_daemon_client = MagicMock()
+        mock_daemon_client.check_status.return_value = (True, "Daemon ready", "ready", None)
+        MockDaemonClient.return_value = mock_daemon_client
+
+        manager = HookManager(
+            daemon_host="localhost",
+            daemon_port=8765,
+            config=test_config,
+            log_file=str(temp_dir / "logs" / "hook-manager.log"),
+        )
+
+        # Pre-warm the daemon status cache
+        manager._health_monitor._cached_daemon_is_ready = True
+        manager._health_monitor._cached_daemon_status = "ready"
         manager._health_monitor.get_cached_status = MagicMock(
             return_value=(True, None, "running", None)
         )
 
-        # Mock _session_storage to return None for get() to avoid pre-created session path
+        # Mock _session_storage.get to return None for get() to avoid pre-created session path
         if manager._event_handlers._session_storage:
             manager._event_handlers._session_storage.get = MagicMock(return_value=None)
 
+        # Replace _session_manager and _session_task_manager with mocks
+        # so tests can set return_value on their methods
+        manager._session_manager = MagicMock()
+        manager._session_task_manager = MagicMock()
+
         yield manager
 
-        # Cleanup: close and remove handlers from the logger to prevent file descriptor issues
-        import logging
-
-        logger = logging.getLogger("gobby.hooks")
-        for handler in logger.handlers[:]:
-            handler.close()
-            logger.removeHandler(handler)
+        # Cleanup
+        manager.shutdown()
+        db.close()
 
 
 def test_hook_event_task_id(mock_hook_manager):
