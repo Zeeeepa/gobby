@@ -1595,8 +1595,10 @@ class TestRegistryIntegration:
             # From task_validation
             "validate_task",
             "generate_validation_criteria",
-            # From task_expansion
-            "expand_task",
+            # From task_expansion (skill-based)
+            "save_expansion_spec",
+            "execute_expansion",
+            "get_expansion_spec",
             # From task_dependencies
             "add_dependency",
             "remove_dependency",
