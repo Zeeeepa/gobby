@@ -20,6 +20,7 @@ from gobby.skills.loader import (
     SkillLoader,
     SkillLoadError,
     clone_skill_repo,
+    extract_zip,
     parse_github_url,
 )
 from gobby.skills.manager import SkillManager
@@ -62,6 +63,7 @@ __all__ = [
     "SkillLoadError",
     "SkillLoader",
     "clone_skill_repo",
+    "extract_zip",
     "parse_github_url",
     # Manager
     "SkillManager",

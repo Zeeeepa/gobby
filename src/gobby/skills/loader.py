@@ -1,17 +1,23 @@
-"""SkillLoader - Load skills from filesystem and GitHub.
+"""SkillLoader - Load skills from filesystem, GitHub, and ZIP archives.
 
 This module provides the SkillLoader class for loading skills from:
 - Single SKILL.md files
 - Directories containing SKILL.md files
 - Recursively from a root directory
 - GitHub repositories
+- ZIP archives
 """
 
 from __future__ import annotations
 
 import logging
 import re
+import shutil
 import subprocess
+import tempfile
+import zipfile
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -173,9 +179,7 @@ def clone_skill_repo(
         if ref.branch:
             # Checkout the specific branch first
             checkout_cmd = ["git", "-C", str(repo_path), "checkout", ref.branch]
-            result = subprocess.run(
-                checkout_cmd, capture_output=True, text=True, timeout=60
-            )
+            result = subprocess.run(checkout_cmd, capture_output=True, text=True, timeout=60)
             if result.returncode != 0:
                 logger.warning(f"Failed to checkout branch {ref.branch}: {result.stderr}")
     else:
@@ -195,6 +199,52 @@ def clone_skill_repo(
         )
 
     return repo_path
+
+
+@contextmanager
+def extract_zip(zip_path: str | Path) -> Generator[Path]:
+    """Extract a ZIP archive to a temporary directory.
+
+    This context manager extracts the contents of a ZIP file to a temporary
+    directory, yields the path to the extracted contents, and cleans up
+    the temporary directory on exit (even if an exception occurs).
+
+    Args:
+        zip_path: Path to the ZIP file
+
+    Yields:
+        Path to the temporary directory containing extracted contents
+
+    Raises:
+        SkillLoadError: If ZIP file not found or invalid
+
+    Example:
+        ```python
+        with extract_zip("skills.zip") as temp_path:
+            skill = loader.load_skill(temp_path / "my-skill")
+        # temp_path is automatically deleted here
+        ```
+    """
+    zip_path = Path(zip_path)
+
+    if not zip_path.exists():
+        raise SkillLoadError("ZIP file not found", zip_path)
+
+    if not zipfile.is_zipfile(zip_path):
+        raise SkillLoadError("Invalid ZIP file", zip_path)
+
+    temp_dir = tempfile.mkdtemp(prefix="gobby-skill-")
+    temp_path = Path(temp_dir)
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(temp_path)
+
+        yield temp_path
+    finally:
+        # Clean up temp directory
+        if temp_path.exists():
+            shutil.rmtree(temp_path, ignore_errors=True)
 
 
 class SkillLoadError(Exception):
@@ -438,3 +488,72 @@ class SkillLoader:
             skill.source_path = f"github:{ref.owner}/{ref.repo}"
             skill.source_ref = ref.branch
             return skill
+
+    def load_from_zip(
+        self,
+        zip_path: str | Path,
+        validate: bool = True,
+        load_all: bool = False,
+        internal_path: str | None = None,
+    ) -> ParsedSkill | list[ParsedSkill]:
+        """Load skill(s) from a ZIP archive.
+
+        The ZIP can contain:
+        - A single skill directory with SKILL.md
+        - A SKILL.md at the root
+        - Multiple skill directories (use load_all=True)
+
+        Args:
+            zip_path: Path to the ZIP file
+            validate: Whether to validate loaded skills
+            load_all: If True, load all skills from ZIP (returns list)
+            internal_path: Path within the ZIP to the skill directory
+
+        Returns:
+            ParsedSkill if load_all=False, list[ParsedSkill] if load_all=True
+
+        Raises:
+            SkillLoadError: If skill cannot be loaded
+        """
+        zip_path = Path(zip_path)
+
+        if not zip_path.exists():
+            raise SkillLoadError("ZIP file not found", zip_path)
+
+        with extract_zip(zip_path) as temp_path:
+            # Determine the skill path within the extracted contents
+            if internal_path:
+                skill_path = temp_path / internal_path
+            else:
+                # Check for SKILL.md at root
+                if (temp_path / "SKILL.md").exists():
+                    skill_path = temp_path
+                else:
+                    # Look for a skill directory
+                    skill_dirs = self.scan_skills(temp_path)
+                    if skill_dirs:
+                        if load_all:
+                            skill_path = temp_path
+                        else:
+                            skill_path = skill_dirs[0]
+                    else:
+                        # Try the temp path itself
+                        skill_path = temp_path
+
+            if load_all:
+                # Load all skills from the ZIP
+                skills = self.load_directory(skill_path, validate=validate)
+                for skill in skills:
+                    skill.source_type = "zip"
+                    skill.source_path = f"zip:{zip_path}"
+                return skills
+            else:
+                # Load single skill
+                skill = self.load_skill(
+                    skill_path,
+                    validate=validate,
+                    check_dir_name=False,  # Don't check dir name for ZIP imports
+                )
+                skill.source_type = "zip"
+                skill.source_path = f"zip:{zip_path}"
+                return skill
