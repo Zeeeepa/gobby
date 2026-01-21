@@ -4,7 +4,7 @@ import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
-from gobby.storage.skills import LocalSkillManager, Skill
+from gobby.storage.skills import ChangeEvent, LocalSkillManager, Skill, SkillChangeNotifier
 
 
 @pytest.fixture
@@ -573,3 +573,188 @@ class TestSkillChangeNotification:
             content="Content",
         )
         assert skill is not None
+
+
+class TestSkillChangeNotifierClass:
+    """Tests for the SkillChangeNotifier class."""
+
+    def test_add_listener(self):
+        """Test adding a listener."""
+        notifier = SkillChangeNotifier()
+        events = []
+
+        def listener(event):
+            events.append(event)
+
+        notifier.add_listener(listener)
+        assert notifier.listener_count == 1
+
+    def test_add_listener_no_duplicates(self):
+        """Test that the same listener cannot be added twice."""
+        notifier = SkillChangeNotifier()
+
+        def listener(event):
+            pass
+
+        notifier.add_listener(listener)
+        notifier.add_listener(listener)
+        assert notifier.listener_count == 1
+
+    def test_remove_listener(self):
+        """Test removing a listener."""
+        notifier = SkillChangeNotifier()
+
+        def listener(event):
+            pass
+
+        notifier.add_listener(listener)
+        assert notifier.listener_count == 1
+
+        result = notifier.remove_listener(listener)
+        assert result is True
+        assert notifier.listener_count == 0
+
+    def test_remove_listener_not_found(self):
+        """Test removing a listener that doesn't exist."""
+        notifier = SkillChangeNotifier()
+
+        def listener(event):
+            pass
+
+        result = notifier.remove_listener(listener)
+        assert result is False
+
+    def test_fire_change(self):
+        """Test firing a change event."""
+        notifier = SkillChangeNotifier()
+        events = []
+
+        def listener(event):
+            events.append(event)
+
+        notifier.add_listener(listener)
+        notifier.fire_change(
+            event_type="create",
+            skill_id="skl-test",
+            skill_name="test-skill",
+        )
+
+        assert len(events) == 1
+        assert events[0].event_type == "create"
+        assert events[0].skill_id == "skl-test"
+        assert events[0].skill_name == "test-skill"
+
+    def test_fire_change_multiple_listeners(self):
+        """Test firing a change to multiple listeners."""
+        notifier = SkillChangeNotifier()
+        events1 = []
+        events2 = []
+
+        notifier.add_listener(lambda e: events1.append(e))
+        notifier.add_listener(lambda e: events2.append(e))
+
+        notifier.fire_change("update", "skl-1", "skill-1")
+
+        assert len(events1) == 1
+        assert len(events2) == 1
+
+    def test_fire_change_with_metadata(self):
+        """Test firing a change event with metadata."""
+        notifier = SkillChangeNotifier()
+        events = []
+
+        notifier.add_listener(lambda e: events.append(e))
+        notifier.fire_change(
+            event_type="delete",
+            skill_id="skl-test",
+            skill_name="test-skill",
+            metadata={"reason": "cleanup"},
+        )
+
+        assert events[0].metadata == {"reason": "cleanup"}
+
+    def test_fire_change_listener_error_does_not_stop_others(self):
+        """Test that one failing listener doesn't stop others."""
+        notifier = SkillChangeNotifier()
+        events = []
+
+        def failing_listener(event):
+            raise RuntimeError("Listener failed")
+
+        def working_listener(event):
+            events.append(event)
+
+        notifier.add_listener(failing_listener)
+        notifier.add_listener(working_listener)
+
+        # Should not raise
+        notifier.fire_change("create", "skl-1", "skill-1")
+
+        # The working listener should still have been called
+        assert len(events) == 1
+
+    def test_clear_listeners(self):
+        """Test clearing all listeners."""
+        notifier = SkillChangeNotifier()
+
+        notifier.add_listener(lambda e: None)
+        notifier.add_listener(lambda e: None)
+        assert notifier.listener_count == 2
+
+        notifier.clear_listeners()
+        assert notifier.listener_count == 0
+
+
+class TestChangeEvent:
+    """Tests for the ChangeEvent dataclass."""
+
+    def test_change_event_creation(self):
+        """Test creating a change event."""
+        event = ChangeEvent(
+            event_type="create",
+            skill_id="skl-test",
+            skill_name="test-skill",
+        )
+
+        assert event.event_type == "create"
+        assert event.skill_id == "skl-test"
+        assert event.skill_name == "test-skill"
+        assert event.timestamp is not None
+        assert event.metadata is None
+
+    def test_change_event_with_metadata(self):
+        """Test creating a change event with metadata."""
+        event = ChangeEvent(
+            event_type="update",
+            skill_id="skl-test",
+            skill_name="test-skill",
+            metadata={"changes": ["description"]},
+        )
+
+        assert event.metadata == {"changes": ["description"]}
+
+    def test_change_event_to_dict(self):
+        """Test converting change event to dict."""
+        event = ChangeEvent(
+            event_type="delete",
+            skill_id="skl-test",
+            skill_name="test-skill",
+            metadata={"reason": "cleanup"},
+        )
+
+        d = event.to_dict()
+        assert d["event_type"] == "delete"
+        assert d["skill_id"] == "skl-test"
+        assert d["skill_name"] == "test-skill"
+        assert d["metadata"] == {"reason": "cleanup"}
+        assert "timestamp" in d
+
+    def test_change_event_types(self):
+        """Test all valid event types."""
+        for event_type in ["create", "update", "delete"]:
+            event = ChangeEvent(
+                event_type=event_type,  # type: ignore
+                skill_id="skl-test",
+                skill_name="test-skill",
+            )
+            assert event.event_type == event_type

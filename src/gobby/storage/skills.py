@@ -15,7 +15,7 @@ from typing import Any, Literal
 from gobby.storage.database import DatabaseProtocol
 from gobby.utils.id import generate_prefixed_id
 
-__all__ = ["Skill", "LocalSkillManager"]
+__all__ = ["ChangeEvent", "Skill", "SkillChangeNotifier", "LocalSkillManager"]
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +168,141 @@ class Skill:
             return False
         skillport = self.metadata.get("skillport", {})
         return skillport.get("alwaysApply", False)
+
+
+# Change event types
+ChangeEventType = Literal["create", "update", "delete"]
+
+
+@dataclass
+class ChangeEvent:
+    """A change event fired when a skill is created, updated, or deleted.
+
+    This event is passed to registered listeners when mutations occur,
+    allowing components like search indexes to stay synchronized.
+
+    Attributes:
+        event_type: Type of change ('create', 'update', 'delete')
+        skill_id: ID of the affected skill
+        skill_name: Name of the affected skill (for logging/indexing)
+        timestamp: ISO format timestamp of the event
+        metadata: Optional additional context about the change
+    """
+
+    event_type: ChangeEventType
+    skill_id: str
+    skill_name: str
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    metadata: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert event to dictionary representation."""
+        return {
+            "event_type": self.event_type,
+            "skill_id": self.skill_id,
+            "skill_name": self.skill_name,
+            "timestamp": self.timestamp,
+            "metadata": self.metadata,
+        }
+
+
+# Type alias for change listeners
+ChangeListener = Any  # Callable[[ChangeEvent], None], but avoiding import issues
+
+
+class SkillChangeNotifier:
+    """Notifies registered listeners when skills are mutated.
+
+    This implements the observer pattern to allow components like
+    search indexes to stay synchronized with skill changes.
+
+    Listeners are wrapped in try/except to prevent one failing listener
+    from blocking others or the main mutation.
+
+    Example usage:
+        ```python
+        notifier = SkillChangeNotifier()
+
+        def on_skill_change(event: ChangeEvent):
+            print(f"Skill {event.skill_name} was {event.event_type}d")
+
+        notifier.add_listener(on_skill_change)
+
+        manager = LocalSkillManager(db, notifier=notifier)
+        manager.create_skill(...)  # Triggers the listener
+        ```
+    """
+
+    def __init__(self) -> None:
+        """Initialize the notifier with an empty listener list."""
+        self._listeners: list[ChangeListener] = []
+
+    def add_listener(self, listener: ChangeListener) -> None:
+        """Register a listener to receive change events.
+
+        Args:
+            listener: Callable that accepts a ChangeEvent
+        """
+        if listener not in self._listeners:
+            self._listeners.append(listener)
+
+    def remove_listener(self, listener: ChangeListener) -> bool:
+        """Unregister a listener.
+
+        Args:
+            listener: The listener to remove
+
+        Returns:
+            True if removed, False if not found
+        """
+        try:
+            self._listeners.remove(listener)
+            return True
+        except ValueError:
+            return False
+
+    def fire_change(
+        self,
+        event_type: ChangeEventType,
+        skill_id: str,
+        skill_name: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Fire a change event to all registered listeners.
+
+        Each listener is called in a try/except block to prevent
+        one failing listener from blocking others.
+
+        Args:
+            event_type: Type of change ('create', 'update', 'delete')
+            skill_id: ID of the affected skill
+            skill_name: Name of the affected skill
+            metadata: Optional additional context
+        """
+        event = ChangeEvent(
+            event_type=event_type,
+            skill_id=skill_id,
+            skill_name=skill_name,
+            metadata=metadata,
+        )
+
+        for listener in self._listeners:
+            try:
+                listener(event)
+            except Exception as e:
+                logger.error(
+                    f"Error in skill change listener {listener}: {e}",
+                    exc_info=True,
+                )
+
+    def clear_listeners(self) -> None:
+        """Remove all registered listeners."""
+        self._listeners.clear()
+
+    @property
+    def listener_count(self) -> int:
+        """Return the number of registered listeners."""
+        return len(self._listeners)
 
 
 class LocalSkillManager:
