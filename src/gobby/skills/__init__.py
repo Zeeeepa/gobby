@@ -8,7 +8,13 @@ This module provides:
 - Skill updates from source
 """
 
-from gobby.skills.loader import SkillLoader, SkillLoadError
+from gobby.skills.loader import (
+    GitHubRef,
+    SkillLoader,
+    SkillLoadError,
+    clone_skill_repo,
+    parse_github_url,
+)
 from gobby.skills.manager import SkillManager
 from gobby.skills.parser import (
     ParsedSkill,
@@ -35,8 +41,11 @@ from gobby.skills.validator import (
 
 __all__ = [
     # Loader
-    "SkillLoader",
+    "GitHubRef",
     "SkillLoadError",
+    "SkillLoader",
+    "clone_skill_repo",
+    "parse_github_url",
     # Manager
     "SkillManager",
     # Parser

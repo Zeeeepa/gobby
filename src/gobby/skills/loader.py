@@ -1,22 +1,200 @@
-"""SkillLoader - Load skills from filesystem.
+"""SkillLoader - Load skills from filesystem and GitHub.
 
 This module provides the SkillLoader class for loading skills from:
 - Single SKILL.md files
 - Directories containing SKILL.md files
 - Recursively from a root directory
+- GitHub repositories
 """
 
 from __future__ import annotations
 
 import logging
+import re
+import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
 
 from gobby.skills.parser import ParsedSkill, SkillParseError, parse_skill_file
 from gobby.skills.validator import SkillValidator
 from gobby.storage.skills import SkillSourceType
 
 logger = logging.getLogger(__name__)
+
+# Default cache directory for cloned GitHub repos
+DEFAULT_CACHE_DIR = Path.home() / ".gobby" / "skill-cache"
+
+
+@dataclass
+class GitHubRef:
+    """Parsed GitHub repository reference.
+
+    Attributes:
+        owner: Repository owner (user or org)
+        repo: Repository name
+        branch: Branch or tag name (None for default branch)
+        path: Path within the repository to skill directory
+    """
+
+    owner: str
+    repo: str
+    branch: str | None = None
+    path: str | None = None
+
+    @property
+    def clone_url(self) -> str:
+        """Get the HTTPS clone URL."""
+        return f"https://github.com/{self.owner}/{self.repo}.git"
+
+    @property
+    def cache_key(self) -> str:
+        """Get a unique key for caching this repo/branch combo."""
+        branch_part = self.branch or "HEAD"
+        return f"{self.owner}/{self.repo}/{branch_part}"
+
+
+def parse_github_url(url: str) -> GitHubRef:
+    """Parse a GitHub URL into its components.
+
+    Supports formats:
+    - owner/repo
+    - owner/repo#branch
+    - github:owner/repo
+    - github:owner/repo#branch
+    - https://github.com/owner/repo
+    - https://github.com/owner/repo.git
+    - https://github.com/owner/repo/tree/branch
+    - https://github.com/owner/repo/tree/branch/path/to/skill
+
+    Args:
+        url: GitHub URL in any supported format
+
+    Returns:
+        GitHubRef with parsed components
+
+    Raises:
+        ValueError: If URL cannot be parsed
+    """
+    if not url or not url.strip():
+        raise ValueError("Invalid GitHub URL: empty string")
+
+    url = url.strip()
+
+    # Format: github:owner/repo#branch
+    if url.startswith("github:"):
+        url = url[7:]  # Remove "github:" prefix
+        return _parse_owner_repo_format(url)
+
+    # Format: https://github.com/owner/repo...
+    if url.startswith("https://github.com/") or url.startswith("http://github.com/"):
+        return _parse_full_github_url(url)
+
+    # Format: owner/repo#branch
+    if "/" in url and not url.startswith("http"):
+        return _parse_owner_repo_format(url)
+
+    raise ValueError(f"Invalid GitHub URL: {url}")
+
+
+def _parse_owner_repo_format(url: str) -> GitHubRef:
+    """Parse owner/repo#branch format."""
+    branch = None
+
+    # Check for branch suffix
+    if "#" in url:
+        url, branch = url.rsplit("#", 1)
+
+    # Split owner/repo
+    parts = url.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid GitHub URL: {url}")
+
+    owner = parts[0]
+    repo = parts[1].removesuffix(".git")
+
+    return GitHubRef(owner=owner, repo=repo, branch=branch)
+
+
+def _parse_full_github_url(url: str) -> GitHubRef:
+    """Parse full https://github.com/... URL."""
+    # Remove protocol
+    url = re.sub(r"^https?://github\.com/", "", url)
+
+    # Remove trailing slash
+    url = url.rstrip("/")
+
+    # Remove .git suffix
+    url = url.removesuffix(".git")
+
+    parts = url.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid GitHub URL: {url}")
+
+    owner = parts[0]
+    repo = parts[1]
+    branch = None
+    path = None
+
+    # Check for /tree/branch/path format
+    if len(parts) > 2 and parts[2] == "tree":
+        if len(parts) > 3:
+            branch = parts[3]
+        if len(parts) > 4:
+            path = "/".join(parts[4:])
+
+    return GitHubRef(owner=owner, repo=repo, branch=branch, path=path)
+
+
+def clone_skill_repo(
+    ref: GitHubRef,
+    cache_dir: Path | None = None,
+) -> Path:
+    """Clone or update a GitHub repository.
+
+    Args:
+        ref: Parsed GitHub reference
+        cache_dir: Directory to cache cloned repos (default: ~/.gobby/skill-cache)
+
+    Returns:
+        Path to the cloned repository
+
+    Raises:
+        SkillLoadError: If clone/pull fails
+    """
+    cache_dir = cache_dir or DEFAULT_CACHE_DIR
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    repo_path = cache_dir / ref.owner / ref.repo
+    is_existing = repo_path.exists() and (repo_path / ".git").exists()
+
+    if is_existing:
+        # Update existing repo
+        cmd = ["git", "-C", str(repo_path), "pull", "--ff-only"]
+        if ref.branch:
+            # Checkout the specific branch first
+            checkout_cmd = ["git", "-C", str(repo_path), "checkout", ref.branch]
+            result = subprocess.run(
+                checkout_cmd, capture_output=True, text=True, timeout=60
+            )
+            if result.returncode != 0:
+                logger.warning(f"Failed to checkout branch {ref.branch}: {result.stderr}")
+    else:
+        # Clone new repo
+        repo_path.parent.mkdir(parents=True, exist_ok=True)
+        cmd = ["git", "clone", "--depth", "1"]
+        if ref.branch:
+            cmd.extend(["--branch", ref.branch])
+        cmd.extend([ref.clone_url, str(repo_path)])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+    if result.returncode != 0:
+        raise SkillLoadError(
+            f"Failed to clone repository: {result.stderr}",
+            ref.clone_url,
+        )
+
+    return repo_path
 
 
 class SkillLoadError(Exception):
@@ -203,3 +381,60 @@ class SkillLoader:
                 skill_dirs.append(item)
 
         return skill_dirs
+
+    def load_from_github(
+        self,
+        url: str,
+        validate: bool = True,
+        load_all: bool = False,
+        cache_dir: Path | None = None,
+    ) -> ParsedSkill | list[ParsedSkill]:
+        """Load skill(s) from a GitHub repository.
+
+        Supports formats:
+        - owner/repo - Single skill repo
+        - owner/repo#branch - With specific branch
+        - github:owner/repo - With github: prefix
+        - https://github.com/owner/repo - Full URL
+        - https://github.com/owner/repo/tree/branch/path - With path to skill
+
+        Args:
+            url: GitHub URL in any supported format
+            validate: Whether to validate loaded skills
+            load_all: If True, load all skills from repo (returns list)
+            cache_dir: Optional cache directory override
+
+        Returns:
+            ParsedSkill if load_all=False, list[ParsedSkill] if load_all=True
+
+        Raises:
+            SkillLoadError: If skill cannot be loaded
+        """
+        ref = parse_github_url(url)
+        repo_path = clone_skill_repo(ref, cache_dir=cache_dir)
+
+        # Determine the skill path within the repo
+        if ref.path:
+            skill_path = repo_path / ref.path
+        else:
+            skill_path = repo_path
+
+        if load_all:
+            # Load all skills from the repo
+            skills = self.load_directory(skill_path, validate=validate)
+            for skill in skills:
+                skill.source_type = "github"
+                skill.source_path = f"github:{ref.owner}/{ref.repo}"
+                skill.source_ref = ref.branch
+            return skills
+        else:
+            # Load single skill
+            skill = self.load_skill(
+                skill_path,
+                validate=validate,
+                check_dir_name=False,  # Don't check dir name for GitHub imports
+            )
+            skill.source_type = "github"
+            skill.source_path = f"github:{ref.owner}/{ref.repo}"
+            skill.source_ref = ref.branch
+            return skill
