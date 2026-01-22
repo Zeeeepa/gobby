@@ -17,7 +17,7 @@ from gobby.storage.migrations import run_migrations
 @pytest.fixture
 def db(tmp_path):
     """Create a test database with migrations applied."""
-    database = LocalDatabase(tmp_path / "gobby.db")
+    database = LocalDatabase(tmp_path / "gobby-hub.db")
     run_migrations(database)
     yield database
     database.close()
@@ -52,11 +52,13 @@ class TestMemoryMediaField:
 
     def test_memory_with_media_value(self):
         """Test that Memory can be created with media value."""
-        media_data = json.dumps({
-            "path": "/path/to/image.png",
-            "mime_type": "image/png",
-            "description": "Screenshot of error",
-        })
+        media_data = json.dumps(
+            {
+                "path": "/path/to/image.png",
+                "mime_type": "image/png",
+                "description": "Screenshot of error",
+            }
+        )
         memory = Memory(
             id="mm-test",
             memory_type="fact",
@@ -134,17 +136,22 @@ class TestMemoryFromRowMedia:
 
     def test_from_row_with_media(self, db):
         """Test that Memory.from_row() correctly reads media from database row."""
-        media_data = json.dumps({
-            "path": "/path/to/image.png",
-            "mime_type": "image/png",
-            "description": "Test image",
-        })
-        db.execute("""
+        media_data = json.dumps(
+            {
+                "path": "/path/to/image.png",
+                "mime_type": "image/png",
+                "description": "Test image",
+            }
+        )
+        db.execute(
+            """
             INSERT INTO memories (id, memory_type, content, created_at, updated_at,
                                   importance, access_count, tags, media)
             VALUES (?, 'fact', 'Test content', '2026-01-19', '2026-01-19',
                     0.5, 0, '[]', ?)
-        """, ("mm-test", media_data))
+        """,
+            ("mm-test", media_data),
+        )
 
         cursor = db.execute("SELECT * FROM memories WHERE id = 'mm-test'")
         cursor.row_factory = db.connection.row_factory
@@ -180,11 +187,13 @@ class TestMemoryManagerMedia:
 
     def test_create_memory_with_media(self, memory_manager):
         """Test creating a memory with media attachment."""
-        media_data = json.dumps({
-            "path": "/screenshots/error.png",
-            "mime_type": "image/png",
-            "description": "Error screenshot",
-        })
+        media_data = json.dumps(
+            {
+                "path": "/screenshots/error.png",
+                "mime_type": "image/png",
+                "description": "Error screenshot",
+            }
+        )
         memory = memory_manager.create_memory(
             content="Found an error in the login flow",
             memory_type="fact",

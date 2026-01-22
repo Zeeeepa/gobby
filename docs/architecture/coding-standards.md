@@ -37,7 +37,7 @@ uv run pytest
 ### Configuration Reference
 
 - **Line length**: 100 characters
-- **Target Python version**: 3.11+
+- **Target Python version**: 3.13+
 - **Mypy mode**: strict (`disallow_untyped_defs = true`)
 
 ---
@@ -696,7 +696,7 @@ __all__ = ["LocalDatabase", "LocalSessionManager", "LocalTaskManager"]
 | Category | Standard |
 |----------|----------|
 | Line length | 100 characters |
-| Python version | 3.11+ |
+| Python version | 3.13+ |
 | Type hints | Required on all public interfaces |
 | Union syntax | `str \| None` (PEP 604) |
 | Imports | Absolute with `gobby.` prefix |

@@ -232,7 +232,7 @@ def e2e_config(e2e_project_dir: Path) -> Generator[tuple[Path, int, int]]:
     gobby_home.mkdir(parents=True, exist_ok=True)
 
     config_path = gobby_home / "config.yaml"
-    db_path = gobby_home / "gobby.db"
+    db_path = gobby_home / "gobby-hub.db"
     log_dir = gobby_home / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -330,7 +330,7 @@ def daemon_instance(
         gobby_dir=e2e_project_dir / ".gobby",
         log_file=log_file,
         error_log_file=error_log_file,
-        db_path=gobby_home / "gobby.db",
+        db_path=gobby_home / "gobby-hub.db",
         config_path=config_path,
     )
 

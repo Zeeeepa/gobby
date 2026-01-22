@@ -10,7 +10,7 @@ from gobby.storage.skills import ChangeEvent, LocalSkillManager, Skill, SkillCha
 @pytest.fixture
 def db(tmp_path):
     """Create a fresh database with migrations applied."""
-    database = LocalDatabase(tmp_path / "gobby.db")
+    database = LocalDatabase(tmp_path / "gobby-hub.db")
     run_migrations(database)
     yield database
     database.close()
@@ -319,9 +319,7 @@ class TestLocalSkillManager:
     def test_list_skills_filter_enabled(self, skill_manager):
         """Test filtering skills by enabled state."""
         skill_manager.create_skill(name="enabled", description="E", content="C")
-        disabled = skill_manager.create_skill(
-            name="disabled", description="D", content="C"
-        )
+        disabled = skill_manager.create_skill(name="disabled", description="D", content="C")
         skill_manager.update_skill(disabled.id, enabled=False)
 
         enabled_skills = skill_manager.list_skills(enabled=True)

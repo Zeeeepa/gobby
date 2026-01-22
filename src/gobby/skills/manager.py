@@ -40,7 +40,7 @@ class SkillManager:
         from gobby.skills.manager import SkillManager
         from gobby.storage.database import LocalDatabase
 
-        db = LocalDatabase("gobby.db")
+        db = LocalDatabase("gobby-hub.db")
         manager = SkillManager(db)
 
         # Create a skill
@@ -360,9 +360,7 @@ class SkillManager:
         Returns:
             List of core skills
         """
-        return self._storage.list_core_skills(
-            project_id=project_id or self._project_id
-        )
+        return self._storage.list_core_skills(project_id=project_id or self._project_id)
 
     # --- Utility ---
 

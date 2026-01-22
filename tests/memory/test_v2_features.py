@@ -24,7 +24,7 @@ from gobby.storage.migrations import run_migrations
 @pytest.fixture
 def db(tmp_path):
     """Create a temporary database for testing."""
-    database = LocalDatabase(tmp_path / "gobby.db")
+    database = LocalDatabase(tmp_path / "gobby-hub.db")
     run_migrations(database)
     yield database
     database.close()

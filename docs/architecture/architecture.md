@@ -11,7 +11,7 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 | Property | Value |
 |----------|-------|
 | **Repository Type** | Monolith |
-| **Primary Language** | Python 3.11+ |
+| **Primary Language** | Python 3.13+ |
 | **Project Type** | Backend + CLI (Daemon) |
 | **Framework** | FastAPI + FastMCP + Click |
 | **Database** | SQLite (local-first) |

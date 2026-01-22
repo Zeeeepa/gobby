@@ -12,7 +12,7 @@ from gobby.storage.sessions import LocalSessionManager
 @pytest.fixture
 def db(tmp_path):
     """Initialize database with migrations."""
-    db_path = tmp_path / "gobby.db"
+    db_path = tmp_path / "gobby-hub.db"
     database = LocalDatabase(str(db_path))
     run_migrations(database)
     # Create dummy project required for sessions

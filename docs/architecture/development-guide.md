@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- **Python 3.11+** - Required for type hints and async features
+- **Python 3.13+** - Required for type hints and async features
 - **uv** - Recommended package manager (or pip)
 - **Git** - Version control
 

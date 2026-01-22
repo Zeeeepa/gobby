@@ -14,7 +14,7 @@ from gobby.storage.skills import LocalSkillManager
 @pytest.fixture
 def db(tmp_path: Path) -> Iterator[LocalDatabase]:
     """Create a fresh database with migrations applied."""
-    database = LocalDatabase(tmp_path / "gobby.db")
+    database = LocalDatabase(tmp_path / "gobby-hub.db")
     run_migrations(database)
     yield database
     database.close()

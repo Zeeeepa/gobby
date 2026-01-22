@@ -11,7 +11,7 @@
 | Property | Value |
 |----------|-------|
 | **Type** | Backend + CLI (Daemon) |
-| **Language** | Python 3.11+ |
+| **Language** | Python 3.13+ |
 | **Framework** | FastAPI + FastMCP + Click |
 | **Database** | SQLite (local-first) |
 | **Package Manager** | uv |

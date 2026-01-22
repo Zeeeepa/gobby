@@ -141,7 +141,7 @@ pipx install gobby
 pip install gobby
 ```
 
-**Requirements:** Python 3.11+
+**Requirements:** Python 3.13+
 
 ## Quick Start
 

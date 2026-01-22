@@ -83,7 +83,7 @@ class TestCrashRecovery:
             time.sleep(1.0)
 
             # Verify database file still exists
-            db_path = gobby_home / "gobby.db"
+            db_path = gobby_home / "gobby-hub.db"
             assert db_path.exists(), "Database file should survive crash"
 
             # Verify database is readable (not corrupted)
@@ -163,9 +163,9 @@ class TestCrashRecovery:
                 )
 
             try:
-                assert wait_for_daemon_health(
-                    http_port, timeout=20.0
-                ), "Recovered daemon should start"
+                assert wait_for_daemon_health(http_port, timeout=20.0), (
+                    "Recovered daemon should start"
+                )
 
                 # Sessions should be accessible (database recovered)
                 with httpx.Client(base_url=f"http://localhost:{http_port}", timeout=10.0) as client:
@@ -174,9 +174,9 @@ class TestCrashRecovery:
                     recovered_count = response.json().get("count", 0)
 
                 # Session count should be consistent
-                assert (
-                    recovered_count == initial_count
-                ), f"Session count should be preserved: expected {initial_count}, got {recovered_count}"
+                assert recovered_count == initial_count, (
+                    f"Session count should be preserved: expected {initial_count}, got {recovered_count}"
+                )
 
             finally:
                 terminate_process_tree(process2.pid)
@@ -250,9 +250,9 @@ class TestStalePIDFile:
 
         try:
             # Daemon should still start successfully
-            assert wait_for_daemon_health(
-                http_port, timeout=20.0
-            ), "Daemon should start despite stale PID file"
+            assert wait_for_daemon_health(http_port, timeout=20.0), (
+                "Daemon should start despite stale PID file"
+            )
 
             # Verify it's running
             response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=5.0)
@@ -352,7 +352,7 @@ class TestTaskStatePersistence:
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
         log_dir = gobby_home / "logs"
-        db_path = gobby_home / "gobby.db"
+        db_path = gobby_home / "gobby-hub.db"
 
         env = os.environ.copy()
         env["GOBBY_CONFIG"] = str(config_path)
@@ -454,7 +454,7 @@ class TestTaskStatePersistence:
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
         log_dir = gobby_home / "logs"
-        db_path = gobby_home / "gobby.db"
+        db_path = gobby_home / "gobby-hub.db"
 
         env = os.environ.copy()
         env["GOBBY_CONFIG"] = str(config_path)

@@ -8,7 +8,7 @@
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **Python** | 3.11+ | Primary language |
+| **Python** | 3.13+ | Primary language |
 | **asyncio** | stdlib | Async I/O |
 | **typing** | stdlib | Type hints |
 
@@ -140,7 +140,7 @@ gobby
 
 | Constraint | Reason |
 |------------|--------|
-| Python >=3.11 | Type hints, async improvements |
+| Python >=3.13 | Type hints, async improvements |
 | Pydantic >=2.9.0 | V2 API required |
 | FastAPI >=0.115.0 | Pydantic v2 compatibility |
 | FastMCP >=0.2.0 | Latest MCP protocol support |

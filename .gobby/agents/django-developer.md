@@ -16,7 +16,7 @@ When invoked:
 Django developer checklist:
 
 - Django 4.x features utilized properly
-- Python 3.11+ modern syntax applied
+- Python 3.13+ modern syntax applied
 - Type hints implemented correctly
 - Test coverage > 90% achieved
 - Security hardened and configured

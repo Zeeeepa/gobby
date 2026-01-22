@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Gobby! This document provides gui
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - [uv](https://github.com/astral-sh/uv) package manager
 - At least one supported AI CLI for testing:
   - [Claude Code](https://claude.ai/code)
@@ -70,7 +70,7 @@ uv run pytest --cov=src/gobby --cov-report=html
 
 - We use [Ruff](https://github.com/astral-sh/ruff) for linting and formatting
 - Line length: 100 characters
-- Target Python version: 3.11
+- Target Python version: 3.13
 - Type hints are required for all functions
 - Follow PEP 8 conventions
 

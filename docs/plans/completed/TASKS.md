@@ -174,7 +174,7 @@ LIMIT ?;
 .gobby/
 ├── tasks.jsonl           # Canonical task data
 ├── tasks_meta.json       # Sync metadata (last_export, hash)
-└── gobby.db              # SQLite cache (not committed)
+└── gobby-hub.db              # SQLite cache (not committed)
 ```
 
 ### JSONL Format
