@@ -190,6 +190,46 @@ mcp_call_tool(server="gobby-skills", tool="search_skills", arguments={"query": "
 - Project skills: `.gobby/skills/`
 - User skills: `~/.gobby/skills/`
 
+## Worktree Agent Mode
+
+When you are spawned in a worktree (via `spawn_agent_in_worktree`), you operate with restricted tool access enforced by the `worktree-agent` workflow. This prevents runaway recursion and keeps you focused on your assigned task.
+
+### Available Tools
+
+| Category | Tools |
+|----------|-------|
+| **Task Management** | `get_task`, `update_task`, `close_task` |
+| **Memory** | `remember`, `recall`, `forget` |
+| **Development** | Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch, NotebookEdit, TodoWrite |
+
+### What You CANNOT Do
+
+| Blocked Operation | Why |
+|-------------------|-----|
+| `create_task`, `expand_task`, `search_tasks`, `suggest_next_task` | Work on your assigned task only |
+| `start_agent`, `spawn_agent_in_worktree`, `list_agents` | No nested agent spawning |
+| `create_worktree`, `list_worktrees`, `delete_worktree` | Stay in your assigned worktree |
+| `pickup`, `handoff` | You have your own session |
+
+### Workflow
+
+1. **Get your task**: `get_task(task_id="<assigned_task_id>")`
+2. **Mark in progress**: `update_task(task_id="...", status="in_progress")`
+3. **Implement the changes**: Use Read, Edit, Write, Bash as needed
+4. **Commit your work**: `git commit -m "[task-id] ..."`
+5. **Close task**: `close_task(task_id="...", commit_sha="...")`
+
+### If You're Stuck
+
+If you cannot complete the task:
+1. Check task details: `get_task(task_id="...")`
+2. Note blockers in comments or task description: `update_task(task_id="...", description="BLOCKED: ...")`
+3. Do NOT try to spawn helper agents or create new tasks
+
+### Exit Condition
+
+The workflow allows exit when `close_task()` is called successfully. If you try to stop before completing the task, you'll receive guidance to continue.
+
 ## Task Validation Overrides
 
 * **Task #2124 (Workflow Cache Reload):** Validation criteria demanded comprehensive automatic cache invalidation (watchdog/mtime), but implementation followed the simpler manual reload approach specified in the task description. User authorized override on 2026-01-12.
