@@ -805,7 +805,7 @@ def _migrate_add_skills_global_unique_index(db: LocalDatabase) -> None:
     db.execute(
         "CREATE UNIQUE INDEX idx_skills_name_global ON skills(name) WHERE project_id IS NULL"
     )
-    logger.info("Added idx_skills_name_global partial unique index to skills table")
+    logger.debug("Added idx_skills_name_global partial unique index to skills table")
 
 
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
