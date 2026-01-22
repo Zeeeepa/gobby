@@ -1,6 +1,6 @@
 """Tests for the HTTP server endpoints."""
 
-from collections.abc import Generator
+from collections.abc import Iterator
 from datetime import UTC
 from pathlib import Path
 from typing import Any
@@ -793,7 +793,7 @@ class TestMCPEndpointsWithManager:
         )
 
     @pytest.fixture
-    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Generator[TestClient]:
+    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Iterator[TestClient]:
         """Create test client with MCP manager."""
         with TestClient(http_server_with_mcp.app) as client:
             yield client

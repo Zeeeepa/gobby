@@ -1,11 +1,12 @@
 """Tests for ZIP archive import support (TDD - written before implementation)."""
 
 import zipfile
-from pathlib import Path
 
 import pytest
 
 from gobby.skills.loader import SkillLoader, SkillLoadError
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

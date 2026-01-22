@@ -1650,7 +1650,7 @@ cleanup_stale_clones(hours=24, dry_run=True) -> CleanupResult
 cleanup_merged_clones() -> CleanupResult  # Delete where cleanup_after < now
 ```
 
-### 16.8 gobby-merge Integration
+### 16.7 gobby-merge Integration
 
 #### Key Difference: Worktrees vs Clones
 
@@ -1929,7 +1929,7 @@ def merge_clone_to_target(clone_id: str, target: str = "dev") -> MergeResult:
         return MergeResult(success=False, error=str(e))
 ```
 
-### 16.9 CLI Commands
+### 16.8 CLI Commands
 
 ```bash
 # Clone management
@@ -1943,7 +1943,7 @@ gobby clones cleanup [--hours 24] [--dry-run]
 gobby clones cleanup-merged                    # Delete clones past retention period
 ```
 
-### 16.10 Context Injection
+### 16.9 Context Injection
 
 ```python
 def _build_clone_context_prompt(
@@ -1981,7 +1981,7 @@ def _build_clone_context_prompt(
     return "\n".join(context_lines) + original_prompt
 ```
 
-### 16.11 Performance Comparison
+### 16.10 Performance Comparison
 
 | Metric | Worktree | Shallow Clone (depth=1) |
 |--------|----------|-------------------------|
@@ -1993,7 +1993,7 @@ def _build_clone_context_prompt(
 
 **Recommendation**: Use shallow clones (`depth=1`) to minimize disk/network overhead.
 
-### 16.12 Cleanup Strategy
+### 16.11 Cleanup Strategy
 
 1. **On task completion**:
    - `merge_clone_to_target()` sets `cleanup_after = now + 7 days`
@@ -2007,7 +2007,7 @@ def _build_clone_context_prompt(
    - `gobby clones cleanup-merged`: Delete merged clones past retention
    - `gobby clones delete <id> --delete-remote`: Full cleanup including remote branch
 
-### 16.13 Authentication & SSH Handling
+### 16.12 Authentication & SSH Handling
 
 #### The Problem
 
@@ -2272,7 +2272,7 @@ clones:
     - GH_TOKEN
 ```
 
-### 16.14 Comparison with CodeRabbit GTR
+### 16.13 Comparison with CodeRabbit GTR
 
 [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) (GTR) is CodeRabbit's solution for parallel development.
 

@@ -261,8 +261,7 @@ class TestValidateSkillVersion:
     """Tests for validate_skill_version function."""
 
     def test_valid_versions(self):
-        """Test valid version strings."""
-        assert validate_skill_version("1.0").valid is True
+        """Test valid version strings (SemVer 2.0.0 MAJOR.MINOR.PATCH required)."""
         assert validate_skill_version("1.0.0").valid is True
         assert validate_skill_version("2.1.3").valid is True
         assert validate_skill_version("1.0.0-beta").valid is True

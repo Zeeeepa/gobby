@@ -294,7 +294,7 @@ class SkillManager:
 
     # --- Search Operations ---
 
-    def search(
+    def search_skills(
         self,
         query: str,
         top_k: int = 10,

@@ -675,8 +675,8 @@ def new(ctx: click.Context, name: str, description: str | None) -> None:
 
     # Check if directory already exists
     if skill_dir.exists():
-        click.echo(f"Directory already exists: {name}")
-        return
+        click.echo(f"Directory already exists: {name}", err=True)
+        sys.exit(1)
 
     # Create skill directory structure
     skill_dir.mkdir(parents=True)
@@ -806,8 +806,8 @@ def enable(ctx: click.Context, name: str) -> None:
     skill = storage.get_by_name(name)
 
     if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
+        click.echo(f"Skill not found: {name}", err=True)
+        sys.exit(1)
 
     try:
         storage.update_skill(skill.id, enabled=True)
@@ -829,8 +829,8 @@ def disable(ctx: click.Context, name: str) -> None:
     skill = storage.get_by_name(name)
 
     if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
+        click.echo(f"Skill not found: {name}", err=True)
+        sys.exit(1)
 
     try:
         storage.update_skill(skill.id, enabled=False)

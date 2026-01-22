@@ -1,8 +1,11 @@
 """Tests for GitHub import support in SkillLoader (TDD - written before implementation)."""
 
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import pytest
+
+pytestmark = pytest.mark.unit
 
 
 class TestParseGithubUrl:
@@ -220,7 +223,7 @@ class TestCloneSkillRepo:
 
     def test_clone_failure_raises_error(self, tmp_path):
         """Test that clone failure raises SkillLoadError."""
-        from gobby.skills.loader import clone_skill_repo, parse_github_url, SkillLoadError
+        from gobby.skills.loader import SkillLoadError, clone_skill_repo, parse_github_url
 
         cache_dir = tmp_path / "skill-cache"
         ref = parse_github_url("anthropics/claude-code")

@@ -26,7 +26,7 @@ NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 # SemVer 2.0.0 compliant pattern: no leading zeros in numeric identifiers
 _SEMVER_NUM = r"(?:0|[1-9]\d*)"  # 0 or non-zero-prefixed number
 SEMVER_PATTERN = re.compile(
-    rf"^{_SEMVER_NUM}\.{_SEMVER_NUM}(\.{_SEMVER_NUM})?(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"
+    rf"^{_SEMVER_NUM}\.{_SEMVER_NUM}\.{_SEMVER_NUM}(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"
 )
 CATEGORY_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 
@@ -224,7 +224,7 @@ def validate_skill_version(version: str | None) -> ValidationResult:
 
     Requirements:
     - Optional (can be None)
-    - Must follow semver pattern: MAJOR.MINOR[.PATCH][-prerelease][+build]
+    - Must follow semver 2.0.0 pattern: MAJOR.MINOR.PATCH[-prerelease][+build]
 
     Args:
         version: The version string to validate
@@ -239,7 +239,7 @@ def validate_skill_version(version: str | None) -> ValidationResult:
 
     if not SEMVER_PATTERN.match(version):
         result.add_error(
-            f"Version '{version}' does not follow semver pattern (e.g., '1.0.0', '2.1', '1.0.0-beta')"
+            f"Version '{version}' does not follow semver pattern (e.g., '1.0.0', '2.1.3', '1.0.0-beta')"
         )
 
     return result

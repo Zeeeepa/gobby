@@ -538,7 +538,7 @@ class ClaudeLLMProvider(LLMProvider):
 
             # Route through LiteLLM with anthropic prefix for cost tracking
             response = await litellm.acompletion(
-                model="anthropic/claude-haiku-4-5-latest",  # Use haiku for cost efficiency
+                model="anthropic/claude-haiku-4-5-20251001",  # Use haiku for cost efficiency
                 messages=[
                     {
                         "role": "user",

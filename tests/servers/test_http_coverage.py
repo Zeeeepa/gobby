@@ -10,7 +10,7 @@ This module focuses on:
 
 import asyncio
 import time
-from collections.abc import Generator
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -552,7 +552,7 @@ class TestMCPEndpoints:
         )
 
     @pytest.fixture
-    def mcp_client(self, mcp_server: HTTPServer) -> Generator[TestClient]:
+    def mcp_client(self, mcp_server: HTTPServer) -> Iterator[TestClient]:
         """Create test client that runs lifespan to set app.state.server."""
         with TestClient(mcp_server.app) as c:
             yield c
@@ -689,7 +689,7 @@ class TestMCPEndpointsWithManager:
         return server
 
     @pytest.fixture
-    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Generator[TestClient]:
+    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Iterator[TestClient]:
         """Create test client with MCP manager."""
         with TestClient(http_server_with_mcp.app) as c:
             yield c
@@ -744,7 +744,7 @@ class TestCodeEndpoints:
         )
 
     @pytest.fixture
-    def code_client(self, code_server: HTTPServer) -> Generator[TestClient]:
+    def code_client(self, code_server: HTTPServer) -> Iterator[TestClient]:
         """Create test client that runs lifespan to set app.state.server."""
         with TestClient(code_server.app) as c:
             yield c
@@ -846,7 +846,7 @@ class TestPluginsEndpoints:
         )
 
     @pytest.fixture
-    def plugins_client(self, plugins_server: HTTPServer) -> Generator[TestClient]:
+    def plugins_client(self, plugins_server: HTTPServer) -> Iterator[TestClient]:
         """Create test client that runs lifespan."""
         with TestClient(plugins_server.app) as c:
             yield c
@@ -911,7 +911,7 @@ class TestWebhooksEndpoints:
         )
 
     @pytest.fixture
-    def webhooks_client(self, webhooks_server: HTTPServer) -> Generator[TestClient]:
+    def webhooks_client(self, webhooks_server: HTTPServer) -> Iterator[TestClient]:
         """Create test client that runs lifespan."""
         with TestClient(webhooks_server.app) as c:
             yield c

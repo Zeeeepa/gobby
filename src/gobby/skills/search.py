@@ -352,9 +352,9 @@ class SkillSearch:
 
         try:
             # Get TF-IDF scores
-            search_limit = top_k * 3 if filters else top_k * 2
+            search_limit = top_k * 3 if filters else top_k
             tfidf_results = self._searcher.search(query, top_k=search_limit)
-            tfidf_scores = {skill_id: score for skill_id, score in tfidf_results}
+            tfidf_scores = dict(tfidf_results)
 
             # Get embedding similarity scores (with null check)
             embedding_scores: dict[str, float] = {}
@@ -489,6 +489,11 @@ class SkillSearch:
         """
         self._pending_updates += 1
         self._skill_names[skill.id] = skill.name
+        self._skill_meta[skill.id] = _SkillMeta(
+            name=skill.name,
+            category=skill.get_category(),
+            tags=skill.get_tags(),
+        )
 
     def update_skill(self, skill: Skill) -> None:
         """Mark that a skill was updated (requires reindex).
@@ -498,6 +503,11 @@ class SkillSearch:
         """
         self._pending_updates += 1
         self._skill_names[skill.id] = skill.name
+        self._skill_meta[skill.id] = _SkillMeta(
+            name=skill.name,
+            category=skill.get_category(),
+            tags=skill.get_tags(),
+        )
 
     def remove_skill(self, skill_id: str) -> None:
         """Mark that a skill was removed (requires reindex).
