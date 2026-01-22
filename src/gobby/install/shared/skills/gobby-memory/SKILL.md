@@ -24,7 +24,7 @@ Example: `/gobby-memory remember [critical] Never commit .env files`
 → `create_memory(content="Never commit .env files", tags="critical,security", importance="0.9")`
 
 ### `/gobby-memory recall <query>` - Search/recall memories
-Call `gobby-memory.recall_memory` with:
+Call `gobby-memory.search_memories` with:
 - `query`: Search query text
 - `limit`: Max results (default 10)
 - `min_importance`: Minimum importance threshold
@@ -35,8 +35,8 @@ Call `gobby-memory.recall_memory` with:
 
 Returns memories matching the query, ranked by relevance.
 
-Example: `/gobby-memory recall testing best practices` → `recall_memory(query="testing best practices")`
-Example: `/gobby-memory recall tag:security` → `recall_memory(tags_any="security")`
+Example: `/gobby-memory recall testing best practices` → `search_memories(query="testing best practices")`
+Example: `/gobby-memory recall tag:security` → `search_memories(tags_any="security")`
 
 ### `/gobby-memory forget <memory-id>` - Delete a memory
 Call `gobby-memory.delete_memory` with:

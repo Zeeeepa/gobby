@@ -733,10 +733,9 @@ DO NOT use list_sessions to find your session - it won't work with multiple acti
             return {
                 "found": True,
                 "session_id": session.id,
-                "external_id": session.external_id,
-                "source": session.source,
                 "project_id": session.project_id,
                 "status": session.status,
+                "agent_run_id": session.agent_run_id,
             }
 
         @registry.tool(

@@ -162,19 +162,19 @@ Retrieve memories with optional filtering:
 
 ```python
 # Semantic search
-call_tool(server_name="gobby-memory", tool_name="recall_memory", arguments={
+call_tool(server_name="gobby-memory", tool_name="search_memories", arguments={
     "query": "testing setup"
 })
 
 # With filters
-call_tool(server_name="gobby-memory", tool_name="recall_memory", arguments={
+call_tool(server_name="gobby-memory", tool_name="search_memories", arguments={
     "memory_type": "preference",
     "min_importance": 0.5,
     "limit": 10
 })
 
 # With tag filtering (AND/OR/NOT logic)
-call_tool(server_name="gobby-memory", tool_name="recall_memory", arguments={
+call_tool(server_name="gobby-memory", tool_name="search_memories", arguments={
     "query": "API design",
     "tags_all": ["backend", "api"],     # Must have ALL these tags
     "tags_any": ["rest", "graphql"],    # Must have at least ONE

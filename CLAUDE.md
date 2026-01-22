@@ -19,7 +19,7 @@ Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Ge
 
 ```bash
 # Environment setup
-uv sync                          # Install dependencies (Python 3.11+)
+uv sync                          # Install dependencies (Python 3.13+)
 
 # Daemon management
 uv run gobby start --verbose     # Start daemon with verbose logging
@@ -197,7 +197,7 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 |-------------------|-----------------------|------------------------------------------------------------------|
 | `gobby-tasks`     | Task management       | `create_task`, `expand_task`, `close_task`, `suggest_next_task`, `search_tasks` |
 | `gobby-sessions`  | Session handoff       | `pickup`, `get_handoff_context`, `list_sessions`                 |
-| `gobby-memory`    | Persistent memory     | `remember`, `recall`, `forget`                                   |
+| `gobby-memory`    | Persistent memory     | `create_memory`, `search_memories`, `delete_memory`, `update_memory` |
 | `gobby-workflows` | Workflow control      | `activate_workflow`, `set_variable`, `get_status`                |
 | `gobby-agents`    | Agent spawning        | `start_agent`, `list_agents`, `cancel_agent`                     |
 | `gobby-worktrees` | Git worktrees         | `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees`   |
@@ -654,20 +654,26 @@ Persistent memory across sessions:
 
 ```python
 # Store a fact
-call_tool(server_name="gobby-memory", tool_name="remember", arguments={
+call_tool(server_name="gobby-memory", tool_name="create_memory", arguments={
     "content": "The API uses JWT tokens with 1-hour expiration",
     "importance": 0.8  # 0.0-1.0
 })
 
-# Recall facts
-call_tool(server_name="gobby-memory", tool_name="recall", arguments={
+# Search memories
+call_tool(server_name="gobby-memory", tool_name="search_memories", arguments={
     "query": "authentication tokens",
     "limit": 5
 })
 
-# Forget a memory
-call_tool(server_name="gobby-memory", tool_name="forget", arguments={
+# Delete a memory
+call_tool(server_name="gobby-memory", tool_name="delete_memory", arguments={
     "memory_id": "mem-123"
+})
+
+# Update a memory
+call_tool(server_name="gobby-memory", tool_name="update_memory", arguments={
+    "memory_id": "mem-123",
+    "importance": 0.9
 })
 ```
 

@@ -94,7 +94,7 @@ src/gobby/
 | :--- | :--- | :--- |
 | `gobby-tasks` | Task management | `create_task`, `expand_task`, `close_task`, `suggest_next_task` |
 | `gobby-sessions` | Session handoff | `pickup`, `get_handoff_context`, `list_sessions` |
-| `gobby-memory` | Persistent memory | `remember`, `recall`, `forget` |
+| `gobby-memory` | Persistent memory | `create_memory`, `search_memories`, `delete_memory`, `update_memory` |
 | `gobby-workflows` | Workflow control | `activate_workflow`, `set_variable`, `get_status` |
 | `gobby-agents` | Agent spawning | `start_agent`, `list_agents` |
 | `gobby-worktrees` | Git worktrees | `spawn_agent_in_worktree`, `list_worktrees` |
@@ -140,6 +140,46 @@ call_tool("gobby-tasks", "close_task", {"task_id": "gt-xxx", "commit_sha": "..."
 ## Session Handoff
 
 Gobby preserves context across sessions. Look for `## Continuation Context` blocks at session start - this contains your previous state, git status, and pending tasks.
+
+## Spawned Agent Protocol
+
+When spawned as a subagent (by another agent using `start_agent` or `spawn_agent_in_worktree`), use these tools to communicate results and terminate cleanly:
+
+### 1. Get your session info (for self-termination)
+
+```python
+call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+    "external_id": "<your-gemini-session-id>",  # From environment or transcript path
+    "source": "gemini"
+})
+# Returns: {"session_id": "...", "project_id": "...", "status": "...", "agent_run_id": "..."}
+```
+
+### 2. Send results to parent
+
+```python
+call_tool(server_name="gobby-agents", tool_name="send_to_parent", arguments={
+    "message": "Task completed: implemented authentication flow"
+})
+```
+
+### 3. Mark work complete
+
+```python
+call_tool(server_name="gobby-sessions", tool_name="mark_loop_complete", arguments={
+    "session_id": "<session_id>"
+})
+```
+
+### 4. Terminate yourself (when fully done)
+
+```python
+call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={
+    "run_id": "<agent_run_id>"  # From get_current response
+})
+```
+
+**IMPORTANT**: Do NOT use `/quit` or similar CLI commands - they don't work for spawned agents. Always use `kill_agent` with your `agent_run_id` to properly terminate.
 
 ## Code Conventions
 

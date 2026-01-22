@@ -3,7 +3,7 @@ Internal MCP tools for Gobby Memory System.
 
 Exposes functionality for:
 - Creating memories (create_memory)
-- Searching memories (search_memories, formerly recall_memory)
+- Searching memories (search_memories)
 - Deleting memories (delete_memory)
 - Listing memories (list_memories)
 - Getting memory details (get_memory)
@@ -143,29 +143,6 @@ def create_memory_registry(
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
-
-    # Backward compatibility alias for recall_memory -> search_memories
-    @registry.tool(
-        name="recall_memory",
-        description="[DEPRECATED: Use search_memories] Search memories based on query.",
-    )
-    def recall_memory(
-        query: str | None = None,
-        limit: int = 10,
-        min_importance: float | None = None,
-        tags_all: list[str] | None = None,
-        tags_any: list[str] | None = None,
-        tags_none: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """Deprecated alias for search_memories. Use search_memories instead."""
-        return search_memories(  # type: ignore[no-any-return]
-            query=query,
-            limit=limit,
-            min_importance=min_importance,
-            tags_all=tags_all,
-            tags_any=tags_any,
-            tags_none=tags_none,
-        )
 
     @registry.tool(
         name="delete_memory",
