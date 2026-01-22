@@ -145,14 +145,17 @@ class HTTPServer:
             # Create merge managers if db available
             merge_storage = None
             merge_resolver = None
+            inter_session_message_manager = None
             if mcp_db_manager:
+                from gobby.storage.inter_session_messages import InterSessionMessageManager
                 from gobby.storage.merge_resolutions import MergeResolutionManager
                 from gobby.worktrees.merge.resolver import MergeResolver
 
                 merge_storage = MergeResolutionManager(mcp_db_manager.db)
                 merge_resolver = MergeResolver()
                 merge_resolver._llm_service = self.llm_service
-                logger.debug("Merge resolution subsystems initialized")
+                inter_session_message_manager = InterSessionMessageManager(mcp_db_manager.db)
+                logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
             # Setup internal registries (gobby-tasks, gobby-memory, etc.)
             self._internal_manager = setup_internal_registries(
@@ -173,6 +176,7 @@ class HTTPServer:
                 merge_resolver=merge_resolver,
                 project_id=None,  # Project-specific, not global
                 tool_proxy_getter=tool_proxy_getter,
+                inter_session_message_manager=inter_session_message_manager,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")

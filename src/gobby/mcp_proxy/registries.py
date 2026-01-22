@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
+    from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.merge_resolutions import MergeResolutionManager
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
@@ -47,6 +48,7 @@ def setup_internal_registries(
     merge_resolver: MergeResolver | None = None,
     project_id: str | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
+    inter_session_message_manager: InterSessionMessageManager | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -70,6 +72,7 @@ def setup_internal_registries(
         project_id: Default project ID for worktree operations
         tool_proxy_getter: Callable that returns ToolProxyService for routing
             tool calls in in-process agents. Called lazily during agent execution.
+        inter_session_message_manager: Inter-session message manager for agent messaging
 
     Returns:
         InternalRegistryManager containing all registries
@@ -154,12 +157,25 @@ def setup_internal_registries(
 
     # Initialize agents registry if agent_runner is available
     if agent_runner is not None:
+        from gobby.agents.registry import get_running_agent_registry
         from gobby.mcp_proxy.tools.agents import create_agents_registry
 
         agents_registry = create_agents_registry(
             runner=agent_runner,
             tool_proxy_getter=tool_proxy_getter,
         )
+
+        # Add inter-agent messaging tools if message manager is available
+        if inter_session_message_manager is not None:
+            from gobby.mcp_proxy.tools.agent_messaging import add_messaging_tools
+
+            add_messaging_tools(
+                registry=agents_registry,
+                message_manager=inter_session_message_manager,
+                agent_registry=get_running_agent_registry(),
+            )
+            logger.debug("Agent messaging tools added to agents registry")
+
         manager.add_registry(agents_registry)
         logger.debug("Agents registry initialized")
 
