@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
+    from gobby.storage.clones import LocalCloneManager
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.merge_resolutions import MergeResolutionManager
     from gobby.storage.session_messages import LocalSessionMessageManager
@@ -43,6 +44,7 @@ def setup_internal_registries(
     llm_service: LLMService | None = None,
     agent_runner: AgentRunner | None = None,
     worktree_storage: LocalWorktreeManager | None = None,
+    clone_storage: LocalCloneManager | None = None,
     git_manager: WorktreeGitManager | None = None,
     merge_storage: MergeResolutionManager | None = None,
     merge_resolver: MergeResolver | None = None,
@@ -191,6 +193,18 @@ def setup_internal_registries(
         )
         manager.add_registry(worktrees_registry)
         logger.debug("Worktrees registry initialized")
+
+    # Initialize clones registry if clone_storage is available
+    if clone_storage is not None:
+        from gobby.mcp_proxy.tools.clones import create_clones_registry
+
+        clones_registry = create_clones_registry(
+            clone_storage=clone_storage,
+            git_manager=None,  # Created per-project when needed
+            project_id=project_id or "",
+        )
+        manager.add_registry(clones_registry)
+        logger.debug("Clones registry initialized")
 
     # Initialize merge resolution registry if merge components are available
     if merge_storage is not None and merge_resolver is not None:

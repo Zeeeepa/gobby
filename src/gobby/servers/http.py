@@ -66,6 +66,7 @@ class HTTPServer:
         metrics_manager: Any | None = None,
         agent_runner: Any | None = None,
         worktree_storage: Any | None = None,
+        clone_storage: Any | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -106,6 +107,7 @@ class HTTPServer:
         self.metrics_manager = metrics_manager
         self.agent_runner = agent_runner
         self.worktree_storage = worktree_storage
+        self.clone_storage = clone_storage
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -171,6 +173,7 @@ class HTTPServer:
                 llm_service=self.llm_service,
                 agent_runner=self.agent_runner,
                 worktree_storage=self.worktree_storage,
+                clone_storage=self.clone_storage,
                 git_manager=None,  # Created per-project, not at daemon startup
                 merge_storage=merge_storage,
                 merge_resolver=merge_resolver,

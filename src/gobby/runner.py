@@ -18,6 +18,7 @@ from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
+from gobby.storage.clones import LocalCloneManager
 from gobby.storage.database import DatabaseProtocol, LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.migrations import run_migrations
@@ -150,6 +151,9 @@ class GobbyRunner:
         # Initialize Worktree Storage (Phase 7 - Subagents)
         self.worktree_storage = LocalWorktreeManager(self.database)
 
+        # Initialize Clone Storage (local git clones for isolated development)
+        self.clone_storage = LocalCloneManager(self.database)
+
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
         self.executor_registry = ExecutorRegistry(config=self.config)
@@ -198,6 +202,7 @@ class GobbyRunner:
             metrics_manager=self.metrics_manager,
             agent_runner=self.agent_runner,
             worktree_storage=self.worktree_storage,
+            clone_storage=self.clone_storage,
         )
 
         # Ensure message_processor property is set (redundant but explicit):
