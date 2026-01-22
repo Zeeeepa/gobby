@@ -1,8 +1,10 @@
 """Tests for search_skills MCP tool (TDD - written before implementation)."""
 
 import asyncio
-import pytest
+from collections.abc import Iterator
 from pathlib import Path
+
+import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -10,12 +12,13 @@ from gobby.storage.skills import LocalSkillManager
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> LocalDatabase:
+def db(tmp_path: Path) -> Iterator[LocalDatabase]:
     """Create a fresh database with migrations applied."""
     db_path = tmp_path / "test.db"
     database = LocalDatabase(db_path)
     run_migrations(database)
-    return database
+    yield database
+    database.close()
 
 
 @pytest.fixture

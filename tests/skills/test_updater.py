@@ -1,5 +1,6 @@
 """Tests for SkillUpdater (TDD - written before implementation)."""
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -11,11 +12,12 @@ from gobby.storage.skills import LocalSkillManager
 
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path: Path) -> Iterator[LocalDatabase]:
     """Create a fresh database with migrations applied."""
     database = LocalDatabase(tmp_path / "gobby.db")
     run_migrations(database)
     yield database
+    database.close()
 
 
 @pytest.fixture

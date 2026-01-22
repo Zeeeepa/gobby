@@ -99,7 +99,13 @@ class SkillManager:
             # Get the full skill for search
             try:
                 skill = self._storage.get_skill(event.skill_id)
-                self._search.add_skill(skill)
+                try:
+                    self._search.add_skill(skill)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to add skill to search index "
+                        f"(event={event.event_type}, skill_id={event.skill_id}): {e}"
+                    )
             except ValueError as e:
                 logger.debug(
                     f"Failed to get skill for {event.event_type} event "
@@ -108,14 +114,26 @@ class SkillManager:
         elif event.event_type == "update":
             try:
                 skill = self._storage.get_skill(event.skill_id)
-                self._search.update_skill(skill)
+                try:
+                    self._search.update_skill(skill)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to update skill in search index "
+                        f"(event={event.event_type}, skill_id={event.skill_id}): {e}"
+                    )
             except ValueError as e:
                 logger.debug(
                     f"Failed to get skill for {event.event_type} event "
                     f"(skill_id={event.skill_id}): {e}"
                 )
         elif event.event_type == "delete":
-            self._search.remove_skill(event.skill_id)
+            try:
+                self._search.remove_skill(event.skill_id)
+            except Exception as e:
+                logger.error(
+                    f"Failed to remove skill from search index "
+                    f"(event={event.event_type}, skill_id={event.skill_id}): {e}"
+                )
 
     # --- CRUD Operations ---
 

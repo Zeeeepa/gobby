@@ -56,7 +56,7 @@ def create_skills_registry(
     """
     registry = SkillsToolRegistry(
         name="gobby-skills",
-        description="Skill management - list_skills, get_skill, search_skills, create_skill, install_skill, update_skill, delete_skill",
+        description="Skill management - list_skills, get_skill, search_skills, install_skill, update_skill, remove_skill",
     )
 
     # Initialize storage

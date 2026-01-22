@@ -59,9 +59,22 @@ If `pending=True`, skip to **Phase 4** immediately.
    ```
 
 4. **Check for existing children** and delete them (clean slate):
+
+   > **WARNING: DESTRUCTIVE ACTION**
+   > This step will:
+   > - **Delete all child tasks** under this parent (cascade delete)
+   > - **Change the parent task ID** (new ID assigned on re-creation)
+   > - **Lose task history** (comments, status changes, commit links)
+   >
+   > **Before proceeding**, confirm with the user that they want to re-expand
+   > and lose existing subtasks. If the user wants to preserve existing work,
+   > skip this step or use `--no-cascade` (if supported) to add subtasks
+   > without deleting existing ones.
+
    ```python
    children = call_tool("gobby-tasks", "list_tasks", {"parent_task_id": task_id})
    if children["tasks"]:
+       # CONFIRM with user before proceeding - this is destructive!
        # Delete parent cascades to children
        call_tool("gobby-tasks", "delete_task", {"task_id": task_id, "cascade": True})
        # Re-create the parent task

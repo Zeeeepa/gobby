@@ -139,10 +139,10 @@ Example analysis approach:
 Think through the decomposition with these requirements:
 
 **Requirements**:
-1. **TDD Workflow in Descriptions**: Every `code` task description MUST include explicit TDD steps
+1. **TDD Workflow in Descriptions**: Every `code` AND `config` task description MUST include explicit TDD steps
 2. **Atomicity**: Each task should be completable in 10-30 minutes
 3. **Categories**: Use `code`, `config`, `docs`, `research`, `planning`, `manual`
-4. **No separate test tasks**: TDD is embedded in each code task, not separate tasks
+4. **No separate test tasks**: TDD is embedded in each code/config task, not separate tasks
 5. **Dependencies**: Use indices (0-based) to reference earlier subtasks
 
 **Spec format**:
@@ -218,18 +218,18 @@ Use `suggest_next_task` to get the first ready task.
 
 ## Subtask Categories
 
-| Category | When to Use |
-|----------|-------------|
-| `code` | Implementation tasks (includes tests per TDD) |
-| `config` | Configuration file changes |
-| `docs` | Documentation updates |
-| `research` | Investigation/exploration tasks |
-| `planning` | Design/architecture tasks |
-| `manual` | Manual testing/verification |
+| Category | When to Use | Requires TDD? |
+|----------|-------------|---------------|
+| `code` | Implementation tasks | Yes - test before implement |
+| `config` | Configuration/YAML/schema changes | Yes - test loading, defaults, behavior |
+| `docs` | Documentation updates | No |
+| `research` | Investigation/exploration tasks | No |
+| `planning` | Design/architecture tasks | No |
+| `manual` | Manual testing/verification | No |
 
 ## TDD Approach
 
-TDD workflow MUST be embedded in every `code` task description:
+TDD workflow MUST be embedded in every `code` AND `config` task description:
 
 **Required description format for code tasks**:
 ```
@@ -239,16 +239,32 @@ TDD: 1) Write tests for <feature> in <test_file> covering <scenarios>.
      4) Run tests (expect pass).
 ```
 
+**Required description format for config tasks**:
+```
+TDD: 1) Write tests in <test_file> verifying: <config_loads>, <defaults_correct>,
+     <validation_works>, <system_respects_config>.
+     2) Run tests (expect fail).
+     3) Create/update <config_file> with <settings>.
+     4) Run tests (expect pass).
+```
+
+**Config tasks that need tests**:
+- YAML workflow definitions → test loading, tool filtering, step transitions
+- Schema/config class changes → test parsing, defaults, validation
+- Environment variable handling → test presence/absence behavior
+
 **Why explicit TDD steps?**
 - Agents skip tests when descriptions don't mention them
 - "Tests pass" in validation is not enough - agents may write implementation first
 - Explicit test file paths guide agents to correct locations
 - "expect fail" / "expect pass" enforces red-green cycle
+- Config bugs are hard to debug without tests proving behavior
 
 **Do NOT**:
 - Create separate `[TEST]` and `[IMPL]` tasks
 - Say only "write tests" without specifying what to test
 - Omit test file paths from descriptions
+- Skip tests for config tasks (they need tests too!)
 
 ## Error Handling
 

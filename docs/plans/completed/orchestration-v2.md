@@ -287,12 +287,17 @@ def merge_start(
     source: str,                    # worktree_id OR clone_id
     target_branch: str = "dev",
     strategy: str = "auto",         # auto, conflict_only, full_file, manual
+    main_repo_path: str | None = None,  # Path to main repository (required for clones)
     ...
 ) -> Resolution:
     if source.startswith("clone-"):
         clone = clone_storage.get(source)
         if not clone:
             return Resolution(success=False, error="Clone not found")
+
+        # Validate main_repo_path for clone operations
+        if not main_repo_path:
+            return Resolution(success=False, error="main_repo_path is required for clone merges")
 
         # Step 1: Ensure clone changes are pushed to remote
         sync_result = sync_clone(clone.id, direction="push")
@@ -319,7 +324,7 @@ def merge_start(
         source_type = "worktree"
 
     # Continue with existing merge logic...
-    return _do_merge(source_branch, target_branch, strategy, source_type)
+    return _do_merge(source_branch, target_branch, strategy, source_type, main_repo_path)
 ```
 
 #### Conflict Resolution Flow for Clones

@@ -651,6 +651,20 @@ def new(ctx: click.Context, name: str, description: str | None) -> None:
     - assets/ directory for images and files
     - references/ directory for documentation
     """
+    import re
+
+    # Validate skill name format: lowercase letters, digits, hyphens only
+    # No leading/trailing hyphens, no spaces, no consecutive hyphens
+    name_pattern = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
+    if not name_pattern.match(name):
+        click.echo(
+            f"Error: Invalid skill name '{name}'. "
+            "Name must be lowercase letters, digits, and hyphens only. "
+            "Must start with a letter and cannot have leading/trailing or consecutive hyphens.",
+            err=True,
+        )
+        sys.exit(1)
+
     skill_dir = Path(name)
 
     # Check if directory already exists
@@ -789,7 +803,11 @@ def enable(ctx: click.Context, name: str) -> None:
         click.echo(f"Skill not found: {name}")
         return
 
-    storage.update_skill(skill.id, enabled=True)
+    try:
+        storage.update_skill(skill.id, enabled=True)
+    except Exception as e:
+        click.echo(f"Error enabling skill: {e}", err=True)
+        sys.exit(1)
     click.echo(f"Enabled skill: {name}")
 
 
@@ -808,5 +826,9 @@ def disable(ctx: click.Context, name: str) -> None:
         click.echo(f"Skill not found: {name}")
         return
 
-    storage.update_skill(skill.id, enabled=False)
+    try:
+        storage.update_skill(skill.id, enabled=False)
+    except Exception as e:
+        click.echo(f"Error disabling skill: {e}", err=True)
+        sys.exit(1)
     click.echo(f"Disabled skill: {name}")
