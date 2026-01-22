@@ -852,6 +852,20 @@ def _migrate_add_clones_table(db: LocalDatabase) -> None:
     logger.debug("Created clones table with indexes")
 
 
+def _migrate_add_model_column(db: LocalDatabase) -> None:
+    """Add model column to sessions table for cost tracking by model.
+
+    This enables the TokenTracker to aggregate usage by model and apply
+    model-specific pricing for budget tracking.
+    """
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'")
+    if row and "model" not in row["sql"].lower():
+        db.execute("ALTER TABLE sessions ADD COLUMN model TEXT")
+        logger.info("Added model column to sessions table")
+    else:
+        logger.debug("model column already exists, skipping")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -877,6 +891,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (71, "Add global skills unique index", _migrate_add_skills_global_unique_index),
     # Local clones: Add table for git clone management
     (72, "Add clones table", _migrate_add_clones_table),
+    # Token tracking: Add model column to sessions for cost tracking by model
+    (73, "Add model column to sessions", _migrate_add_model_column),
 ]
 
 

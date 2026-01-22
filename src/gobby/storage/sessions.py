@@ -47,6 +47,7 @@ class Session:
     usage_cache_creation_tokens: int = 0
     usage_cache_read_tokens: int = 0
     usage_total_cost_usd: float = 0.0
+    model: str | None = None  # LLM model used (e.g., "claude-3-5-sonnet-20241022")
     # Terminal context (JSON blob with tty, parent_pid, term_session_id, etc.)
     terminal_context: dict[str, Any] | None = None
     # Global sequence number
@@ -82,6 +83,7 @@ class Session:
             usage_cache_creation_tokens=row["usage_cache_creation_tokens"] or 0,
             usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
             usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
+            model=row["model"] if "model" in row.keys() else None,
             terminal_context=cls._parse_terminal_context(row["terminal_context"]),
             seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
         )
@@ -804,6 +806,45 @@ class LocalSessionManager:
         except Exception as e:
             logger.error(f"Failed to add cost to session {session_id}: {e}")
             return False
+
+    def get_sessions_since(
+        self, since: datetime, project_id: str | None = None
+    ) -> builtins.list[Session]:
+        """
+        Get sessions created since a given timestamp.
+
+        Used for aggregating usage over a time period (e.g., daily budget tracking).
+
+        Args:
+            since: Datetime to query from (sessions created after this time)
+            project_id: Optional project ID to filter by
+
+        Returns:
+            List of sessions created since the given timestamp
+        """
+        since_str = since.isoformat()
+
+        if project_id:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM sessions
+                WHERE created_at >= ?
+                AND project_id = ?
+                ORDER BY created_at DESC
+                """,
+                (since_str, project_id),
+            )
+        else:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM sessions
+                WHERE created_at >= ?
+                ORDER BY created_at DESC
+                """,
+                (since_str,),
+            )
+
+        return [Session.from_row(row) for row in rows]
 
     def update_terminal_pickup_metadata(
         self,
