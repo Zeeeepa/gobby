@@ -96,7 +96,22 @@ def register_cleanup(
             except Exception as e:
                 logger.warning(f"Error pushing branch: {e}")
 
-        # Delete worktree if requested and available
+        # Update task status FIRST - before worktree deletion
+        try:
+            task_manager.update_task(
+                resolved_task_id,
+                status="closed",
+                closed_reason="approved",
+            )
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to update task status: {e}",
+                "task_id": resolved_task_id,
+                "worktree_deleted": False,
+            }
+
+        # Delete worktree if requested and available (after task is closed)
         if delete_worktree and worktree:
             if git_manager is None:
                 # No git manager - can't delete worktree, but continue
@@ -115,32 +130,11 @@ def register_cleanup(
                         worktree_storage.mark_merged(worktree.id)
                         worktree_storage.delete(worktree.id)
                     else:
-                        return {
-                            "success": False,
-                            "error": f"Failed to delete worktree: {delete_result.message}",
-                            "task_id": resolved_task_id,
-                        }
+                        # Task is closed but worktree deletion failed
+                        logger.warning(f"Failed to delete worktree: {delete_result.message}")
                 except Exception as e:
-                    return {
-                        "success": False,
-                        "error": f"Error deleting worktree: {e}",
-                        "task_id": resolved_task_id,
-                    }
-
-        # Update task status to closed
-        try:
-            task_manager.update_task(
-                resolved_task_id,
-                status="closed",
-                closed_reason="approved",
-            )
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to update task status: {e}",
-                "task_id": resolved_task_id,
-                "worktree_deleted": worktree_deleted,
-            }
+                    # Task is closed but worktree deletion failed
+                    logger.warning(f"Error deleting worktree: {e}")
 
         return {
             "success": True,

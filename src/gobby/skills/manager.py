@@ -323,7 +323,12 @@ class SkillManager:
 
         # Paginate through all skills to avoid truncation
         while True:
-            batch = self._storage.list_skills(limit=batch_size, offset=offset)
+            batch = self._storage.list_skills(
+                project_id=self._project_id,
+                include_global=True,
+                limit=batch_size,
+                offset=offset,
+            )
             if not batch:
                 break
             all_skills.extend(batch)

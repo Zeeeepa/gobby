@@ -75,13 +75,19 @@ If `pending=True`, skip to **Phase 4** immediately.
    children = call_tool("gobby-tasks", "list_tasks", {"parent_task_id": task_id})
    if children["tasks"]:
        # CONFIRM with user before proceeding - this is destructive!
-       # Delete parent cascades to children
+       # Backup all task fields before deletion
+       original_task = task  # Already fetched above
        call_tool("gobby-tasks", "delete_task", {"task_id": task_id, "cascade": True})
-       # Re-create the parent task
+       # Re-create preserving all fields
        result = call_tool("gobby-tasks", "create_task", {
-           "title": task["title"],
-           "description": task["description"],
-           "task_type": task["type"],
+           "title": original_task["title"],
+           "description": original_task["description"],
+           "task_type": original_task["type"],
+           "priority": original_task.get("priority"),
+           "labels": original_task.get("labels"),
+           "category": original_task.get("category"),
+           "validation_criteria": original_task.get("validation_criteria"),
+           "metadata": original_task.get("metadata"),
            "session_id": "<session_id>"
        })
        task_id = result["task"]["id"]

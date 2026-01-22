@@ -524,6 +524,7 @@ def meta_get(ctx: click.Context, name: str, key: str) -> None:
     value = _get_nested_value(skill.metadata, key)
     if value is None:
         click.echo(f"Key not found: {key}")
+        sys.exit(1)
     elif isinstance(value, (dict, list)):
         click.echo(json.dumps(value, indent=2))
     else:

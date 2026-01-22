@@ -150,11 +150,15 @@ class ConductorLoop:
         # Handle autonomous mode
         if self.autonomous_mode:
             result["autonomous_mode"] = True
-            # In autonomous mode, could spawn agents for ready tasks
-            # This is a placeholder for future auto-spawn logic
             if self.agent_spawner is not None:
                 result["spawner_available"] = True
+                # TODO: implement auto-spawn - see issue tracker for orchestration epic
+                self._logger.warning(
+                    "Autonomous mode enabled but auto-spawning not yet implemented. "
+                    f"Spawner available: {self.agent_spawner is not None}"
+                )
             else:
                 result["spawner_available"] = False
+                self._logger.warning("Autonomous mode enabled but no spawner configured")
 
         return result

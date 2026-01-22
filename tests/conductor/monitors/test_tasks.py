@@ -107,12 +107,6 @@ class TestTaskMonitorBlockedChains:
         blocked_task.status = "open"
         blocked_task.title = "Blocked Task"
 
-        # Create a blocker task that is in_progress
-        blocker_task = MagicMock()
-        blocker_task.id = "task-blocker"
-        blocker_task.status = "in_progress"
-        blocker_task.title = "Blocker Task"
-
         mock_task_manager.list_blocked_tasks.return_value = [blocked_task]
         mock_task_manager.list_tasks.return_value = []  # No stale tasks
 

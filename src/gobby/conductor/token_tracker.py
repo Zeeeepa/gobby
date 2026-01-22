@@ -103,15 +103,24 @@ class SessionTokenTracker:
         """
         summary = self.get_usage_summary(days=1)
         used_today = summary["total_cost_usd"]
+
+        # Handle unlimited budget (daily_budget_usd <= 0)
+        if self.daily_budget_usd <= 0:
+            return {
+                "daily_budget_usd": self.daily_budget_usd,
+                "used_today_usd": used_today,
+                "remaining_usd": float("inf"),
+                "percentage_used": 0.0,
+                "over_budget": False,
+            }
+
         remaining = self.daily_budget_usd - used_today
 
         return {
             "daily_budget_usd": self.daily_budget_usd,
             "used_today_usd": used_today,
             "remaining_usd": remaining,
-            "percentage_used": (used_today / self.daily_budget_usd * 100)
-            if self.daily_budget_usd > 0
-            else 0.0,
+            "percentage_used": (used_today / self.daily_budget_usd * 100),
             "over_budget": used_today > self.daily_budget_usd,
         }
 

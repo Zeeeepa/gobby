@@ -437,20 +437,26 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Registration confirmation
         """
-        from gobby.storage.database import LocalDatabase
+        from fastapi import HTTPException
+
         from gobby.storage.projects import LocalProjectManager
+
+        # Guard: Only available in test mode
+        if not server.test_mode:
+            raise HTTPException(
+                status_code=403, detail="Test endpoints only available in test mode"
+            )
 
         start_time = time.perf_counter()
         metrics = get_metrics_collector()
         metrics.inc_counter("http_requests_total")
 
         try:
-            # Get database from config or daemon
-            db = None
-            if server.config and server.config.database_path:
-                db = LocalDatabase(str(server.config.database_path))
-            else:
-                db = LocalDatabase()  # Uses default path
+            # Use server's session manager database to avoid creating separate connections
+            if server.session_manager is None:
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            db = server.session_manager.db
 
             project_manager = LocalProjectManager(db)
 
@@ -515,7 +521,15 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Registration confirmation
         """
+        from fastapi import HTTPException
+
         from gobby.agents.registry import RunningAgent, get_running_agent_registry
+
+        # Guard: Only available in test mode
+        if not server.test_mode:
+            raise HTTPException(
+                status_code=403, detail="Test endpoints only available in test mode"
+            )
 
         start_time = time.perf_counter()
         metrics = get_metrics_collector()
@@ -560,7 +574,15 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Unregistration confirmation
         """
+        from fastapi import HTTPException
+
         from gobby.agents.registry import get_running_agent_registry
+
+        # Guard: Only available in test mode
+        if not server.test_mode:
+            raise HTTPException(
+                status_code=403, detail="Test endpoints only available in test mode"
+            )
 
         start_time = time.perf_counter()
         metrics = get_metrics_collector()
@@ -617,14 +639,20 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         Returns:
             Update confirmation
         """
+        from fastapi import HTTPException
+
+        # Guard: Only available in test mode
+        if not server.test_mode:
+            raise HTTPException(
+                status_code=403, detail="Test endpoints only available in test mode"
+            )
+
         start_time = time.perf_counter()
         metrics = get_metrics_collector()
         metrics.inc_counter("http_requests_total")
 
         try:
             if server.session_manager is None:
-                from fastapi import HTTPException
-
                 raise HTTPException(status_code=503, detail="Session manager not available")
 
             success = server.session_manager.update_usage(

@@ -10,7 +10,10 @@ Tests for Conductor CLI commands:
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
+
+pytestmark = pytest.mark.integration
 
 
 class TestConductorStartCommand:

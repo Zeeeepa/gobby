@@ -8,7 +8,7 @@ Tests the inter-agent messaging MCP tools:
 - mark_message_read
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -95,6 +95,7 @@ class TestAddMessagingTools:
 
         assert "send_to_parent" in tool_names
         assert "send_to_child" in tool_names
+        assert "broadcast_to_children" in tool_names
         assert "poll_messages" in tool_names
         assert "mark_message_read" in tool_names
 
@@ -150,14 +151,13 @@ class TestSendToParent:
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    @pytest.mark.asyncio
-    async def test_send_to_parent_no_parent(
-        self, messaging_registry, mock_agent_registry
-    ):
-        """Test send_to_parent when agent has no parent."""
-        # This shouldn't happen in practice since all spawned agents have parents
-        # but we should handle it gracefully
-        pass  # Skipped - all RunningAgents require parent_session_id
+    def test_send_to_parent_no_parent(self):
+        """Test send_to_parent when agent has no parent.
+
+        This test is skipped because RunningAgent dataclass requires parent_session_id.
+        All spawned agents in practice have parents, so this edge case cannot occur.
+        """
+        pytest.skip("RunningAgent requires parent_session_id - edge case cannot occur")
 
 
 class TestSendToChild:

@@ -232,7 +232,7 @@ class GeminiProvider(LLMProvider):
 
             # Determine media type
             mime_type, _ = mimetypes.guess_type(str(path))
-            if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+            if mime_type not in ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]:
                 mime_type = "image/png"
 
             # Build prompt

@@ -15,6 +15,27 @@ from typing import Literal
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_url(url: str) -> str:
+    """Remove credentials from URL for safe logging.
+
+    Args:
+        url: URL that may contain credentials
+
+    Returns:
+        URL with credentials removed
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        # Replace userinfo with placeholder
+        netloc = parsed.hostname or ""
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        parsed = parsed._replace(netloc=netloc)
+    return urlunparse(parsed)
+
+
 @dataclass
 class CloneStatus:
     """Status of a git clone including changes and sync state."""
@@ -167,7 +188,10 @@ class CloneGitManager:
                 str(clone_path),
             ]
 
-            logger.debug(f"Running: {' '.join(cmd)}")
+            # Sanitize URL in command before logging to avoid exposing credentials
+            safe_cmd = cmd.copy()
+            safe_cmd[safe_cmd.index(remote_url)] = _sanitize_url(remote_url)
+            logger.debug(f"Running: {' '.join(safe_cmd)}")
 
             result = subprocess.run(  # nosec B603 B607 - cmd built from hardcoded git arguments
                 cmd,

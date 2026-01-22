@@ -173,12 +173,16 @@ class SkillSearch:
 
         # Normalize weights to sum to 1
         total_weight = tfidf_weight + embedding_weight
-        if total_weight > 0:
-            self._tfidf_weight = tfidf_weight / total_weight
-            self._embedding_weight = embedding_weight / total_weight
-        else:
+        if total_weight == 0:
+            logger.warning(
+                f"Both tfidf_weight ({tfidf_weight}) and embedding_weight ({embedding_weight}) "
+                "are zero; using defaults"
+            )
             self._tfidf_weight = DEFAULT_TFIDF_WEIGHT
             self._embedding_weight = DEFAULT_EMBEDDING_WEIGHT
+        else:
+            self._tfidf_weight = tfidf_weight / total_weight
+            self._embedding_weight = embedding_weight / total_weight
 
         # Internal state
         self._searcher: Any = None  # TFIDFSearcher, lazy loaded
@@ -536,6 +540,7 @@ class SkillSearch:
         self._skill_names.pop(skill_id, None)
         self._skill_meta.pop(skill_id, None)
         self._skill_embeddings.pop(skill_id, None)
+        self._skill_content.pop(skill_id, None)
 
     def needs_reindex(self) -> bool:
         """Check if the search index needs rebuilding.

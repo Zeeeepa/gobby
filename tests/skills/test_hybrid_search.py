@@ -1,23 +1,25 @@
 """Tests for hybrid search combining TF-IDF and embeddings (TDD)."""
 
+from collections.abc import Generator
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-
-pytestmark = pytest.mark.unit
-
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.skills import LocalSkillManager
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
-def db(tmp_path):
+def db(tmp_path) -> Generator[LocalDatabase]:
     """Create a fresh database with migrations applied."""
     db_path = tmp_path / "test.db"
     database = LocalDatabase(db_path)
     run_migrations(database)
-    return database
+    yield database
+    database.close()
 
 
 @pytest.fixture

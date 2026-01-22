@@ -10,6 +10,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.skills import LocalSkillManager
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def db(tmp_path: Path) -> Iterator[LocalDatabase]:

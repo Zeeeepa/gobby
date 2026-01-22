@@ -123,10 +123,13 @@ class TestInterAgentMessagingE2E:
         messages = result.get("messages", [])
         assert len(messages) >= 1, "Child should have received at least 1 message"
 
-        # Verify the message content
-        received_msg = messages[0]
-        assert received_msg["content"] == "Hello child, please process this task!"
-        assert received_msg["from_session"] == parent_session_id
+        # Find the message from parent by filtering on content and from_session
+        received_msg = next(
+            (m for m in messages if m["from_session"] == parent_session_id
+             and m["content"] == "Hello child, please process this task!"),
+            None
+        )
+        assert received_msg is not None, f"Expected message from parent not found in: {messages}"
 
         # Step 3: Child marks message as read
         raw_result = mcp_client.call_tool(
@@ -163,10 +166,13 @@ class TestInterAgentMessagingE2E:
         parent_messages = result.get("messages", [])
         assert len(parent_messages) >= 1, "Parent should have received at least 1 message"
 
-        # Verify the response content
-        response_msg = parent_messages[0]
-        assert response_msg["content"] == "Task completed successfully, parent!"
-        assert response_msg["from_session"] == child_session_id
+        # Find the response message from child by filtering on content and from_session
+        response_msg = next(
+            (m for m in parent_messages if m["from_session"] == child_session_id
+             and m["content"] == "Task completed successfully, parent!"),
+            None
+        )
+        assert response_msg is not None, f"Expected response from child not found in: {parent_messages}"
 
         # Cleanup: Unregister the test agent
         cli_events.unregister_test_agent(run_id)

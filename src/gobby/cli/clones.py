@@ -112,6 +112,7 @@ def create_clone(
             json=arguments,
             timeout=300.0,  # Clone can take a while
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
@@ -180,6 +181,7 @@ def spawn_agent(
             json=arguments,
             timeout=60.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
@@ -231,6 +233,7 @@ def sync_clone(clone_ref: str, direction: str, json_format: bool) -> None:
             json={"clone_id": clone_id, "direction": direction},
             timeout=120.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
@@ -280,6 +283,7 @@ def merge_clone(clone_ref: str, target_branch: str, json_format: bool) -> None:
             json={"clone_id": clone_id, "target_branch": target_branch},
             timeout=120.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
@@ -339,6 +343,7 @@ def delete_clone(clone_ref: str, force: bool, yes: bool) -> None:
             json={"clone_id": clone_id, "force": force},
             timeout=60.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)

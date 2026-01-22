@@ -330,6 +330,7 @@ class AgentExecutor(ABC):
         if completion_result is not None:
             completion_result.tool_calls = result.tool_calls
             completion_result.turns_used = result.turns_used
+            completion_result.cost_info = result.cost_info
             return completion_result
 
         # Otherwise, return the raw result (might be timeout or natural end)

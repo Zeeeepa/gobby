@@ -374,7 +374,7 @@ def create_clones_registry(
                     "default": "pull",
                 },
             },
-            "required": ["clone_id", "direction"],
+            "required": ["clone_id"],
         },
         func=sync_clone,
     )

@@ -2,6 +2,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def skill_dir(tmp_path):

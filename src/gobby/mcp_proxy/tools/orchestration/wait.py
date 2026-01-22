@@ -88,6 +88,10 @@ def register_wait(
             - task: Task info dict (if found)
             - wait_time: How long we waited
         """
+        # Validate poll_interval
+        if poll_interval <= 0:
+            poll_interval = DEFAULT_POLL_INTERVAL
+
         start_time = time.monotonic()
 
         try:

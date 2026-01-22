@@ -99,7 +99,7 @@ class AgentWatcher:
                     "run_id": agent.run_id,
                     "session_id": agent.session_id,
                     "mode": agent.mode,
-                    "started_at": agent.started_at.isoformat(),
+                    "started_at": started_at.isoformat(),
                     "minutes_running": round(minutes_running, 1),
                     "provider": getattr(agent, "provider", "unknown"),
                 })

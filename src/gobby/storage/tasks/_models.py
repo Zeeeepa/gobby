@@ -216,7 +216,11 @@ class Task:
             reference_doc=row["reference_doc"] if "reference_doc" in keys else None,
             is_expanded=bool(row["is_expanded"]) if "is_expanded" in keys else False,
             is_tdd_applied=bool(row["is_tdd_applied"]) if "is_tdd_applied" in keys else False,
-            expansion_status=row["expansion_status"] if "expansion_status" in keys else "none",
+            expansion_status=(
+                row["expansion_status"]
+                if "expansion_status" in keys and row["expansion_status"]
+                else "none"
+            ),
             requires_user_review=(
                 bool(row["requires_user_review"]) if "requires_user_review" in keys else False
             ),

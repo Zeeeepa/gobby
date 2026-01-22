@@ -1,19 +1,24 @@
 """Tests for gobby-skills MCP registry factory (TDD - written before implementation)."""
 
-import pytest
+from collections.abc import Generator
 from pathlib import Path
+
+import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
-def db(tmp_path: Path) -> LocalDatabase:
+def db(tmp_path: Path) -> Generator[LocalDatabase]:
     """Create a fresh database with migrations applied."""
     db_path = tmp_path / "test.db"
     database = LocalDatabase(db_path)
     run_migrations(database)
-    return database
+    yield database
+    database.close()
 
 
 class TestCreateSkillsRegistry:
@@ -21,8 +26,8 @@ class TestCreateSkillsRegistry:
 
     def test_create_skills_registry_returns_registry(self, db):
         """Test that create_skills_registry returns an InternalToolRegistry."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
         from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(db)
 
@@ -47,7 +52,7 @@ class TestCreateSkillsRegistry:
 
     def test_skills_registry_class_is_custom(self, db):
         """Test that SkillsToolRegistry extends InternalToolRegistry."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry, SkillsToolRegistry
+        from gobby.mcp_proxy.tools.skills import SkillsToolRegistry, create_skills_registry
 
         registry = create_skills_registry(db)
 
@@ -84,7 +89,7 @@ class TestSkillsToolRegistry:
 
     def test_registry_inherits_from_internal_registry(self, db):
         """Test that SkillsToolRegistry inherits correctly."""
-        from gobby.mcp_proxy.tools.skills import SkillsToolRegistry
         from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+        from gobby.mcp_proxy.tools.skills import SkillsToolRegistry
 
         assert issubclass(SkillsToolRegistry, InternalToolRegistry)
