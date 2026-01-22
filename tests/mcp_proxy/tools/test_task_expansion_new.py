@@ -274,9 +274,9 @@ class TestExecuteExpansion:
         )
         assert len(subtasks) == 3
 
-        # Verify task refs are returned
+        # Verify task refs are returned (must be #N format)
         for ref in result["created"]:
-            assert ref.startswith("#") or len(ref) == 8  # seq_num or short UUID
+            assert ref.startswith("#"), f"Expected #N format, got {ref}"
 
     @pytest.mark.asyncio
     async def test_execute_task_not_found(

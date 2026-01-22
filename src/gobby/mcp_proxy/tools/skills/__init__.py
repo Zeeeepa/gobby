@@ -487,16 +487,26 @@ def create_skills_registry(
             # Must match owner/repo pattern without path traversal or absolute paths
             github_owner_repo_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$")
 
-            # Determine if this is a GitHub reference purely by pattern (no filesystem probe)
-            is_github_ref = (
+            # Explicit GitHub references (always treated as GitHub, no filesystem check)
+            is_explicit_github = (
                 source.startswith("github:")
                 or source.startswith("https://github.com/")
                 or source.startswith("http://github.com/")
-                or (
-                    github_owner_repo_pattern.match(source)
-                    and not source.startswith("/")
-                    and ".." not in source  # Reject path traversal
-                )
+            )
+
+            # For implicit owner/repo patterns, check local filesystem first
+            is_implicit_github_pattern = (
+                not is_explicit_github
+                and github_owner_repo_pattern.match(source)
+                and not source.startswith("/")
+                and ".." not in source  # Reject path traversal
+            )
+
+            # Determine if this is a GitHub reference:
+            # - Explicit refs are always GitHub
+            # - Implicit patterns are GitHub only if local path doesn't exist
+            is_github_ref = is_explicit_github or (
+                is_implicit_github_pattern and not Path(source).exists()
             )
             if is_github_ref:
                 # GitHub URL

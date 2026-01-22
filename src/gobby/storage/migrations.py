@@ -771,8 +771,41 @@ def _migrate_add_skills_table(db: LocalDatabase) -> None:
     db.execute("CREATE INDEX idx_skills_enabled ON skills(enabled)")
     # Unique constraint: name must be unique within a project scope
     db.execute("CREATE UNIQUE INDEX idx_skills_name_project ON skills(name, project_id)")
+    # Partial unique index for global skills (project_id IS NULL)
+    # This enforces uniqueness for global skill names since NULL != NULL in SQL
+    db.execute(
+        "CREATE UNIQUE INDEX idx_skills_name_global ON skills(name) WHERE project_id IS NULL"
+    )
 
     logger.info("Created skills table with indexes")
+
+
+def _migrate_add_skills_global_unique_index(db: LocalDatabase) -> None:
+    """Add partial unique index for global skills (project_id IS NULL).
+
+    This enforces uniqueness for global skill names since NULL != NULL in SQL.
+    The existing idx_skills_name_project only enforces uniqueness within a project scope.
+    """
+    # Check if index already exists (fresh database from v70+)
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_skills_name_global'"
+    )
+    if row:
+        logger.debug("idx_skills_name_global index already exists, skipping")
+        return
+
+    # Check if skills table exists (might not if on old version that never created it)
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='skills'"
+    )
+    if not row:
+        logger.debug("skills table does not exist, skipping")
+        return
+
+    db.execute(
+        "CREATE UNIQUE INDEX idx_skills_name_global ON skills(name) WHERE project_id IS NULL"
+    )
+    logger.info("Added idx_skills_name_global partial unique index to skills table")
 
 
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -796,6 +829,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (69, "Add expansion_status column to tasks", _migrate_add_expansion_status),
     # Skills storage: Add skills table for Agent Skills spec
     (70, "Add skills table", _migrate_add_skills_table),
+    # Skills: Add partial unique index for global skills
+    (71, "Add global skills unique index", _migrate_add_skills_global_unique_index),
 ]
 
 

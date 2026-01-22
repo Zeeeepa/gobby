@@ -1,8 +1,9 @@
 """Tests for remove_skill and update_skill MCP tools (TDD - written before implementation)."""
 
 import asyncio
-import pytest
 from pathlib import Path
+
+import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -15,7 +16,8 @@ def db(tmp_path: Path) -> LocalDatabase:
     db_path = tmp_path / "test.db"
     database = LocalDatabase(db_path)
     run_migrations(database)
-    return database
+    yield database
+    database.close()
 
 
 @pytest.fixture
