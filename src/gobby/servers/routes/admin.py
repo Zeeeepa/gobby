@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 
 from gobby.utils.metrics import Counter, get_metrics_collector
 from gobby.utils.version import get_version
@@ -409,6 +410,184 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error reloading workflows: {e}", exc_info=True)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # --- Test endpoints (for E2E testing) ---
+
+    class TestProjectRegisterRequest(BaseModel):
+        """Request model for registering a test project."""
+
+        project_id: str
+        name: str
+        repo_path: str | None = None
+
+    @router.post("/test/register-project")
+    async def register_test_project(request: TestProjectRegisterRequest) -> dict[str, Any]:
+        """
+        Register a test project in the database.
+
+        This endpoint is for E2E testing. It ensures the project exists
+        in the projects table so sessions can be created with valid project_ids.
+
+        Args:
+            request: Project registration details
+
+        Returns:
+            Registration confirmation
+        """
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.projects import LocalProjectManager
+
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            # Get database from config or daemon
+            db = None
+            if server.config and server.config.database_path:
+                db = LocalDatabase(str(server.config.database_path))
+            else:
+                db = LocalDatabase()  # Uses default path
+
+            project_manager = LocalProjectManager(db)
+
+            # Check if project exists
+            existing = project_manager.get(request.project_id)
+            if existing:
+                return {
+                    "status": "already_exists",
+                    "project_id": existing.id,
+                    "name": existing.name,
+                }
+
+            # Create the project with the specific ID
+            from datetime import UTC, datetime
+
+            now = datetime.now(UTC).isoformat()
+            db.execute(
+                """
+                INSERT INTO projects (id, name, repo_path, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (request.project_id, request.name, request.repo_path, now, now),
+            )
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "message": f"Registered test project {request.project_id}",
+                "project_id": request.project_id,
+                "name": request.name,
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error registering test project: {e}", exc_info=True)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    class TestAgentRegisterRequest(BaseModel):
+        """Request model for registering a test agent."""
+
+        run_id: str
+        session_id: str
+        parent_session_id: str
+        mode: str = "terminal"
+
+    @router.post("/test/register-agent")
+    async def register_test_agent(request: TestAgentRegisterRequest) -> dict[str, Any]:
+        """
+        Register a test agent in the running agent registry.
+
+        This endpoint is for E2E testing of inter-agent messaging.
+        It allows tests to set up parent-child agent relationships
+        without actually spawning agent processes.
+
+        Args:
+            request: Agent registration details
+
+        Returns:
+            Registration confirmation
+        """
+        from gobby.agents.registry import RunningAgent, get_running_agent_registry
+
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            registry = get_running_agent_registry()
+
+            # Create and register the agent
+            running_agent = RunningAgent(
+                run_id=request.run_id,
+                session_id=request.session_id,
+                parent_session_id=request.parent_session_id,
+                mode=request.mode,
+            )
+            registry.add(running_agent)
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "message": f"Registered test agent {request.run_id}",
+                "agent": running_agent.to_dict(),
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error registering test agent: {e}", exc_info=True)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.delete("/test/unregister-agent/{run_id}")
+    async def unregister_test_agent(run_id: str) -> dict[str, Any]:
+        """
+        Unregister a test agent from the running agent registry.
+
+        Args:
+            run_id: The agent run ID to remove
+
+        Returns:
+            Unregistration confirmation
+        """
+        from gobby.agents.registry import get_running_agent_registry
+
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            registry = get_running_agent_registry()
+            agent = registry.remove(run_id)
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            if agent:
+                return {
+                    "status": "success",
+                    "message": f"Unregistered test agent {run_id}",
+                    "response_time_ms": response_time_ms,
+                }
+            else:
+                return {
+                    "status": "not_found",
+                    "message": f"Agent {run_id} not found in registry",
+                    "response_time_ms": response_time_ms,
+                }
+
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error unregistering test agent: {e}", exc_info=True)
             from fastapi import HTTPException
 
             raise HTTPException(status_code=500, detail=str(e)) from e

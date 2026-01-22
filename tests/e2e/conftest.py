@@ -389,15 +389,24 @@ class CLIEventSimulator:
         machine_id: str = "test-machine",
         source: str = "Claude Code",
         project_id: str | None = None,
+        parent_session_id: str | None = None,
+        cwd: str | None = None,
     ) -> dict[str, Any]:
-        """Register a new session via /sessions/register endpoint."""
-        payload = {
+        """Register a new session via /sessions/register endpoint.
+
+        Returns response with 'id' (internal session ID), 'external_id', 'machine_id'.
+        """
+        payload: dict[str, Any] = {
             "external_id": external_id,
             "machine_id": machine_id,
             "source": source,
         }
         if project_id:
             payload["project_id"] = project_id
+        if parent_session_id:
+            payload["parent_session_id"] = parent_session_id
+        if cwd:
+            payload["cwd"] = cwd
 
         response = self.client.post("/sessions/register", json=payload)
         response.raise_for_status()
@@ -467,6 +476,57 @@ class CLIEventSimulator:
         }
 
         response = self.client.post("/hooks/execute", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def register_test_agent(
+        self,
+        run_id: str,
+        session_id: str,
+        parent_session_id: str,
+        mode: str = "terminal",
+    ) -> dict[str, Any]:
+        """Register a test agent in the running agent registry.
+
+        This is used for E2E testing of inter-agent messaging without
+        actually spawning agent processes.
+        """
+        payload = {
+            "run_id": run_id,
+            "session_id": session_id,
+            "parent_session_id": parent_session_id,
+            "mode": mode,
+        }
+
+        response = self.client.post("/admin/test/register-agent", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def unregister_test_agent(self, run_id: str) -> dict[str, Any]:
+        """Unregister a test agent from the running agent registry."""
+        response = self.client.delete(f"/admin/test/unregister-agent/{run_id}")
+        response.raise_for_status()
+        return response.json()
+
+    def register_test_project(
+        self,
+        project_id: str,
+        name: str,
+        repo_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Register a test project in the database.
+
+        This ensures the project exists in the projects table so sessions
+        can be created with valid project_ids.
+        """
+        payload = {
+            "project_id": project_id,
+            "name": name,
+        }
+        if repo_path:
+            payload["repo_path"] = repo_path
+
+        response = self.client.post("/admin/test/register-project", json=payload)
         response.raise_for_status()
         return response.json()
 
