@@ -28,7 +28,15 @@ def get_skill_storage() -> LocalSkillManager:
 
 def get_daemon_client(ctx: click.Context) -> DaemonClient:
     """Get daemon client from context config."""
-    config: DaemonConfig = ctx.obj["config"]
+    if ctx.obj is None or "config" not in ctx.obj:
+        raise click.ClickException(
+            "Configuration not initialized. Ensure the CLI is invoked through the main entry point."
+        )
+    config = ctx.obj.get("config")
+    if not isinstance(config, DaemonConfig):
+        raise click.ClickException(
+            f"Invalid configuration type: expected DaemonConfig, got {type(config).__name__}"
+        )
     return DaemonClient(host="localhost", port=config.daemon_port)
 
 
@@ -241,10 +249,13 @@ def install(ctx: click.Context, source: str, project: bool) -> None:
         "project_scoped": project,
     })
 
-    if result and result.get("success"):
+    if result is None:
+        click.echo("Error: Failed to communicate with daemon", err=True)
+        sys.exit(1)
+    elif result.get("success"):
         click.echo(f"Installed skill: {result['skill_name']} ({result.get('source_type', 'unknown')})")
-    elif result:
-        click.echo(f"Error: {result.get('error', 'Unknown error')}")
+    else:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}", err=True)
         sys.exit(1)
 
 
@@ -264,10 +275,13 @@ def remove(ctx: click.Context, name: str) -> None:
 
     result = call_skills_tool(client, "remove_skill", {"name": name})
 
-    if result and result.get("success"):
+    if result is None:
+        click.echo("Error: Failed to communicate with daemon", err=True)
+        sys.exit(1)
+    elif result.get("success"):
         click.echo(f"Removed skill: {result.get('skill_name', name)}")
-    elif result:
-        click.echo(f"Error: {result.get('error', 'Unknown error')}")
+    else:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}", err=True)
         sys.exit(1)
 
 
@@ -322,13 +336,17 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
     # Single skill update
     result = call_skills_tool(client, "update_skill", {"name": name})
 
-    if result and result.get("success"):
+    if result is None:
+        click.echo("Error: Failed to communicate with daemon", err=True)
+        sys.exit(1)
+    elif result.get("success"):
         if result.get("updated"):
             click.echo(f"Updated skill: {name}")
         else:
             click.echo(f"Skipped: {result.get('skip_reason', 'already up to date')}")
-    elif result:
-        click.echo(f"Error: {result.get('error', 'Unknown error')}")
+    else:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}", err=True)
+        sys.exit(1)
 
 
 @skills.command()
@@ -380,6 +398,8 @@ def validate(ctx: click.Context, path: str, json_output: bool) -> None:
         output["path"] = path
         output["skill_name"] = parsed_skill.name
         click.echo(json.dumps(output, indent=2))
+        if not result.valid:
+            sys.exit(1)
         return
 
     # Human-readable output
@@ -398,6 +418,7 @@ def validate(ctx: click.Context, path: str, json_output: bool) -> None:
             click.echo("\nWarnings:")
             for warning in result.warnings:
                 click.echo(f"  - {warning}")
+        sys.exit(1)
 
 
 # Meta subcommand group
@@ -487,8 +508,8 @@ def meta_get(ctx: click.Context, name: str, key: str) -> None:
     skill = storage.get_by_name(name)
 
     if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
+        click.echo(f"Skill not found: {name}", err=True)
+        sys.exit(1)
 
     if not skill.metadata:
         click.echo("null")
@@ -523,8 +544,8 @@ def meta_set(ctx: click.Context, name: str, key: str, value: str) -> None:
     skill = storage.get_by_name(name)
 
     if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
+        click.echo(f"Skill not found: {name}", err=True)
+        sys.exit(1)
 
     # Try to parse value as JSON for complex types
     try:
@@ -559,8 +580,8 @@ def meta_unset(ctx: click.Context, name: str, key: str) -> None:
     skill = storage.get_by_name(name)
 
     if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
+        click.echo(f"Skill not found: {name}", err=True)
+        sys.exit(1)
 
     if not skill.metadata:
         click.echo(f"Key not found: {key}")
@@ -606,7 +627,7 @@ def init(ctx: click.Context) -> None:
                 "search_paths": ["./skills", "./.gobby/skills"],
             },
         }
-        with open(config_file, "w") as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(default_config, f, default_flow_style=False)
         click.echo(f"Created {config_file}")
     else:
@@ -651,7 +672,7 @@ def new(ctx: click.Context, name: str, description: str | None) -> None:
     skill_template = f"""---
 name: {name}
 description: {description}
-version: 1.0.0
+version: "1.0.0"
 metadata:
   skillport:
     category: general
@@ -676,7 +697,7 @@ Add your skill instructions here.
 Provide usage examples here.
 """
 
-    with open(skill_dir / "SKILL.md", "w") as f:
+    with open(skill_dir / "SKILL.md", "w", encoding="utf-8") as f:
         f.write(skill_template)
 
     click.echo(f"Created skill scaffold: {name}/")
@@ -734,16 +755,19 @@ def doc(ctx: click.Context, output: str | None, output_format: str) -> None:
         ]
 
         for skill in skills_list:
-            category = _get_skill_category(skill) or "-"
+            category = (_get_skill_category(skill) or "-").replace("|", "\\|")
             enabled = "✓" if skill.enabled else "✗"
             desc_full = skill.description or ""
             desc = desc_full[:50] + "..." if len(desc_full) > 50 else desc_full
-            lines.append(f"| {skill.name} | {desc} | {category} | {enabled} |")
+            # Escape pipe characters for valid markdown table
+            name_safe = skill.name.replace("|", "\\|")
+            desc_safe = desc.replace("|", "\\|")
+            lines.append(f"| {name_safe} | {desc_safe} | {category} | {enabled} |")
 
         content = "\n".join(lines)
 
     if output:
-        with open(output, "w") as f:
+        with open(output, "w", encoding="utf-8") as f:
             f.write(content)
         click.echo(f"Written to {output}")
     else:

@@ -71,12 +71,14 @@ class TestHookSkillManager:
         manager = HookSkillManager()
         skills = manager.discover_core_skills()
 
-        if skills:
-            skill = skills[0]
-            assert hasattr(skill, "name")
-            assert hasattr(skill, "content")
-            assert skill.name is not None
-            assert skill.content is not None
+        # Ensure we have at least one skill to test
+        assert skills, "Expected at least one skill to be discovered"
+
+        skill = skills[0]
+        assert hasattr(skill, "name")
+        assert hasattr(skill, "content")
+        assert skill.name is not None
+        assert skill.content is not None
 
     def test_get_skill_by_name(self):
         """Test getting a skill by name."""

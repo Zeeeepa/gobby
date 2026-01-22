@@ -164,6 +164,13 @@ class SkillSearch:
         self._mode: SearchMode = mode
         self._embedding_provider = embedding_provider
 
+        # Validate weights are non-negative
+        if tfidf_weight < 0 or embedding_weight < 0:
+            raise ValueError(
+                f"Weights must be non-negative: tfidf_weight={tfidf_weight}, "
+                f"embedding_weight={embedding_weight}"
+            )
+
         # Normalize weights to sum to 1
         total_weight = tfidf_weight + embedding_weight
         if total_weight > 0:
@@ -500,6 +507,8 @@ class SkillSearch:
         """
         self._pending_updates += 1
         self._skill_names.pop(skill_id, None)
+        self._skill_meta.pop(skill_id, None)
+        self._skill_embeddings.pop(skill_id, None)
 
     def needs_reindex(self) -> bool:
         """Check if the search index needs rebuilding.

@@ -646,17 +646,16 @@ class LocalSkillManager:
             query += " AND enabled = ?"
             params.append(enabled)
 
+        # Filter by category using JSON extraction in SQL to avoid under-filled results
+        if category:
+            query += " AND json_extract(metadata, '$.skillport.category') = ?"
+            params.append(category)
+
         query += " ORDER BY name ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
-        skills = [Skill.from_row(row) for row in rows]
-
-        # Filter by category in Python (stored in JSON metadata)
-        if category:
-            skills = [s for s in skills if s.get_category() == category]
-
-        return skills
+        return [Skill.from_row(row) for row in rows]
 
     def search_skills(
         self,

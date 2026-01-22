@@ -122,13 +122,14 @@ Example: `/gobby-tasks reopen #1` → `reopen_task(task_id="#1")`
 Call `gobby-tasks.delete_task` with:
 - `task_id`: (required) Task reference
 - `cascade`: If true, delete subtasks AND dependent tasks (default: true)
-- `unlink`: If true, remove dependency links but preserve dependent tasks (ignored if cascade=true)
+- `unlink`: If true, remove dependency links but preserve dependent tasks
+  - **Note**: `unlink` only takes effect when `cascade=false`. If `cascade=true` (default), `unlink` is ignored.
 
 By default, deletes the task and all subtasks/dependents. If the task has dependents and neither
 `cascade` nor `unlink` is set, returns an error with suggestions.
 
-Example: `/gobby-tasks delete #1` → `delete_task(task_id="#1")`
-Example: `/gobby-tasks delete #1 --unlink` → `delete_task(task_id="#1", unlink=true)` (preserve dependents)
+Example: `/gobby-tasks delete #1` → `delete_task(task_id="#1")` (cascade delete, default)
+Example: `/gobby-tasks delete #1 --no-cascade --unlink` → `delete_task(task_id="#1", cascade=false, unlink=true)` (preserve dependents)
 
 ## Expansion & Planning
 

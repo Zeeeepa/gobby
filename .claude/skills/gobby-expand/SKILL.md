@@ -62,27 +62,37 @@ If `pending=True`, skip to **Phase 4** immediately.
    ```python
    children = call_tool("gobby-tasks", "list_tasks", {"parent_task_id": task_id})
    if children["tasks"]:
-       # CAUTION: cascade=True permanently deletes ALL descendants.
-       # This is irreversible - all child tasks, their metadata, and
-       # commit links will be lost. Consider alternatives:
-       #
-       # Option A (Safer): Delete children individually after review
-       #   for child in children["tasks"]:
-       #       call_tool("gobby-tasks", "delete_task", {"task_id": child["id"]})
-       #
-       # Option B: Back up parent metadata before cascade delete
-       #   backup = {"title": task["title"], "description": task["description"], ...}
+       # IMPORTANT: Re-expansion will delete all existing subtasks.
+       # First, capture the full task object to preserve all fields.
+       backup = call_tool("gobby-tasks", "get_task", {"task_id": task_id})
+
+       # Prompt user for confirmation before cascade delete
+       print(f"Task #{task_id} has {len(children['tasks'])} existing subtasks.")
+       print("Re-expansion will delete all subtasks and their descendants.")
+       # In practice, use AskUserQuestion tool for confirmation:
+       # response = AskUserQuestion("Confirm re-expansion? This deletes all subtasks.", ...)
+       # if not confirmed: return
 
        # Delete parent cascades to children
        call_tool("gobby-tasks", "delete_task", {"task_id": task_id, "cascade": True})
-       # Re-create the parent task
+
+       # Re-create the parent task with ALL preserved fields from backup
        result = call_tool("gobby-tasks", "create_task", {
-           "title": task["title"],
-           "description": task["description"],
-           "task_type": task["type"],
+           "title": backup["title"],
+           "description": backup["description"],
+           "task_type": backup["type"],
+           "priority": backup.get("priority"),
+           "labels": backup.get("labels", []),
+           "metadata": backup.get("metadata"),
+           "validation_criteria": backup.get("validation_criteria"),
+           "category": backup.get("category"),
            "session_id": "<session_id>"
        })
        task_id = result["task"]["id"]
+
+       # Note: Commit links are tracked separately and cannot be preserved
+       # through delete/create. If commits were linked, you may need to
+       # re-link them manually using link_commit after re-creation.
    ```
 
 ### Phase 2: Analyze Codebase (VISIBLE)
