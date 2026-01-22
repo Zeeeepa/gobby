@@ -1,8 +1,10 @@
 """Tests for hybrid search combining TF-IDF and embeddings (TDD)."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
+
+pytestmark = pytest.mark.unit
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations

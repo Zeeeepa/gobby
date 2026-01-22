@@ -35,7 +35,7 @@ def skill_dir(tmp_path: Path) -> Path:
     (skill_dir / "SKILL.md").write_text("""---
 name: test-skill
 description: Original description
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Test Skill
@@ -161,7 +161,7 @@ class TestUpdateSkillTool:
         (skill_dir / "SKILL.md").write_text("""---
 name: updatable-skill
 description: Updated description
-version: "2.0"
+version: "2.0.0"
 ---
 
 # Updated Skill
@@ -192,7 +192,7 @@ Updated content.
         (skill_dir / "SKILL.md").write_text("""---
 name: updatable-skill
 description: Updated by ID
-version: "2.0"
+version: "2.0.0"
 ---
 
 # Updated Skill
