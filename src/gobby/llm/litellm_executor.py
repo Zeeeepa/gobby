@@ -4,17 +4,22 @@ LiteLLM implementation of AgentExecutor.
 Provides a unified interface to 100+ LLM providers using OpenAI-compatible
 function calling API. Supports models from OpenAI, Anthropic, Mistral,
 Cohere, and many others through a single interface.
+
+This executor is the unified path for all api_key and adc authentication modes
+across all providers (Claude, Gemini, Codex/OpenAI). Provider-specific executors
+are only used for subscription/cli modes that require special SDK integrations.
 """
 
 import asyncio
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 from gobby.llm.executor import (
     AgentExecutor,
     AgentResult,
+    CostInfo,
     ToolCallRecord,
     ToolHandler,
     ToolResult,
@@ -22,6 +27,93 @@ from gobby.llm.executor import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Provider type for routing
+ProviderType = Literal["claude", "gemini", "codex", "openai", "litellm"]
+AuthModeType = Literal["api_key", "adc"]
+
+
+def get_litellm_model(
+    model: str,
+    provider: ProviderType | None = None,
+    auth_mode: AuthModeType | None = None,
+) -> str:
+    """
+    Map provider/model/auth_mode to LiteLLM model string format.
+
+    LiteLLM uses prefixes to route to the correct provider:
+    - anthropic/model-name -> Anthropic API
+    - gemini/model-name -> Google AI Studio (API key)
+    - vertex_ai/model-name -> Google Vertex AI (ADC)
+    - No prefix -> OpenAI (default)
+
+    Args:
+        model: The model name (e.g., "claude-sonnet-4-5", "gemini-2.0-flash")
+        provider: The provider type (claude, gemini, codex, openai)
+        auth_mode: The authentication mode (api_key, adc)
+
+    Returns:
+        LiteLLM-formatted model string with appropriate prefix.
+
+    Examples:
+        >>> get_litellm_model("claude-sonnet-4-5", provider="claude")
+        "anthropic/claude-sonnet-4-5"
+        >>> get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="api_key")
+        "gemini/gemini-2.0-flash"
+        >>> get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="adc")
+        "vertex_ai/gemini-2.0-flash"
+        >>> get_litellm_model("gpt-4o", provider="codex")
+        "gpt-4o"
+    """
+    # If model already has a prefix, assume it's already formatted
+    if "/" in model:
+        return model
+
+    if provider == "claude":
+        return f"anthropic/{model}"
+    elif provider == "gemini":
+        if auth_mode == "adc":
+            # ADC uses Vertex AI endpoint
+            return f"vertex_ai/{model}"
+        # API key uses Gemini API endpoint
+        return f"gemini/{model}"
+    elif provider in ("codex", "openai"):
+        # OpenAI models don't need a prefix
+        return model
+    else:
+        # Default: return as-is (OpenAI-compatible or already prefixed)
+        return model
+
+
+def setup_provider_env(
+    provider: ProviderType | None = None,
+    auth_mode: AuthModeType | None = None,
+) -> None:
+    """
+    Set up environment variables needed for specific provider/auth_mode combinations.
+
+    For Gemini ADC mode via Vertex AI, this ensures VERTEXAI_PROJECT and
+    VERTEXAI_LOCATION are set from common Google Cloud environment variables.
+
+    Args:
+        provider: The provider type
+        auth_mode: The authentication mode
+    """
+    if provider == "gemini" and auth_mode == "adc":
+        # Vertex AI needs project and location
+        # Check if already set, otherwise try common GCP env vars
+        if "VERTEXAI_PROJECT" not in os.environ:
+            project = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get(
+                "GCLOUD_PROJECT"
+            )
+            if project:
+                os.environ["VERTEXAI_PROJECT"] = project
+                logger.debug(f"Set VERTEXAI_PROJECT from GCP env: {project}")
+
+        if "VERTEXAI_LOCATION" not in os.environ:
+            location = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+            os.environ["VERTEXAI_LOCATION"] = location
+            logger.debug(f"Set VERTEXAI_LOCATION: {location}")
 
 
 class LiteLLMExecutor(AgentExecutor):
@@ -31,6 +123,12 @@ class LiteLLMExecutor(AgentExecutor):
     Uses LiteLLM's unified API to access 100+ LLM providers with OpenAI-compatible
     function calling. Supports models from OpenAI, Anthropic, Mistral, Cohere, etc.
 
+    This is the unified executor for all api_key and adc authentication modes:
+    - Claude (api_key) -> anthropic/model-name
+    - Gemini (api_key) -> gemini/model-name
+    - Gemini (adc) -> vertex_ai/model-name
+    - Codex/OpenAI (api_key) -> model-name (no prefix)
+
     The executor implements a proper agentic loop:
     1. Send prompt to LLM with function/tool schemas
     2. When LLM requests a function call, call tool_handler
@@ -38,12 +136,17 @@ class LiteLLMExecutor(AgentExecutor):
     4. Repeat until LLM stops requesting functions or limits are reached
 
     Example:
-        >>> executor = LiteLLMExecutor(default_model="gpt-4o-mini")
+        >>> executor = LiteLLMExecutor(
+        ...     default_model="claude-sonnet-4-5",
+        ...     provider="claude",
+        ...     auth_mode="api_key",
+        ... )
         >>> result = await executor.run(
         ...     prompt="Create a task",
         ...     tools=[ToolSchema(name="create_task", ...)],
         ...     tool_handler=my_handler,
         ... )
+        >>> print(result.cost_info)  # Unified cost tracking
     """
 
     def __init__(
@@ -51,20 +154,28 @@ class LiteLLMExecutor(AgentExecutor):
         default_model: str = "gpt-4o-mini",
         api_base: str | None = None,
         api_keys: dict[str, str] | None = None,
+        provider: ProviderType | None = None,
+        auth_mode: AuthModeType | None = None,
     ):
         """
         Initialize LiteLLMExecutor.
 
         Args:
             default_model: Default model to use if not specified in run().
-                          Examples: "gpt-4o-mini", "claude-3-sonnet-20240229",
-                          "mistral/mistral-large-latest"
+                          Examples: "gpt-4o-mini", "claude-sonnet-4-5",
+                          "gemini-2.0-flash"
             api_base: Optional custom API base URL (e.g., OpenRouter endpoint).
             api_keys: Optional dict of API keys to set in environment.
                      Keys should be like "OPENAI_API_KEY", "ANTHROPIC_API_KEY", etc.
+            provider: Provider type for model routing (claude, gemini, codex, openai).
+                     Used to determine the correct LiteLLM model prefix.
+            auth_mode: Authentication mode (api_key, adc).
+                      Used for Gemini to choose between gemini/ and vertex_ai/ prefixes.
         """
         self.default_model = default_model
         self.api_base = api_base
+        self.provider = provider
+        self.auth_mode = auth_mode
         self.logger = logger
         self._litellm: Any = None
 
@@ -80,7 +191,12 @@ class LiteLLMExecutor(AgentExecutor):
                         os.environ[key] = value
                         self.logger.debug(f"Set {key} from config")
 
-            self.logger.debug("LiteLLM executor initialized")
+            # Set up provider-specific environment variables
+            setup_provider_env(provider, auth_mode)
+
+            self.logger.debug(
+                f"LiteLLM executor initialized (provider={provider}, auth_mode={auth_mode})"
+            )
 
         except ImportError as e:
             raise ImportError(
@@ -151,7 +267,13 @@ class LiteLLMExecutor(AgentExecutor):
             )
 
         tool_calls_records: list[ToolCallRecord] = []
-        effective_model = model or self.default_model
+        # Apply model routing based on provider/auth_mode
+        raw_model = model or self.default_model
+        effective_model = get_litellm_model(raw_model, self.provider, self.auth_mode)
+        self.logger.debug(f"Model routing: {raw_model} -> {effective_model}")
+
+        # Track cumulative costs across turns (outer scope for timeout handler)
+        cost_tracker = [CostInfo(model=effective_model)]
 
         # Track turns in outer scope so timeout handler can access the count
         turns_counter = [0]
@@ -197,6 +319,21 @@ class LiteLLMExecutor(AgentExecutor):
                     # Call LiteLLM
                     response = await litellm.acompletion(**completion_kwargs)
 
+                    # Track costs
+                    if hasattr(response, "usage") and response.usage:
+                        cost_tracker[0].prompt_tokens += response.usage.prompt_tokens or 0
+                        cost_tracker[0].completion_tokens += (
+                            response.usage.completion_tokens or 0
+                        )
+
+                    # Calculate cost using LiteLLM's cost tracking
+                    try:
+                        turn_cost = litellm.completion_cost(response)
+                        cost_tracker[0].total_cost += turn_cost
+                    except Exception:
+                        # Cost calculation may fail for some models
+                        pass
+
                 except Exception as e:
                     self.logger.error(f"LiteLLM API error: {e}")
                     return AgentResult(
@@ -205,6 +342,7 @@ class LiteLLMExecutor(AgentExecutor):
                         tool_calls=tool_calls_records,
                         error=f"LiteLLM API error: {e}",
                         turns_used=turns_used,
+                        cost_info=cost_tracker[0],
                     )
 
                 # Process response
@@ -222,6 +360,7 @@ class LiteLLMExecutor(AgentExecutor):
                         status="success",
                         tool_calls=tool_calls_records,
                         turns_used=turns_used,
+                        cost_info=cost_tracker[0],
                     )
 
                 # Add assistant message to history
@@ -288,6 +427,7 @@ class LiteLLMExecutor(AgentExecutor):
                 status="partial",
                 tool_calls=tool_calls_records,
                 turns_used=turns_used,
+                cost_info=cost_tracker[0],
             )
 
         # Run with timeout
@@ -300,4 +440,5 @@ class LiteLLMExecutor(AgentExecutor):
                 tool_calls=tool_calls_records,
                 error=f"Execution timed out after {timeout}s",
                 turns_used=turns_counter[0],
+                cost_info=cost_tracker[0],
             )

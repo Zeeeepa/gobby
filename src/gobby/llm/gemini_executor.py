@@ -1,14 +1,22 @@
 """
 Gemini implementation of AgentExecutor.
 
-Supports two authentication modes:
-- api_key: Use GEMINI_API_KEY environment variable or provided key
-- adc: Use Google Application Default Credentials (gcloud auth)
+DEPRECATED: This executor is deprecated in favor of LiteLLMExecutor.
+All Gemini calls (api_key and adc modes) are now routed through LiteLLMExecutor
+for unified cost tracking:
+- api_key mode -> gemini/model-name
+- adc mode -> vertex_ai/model-name
+
+Use resolver.create_executor(provider="gemini", config=...) which automatically
+routes to LiteLLMExecutor with the appropriate model prefix.
+
+This file is kept for backward compatibility but should not be used directly.
 """
 
 import asyncio
 import logging
 import os
+import warnings
 from typing import Any, Literal
 
 from gobby.llm.executor import (
@@ -28,25 +36,15 @@ GeminiAuthMode = Literal["api_key", "adc"]
 
 class GeminiExecutor(AgentExecutor):
     """
-    Gemini implementation of AgentExecutor.
+    DEPRECATED: Gemini implementation of AgentExecutor.
 
-    Supports two authentication modes:
-    - api_key: Uses GEMINI_API_KEY environment variable or provided key
-    - adc: Uses Google Application Default Credentials (run `gcloud auth application-default login`)
+    This executor is deprecated. All Gemini calls are now routed through
+    LiteLLMExecutor for unified cost tracking:
+    - api_key mode uses gemini/model-name prefix
+    - adc mode uses vertex_ai/model-name prefix
 
-    The executor implements a proper agentic loop:
-    1. Send prompt to Gemini with function declarations
-    2. When Gemini requests a function call, call tool_handler
-    3. Send function result back to Gemini
-    4. Repeat until Gemini stops requesting functions or limits are reached
-
-    Example:
-        >>> executor = GeminiExecutor(auth_mode="api_key", api_key="...")
-        >>> result = await executor.run(
-        ...     prompt="Create a task",
-        ...     tools=[ToolSchema(name="create_task", ...)],
-        ...     tool_handler=my_handler,
-        ... )
+    Use resolver.create_executor(provider="gemini", config=...) instead,
+    which automatically routes to LiteLLMExecutor.
     """
 
     def __init__(
@@ -56,13 +54,22 @@ class GeminiExecutor(AgentExecutor):
         default_model: str = "gemini-2.0-flash",
     ):
         """
-        Initialize GeminiExecutor.
+        DEPRECATED: Initialize GeminiExecutor.
+
+        This executor is deprecated. Use LiteLLMExecutor with provider="gemini" instead.
 
         Args:
             auth_mode: Authentication mode ("api_key" or "adc").
             api_key: Gemini API key (optional for api_key mode, uses GEMINI_API_KEY env var).
             default_model: Default model to use if not specified in run().
         """
+        warnings.warn(
+            "GeminiExecutor is deprecated. All Gemini calls now route through LiteLLMExecutor. "
+            "Use resolver.create_executor(provider='gemini', config=...) which routes to LiteLLM "
+            "with gemini/model (api_key) or vertex_ai/model (adc) prefixes.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.auth_mode = auth_mode
         self.default_model = default_model
         self.logger = logger

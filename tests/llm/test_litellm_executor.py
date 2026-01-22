@@ -13,9 +13,81 @@ def mock_litellm_module():
     """Mock the litellm module."""
     mock_litellm = MagicMock()
     mock_litellm.acompletion = AsyncMock()
+    mock_litellm.completion_cost = MagicMock(return_value=0.001)
 
     with patch.dict(sys.modules, {"litellm": mock_litellm}):
         yield mock_litellm
+
+
+class TestGetLitellmModel:
+    """Tests for get_litellm_model function."""
+
+    def test_claude_provider(self, mock_litellm_module):
+        """Test Claude provider gets anthropic prefix."""
+        from gobby.llm.litellm_executor import get_litellm_model
+
+        assert get_litellm_model("claude-sonnet-4-5", provider="claude") == "anthropic/claude-sonnet-4-5"
+        assert get_litellm_model("claude-haiku-4-5", provider="claude") == "anthropic/claude-haiku-4-5"
+
+    def test_gemini_api_key_mode(self, mock_litellm_module):
+        """Test Gemini with api_key gets gemini prefix."""
+        from gobby.llm.litellm_executor import get_litellm_model
+
+        result = get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="api_key")
+        assert result == "gemini/gemini-2.0-flash"
+
+    def test_gemini_adc_mode(self, mock_litellm_module):
+        """Test Gemini with adc gets vertex_ai prefix."""
+        from gobby.llm.litellm_executor import get_litellm_model
+
+        result = get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="adc")
+        assert result == "vertex_ai/gemini-2.0-flash"
+
+    def test_codex_provider(self, mock_litellm_module):
+        """Test Codex/OpenAI provider gets no prefix."""
+        from gobby.llm.litellm_executor import get_litellm_model
+
+        assert get_litellm_model("gpt-4o", provider="codex") == "gpt-4o"
+        assert get_litellm_model("gpt-4o-mini", provider="openai") == "gpt-4o-mini"
+
+    def test_already_prefixed_model(self, mock_litellm_module):
+        """Test models with existing prefix are returned as-is."""
+        from gobby.llm.litellm_executor import get_litellm_model
+
+        assert get_litellm_model("anthropic/claude-3", provider="claude") == "anthropic/claude-3"
+        assert get_litellm_model("gemini/gemini-pro", provider="gemini") == "gemini/gemini-pro"
+
+    def test_no_provider_returns_as_is(self, mock_litellm_module):
+        """Test no provider returns model as-is."""
+        from gobby.llm.litellm_executor import get_litellm_model
+
+        assert get_litellm_model("gpt-4o") == "gpt-4o"
+        assert get_litellm_model("custom-model", provider=None) == "custom-model"
+
+
+class TestSetupProviderEnv:
+    """Tests for setup_provider_env function."""
+
+    def test_gemini_adc_sets_vertex_env(self, mock_litellm_module):
+        """Test Gemini ADC mode sets VERTEXAI env vars from GCP env."""
+        from gobby.llm.litellm_executor import setup_provider_env
+
+        with patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "my-project"}, clear=True):
+            setup_provider_env("gemini", "adc")
+
+            import os
+            assert os.environ.get("VERTEXAI_PROJECT") == "my-project"
+            assert "VERTEXAI_LOCATION" in os.environ
+
+    def test_non_gemini_does_nothing(self, mock_litellm_module):
+        """Test non-Gemini providers don't modify env."""
+        from gobby.llm.litellm_executor import setup_provider_env
+
+        with patch.dict("os.environ", {}, clear=True):
+            setup_provider_env("claude", "api_key")
+
+            import os
+            assert "VERTEXAI_PROJECT" not in os.environ
 
 
 class TestLiteLLMExecutorInit:
@@ -61,6 +133,34 @@ class TestLiteLLMExecutorInit:
             assert executor._litellm is not None
             assert os.environ.get("OPENAI_API_KEY") == "sk-test"
             assert os.environ.get("ANTHROPIC_API_KEY") == "sk-ant"
+
+    def test_init_with_provider_and_auth_mode(self, mock_litellm_module):
+        """LiteLLMExecutor accepts provider and auth_mode parameters."""
+        from gobby.llm.litellm_executor import LiteLLMExecutor
+
+        executor = LiteLLMExecutor(
+            default_model="claude-sonnet-4-5",
+            provider="claude",
+            auth_mode="api_key",
+        )
+
+        assert executor.provider == "claude"
+        assert executor.auth_mode == "api_key"
+        assert executor.default_model == "claude-sonnet-4-5"
+
+    def test_init_gemini_adc_mode(self, mock_litellm_module):
+        """LiteLLMExecutor with Gemini ADC sets up env vars."""
+        with patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "test-project"}, clear=True):
+            from gobby.llm.litellm_executor import LiteLLMExecutor
+
+            executor = LiteLLMExecutor(
+                default_model="gemini-2.0-flash",
+                provider="gemini",
+                auth_mode="adc",
+            )
+
+            assert executor.provider == "gemini"
+            assert executor.auth_mode == "adc"
 
     def test_init_skips_existing_env_keys(self, mock_litellm_module):
         """LiteLLMExecutor doesn't override existing environment keys."""
@@ -115,7 +215,7 @@ class TestLiteLLMExecutorRun:
 
     async def test_run_returns_text_response(self, executor, mock_litellm_module, simple_tools):
         """run() returns text response when no tools are called."""
-        # Setup mock response
+        # Setup mock response with usage info
         mock_message = MagicMock()
         mock_message.content = "Hello, I'm an AI!"
         mock_message.tool_calls = None
@@ -123,10 +223,16 @@ class TestLiteLLMExecutorRun:
         mock_choice = MagicMock()
         mock_choice.message = mock_message
 
+        mock_usage = MagicMock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 5
+
         mock_response = MagicMock()
         mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
 
         mock_litellm_module.acompletion = AsyncMock(return_value=mock_response)
+        mock_litellm_module.completion_cost = MagicMock(return_value=0.001)
 
         async def dummy_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=True, result={"ok": True})
@@ -140,6 +246,96 @@ class TestLiteLLMExecutorRun:
         assert result.status == "success"
         assert result.output == "Hello, I'm an AI!"
         assert len(result.tool_calls) == 0
+        # Verify cost tracking
+        assert result.cost_info is not None
+        assert result.cost_info.prompt_tokens == 10
+        assert result.cost_info.completion_tokens == 5
+        assert result.cost_info.total_cost == 0.001
+
+    async def test_run_tracks_cost_across_turns(self, executor, mock_litellm_module, simple_tools):
+        """run() accumulates cost across multiple turns."""
+        # First response with function call
+        mock_tool_call = MagicMock()
+        mock_tool_call.id = "call-123"
+        mock_tool_call.function.name = "get_weather"
+        mock_tool_call.function.arguments = '{"location": "SF"}'
+
+        mock_message1 = MagicMock()
+        mock_message1.content = ""
+        mock_message1.tool_calls = [mock_tool_call]
+        mock_message1.model_dump = MagicMock(return_value={"role": "assistant"})
+
+        mock_usage1 = MagicMock()
+        mock_usage1.prompt_tokens = 100
+        mock_usage1.completion_tokens = 20
+
+        mock_response1 = MagicMock()
+        mock_response1.choices = [MagicMock(message=mock_message1)]
+        mock_response1.usage = mock_usage1
+
+        # Second response with text
+        mock_message2 = MagicMock()
+        mock_message2.content = "Done"
+        mock_message2.tool_calls = None
+
+        mock_usage2 = MagicMock()
+        mock_usage2.prompt_tokens = 150
+        mock_usage2.completion_tokens = 10
+
+        mock_response2 = MagicMock()
+        mock_response2.choices = [MagicMock(message=mock_message2)]
+        mock_response2.usage = mock_usage2
+
+        mock_litellm_module.acompletion = AsyncMock(side_effect=[mock_response1, mock_response2])
+        mock_litellm_module.completion_cost = MagicMock(side_effect=[0.002, 0.003])
+
+        async def dummy_handler(name: str, args: dict) -> ToolResult:
+            return ToolResult(tool_name=name, success=True, result={})
+
+        result = await executor.run(
+            prompt="Test",
+            tools=simple_tools,
+            tool_handler=dummy_handler,
+        )
+
+        # Cost should be accumulated across both turns
+        assert result.cost_info is not None
+        assert result.cost_info.prompt_tokens == 250  # 100 + 150
+        assert result.cost_info.completion_tokens == 30  # 20 + 10
+        assert result.cost_info.total_cost == 0.005  # 0.002 + 0.003
+
+    async def test_run_applies_model_routing(self, mock_litellm_module, simple_tools):
+        """run() applies model routing based on provider/auth_mode."""
+        from gobby.llm.litellm_executor import LiteLLMExecutor
+
+        executor = LiteLLMExecutor(
+            default_model="gemini-2.0-flash",
+            provider="gemini",
+            auth_mode="adc",
+        )
+
+        mock_message = MagicMock()
+        mock_message.content = "Response"
+        mock_message.tool_calls = None
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=mock_message)]
+        mock_response.usage = None
+
+        mock_litellm_module.acompletion = AsyncMock(return_value=mock_response)
+
+        async def dummy_handler(name: str, args: dict) -> ToolResult:
+            return ToolResult(tool_name=name, success=True, result={})
+
+        await executor.run(
+            prompt="Test",
+            tools=simple_tools,
+            tool_handler=dummy_handler,
+        )
+
+        # Verify model was routed to vertex_ai prefix for ADC mode
+        call_kwargs = mock_litellm_module.acompletion.call_args.kwargs
+        assert call_kwargs["model"] == "vertex_ai/gemini-2.0-flash"
 
     async def test_run_handles_function_call(self, executor, mock_litellm_module, simple_tools):
         """run() handles function calls and sends results back."""

@@ -60,6 +60,23 @@ class ToolCallRecord:
 
 
 @dataclass
+class CostInfo:
+    """Cost information from an LLM call."""
+
+    prompt_tokens: int = 0
+    """Number of tokens in the prompt."""
+
+    completion_tokens: int = 0
+    """Number of tokens in the completion."""
+
+    total_cost: float = 0.0
+    """Total cost in USD for this call."""
+
+    model: str = ""
+    """Model used for this call (LiteLLM format with prefix)."""
+
+
+@dataclass
 class AgentResult:
     """Result from running an agent to completion."""
 
@@ -92,6 +109,9 @@ class AgentResult:
 
     child_session_id: str | None = None
     """ID of the child session created for this agent (set by AgentRunner)."""
+
+    cost_info: CostInfo | None = None
+    """Cost tracking information (populated by LiteLLM executor)."""
 
 
 # Type alias for the tool handler callback

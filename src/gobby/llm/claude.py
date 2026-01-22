@@ -495,7 +495,7 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate a text description of an image using Claude's vision capabilities.
 
-        Uses the Anthropic API directly for vision support.
+        Uses LiteLLM for unified cost tracking with anthropic/claude-haiku-4-5 model.
 
         Args:
             image_path: Path to the image file to describe
@@ -507,8 +507,6 @@ class ClaudeLLMProvider(LLMProvider):
         import base64
         import mimetypes
         from pathlib import Path
-
-        import anthropic
 
         # Validate image exists
         path = Path(image_path)
@@ -534,45 +532,35 @@ class ClaudeLLMProvider(LLMProvider):
         if context:
             prompt = f"{context}\n\n{prompt}"
 
-        # Use Anthropic API for vision
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            return "Image description unavailable (ANTHROPIC_API_KEY not set)"
-
+        # Use LiteLLM for unified cost tracking
         try:
-            client = anthropic.AsyncAnthropic(api_key=api_key)
-            # Type annotation to satisfy mypy
-            image_block: anthropic.types.ImageBlockParam = {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": mime_type,  # type: ignore[typeddict-item]
-                    "data": image_base64,
-                },
-            }
-            text_block: anthropic.types.TextBlockParam = {
-                "type": "text",
-                "text": prompt,
-            }
-            message = await client.messages.create(
-                model="claude-haiku-4-5-latest",  # Use haiku for cost efficiency
-                max_tokens=1024,
+            import litellm
+
+            # Route through LiteLLM with anthropic prefix for cost tracking
+            response = await litellm.acompletion(
+                model="anthropic/claude-haiku-4-5-latest",  # Use haiku for cost efficiency
                 messages=[
                     {
                         "role": "user",
-                        "content": [image_block, text_block],
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_base64}"
+                                },
+                            },
+                        ],
                     }
                 ],
+                max_tokens=1024,
             )
 
-            # Extract text from response
-            result = ""
-            for block in message.content:
-                if hasattr(block, "text"):
-                    result += block.text
+            return response.choices[0].message.content or "No description generated"
 
-            return result if result else "No description generated"
-
+        except ImportError:
+            self.logger.error("LiteLLM not installed, falling back to unavailable")
+            return "Image description unavailable (LiteLLM not installed)"
         except Exception as e:
-            self.logger.error(f"Failed to describe image with Claude: {e}")
+            self.logger.error(f"Failed to describe image with Claude via LiteLLM: {e}")
             return f"Image description failed: {e}"

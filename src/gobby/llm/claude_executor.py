@@ -1,21 +1,19 @@
 """
-Claude implementation of AgentExecutor.
+Claude implementation of AgentExecutor for subscription mode only.
 
-Supports multiple auth modes:
-- api_key: Direct Anthropic API with API key
-- subscription: Claude Agent SDK with CLI (Pro/Team subscriptions)
+This executor uses the Claude Agent SDK with CLI for Pro/Team subscriptions.
+
+Note: api_key mode is now routed through LiteLLMExecutor for unified cost tracking.
+Use the resolver.create_executor() function which handles routing automatically.
 """
 
 import asyncio
 import concurrent.futures
 import json
 import logging
-import os
 import shutil
 from collections.abc import Callable
 from typing import Any, Literal
-
-import anthropic
 
 from gobby.llm.executor import (
     AgentExecutor,
@@ -28,26 +26,28 @@ from gobby.llm.executor import (
 
 logger = logging.getLogger(__name__)
 
-# Auth mode type
-ClaudeAuthMode = Literal["api_key", "subscription"]
+# Auth mode type - subscription only, api_key routes through LiteLLM
+ClaudeAuthMode = Literal["subscription"]
 
 
 class ClaudeExecutor(AgentExecutor):
     """
-    Claude implementation of AgentExecutor.
+    Claude implementation of AgentExecutor for subscription mode only.
 
-    Supports two authentication modes:
-    - api_key: Uses the Anthropic API directly with an API key
-    - subscription: Uses Claude Agent SDK with CLI for Pro/Team subscriptions
+    Uses Claude Agent SDK with CLI for Pro/Team subscriptions. This executor
+    is for subscription-based authentication only.
+
+    For api_key mode, use LiteLLMExecutor with provider="claude" which routes
+    through anthropic/model-name for unified cost tracking.
 
     The executor implements a proper agentic loop:
-    1. Send prompt to Claude with tool schemas
+    1. Send prompt to Claude with tool schemas via SDK
     2. When Claude requests a tool, call tool_handler
     3. Send tool result back to Claude
     4. Repeat until Claude stops requesting tools or limits are reached
 
     Example:
-        >>> executor = ClaudeExecutor(auth_mode="api_key", api_key="sk-ant-...")
+        >>> executor = ClaudeExecutor(auth_mode="subscription")
         >>> result = await executor.run(
         ...     prompt="Create a task",
         ...     tools=[ToolSchema(name="create_task", ...)],
@@ -55,70 +55,46 @@ class ClaudeExecutor(AgentExecutor):
         ... )
     """
 
-    _client: anthropic.AsyncAnthropic | None
     _cli_path: str
 
     def __init__(
         self,
-        auth_mode: ClaudeAuthMode = "api_key",
-        api_key: str | None = None,
+        auth_mode: ClaudeAuthMode = "subscription",
         default_model: str = "claude-sonnet-4-20250514",
     ):
         """
-        Initialize ClaudeExecutor.
+        Initialize ClaudeExecutor for subscription mode.
 
         Args:
-            auth_mode: Authentication mode ("api_key" or "subscription").
-            api_key: Anthropic API key (required for api_key mode).
+            auth_mode: Must be "subscription". API key mode is handled by LiteLLMExecutor.
             default_model: Default model to use if not specified in run().
+
+        Raises:
+            ValueError: If auth_mode is not "subscription" or Claude CLI not found.
         """
+        if auth_mode != "subscription":
+            raise ValueError(
+                "ClaudeExecutor only supports subscription mode. "
+                "For api_key mode, use LiteLLMExecutor with provider='claude'."
+            )
+
         self.auth_mode = auth_mode
         self.default_model = default_model
         self.logger = logger
-        self._client = None
         self._cli_path = ""
 
-        if auth_mode == "api_key":
-            # Use provided key or fall back to environment variable
-            key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-            if not key:
-                raise ValueError(
-                    "API key required for api_key mode. "
-                    "Provide api_key parameter or set ANTHROPIC_API_KEY env var."
-                )
-            self._client = anthropic.AsyncAnthropic(api_key=key)
-        elif auth_mode == "subscription":
-            # Verify Claude CLI is available for subscription mode
-            cli_path = shutil.which("claude")
-            if not cli_path:
-                raise ValueError(
-                    "Claude CLI not found in PATH. Install Claude Code for subscription mode."
-                )
-            self._cli_path = cli_path
-        else:
-            raise ValueError(f"Unknown auth_mode: {auth_mode}")
+        # Verify Claude CLI is available for subscription mode
+        cli_path = shutil.which("claude")
+        if not cli_path:
+            raise ValueError(
+                "Claude CLI not found in PATH. Install Claude Code for subscription mode."
+            )
+        self._cli_path = cli_path
 
     @property
     def provider_name(self) -> str:
         """Return the provider name."""
         return "claude"
-
-    def _convert_tools_to_anthropic_format(
-        self, tools: list[ToolSchema]
-    ) -> list[anthropic.types.ToolParam]:
-        """Convert ToolSchema list to Anthropic API format."""
-        anthropic_tools: list[anthropic.types.ToolParam] = []
-        for tool in tools:
-            # input_schema must have "type": "object" at minimum
-            input_schema: dict[str, Any] = {"type": "object", **tool.input_schema}
-            anthropic_tools.append(
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "input_schema": input_schema,
-                }
-            )
-        return anthropic_tools
 
     async def run(
         self,
@@ -131,10 +107,10 @@ class ClaudeExecutor(AgentExecutor):
         timeout: float = 120.0,
     ) -> AgentResult:
         """
-        Execute an agentic loop with tool calling.
+        Execute an agentic loop with tool calling via Claude Agent SDK.
 
-        Runs Claude with the given prompt, calling tools via tool_handler
-        until completion, max_turns, or timeout.
+        Runs Claude with the given prompt using subscription-based authentication,
+        calling tools via tool_handler until completion, max_turns, or timeout.
 
         Args:
             prompt: The user prompt to process.
@@ -148,201 +124,15 @@ class ClaudeExecutor(AgentExecutor):
         Returns:
             AgentResult with output, status, and tool call records.
         """
-        if self.auth_mode == "api_key":
-            return await self._run_with_api(
-                prompt=prompt,
-                tools=tools,
-                tool_handler=tool_handler,
-                system_prompt=system_prompt,
-                model=model or self.default_model,
-                max_turns=max_turns,
-                timeout=timeout,
-            )
-        else:
-            return await self._run_with_sdk(
-                prompt=prompt,
-                tools=tools,
-                tool_handler=tool_handler,
-                system_prompt=system_prompt,
-                model=model or self.default_model,
-                max_turns=max_turns,
-                timeout=timeout,
-            )
-
-    async def _run_with_api(
-        self,
-        prompt: str,
-        tools: list[ToolSchema],
-        tool_handler: ToolHandler,
-        system_prompt: str | None,
-        model: str,
-        max_turns: int,
-        timeout: float,
-    ) -> AgentResult:
-        """Run using direct Anthropic API."""
-        if self._client is None:
-            return AgentResult(
-                output="",
-                status="error",
-                error="Anthropic client not initialized",
-                turns_used=0,
-            )
-
-        tool_calls: list[ToolCallRecord] = []
-        anthropic_tools = self._convert_tools_to_anthropic_format(tools)
-
-        # Build initial messages
-        messages: list[anthropic.types.MessageParam] = [{"role": "user", "content": prompt}]
-
-        # Track turns in outer scope so timeout handler can access the count
-        turns_counter = [0]
-
-        async def _run_loop() -> AgentResult:
-            nonlocal messages
-            turns_used = 0
-            final_output = ""
-            client = self._client
-            if client is None:
-                raise RuntimeError("ClaudeExecutor client not initialized")
-
-            while turns_used < max_turns:
-                turns_used += 1
-                turns_counter[0] = turns_used
-
-                # Call Claude
-                try:
-                    response = await client.messages.create(
-                        model=model,
-                        max_tokens=8192,
-                        system=system_prompt or "You are a helpful assistant.",
-                        messages=messages,
-                        tools=anthropic_tools if anthropic_tools else [],
-                    )
-                except anthropic.APIError as e:
-                    return AgentResult(
-                        output="",
-                        status="error",
-                        tool_calls=tool_calls,
-                        error=f"Anthropic API error: {e}",
-                        turns_used=turns_used,
-                    )
-
-                # Process response
-                assistant_content: list[anthropic.types.ContentBlockParam] = []
-                tool_use_blocks: list[dict[str, Any]] = []
-
-                for block in response.content:
-                    if block.type == "text":
-                        final_output = block.text
-                        assistant_content.append({"type": "text", "text": block.text})
-                    elif block.type == "tool_use":
-                        tool_use_blocks.append(
-                            {
-                                "id": block.id,
-                                "name": block.name,
-                                "input": block.input,
-                            }
-                        )
-                        assistant_content.append(
-                            {
-                                "type": "tool_use",
-                                "id": block.id,
-                                "name": block.name,
-                                "input": dict(block.input) if block.input else {},
-                            }
-                        )
-
-                # Add assistant message to history
-                messages.append({"role": "assistant", "content": assistant_content})
-
-                # If no tool use, we're done
-                if not tool_use_blocks:
-                    return AgentResult(
-                        output=final_output,
-                        status="success",
-                        tool_calls=tool_calls,
-                        turns_used=turns_used,
-                    )
-
-                # Handle tool calls
-                tool_results: list[anthropic.types.ToolResultBlockParam] = []
-
-                for tool_use in tool_use_blocks:
-                    tool_name = tool_use["name"]
-                    arguments = tool_use["input"] if isinstance(tool_use["input"], dict) else {}
-
-                    # Record the tool call
-                    record = ToolCallRecord(
-                        tool_name=tool_name,
-                        arguments=arguments,
-                    )
-                    tool_calls.append(record)
-
-                    # Execute via handler
-                    try:
-                        result = await tool_handler(tool_name, arguments)
-                        record.result = result
-
-                        # Format result for Claude
-                        if result.success:
-                            content = json.dumps(result.result) if result.result else "Success"
-                        else:
-                            content = f"Error: {result.error}"
-
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use["id"],
-                                "content": content,
-                            }
-                        )
-                    except Exception as e:
-                        self.logger.error(f"Tool handler error for {tool_name}: {e}")
-                        record.result = ToolResult(
-                            tool_name=tool_name,
-                            success=False,
-                            error=str(e),
-                        )
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use["id"],
-                                "content": f"Error: {e}",
-                                "is_error": True,
-                            }
-                        )
-
-                # Add tool results to messages
-                messages.append({"role": "user", "content": tool_results})
-
-                # Check stop reason
-                if response.stop_reason == "end_turn":
-                    return AgentResult(
-                        output=final_output,
-                        status="success",
-                        tool_calls=tool_calls,
-                        turns_used=turns_used,
-                    )
-
-            # Max turns reached
-            return AgentResult(
-                output=final_output,
-                status="partial",
-                tool_calls=tool_calls,
-                turns_used=turns_used,
-            )
-
-        # Run with timeout
-        try:
-            return await asyncio.wait_for(_run_loop(), timeout=timeout)
-        except TimeoutError:
-            return AgentResult(
-                output="",
-                status="timeout",
-                tool_calls=tool_calls,
-                error=f"Execution timed out after {timeout}s",
-                turns_used=turns_counter[0],
-            )
+        return await self._run_with_sdk(
+            prompt=prompt,
+            tools=tools,
+            tool_handler=tool_handler,
+            system_prompt=system_prompt,
+            model=model or self.default_model,
+            max_turns=max_turns,
+            timeout=timeout,
+        )
 
     async def _run_with_sdk(
         self,

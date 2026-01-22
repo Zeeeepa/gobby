@@ -1,29 +1,31 @@
 """
-Gemini implementation of LLMProvider.
+Gemini implementation of LLMProvider using LiteLLM.
 
-Supports two authentication modes:
-- api_key: Use GEMINI_API_KEY environment variable (BYOK)
-- adc: Use Google Application Default Credentials (subscription-based via gcloud auth)
+Routes all calls through LiteLLM for unified cost tracking:
+- api_key mode: Uses gemini/model-name prefix
+- adc mode: Uses vertex_ai/model-name prefix (requires VERTEXAI_PROJECT, VERTEXAI_LOCATION)
+
+This provider replaces direct google-generativeai SDK usage with LiteLLM routing.
 """
 
 import json
 import logging
-import os
 from typing import Any, Literal
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import AuthMode, LLMProvider
+from gobby.llm.litellm_executor import get_litellm_model, setup_provider_env
 
 logger = logging.getLogger(__name__)
 
 
 class GeminiProvider(LLMProvider):
     """
-    Gemini implementation of LLMProvider using google-generativeai package.
+    Gemini implementation of LLMProvider using LiteLLM for unified cost tracking.
 
-    Supports two authentication modes:
-    - api_key: Use GEMINI_API_KEY environment variable (BYOK)
-    - adc: Use Google Application Default Credentials (run `gcloud auth application-default login`)
+    All calls are routed through LiteLLM:
+    - api_key mode: Uses gemini/model-name prefix (requires GEMINI_API_KEY)
+    - adc mode: Uses vertex_ai/model-name prefix (requires VERTEXAI_PROJECT, VERTEXAI_LOCATION)
     """
 
     def __init__(
@@ -32,7 +34,7 @@ class GeminiProvider(LLMProvider):
         auth_mode: Literal["api_key", "adc"] | None = None,
     ):
         """
-        Initialize GeminiProvider.
+        Initialize GeminiProvider with LiteLLM routing.
 
         Args:
             config: Client configuration.
@@ -41,8 +43,7 @@ class GeminiProvider(LLMProvider):
         """
         self.config = config
         self.logger = logger
-        self.model_summary = None
-        self.model_title = None
+        self._litellm = None
 
         # Determine auth mode from config or parameter
         self._auth_mode: AuthMode = "api_key"  # Default
@@ -51,53 +52,23 @@ class GeminiProvider(LLMProvider):
         elif config.llm_providers and config.llm_providers.gemini:
             self._auth_mode = config.llm_providers.gemini.auth_mode
 
+        # Set up environment for provider/auth_mode
+        setup_provider_env("gemini", self._auth_mode)  # type: ignore[arg-type]
+
         try:
-            import google.generativeai as genai
+            import litellm
 
-            # Initialize based on auth mode
-            if self._auth_mode == "adc":
-                # Use Application Default Credentials
-                # User must run: gcloud auth application-default login
-                try:
-                    import google.auth
-
-                    credentials, project = google.auth.default()
-                    genai.configure(credentials=credentials)
-                    self.genai = genai
-                    self.logger.debug("Gemini initialized with ADC credentials")
-                except Exception as e:
-                    self.logger.error(
-                        f"Failed to initialize Gemini with ADC: {e}. "
-                        "Run 'gcloud auth application-default login' to authenticate."
-                    )
-                    self.genai = None
-            else:
-                # Use API key from environment
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if api_key:
-                    genai.configure(api_key=api_key)
-                    self.genai = genai
-                    self.logger.debug("Gemini initialized with API key")
-                else:
-                    self.logger.warning("GEMINI_API_KEY not found in environment variables.")
-                    self.genai = None
-
-            # Initialize models if genai is configured
-            if self.genai:
-                summary_model_name = self.config.session_summary.model or "gemini-1.5-pro"
-                title_model_name = self.config.title_synthesis.model or "gemini-1.5-flash"
-
-                self.model_summary = genai.GenerativeModel(summary_model_name)
-                self.model_title = genai.GenerativeModel(title_model_name)
+            self._litellm = litellm
+            self.logger.debug(f"GeminiProvider initialized with LiteLLM (auth_mode={self._auth_mode})")
 
         except ImportError:
             self.logger.error(
-                "google-generativeai package not found. Please install with `pip install google-generativeai`."
+                "litellm package not found. Please install with `pip install litellm`."
             )
-            self.genai = None
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Gemini client: {e}")
-            self.genai = None
+
+    def _get_model(self, base_model: str) -> str:
+        """Get the LiteLLM-formatted model name with appropriate prefix."""
+        return get_litellm_model(base_model, "gemini", self._auth_mode)  # type: ignore[arg-type]
 
     @property
     def provider_name(self) -> str:
@@ -113,10 +84,10 @@ class GeminiProvider(LLMProvider):
         self, context: dict[str, Any], prompt_template: str | None = None
     ) -> str:
         """
-        Generate session summary using Gemini.
+        Generate session summary using Gemini via LiteLLM.
         """
-        if not self.genai or not self.model_summary:
-            return "Session summary unavailable (Gemini client not initialized)"
+        if not self._litellm:
+            return "Session summary unavailable (LiteLLM not initialized)"
 
         # Build formatted context for prompt template
         formatted_context = {
@@ -140,20 +111,32 @@ class GeminiProvider(LLMProvider):
         prompt = prompt_template.format(**formatted_context)
 
         try:
-            # Gemini async generation
-            response = await self.model_summary.generate_content_async(prompt)
-            return response.text or ""
+            model_name = self.config.session_summary.model or "gemini-1.5-pro"
+            litellm_model = self._get_model(model_name)
+
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a session summary generator. Create comprehensive, actionable summaries.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=4000,
+            )
+            return response.choices[0].message.content or ""
         except Exception as e:
-            self.logger.error(f"Failed to generate summary with Gemini: {e}")
+            self.logger.error(f"Failed to generate summary with Gemini via LiteLLM: {e}")
             return f"Session summary generation failed: {e}"
 
     async def synthesize_title(
         self, user_prompt: str, prompt_template: str | None = None
     ) -> str | None:
         """
-        Synthesize session title using Gemini.
+        Synthesize session title using Gemini via LiteLLM.
         """
-        if not self.genai or not self.model_title:
+        if not self._litellm:
             return None
 
         # Build prompt - prompt_template is required
@@ -165,10 +148,23 @@ class GeminiProvider(LLMProvider):
         prompt = prompt_template.format(user_prompt=user_prompt)
 
         try:
-            response = await self.model_title.generate_content_async(prompt)
-            return (response.text or "").strip()
+            model_name = self.config.title_synthesis.model or "gemini-1.5-flash"
+            litellm_model = self._get_model(model_name)
+
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a session title generator. Create concise, descriptive titles.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=50,
+            )
+            return (response.choices[0].message.content or "").strip()
         except Exception as e:
-            self.logger.error(f"Failed to synthesize title with Gemini: {e}")
+            self.logger.error(f"Failed to synthesize title with Gemini via LiteLLM: {e}")
             return None
 
     async def generate_text(
@@ -178,28 +174,29 @@ class GeminiProvider(LLMProvider):
         model: str | None = None,
     ) -> str:
         """
-        Generate text using Gemini.
+        Generate text using Gemini via LiteLLM.
         """
-        if not self.genai:
-            return "Generation unavailable (Gemini client not initialized)"
+        if not self._litellm:
+            return "Generation unavailable (LiteLLM not initialized)"
 
         model_name = model or "gemini-1.5-flash"
+        litellm_model = self._get_model(model_name)
 
         try:
-            # Note: Gemini system prompts are configured at model creation,
-            # but simple generation usually just includes it in the prompt or uses default.
-            # For simplicity we'll just generate content.
-            model_instance = self.genai.GenerativeModel(model_name)
-
-            full_prompt = prompt
-            if system_prompt:
-                # Prepend system prompt if provided
-                full_prompt = f"{system_prompt}\n\n{prompt}"
-
-            response = await model_instance.generate_content_async(full_prompt)
-            return response.text or ""
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt or "You are a helpful assistant.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=4000,
+            )
+            return response.choices[0].message.content or ""
         except Exception as e:
-            self.logger.error(f"Failed to generate text with Gemini: {e}")
+            self.logger.error(f"Failed to generate text with Gemini via LiteLLM: {e}")
             return f"Generation failed: {e}"
 
     async def describe_image(
@@ -208,9 +205,7 @@ class GeminiProvider(LLMProvider):
         context: str | None = None,
     ) -> str:
         """
-        Generate a text description of an image using Gemini's vision capabilities.
-
-        Uses Gemini 1.5 Flash for efficient image description.
+        Generate a text description of an image using Gemini's vision via LiteLLM.
 
         Args:
             image_path: Path to the image file
@@ -219,40 +214,59 @@ class GeminiProvider(LLMProvider):
         Returns:
             Text description of the image
         """
+        import base64
+        import mimetypes
         from pathlib import Path
 
-        if not self.genai:
-            return "Image description unavailable (Gemini client not initialized)"
+        if not self._litellm:
+            return "Image description unavailable (LiteLLM not initialized)"
 
         path = Path(image_path)
         if not path.exists():
             return f"Image not found: {image_path}"
 
         try:
-            # Use PIL to load the image - Gemini accepts PIL images directly
-            from PIL import Image
+            # Read and encode image
+            image_data = path.read_bytes()
+            image_base64 = base64.standard_b64encode(image_data).decode("utf-8")
 
-            # Use context manager to ensure image file handle is properly closed
-            with Image.open(path) as image:
-                # Build prompt
-                prompt = (
-                    "Please describe this image in detail, focusing on key visual elements, "
-                    "any text visible, and the overall context or meaning."
-                )
-                if context:
-                    prompt = f"{context}\n\n{prompt}"
+            # Determine media type
+            mime_type, _ = mimetypes.guess_type(str(path))
+            if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+                mime_type = "image/png"
 
-                # Use gemini-1.5-flash for efficient vision tasks
-                model = self.genai.GenerativeModel("gemini-1.5-flash")
+            # Build prompt
+            prompt = (
+                "Please describe this image in detail, focusing on key visual elements, "
+                "any text visible, and the overall context or meaning."
+            )
+            if context:
+                prompt = f"{context}\n\n{prompt}"
 
-                # Generate content with image and prompt
-                response = await model.generate_content_async([prompt, image])
+            # Use gemini-1.5-flash via LiteLLM for efficient vision tasks
+            litellm_model = self._get_model("gemini-1.5-flash")
 
-                return response.text or "No description generated"
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_base64}"
+                                },
+                            },
+                        ],
+                    }
+                ],
+                max_tokens=1000,
+            )
 
-        except ImportError:
-            self.logger.error("PIL/Pillow not installed. Required for image description.")
-            return "Image description unavailable (PIL not installed)"
+            return response.choices[0].message.content or "No description generated"
+
         except Exception as e:
-            self.logger.error(f"Failed to describe image with Gemini: {e}")
+            self.logger.error(f"Failed to describe image with Gemini via LiteLLM: {e}")
             return f"Image description failed: {e}"
