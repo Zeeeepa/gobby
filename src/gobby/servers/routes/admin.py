@@ -592,4 +592,77 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
 
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    class TestSessionUsageRequest(BaseModel):
+        """Request body for setting test session usage."""
+
+        session_id: str
+        input_tokens: int = 0
+        output_tokens: int = 0
+        cache_creation_tokens: int = 0
+        cache_read_tokens: int = 0
+        total_cost_usd: float = 0.0
+
+    @router.post("/test/set-session-usage")
+    async def set_test_session_usage(request: TestSessionUsageRequest) -> dict[str, Any]:
+        """
+        Set usage statistics for a test session.
+
+        This endpoint is for E2E testing of token budget throttling.
+        It allows tests to set session usage values to simulate
+        budget consumption.
+
+        Args:
+            request: Session usage details
+
+        Returns:
+            Update confirmation
+        """
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            if server.session_manager is None:
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=503, detail="Session manager not available")
+
+            success = server.session_manager.update_usage(
+                session_id=request.session_id,
+                input_tokens=request.input_tokens,
+                output_tokens=request.output_tokens,
+                cache_creation_tokens=request.cache_creation_tokens,
+                cache_read_tokens=request.cache_read_tokens,
+                total_cost_usd=request.total_cost_usd,
+            )
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            if success:
+                return {
+                    "status": "success",
+                    "session_id": request.session_id,
+                    "usage_set": {
+                        "input_tokens": request.input_tokens,
+                        "output_tokens": request.output_tokens,
+                        "cache_creation_tokens": request.cache_creation_tokens,
+                        "cache_read_tokens": request.cache_read_tokens,
+                        "total_cost_usd": request.total_cost_usd,
+                    },
+                    "response_time_ms": response_time_ms,
+                }
+            else:
+                return {
+                    "status": "not_found",
+                    "message": f"Session {request.session_id} not found",
+                    "response_time_ms": response_time_ms,
+                }
+
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error setting test session usage: {e}", exc_info=True)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     return router

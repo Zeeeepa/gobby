@@ -260,6 +260,12 @@ gobby_tasks:
     enabled: false
   validation:
     enabled: false
+
+conductor:
+  daily_budget_usd: 1.0
+  warning_threshold: 0.8
+  throttle_threshold: 0.9
+  tracking_window_days: 7
 """
 
     config_path.write_text(config_content)
@@ -527,6 +533,32 @@ class CLIEventSimulator:
             payload["repo_path"] = repo_path
 
         response = self.client.post("/admin/test/register-project", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def set_session_usage(
+        self,
+        session_id: str,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
+        total_cost_usd: float = 0.0,
+    ) -> dict[str, Any]:
+        """Set usage statistics for a test session.
+
+        This is for E2E testing of token budget throttling.
+        """
+        payload = {
+            "session_id": session_id,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cache_creation_tokens": cache_creation_tokens,
+            "cache_read_tokens": cache_read_tokens,
+            "total_cost_usd": total_cost_usd,
+        }
+
+        response = self.client.post("/admin/test/set-session-usage", json=payload)
         response.raise_for_status()
         return response.json()
 

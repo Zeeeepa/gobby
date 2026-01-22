@@ -151,11 +151,20 @@ def setup_internal_registries(
     if metrics_manager is not None:
         from gobby.mcp_proxy.tools.metrics import create_metrics_registry
 
+        # Get daily budget from conductor config if available
+        daily_budget_usd = 50.0  # Default
+        if _config is not None:
+            conductor_config = _config.conductor
+            if conductor_config is not None:
+                daily_budget_usd = conductor_config.daily_budget_usd
+
         metrics_registry = create_metrics_registry(
             metrics_manager=metrics_manager,
+            session_storage=local_session_manager,
+            daily_budget_usd=daily_budget_usd,
         )
         manager.add_registry(metrics_registry)
-        logger.debug("Metrics registry initialized")
+        logger.debug("Metrics registry initialized with token tracking")
 
     # Initialize agents registry if agent_runner is available
     if agent_runner is not None:
