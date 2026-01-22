@@ -301,17 +301,17 @@ def create_executor(
 
         elif provider == "codex" and auth_mode in ("subscription", "cli"):
             # CLI mode requires Codex CLI subprocess
-            return _create_codex_executor(provider_config, model)
+            return _create_codex_executor(provider_config, model, auth_mode)
+
+        elif provider == "litellm":
+            # Direct LiteLLM usage
+            return _create_litellm_executor(provider_config, config, model)
 
         elif auth_mode in ("api_key", "adc"):
             # Route all api_key and adc modes through LiteLLM for unified cost tracking
             return _create_litellm_executor_for_provider(
                 provider, auth_mode, provider_config, config, model
             )
-
-        elif provider == "litellm":
-            # Direct LiteLLM usage
-            return _create_litellm_executor(provider_config, config, model)
 
         else:
             raise ExecutorCreationError(
@@ -488,6 +488,7 @@ def _create_litellm_executor_for_provider(
 def _create_codex_executor(
     provider_config: "LLMProviderConfig | None",
     model: str | None,
+    auth_mode: str = "subscription",
 ) -> AgentExecutor:
     """
     Create CodexExecutor for subscription/CLI mode only.
@@ -496,6 +497,11 @@ def _create_codex_executor(
     This function should only be called when auth_mode is "subscription" or "cli".
 
     CLI mode uses Codex CLI subprocess - no custom tool injection supported.
+
+    Args:
+        provider_config: Provider configuration.
+        model: Optional model override.
+        auth_mode: Authentication mode - "subscription" or "cli".
     """
     from gobby.llm.codex_executor import CodexExecutor
 
@@ -510,7 +516,7 @@ def _create_codex_executor(
                 default_model = models[0]
 
     return CodexExecutor(
-        auth_mode="subscription",  # subscription mode uses CLI
+        auth_mode=auth_mode,  # type: ignore[arg-type]
         default_model=model or default_model,
     )
 

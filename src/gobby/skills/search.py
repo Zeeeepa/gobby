@@ -484,6 +484,9 @@ class SkillSearch:
         This tracks the update but doesn't immediately reindex.
         Call index_skills() when needs_reindex() returns True.
 
+        For hybrid mode, embeddings are invalidated and will be regenerated
+        on the next call to index_skills_async().
+
         Args:
             skill: The skill that was added
         """
@@ -494,9 +497,17 @@ class SkillSearch:
             category=skill.get_category(),
             tags=skill.get_tags(),
         )
+        # Invalidate embeddings for hybrid mode - new skill needs embedding
+        if self._mode == "hybrid":
+            self._embeddings_indexed = False
+            # Store content for later embedding generation
+            self._skill_content[skill.id] = self._build_search_content(skill)
 
     def update_skill(self, skill: Skill) -> None:
         """Mark that a skill was updated (requires reindex).
+
+        For hybrid mode, embeddings are invalidated and will be regenerated
+        on the next call to index_skills_async().
 
         Args:
             skill: The skill that was updated
@@ -508,6 +519,12 @@ class SkillSearch:
             category=skill.get_category(),
             tags=skill.get_tags(),
         )
+        # Invalidate embeddings for hybrid mode - updated skill needs new embedding
+        if self._mode == "hybrid":
+            self._embeddings_indexed = False
+            # Remove stale embedding and update content for later regeneration
+            self._skill_embeddings.pop(skill.id, None)
+            self._skill_content[skill.id] = self._build_search_content(skill)
 
     def remove_skill(self, skill_id: str) -> None:
         """Mark that a skill was removed (requires reindex).

@@ -321,10 +321,10 @@ class TestCreateExecutor:
     def test_create_litellm_executor(self):
         """Test creating a LiteLLM executor.
 
-        Note: With the unified routing, litellm provider with api_key mode routes
-        through _create_litellm_executor_for_provider (same as all other api_key modes).
+        Direct litellm provider usage routes through _create_litellm_executor
+        (not _create_litellm_executor_for_provider).
         """
-        with patch("gobby.llm.resolver._create_litellm_executor_for_provider") as mock_create:
+        with patch("gobby.llm.resolver._create_litellm_executor") as mock_create:
             mock_executor = MagicMock()
             mock_executor.provider_name = "litellm"
             mock_create.return_value = mock_executor
@@ -333,9 +333,6 @@ class TestCreateExecutor:
 
             assert executor.provider_name == "litellm"
             mock_create.assert_called_once()
-            # Verify it was called with provider="litellm"
-            call_args = mock_create.call_args
-            assert call_args[0][0] == "litellm"
 
     def test_unknown_provider_routes_to_litellm(self):
         """Test that unknown provider routes to LiteLLM for api_key mode."""

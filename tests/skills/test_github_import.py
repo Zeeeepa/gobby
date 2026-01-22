@@ -136,7 +136,8 @@ class TestGitHubRef:
 
         ref = parse_github_url("anthropics/claude-code")
 
-        assert "HEAD" in ref.cache_key or ref.cache_key.endswith("claude-code")
+        # Cache key format is {owner}/{repo}/{branch} with "HEAD" as default branch
+        assert ref.cache_key == "anthropics/claude-code/HEAD"
 
 
 class TestCloneSkillRepo:

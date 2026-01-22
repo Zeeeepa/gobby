@@ -594,7 +594,11 @@ def meta_unset(ctx: click.Context, name: str, key: str) -> None:
         return
 
     new_metadata = _unset_nested_value(skill.metadata, key)
-    storage.update_skill(skill.id, metadata=new_metadata)
+    try:
+        storage.update_skill(skill.id, metadata=new_metadata)
+    except Exception as e:
+        click.echo(f"Error updating skill metadata: {e}", err=True)
+        sys.exit(1)
     click.echo(f"Unset {key}")
 
 
