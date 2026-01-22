@@ -1,0 +1,455 @@
+"""Tests for gobby.clones.git module.
+
+Tests for CloneGitManager with shallow_clone, sync_clone, delete_clone methods.
+Uses mock subprocess calls to test git command execution.
+"""
+
+import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+class TestCloneGitManagerInit:
+    """Tests for CloneGitManager initialization."""
+
+    def test_init_stores_repo_path(self, tmp_path: Path):
+        """Manager stores repository path."""
+        from gobby.clones.git import CloneGitManager
+
+        manager = CloneGitManager(repo_path=tmp_path)
+
+        assert manager.repo_path == tmp_path
+
+    def test_init_accepts_string_path(self, tmp_path: Path):
+        """Manager accepts string path."""
+        from gobby.clones.git import CloneGitManager
+
+        manager = CloneGitManager(repo_path=str(tmp_path))
+
+        assert manager.repo_path == tmp_path
+
+    def test_init_raises_for_nonexistent_path(self):
+        """Manager raises ValueError for nonexistent path."""
+        from gobby.clones.git import CloneGitManager
+
+        with pytest.raises(ValueError, match="does not exist"):
+            CloneGitManager(repo_path="/nonexistent/path")
+
+
+class TestCloneGitManagerShallowClone:
+    """Tests for CloneGitManager.shallow_clone method."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path):
+        """Create manager with temp directory as repo path."""
+        from gobby.clones.git import CloneGitManager
+
+        return CloneGitManager(repo_path=tmp_path)
+
+    @pytest.fixture
+    def mock_run(self):
+        """Mock subprocess.run."""
+        with patch("subprocess.run") as mock:
+            yield mock
+
+    def test_shallow_clone_success(self, manager, mock_run, tmp_path: Path):
+        """Shallow clone creates clone with depth 1."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Cloning into 'clone'...", stderr=""
+        )
+        clone_path = tmp_path / "test_clone"
+
+        result = manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="main",
+        )
+
+        assert result.success is True
+        assert "created" in result.message.lower() or "cloned" in result.message.lower()
+        # Verify git clone was called with --depth 1
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "clone" in cmd
+        assert "--depth" in cmd
+        assert "1" in cmd
+
+    def test_shallow_clone_with_custom_depth(self, manager, mock_run, tmp_path: Path):
+        """Shallow clone respects custom depth parameter."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Cloning into 'clone'...", stderr=""
+        )
+        clone_path = tmp_path / "test_clone"
+
+        manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="main",
+            depth=10,
+        )
+
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "--depth" in cmd
+        depth_idx = cmd.index("--depth")
+        assert cmd[depth_idx + 1] == "10"
+
+    def test_shallow_clone_specifies_branch(self, manager, mock_run, tmp_path: Path):
+        """Shallow clone uses specified branch."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        clone_path = tmp_path / "test_clone"
+
+        manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="develop",
+        )
+
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "-b" in cmd or "--branch" in cmd
+        # Find branch arg
+        if "-b" in cmd:
+            branch_idx = cmd.index("-b")
+        else:
+            branch_idx = cmd.index("--branch")
+        assert cmd[branch_idx + 1] == "develop"
+
+    def test_shallow_clone_fails_when_path_exists(
+        self, manager, mock_run, tmp_path: Path
+    ):
+        """Shallow clone fails if target path already exists."""
+        clone_path = tmp_path / "existing"
+        clone_path.mkdir()
+
+        result = manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="main",
+        )
+
+        assert result.success is False
+        assert "exists" in result.message.lower()
+
+    def test_shallow_clone_handles_git_error(self, manager, mock_run, tmp_path: Path):
+        """Shallow clone handles git command failure."""
+        mock_run.return_value = MagicMock(
+            returncode=128, stdout="", stderr="fatal: repository not found"
+        )
+        clone_path = tmp_path / "test_clone"
+
+        result = manager.shallow_clone(
+            remote_url="https://github.com/user/nonexistent.git",
+            clone_path=clone_path,
+            branch="main",
+        )
+
+        assert result.success is False
+        assert "repository" in result.message.lower() or "failed" in result.message.lower()
+
+    def test_shallow_clone_handles_timeout(self, manager, mock_run, tmp_path: Path):
+        """Shallow clone handles command timeout."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["git"], timeout=30)
+        clone_path = tmp_path / "test_clone"
+
+        result = manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="main",
+        )
+
+        assert result.success is False
+        assert "timed out" in result.message.lower()
+
+    def test_shallow_clone_uses_single_branch(self, manager, mock_run, tmp_path: Path):
+        """Shallow clone uses --single-branch for efficiency."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        clone_path = tmp_path / "test_clone"
+
+        manager.shallow_clone(
+            remote_url="https://github.com/user/repo.git",
+            clone_path=clone_path,
+            branch="main",
+        )
+
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "--single-branch" in cmd
+
+
+class TestCloneGitManagerSyncClone:
+    """Tests for CloneGitManager.sync_clone method."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path):
+        """Create manager with temp directory as repo path."""
+        from gobby.clones.git import CloneGitManager
+
+        return CloneGitManager(repo_path=tmp_path)
+
+    @pytest.fixture
+    def mock_run(self):
+        """Mock subprocess.run."""
+        with patch("subprocess.run") as mock:
+            yield mock
+
+    def test_sync_clone_pull_success(self, manager, mock_run, tmp_path: Path):
+        """Sync clone pulls changes successfully."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Already up to date.", stderr=""
+        )
+
+        result = manager.sync_clone(clone_path, direction="pull")
+
+        assert result.success is True
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "pull" in cmd
+
+    def test_sync_clone_push_success(self, manager, mock_run, tmp_path: Path):
+        """Sync clone pushes changes successfully."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Everything up-to-date", stderr=""
+        )
+
+        result = manager.sync_clone(clone_path, direction="push")
+
+        assert result.success is True
+        call_args = mock_run.call_args
+        cmd = call_args[0][0]
+        assert "push" in cmd
+
+    def test_sync_clone_pull_push_success(self, manager, mock_run, tmp_path: Path):
+        """Sync clone does pull then push for 'both' direction."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        result = manager.sync_clone(clone_path, direction="both")
+
+        assert result.success is True
+        # Should have called git at least twice (pull and push)
+        assert mock_run.call_count >= 2
+
+    def test_sync_clone_nonexistent_path_fails(self, manager, mock_run, tmp_path: Path):
+        """Sync clone fails if path doesn't exist."""
+        clone_path = tmp_path / "nonexistent"
+
+        result = manager.sync_clone(clone_path, direction="pull")
+
+        assert result.success is False
+        assert "not exist" in result.message.lower() or "does not exist" in result.message.lower()
+
+    def test_sync_clone_handles_conflict(self, manager, mock_run, tmp_path: Path):
+        """Sync clone reports conflicts on pull failure."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="CONFLICT (content): Merge conflict in file.txt",
+            stderr="",
+        )
+
+        result = manager.sync_clone(clone_path, direction="pull")
+
+        assert result.success is False
+        # Should indicate conflict
+        assert "conflict" in result.message.lower() or "failed" in result.message.lower()
+
+    def test_sync_clone_push_rejected(self, manager, mock_run, tmp_path: Path):
+        """Sync clone handles push rejection."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="! [rejected] main -> main (non-fast-forward)",
+        )
+
+        result = manager.sync_clone(clone_path, direction="push")
+
+        assert result.success is False
+        assert "rejected" in result.error.lower() or "failed" in result.message.lower()
+
+    def test_sync_clone_handles_timeout(self, manager, mock_run, tmp_path: Path):
+        """Sync clone handles command timeout."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["git"], timeout=60)
+
+        result = manager.sync_clone(clone_path, direction="pull")
+
+        assert result.success is False
+        assert "timed out" in result.message.lower()
+
+
+class TestCloneGitManagerDeleteClone:
+    """Tests for CloneGitManager.delete_clone method."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path):
+        """Create manager with temp directory as repo path."""
+        from gobby.clones.git import CloneGitManager
+
+        return CloneGitManager(repo_path=tmp_path)
+
+    def test_delete_clone_success(self, manager, tmp_path: Path):
+        """Delete clone removes directory successfully."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        (clone_path / "file.txt").write_text("content")
+
+        result = manager.delete_clone(clone_path)
+
+        assert result.success is True
+        assert not clone_path.exists()
+
+    def test_delete_clone_nonexistent_path(self, manager, tmp_path: Path):
+        """Delete clone handles nonexistent path gracefully."""
+        clone_path = tmp_path / "nonexistent"
+
+        result = manager.delete_clone(clone_path)
+
+        # Should succeed (or report already gone) - idempotent
+        assert result.success is True or "not exist" in result.message.lower()
+
+    def test_delete_clone_with_nested_dirs(self, manager, tmp_path: Path):
+        """Delete clone removes nested directory structure."""
+        clone_path = tmp_path / "clone"
+        (clone_path / "nested" / "deep").mkdir(parents=True)
+        (clone_path / "nested" / "deep" / "file.txt").write_text("content")
+
+        result = manager.delete_clone(clone_path)
+
+        assert result.success is True
+        assert not clone_path.exists()
+
+    def test_delete_clone_force_option(self, manager, tmp_path: Path):
+        """Delete clone respects force option."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+        (clone_path / "file.txt").write_text("content")
+
+        result = manager.delete_clone(clone_path, force=True)
+
+        assert result.success is True
+        assert not clone_path.exists()
+
+
+class TestCloneGitManagerGetRemoteUrl:
+    """Tests for CloneGitManager.get_remote_url method."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path):
+        """Create manager with temp directory as repo path."""
+        from gobby.clones.git import CloneGitManager
+
+        return CloneGitManager(repo_path=tmp_path)
+
+    @pytest.fixture
+    def mock_run(self):
+        """Mock subprocess.run."""
+        with patch("subprocess.run") as mock:
+            yield mock
+
+    def test_get_remote_url_success(self, manager, mock_run):
+        """Get remote URL returns origin URL."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="https://github.com/user/repo.git\n",
+            stderr="",
+        )
+
+        result = manager.get_remote_url()
+
+        assert result == "https://github.com/user/repo.git"
+
+    def test_get_remote_url_ssh(self, manager, mock_run):
+        """Get remote URL handles SSH URLs."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="git@github.com:user/repo.git\n",
+            stderr="",
+        )
+
+        result = manager.get_remote_url()
+
+        assert result == "git@github.com:user/repo.git"
+
+    def test_get_remote_url_no_remote(self, manager, mock_run):
+        """Get remote URL returns None if no remote."""
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="fatal: No such remote 'origin'",
+        )
+
+        result = manager.get_remote_url()
+
+        assert result is None
+
+
+class TestCloneGitManagerGetCloneStatus:
+    """Tests for CloneGitManager.get_clone_status method."""
+
+    @pytest.fixture
+    def manager(self, tmp_path: Path):
+        """Create manager with temp directory as repo path."""
+        from gobby.clones.git import CloneGitManager
+
+        return CloneGitManager(repo_path=tmp_path)
+
+    @pytest.fixture
+    def mock_run(self):
+        """Mock subprocess.run."""
+        with patch("subprocess.run") as mock:
+            yield mock
+
+    def test_get_clone_status_clean(self, manager, mock_run, tmp_path: Path):
+        """Get clone status for clean working tree."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+
+        # Mock branch, commit, and status calls
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="main\n", stderr=""),  # branch
+            MagicMock(returncode=0, stdout="abc1234\n", stderr=""),  # commit
+            MagicMock(returncode=0, stdout="", stderr=""),  # status (clean)
+        ]
+
+        status = manager.get_clone_status(clone_path)
+
+        assert status is not None
+        assert status.branch == "main"
+        assert status.commit == "abc1234"
+        assert status.has_uncommitted_changes is False
+
+    def test_get_clone_status_with_changes(self, manager, mock_run, tmp_path: Path):
+        """Get clone status with uncommitted changes."""
+        clone_path = tmp_path / "clone"
+        clone_path.mkdir()
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="main\n", stderr=""),
+            MagicMock(returncode=0, stdout="abc1234\n", stderr=""),
+            MagicMock(returncode=0, stdout=" M file.txt\n", stderr=""),  # Modified
+        ]
+
+        status = manager.get_clone_status(clone_path)
+
+        assert status is not None
+        assert status.has_uncommitted_changes is True
+
+    def test_get_clone_status_nonexistent_path(self, manager, mock_run, tmp_path: Path):
+        """Get clone status returns None for nonexistent path."""
+        clone_path = tmp_path / "nonexistent"
+
+        status = manager.get_clone_status(clone_path)
+
+        assert status is None
