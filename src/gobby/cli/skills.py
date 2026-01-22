@@ -579,3 +579,47 @@ def meta_unset(ctx: click.Context, name: str, key: str) -> None:
     new_metadata = _unset_nested_value(skill.metadata, key)
     storage.update_skill(skill.id, metadata=new_metadata)
     click.echo(f"Unset {key}")
+
+
+@skills.command()
+@click.pass_context
+def init(ctx: click.Context) -> None:
+    """Initialize skills directory for the current project.
+
+    Creates .gobby/skills/ directory and config file for local skill management.
+    This is idempotent - running init multiple times is safe.
+    """
+    import yaml
+
+    skills_dir = Path(".gobby/skills")
+    config_file = skills_dir / "config.yaml"
+
+    # Create .gobby directory if needed
+    gobby_dir = Path(".gobby")
+    if not gobby_dir.exists():
+        gobby_dir.mkdir(parents=True)
+
+    # Create skills directory
+    if not skills_dir.exists():
+        skills_dir.mkdir(parents=True)
+        click.echo(f"Created {skills_dir}/")
+    else:
+        click.echo(f"Skills directory already exists: {skills_dir}/")
+
+    # Create config file if it doesn't exist
+    if not config_file.exists():
+        default_config = {
+            "version": "1.0",
+            "skills": {
+                "enabled": True,
+                "auto_discover": True,
+                "search_paths": ["./skills", "./.gobby/skills"],
+            },
+        }
+        with open(config_file, "w") as f:
+            yaml.dump(default_config, f, default_flow_style=False)
+        click.echo(f"Created {config_file}")
+    else:
+        click.echo(f"Config already exists: {config_file}")
+
+    click.echo("\nSkills initialized successfully!")

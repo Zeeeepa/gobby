@@ -416,6 +416,81 @@ class TestSkillsInstallCommand:
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
+class TestSkillsInitCommand:
+    """Tests for gobby skills init command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_init_help(self, runner: CliRunner):
+        """Test skills init --help."""
+        result = runner.invoke(cli, ["skills", "init", "--help"])
+        assert result.exit_code == 0
+        assert "init" in result.output.lower()
+
+    def test_init_creates_skills_directory(self, runner: CliRunner):
+        """Test that init creates .gobby/skills/ directory."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "init"])
+
+            assert result.exit_code == 0
+            assert os.path.isdir(".gobby/skills")
+
+    def test_init_creates_config_file(self, runner: CliRunner):
+        """Test that init creates skills config file."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "init"])
+
+            assert result.exit_code == 0
+            # Should create a config file
+            assert os.path.isfile(".gobby/skills/config.yaml") or os.path.isfile(
+                ".gobby/skills/config.json"
+            )
+
+    def test_init_idempotent(self, runner: CliRunner):
+        """Test that init can be run multiple times safely."""
+        import os
+
+        with runner.isolated_filesystem():
+            # Run init twice
+            result1 = runner.invoke(cli, ["skills", "init"])
+            result2 = runner.invoke(cli, ["skills", "init"])
+
+            assert result1.exit_code == 0
+            assert result2.exit_code == 0
+            assert os.path.isdir(".gobby/skills")
+
+    def test_init_with_existing_gobby_dir(self, runner: CliRunner):
+        """Test init when .gobby directory already exists."""
+        import os
+
+        with runner.isolated_filesystem():
+            os.makedirs(".gobby/tasks")
+            result = runner.invoke(cli, ["skills", "init"])
+
+            assert result.exit_code == 0
+            assert os.path.isdir(".gobby/skills")
+            assert os.path.isdir(".gobby/tasks")  # Should preserve existing dirs
+
+    def test_init_output_message(self, runner: CliRunner):
+        """Test that init shows success message."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "init"])
+
+            assert result.exit_code == 0
+            assert (
+                "initialized" in result.output.lower()
+                or "created" in result.output.lower()
+                or "skills" in result.output.lower()
+            )
+
+
 class TestSkillsMetaCommand:
     """Tests for gobby skills meta command group."""
 
