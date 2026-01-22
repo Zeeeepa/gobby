@@ -1787,9 +1787,23 @@ class TestSkillInjection:
     ) -> None:
         """Test that session-start injects alwaysApply skills."""
         from gobby.config.skills import SkillsConfig
-        from gobby.hooks.skill_manager import HookSkillManager
+        from gobby.skills.parser import ParsedSkill
 
-        skill_manager = HookSkillManager()
+        # Create a mock skill with alwaysApply=True
+        mock_skill = ParsedSkill(
+            name="test-skill",
+            description="A test skill",
+            content="# Test Skill\n\nTest content",
+            metadata={"skillport": {"alwaysApply": True}},
+        )
+
+        # Mock the skill manager to return our test skill
+        skill_manager = MagicMock()
+        skill_manager.discover_core_skills.return_value = [mock_skill]
+
+        # Configure session_storage.get to return None to avoid early return path
+        mock_dependencies["session_storage"].get.return_value = None
+
         skills_config = SkillsConfig(inject_core_skills=True, injection_format="summary")
 
         handlers = EventHandlers(
@@ -1803,18 +1817,34 @@ class TestSkillInjection:
 
         assert response.decision == "allow"
         # Check that skills context is injected when alwaysApply skills exist
-        if response.context:
-            # Context should be present
-            assert "## Available Skills" in response.context or len(response.context) > 0
+        # Context must be non-empty and contain the skills injection marker
+        assert response.context, "Expected skills context to be injected"
+        assert "## Available Skills" in response.context
+        assert "test-skill" in response.context
 
     def test_session_start_respects_inject_core_skills_false(
         self, mock_dependencies: dict[str, Any]
     ) -> None:
         """Test that session-start skips injection when inject_core_skills=false."""
         from gobby.config.skills import SkillsConfig
-        from gobby.hooks.skill_manager import HookSkillManager
+        from gobby.skills.parser import ParsedSkill
 
-        skill_manager = HookSkillManager()
+        # Create a mock skill with alwaysApply=True (would be injected if enabled)
+        mock_skill = ParsedSkill(
+            name="test-skill",
+            description="A test skill",
+            content="# Test Skill\n\nTest content",
+            metadata={"skillport": {"alwaysApply": True}},
+        )
+
+        # Mock the skill manager to return our test skill
+        skill_manager = MagicMock()
+        skill_manager.discover_core_skills.return_value = [mock_skill]
+
+        # Configure session_storage.get to return None to avoid early return path
+        mock_dependencies["session_storage"].get.return_value = None
+
+        # Set inject_core_skills=False to disable injection
         skills_config = SkillsConfig(inject_core_skills=False)
 
         handlers = EventHandlers(

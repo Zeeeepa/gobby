@@ -2,9 +2,9 @@
 title: 'gobby-skills: SkillPort-compatible Skill Management'
 slug: 'gobby-skills'
 created: '2026-01-14'
-updated: '2026-01-21'
-status: 'draft'
-stepsCompleted: []
+updated: '2026-01-22'
+status: 'completed'
+stepsCompleted: ['phase-1-storage', 'phase-2-search', 'phase-3-loader', 'phase-4-mcp', 'phase-5-cli', 'phase-6-hooks', 'phase-7-docs']
 files_to_modify:
   # Storage layer
   - src/gobby/storage/skills.py

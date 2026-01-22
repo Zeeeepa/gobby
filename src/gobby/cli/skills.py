@@ -101,10 +101,15 @@ def list_skills(
 ) -> None:
     """List installed skills."""
     storage = get_skill_storage()
+
+    # When filtering by tags, fetch all skills first, then filter and apply limit
+    # This ensures the limit applies to filtered results, not pre-filter
+    fetch_limit = None if tags else limit
+
     skills_list = storage.list_skills(
         category=category,
         enabled=enabled,
-        limit=limit,
+        limit=fetch_limit,
         include_global=True,
     )
 
@@ -117,7 +122,8 @@ def list_skills(
                 skill_tags = _get_skill_tags(skill)
                 if any(tag in skill_tags for tag in tags_list):
                     filtered_skills.append(skill)
-            skills_list = filtered_skills
+            # Apply limit after tag filtering
+            skills_list = filtered_skills[:limit]
 
     if json_output:
         _output_json(skills_list)
@@ -312,8 +318,8 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
         # Get all skills and update each via MCP
         result = call_skills_tool(client, "list_skills", {"limit": 1000})
         if not result or not result.get("success"):
-            click.echo(f"Error: {result.get('error', 'Failed to list skills') if result else 'No response'}")
-            return
+            click.echo(f"Error: {result.get('error', 'Failed to list skills') if result else 'No response'}", err=True)
+            sys.exit(1)
 
         updated = 0
         skipped = 0

@@ -108,12 +108,40 @@ Use YOUR tools to understand the codebase context. This analysis is visible in t
 - `context7`: Fetch library documentation for referenced packages/frameworks
 - `gitingest`: Analyze referenced GitHub repositories for patterns and structure
 
-Detection: Scan the task description/plan for:
+#### Setup: External Research Tools
+
+Before using `context7` or `gitingest`, ensure they are configured as MCP servers in Gobby:
+
+1. **context7** - Fetches library documentation
+   - Install: See https://github.com/upstash/context7 for setup instructions
+   - Add to your MCP config (`~/.gobby/mcp_servers.yaml` or project `.gobby/mcp_servers.yaml`):
+     ```yaml
+     context7:
+       transport: stdio
+       command: npx
+       args: ["-y", "@upstash/context7-mcp"]
+     ```
+
+2. **gitingest** - Analyzes GitHub repositories
+   - Install: See https://github.com/cyclotruc/gitingest for setup instructions
+   - Add to your MCP config:
+     ```yaml
+     gitingest:
+       transport: stdio
+       command: uvx
+       args: ["gitingest-mcp"]
+     ```
+
+**Verify tools are available**: Run `list_mcp_servers()` to confirm both servers are connected.
+
+#### Detection and Usage
+
+Scan the task description/plan for:
 - GitHub URLs (`github.com/...`, `github:...`)
 - Library references (e.g., "SkillPort", "FastAPI", "React")
 - Spec references (e.g., "Agent Skills spec", "OpenAPI spec")
 
-If external references are found, you MUST use context7/gitingest before generating subtasks.
+If external references are found, you MUST use context7/gitingest before generating subtasks (see Setup above).
 
 **Optional tools** (always available):
 - `WebSearch`: External API/library research, current documentation

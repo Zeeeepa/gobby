@@ -242,15 +242,15 @@ def clone_skill_repo(
             cmd.extend(["--branch", ref.branch])
         cmd.extend([ref.clone_url, str(repo_path)])
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
-    if result.returncode != 0:
-        raise SkillLoadError(
-            f"Failed to clone repository: {result.stderr}",
-            ref.clone_url,
-        )
+        if result.returncode != 0:
+            raise SkillLoadError(
+                f"Failed to clone repository: {result.stderr}",
+                ref.clone_url,
+            )
 
-    return repo_path
+        return repo_path
 
 
 @contextmanager

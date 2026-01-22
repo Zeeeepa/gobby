@@ -1,6 +1,7 @@
 """Tests for remove_skill and update_skill MCP tools (TDD - written before implementation)."""
 
 import asyncio
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ from gobby.storage.skills import LocalSkillManager
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> LocalDatabase:
+def db(tmp_path: Path) -> Generator[LocalDatabase]:
     """Create a fresh database with migrations applied."""
     db_path = tmp_path / "test.db"
     database = LocalDatabase(db_path)

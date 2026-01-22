@@ -222,8 +222,8 @@ class TestExecuteExpansion:
             parent_task_id=parent_task,
         )
         assert len(subtasks) == 2
-        assert subtasks[0].title == "Implement feature"
-        assert subtasks[1].title == "Write tests"
+        subtask_titles = {s.title for s in subtasks}
+        assert subtask_titles == {"Implement feature", "Write tests"}
 
     @pytest.mark.asyncio
     async def test_execute_no_pending_expansion(
