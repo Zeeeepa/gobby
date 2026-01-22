@@ -126,3 +126,142 @@ class TestMetricsTools:
         assert result["success"] is True
         assert result["stats"] == expected_stats
         mock_metrics_manager.get_retention_stats.assert_called_once()
+
+
+class TestTokenMetricsTools:
+    """Tests for token/cost tracking tools."""
+
+    @pytest.fixture
+    def mock_session_storage(self):
+        """Create a mock session storage."""
+        from datetime import UTC, datetime, timedelta
+
+        storage = MagicMock()
+
+        # Create mock sessions with usage data
+        now = datetime.now(UTC)
+        sessions = [
+            MagicMock(
+                id="sess-1",
+                usage_input_tokens=1000,
+                usage_output_tokens=500,
+                usage_cache_creation_tokens=100,
+                usage_cache_read_tokens=200,
+                usage_total_cost_usd=0.05,
+                model="claude-3-5-sonnet-20241022",
+                created_at=(now - timedelta(hours=1)).isoformat(),
+            ),
+            MagicMock(
+                id="sess-2",
+                usage_input_tokens=2000,
+                usage_output_tokens=1000,
+                usage_cache_creation_tokens=200,
+                usage_cache_read_tokens=400,
+                usage_total_cost_usd=0.10,
+                model="claude-3-5-sonnet-20241022",
+                created_at=(now - timedelta(hours=2)).isoformat(),
+            ),
+        ]
+        storage.get_sessions_since.return_value = sessions
+        return storage
+
+    @pytest.fixture
+    def token_metrics_tools(self, mock_metrics_manager, mock_session_storage):
+        """Create registry with token tracking support."""
+        return create_metrics_registry(
+            metrics_manager=mock_metrics_manager,
+            session_storage=mock_session_storage,
+            daily_budget_usd=10.0,
+        )
+
+    def test_get_usage_report(self, token_metrics_tools, mock_session_storage):
+        """get_usage_report returns usage summary for specified days."""
+        tool = token_metrics_tools._tools["get_usage_report"]
+
+        result = tool.func(days=7)
+
+        assert result["success"] is True
+        assert "usage" in result
+        assert result["usage"]["total_cost_usd"] == pytest.approx(0.15)
+        assert result["usage"]["total_input_tokens"] == 3000
+        assert result["usage"]["total_output_tokens"] == 1500
+        assert result["usage"]["session_count"] == 2
+        mock_session_storage.get_sessions_since.assert_called_once()
+
+    def test_get_usage_report_default_days(self, token_metrics_tools, mock_session_storage):
+        """get_usage_report defaults to 1 day."""
+        tool = token_metrics_tools._tools["get_usage_report"]
+
+        result = tool.func()
+
+        assert result["success"] is True
+        # Verify it was called (days=1 default)
+        mock_session_storage.get_sessions_since.assert_called_once()
+
+    def test_get_usage_report_error(self, token_metrics_tools, mock_session_storage):
+        """get_usage_report handles errors gracefully."""
+        tool = token_metrics_tools._tools["get_usage_report"]
+        mock_session_storage.get_sessions_since.side_effect = Exception("DB error")
+
+        result = tool.func(days=1)
+
+        assert result["success"] is False
+        assert "DB error" in result["error"]
+
+    def test_get_budget_status(self, token_metrics_tools, mock_session_storage):
+        """get_budget_status returns current budget info."""
+        tool = token_metrics_tools._tools["get_budget_status"]
+
+        result = tool.func()
+
+        assert result["success"] is True
+        assert "budget" in result
+        assert result["budget"]["daily_budget_usd"] == 10.0
+        assert result["budget"]["used_today_usd"] == pytest.approx(0.15)
+        assert result["budget"]["remaining_usd"] == pytest.approx(9.85)
+        assert result["budget"]["over_budget"] is False
+        mock_session_storage.get_sessions_since.assert_called_once()
+
+    def test_get_budget_status_over_budget(self, mock_metrics_manager):
+        """get_budget_status shows over_budget when exceeded."""
+        from datetime import UTC, datetime, timedelta
+
+        storage = MagicMock()
+
+        # Create sessions that exceed the budget
+        now = datetime.now(UTC)
+        expensive_session = MagicMock(
+            id="sess-expensive",
+            usage_input_tokens=100000,
+            usage_output_tokens=50000,
+            usage_cache_creation_tokens=0,
+            usage_cache_read_tokens=0,
+            usage_total_cost_usd=5.0,  # $5 used
+            model="claude-3-5-sonnet-20241022",
+            created_at=(now - timedelta(hours=1)).isoformat(),
+        )
+        storage.get_sessions_since.return_value = [expensive_session]
+
+        registry = create_metrics_registry(
+            metrics_manager=mock_metrics_manager,
+            session_storage=storage,
+            daily_budget_usd=1.0,  # Only $1 budget
+        )
+        tool = registry._tools["get_budget_status"]
+
+        result = tool.func()
+
+        assert result["success"] is True
+        assert result["budget"]["over_budget"] is True
+        assert result["budget"]["used_today_usd"] == pytest.approx(5.0)
+        assert result["budget"]["remaining_usd"] == pytest.approx(-4.0)
+
+    def test_get_budget_status_error(self, token_metrics_tools, mock_session_storage):
+        """get_budget_status handles errors gracefully."""
+        tool = token_metrics_tools._tools["get_budget_status"]
+        mock_session_storage.get_sessions_since.side_effect = Exception("DB error")
+
+        result = tool.func()
+
+        assert result["success"] is False
+        assert "DB error" in result["error"]
