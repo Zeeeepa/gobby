@@ -289,11 +289,131 @@ class TestSkillsInstallCommand:
         assert result.exit_code == 0
         assert "Install" in result.output or "install" in result.output
 
+    def test_install_help_shows_project_flag(self, runner: CliRunner):
+        """Test skills install --help shows --project flag."""
+        result = runner.invoke(cli, ["skills", "install", "--help"])
+        assert result.exit_code == 0
+        assert "--project" in result.output
+
     def test_install_requires_source(self, runner: CliRunner):
         """Test that install requires source argument."""
         result = runner.invoke(cli, ["skills", "install"])
         # Should show missing argument error
         assert result.exit_code != 0
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    @patch("gobby.skills.loader.SkillLoader")
+    def test_install_from_local_path(
+        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+    ):
+        """Test installing from a local directory path."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        mock_storage.create_skill.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        mock_loader = MagicMock()
+        mock_parsed = MagicMock()
+        mock_parsed.name = "test-skill"
+        mock_parsed.description = "A test skill"
+        mock_parsed.content = "# Test"
+        mock_parsed.version = "1.0.0"
+        mock_parsed.license = "MIT"
+        mock_parsed.compatibility = None
+        mock_parsed.allowed_tools = None
+        mock_parsed.metadata = None
+        mock_parsed.source_path = "/path/to/skill"
+        mock_loader.load_skill.return_value = mock_parsed
+        mock_loader_class.return_value = mock_loader
+
+        with runner.isolated_filesystem():
+            import os
+
+            os.makedirs("my-skill")
+            with open("my-skill/SKILL.md", "w") as f:
+                f.write("---\nname: test-skill\ndescription: A test skill\n---\n# Test")
+
+            result = runner.invoke(cli, ["skills", "install", "my-skill"])
+
+        assert result.exit_code == 0
+        assert "Installed skill: test-skill" in result.output
+        mock_storage.create_skill.assert_called_once()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    @patch("gobby.skills.loader.SkillLoader")
+    def test_install_from_github(
+        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+    ):
+        """Test installing from a GitHub URL."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "github-skill"
+        mock_storage.create_skill.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        mock_loader = MagicMock()
+        mock_parsed = MagicMock()
+        mock_parsed.name = "github-skill"
+        mock_parsed.description = "A GitHub skill"
+        mock_parsed.content = "# GitHub"
+        mock_parsed.version = "2.0.0"
+        mock_parsed.license = "Apache-2.0"
+        mock_parsed.compatibility = None
+        mock_parsed.allowed_tools = None
+        mock_parsed.metadata = None
+        mock_parsed.source_path = "github:owner/repo"
+        mock_loader.load_from_github.return_value = mock_parsed
+        mock_loader_class.return_value = mock_loader
+
+        result = runner.invoke(cli, ["skills", "install", "github:owner/repo"])
+
+        assert result.exit_code == 0
+        assert "Installed skill: github-skill" in result.output
+        assert "github" in result.output.lower()
+        mock_loader.load_from_github.assert_called_once_with("github:owner/repo")
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    @patch("gobby.skills.loader.SkillLoader")
+    def test_install_with_project_flag(
+        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+    ):
+        """Test installing with --project flag scopes to project."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "project-skill"
+        mock_storage.create_skill.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        mock_loader = MagicMock()
+        mock_parsed = MagicMock()
+        mock_parsed.name = "project-skill"
+        mock_parsed.description = "A project skill"
+        mock_parsed.content = "# Project"
+        mock_parsed.version = "1.0.0"
+        mock_parsed.license = None
+        mock_parsed.compatibility = None
+        mock_parsed.allowed_tools = None
+        mock_parsed.metadata = None
+        mock_parsed.source_path = "/path/to/skill"
+        mock_loader.load_from_github.return_value = mock_parsed
+        mock_loader_class.return_value = mock_loader
+
+        result = runner.invoke(
+            cli, ["skills", "install", "github:owner/repo", "--project", "my-project"]
+        )
+
+        assert result.exit_code == 0
+        # Verify create_skill was called with project_id
+        call_kwargs = mock_storage.create_skill.call_args[1]
+        assert call_kwargs["project_id"] == "my-project"
+
+    def test_install_source_not_found(self, runner: CliRunner):
+        """Test installing from non-existent source."""
+        result = runner.invoke(cli, ["skills", "install", "/nonexistent/path/to/skill"])
+
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
 class TestSkillsRemoveCommand:

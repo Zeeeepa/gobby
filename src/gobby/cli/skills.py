@@ -176,10 +176,12 @@ def install(ctx: click.Context, source: str, project: str | None) -> None:
     """Install a skill from a source.
 
     SOURCE can be:
-    - A local directory path
-    - A path to a SKILL.md file
-    - A GitHub URL (owner/repo, github:owner/repo)
-    - A ZIP archive path
+    - A local directory path (e.g., ./my-skill or /path/to/skill)
+    - A path to a SKILL.md file (e.g., ./SKILL.md)
+    - A GitHub URL (owner/repo, github:owner/repo, https://github.com/owner/repo)
+    - A ZIP archive path (e.g., ./skills.zip)
+
+    Use --project to scope the skill to a specific project.
     """
     from gobby.skills.loader import SkillLoader, SkillLoadError
 
@@ -240,7 +242,10 @@ def install(ctx: click.Context, source: str, project: str | None) -> None:
 @click.argument("name")
 @click.pass_context
 def remove(ctx: click.Context, name: str) -> None:
-    """Remove an installed skill."""
+    """Remove an installed skill.
+
+    NAME is the skill name to remove (e.g., 'commit-message').
+    """
     storage = get_skill_storage()
     skill = storage.get_by_name(name)
 
