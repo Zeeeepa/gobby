@@ -1,0 +1,271 @@
+"""Tests for gobby.cli.clones module.
+
+Tests for Clone CLI commands:
+- create
+- list
+- spawn
+- sync
+- merge
+- delete
+"""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+from click.testing import CliRunner
+
+from gobby.storage.clones import Clone
+
+# Mock clone data
+MOCK_CLONE = Clone(
+    id="clone-123",
+    project_id="proj-1",
+    branch_name="feature/test",
+    clone_path="/tmp/clones/test",
+    base_branch="main",
+    task_id=None,
+    agent_session_id=None,
+    status="active",
+    remote_url="https://github.com/user/repo.git",
+    last_sync_at=None,
+    cleanup_after=None,
+    created_at="2024-01-01T00:00:00Z",
+    updated_at="2024-01-01T00:00:00Z",
+)
+
+
+@pytest.fixture
+def mock_clone_manager():
+    with patch("gobby.cli.clones.get_clone_manager") as mock:
+        yield mock.return_value
+
+
+@pytest.fixture
+def mock_httpx():
+    with patch("gobby.cli.clones.httpx.post") as mock:
+        yield mock
+
+
+class TestClonesListCommand:
+    """Tests for 'clones list' command."""
+
+    def test_list_clones_empty(self, mock_clone_manager):
+        """Test 'clones list' with no clones."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = []
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["list"])
+
+        assert result.exit_code == 0
+        assert "No clones found" in result.output
+
+    def test_list_clones_populated(self, mock_clone_manager):
+        """Test 'clones list' with clones present."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["list"])
+
+        assert result.exit_code == 0
+        assert "clone-123" in result.output
+        assert "feature/test" in result.output
+        assert "active" in result.output
+
+    def test_list_clones_json_format(self, mock_clone_manager):
+        """Test 'clones list --json'."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["list", "--json"])
+
+        assert result.exit_code == 0
+        assert '"id": "clone-123"' in result.output
+
+
+class TestClonesCreateCommand:
+    """Tests for 'clones create' command."""
+
+    def test_create_clone_success(self, mock_httpx):
+        """Test 'clones create' success."""
+        from gobby.cli.clones import clones
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "clone": {"id": "clone-new", "branch_name": "feature/new"},
+        }
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["create", "feature/new", "/tmp/clone-new"])
+
+        assert result.exit_code == 0
+        assert "clone-new" in result.output
+        mock_httpx.assert_called_once()
+
+    def test_create_clone_failure(self, mock_httpx):
+        """Test 'clones create' failure."""
+        from gobby.cli.clones import clones
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": False,
+            "error": "Clone failed",
+        }
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["create", "feature/fail", "/tmp/fail"])
+
+        assert result.exit_code == 0
+        assert "Failed" in result.output or "Clone failed" in result.output
+
+
+class TestClonesSpawnCommand:
+    """Tests for 'clones spawn' command."""
+
+    def test_spawn_agent_success(self, mock_clone_manager, mock_httpx):
+        """Test 'clones spawn' success."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+        mock_clone_manager.get.return_value = MOCK_CLONE
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "session_id": "session-456",
+            "clone_id": "clone-123",
+        }
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["spawn", "clone-123", "Work on feature"])
+
+        assert result.exit_code == 0
+        assert "session-456" in result.output or "Spawned" in result.output
+        mock_httpx.assert_called_once()
+
+    def test_spawn_agent_clone_not_found(self, mock_clone_manager):
+        """Test 'clones spawn' with non-existent clone."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = []
+        mock_clone_manager.get.return_value = None
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["spawn", "nonexistent", "Work on feature"])
+
+        assert "not found" in result.output.lower()
+
+
+class TestClonesSyncCommand:
+    """Tests for 'clones sync' command."""
+
+    def test_sync_clone_success(self, mock_clone_manager, mock_httpx):
+        """Test 'clones sync' success."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+        mock_clone_manager.get.return_value = MOCK_CLONE
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"success": True}
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["sync", "clone-123"])
+
+        assert result.exit_code == 0
+        mock_httpx.assert_called_once()
+
+
+class TestClonesMergeCommand:
+    """Tests for 'clones merge' command."""
+
+    def test_merge_clone_success(self, mock_clone_manager, mock_httpx):
+        """Test 'clones merge' success."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+        mock_clone_manager.get.return_value = MOCK_CLONE
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "message": "Merged successfully",
+        }
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["merge", "clone-123"])
+
+        assert result.exit_code == 0
+        assert "Merged" in result.output or "success" in result.output.lower()
+
+    def test_merge_clone_conflicts(self, mock_clone_manager, mock_httpx):
+        """Test 'clones merge' with conflicts."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+        mock_clone_manager.get.return_value = MOCK_CLONE
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": False,
+            "has_conflicts": True,
+            "conflicted_files": ["src/foo.py", "src/bar.py"],
+        }
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["merge", "clone-123"])
+
+        assert result.exit_code == 0
+        assert "conflict" in result.output.lower() or "src/foo.py" in result.output
+
+
+class TestClonesDeleteCommand:
+    """Tests for 'clones delete' command."""
+
+    def test_delete_clone_success(self, mock_clone_manager, mock_httpx):
+        """Test 'clones delete' success."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = [MOCK_CLONE]
+        mock_clone_manager.get.return_value = MOCK_CLONE
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"success": True}
+        mock_httpx.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["delete", "clone-123", "--yes"])
+
+        assert result.exit_code == 0
+        assert "Deleted" in result.output or "success" in result.output.lower()
+
+    def test_delete_clone_not_found(self, mock_clone_manager):
+        """Test 'clones delete' with non-existent clone."""
+        from gobby.cli.clones import clones
+
+        mock_clone_manager.list_clones.return_value = []
+        mock_clone_manager.get.return_value = None
+
+        runner = CliRunner()
+        result = runner.invoke(clones, ["delete", "nonexistent", "--yes"])
+
+        assert "not found" in result.output.lower() or result.exit_code != 0
