@@ -255,3 +255,91 @@ def remove(ctx: click.Context, name: str) -> None:
 
     storage.delete_skill(skill.id)
     click.echo(f"Removed skill: {name}")
+
+
+@skills.command()
+@click.argument("name", required=False)
+@click.option("--all", "update_all", is_flag=True, help="Update all installed skills")
+@click.pass_context
+def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
+    """Update an installed skill from its source.
+
+    NAME is the skill name to update (e.g., 'commit-message').
+    Use --all to update all skills that have remote sources.
+
+    Only skills installed from GitHub can be updated (re-fetched from source).
+    Local skills are skipped.
+    """
+    from gobby.skills.loader import SkillLoader, SkillLoadError
+
+    storage = get_skill_storage()
+    loader = SkillLoader()
+
+    if not name and not update_all:
+        click.echo("Error: Provide a skill name or use --all to update all skills")
+        return
+
+    if update_all:
+        # Update all skills with remote sources
+        skills_list = storage.list_skills(include_global=True)
+        updated = 0
+        skipped = 0
+
+        for skill in skills_list:
+            if skill.source_type == "github" and skill.source_path:
+                try:
+                    # Extract GitHub URL from source_path (e.g., "github:owner/repo")
+                    source_url = skill.source_path
+                    if source_url.startswith("github:"):
+                        parsed_skill = loader.load_from_github(source_url)
+                        storage.update_skill(
+                            skill.id,
+                            content=parsed_skill.content,
+                            description=parsed_skill.description,
+                            version=parsed_skill.version,
+                            metadata=parsed_skill.metadata,
+                        )
+                        click.echo(f"Updated: {skill.name}")
+                        updated += 1
+                    else:
+                        click.echo(f"Skipped: {skill.name} (invalid source)")
+                        skipped += 1
+                except SkillLoadError as e:
+                    click.echo(f"Failed to update {skill.name}: {e}")
+                    skipped += 1
+            else:
+                click.echo(f"Skipped: {skill.name} (local source)")
+                skipped += 1
+
+        click.echo(f"\nUpdated {updated} skill(s), skipped {skipped}")
+        return
+
+    # Update single skill
+    skill = storage.get_by_name(name)
+
+    if skill is None:
+        click.echo(f"Skill not found: {name}")
+        return
+
+    if skill.source_type != "github" or not skill.source_path:
+        click.echo(f"Cannot update {name}: local skills cannot be refreshed from remote")
+        return
+
+    try:
+        source_url = skill.source_path
+        if not source_url.startswith("github:"):
+            click.echo(f"Cannot update {name}: unsupported source type")
+            return
+
+        parsed_skill = loader.load_from_github(source_url)
+        storage.update_skill(
+            skill.id,
+            content=parsed_skill.content,
+            description=parsed_skill.description,
+            version=parsed_skill.version,
+            metadata=parsed_skill.metadata,
+        )
+        click.echo(f"Updated skill: {name}")
+
+    except SkillLoadError as e:
+        click.echo(f"Error updating {name}: {e}")
