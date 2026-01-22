@@ -216,6 +216,10 @@ def register_wait(
                 "error": "No task IDs provided - task_ids list is empty",
             }
 
+        # Validate poll_interval
+        if poll_interval <= 0:
+            poll_interval = DEFAULT_POLL_INTERVAL
+
         start_time = time.monotonic()
 
         # Resolve all task IDs upfront
@@ -343,6 +347,10 @@ def register_wait(
                 "pending_tasks": [],
                 "wait_time": 0.0,
             }
+
+        # Validate poll_interval
+        if poll_interval <= 0:
+            poll_interval = DEFAULT_POLL_INTERVAL
 
         start_time = time.monotonic()
 

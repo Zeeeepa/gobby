@@ -80,33 +80,48 @@ class TokenTracker:
 
             total = prompt_cost + completion_cost
 
-            # Handle cache tokens if provided
-            # Cache read tokens are typically cheaper, cache write tokens may cost more
+            # Handle cache tokens if provided using LiteLLM's native cache pricing
             if cache_read_tokens > 0 or cache_write_tokens > 0:
-                # Try to get cache-specific pricing
                 try:
-                    # Some models have separate cache pricing
-                    # For now, we'll use a simplified approach:
-                    # Cache reads are typically ~90% cheaper
-                    # Cache writes may have additional cost
-                    cache_read_cost, _ = litellm.cost_per_token(
-                        model=model,
-                        prompt_tokens=cache_read_tokens,
-                        completion_tokens=0,
+                    # Get model cost info from LiteLLM
+                    model_info = litellm.get_model_info(model=model)
+
+                    # Check for cache-specific pricing in model info
+                    cache_read_cost_per_token = model_info.get(
+                        "cache_read_input_token_cost"
                     )
-                    # Cache reads are typically much cheaper (about 10% of normal price)
-                    total += cache_read_cost * 0.1
+                    cache_creation_cost_per_token = model_info.get(
+                        "cache_creation_input_token_cost"
+                    )
+
+                    if cache_read_tokens > 0:
+                        if cache_read_cost_per_token is not None:
+                            # Use native cache read pricing
+                            total += cache_read_tokens * cache_read_cost_per_token
+                        else:
+                            # Fallback: cache reads are typically 10% of input cost
+                            input_cost_per_token = model_info.get(
+                                "input_cost_per_token", 0
+                            )
+                            total += cache_read_tokens * input_cost_per_token * 0.1
 
                     if cache_write_tokens > 0:
-                        cache_write_cost, _ = litellm.cost_per_token(
-                            model=model,
-                            prompt_tokens=cache_write_tokens,
-                            completion_tokens=0,
-                        )
-                        # Cache writes typically cost same as input + small overhead
-                        total += cache_write_cost * 1.25
+                        if cache_creation_cost_per_token is not None:
+                            # Use native cache creation pricing
+                            total += cache_write_tokens * cache_creation_cost_per_token
+                        else:
+                            # Fallback: cache writes are typically 1.25x input cost
+                            input_cost_per_token = model_info.get(
+                                "input_cost_per_token", 0
+                            )
+                            total += cache_write_tokens * input_cost_per_token * 1.25
+
+                    # Note: For Anthropic models with prompt caching, LiteLLM may
+                    # already account for cache tokens in cost_per_token. Check if
+                    # the response usage includes cached_tokens to avoid double-counting.
+
                 except Exception:
-                    # If cache pricing fails, just skip it
+                    # If cache pricing lookup fails, skip cache cost calculation
                     pass
 
             return total

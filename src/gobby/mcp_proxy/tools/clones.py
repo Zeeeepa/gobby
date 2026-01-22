@@ -266,16 +266,46 @@ def create_clones_registry(
                 "error": f"Clone not found: {clone_id}",
             }
 
+        # Store clone info for potential rollback
+        clone_path = clone.clone_path
+
+        # Delete the database record first (can be rolled back more easily)
+        try:
+            clone_storage.delete(clone_id)
+        except Exception as e:
+            logger.error(f"Failed to delete clone record {clone_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to delete clone record: {e}",
+            }
+
         # Delete the files
-        result = git_manager.delete_clone(clone.clone_path, force=force)
+        result = git_manager.delete_clone(clone_path, force=force)
         if not result.success:
+            # Rollback: recreate the clone record since file deletion failed
+            logger.error(
+                f"Failed to delete clone files for {clone_id}, "
+                f"attempting to restore record: {result.error or result.message}"
+            )
+            try:
+                clone_storage.create(
+                    project_id=clone.project_id,
+                    branch_name=clone.branch_name,
+                    clone_path=clone_path,
+                    base_branch=clone.base_branch,
+                    task_id=clone.task_id,
+                    remote_url=clone.remote_url,
+                )
+                logger.info(f"Restored clone record for {clone_id} after file deletion failure")
+            except Exception as restore_error:
+                logger.error(
+                    f"Failed to restore clone record {clone_id}: {restore_error}. "
+                    f"Clone is now orphaned in database."
+                )
             return {
                 "success": False,
                 "error": f"Failed to delete clone files: {result.error or result.message}",
             }
-
-        # Delete the database record
-        clone_storage.delete(clone_id)
 
         return {
             "success": True,
@@ -863,7 +893,7 @@ def create_clones_registry(
                     "default": 10,
                 },
             },
-            "required": ["prompt", "branch_name"],
+            "required": ["prompt", "branch_name", "parent_session_id"],
         },
         func=spawn_agent_in_clone,
     )

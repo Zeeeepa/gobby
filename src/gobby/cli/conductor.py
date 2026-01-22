@@ -52,9 +52,16 @@ def start_conductor(interval: int, autonomous: bool, json_format: bool) -> None:
             json={"interval": interval, "autonomous": autonomous},
             timeout=10.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: HTTP {e.response.status_code}: {e.response.text}", err=True)
+        return
+    except ValueError as e:
+        click.echo(f"Error: Invalid JSON response: {e}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -90,9 +97,16 @@ def stop_conductor(json_format: bool) -> None:
             json={},
             timeout=10.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: HTTP {e.response.status_code}: {e.response.text}", err=True)
+        return
+    except ValueError as e:
+        click.echo(f"Error: Invalid JSON response: {e}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -129,9 +143,16 @@ def restart_conductor(interval: int, autonomous: bool, json_format: bool) -> Non
             json={"interval": interval, "autonomous": autonomous},
             timeout=10.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: HTTP {e.response.status_code}: {e.response.text}", err=True)
+        return
+    except ValueError as e:
+        click.echo(f"Error: Invalid JSON response: {e}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -165,9 +186,16 @@ def status_conductor(json_format: bool) -> None:
             f"{daemon_url}/conductor/status",
             timeout=10.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: HTTP {e.response.status_code}: {e.response.text}", err=True)
+        return
+    except ValueError as e:
+        click.echo(f"Error: Invalid JSON response: {e}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -213,9 +241,16 @@ def chat_conductor(message: str, json_format: bool) -> None:
             json={"message": message},
             timeout=30.0,
         )
+        response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: HTTP {e.response.status_code}: {e.response.text}", err=True)
+        return
+    except ValueError as e:
+        click.echo(f"Error: Invalid JSON response: {e}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

@@ -135,8 +135,8 @@ class SessionTokenTracker:
         Returns:
             Tuple of (can_spawn, reason if not)
         """
-        # Unlimited budget (0 means no limit)
-        if self.daily_budget_usd == 0.0:
+        # Unlimited budget (0 or negative means no limit)
+        if self.daily_budget_usd <= 0.0:
             return True, None
 
         status = self.get_budget_status()

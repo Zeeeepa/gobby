@@ -124,6 +124,7 @@ class GeminiProvider(LLMProvider):
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=4000,
+                timeout=120,
             )
             return response.choices[0].message.content or ""
         except Exception as e:
@@ -161,6 +162,7 @@ class GeminiProvider(LLMProvider):
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=50,
+                timeout=30,
             )
             return (response.choices[0].message.content or "").strip()
         except Exception as e:
@@ -193,6 +195,7 @@ class GeminiProvider(LLMProvider):
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=4000,
+                timeout=120,
             )
             return response.choices[0].message.content or ""
         except Exception as e:
@@ -263,6 +266,7 @@ class GeminiProvider(LLMProvider):
                     }
                 ],
                 max_tokens=1000,
+                timeout=60,
             )
 
             return response.choices[0].message.content or "No description generated"
