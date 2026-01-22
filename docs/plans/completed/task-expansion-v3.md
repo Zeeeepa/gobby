@@ -71,9 +71,20 @@ Replace the expansion MCP tool with a transparent `/gobby-expand` skill where:
 
 ### TDD Approach
 
-TDD is a **constraint**, not separate tasks:
-- Each code task's validation criteria includes "tests pass"
-- Agent is instructed: "All code must have matching tests"
+TDD workflow MUST be embedded in every `code` task description:
+
+**Required description format for code tasks**:
+```
+TDD: 1) Write tests for <feature> in <test_file> covering <scenarios>.
+     2) Run tests (expect fail).
+     3) Implement <feature> in <source_file>.
+     4) Run tests (expect pass).
+```
+
+**Why explicit TDD steps?**
+- Agents skip tests when descriptions don't mention them
+- "Tests pass" in validation is not enough - agents may write implementation first
+- Explicit test file paths guide agents to correct locations
 - No separate `[TDD]`, `[IMPL]`, `[REF]` tasks
 
 ### Key Simplifications
@@ -135,21 +146,32 @@ Use YOUR tools to understand context:
 - `Glob`: Find relevant source files
 - `Grep`: Search for patterns, function names
 - `Read`: Examine key files
-- Optional: `context7` for library docs
+
+**Required when plan references external libraries or GitHub repositories**:
+- `context7`: Fetch library documentation for referenced packages/frameworks
+- `gitingest`: Analyze referenced GitHub repositories for patterns and structure
+
+**What to extract from external research**:
+- Integrations, dependencies, test patterns, data models, error handling
 
 ### Phase 3: Generate & Save Spec
 Think through decomposition with these requirements:
-1. **TDD Mandate**: All code changes require tests. Include "tests pass" in validation criteria.
+1. **TDD Workflow in Descriptions**: Every `code` task description MUST include explicit TDD steps
 2. **Atomicity**: Each task completable in 10-30 minutes
 3. **Categories**: code, config, docs, research, planning, manual
-4. **No separate test tasks**: TDD is a workflow constraint
+4. **No separate test tasks**: TDD is embedded in each code task
 
 After generating, SAVE the spec before creating tasks:
 ```python
 spec = {
     "subtasks": [
-        {"title": "...", "category": "code", "depends_on": [], "validation": "Tests pass. ..."},
-        {"title": "...", "category": "code", "depends_on": [0], "validation": "Tests pass. ..."},
+        {
+            "title": "Add User model",
+            "category": "code",
+            "depends_on": [],
+            "validation": "Tests pass. User model exists.",
+            "description": "TDD: 1) Write tests in tests/test_user.py. 2) Run tests (expect fail). 3) Implement in models/user.py. 4) Run tests (expect pass)."
+        },
     ]
 }
 call_tool("gobby-tasks", "save_expansion_spec", {"task_id": "<ref>", "spec": spec})

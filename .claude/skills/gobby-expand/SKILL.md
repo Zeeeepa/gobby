@@ -118,10 +118,10 @@ Example analysis approach:
 Think through the decomposition with these requirements:
 
 **Requirements**:
-1. **TDD Mandate**: All code changes require tests. Include "Tests pass" in validation criteria.
+1. **TDD Workflow in Descriptions**: Every `code` task description MUST include explicit TDD steps
 2. **Atomicity**: Each task should be completable in 10-30 minutes
 3. **Categories**: Use `code`, `config`, `docs`, `research`, `planning`, `manual`
-4. **No separate test tasks**: TDD is a workflow constraint, not separate tasks
+4. **No separate test tasks**: TDD is embedded in each code task, not separate tasks
 5. **Dependencies**: Use indices (0-based) to reference earlier subtasks
 
 **Spec format**:
@@ -133,7 +133,7 @@ spec = {
             "category": "code",
             "depends_on": [],
             "validation": "Tests pass. User model exists with hash_password method.",
-            "description": "Create User model in models/user.py",
+            "description": "TDD: 1) Write tests for User model in tests/test_user.py covering creation and hash_password(). 2) Run tests (expect fail). 3) Implement User model in models/user.py. 4) Run tests (expect pass).",
             "priority": 2
         },
         {
@@ -141,13 +141,14 @@ spec = {
             "category": "code",
             "depends_on": [0],  # Depends on User model
             "validation": "Tests pass. POST /login returns JWT on valid credentials.",
-            "description": "Add login route to api/auth.py"
+            "description": "TDD: 1) Write tests for POST /login in tests/test_auth.py covering valid/invalid credentials. 2) Run tests (expect fail). 3) Implement login route in api/auth.py. 4) Run tests (expect pass)."
         },
         {
             "title": "Add logout endpoint",
             "category": "code",
             "depends_on": [1],  # Depends on login
-            "validation": "Tests pass. POST /logout invalidates session."
+            "validation": "Tests pass. POST /logout invalidates session.",
+            "description": "TDD: 1) Write tests for POST /logout in tests/test_auth.py. 2) Run tests (expect fail). 3) Implement logout in api/auth.py. 4) Run tests (expect pass)."
         }
     ]
 }
@@ -207,10 +208,26 @@ Use `suggest_next_task` to get the first ready task.
 
 ## TDD Approach
 
-TDD is a **constraint**, not separate tasks:
-- Every `code` category task's validation criteria should include "Tests pass"
-- The agent is expected to write tests alongside implementation
-- No separate `[TEST]`, `[IMPL]`, `[REFACTOR]` task patterns
+TDD workflow MUST be embedded in every `code` task description:
+
+**Required description format for code tasks**:
+```
+TDD: 1) Write tests for <feature> in <test_file> covering <scenarios>.
+     2) Run tests (expect fail).
+     3) Implement <feature> in <source_file>.
+     4) Run tests (expect pass).
+```
+
+**Why explicit TDD steps?**
+- Agents skip tests when descriptions don't mention them
+- "Tests pass" in validation is not enough - agents may write implementation first
+- Explicit test file paths guide agents to correct locations
+- "expect fail" / "expect pass" enforces red-green cycle
+
+**Do NOT**:
+- Create separate `[TEST]` and `[IMPL]` tasks
+- Say only "write tests" without specifying what to test
+- Omit test file paths from descriptions
 
 ## Error Handling
 
