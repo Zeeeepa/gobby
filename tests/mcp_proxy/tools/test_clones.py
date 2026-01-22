@@ -419,7 +419,7 @@ class TestSpawnAgentInClone:
     @pytest.fixture
     def registry_with_runner(self, mock_clone_storage, mock_git_manager):
         """Create registry with clone tools and agent runner."""
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import MagicMock
 
         from gobby.mcp_proxy.tools.clones import create_clones_registry
 
@@ -649,3 +649,179 @@ class TestSpawnAgentInClone:
         # Verify task_id was passed to create
         call_kwargs = mock_clone_storage.create.call_args.kwargs
         assert call_kwargs.get("task_id") == "task-456"
+
+
+class TestMergeCloneToTarget:
+    """Tests for merge_clone_to_target tool."""
+
+    @pytest.mark.asyncio
+    async def test_merge_clone_success(self, registry, mock_clone_storage, mock_git_manager):
+        """Merge clone to target branch successfully."""
+        from unittest.mock import MagicMock
+
+        # Setup clone
+        mock_clone_storage.get.return_value = Clone(
+            id="clone-123",
+            project_id="proj-1",
+            branch_name="feature/test",
+            clone_path="/tmp/clones/test",
+            base_branch="main",
+            task_id=None,
+            agent_session_id=None,
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at=None,
+            cleanup_after=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_clone_storage.update.return_value = MagicMock()
+
+        # Mock sync (push)
+        mock_git_manager.sync_clone.return_value = MagicMock(success=True)
+        # Mock merge operation
+        mock_git_manager.merge_branch.return_value = MagicMock(
+            success=True,
+            has_conflicts=False,
+        )
+
+        result = await registry.call(
+            "merge_clone_to_target",
+            {"clone_id": "clone-123", "target_branch": "main"},
+        )
+
+        assert result["success"] is True
+        # Should have synced first
+        mock_git_manager.sync_clone.assert_called_once()
+        # Should have set cleanup_after on success
+        mock_clone_storage.update.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_merge_clone_not_found(self, registry, mock_clone_storage):
+        """Merge fails for nonexistent clone."""
+        mock_clone_storage.get.return_value = None
+
+        result = await registry.call(
+            "merge_clone_to_target",
+            {"clone_id": "nonexistent", "target_branch": "main"},
+        )
+
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_merge_clone_sync_failure(self, registry, mock_clone_storage, mock_git_manager):
+        """Merge fails when sync fails."""
+        mock_clone_storage.get.return_value = Clone(
+            id="clone-123",
+            project_id="proj-1",
+            branch_name="feature/test",
+            clone_path="/tmp/clones/test",
+            base_branch="main",
+            task_id=None,
+            agent_session_id=None,
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at=None,
+            cleanup_after=None,
+            created_at="now",
+            updated_at="now",
+        )
+
+        # Sync fails
+        mock_git_manager.sync_clone.return_value = MagicMock(
+            success=False,
+            error="Push rejected",
+        )
+
+        result = await registry.call(
+            "merge_clone_to_target",
+            {"clone_id": "clone-123", "target_branch": "main"},
+        )
+
+        assert result["success"] is False
+        assert "sync" in result["error"].lower() or "push" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_merge_clone_with_conflicts(self, registry, mock_clone_storage, mock_git_manager):
+        """Merge detects conflicts and reports them."""
+        from unittest.mock import MagicMock
+
+        mock_clone_storage.get.return_value = Clone(
+            id="clone-123",
+            project_id="proj-1",
+            branch_name="feature/test",
+            clone_path="/tmp/clones/test",
+            base_branch="main",
+            task_id=None,
+            agent_session_id=None,
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at=None,
+            cleanup_after=None,
+            created_at="now",
+            updated_at="now",
+        )
+
+        mock_git_manager.sync_clone.return_value = MagicMock(success=True)
+        # Merge has conflicts - error="merge_conflict" signals conflict
+        mock_git_manager.merge_branch.return_value = MagicMock(
+            success=False,
+            error="merge_conflict",
+            message="Merge conflict in 2 files",
+            output="src/foo.py\nsrc/bar.py",
+        )
+
+        result = await registry.call(
+            "merge_clone_to_target",
+            {"clone_id": "clone-123", "target_branch": "main"},
+        )
+
+        assert result["success"] is False
+        assert result.get("has_conflicts") is True
+        assert "conflicted_files" in result
+
+    @pytest.mark.asyncio
+    async def test_merge_clone_sets_cleanup_after(
+        self, registry, mock_clone_storage, mock_git_manager
+    ):
+        """Successful merge sets cleanup_after to 7 days from now."""
+        from unittest.mock import MagicMock
+
+        mock_clone_storage.get.return_value = Clone(
+            id="clone-123",
+            project_id="proj-1",
+            branch_name="feature/test",
+            clone_path="/tmp/clones/test",
+            base_branch="main",
+            task_id=None,
+            agent_session_id=None,
+            status="active",
+            remote_url="https://github.com/user/repo.git",
+            last_sync_at=None,
+            cleanup_after=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_clone_storage.update.return_value = MagicMock()
+
+        mock_git_manager.sync_clone.return_value = MagicMock(success=True)
+        mock_git_manager.merge_branch.return_value = MagicMock(
+            success=True,
+            has_conflicts=False,
+        )
+
+        result = await registry.call(
+            "merge_clone_to_target",
+            {"clone_id": "clone-123", "target_branch": "main"},
+        )
+
+        assert result["success"] is True
+        # Verify update was called with cleanup_after set
+        update_calls = mock_clone_storage.update.call_args_list
+        # Check if any call has cleanup_after
+        has_cleanup = any(
+            "cleanup_after" in (call.kwargs or {})
+            for call in update_calls
+        )
+        assert has_cleanup or result.get("cleanup_after") is not None

@@ -397,3 +397,129 @@ class CloneGitManager:
         except Exception as e:
             logger.error(f"Error getting clone status: {e}")
             return None
+
+    def merge_branch(
+        self,
+        source_branch: str,
+        target_branch: str = "main",
+        working_dir: str | Path | None = None,
+    ) -> GitOperationResult:
+        """
+        Merge source branch into target branch.
+
+        Performs:
+        1. Fetch latest from remote
+        2. Checkout target branch
+        3. Attempt merge from source branch
+
+        Args:
+            source_branch: Branch to merge from
+            target_branch: Branch to merge into (default: main)
+            working_dir: Working directory (defaults to repo_path)
+
+        Returns:
+            GitOperationResult with success status and conflict info
+        """
+        cwd = Path(working_dir) if working_dir else self.repo_path
+
+        if not cwd.exists():
+            return GitOperationResult(
+                success=False,
+                message=f"Working directory does not exist: {cwd}",
+                error="directory_not_found",
+            )
+
+        try:
+            # Fetch latest
+            fetch_result = self._run_git(
+                ["fetch", "origin"],
+                cwd=cwd,
+                timeout=60,
+            )
+            if fetch_result.returncode != 0:
+                return GitOperationResult(
+                    success=False,
+                    message=f"Failed to fetch: {fetch_result.stderr}",
+                    error=fetch_result.stderr,
+                )
+
+            # Checkout target branch
+            checkout_result = self._run_git(
+                ["checkout", target_branch],
+                cwd=cwd,
+                timeout=30,
+            )
+            if checkout_result.returncode != 0:
+                return GitOperationResult(
+                    success=False,
+                    message=f"Failed to checkout {target_branch}: {checkout_result.stderr}",
+                    error=checkout_result.stderr,
+                )
+
+            # Pull latest on target
+            pull_result = self._run_git(
+                ["pull", "origin", target_branch],
+                cwd=cwd,
+                timeout=60,
+            )
+            if pull_result.returncode != 0:
+                return GitOperationResult(
+                    success=False,
+                    message=f"Failed to pull {target_branch}: {pull_result.stderr}",
+                    error=pull_result.stderr,
+                )
+
+            # Attempt merge
+            merge_result = self._run_git(
+                ["merge", f"origin/{source_branch}", "--no-edit"],
+                cwd=cwd,
+                timeout=60,
+            )
+
+            if merge_result.returncode != 0:
+                # Check if it's a conflict
+                if "CONFLICT" in merge_result.stdout or "CONFLICT" in merge_result.stderr:
+                    # Get list of conflicted files
+                    status_result = self._run_git(
+                        ["diff", "--name-only", "--diff-filter=U"],
+                        cwd=cwd,
+                        timeout=10,
+                    )
+                    conflicted_files = [
+                        f for f in status_result.stdout.strip().split("\n") if f
+                    ]
+
+                    # Abort the merge to leave repo in clean state
+                    self._run_git(["merge", "--abort"], cwd=cwd, timeout=10)
+
+                    return GitOperationResult(
+                        success=False,
+                        message=f"Merge conflict in {len(conflicted_files)} files",
+                        error="merge_conflict",
+                        output="\n".join(conflicted_files),
+                    )
+
+                return GitOperationResult(
+                    success=False,
+                    message=f"Merge failed: {merge_result.stderr}",
+                    error=merge_result.stderr,
+                )
+
+            return GitOperationResult(
+                success=True,
+                message=f"Successfully merged {source_branch} into {target_branch}",
+                output=merge_result.stdout,
+            )
+
+        except subprocess.TimeoutExpired:
+            return GitOperationResult(
+                success=False,
+                message="Merge operation timed out",
+                error="timeout",
+            )
+        except Exception as e:
+            return GitOperationResult(
+                success=False,
+                message=f"Merge error: {e}",
+                error=str(e),
+            )

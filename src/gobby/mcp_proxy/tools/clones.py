@@ -379,6 +379,114 @@ def create_clones_registry(
         func=sync_clone,
     )
 
+    # ===== merge_clone_to_target =====
+    async def merge_clone_to_target(
+        clone_id: str,
+        target_branch: str = "main",
+    ) -> dict[str, Any]:
+        """
+        Merge clone branch to target branch in main repository.
+
+        Performs:
+        1. Push clone changes to remote (sync_clone push)
+        2. Fetch branch in main repo
+        3. Attempt merge to target branch
+
+        On success, sets cleanup_after to 7 days from now.
+
+        Args:
+            clone_id: Clone ID to merge
+            target_branch: Target branch to merge into (default: main)
+
+        Returns:
+            Dict with merge result and conflict info if any
+        """
+        from datetime import UTC, datetime, timedelta
+
+        clone = clone_storage.get(clone_id)
+        if not clone:
+            return {
+                "success": False,
+                "error": f"Clone not found: {clone_id}",
+            }
+
+        # Step 1: Push clone changes to remote
+        clone_storage.mark_syncing(clone_id)
+        sync_result = git_manager.sync_clone(
+            clone_path=clone.clone_path,
+            direction="push",
+        )
+
+        if not sync_result.success:
+            clone_storage.update(clone_id, status="active")
+            return {
+                "success": False,
+                "error": f"Sync failed: {sync_result.error or sync_result.message}",
+                "step": "sync",
+            }
+
+        clone_storage.record_sync(clone_id)
+
+        # Step 2: Merge in main repo
+        merge_result = git_manager.merge_branch(
+            source_branch=clone.branch_name,
+            target_branch=target_branch,
+        )
+
+        if not merge_result.success:
+            # Check for conflicts
+            if merge_result.error == "merge_conflict":
+                conflicted_files = merge_result.output.split("\n") if merge_result.output else []
+                return {
+                    "success": False,
+                    "has_conflicts": True,
+                    "conflicted_files": conflicted_files,
+                    "error": merge_result.message,
+                    "step": "merge",
+                    "message": (
+                        f"Merge conflicts detected in {len(conflicted_files)} files. "
+                        "Use gobby-merge tools to resolve."
+                    ),
+                }
+
+            return {
+                "success": False,
+                "has_conflicts": False,
+                "error": merge_result.error or merge_result.message,
+                "step": "merge",
+            }
+
+        # Step 3: Success - set cleanup_after
+        cleanup_after = (datetime.now(UTC) + timedelta(days=7)).isoformat()
+        clone_storage.update(clone_id, cleanup_after=cleanup_after)
+
+        return {
+            "success": True,
+            "message": f"Successfully merged {clone.branch_name} into {target_branch}",
+            "cleanup_after": cleanup_after,
+        }
+
+    registry.register(
+        name="merge_clone_to_target",
+        description="Merge clone branch to target branch in main repository",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "clone_id": {
+                    "type": "string",
+                    "description": "Clone ID to merge",
+                },
+                "target_branch": {
+                    "type": "string",
+                    "description": "Target branch to merge into",
+                    "default": "main",
+                },
+            },
+            "required": ["clone_id"],
+        },
+        func=merge_clone_to_target,
+    )
+
     # ===== spawn_agent_in_clone =====
     async def spawn_agent_in_clone(
         prompt: str,
