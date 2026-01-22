@@ -759,3 +759,41 @@ def doc(ctx: click.Context, output: str | None, output_format: str) -> None:
         click.echo(f"Written to {output}")
     else:
         click.echo(content)
+
+
+@skills.command()
+@click.argument("name")
+@click.pass_context
+def enable(ctx: click.Context, name: str) -> None:
+    """Enable a skill.
+
+    NAME is the skill name to enable.
+    """
+    storage = get_skill_storage()
+    skill = storage.get_by_name(name)
+
+    if skill is None:
+        click.echo(f"Skill not found: {name}")
+        return
+
+    storage.update_skill(skill.id, enabled=True)
+    click.echo(f"Enabled skill: {name}")
+
+
+@skills.command()
+@click.argument("name")
+@click.pass_context
+def disable(ctx: click.Context, name: str) -> None:
+    """Disable a skill.
+
+    NAME is the skill name to disable.
+    """
+    storage = get_skill_storage()
+    skill = storage.get_by_name(name)
+
+    if skill is None:
+        click.echo(f"Skill not found: {name}")
+        return
+
+    storage.update_skill(skill.id, enabled=False)
+    click.echo(f"Disabled skill: {name}")

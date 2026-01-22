@@ -416,6 +416,95 @@ class TestSkillsInstallCommand:
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
+class TestSkillsEnableDisableCommands:
+    """Tests for gobby skills enable/disable commands."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_enable_help(self, runner: CliRunner):
+        """Test skills enable --help."""
+        result = runner.invoke(cli, ["skills", "enable", "--help"])
+        assert result.exit_code == 0
+        assert "enable" in result.output.lower()
+
+    def test_disable_help(self, runner: CliRunner):
+        """Test skills disable --help."""
+        result = runner.invoke(cli, ["skills", "disable", "--help"])
+        assert result.exit_code == 0
+        assert "disable" in result.output.lower()
+
+    def test_enable_requires_name(self, runner: CliRunner):
+        """Test that enable requires name argument."""
+        result = runner.invoke(cli, ["skills", "enable"])
+        assert result.exit_code != 0
+
+    def test_disable_requires_name(self, runner: CliRunner):
+        """Test that disable requires name argument."""
+        result = runner.invoke(cli, ["skills", "disable"])
+        assert result.exit_code != 0
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_enable_skill(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test enabling a skill."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.name = "test-skill"
+        mock_skill.enabled = False
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "enable", "test-skill"])
+
+        assert result.exit_code == 0
+        assert "enabled" in result.output.lower()
+        mock_storage.update_skill.assert_called_once_with("skl-123", enabled=True)
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_disable_skill(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test disabling a skill."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.name = "test-skill"
+        mock_skill.enabled = True
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "disable", "test-skill"])
+
+        assert result.exit_code == 0
+        assert "disabled" in result.output.lower()
+        mock_storage.update_skill.assert_called_once_with("skl-123", enabled=False)
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_enable_skill_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test enabling a non-existent skill."""
+        mock_storage = MagicMock()
+        mock_storage.get_by_name.return_value = None
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "enable", "nonexistent"])
+
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_disable_skill_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test disabling a non-existent skill."""
+        mock_storage = MagicMock()
+        mock_storage.get_by_name.return_value = None
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "disable", "nonexistent"])
+
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()
+
+
 class TestSkillsDocCommand:
     """Tests for gobby skills doc command."""
 
