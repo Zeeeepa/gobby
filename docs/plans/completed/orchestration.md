@@ -7,6 +7,7 @@
 The Conductor is Gobby's persistent orchestration daemon that monitors tasks, coordinates agents, tracks resources, and speaks in haiku. Think of it as a friendly daemon that keeps the task system tidy while occasionally offering dry, TARS-style wit.
 
 **Key responsibilities:**
+
 - Monitor task backlog for stale/blocked work
 - Watch agent health and detect stuck processes
 - Track token usage and enforce budgets
@@ -15,7 +16,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 
 ### 1.2 Two Operational Modes
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        GOBBY ORCHESTRATION LAYER                        │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -54,7 +55,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 ### 1.3 Key Capabilities Summary
 
 | Capability | Description |
-|------------|-------------|
+| :--- | :--- |
 | Inter-agent messaging | Parent↔child message passing during execution |
 | Blocking wait tools | Synchronous wait for task completion |
 | `review` status | Review gates in task flow |
@@ -67,7 +68,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 
 ### 2.1 System Diagram
 
-```
+```text
                     ┌─────────────────────────────────────┐
                     │        Gobby the Conductor          │
                     │       (Persistent LLM Loop)         │
@@ -96,7 +97,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 ### 2.2 Core Components
 
 | Component | File | Purpose |
-|-----------|------|---------|
+| :--- | :--- | :--- |
 | **ConductorLoop** | `src/gobby/conductor/loop.py` | Main async loop with configurable interval (default 30s). Calls monitors, aggregates findings. |
 | **TaskMonitor** | `src/gobby/conductor/monitors/tasks.py` | Detect stale tasks (in_progress > threshold), find orphaned subtasks, check blocked task chains. |
 | **AgentWatcher** | `src/gobby/conductor/monitors/agents.py` | Check RunningAgentRegistry for stuck processes, monitor agent depth limits, detect hung terminal sessions. |
@@ -106,6 +107,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 ### 2.3 Existing Infrastructure (DO NOT Implement)
 
 The following already exist and should be leveraged:
+
 - WebSocket server with broadcasting (`src/gobby/servers/websocket.py`)
 - Agent event broadcasting via `RunningAgentRegistry`
 - Merge system (gobby-merge) - needs live testing only
@@ -125,10 +127,12 @@ gobby conductor start [--interval=30s] [--autonomous]
 ```
 
 **Options:**
+
 - `--interval`: Monitoring frequency (default: 30s)
 - `--autonomous`: Enable auto-spawning of agents on ready tasks
 
 **Example:**
+
 ```bash
 # Start conductor in interactive mode (monitoring only)
 gobby conductor start
@@ -162,7 +166,8 @@ gobby conductor status
 ```
 
 **Example output:**
-```
+
+```text
 🎭 Conductor Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Agents: 2
@@ -187,6 +192,7 @@ gobby conductor chat [message]
 ```
 
 **Examples:**
+
 ```bash
 # Ask a question
 gobby conductor chat "What should I work on next?"
@@ -196,6 +202,7 @@ gobby conductor chat
 ```
 
 **Interactive mode features:**
+
 - Real-time task/agent status updates
 - Token usage graph
 - Command input for queries
@@ -206,13 +213,14 @@ gobby conductor chat
 
 ### 5.1 Status Flow Diagram
 
-```
+```text
 pending → in_progress → review → completed
                  ↑              │
                  └──────────────┘  (reopen if review fails)
 ```
 
 **Flow explanation:**
+
 1. Task starts as `pending`
 2. Agent picks up task → `in_progress`
 3. Agent completes work → `review` (awaiting orchestrator review)
@@ -224,12 +232,14 @@ pending → in_progress → review → completed
 When `close_task` is called by an agent (session.agent_depth > 0), it transitions to `review` instead of `completed`. This creates a review gate where the orchestrator must approve the work.
 
 **Schema change:**
+
 ```sql
 -- Add review_at timestamp
 ALTER TABLE tasks ADD COLUMN review_at TIMESTAMP;
 ```
 
 **Logic in close_task:**
+
 ```python
 def close_task(task_id: str, commit_sha: str, force_complete: bool = False):
     session = get_current_session()
@@ -298,7 +308,7 @@ reopen_task(task_id: str, reason: str = None) -> Task
 
 ### 6.2 ALLOWED Tools (Complete List)
 
-```
+```text
 # Task tools (minimal set)
 gobby-tasks.get_task          # See assigned task details
 gobby-tasks.update_task       # Set status to in_progress
@@ -315,7 +325,7 @@ gobby-memory.forget           # Remove memories
 
 ### 6.3 BLOCKED Tools (Complete List)
 
-```
+```text
 # Task navigation (orchestrator's job)
 gobby-tasks.list_tasks
 gobby-tasks.list_ready_tasks
@@ -371,7 +381,7 @@ steps:
 
 ### 7.1 Architecture Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Inter-Session Messages                        │
 ├─────────────────────────────────────────────────────────────────┤
@@ -380,6 +390,7 @@ steps:
 ```
 
 **Storage**: SQLite table `inter_session_messages` with:
+
 - `id` (UUID)
 - `from_session` (session_id of sender)
 - `to_session` (session_id of recipient)
@@ -428,7 +439,7 @@ mark_read(message_id: str) -> dict
 
 ### 7.3 Integration with Review Loop (Sequence Diagram)
 
-```
+```text
 ┌────────────┐                              ┌────────────┐
 │   Claude   │                              │   Gemini   │
 │ (Parent)   │                              │  (Child)   │
@@ -465,6 +476,7 @@ mark_read(message_id: str) -> dict
 **When to use**: Dependent tasks, limited resources, simpler review, learning the system.
 
 **Step-by-step workflow**:
+
 1. Set `session_task` to epic ID, activate `sequential-orchestrator` workflow
 2. Loop:
    a. `suggest_next_task()` → get ready subtask
@@ -477,6 +489,7 @@ mark_read(message_id: str) -> dict
 3. Repeat until no ready tasks
 
 **YAML Definition**:
+
 ```yaml
 # src/gobby/workflows/definitions/sequential-orchestrator.yaml
 name: sequential-orchestrator
@@ -514,6 +527,7 @@ steps:
 **When to use**: Independent tasks, faster throughput, available resources, overnight batch processing.
 
 **Workflow with max_parallel**:
+
 1. Set `session_task` to epic ID, activate `parallel-orchestrator` workflow
 2. Spawn phase:
    a. `list_ready_tasks()` → get up to N independent tasks
@@ -531,6 +545,7 @@ steps:
 5. Complete when all tasks done
 
 **YAML Definition**:
+
 ```yaml
 # src/gobby/workflows/definitions/parallel-orchestrator.yaml
 name: parallel-orchestrator
@@ -588,7 +603,7 @@ steps:
 
 ### 8.3 Target Workflow Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Claude (Orchestrator) - auto-task mode with session_task=epic │
 └─────────────────────────────────────────────────────────────────┘
@@ -644,12 +659,14 @@ steps:
 ### 9.1 Token Tracking
 
 We already capture per-session tokens in the `sessions` table via `SessionLifecycleManager`. Need to add:
+
 1. Model tracking (for pricing)
 2. Aggregation queries
 3. Pricing calculation
 4. Budget enforcement
 
 **Schema change**:
+
 ```sql
 ALTER TABLE sessions ADD COLUMN model TEXT;  -- e.g., "claude-opus-4-5-20251101"
 ```
@@ -772,7 +789,7 @@ def get_budget_status() -> BudgetStatus:
 ### 10.2 Alert Priorities
 
 | Priority | Behavior |
-|----------|----------|
+| :--- | :--- |
 | `info` | Log only, no notification |
 | `normal` | Log + optional terminal bell |
 | `urgent` | Log + WebSocket broadcast (for dashboards) |
@@ -790,6 +807,7 @@ def get_budget_status() -> BudgetStatus:
 ### 10.4 callme Configuration
 
 **Required accounts:**
+
 - **Phone Provider**: Telnyx (recommended, ~$0.007/min) or Twilio (~$0.014/min)
 - **OpenAI API Key**: For speech-to-text and text-to-speech (~$0.03/min)
 - **ngrok Account**: Free tier for webhook tunneling
@@ -797,7 +815,7 @@ def get_budget_status() -> BudgetStatus:
 **Environment variables** (store in `~/.claude/settings.json`):
 
 | Variable | Purpose |
-|----------|---------|
+| :--- | :--- |
 | `CALLME_PHONE_PROVIDER` | `"telnyx"` or `"twilio"` |
 | `CALLME_PHONE_ACCOUNT_SID` | Provider account identifier |
 | `CALLME_PHONE_AUTH_TOKEN` | Provider authentication credential |
@@ -807,6 +825,7 @@ def get_budget_status() -> BudgetStatus:
 | `CALLME_NGROK_AUTHTOKEN` | ngrok tunnel authentication |
 
 **Optional variables:**
+
 - `CALLME_TTS_VOICE`: Voice selection (default: `"onyx"`)
 - `CALLME_PORT`: Server port (default: `3333`)
 - `CALLME_TRANSCRIPT_TIMEOUT_MS`: Speech timeout (default: `180000`ms)
@@ -831,7 +850,7 @@ end_call(call_id: str) -> None
 
 ### 10.6 Integration Flow Diagram
 
-```
+```text
 Conductor Loop
     │
     ├─► Detects stuck agent (15 min threshold)
@@ -863,7 +882,7 @@ Conductor Loop
 
 ### 10.7 Use Cases
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Conductor detects problem → CALLS YOU (phone) via callme        │
 ├─────────────────────────────────────────────────────────────────┤
@@ -884,7 +903,7 @@ Conductor Loop
 ### 10.8 Cost Estimates
 
 | Service | Cost |
-|---------|------|
+| :--- | :--- |
 | Telnyx outbound | ~$0.007/min |
 | Twilio outbound | ~$0.014/min |
 | Monthly phone number | ~$1.00-1.15 |
@@ -989,6 +1008,7 @@ version: "1.0"
 
 ### `/gobby-merge start <worktree-id>` - Start merge operation
 Call `gobby-merge.merge_start` with:
+
 - `worktree_id`: (required) Worktree to merge
 - `source_branch`: Branch being merged (auto-detected from worktree)
 - `target_branch`: Target branch (default: "dev")
@@ -996,20 +1016,24 @@ Call `gobby-merge.merge_start` with:
 
 ### `/gobby-merge status <resolution-id>` - Get merge status
 Call `gobby-merge.merge_status` with:
+
 - `resolution_id`: (required) Resolution ID from merge_start
 
 ### `/gobby-merge resolve <conflict-id>` - Resolve conflict
 Call `gobby-merge.merge_resolve` with:
+
 - `conflict_id`: (required) Conflict to resolve
 - `resolved_content`: Manual resolution (skips AI)
 - `use_ai`: Use AI resolution (default: true)
 
 ### `/gobby-merge apply <resolution-id>` - Apply and complete
 Call `gobby-merge.merge_apply` with:
+
 - `resolution_id`: (required) Resolution to apply
 
 ### `/gobby-merge abort <resolution-id>` - Abort merge
 Call `gobby-merge.merge_abort` with:
+
 - `resolution_id`: (required) Resolution to abort
 
 ## Resolution Tiers
@@ -1031,7 +1055,7 @@ Call `gobby-merge.merge_abort` with:
 
 ### Phase Dependencies
 
-```
+```text
 A: Messaging ──► B: Status ──► C: Workflows ──┐
                                               ├──► E: Conductor ──► F: Testing
 D: Token Budget (independent) ────────────────┘
@@ -1048,11 +1072,13 @@ D: Token Budget (independent) ────────────────�
 **Goal**: Enable parent↔child message passing during agent execution
 
 **Files to create/modify**:
+
 - `src/gobby/storage/inter_session_messages.py` - Message storage with `from_session`, `to_session`, `content`, `sent_at`, `read_at`
 - `src/gobby/storage/migrations.py` - Add `inter_session_messages` table
 - `src/gobby/mcp_proxy/tools/agents.py` - Add messaging tools
 
 **New MCP Tools**:
+
 ```python
 send_to_parent(message: str, priority: str = "normal") -> message_id
 send_to_child(run_id: str, message: str) -> message_id
@@ -1061,10 +1087,12 @@ mark_read(message_id: str) -> bool
 ```
 
 **WebSocket Integration**:
+
 - Broadcast `message_sent` events on WebSocket for real-time notification
 - Polling fallback for CLI agents that don't maintain WS connection
 
 **Live Test Deliverable**: Terminal split demo
+
 - Left pane: Claude (parent) session
 - Right pane: Gemini (child) agent spawned in worktree
 - Demo flow:
@@ -1079,15 +1107,18 @@ mark_read(message_id: str) -> bool
 **Goal**: Support review workflow with `review` status
 
 **Files to modify**:
+
 - `src/gobby/storage/tasks.py` - Add `review` status + `review_at` timestamp
 - `src/gobby/mcp_proxy/tools/tasks.py` - Modify `close_task` behavior based on agent context
 - `src/gobby/mcp_proxy/tools/task_sync.py` - Handle `review` in JSONL
 
 **Logic Change**:
+
 - When `close_task` called by agent (session.agent_depth > 0) → transitions to `review`
 - When called by orchestrator → transitions to `completed`
 
 **New MCP Tools**:
+
 ```python
 wait_for_task(task_id: str, timeout_seconds: int = 300) -> TaskStatus
 wait_for_any_task(task_ids: List[str], timeout_seconds: int) -> (task_id, status)
@@ -1101,11 +1132,13 @@ approve_and_cleanup(task_id: str, worktree_id: str) -> bool
 **Goal**: Enable human-driven sequential and parallel review loops
 
 **Files to create**:
+
 - `src/gobby/workflows/definitions/worktree-agent.yaml` - Tool restrictions for spawned agents (Section 6.4)
 - `src/gobby/workflows/definitions/sequential-orchestrator.yaml` - Step-by-step orchestration (Section 8.1)
 - `src/gobby/workflows/definitions/parallel-orchestrator.yaml` - Multi-agent orchestration (Section 8.2)
 
 **Changes to spawn_agent_in_worktree**:
+
 - Auto-set `workflow="worktree-agent"` if not specified
 - Pass task_id via environment or prompt injection
 - Workflow activates on session start hook
@@ -1115,6 +1148,7 @@ approve_and_cleanup(task_id: str, worktree_id: str) -> bool
 **Goal**: Enable resource-aware autonomous operation with accurate cost tracking
 
 **Files to create/modify**:
+
 - `src/gobby/storage/sessions.py` - Add `model` column, aggregation queries
 - `src/gobby/storage/migrations.py` - Migration for model column
 - `src/gobby/sessions/transcripts/claude.py` - Extract model from JSONL
@@ -1127,6 +1161,7 @@ approve_and_cleanup(task_id: str, worktree_id: str) -> bool
 **Goal**: Persistent daemon that monitors and acts on task backlog
 
 **Files to create**:
+
 - `src/gobby/conductor/__init__.py` - Module init
 - `src/gobby/conductor/loop.py` - Main ConductorLoop class
 - `src/gobby/conductor/monitors/tasks.py` - Stale task detection
@@ -1135,6 +1170,7 @@ approve_and_cleanup(task_id: str, worktree_id: str) -> bool
 - `src/gobby/cli/conductor.py` - CLI commands
 
 **ConductorLoop Behavior**:
+
 ```python
 class ConductorLoop:
     """Runs as part of gobby daemon, checks every 30s"""
@@ -1166,7 +1202,7 @@ class ConductorLoop:
 **Test File Mapping**:
 
 | Test Scenario | File | Validates |
-|--------------|------|-----------|
+| :--- | :--- | :--- |
 | WebSocket Message Test | `tests/e2e/test_inter_agent_messages.py` | Phase A |
 | Sequential Review Loop | `tests/e2e/test_sequential_review_loop.py` | Phases B+C |
 | Autonomous Mode | `tests/e2e/test_autonomous_mode.py` | Phase E |
@@ -1218,7 +1254,7 @@ class ConductorLoop:
 ### 13.1 New Files to Create
 
 | File | Phase | Purpose |
-|------|-------|---------|
+| :--- | :--- | :--- |
 | `src/gobby/storage/inter_session_messages.py` | A | Message storage layer |
 | `src/gobby/conductor/__init__.py` | D | Conductor module init |
 | `src/gobby/conductor/loop.py` | E | Main ConductorLoop daemon |
@@ -1237,7 +1273,7 @@ class ConductorLoop:
 ### 13.2 Files to Modify
 
 | File | Changes |
-|------|---------|
+| :--- | :--- |
 | `src/gobby/storage/migrations.py` | Add `inter_session_messages` table, `model` column |
 | `src/gobby/storage/sessions.py` | Add model column, aggregation queries |
 | `src/gobby/storage/tasks.py` | Add `review` status |
@@ -1255,7 +1291,7 @@ class ConductorLoop:
 ### 13.3 Test Files
 
 | File | Validates |
-|------|-----------|
+| :--- | :--- |
 | `tests/e2e/test_inter_agent_messages.py` | Phase A - messaging |
 | `tests/e2e/test_sequential_review_loop.py` | Phases B+C |
 | `tests/e2e/test_token_budget.py` | Phase D |
@@ -1283,6 +1319,7 @@ class ConductorLoop:
 ### 14.2 Integration Tests
 
 **Sequential Workflow**:
+
 ```bash
 # 1. Create epic with subtasks
 gobby tasks create "Epic" --type=epic
@@ -1307,6 +1344,7 @@ gobby tasks list --status=review
 ```
 
 **Parallel Workflow**:
+
 ```bash
 # 1. Create epic with 3 independent subtasks
 gobby tasks create "Parallel Epic" --type=epic
@@ -1325,6 +1363,7 @@ gobby worktrees spawn feature/task-2 --task=<task-2> --provider=gemini
 ### 14.3 End-to-End Tests
 
 **Full Sequential Loop**:
+
 1. Create epic with 2 subtasks
 2. Claude activates `sequential-orchestrator` workflow
 3. Spawns Gemini for subtask 1, waits, reviews, merges
@@ -1332,6 +1371,7 @@ gobby worktrees spawn feature/task-2 --task=<task-2> --provider=gemini
 5. Epic marked complete when all subtasks done
 
 **Full Parallel Loop**:
+
 1. Create epic with 4 independent subtasks
 2. Claude activates `parallel-orchestrator` workflow
 3. Spawns Gemini in 2 worktrees (max_parallel=2)
@@ -1339,6 +1379,7 @@ gobby worktrees spawn feature/task-2 --task=<task-2> --provider=gemini
 5. All 4 tasks processed with max 2 concurrent agents
 
 **Autonomous Mode**:
+
 1. Seed task backlog
 2. Enable autonomous mode
 3. Start conductor: `gobby conductor start --autonomous`
@@ -1381,7 +1422,7 @@ conductor:
 ### 15.2 Environment Variables
 
 | Variable | Purpose | Default |
-|----------|---------|---------|
+| :--- | :--- | :--- |
 | `GOBBY_CONDUCTOR_ENABLED` | Enable conductor | `false` |
 | `GOBBY_CONDUCTOR_AUTONOMOUS` | Enable auto-spawn | `false` |
 | `GOBBY_TOKEN_BUDGET` | Weekly limit in USD | `null` |
@@ -1389,7 +1430,7 @@ conductor:
 **callme environment variables** (see Section 10.4 for full list):
 
 | Variable | Purpose |
-|----------|---------|
+| :--- | :--- |
 | `CALLME_PHONE_PROVIDER` | `"telnyx"` or `"twilio"` |
 | `CALLME_USER_PHONE_NUMBER` | Your phone number (E.164 format) |
 | `CALLME_OPENAI_API_KEY` | OpenAI for voice processing |
@@ -1417,7 +1458,7 @@ conductor:
 ## Appendix B: Deliverables Summary
 
 | Phase | Key Output | Validates |
-|-------|-----------|-----------|
+| :--- | :--- | :--- |
 | A | Inter-agent messaging MCP tools | WebSocket + message passing |
 | B | `review` status + wait tools | Review gates |
 | C | Orchestration workflow definitions | Interactive mode |
@@ -1460,14 +1501,15 @@ gobby conductor chat "What's the status?"
 
 During E2E testing of parallel agent orchestration, fundamental issues emerged with git worktrees:
 
-**Problem 1: Git is NOT Thread-Safe**
+#### Problem 1: Git is NOT Thread-Safe
 
 All worktrees share a single `.git` directory, leading to:
+
 - Race conditions during concurrent operations (checkout, commit)
 - Lock file contention (`index.lock`, `HEAD.lock`)
 - Potential repository corruption with aggressive parallel agents
 
-**Problem 2: CLI Worktree Detection**
+#### Problem 2: CLI Worktree Detection
 
 Gemini CLI's `findProjectRoot()` searches for a `.git` **directory**. Worktrees have a `.git` **file** pointing back to main repo, causing agents to operate on wrong directory.
 
@@ -1476,7 +1518,7 @@ Gemini CLI's `findProjectRoot()` searches for a `.git` **directory**. Worktrees 
 
 ### 16.2 Architecture: Clones vs Worktrees
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     PARALLEL ISOLATION MODES                    │
 ├─────────────────────────────────────────────────────────────────┤
@@ -1497,7 +1539,7 @@ Gemini CLI's `findProjectRoot()` searches for a `.git` **directory**. Worktrees 
 ### 16.3 When to Use Each
 
 | Scenario | Recommendation | Reason |
-|----------|----------------|--------|
+| :--- | :--- | :--- |
 | Sequential orchestrator | Worktree | Fast setup, single agent |
 | Parallel orchestrator (2+ agents) | **Clone** | Thread safety |
 | Short-lived tasks (<30 min) | Worktree | Minimal overhead |
@@ -1507,7 +1549,7 @@ Gemini CLI's `findProjectRoot()` searches for a `.git` **directory**. Worktrees 
 
 ### 16.4 Clone Storage Layout
 
-```
+```text
 /tmp/gobby-clones/
   <project-name>/
     <task-id-or-branch>/           # Full shallow clone
@@ -1558,6 +1600,7 @@ create_clone(
 ```
 
 **Implementation**:
+
 1. Get remote URL from local repo: `git remote get-url origin`
 2. Generate clone path: `/tmp/gobby-clones/<project>/<branch>/`
 3. Execute: `git clone --depth=<depth> --branch=<base_branch> <url> <path>`
@@ -1586,6 +1629,7 @@ spawn_agent_in_clone(
 ```
 
 **Implementation**:
+
 1. Call `create_clone()` if clone doesn't exist
 2. Build enhanced prompt with clone context
 3. Use same spawner logic as `spawn_agent_in_worktree()`
@@ -1602,6 +1646,7 @@ sync_clone(
 ```
 
 **Implementation**:
+
 - **pull**: `git fetch origin && git rebase origin/<base_branch>`
 - **push**: `git push origin <branch_name>`
 
@@ -1618,6 +1663,7 @@ merge_clone_to_target(
 ```
 
 **Implementation**:
+
 1. `sync_clone(clone_id, "push")` - Ensure branch is on remote
 2. In main repo: `git fetch origin && git checkout <target_branch>`
 3. `git merge origin/<branch_name>` or use gobby-merge for conflicts
@@ -1635,6 +1681,7 @@ delete_clone(
 ```
 
 **Implementation**:
+
 1. Check for uncommitted changes (unless force)
 2. `rm -rf <clone_path>`
 3. Optionally: `git push origin --delete <branch_name>`
@@ -1655,7 +1702,7 @@ cleanup_merged_clones() -> CleanupResult  # Delete where cleanup_after < now
 #### Key Difference: Worktrees vs Clones
 
 | Aspect | Worktree Merge | Clone Merge |
-|--------|----------------|-------------|
+| :--- | :--- | :--- |
 | Branch location | Local (shared .git) | Remote (isolated .git) |
 | Pre-merge step | None | `git fetch origin <branch>` |
 | Source ref | `branch_name` | `origin/branch_name` |
@@ -1706,7 +1753,7 @@ def merge_start(
 
 #### Conflict Resolution Flow for Clones
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                   CLONE MERGE CONFLICT FLOW                     │
 └─────────────────────────────────────────────────────────────────┘
@@ -1841,9 +1888,9 @@ def merge_resolve(
 
 #### Handling Clone-Specific Merge Scenarios
 
-**Scenario 1: Multiple clones modifying same file**
+##### Scenario 1: Multiple clones modifying same file
 
-```
+```text
 Clone A modifies: src/auth.py (lines 10-20)
 Clone B modifies: src/auth.py (lines 50-60)
                                   │
@@ -1859,6 +1906,7 @@ Clone B modifies: src/auth.py (lines 50-60)
 ```
 
 **Recommendation**: Before merging Clone B, sync it with latest dev:
+
 ```python
 # In parallel orchestrator, before merge:
 sync_clone(clone_id, direction="pull")  # Rebase on latest dev
@@ -1866,7 +1914,7 @@ sync_clone(clone_id, direction="push")  # Push rebased changes
 merge_start(clone_id, target="dev")     # Now merge cleanly
 ```
 
-**Scenario 2: Clone branch diverged significantly**
+##### Scenario 2: Clone branch diverged significantly
 
 When clone's branch is many commits behind dev:
 
@@ -1984,7 +2032,7 @@ def _build_clone_context_prompt(
 ### 16.10 Performance Comparison
 
 | Metric | Worktree | Shallow Clone (depth=1) |
-|--------|----------|-------------------------|
+| :--- | :--- | :--- |
 | Disk space | ~50MB (shared .git) | ~100-200MB |
 | Setup time | ~2-5 seconds | ~10-30 seconds |
 | Concurrent safety | ❌ Lock contention | ✅ Fully isolated |
@@ -2012,6 +2060,7 @@ def _build_clone_context_prompt(
 #### The Problem
 
 Clones require network access to the remote repository. Unlike worktrees (which share the local `.git` directory), clones must authenticate with the remote for:
+
 - Initial `git clone`
 - `sync_clone("pull")` - fetch latest changes
 - `sync_clone("push")` - push commits
@@ -2057,7 +2106,7 @@ def _detect_auth_method(url: str) -> AuthMethod:
 
 **How it works**: SSH keys are system-wide; clones automatically use them.
 
-```
+```text
 Local repo uses: git@github.com:user/project.git
                             │
                             ▼
@@ -2065,6 +2114,7 @@ Clone inherits same URL → SSH agent provides key automatically
 ```
 
 **Requirements**:
+
 - SSH key added to ssh-agent (`ssh-add`)
 - Key authorized on GitHub/GitLab
 - `~/.ssh/config` configured if using non-default key
@@ -2075,7 +2125,7 @@ Clone inherits same URL → SSH agent provides key automatically
 
 **How it works**: Git credential helpers (macOS Keychain, Windows Credential Manager, `git-credential-store`) cache tokens.
 
-```
+```text
 Local repo uses: https://github.com/user/project.git
                             │
                             ▼
@@ -2083,6 +2133,7 @@ Clone uses same URL → Credential helper provides token
 ```
 
 **Common credential helpers**:
+
 ```bash
 # macOS (uses Keychain)
 git config --global credential.helper osxkeychain
@@ -2277,7 +2328,7 @@ clones:
 [git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) (GTR) is CodeRabbit's solution for parallel development.
 
 | Feature | Gobby Clones | GTR |
-|---------|--------------|-----|
+| :--- | :--- | :--- |
 | Isolation | Full clones | Worktrees |
 | Thread safety | ✅ Isolated .git | ❌ Shared .git |
 | AI integration | Native (spawn_agent_in_clone) | Via `git gtr ai` |
@@ -2294,7 +2345,7 @@ clones:
 ### New Files
 
 | File | Purpose |
-|------|---------|
+| :--- | :--- |
 | `src/gobby/storage/clones.py` | Clone model + LocalCloneManager |
 | `src/gobby/clones/__init__.py` | Module init |
 | `src/gobby/clones/git.py` | CloneGitManager (shallow clone ops) |
@@ -2305,7 +2356,7 @@ clones:
 ### Modified Files
 
 | File | Changes |
-|------|---------|
+| :--- | :--- |
 | `docs/plans/orchestration.md` | Add Section 16 |
 | `docs/research/investigate-gtr-ccmanager.md` | Mark action items as addressed |
 | `src/gobby/storage/migrations.py` | Add `clones` table |
@@ -2318,7 +2369,7 @@ clones:
 ### Test Files
 
 | File | Validates |
-|------|-----------|
+| :--- | :--- |
 | `tests/storage/test_clones.py` | Clone storage layer |
 | `tests/clones/test_git.py` | CloneGitManager operations |
 | `tests/mcp_proxy/tools/test_clones.py` | MCP tool behavior |
