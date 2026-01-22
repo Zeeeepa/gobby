@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -231,128 +231,10 @@ async def test_sync_tasks(mock_task_manager, mock_sync_manager):
     assert result["export"] == "completed"
 
 
-@pytest.mark.asyncio
-async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
-    """Test expand_task tool execution with expander registered."""
-    mock_expander = MagicMock()
-
-    # Return new format with subtask_ids (created by agent via tool calls)
-    mock_expander.expand_task = AsyncMock(
-        return_value={
-            "subtask_ids": ["sub1", "sub2"],
-            "tool_calls": 2,
-            "text": "Created 2 subtasks",
-        }
-    )
-    mock_task_manager.list_tasks.return_value = []  # Ensure it's a leaf task
-
-    # Mock dependency manager (in task_expansion module where expand_task is defined)
-    with (
-        patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager") as MockDepManager,
-        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context", return_value={"id": "p1"}),
-    ):
-        mock_dep_instance = MockDepManager.return_value
-
-        registry = create_task_registry(
-            mock_task_manager, mock_sync_manager, task_expander=mock_expander
-        )
-
-        msg_task = MagicMock()
-        msg_task.id = "t1"
-        msg_task.title = "Test task"
-        msg_task.description = "Test description"
-        msg_task.is_expanded = False
-        msg_task.expansion_context = None
-        msg_task.project_id = "p1"
-        msg_task.task_type = "task"
-        mock_task_manager.get_task.return_value = msg_task
-
-        # Mock fetching created subtasks
-        sub1 = MagicMock()
-        sub1.id = "sub1"
-        sub1.title = "Subtask 1"
-        sub1.status = "open"
-        sub2 = MagicMock()
-        sub2.id = "sub2"
-        sub2.title = "Subtask 2"
-        sub2.status = "open"
-
-        # Note: resolve_task_id_for_mcp calls get_task first to validate UUID exists,
-        # then expand_task calls it again, then it loops through subtask_ids multiple times
-        def get_task_side_effect(task_id):
-            if task_id == "t1":
-                return msg_task
-            if task_id == "sub1":
-                return sub1
-            if task_id == "sub2":
-                return sub2
-            return None
-
-        mock_task_manager.get_task.side_effect = get_task_side_effect
-
-        result = await registry.call("expand_task", {"task_id": "t1", "context": "extra info"})
-
-        mock_expander.expand_task.assert_called_once()
-        assert result["task_id"] == "t1"
-        assert result["tasks_created"] == 2
-        assert len(result["subtasks"]) == 2
-        # Subtasks are brief format: [{id, title}, ...]
-        assert result["subtasks"][0]["id"] == "sub1"
-        assert result["subtasks"][0]["title"] == "Subtask 1"
-        assert result["subtasks"][1]["id"] == "sub2"
-        assert result["subtasks"][1]["title"] == "Subtask 2"
-        assert result["is_expanded"] is True
-
-        # Verify parent -> subtask dependencies are wired
-        mock_dep_instance.add_dependency.assert_any_call(
-            task_id="t1", depends_on="sub1", dep_type="blocks"
-        )
-        mock_dep_instance.add_dependency.assert_any_call(
-            task_id="t1", depends_on="sub2", dep_type="blocks"
-        )
-
-
-@pytest.mark.asyncio
-async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
-    """Test expand_task tool passes feature flags to TaskExpander."""
-    mock_expander = MagicMock()
-    # Minimal response
-    mock_expander.expand_task = AsyncMock(return_value={"complexity_analysis": {}, "phases": []})
-
-    with patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"):
-        registry = create_task_registry(
-            mock_task_manager, mock_sync_manager, task_expander=mock_expander
-        )
-        mock_task_manager.list_tasks.return_value = []  # Ensure it's a leaf task
-
-        mock_task = MagicMock()
-        mock_task.id = "t1"
-        mock_task.title = "Test task"
-        mock_task.description = "Test description"
-        mock_task.is_expanded = False
-        mock_task.expansion_context = None
-        mock_task.task_type = "task"
-        mock_task_manager.get_task.return_value = mock_task
-
-        # Call with explicit flags
-        await registry.call(
-            "expand_task",
-            {
-                "task_id": "t1",
-                "enable_web_research": True,
-                "enable_code_context": False,
-            },
-        )
-
-        mock_expander.expand_task.assert_called_with(
-            task_id="t1",
-            title="Test task",
-            description="Test description",
-            context=None,
-            enable_web_research=True,
-            enable_code_context=False,
-            session_id=None,
-        )
+# NOTE: test_expand_task_integration and test_expand_task_with_flags were removed
+# because they tested the old expand_task tool API which has been replaced by
+# save_expansion_spec/execute_expansion/get_expansion_spec.
+# See tests/mcp_proxy/tools/test_task_expansion_new.py for current expansion tests.
 
 
 # =============================================================================
