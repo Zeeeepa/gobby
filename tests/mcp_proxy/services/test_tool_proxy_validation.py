@@ -420,3 +420,247 @@ class TestCallToolInternalServer:
 
         assert result["id"] == "gt-123"
         mock_registry.call.assert_called_once_with("get_task", {"task_id": "gt-123"})
+
+
+class TestIsArgumentError:
+    """Tests for the _is_argument_error heuristic method."""
+
+    def test_detects_missing_required_parameter(self, tool_proxy):
+        """Verify detection of missing required parameter errors."""
+        assert tool_proxy._is_argument_error("Missing required parameter 'name'") is True
+
+    def test_detects_invalid_argument(self, tool_proxy):
+        """Verify detection of invalid argument errors."""
+        assert tool_proxy._is_argument_error("Invalid argument type for 'count'") is True
+
+    def test_detects_unknown_parameter(self, tool_proxy):
+        """Verify detection of unknown parameter errors."""
+        assert tool_proxy._is_argument_error("Unknown parameter 'foo'") is True
+
+    def test_detects_validation_error(self, tool_proxy):
+        """Verify detection of validation errors."""
+        assert tool_proxy._is_argument_error("Validation failed: expected string") is True
+
+    def test_detects_http_400(self, tool_proxy):
+        """Verify detection of HTTP 400 errors."""
+        assert tool_proxy._is_argument_error("HTTP 400 Bad Request") is True
+
+    def test_detects_http_422(self, tool_proxy):
+        """Verify detection of HTTP 422 errors."""
+        assert tool_proxy._is_argument_error("422 Unprocessable Entity") is True
+
+    def test_detects_jsonrpc_invalid_params(self, tool_proxy):
+        """Verify detection of JSON-RPC invalid params error code."""
+        assert tool_proxy._is_argument_error("Error code -32602: Invalid params") is True
+
+    def test_does_not_detect_connection_timeout(self, tool_proxy):
+        """Verify connection timeout is NOT detected as argument error."""
+        assert tool_proxy._is_argument_error("Connection timed out after 30s") is False
+
+    def test_does_not_detect_server_not_found(self, tool_proxy):
+        """Verify server not found is NOT detected as argument error."""
+        assert tool_proxy._is_argument_error("Server 'foo' is not connected") is False
+
+    def test_does_not_detect_internal_server_error(self, tool_proxy):
+        """Verify generic 500 without validation keywords is NOT detected."""
+        assert tool_proxy._is_argument_error("Internal server error") is False
+
+    def test_case_insensitive(self, tool_proxy):
+        """Verify detection is case insensitive."""
+        assert tool_proxy._is_argument_error("MISSING REQUIRED FIELD") is True
+        assert tool_proxy._is_argument_error("Invalid Argument") is True
+
+
+class TestExecutionErrorSchemaEnrichment:
+    """Tests for schema enrichment on execution errors."""
+
+    @pytest.mark.asyncio
+    async def test_schema_included_for_missing_parameter_error(
+        self, tool_proxy, mock_mcp_manager
+    ):
+        """Verify schema is included when execution fails with missing parameter error."""
+        # Setup: MCP manager raises exception with argument-related message
+        mock_mcp_manager.call_tool = AsyncMock(
+            side_effect=Exception("Missing required parameter 'session_id'")
+        )
+
+        async def mock_get_schema(server, tool):
+            return {
+                "success": True,
+                "tool": {
+                    "name": tool,
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "session_id": {"type": "string"},
+                        },
+                        "required": ["name", "session_id"],
+                    },
+                },
+            }
+
+        tool_proxy.get_tool_schema = mock_get_schema
+
+        result = await tool_proxy.call_tool(
+            server_name="test-server",
+            tool_name="test_tool",
+            arguments={"name": "test"},  # Missing session_id
+        )
+
+        assert result["success"] is False
+        assert "Missing required parameter" in result["error"]
+        assert "schema" in result
+        assert "hint" in result
+        assert "session_id" in result["schema"]["required"]
+
+    @pytest.mark.asyncio
+    async def test_schema_included_for_invalid_argument_error(
+        self, tool_proxy, mock_mcp_manager
+    ):
+        """Verify schema is included when execution fails with invalid argument error."""
+        mock_mcp_manager.call_tool = AsyncMock(
+            side_effect=Exception("Invalid argument: 'count' must be an integer")
+        )
+
+        async def mock_get_schema(server, tool):
+            return {
+                "success": True,
+                "tool": {
+                    "name": tool,
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "count": {"type": "integer"},
+                        },
+                    },
+                },
+            }
+
+        tool_proxy.get_tool_schema = mock_get_schema
+
+        result = await tool_proxy.call_tool(
+            server_name="test-server",
+            tool_name="test_tool",
+            arguments={"count": "not-a-number"},
+        )
+
+        assert result["success"] is False
+        assert "schema" in result
+        assert result["schema"]["properties"]["count"]["type"] == "integer"
+
+    @pytest.mark.asyncio
+    async def test_schema_not_included_for_connection_error(
+        self, tool_proxy, mock_mcp_manager
+    ):
+        """Verify schema is NOT included for connection/timeout errors."""
+        mock_mcp_manager.call_tool = AsyncMock(
+            side_effect=Exception("Connection timed out after 30s")
+        )
+
+        # Mock get_tool_schema for pre-validation to pass
+        async def mock_get_schema(server, tool):
+            return {
+                "success": True,
+                "tool": {
+                    "name": tool,
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string"}},
+                    },
+                },
+            }
+
+        tool_proxy.get_tool_schema = mock_get_schema
+
+        result = await tool_proxy.call_tool(
+            server_name="test-server",
+            tool_name="test_tool",
+            arguments={"name": "test"},
+        )
+
+        assert result["success"] is False
+        assert "Connection timed out" in result["error"]
+        assert "schema" not in result
+        assert "hint" not in result
+
+    @pytest.mark.asyncio
+    async def test_schema_not_included_for_server_not_found(
+        self, tool_proxy, mock_mcp_manager
+    ):
+        """Verify schema is NOT included for server not found errors."""
+        mock_mcp_manager.call_tool = AsyncMock(
+            side_effect=Exception("Server 'foo' is not connected")
+        )
+
+        # Mock get_tool_schema for pre-validation to pass
+        async def mock_get_schema(server, tool):
+            return {
+                "success": True,
+                "tool": {
+                    "name": tool,
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string"}},
+                    },
+                },
+            }
+
+        tool_proxy.get_tool_schema = mock_get_schema
+
+        result = await tool_proxy.call_tool(
+            server_name="foo",
+            tool_name="test_tool",
+            arguments={"name": "test"},
+        )
+
+        assert result["success"] is False
+        assert "schema" not in result
+
+    @pytest.mark.asyncio
+    async def test_graceful_handling_when_schema_fetch_fails(
+        self, tool_proxy, mock_mcp_manager
+    ):
+        """Verify error enrichment handles schema fetch failure gracefully."""
+        mock_mcp_manager.call_tool = AsyncMock(
+            side_effect=Exception("Missing required parameter 'name'")
+        )
+
+        async def mock_get_schema_failure(server, tool):
+            raise Exception("Schema fetch failed")
+
+        tool_proxy.get_tool_schema = mock_get_schema_failure
+
+        result = await tool_proxy.call_tool(
+            server_name="test-server",
+            tool_name="test_tool",
+            arguments={},
+        )
+
+        # Should still return error response, just without schema
+        assert result["success"] is False
+        assert "Missing required parameter" in result["error"]
+        assert "schema" not in result  # Schema fetch failed, so not included
+
+    @pytest.mark.asyncio
+    async def test_schema_not_included_when_schema_result_unsuccessful(
+        self, tool_proxy, mock_mcp_manager
+    ):
+        """Verify schema is not included when get_tool_schema returns unsuccessful."""
+        mock_mcp_manager.call_tool = AsyncMock(
+            side_effect=Exception("Invalid argument 'foo'")
+        )
+
+        async def mock_get_schema_not_found(server, tool):
+            return {"success": False, "error": "Tool not found"}
+
+        tool_proxy.get_tool_schema = mock_get_schema_not_found
+
+        result = await tool_proxy.call_tool(
+            server_name="test-server",
+            tool_name="test_tool",
+            arguments={"foo": "bar"},
+        )
+
+        assert result["success"] is False
+        assert "schema" not in result

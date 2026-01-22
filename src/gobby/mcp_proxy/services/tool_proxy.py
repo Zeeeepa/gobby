@@ -74,6 +74,32 @@ class ToolProxyService:
 
         return errors
 
+    def _is_argument_error(self, error_message: str) -> bool:
+        """Detect if error message suggests invalid arguments.
+
+        Used to determine whether to include tool schema in error response
+        to help the caller self-correct.
+        """
+        indicators = [
+            "parameter",
+            "argument",
+            "required",
+            "missing",
+            "invalid",
+            "unknown",
+            "expected",
+            "type error",
+            "validation",
+            "schema",
+            "property",
+            "field",
+            "400",
+            "422",
+            "-32602",  # JSON-RPC invalid params error code
+        ]
+        error_lower = error_message.lower()
+        return any(indicator in error_lower for indicator in indicators)
+
     async def list_tools(
         self,
         server_name: str,
@@ -196,6 +222,21 @@ class ToolProxyService:
                 "server_name": server_name,
                 "tool_name": tool_name,
             }
+
+            # Enrich with schema if error looks like an argument validation error
+            if self._is_argument_error(error_message):
+                try:
+                    schema_result = await self.get_tool_schema(server_name, tool_name)
+                    if schema_result.get("success"):
+                        input_schema = schema_result.get("tool", {}).get("inputSchema", {})
+                        if input_schema:
+                            response["hint"] = (
+                                "This appears to be an argument error. "
+                                "Schema provided for self-correction."
+                            )
+                            response["schema"] = input_schema
+                except Exception as schema_error:
+                    logger.debug(f"Could not fetch schema for error enrichment: {schema_error}")
 
             # Get fallback suggestions if resolver is available
             if self._fallback_resolver:
