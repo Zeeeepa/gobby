@@ -412,3 +412,170 @@ def validate(ctx: click.Context, path: str, json_output: bool) -> None:
             click.echo("\nWarnings:")
             for warning in result.warnings:
                 click.echo(f"  - {warning}")
+
+
+# Meta subcommand group
+@skills.group()
+def meta() -> None:
+    """Manage skill metadata fields."""
+    pass
+
+
+def _get_nested_value(data: dict[str, Any], key: str) -> Any:
+    """Get a nested value from a dict using dot notation."""
+    keys = key.split(".")
+    current = data
+    for k in keys:
+        if not isinstance(current, dict) or k not in current:
+            return None
+        current = current[k]
+    return current
+
+
+def _set_nested_value(data: dict[str, Any], key: str, value: Any) -> dict[str, Any]:
+    """Set a nested value in a dict using dot notation."""
+    keys = key.split(".")
+    result = data.copy() if data else {}
+    current = result
+
+    # Navigate to parent, creating dicts as needed
+    for k in keys[:-1]:
+        if k not in current or not isinstance(current[k], dict):
+            current[k] = {}
+        else:
+            current[k] = current[k].copy()
+        current = current[k]
+
+    # Set the final key
+    current[keys[-1]] = value
+    return result
+
+
+def _unset_nested_value(data: dict[str, Any], key: str) -> dict[str, Any]:
+    """Remove a nested value from a dict using dot notation."""
+    if not data:
+        return {}
+
+    keys = key.split(".")
+    result = data.copy()
+
+    if len(keys) == 1:
+        # Simple key
+        result.pop(keys[0], None)
+        return result
+
+    # Navigate to parent
+    current = result
+    parents: list[tuple[dict[str, Any], str]] = []
+
+    for k in keys[:-1]:
+        if not isinstance(current, dict) or k not in current:
+            return result  # Key doesn't exist, nothing to do
+        parents.append((current, k))
+        if isinstance(current[k], dict):
+            current[k] = current[k].copy()
+        current = current[k]
+
+    # Remove the final key
+    if isinstance(current, dict) and keys[-1] in current:
+        del current[keys[-1]]
+
+    return result
+
+
+@meta.command("get")
+@click.argument("name")
+@click.argument("key")
+@click.pass_context
+def meta_get(ctx: click.Context, name: str, key: str) -> None:
+    """Get a metadata field value.
+
+    NAME is the skill name.
+    KEY is the metadata field (supports dot notation for nested keys).
+
+    Examples:
+        gobby skills meta get my-skill author
+        gobby skills meta get my-skill skillport.category
+    """
+    storage = get_skill_storage()
+    skill = storage.get_by_name(name)
+
+    if skill is None:
+        click.echo(f"Skill not found: {name}")
+        return
+
+    if not skill.metadata:
+        click.echo("null")
+        return
+
+    value = _get_nested_value(skill.metadata, key)
+    if value is None:
+        click.echo(f"Key not found: {key}")
+    elif isinstance(value, (dict, list)):
+        click.echo(json.dumps(value, indent=2))
+    else:
+        click.echo(str(value))
+
+
+@meta.command("set")
+@click.argument("name")
+@click.argument("key")
+@click.argument("value")
+@click.pass_context
+def meta_set(ctx: click.Context, name: str, key: str, value: str) -> None:
+    """Set a metadata field value.
+
+    NAME is the skill name.
+    KEY is the metadata field (supports dot notation for nested keys).
+    VALUE is the value to set.
+
+    Examples:
+        gobby skills meta set my-skill author "John Doe"
+        gobby skills meta set my-skill skillport.category git
+    """
+    storage = get_skill_storage()
+    skill = storage.get_by_name(name)
+
+    if skill is None:
+        click.echo(f"Skill not found: {name}")
+        return
+
+    # Try to parse value as JSON for complex types
+    try:
+        parsed_value = json.loads(value)
+    except json.JSONDecodeError:
+        parsed_value = value
+
+    new_metadata = _set_nested_value(skill.metadata or {}, key, parsed_value)
+    storage.update_skill(skill.id, metadata=new_metadata)
+    click.echo(f"Set {key} = {value}")
+
+
+@meta.command("unset")
+@click.argument("name")
+@click.argument("key")
+@click.pass_context
+def meta_unset(ctx: click.Context, name: str, key: str) -> None:
+    """Remove a metadata field.
+
+    NAME is the skill name.
+    KEY is the metadata field (supports dot notation for nested keys).
+
+    Examples:
+        gobby skills meta unset my-skill author
+        gobby skills meta unset my-skill skillport.tags
+    """
+    storage = get_skill_storage()
+    skill = storage.get_by_name(name)
+
+    if skill is None:
+        click.echo(f"Skill not found: {name}")
+        return
+
+    if not skill.metadata:
+        click.echo(f"Key not found: {key}")
+        return
+
+    new_metadata = _unset_nested_value(skill.metadata, key)
+    storage.update_skill(skill.id, metadata=new_metadata)
+    click.echo(f"Unset {key}")

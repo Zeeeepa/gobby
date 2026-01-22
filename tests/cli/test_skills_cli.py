@@ -416,6 +416,145 @@ class TestSkillsInstallCommand:
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
+class TestSkillsMetaCommand:
+    """Tests for gobby skills meta command group."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_meta_help(self, runner: CliRunner):
+        """Test skills meta --help."""
+        result = runner.invoke(cli, ["skills", "meta", "--help"])
+        assert result.exit_code == 0
+        assert "meta" in result.output.lower()
+
+    def test_meta_help_shows_subcommands(self, runner: CliRunner):
+        """Test skills meta --help shows get/set/unset subcommands."""
+        result = runner.invoke(cli, ["skills", "meta", "--help"])
+        assert result.exit_code == 0
+        assert "get" in result.output
+        assert "set" in result.output
+        assert "unset" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_get_simple_key(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test getting a simple metadata key."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.metadata = {"author": "test-author", "version": "1.0.0"}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "get", "test-skill", "author"])
+
+        assert result.exit_code == 0
+        assert "test-author" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_get_nested_key(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test getting a nested metadata key with dot notation."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.metadata = {"skillport": {"category": "git", "tags": ["test"]}}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "get", "test-skill", "skillport.category"])
+
+        assert result.exit_code == 0
+        assert "git" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_get_key_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test getting a non-existent metadata key."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.metadata = {"author": "test"}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "get", "test-skill", "nonexistent"])
+
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower() or "null" in result.output.lower()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_set_simple_key(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test setting a simple metadata key."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.metadata = {"author": "old-author"}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "set", "test-skill", "author", "new-author"])
+
+        assert result.exit_code == 0
+        mock_storage.update_skill.assert_called_once()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_set_nested_key(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test setting a nested metadata key with dot notation."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.metadata = {"skillport": {"category": "old"}}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(
+            cli, ["skills", "meta", "set", "test-skill", "skillport.category", "new"]
+        )
+
+        assert result.exit_code == 0
+        mock_storage.update_skill.assert_called_once()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_unset_simple_key(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test unsetting a simple metadata key."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.metadata = {"author": "test", "version": "1.0.0"}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "unset", "test-skill", "author"])
+
+        assert result.exit_code == 0
+        mock_storage.update_skill.assert_called_once()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_unset_nested_key(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test unsetting a nested metadata key with dot notation."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.id = "skl-123"
+        mock_skill.metadata = {"skillport": {"category": "git", "tags": ["test"]}}
+        mock_storage.get_by_name.return_value = mock_skill
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "unset", "test-skill", "skillport.tags"])
+
+        assert result.exit_code == 0
+        mock_storage.update_skill.assert_called_once()
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_meta_skill_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test meta command when skill not found."""
+        mock_storage = MagicMock()
+        mock_storage.get_by_name.return_value = None
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "meta", "get", "nonexistent", "author"])
+
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()
+
+
 class TestSkillsValidateCommand:
     """Tests for gobby skills validate command."""
 
