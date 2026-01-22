@@ -607,6 +607,16 @@ class AgentRunner:
             else:
                 self._session_storage.update_status(child_session.id, "failed")
 
+            # Persist cost to session storage for budget tracking
+            if result.cost_info and result.cost_info.total_cost > 0:
+                self._session_storage.add_cost(
+                    child_session.id, result.cost_info.total_cost
+                )
+                self.logger.debug(
+                    f"Persisted cost ${result.cost_info.total_cost:.4f} "
+                    f"for session {child_session.id}"
+                )
+
             # Remove from in-memory tracking
             self._untrack_running_agent(agent_run.id)
 

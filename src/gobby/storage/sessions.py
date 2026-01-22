@@ -773,6 +773,38 @@ class LocalSessionManager:
             logger.error(f"Failed to update session usage {session_id}: {e}")
             return False
 
+    def add_cost(self, session_id: str, cost_usd: float) -> bool:
+        """
+        Add cost to the session's usage_total_cost_usd.
+
+        This is used for internal agent runs that track cost via CostInfo.
+        Unlike update_usage which overwrites, this method adds to the existing cost.
+
+        Args:
+            session_id: Session ID to update.
+            cost_usd: Cost in USD to add.
+
+        Returns:
+            True if update succeeded, False otherwise.
+        """
+        if cost_usd <= 0:
+            return True  # Nothing to add
+
+        query = """
+        UPDATE sessions
+        SET
+            usage_total_cost_usd = COALESCE(usage_total_cost_usd, 0) + ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+        """
+        try:
+            with self.db.transaction():
+                cursor = self.db.execute(query, (cost_usd, session_id))
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Failed to add cost to session {session_id}: {e}")
+            return False
+
     def update_terminal_pickup_metadata(
         self,
         session_id: str,
