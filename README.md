@@ -105,6 +105,23 @@ call_tool("gobby-worktrees", "spawn_agent_in_worktree", {
 })
 ```
 
+### 📚 Skills System
+
+Reusable instructions that teach agents how to perform specific tasks. Compatible with the [Agent Skills specification](https://agentskills.io) and SkillPort.
+
+- **Core skills** bundled with Gobby for tasks, sessions, memory, workflows
+- **Project skills** in `.gobby/skills/` for team-specific patterns
+- **Install from anywhere** — GitHub repos, local paths, ZIP archives
+- **Search and discovery** — TF-IDF and semantic search across your skill library
+
+```bash
+# Install a skill from GitHub
+gobby skills install github:user/repo/skills/my-skill
+
+# Search for relevant skills
+gobby skills search "testing coverage"
+```
+
 ## Installation
 
 ### Try it instantly
@@ -283,8 +300,11 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 **Worktrees** (`gobby-worktrees`)  
 `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees`
 
-**MCP Proxy**  
+**MCP Proxy**
 `list_mcp_servers`, `add_mcp_server`, `import_mcp_server`, `list_tools`, `get_tool_schema`, `call_tool`, `recommend_tools`
+
+**Skills** (`gobby-skills`)
+`list_skills`, `get_skill`, `search_skills`, `install_skill`, `remove_skill`, `update_skill`
 
 ## For AI Agents
 

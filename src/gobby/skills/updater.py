@@ -14,13 +14,13 @@ Features:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.skills.loader import (
-    SkillLoadError,
     SkillLoader,
+    SkillLoadError,
     clone_skill_repo,
     parse_github_url,
 )
@@ -211,18 +211,18 @@ class SkillUpdater:
 
         except (SkillLoadError, SkillParseError, SkillUpdateError) as e:
             # Rollback on failure
-            self._restore_backup(backup)
+            rollback_succeeded = self._restore_backup(backup)
             return SkillUpdateResult(
                 skill_id=skill_id,
                 skill_name=skill.name,
                 success=False,
                 error=str(e),
                 backup_created=True,
-                rolled_back=True,
+                rolled_back=rollback_succeeded,
             )
         except Exception as e:
             # Rollback on unexpected errors too
-            self._restore_backup(backup)
+            rollback_succeeded = self._restore_backup(backup)
             logger.exception(f"Unexpected error updating skill {skill_id}")
             return SkillUpdateResult(
                 skill_id=skill_id,
@@ -230,7 +230,7 @@ class SkillUpdater:
                 success=False,
                 error=f"Unexpected error: {e}",
                 backup_created=True,
-                rolled_back=True,
+                rolled_back=rollback_succeeded,
             )
 
     def update_all(
@@ -274,8 +274,12 @@ class SkillUpdater:
             metadata=skill.metadata,
         )
 
-    def _restore_backup(self, backup: _SkillBackup) -> None:
-        """Restore skill from backup."""
+    def _restore_backup(self, backup: _SkillBackup) -> bool:
+        """Restore skill from backup.
+
+        Returns:
+            True if restore succeeded, False if it failed
+        """
         try:
             self._storage.update_skill(
                 skill_id=backup.skill_id,
@@ -288,8 +292,10 @@ class SkillUpdater:
                 allowed_tools=backup.allowed_tools,
                 metadata=backup.metadata,
             )
+            return True
         except Exception as e:
             logger.error(f"Failed to restore backup for skill {backup.skill_id}: {e}")
+            return False
 
     def _fetch_from_local(self, skill: Skill) -> ParsedSkill:
         """Fetch updated skill from local filesystem."""

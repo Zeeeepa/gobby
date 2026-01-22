@@ -58,10 +58,21 @@ If `pending=True`, skip to **Phase 4** immediately.
    task = call_tool("gobby-tasks", "get_task", {"task_id": "<ref>"})
    ```
 
-4. **Check for existing children** and delete them (clean slate):
+4. **Check for existing children** and handle re-expansion:
    ```python
    children = call_tool("gobby-tasks", "list_tasks", {"parent_task_id": task_id})
    if children["tasks"]:
+       # CAUTION: cascade=True permanently deletes ALL descendants.
+       # This is irreversible - all child tasks, their metadata, and
+       # commit links will be lost. Consider alternatives:
+       #
+       # Option A (Safer): Delete children individually after review
+       #   for child in children["tasks"]:
+       #       call_tool("gobby-tasks", "delete_task", {"task_id": child["id"]})
+       #
+       # Option B: Back up parent metadata before cascade delete
+       #   backup = {"title": task["title"], "description": task["description"], ...}
+
        # Delete parent cascades to children
        call_tool("gobby-tasks", "delete_task", {"task_id": task_id, "cascade": True})
        # Re-create the parent task

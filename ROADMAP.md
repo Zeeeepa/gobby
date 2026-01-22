@@ -79,6 +79,15 @@ Legend:
 - ✅ Linear integration
 - ✅ Plugin architecture (extensible domains/tools)
 
+### Skills system
+
+- ✅ `gobby-skills` MCP: list, search, install, update, remove
+- ✅ SKILL.md format (Agent Skills spec + SkillPort compatible)
+- ✅ Core skills bundled with Gobby
+- ✅ TF-IDF search for skill discovery
+- ✅ Install from GitHub, local paths, ZIP archives
+- ✅ Project-scoped and global skill management
+
 **Next up:** Memory v3 → Orchestration
 
 ---

@@ -9,6 +9,7 @@ Provides tools for task readiness management:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +20,8 @@ from gobby.workflows.state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "create_readiness_registry",
@@ -481,8 +484,8 @@ def create_readiness_registry(
 
             task_brief = best_task.to_brief()
             recommended_skills = recommend_skills_for_task(task_brief)
-        except Exception:
-            pass  # Gracefully degrade if skill recommendation fails
+        except Exception as e:
+            logger.debug(f"Skill recommendation failed: {e}")
 
         return {
             "suggestion": best_task.to_brief(),

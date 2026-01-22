@@ -394,7 +394,7 @@ class LocalSkillManager:
             ValueError: If a skill with the same name exists in the project scope
         """
         now = datetime.now(UTC).isoformat()
-        skill_id = generate_prefixed_id("skl", name + str(project_id))
+        skill_id = generate_prefixed_id("skl", f"{name}:{project_id or 'global'}")
 
         # Check if skill already exists in this project scope
         existing = self.get_by_name(name, project_id=project_id)

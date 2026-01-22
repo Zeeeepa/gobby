@@ -14,6 +14,7 @@ These tools use LocalSkillManager for storage and SkillSearch for search.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -482,12 +483,19 @@ def create_skills_registry(
             source_type = None
 
             # Check if it's a GitHub URL/reference
-            if (
+            # Pattern for owner/repo format (e.g., "anthropic/claude-code")
+            github_owner_repo_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/.*)?$")
+            is_github_ref = (
                 source.startswith("github:")
                 or source.startswith("https://github.com/")
                 or source.startswith("http://github.com/")
-                or ("/" in source and not source.startswith("/") and not Path(source).exists())
-            ):
+                or (
+                    github_owner_repo_pattern.match(source)
+                    and not source.startswith("/")
+                    and not Path(source).exists()
+                )
+            )
+            if is_github_ref:
                 # GitHub URL
                 try:
                     parsed_skill = loader.load_from_github(source)

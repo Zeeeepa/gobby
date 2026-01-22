@@ -170,6 +170,26 @@ Gobby uses a proxy pattern for tools.
 
 *Note: Replace "gobby-tasks" with "gobby-memory" for other internal domains.*
 
+## Skills
+
+Skills are reusable instructions for AI agents. Use the `gobby-skills` MCP server:
+
+```python
+# List available skills
+mcp_call_tool(server="gobby-skills", tool="list_skills", arguments={})
+
+# Get a specific skill
+mcp_call_tool(server="gobby-skills", tool="get_skill", arguments={"name": "gobby-tasks"})
+
+# Search for skills
+mcp_call_tool(server="gobby-skills", tool="search_skills", arguments={"query": "testing coverage"})
+```
+
+**Skill Locations:**
+- Core skills: bundled with Gobby
+- Project skills: `.gobby/skills/`
+- User skills: `~/.gobby/skills/`
+
 ## Task Validation Overrides
 
 * **Task #2124 (Workflow Cache Reload):** Validation criteria demanded comprehensive automatic cache invalidation (watchdog/mtime), but implementation followed the simpler manual reload approach specified in the task description. User authorized override on 2026-01-12.

@@ -92,7 +92,12 @@ class ParsedSkill:
         if not self.metadata:
             return []
         skillport = self.metadata.get("skillport", {})
-        return skillport.get("tags", [])
+        tags = skillport.get("tags", [])
+        if isinstance(tags, list):
+            return tags
+        if isinstance(tags, str):
+            return [tags]
+        return []
 
     def is_always_apply(self) -> bool:
         """Check if this is a core skill (alwaysApply=true)."""
@@ -239,8 +244,8 @@ def parse_skill_file(path: str | Path) -> ParsedSkill:
         ParsedSkill with extracted data
 
     Raises:
-        SkillParseError: If file not found or parsing fails
         FileNotFoundError: If file doesn't exist
+        SkillParseError: If parsing fails (propagated from parse_skill_text)
     """
     path = Path(path)
 

@@ -676,6 +676,47 @@ call_tool(server_name="gobby-memory", tool_name="forget", arguments={
 - TF-IDF (default)
 - Semantic (requires embeddings)
 
+## Skills
+
+Skills are reusable instructions that teach agents how to perform specific tasks. They follow the [Agent Skills specification](https://agentskills.io).
+
+### Using Skills
+
+```python
+# List available skills
+call_tool(server_name="gobby-skills", tool_name="list_skills", arguments={})
+
+# Get a specific skill's content
+call_tool(server_name="gobby-skills", tool_name="get_skill", arguments={
+    "name": "gobby-tasks"
+})
+
+# Search for skills by query
+call_tool(server_name="gobby-skills", tool_name="search_skills", arguments={
+    "query": "testing coverage",
+    "limit": 5
+})
+```
+
+### Skill Locations
+
+| Location | Scope | Priority |
+|----------|-------|----------|
+| Core skills (bundled) | Always available | Highest |
+| `.gobby/skills/` | Project-specific | High |
+| `~/.gobby/skills/` | User-global | Low |
+
+### CLI Commands
+
+```bash
+gobby skills list                    # List all skills
+gobby skills show <name>             # Show skill details
+gobby skills install <source>        # Install from GitHub/local/ZIP
+gobby skills search "query"          # Search skills
+```
+
+See `docs/guides/skills.md` for the complete skills guide.
+
 ## Hook System
 
 Gobby intercepts CLI events through hooks (13 total):

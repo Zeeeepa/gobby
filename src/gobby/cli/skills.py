@@ -730,9 +730,8 @@ def doc(ctx: click.Context, output: str | None, output_format: str) -> None:
         for skill in skills_list:
             category = _get_skill_category(skill) or "-"
             enabled = "✓" if skill.enabled else "✗"
-            desc = (
-                skill.description[:50] + "..." if len(skill.description) > 50 else skill.description
-            )
+            desc_full = skill.description or ""
+            desc = desc_full[:50] + "..." if len(desc_full) > 50 else desc_full
             lines.append(f"| {skill.name} | {desc} | {category} | {enabled} |")
 
         content = "\n".join(lines)

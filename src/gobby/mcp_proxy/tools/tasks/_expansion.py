@@ -144,31 +144,41 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not subtasks:
             return {"error": "No subtasks in spec"}
 
-        # Create subtasks
+        # Create subtasks atomically - clean up on failure
         created_tasks = []
         created_refs = []
 
-        for subtask in subtasks:
-            result = ctx.task_manager.create_task_with_decomposition(
-                project_id=task.project_id,
-                title=subtask["title"],
-                description=subtask.get("description"),
-                priority=subtask.get("priority", 2),
-                task_type=subtask.get("task_type", "task"),
-                parent_task_id=resolved_id,
-                category=subtask.get("category"),
-                validation_criteria=subtask.get("validation"),
-                created_in_session_id=session_id,
-            )
+        try:
+            for subtask in subtasks:
+                result = ctx.task_manager.create_task_with_decomposition(
+                    project_id=task.project_id,
+                    title=subtask["title"],
+                    description=subtask.get("description"),
+                    priority=subtask.get("priority", 2),
+                    task_type=subtask.get("task_type", "task"),
+                    parent_task_id=resolved_id,
+                    category=subtask.get("category"),
+                    validation_criteria=subtask.get("validation"),
+                    created_in_session_id=session_id,
+                )
 
-            # Get the task (create_task_with_decomposition returns dict with task dict)
-            subtask_id = result["task"]["id"]
-            created_task = ctx.task_manager.get_task(subtask_id)
-            created_tasks.append(created_task)
+                # Get the task (create_task_with_decomposition returns dict with task dict)
+                subtask_id = result["task"]["id"]
+                created_task = ctx.task_manager.get_task(subtask_id)
+                created_tasks.append(created_task)
 
-            # Build ref
-            ref = f"#{created_task.seq_num}" if created_task.seq_num else created_task.id[:8]
-            created_refs.append(ref)
+                # Build ref
+                ref = f"#{created_task.seq_num}" if created_task.seq_num else created_task.id[:8]
+                created_refs.append(ref)
+        except Exception as e:
+            # Clean up any tasks created before failure
+            logger.error(f"Expansion failed after creating {len(created_tasks)} tasks: {e}")
+            for task_to_delete in created_tasks:
+                try:
+                    ctx.task_manager.delete_task(task_to_delete.id)
+                except Exception as delete_err:
+                    logger.warning(f"Failed to clean up task {task_to_delete.id}: {delete_err}")
+            return {"error": f"Expansion failed: {e}", "cleaned_up": len(created_tasks)}
 
         # Wire dependencies
         for i, subtask in enumerate(subtasks):

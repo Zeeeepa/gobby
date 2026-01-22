@@ -60,6 +60,7 @@ Use progressive disclosure to minimize tokens:
 | `gobby-workflows` | Workflow activation, session variables |
 | `gobby-sessions` | Session lookup, handoff context |
 | `gobby-metrics` | Tool metrics and statistics |
+| `gobby-skills` | Skill management and discovery |
 
 Use `get_tool_schema` to look up parameter details for any tool.
 
@@ -287,6 +288,26 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 | `pre_compact` | Before context compaction |
 
 Plugins: `~/.gobby/plugins/` or `.gobby/plugins/`
+
+## Skills
+
+Skills are reusable instructions for agents. Use `gobby-skills` MCP tools:
+
+```python
+# List skills
+call_tool(server_name="gobby-skills", tool_name="list_skills", arguments={})
+
+# Get skill content
+call_tool(server_name="gobby-skills", tool_name="get_skill", arguments={"name": "gobby-tasks"})
+
+# Search skills
+call_tool(server_name="gobby-skills", tool_name="search_skills", arguments={"query": "testing"})
+```
+
+Skills live in:
+- Core skills (bundled with Gobby)
+- `.gobby/skills/` (project)
+- `~/.gobby/skills/` (user global)
 
 ## Planning & Documentation
 
