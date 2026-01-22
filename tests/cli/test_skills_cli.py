@@ -301,31 +301,23 @@ class TestSkillsInstallCommand:
         # Should show missing argument error
         assert result.exit_code != 0
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    @patch("gobby.skills.loader.SkillLoader")
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
     def test_install_from_local_path(
-        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
     ):
         """Test installing from a local directory path."""
-        mock_storage = MagicMock()
-        mock_skill = MagicMock()
-        mock_skill.name = "test-skill"
-        mock_storage.create_skill.return_value = mock_skill
-        mock_get_storage.return_value = mock_storage
-
-        mock_loader = MagicMock()
-        mock_parsed = MagicMock()
-        mock_parsed.name = "test-skill"
-        mock_parsed.description = "A test skill"
-        mock_parsed.content = "# Test"
-        mock_parsed.version = "1.0.0"
-        mock_parsed.license = "MIT"
-        mock_parsed.compatibility = None
-        mock_parsed.allowed_tools = None
-        mock_parsed.metadata = None
-        mock_parsed.source_path = "/path/to/skill"
-        mock_loader.load_skill.return_value = mock_parsed
-        mock_loader_class.return_value = mock_loader
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "skill_name": "test-skill",
+            "source_type": "local",
+        }
 
         with runner.isolated_filesystem():
             import os
@@ -338,78 +330,78 @@ class TestSkillsInstallCommand:
 
         assert result.exit_code == 0
         assert "Installed skill: test-skill" in result.output
-        mock_storage.create_skill.assert_called_once()
+        mock_call_tool.assert_called_once()
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    @patch("gobby.skills.loader.SkillLoader")
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
     def test_install_from_github(
-        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
     ):
         """Test installing from a GitHub URL."""
-        mock_storage = MagicMock()
-        mock_skill = MagicMock()
-        mock_skill.name = "github-skill"
-        mock_storage.create_skill.return_value = mock_skill
-        mock_get_storage.return_value = mock_storage
-
-        mock_loader = MagicMock()
-        mock_parsed = MagicMock()
-        mock_parsed.name = "github-skill"
-        mock_parsed.description = "A GitHub skill"
-        mock_parsed.content = "# GitHub"
-        mock_parsed.version = "2.0.0"
-        mock_parsed.license = "Apache-2.0"
-        mock_parsed.compatibility = None
-        mock_parsed.allowed_tools = None
-        mock_parsed.metadata = None
-        mock_parsed.source_path = "github:owner/repo"
-        mock_loader.load_from_github.return_value = mock_parsed
-        mock_loader_class.return_value = mock_loader
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "skill_name": "github-skill",
+            "source_type": "github",
+        }
 
         result = runner.invoke(cli, ["skills", "install", "github:owner/repo"])
 
         assert result.exit_code == 0
         assert "Installed skill: github-skill" in result.output
         assert "github" in result.output.lower()
-        mock_loader.load_from_github.assert_called_once_with("github:owner/repo")
+        mock_call_tool.assert_called_once()
+        call_args = mock_call_tool.call_args
+        assert call_args[0][1] == "install_skill"
+        assert call_args[0][2]["source"] == "github:owner/repo"
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    @patch("gobby.skills.loader.SkillLoader")
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
     def test_install_with_project_flag(
-        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
     ):
         """Test installing with --project flag scopes to project."""
-        mock_storage = MagicMock()
-        mock_skill = MagicMock()
-        mock_skill.name = "project-skill"
-        mock_storage.create_skill.return_value = mock_skill
-        mock_get_storage.return_value = mock_storage
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "skill_name": "project-skill",
+            "source_type": "github",
+        }
 
-        mock_loader = MagicMock()
-        mock_parsed = MagicMock()
-        mock_parsed.name = "project-skill"
-        mock_parsed.description = "A project skill"
-        mock_parsed.content = "# Project"
-        mock_parsed.version = "1.0.0"
-        mock_parsed.license = None
-        mock_parsed.compatibility = None
-        mock_parsed.allowed_tools = None
-        mock_parsed.metadata = None
-        mock_parsed.source_path = "/path/to/skill"
-        mock_loader.load_from_github.return_value = mock_parsed
-        mock_loader_class.return_value = mock_loader
-
-        result = runner.invoke(
-            cli, ["skills", "install", "github:owner/repo", "--project", "my-project"]
-        )
+        result = runner.invoke(cli, ["skills", "install", "github:owner/repo", "--project"])
 
         assert result.exit_code == 0
-        # Verify create_skill was called with project_id
-        call_kwargs = mock_storage.create_skill.call_args[1]
-        assert call_kwargs["project_id"] == "my-project"
+        # Verify call_skills_tool was called with project_scoped=True
+        call_args = mock_call_tool.call_args
+        assert call_args[0][2]["project_scoped"] is True
 
-    def test_install_source_not_found(self, runner: CliRunner):
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_install_source_not_found(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ):
         """Test installing from non-existent source."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": False,
+            "error": "Source not found: /nonexistent/path/to/skill",
+        }
+
         result = runner.invoke(cli, ["skills", "install", "/nonexistent/path/to/skill"])
 
         assert result.exit_code == 0
@@ -1087,96 +1079,110 @@ class TestSkillsUpdateCommand:
         assert result.exit_code == 0
         assert "--all" in result.output
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    @patch("gobby.skills.loader.SkillLoader")
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
     def test_update_single_skill(
-        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
     ):
         """Test updating a single skill by name."""
-        mock_storage = MagicMock()
-        mock_skill = MagicMock()
-        mock_skill.id = "skl-123"
-        mock_skill.name = "test-skill"
-        mock_skill.source_type = "github"
-        mock_skill.source_path = "github:owner/repo"
-        mock_storage.get_by_name.return_value = mock_skill
-        mock_get_storage.return_value = mock_storage
-
-        mock_loader = MagicMock()
-        mock_parsed = MagicMock()
-        mock_parsed.content = "# Updated content"
-        mock_parsed.description = "Updated description"
-        mock_parsed.version = "2.0.0"
-        mock_parsed.metadata = {"updated": True}
-        mock_loader.load_from_github.return_value = mock_parsed
-        mock_loader_class.return_value = mock_loader
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "updated": True,
+        }
 
         result = runner.invoke(cli, ["skills", "update", "test-skill"])
 
         assert result.exit_code == 0
         assert "Updated" in result.output or "updated" in result.output
-        mock_storage.get_by_name.assert_called_once_with("test-skill")
-        mock_storage.update_skill.assert_called_once()
+        mock_call_tool.assert_called_once()
+        call_args = mock_call_tool.call_args
+        assert call_args[0][1] == "update_skill"
+        assert call_args[0][2]["name"] == "test-skill"
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    def test_update_skill_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_update_skill_not_found(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ):
         """Test updating a non-existent skill."""
-        mock_storage = MagicMock()
-        mock_storage.get_by_name.return_value = None
-        mock_get_storage.return_value = mock_storage
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": False,
+            "error": "Skill not found: nonexistent",
+        }
 
         result = runner.invoke(cli, ["skills", "update", "nonexistent"])
 
         assert result.exit_code == 0
-        assert "not found" in result.output.lower()
+        assert "not found" in result.output.lower() or "error" in result.output.lower()
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    @patch("gobby.skills.loader.SkillLoader")
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
     def test_update_all_skills(
-        self, mock_loader_class: MagicMock, mock_get_storage: MagicMock, runner: CliRunner
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
     ):
         """Test updating all skills with --all flag."""
-        mock_storage = MagicMock()
-        mock_skill1 = MagicMock()
-        mock_skill1.id = "skl-1"
-        mock_skill1.name = "skill-1"
-        mock_skill1.source_type = "github"
-        mock_skill1.source_path = "github:owner/repo1"
-        mock_skill2 = MagicMock()
-        mock_skill2.id = "skl-2"
-        mock_skill2.name = "skill-2"
-        mock_skill2.source_type = "local"
-        mock_skill2.source_path = "/path/to/skill"
-        mock_storage.list_skills.return_value = [mock_skill1, mock_skill2]
-        mock_get_storage.return_value = mock_storage
+        mock_check_daemon.return_value = True
 
-        mock_loader = MagicMock()
-        mock_parsed = MagicMock()
-        mock_parsed.content = "# Updated"
-        mock_parsed.description = "Updated"
-        mock_parsed.version = "2.0.0"
-        mock_parsed.metadata = {}
-        mock_loader.load_from_github.return_value = mock_parsed
-        mock_loader_class.return_value = mock_loader
+        # list_skills returns skill list, update_skill returns different results
+        def mock_tool_call(client, tool_name, args, timeout=30.0):
+            if tool_name == "list_skills":
+                return {
+                    "success": True,
+                    "skills": [
+                        {"name": "skill-1"},
+                        {"name": "skill-2"},
+                    ],
+                }
+            elif tool_name == "update_skill":
+                if args["name"] == "skill-1":
+                    return {"success": True, "updated": True}
+                else:
+                    return {"success": True, "updated": False, "skip_reason": "local source"}
+            return {"success": False}
+
+        mock_call_tool.side_effect = mock_tool_call
 
         result = runner.invoke(cli, ["skills", "update", "--all"])
 
         assert result.exit_code == 0
-        mock_storage.list_skills.assert_called_once()
         # One GitHub skill updated, one local skipped
         assert "Updated" in result.output or "updated" in result.output
         assert "Skipped" in result.output or "skipped" in result.output
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    def test_update_local_skill_skipped(self, mock_get_storage: MagicMock, runner: CliRunner):
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_update_local_skill_skipped(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ):
         """Test that local skills without remote source are skipped."""
-        mock_storage = MagicMock()
-        mock_skill = MagicMock()
-        mock_skill.name = "local-skill"
-        mock_skill.source_type = "local"
-        mock_skill.source_path = "/some/local/path"
-        mock_storage.get_by_name.return_value = mock_skill
-        mock_get_storage.return_value = mock_storage
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "updated": False,
+            "skip_reason": "local skills cannot be updated from remote",
+        }
 
         result = runner.invoke(cli, ["skills", "update", "local-skill"])
 
@@ -1203,30 +1209,50 @@ class TestSkillsRemoveCommand:
         assert result.exit_code == 0
         assert "Remove" in result.output or "remove" in result.output
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    def test_remove_not_found(self, mock_get_storage: MagicMock, runner: CliRunner):
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_remove_not_found(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ):
         """Test removing non-existent skill."""
-        mock_storage = MagicMock()
-        mock_storage.get_by_name.return_value = None
-        mock_get_storage.return_value = mock_storage
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": False,
+            "error": "Skill not found: nonexistent",
+        }
 
         result = runner.invoke(cli, ["skills", "remove", "nonexistent"])
 
         assert result.exit_code == 0
-        assert "not found" in result.output.lower()
+        assert "not found" in result.output.lower() or "error" in result.output.lower()
 
-    @patch("gobby.cli.skills.get_skill_storage")
-    def test_remove_success(self, mock_get_storage: MagicMock, runner: CliRunner):
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_remove_success(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ):
         """Test removing an existing skill."""
-        mock_storage = MagicMock()
-        mock_skill = MagicMock()
-        mock_skill.id = "skl-123"
-        mock_skill.name = "test-skill"
-        mock_storage.get_by_name.return_value = mock_skill
-        mock_get_storage.return_value = mock_storage
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "skill_name": "test-skill",
+        }
 
         result = runner.invoke(cli, ["skills", "remove", "test-skill"])
 
         assert result.exit_code == 0
         assert "Removed" in result.output or "removed" in result.output
-        mock_storage.delete_skill.assert_called_once_with("skl-123")
+        mock_call_tool.assert_called_once()
+        call_args = mock_call_tool.call_args
+        assert call_args[0][1] == "remove_skill"
+        assert call_args[0][2]["name"] == "test-skill"

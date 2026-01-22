@@ -8,19 +8,56 @@ This module provides CLI commands for managing skills:
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import click
 
+from gobby.config.app import DaemonConfig
 from gobby.storage.database import LocalDatabase
 from gobby.storage.skills import LocalSkillManager
+from gobby.utils.daemon_client import DaemonClient
 
 
 def get_skill_storage() -> LocalSkillManager:
     """Get skill storage manager."""
     db = LocalDatabase()
     return LocalSkillManager(db)
+
+
+def get_daemon_client(ctx: click.Context) -> DaemonClient:
+    """Get daemon client from context config."""
+    config: DaemonConfig = ctx.obj["config"]
+    return DaemonClient(host="localhost", port=config.daemon_port)
+
+
+def call_skills_tool(
+    client: DaemonClient,
+    tool_name: str,
+    arguments: dict[str, Any],
+    timeout: float = 30.0,
+) -> dict[str, Any] | None:
+    """Call a gobby-skills MCP tool via the daemon."""
+    try:
+        return client.call_mcp_tool(
+            server_name="gobby-skills",
+            tool_name=tool_name,
+            arguments=arguments,
+            timeout=timeout,
+        )
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        return None
+
+
+def check_daemon(client: DaemonClient) -> bool:
+    """Check if daemon is running."""
+    is_healthy, error = client.check_health()
+    if not is_healthy:
+        click.echo("Error: Daemon not running. Start with: gobby start", err=True)
+        return False
+    return True
 
 
 @click.group()
@@ -170,9 +207,9 @@ def show(ctx: click.Context, name: str, json_output: bool) -> None:
 
 @skills.command()
 @click.argument("source")
-@click.option("--project", "-p", help="Install scoped to project")
+@click.option("--project", "-p", is_flag=True, help="Install scoped to project")
 @click.pass_context
-def install(ctx: click.Context, source: str, project: str | None) -> None:
+def install(ctx: click.Context, source: str, project: bool) -> None:
     """Install a skill from a source.
 
     SOURCE can be:
@@ -181,61 +218,23 @@ def install(ctx: click.Context, source: str, project: str | None) -> None:
     - A GitHub URL (owner/repo, github:owner/repo, https://github.com/owner/repo)
     - A ZIP archive path (e.g., ./skills.zip)
 
-    Use --project to scope the skill to a specific project.
+    Use --project to scope the skill to the current project.
+
+    Requires daemon to be running.
     """
-    from gobby.skills.loader import SkillLoader, SkillLoadError
+    client = get_daemon_client(ctx)
+    if not check_daemon(client):
+        sys.exit(1)
 
-    storage = get_skill_storage()
-    loader = SkillLoader()
+    result = call_skills_tool(client, "install_skill", {
+        "source": source,
+        "project_scoped": project,
+    })
 
-    try:
-        # Determine source type and load
-        source_path = Path(source)
-
-        if source.startswith("github:") or source.startswith("https://github.com/"):
-            # GitHub URL
-            parsed_skill = loader.load_from_github(source)
-            source_type = "github"
-        elif source_path.suffix == ".zip":
-            # ZIP archive
-            parsed_skill = loader.load_from_zip(source_path)
-            source_type = "zip"
-        elif source_path.exists():
-            # Local path
-            parsed_skill = loader.load_skill(source_path)
-            source_type = "local"
-        else:
-            # Try as GitHub shorthand (owner/repo)
-            if "/" in source:
-                parsed_skill = loader.load_from_github(source)
-                source_type = "github"
-            else:
-                click.echo(f"Source not found: {source}")
-                return
-
-        # Store the skill
-        skill = storage.create_skill(
-            name=parsed_skill.name,
-            description=parsed_skill.description,
-            content=parsed_skill.content,
-            version=parsed_skill.version,
-            license=parsed_skill.license,
-            compatibility=parsed_skill.compatibility,
-            allowed_tools=parsed_skill.allowed_tools,
-            metadata=parsed_skill.metadata,
-            source_path=parsed_skill.source_path,
-            source_type=source_type,
-            source_ref=getattr(parsed_skill, "source_ref", None),
-            project_id=project,
-            enabled=True,
-        )
-
-        click.echo(f"Installed skill: {skill.name} ({source_type})")
-
-    except SkillLoadError as e:
-        click.echo(f"Error: {e}")
-    except Exception as e:
-        click.echo(f"Error installing skill: {e}")
+    if result and result.get("success"):
+        click.echo(f"Installed skill: {result['skill_name']} ({result.get('source_type', 'unknown')})")
+    elif result:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
 @skills.command()
@@ -245,16 +244,19 @@ def remove(ctx: click.Context, name: str) -> None:
     """Remove an installed skill.
 
     NAME is the skill name to remove (e.g., 'commit-message').
+
+    Requires daemon to be running.
     """
-    storage = get_skill_storage()
-    skill = storage.get_by_name(name)
+    client = get_daemon_client(ctx)
+    if not check_daemon(client):
+        sys.exit(1)
 
-    if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
+    result = call_skills_tool(client, "remove_skill", {"name": name})
 
-    storage.delete_skill(skill.id)
-    click.echo(f"Removed skill: {name}")
+    if result and result.get("success"):
+        click.echo(f"Removed skill: {result.get('skill_name', name)}")
+    elif result:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
 @skills.command()
@@ -269,80 +271,52 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
 
     Only skills installed from GitHub can be updated (re-fetched from source).
     Local skills are skipped.
-    """
-    from gobby.skills.loader import SkillLoader, SkillLoadError
 
-    storage = get_skill_storage()
-    loader = SkillLoader()
+    Requires daemon to be running.
+    """
+    client = get_daemon_client(ctx)
+    if not check_daemon(client):
+        sys.exit(1)
 
     if not name and not update_all:
         click.echo("Error: Provide a skill name or use --all to update all skills")
         return
 
     if update_all:
-        # Update all skills with remote sources
-        skills_list = storage.list_skills(include_global=True)
+        # Get all skills and update each via MCP
+        result = call_skills_tool(client, "list_skills", {"limit": 1000})
+        if not result or not result.get("success"):
+            click.echo(f"Error: {result.get('error', 'Failed to list skills') if result else 'No response'}")
+            return
+
         updated = 0
         skipped = 0
-
-        for skill in skills_list:
-            if skill.source_type == "github" and skill.source_path:
-                try:
-                    # Extract GitHub URL from source_path (e.g., "github:owner/repo")
-                    source_url = skill.source_path
-                    if source_url.startswith("github:"):
-                        parsed_skill = loader.load_from_github(source_url)
-                        storage.update_skill(
-                            skill.id,
-                            content=parsed_skill.content,
-                            description=parsed_skill.description,
-                            version=parsed_skill.version,
-                            metadata=parsed_skill.metadata,
-                        )
-                        click.echo(f"Updated: {skill.name}")
-                        updated += 1
-                    else:
-                        click.echo(f"Skipped: {skill.name} (invalid source)")
-                        skipped += 1
-                except SkillLoadError as e:
-                    click.echo(f"Failed to update {skill.name}: {e}")
+        for skill in result.get("skills", []):
+            update_result = call_skills_tool(client, "update_skill", {"name": skill["name"]})
+            if update_result and update_result.get("success"):
+                if update_result.get("updated"):
+                    click.echo(f"Updated: {skill['name']}")
+                    updated += 1
+                else:
+                    click.echo(f"Skipped: {skill['name']} ({update_result.get('skip_reason', 'up to date')})")
                     skipped += 1
             else:
-                click.echo(f"Skipped: {skill.name} (local source)")
+                click.echo(f"Failed: {skill['name']}")
                 skipped += 1
 
         click.echo(f"\nUpdated {updated} skill(s), skipped {skipped}")
         return
 
-    # Update single skill
-    skill = storage.get_by_name(name)
+    # Single skill update
+    result = call_skills_tool(client, "update_skill", {"name": name})
 
-    if skill is None:
-        click.echo(f"Skill not found: {name}")
-        return
-
-    if skill.source_type != "github" or not skill.source_path:
-        click.echo(f"Cannot update {name}: local skills cannot be refreshed from remote")
-        return
-
-    try:
-        source_url = skill.source_path
-        if not source_url.startswith("github:"):
-            click.echo(f"Cannot update {name}: unsupported source type")
-            return
-
-        parsed_skill = loader.load_from_github(source_url)
-        storage.update_skill(
-            skill.id,
-            content=parsed_skill.content,
-            description=parsed_skill.description,
-            version=parsed_skill.version,
-            metadata=parsed_skill.metadata,
-        )
-        click.echo(f"Updated skill: {name}")
-
-    except SkillLoadError as e:
-        click.echo(f"Error updating {name}: {e}")
+    if result and result.get("success"):
+        if result.get("updated"):
+            click.echo(f"Updated skill: {name}")
+        else:
+            click.echo(f"Skipped: {result.get('skip_reason', 'already up to date')}")
+    elif result:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
 @skills.command()
