@@ -2,15 +2,14 @@
 Internal MCP tools for Skill management.
 
 Exposes functionality for:
-- list_skills(): List all skills
-- get_skill(): Get skill by ID or name
-- search_skills(): Search skills by query
-- create_skill(): Create a new skill
-- update_skill(): Update an existing skill
-- delete_skill(): Delete a skill
-- install_skill(): Install skill from GitHub/URL
+- list_skills(): List all skills with lightweight metadata
+- get_skill(): Get skill by ID or name with full content
+- search_skills(): Search skills by query with relevance ranking
+- update_skill(): Update an existing skill by refreshing from source
+- install_skill(): Install skill from local path, GitHub URL, or ZIP archive
+- remove_skill(): Remove a skill by name or ID
 
-These tools use the SkillManager for storage and search.
+These tools use LocalSkillManager for storage and SkillSearch for search.
 """
 
 from __future__ import annotations

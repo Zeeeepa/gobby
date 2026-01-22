@@ -328,11 +328,11 @@ def delete_task(
         for child in children:
             delete_task(db, child["id"], cascade=True)
 
-        # Delete tasks that depend on this task
+        # Delete tasks that depend on this task (only 'blocks' dependencies)
         dependents = db.fetchall(
             """SELECT t.id FROM tasks t
                JOIN task_dependencies d ON d.task_id = t.id
-               WHERE d.depends_on = ?""",
+               WHERE d.depends_on = ? AND d.dep_type = 'blocks'""",
             (task_id,),
         )
         for dep in dependents:

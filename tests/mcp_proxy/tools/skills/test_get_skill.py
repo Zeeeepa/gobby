@@ -1,8 +1,9 @@
 """Tests for get_skill MCP tool (TDD - written before implementation)."""
 
 import asyncio
-import pytest
 from pathlib import Path
+
+import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -53,6 +54,7 @@ def populated_db(db: LocalDatabase, storage: LocalSkillManager) -> LocalDatabase
     return db
 
 
+@pytest.mark.integration
 class TestGetSkillTool:
     """Tests for get_skill MCP tool."""
 

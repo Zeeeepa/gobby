@@ -24,7 +24,7 @@ MAX_TAG_LENGTH = 64
 # Regex patterns
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 SEMVER_PATTERN = re.compile(r"^\d+\.\d+(\.\d+)?(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$")
-CATEGORY_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
+CATEGORY_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 
 
 @dataclass

@@ -496,10 +496,16 @@ class EventHandlers:
                 )
             elif self._skills_config.injection_format == "full":
                 parts = ["\n## Available Skills\n"]
-                for skill in always_apply_skills:
-                    parts.append(f"### {skill.name}")
-                    if skill.description:
-                        parts.append(skill.description)
+                # Build a map of always_apply skills for quick lookup
+                always_apply_map = {s.name: s for s in always_apply_skills}
+                # Iterate over combined skill_names list (always_apply + restored)
+                for skill_name in skill_names:
+                    parts.append(f"### {skill_name}")
+                    # Get description from always_apply skill if available
+                    if skill_name in always_apply_map:
+                        skill = always_apply_map[skill_name]
+                        if skill.description:
+                            parts.append(skill.description)
                     parts.append("")
                 return "\n".join(parts)
             else:

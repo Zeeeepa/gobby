@@ -215,9 +215,12 @@ class TestSkillLoaderDirectoryDetection:
 
         # When loading directly from file (not directory), we don't scan for subdirs
         # Directory detection only happens when loading from a directory
-        # This behavior should remain compatible with file-only loading
-        # (No assertion about directory fields here as behavior may vary)
         assert skill.name == "my-skill"
+
+        # Directory fields should be None when loading directly from file
+        assert skill.scripts is None
+        assert skill.references is None
+        assert skill.assets is None
 
     def test_load_skill_empty_directories_result_in_none(self, tmp_path: Path):
         """Test that empty subdirectories result in None (no files)."""

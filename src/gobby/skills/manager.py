@@ -100,14 +100,20 @@ class SkillManager:
             try:
                 skill = self._storage.get_skill(event.skill_id)
                 self._search.add_skill(skill)
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(
+                    f"Failed to get skill for {event.event_type} event "
+                    f"(skill_id={event.skill_id}): {e}"
+                )
         elif event.event_type == "update":
             try:
                 skill = self._storage.get_skill(event.skill_id)
                 self._search.update_skill(skill)
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(
+                    f"Failed to get skill for {event.event_type} event "
+                    f"(skill_id={event.skill_id}): {e}"
+                )
         elif event.event_type == "delete":
             self._search.remove_skill(event.skill_id)
 
@@ -288,10 +294,27 @@ class SkillManager:
         """
         return self._search.search(query, top_k=top_k, filters=filters)
 
-    def reindex(self) -> None:
-        """Rebuild the search index from storage."""
-        skills = self._storage.list_skills(limit=10000)
-        self._search.index_skills(skills)
+    def reindex(self, batch_size: int = 1000) -> None:
+        """Rebuild the search index from storage.
+
+        Args:
+            batch_size: Number of skills to fetch per batch (default: 1000)
+        """
+        all_skills: list[Skill] = []
+        offset = 0
+
+        # Paginate through all skills to avoid truncation
+        while True:
+            batch = self._storage.list_skills(limit=batch_size, offset=offset)
+            if not batch:
+                break
+            all_skills.extend(batch)
+            if len(batch) < batch_size:
+                # Last batch, no more results
+                break
+            offset += batch_size
+
+        self._search.index_skills(all_skills)
 
     def needs_reindex(self) -> bool:
         """Check if search index needs rebuilding.

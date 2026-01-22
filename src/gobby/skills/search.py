@@ -349,12 +349,17 @@ class SkillSearch:
             tfidf_results = self._searcher.search(query, top_k=search_limit)
             tfidf_scores = {skill_id: score for skill_id, score in tfidf_results}
 
-            # Get embedding similarity scores
-            query_embedding = await self._embedding_provider.embed(query)
-            embedding_scores = {}
-            for skill_id, skill_embedding in self._skill_embeddings.items():
-                similarity = _cosine_similarity(query_embedding, skill_embedding)
-                embedding_scores[skill_id] = similarity
+            # Get embedding similarity scores (with null check)
+            embedding_scores: dict[str, float] = {}
+            if self._embedding_provider is None:
+                logger.warning(
+                    "Embedding provider is None in hybrid search, using TF-IDF scores only"
+                )
+            else:
+                query_embedding = await self._embedding_provider.embed(query)
+                for skill_id, skill_embedding in self._skill_embeddings.items():
+                    similarity = _cosine_similarity(query_embedding, skill_embedding)
+                    embedding_scores[skill_id] = similarity
 
             # Combine scores with weights
             all_skill_ids = set(tfidf_scores.keys()) | set(embedding_scores.keys())

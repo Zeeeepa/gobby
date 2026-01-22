@@ -181,7 +181,10 @@ def clone_skill_repo(
             checkout_cmd = ["git", "-C", str(repo_path), "checkout", ref.branch]
             result = subprocess.run(checkout_cmd, capture_output=True, text=True, timeout=60)
             if result.returncode != 0:
-                logger.warning(f"Failed to checkout branch {ref.branch}: {result.stderr}")
+                raise SkillLoadError(
+                    f"Failed to checkout branch {ref.branch}: {result.stderr}",
+                    ref.clone_url,
+                )
     else:
         # Clone new repo
         repo_path.parent.mkdir(parents=True, exist_ok=True)
@@ -238,7 +241,28 @@ def extract_zip(zip_path: str | Path) -> Generator[Path]:
 
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(temp_path)
+            # Safe extraction to prevent zip-slip attacks
+            for member in zf.infolist():
+                # Build and normalize the target path
+                target_path = (temp_path / member.filename).resolve()
+
+                # Verify the target is inside temp_path (prevent zip-slip)
+                try:
+                    target_path.relative_to(temp_path.resolve())
+                except ValueError:
+                    raise SkillLoadError(
+                        f"Zip entry would extract outside target: {member.filename}",
+                        zip_path,
+                    )
+
+                if member.is_dir():
+                    target_path.mkdir(parents=True, exist_ok=True)
+                else:
+                    # Ensure parent directory exists
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    # Extract file content
+                    with zf.open(member) as source, open(target_path, "wb") as dest:
+                        shutil.copyfileobj(source, dest)
 
         yield temp_path
     finally:

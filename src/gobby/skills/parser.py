@@ -178,8 +178,8 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
     try:
         frontmatter, content = parse_frontmatter(text)
     except SkillParseError as e:
-        e.path = source_path
-        raise
+        # Create a new exception with the path included in the message
+        raise SkillParseError(str(e), path=source_path) from e
 
     # Extract required fields
     name = frontmatter.get("name")
