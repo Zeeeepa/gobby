@@ -474,6 +474,16 @@ def create_readiness_registry(
         if best_proximity > 0:
             reasons.append("same branch as current work")
 
+        # Get recommended skills based on task category
+        recommended_skills: list[str] = []
+        try:
+            from gobby.workflows.context_actions import recommend_skills_for_task
+
+            task_brief = best_task.to_brief()
+            recommended_skills = recommend_skills_for_task(task_brief)
+        except Exception:
+            pass  # Gracefully degrade if skill recommendation fails
+
         return {
             "suggestion": best_task.to_brief(),
             "score": best_score,
@@ -482,6 +492,7 @@ def create_readiness_registry(
                 {"ref": t.to_brief()["ref"], "title": t.title, "score": s}
                 for t, s, _, _ in scored[1:4]  # Show top 3 alternatives
             ],
+            "recommended_skills": recommended_skills,
         }
 
     registry.register(

@@ -1450,3 +1450,74 @@ class TestFormatHandoffAsMarkdown:
         result = format_handoff_as_markdown(ctx)
 
         assert "### Active Skills" not in result
+
+
+# --- Tests for recommend_skills_for_task ---
+
+
+class TestRecommendSkillsForTask:
+    """Tests for the recommend_skills_for_task function."""
+
+    def test_import(self):
+        """Test that recommend_skills_for_task can be imported."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        assert recommend_skills_for_task is not None
+
+    def test_returns_list(self):
+        """Should return a list of skill names."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        result = recommend_skills_for_task({"title": "Test task"})
+        assert isinstance(result, list)
+
+    def test_with_code_category(self):
+        """Should return code-related skills for code category."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        task = {"title": "Test task", "category": "code"}
+        result = recommend_skills_for_task(task)
+
+        assert "gobby-tasks" in result
+
+    def test_with_docs_category(self):
+        """Should return docs-related skills for docs category."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        task = {"title": "Test task", "category": "docs"}
+        result = recommend_skills_for_task(task)
+
+        assert "gobby-tasks" in result
+        assert "gobby-plan" in result
+
+    def test_with_test_category(self):
+        """Should return test-related skills for test category."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        task = {"title": "Test task", "category": "test"}
+        result = recommend_skills_for_task(task)
+
+        assert "gobby-tasks" in result
+
+    def test_with_no_category(self):
+        """Should return always-apply skills when no category."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        task = {"title": "Test task"}
+        result = recommend_skills_for_task(task)
+
+        assert isinstance(result, list)
+
+    def test_with_none_task(self):
+        """Should return empty list for None task."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        result = recommend_skills_for_task(None)
+        assert result == []
+
+    def test_with_empty_dict(self):
+        """Should return always-apply skills for empty dict."""
+        from gobby.workflows.context_actions import recommend_skills_for_task
+
+        result = recommend_skills_for_task({})
+        assert isinstance(result, list)

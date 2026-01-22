@@ -318,6 +318,52 @@ class TestSuggestNextTask:
         # High priority wins despite fewer bonuses
         assert result["suggestion"]["id"] == "high-priority"
 
+    def test_suggest_next_task_includes_recommended_skills(self, mock_readiness_registry):
+        """Test that suggest_next_task includes recommended_skills based on task category."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+
+        task_manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.id = "task-1"
+        mock_task.priority = 1
+        mock_task.complexity_score = 3
+        mock_task.category = "code"  # Should recommend code-related skills
+        mock_task.status = "open"
+        mock_task.to_brief.return_value = {
+            "id": "task-1",
+            "title": "Task with category",
+            "category": "code",
+        }
+
+        task_manager.list_ready_tasks.return_value = [mock_task]
+        task_manager.list_tasks.return_value = []  # No children = leaf task
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest()
+
+        assert result["suggestion"] is not None
+        assert "recommended_skills" in result
+        assert isinstance(result["recommended_skills"], list)
+        # Code category should include gobby-tasks
+        assert "gobby-tasks" in result["recommended_skills"]
+
+    def test_suggest_next_task_no_skills_when_no_suggestion(self, mock_readiness_registry):
+        """Test that recommended_skills is not included when no task is suggested."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+
+        task_manager = MagicMock()
+        task_manager.list_ready_tasks.return_value = []
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest()
+
+        assert result["suggestion"] is None
+        assert "recommended_skills" not in result
+
 
 class TestReadinessEdgeCases:
     """Tests for edge cases in readiness detection."""

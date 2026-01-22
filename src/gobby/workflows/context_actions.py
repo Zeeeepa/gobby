@@ -331,6 +331,32 @@ def extract_handoff_context(
         return {"error": str(e)}
 
 
+def recommend_skills_for_task(task: dict[str, Any] | None) -> list[str]:
+    """Recommend relevant skills based on task category.
+
+    Uses HookSkillManager to get skill recommendations based on the task's
+    category field. Returns always-apply skills if no category is set.
+
+    Args:
+        task: Task dict with optional 'category' field, or None.
+
+    Returns:
+        List of recommended skill names for this task.
+    """
+    if task is None:
+        return []
+
+    try:
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        manager = HookSkillManager()
+        category = task.get("category")
+        return manager.recommend_skills(category=category)
+    except Exception as e:
+        logger.debug(f"Failed to recommend skills: {e}")
+        return []
+
+
 def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> str:
     """Format HandoffContext as markdown for storage.
 
