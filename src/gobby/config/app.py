@@ -102,6 +102,7 @@ __all__ = [
     "TaskValidationConfig",
     "WorkflowConfig",
     # Local definitions
+    "ConductorConfig",
     "DaemonConfig",
     "expand_env_vars",
     "load_yaml",
@@ -115,6 +116,37 @@ __all__ = [
 # ${VAR} - simple substitution
 # ${VAR:-default} - with default value if VAR is unset or empty
 ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+
+class ConductorConfig(BaseModel):
+    """
+    Configuration for the Conductor orchestration system.
+
+    Controls token budget management and agent spawning throttling.
+    """
+
+    daily_budget_usd: float = Field(
+        default=50.0,
+        ge=0.0,
+        description="Daily budget limit in USD. Set to 0 for unlimited.",
+    )
+    warning_threshold: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Budget percentage at which to issue warnings (0.0-1.0).",
+    )
+    throttle_threshold: float = Field(
+        default=0.9,
+        ge=0.0,
+        le=1.0,
+        description="Budget percentage at which to throttle agent spawning (0.0-1.0).",
+    )
+    tracking_window_days: int = Field(
+        default=7,
+        gt=0,
+        description="Number of days to track usage for reporting.",
+    )
 
 
 def expand_env_vars(content: str) -> str:
@@ -301,6 +333,10 @@ class DaemonConfig(BaseModel):
     verification_defaults: ProjectVerificationConfig = Field(
         default_factory=ProjectVerificationConfig,
         description="Default verification commands for projects without auto-detected config",
+    )
+    conductor: ConductorConfig = Field(
+        default_factory=ConductorConfig,
+        description="Conductor orchestration system configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
