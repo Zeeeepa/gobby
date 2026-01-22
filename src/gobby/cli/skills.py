@@ -179,7 +179,7 @@ def show(ctx: click.Context, name: str, json_output: bool) -> None:
             click.echo(json.dumps({"error": "Skill not found", "name": name}))
         else:
             click.echo(f"Skill not found: {name}")
-        return
+        sys.exit(1)
 
     if json_output:
         output = {
@@ -245,6 +245,7 @@ def install(ctx: click.Context, source: str, project: bool) -> None:
         click.echo(f"Installed skill: {result['skill_name']} ({result.get('source_type', 'unknown')})")
     elif result:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
+        sys.exit(1)
 
 
 @skills.command()
@@ -267,6 +268,7 @@ def remove(ctx: click.Context, name: str) -> None:
         click.echo(f"Removed skill: {result.get('skill_name', name)}")
     elif result:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
+        sys.exit(1)
 
 
 @skills.command()
@@ -290,7 +292,7 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
 
     if not name and not update_all:
         click.echo("Error: Provide a skill name or use --all to update all skills")
-        return
+        sys.exit(1)
 
     if update_all:
         # Get all skills and update each via MCP
@@ -355,7 +357,7 @@ def validate(ctx: click.Context, path: str, json_output: bool) -> None:
             click.echo(json.dumps({"error": "Path not found", "path": path}))
         else:
             click.echo(f"Error: Path not found: {path}")
-        return
+        sys.exit(1)
 
     # Load the skill
     loader = SkillLoader()
@@ -367,7 +369,7 @@ def validate(ctx: click.Context, path: str, json_output: bool) -> None:
             click.echo(json.dumps({"error": str(e), "path": path}))
         else:
             click.echo(f"Error loading skill: {e}")
-        return
+        sys.exit(1)
 
     # Validate the skill
     validator = SkillValidator()
@@ -531,7 +533,11 @@ def meta_set(ctx: click.Context, name: str, key: str, value: str) -> None:
         parsed_value = value
 
     new_metadata = _set_nested_value(skill.metadata or {}, key, parsed_value)
-    storage.update_skill(skill.id, metadata=new_metadata)
+    try:
+        storage.update_skill(skill.id, metadata=new_metadata)
+    except Exception as e:
+        click.echo(f"Error updating skill metadata: {e}", err=True)
+        sys.exit(1)
     click.echo(f"Set {key} = {value}")
 
 

@@ -1,10 +1,5 @@
 """Tests for HookSkillManager (TDD - written before implementation)."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 
 class TestHookSkillManager:
     """Tests for HookSkillManager class."""

@@ -151,6 +151,44 @@ def _parse_full_github_url(url: str) -> GitHubRef:
     return GitHubRef(owner=owner, repo=repo, branch=branch, path=path)
 
 
+def _validate_github_ref(ref: GitHubRef) -> None:
+    """Validate GitHub reference components for safety.
+
+    Args:
+        ref: GitHubRef to validate
+
+    Raises:
+        SkillLoadError: If validation fails
+    """
+    # Safe characters for owner/repo: alphanumeric, hyphen, underscore, dot
+    safe_name_pattern = re.compile(r"^[A-Za-z0-9_.-]+$")
+    # Safe branch name: alphanumeric, hyphen, underscore, dot, forward slash
+    # No leading hyphen (could be interpreted as command flag)
+    safe_branch_pattern = re.compile(r"^[A-Za-z0-9_./][A-Za-z0-9_./-]*$")
+
+    # Validate owner
+    if not ref.owner or len(ref.owner) > 100:
+        raise SkillLoadError(f"Invalid GitHub owner: {ref.owner}")
+    if not safe_name_pattern.match(ref.owner):
+        raise SkillLoadError(f"Invalid characters in GitHub owner: {ref.owner}")
+
+    # Validate repo
+    if not ref.repo or len(ref.repo) > 100:
+        raise SkillLoadError(f"Invalid GitHub repo: {ref.repo}")
+    if not safe_name_pattern.match(ref.repo):
+        raise SkillLoadError(f"Invalid characters in GitHub repo: {ref.repo}")
+
+    # Validate branch if present
+    if ref.branch:
+        if len(ref.branch) > 200:
+            raise SkillLoadError(f"Branch name too long: {ref.branch}")
+        if not safe_branch_pattern.match(ref.branch):
+            raise SkillLoadError(f"Invalid characters in branch name: {ref.branch}")
+        # Reject shell metacharacters and path traversal
+        if ".." in ref.branch or any(c in ref.branch for c in ("$", "`", ";", "&", "|", "<", ">", "\\", "\n", "\r")):
+            raise SkillLoadError(f"Invalid branch name: {ref.branch}")
+
+
 def clone_skill_repo(
     ref: GitHubRef,
     cache_dir: Path | None = None,
@@ -165,8 +203,11 @@ def clone_skill_repo(
         Path to the cloned repository
 
     Raises:
-        SkillLoadError: If clone/pull fails
+        SkillLoadError: If clone/pull fails or validation fails
     """
+    # Validate input before any filesystem or subprocess operations
+    _validate_github_ref(ref)
+
     cache_dir = cache_dir or DEFAULT_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -175,7 +216,6 @@ def clone_skill_repo(
 
     if is_existing:
         # Update existing repo
-        cmd = ["git", "-C", str(repo_path), "pull", "--ff-only"]
         if ref.branch:
             # Checkout the specific branch first
             checkout_cmd = ["git", "-C", str(repo_path), "checkout", ref.branch]
@@ -185,6 +225,15 @@ def clone_skill_repo(
                     f"Failed to checkout branch {ref.branch}: {result.stderr}",
                     ref.clone_url,
                 )
+        # Pull latest changes
+        pull_cmd = ["git", "-C", str(repo_path), "pull", "--ff-only"]
+        result = subprocess.run(pull_cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            raise SkillLoadError(
+                f"Failed to pull repository updates: {result.stderr}",
+                ref.clone_url,
+            )
+        return repo_path
     else:
         # Clone new repo
         repo_path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,7 +302,7 @@ def extract_zip(zip_path: str | Path) -> Generator[Path]:
                     raise SkillLoadError(
                         f"Zip entry would extract outside target: {member.filename}",
                         zip_path,
-                    )
+                    ) from None
 
                 if member.is_dir():
                     target_path.mkdir(parents=True, exist_ok=True)
@@ -402,9 +451,25 @@ class SkillLoader:
         if not subdir.exists() or not subdir.is_dir():
             return None
 
+        # Resolve skill_dir once for security checks
+        skill_dir_resolved = skill_dir.resolve()
+
         files: list[str] = []
         for file_path in subdir.rglob("*"):
+            # Skip symlinks to prevent traversal attacks
+            if file_path.is_symlink():
+                continue
+
             if file_path.is_file():
+                # Verify resolved path is within skill directory
+                try:
+                    resolved = file_path.resolve()
+                    # Check that resolved path is under skill_dir
+                    resolved.relative_to(skill_dir_resolved)
+                except (OSError, ValueError):
+                    # Skip files that can't be resolved or are outside skill_dir
+                    continue
+
                 # Get path relative to skill directory
                 rel_path = file_path.relative_to(skill_dir)
                 files.append(str(rel_path))

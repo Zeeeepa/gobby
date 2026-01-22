@@ -484,7 +484,10 @@ def create_skills_registry(
 
             # Check if it's a GitHub URL/reference
             # Pattern for owner/repo format (e.g., "anthropic/claude-code")
-            github_owner_repo_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/.*)?$")
+            # Must match owner/repo pattern without path traversal or absolute paths
+            github_owner_repo_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$")
+
+            # Determine if this is a GitHub reference purely by pattern (no filesystem probe)
             is_github_ref = (
                 source.startswith("github:")
                 or source.startswith("https://github.com/")
@@ -492,7 +495,7 @@ def create_skills_registry(
                 or (
                     github_owner_repo_pattern.match(source)
                     and not source.startswith("/")
-                    and not Path(source).exists()
+                    and ".." not in source  # Reject path traversal
                 )
             )
             if is_github_ref:

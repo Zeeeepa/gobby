@@ -365,7 +365,8 @@ def create_task(
             try:
                 blocker = resolve_task_id(manager, blocker_ref)
                 if blocker:
-                    dep_manager.add_dependency(task.id, blocker.id, "blocks")
+                    # blocker blocks task (task depends on blocker)
+                    dep_manager.add_dependency(blocker.id, task.id, "blocks")
                     blocker_display = f"#{blocker.seq_num}" if blocker.seq_num else blocker.id[:8]
                     click.echo(f"  → depends on {blocker_display}")
             except Exception as e:

@@ -760,8 +760,8 @@ def _migrate_add_skills_table(db: LocalDatabase) -> None:
             source_ref TEXT,
             enabled INTEGER DEFAULT 1,
             project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
 
