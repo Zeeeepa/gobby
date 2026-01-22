@@ -416,6 +416,109 @@ class TestSkillsInstallCommand:
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
+class TestSkillsDocCommand:
+    """Tests for gobby skills doc command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_doc_help(self, runner: CliRunner):
+        """Test skills doc --help."""
+        result = runner.invoke(cli, ["skills", "doc", "--help"])
+        assert result.exit_code == 0
+        assert "doc" in result.output.lower()
+
+    def test_doc_help_shows_output_flag(self, runner: CliRunner):
+        """Test skills doc --help shows --output flag."""
+        result = runner.invoke(cli, ["skills", "doc", "--help"])
+        assert result.exit_code == 0
+        assert "--output" in result.output
+
+    def test_doc_help_shows_format_flag(self, runner: CliRunner):
+        """Test skills doc --help shows --format flag."""
+        result = runner.invoke(cli, ["skills", "doc", "--help"])
+        assert result.exit_code == 0
+        assert "--format" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_doc_outputs_markdown_table(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test that doc outputs markdown table."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        mock_skill.description = "A test skill"
+        mock_skill.enabled = True
+        mock_skill.metadata = {"skillport": {"category": "test"}}
+        mock_storage.list_skills.return_value = [mock_skill]
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "doc"])
+
+        assert result.exit_code == 0
+        # Should have markdown table
+        assert "|" in result.output
+        assert "test-skill" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_doc_no_skills(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test doc when no skills installed."""
+        mock_storage = MagicMock()
+        mock_storage.list_skills.return_value = []
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "doc"])
+
+        assert result.exit_code == 0
+        assert "No skills" in result.output or "no skills" in result.output
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_doc_format_json(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test doc with --format json."""
+        import json
+
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        mock_skill.description = "A test skill"
+        mock_skill.enabled = True
+        mock_skill.version = "1.0.0"
+        mock_skill.metadata = {"skillport": {"category": "test", "tags": ["demo"]}}
+        mock_storage.list_skills.return_value = [mock_skill]
+        mock_get_storage.return_value = mock_storage
+
+        result = runner.invoke(cli, ["skills", "doc", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 1
+        assert data[0]["name"] == "test-skill"
+
+    @patch("gobby.cli.skills.get_skill_storage")
+    def test_doc_output_to_file(self, mock_get_storage: MagicMock, runner: CliRunner):
+        """Test doc with --output writes to file."""
+        mock_storage = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        mock_skill.description = "A test skill"
+        mock_skill.enabled = True
+        mock_skill.metadata = {"skillport": {"category": "test"}}
+        mock_storage.list_skills.return_value = [mock_skill]
+        mock_get_storage.return_value = mock_storage
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "doc", "--output", "SKILLS.md"])
+
+            assert result.exit_code == 0
+            import os
+
+            assert os.path.isfile("SKILLS.md")
+            with open("SKILLS.md") as f:
+                content = f.read()
+            assert "test-skill" in content
+
+
 class TestSkillsNewCommand:
     """Tests for gobby skills new command."""
 

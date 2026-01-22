@@ -694,3 +694,68 @@ Provide usage examples here.
     click.echo(f"  - {name}/scripts/")
     click.echo(f"  - {name}/assets/")
     click.echo(f"  - {name}/references/")
+
+
+@skills.command()
+@click.option("--output", "-o", default=None, help="Output file path")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["markdown", "json"]),
+    default="markdown",
+    help="Output format",
+)
+@click.pass_context
+def doc(ctx: click.Context, output: str | None, output_format: str) -> None:
+    """Generate documentation for installed skills.
+
+    Creates a markdown table or JSON list of all installed skills.
+    Use --output to write to a file instead of stdout.
+    """
+    storage = get_skill_storage()
+    skills_list = storage.list_skills(include_global=True)
+
+    if not skills_list:
+        click.echo("No skills installed.")
+        return
+
+    if output_format == "json":
+        # JSON output
+        output_data = []
+        for skill in skills_list:
+            item = {
+                "name": skill.name,
+                "description": skill.description,
+                "enabled": skill.enabled,
+                "version": skill.version,
+                "category": _get_skill_category(skill),
+                "tags": _get_skill_tags(skill),
+            }
+            output_data.append(item)
+
+        content = json.dumps(output_data, indent=2)
+    else:
+        # Markdown table output
+        lines = [
+            "# Installed Skills",
+            "",
+            "| Name | Description | Category | Enabled |",
+            "|------|-------------|----------|---------|",
+        ]
+
+        for skill in skills_list:
+            category = _get_skill_category(skill) or "-"
+            enabled = "✓" if skill.enabled else "✗"
+            desc = (
+                skill.description[:50] + "..." if len(skill.description) > 50 else skill.description
+            )
+            lines.append(f"| {skill.name} | {desc} | {category} | {enabled} |")
+
+        content = "\n".join(lines)
+
+    if output:
+        with open(output, "w") as f:
+            f.write(content)
+        click.echo(f"Written to {output}")
+    else:
+        click.echo(content)
