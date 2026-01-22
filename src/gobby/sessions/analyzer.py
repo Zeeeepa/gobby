@@ -32,6 +32,8 @@ class HandoffContext:
     key_decisions: list[str] | None = None
     active_worktree: dict[str, Any] | None = None
     """Worktree context if session is operating in a worktree."""
+    active_skills: list[str] = field(default_factory=list)
+    """List of skill names that were active/injected during the session."""
 
 
 class TranscriptAnalyzer:

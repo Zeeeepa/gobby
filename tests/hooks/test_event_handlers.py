@@ -1883,3 +1883,82 @@ class TestSkillInjection:
         # With injection_format="none", no skill context should be injected
         if response.context:
             assert "## Available Skills" not in response.context
+
+    def test_session_start_restores_skills_from_parent(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that session-start restores skills from parent session."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=True, injection_format="summary")
+
+        # Mock parent session with compact_markdown containing active skills
+        parent_session = MagicMock()
+        parent_session.id = "parent-123"
+        parent_session.compact_markdown = (
+            "### Active Skills\n"
+            "Skills available: gobby-tasks, gobby-sessions, custom-skill"
+        )
+
+        # Setup session_storage to return parent session
+        mock_dependencies["session_storage"].get.return_value = parent_session
+        mock_dependencies["session_storage"].find_parent.return_value = parent_session
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+
+        # Test the helper method directly
+        restored = handlers._restore_skills_from_parent("parent-123")
+        assert "gobby-tasks" in restored
+        assert "gobby-sessions" in restored
+        assert "custom-skill" in restored
+
+    def test_restore_skills_returns_empty_without_parent(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that restore returns empty list without parent session."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=True)
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+
+        # No parent session
+        restored = handlers._restore_skills_from_parent(None)
+        assert restored == []
+
+    def test_restore_skills_handles_missing_compact_markdown(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that restore handles parent without compact_markdown."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=True)
+
+        # Parent session without compact_markdown
+        parent_session = MagicMock()
+        parent_session.id = "parent-123"
+        parent_session.compact_markdown = None
+        mock_dependencies["session_storage"].get.return_value = parent_session
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+
+        restored = handlers._restore_skills_from_parent("parent-123")
+        assert restored == []

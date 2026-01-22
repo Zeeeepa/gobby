@@ -304,6 +304,17 @@ def extract_handoff_context(
         except Exception as wt_err:
             logger.debug(f"Failed to get worktree context: {wt_err}")
 
+        # Add active skills from HookSkillManager
+        try:
+            from gobby.hooks.skill_manager import HookSkillManager
+
+            skill_manager = HookSkillManager()
+            core_skills = skill_manager.discover_core_skills()
+            always_apply_skills = [s.name for s in core_skills if s.is_always_apply()]
+            handoff_ctx.active_skills = always_apply_skills
+        except Exception as skill_err:
+            logger.debug(f"Failed to get active skills: {skill_err}")
+
         # Format as markdown (like /clear stores formatted summary)
         markdown = format_handoff_as_markdown(handoff_ctx)
 
@@ -389,6 +400,12 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
         lines = ["### Recent Activity"]
         for activity in ctx.recent_activity[-5:]:
             lines.append(f"- {activity}")
+        sections.append("\n".join(lines))
+
+    # Active skills section
+    if hasattr(ctx, "active_skills") and ctx.active_skills:
+        lines = ["### Active Skills"]
+        lines.append(f"Skills available: {', '.join(ctx.active_skills)}")
         sections.append("\n".join(lines))
 
     return "\n\n".join(sections)

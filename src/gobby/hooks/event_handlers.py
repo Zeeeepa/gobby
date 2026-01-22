@@ -330,8 +330,8 @@ class EventHandlers:
             context_parts.append("\n## Active Task Context\n")
             context_parts.append(f"You are working on task: {task_title} ({event.task_id})")
 
-        # Inject core skills if enabled
-        skill_context = self._build_skill_injection_context()
+        # Inject core skills if enabled (restoring from parent session if available)
+        skill_context = self._build_skill_injection_context(parent_session_id)
         if skill_context:
             context_parts.append(skill_context)
 
@@ -447,8 +447,13 @@ class EventHandlers:
 
         return HookResponse(decision="allow")
 
-    def _build_skill_injection_context(self) -> str | None:
+    def _build_skill_injection_context(self, parent_session_id: str | None = None) -> str | None:
         """Build skill injection context for session-start.
+
+        Combines alwaysApply skills with skills restored from parent session.
+
+        Args:
+            parent_session_id: Optional parent session ID to restore skills from
 
         Returns context string with available skills if injection is enabled,
         or None if disabled.
@@ -470,12 +475,20 @@ class EventHandlers:
             core_skills = self._skill_manager.discover_core_skills()
             always_apply_skills = [s for s in core_skills if s.is_always_apply()]
 
-            if not always_apply_skills:
+            # Get restored skills from parent session
+            restored_skills = self._restore_skills_from_parent(parent_session_id)
+
+            # Combine: alwaysApply skills + any additional restored skills
+            skill_names = [s.name for s in always_apply_skills]
+            for skill_name in restored_skills:
+                if skill_name not in skill_names:
+                    skill_names.append(skill_name)
+
+            if not skill_names:
                 return None
 
             # Build context based on format
             if self._skills_config.injection_format == "summary":
-                skill_names = [s.name for s in always_apply_skills]
                 return (
                     "\n## Available Skills\n"
                     f"The following skills are always available: {', '.join(skill_names)}\n"
@@ -495,6 +508,44 @@ class EventHandlers:
         except Exception as e:
             self.logger.warning(f"Failed to build skill injection context: {e}")
             return None
+
+    def _restore_skills_from_parent(self, parent_session_id: str | None) -> list[str]:
+        """Restore active skills from parent session's handoff context.
+
+        Args:
+            parent_session_id: Parent session ID to restore from
+
+        Returns:
+            List of skill names from the parent session
+        """
+        if not parent_session_id or not self._session_storage:
+            return []
+
+        try:
+            parent = self._session_storage.get(parent_session_id)
+            if not parent:
+                return []
+
+            compact_md = getattr(parent, "compact_markdown", None)
+            if not compact_md:
+                return []
+
+            # Parse active skills from markdown
+            # Format: "### Active Skills\nSkills available: skill1, skill2, skill3"
+            import re
+
+            match = re.search(r"### Active Skills\s*\nSkills available:\s*([^\n]+)", compact_md)
+            if match:
+                skills_str = match.group(1).strip()
+                skills = [s.strip() for s in skills_str.split(",") if s.strip()]
+                self.logger.debug(f"Restored {len(skills)} skills from parent session")
+                return skills
+
+            return []
+
+        except Exception as e:
+            self.logger.warning(f"Failed to restore skills from parent: {e}")
+            return []
 
     # ==================== AGENT HANDLERS ====================
 

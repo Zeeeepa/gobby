@@ -292,9 +292,9 @@ class TestInjectContext:
         # Create the .gobby directory structure and failback file
         # Path.home() returns tmp_path, so full path is tmp_path / ".gobby" / "session_summaries"
         (tmp_path / ".gobby" / "session_summaries").mkdir(parents=True)
-        (tmp_path / ".gobby" / "session_summaries" / "session_20240101_test-external-uuid-123.md").write_text(
-            "# Recovered Summary\nRecovered from failback file."
-        )
+        (
+            tmp_path / ".gobby" / "session_summaries" / "session_20240101_test-external-uuid-123.md"
+        ).write_text("# Recovered Summary\nRecovered from failback file.")
 
         # Patch Path.home() to use tmp_path
         with patch.object(Path, "home", return_value=tmp_path):
@@ -1254,6 +1254,7 @@ class TestFormatHandoffAsMarkdown:
         files_modified: list = field(default_factory=list)
         initial_goal: str = ""
         recent_activity: list = field(default_factory=list)
+        active_skills: list = field(default_factory=list)
 
     def test_empty_context_returns_empty_string(self):
         """Should return empty string when all context fields are empty."""
@@ -1433,3 +1434,19 @@ class TestFormatHandoffAsMarkdown:
 
         assert "### Commits This Session" in result
         assert "- `` test commit" in result
+
+    def test_formats_active_skills(self):
+        """Should format active skills section."""
+        ctx = self.MockHandoffContext(active_skills=["gobby-tasks", "gobby-sessions"])
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Active Skills" in result
+        assert "gobby-tasks" in result
+        assert "gobby-sessions" in result
+
+    def test_empty_active_skills_not_included(self):
+        """Should not include active skills section when list is empty."""
+        ctx = self.MockHandoffContext(active_skills=[])
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Active Skills" not in result
