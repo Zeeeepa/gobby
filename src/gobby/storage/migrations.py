@@ -808,6 +808,50 @@ def _migrate_add_skills_global_unique_index(db: LocalDatabase) -> None:
     logger.debug("Added idx_skills_name_global partial unique index to skills table")
 
 
+def _migrate_add_clones_table(db: LocalDatabase) -> None:
+    """Add clones table for local git clone management.
+
+    Clones are full repository copies, distinct from worktrees which share
+    a single .git directory. This enables parallel development across machines
+    or isolated environments.
+    """
+    # Check if table already exists
+    row = db.fetchone(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='clones'"
+    )
+    if row:
+        logger.debug("clones table already exists, skipping")
+        return
+
+    # Create the clones table
+    db.execute("""
+        CREATE TABLE clones (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            branch_name TEXT NOT NULL,
+            clone_path TEXT NOT NULL,
+            base_branch TEXT DEFAULT 'main',
+            task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+            agent_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+            status TEXT DEFAULT 'active',
+            remote_url TEXT,
+            last_sync_at TEXT,
+            cleanup_after TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # Create indexes
+    db.execute("CREATE INDEX idx_clones_project ON clones(project_id)")
+    db.execute("CREATE INDEX idx_clones_status ON clones(status)")
+    db.execute("CREATE INDEX idx_clones_task ON clones(task_id)")
+    db.execute("CREATE INDEX idx_clones_session ON clones(agent_session_id)")
+    db.execute("CREATE UNIQUE INDEX idx_clones_path ON clones(clone_path)")
+
+    logger.debug("Created clones table with indexes")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -831,6 +875,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (70, "Add skills table", _migrate_add_skills_table),
     # Skills: Add partial unique index for global skills
     (71, "Add global skills unique index", _migrate_add_skills_global_unique_index),
+    # Local clones: Add table for git clone management
+    (72, "Add clones table", _migrate_add_clones_table),
 ]
 
 
