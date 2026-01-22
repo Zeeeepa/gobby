@@ -1,235 +1,157 @@
-# Gobby - Project Context & Instructions
+# GEMINI.md
+
+This file provides guidance to the Gemini CLI when working with code in this repository.
 
 ## Project Overview
 
-**Gobby** is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) into a persistent, orchestrated environment. It provides long-term memory, session management, and an MCP (Model Context Protocol) proxy with lazy tool discovery.
+Gobby is a local-first daemon that unifies AI coding assistants (Gemini CLI, Claude Code, Codex) under one persistent, extensible platform. It provides:
 
-* **Core Tech:** Python 3.11+, FastAPI, FastMCP, SQLite, Click.
-* **Key Concept:** "Unified Agent Manager" - Gobby sits between the AI CLI and the OS/Tools.
+- **Session management** that survives restarts and context compactions
+- **Task system** with dependency graphs, TDD expansion, and validation gates
+- **MCP proxy** with progressive disclosure (tools stay lightweight until needed)
+- **Workflow engine** that enforces steps, tool restrictions, and transitions
+- **Worktree orchestration** for parallel development
+- **Memory system** for persistent facts across sessions
 
-## Environment & Setup
+**Built with Gobby**: Most of this codebase was written by AI agents using Gobby's own task system and workflows.
 
-This project uses **[uv](https://github.com/astral-sh/uv)** for dependency management.
-
-### Installation
-
-```bash
-uv sync
-```
-
-### Running the Daemon
+## Development Commands
 
 ```bash
-# Start daemon (verbose for dev)
-uv run gobby start --verbose
+# Environment setup
+uv sync                          # Install dependencies (Python 3.13+)
 
-# Check status
-uv run gobby status
-```
+# Daemon management
+uv run gobby start --verbose     # Start daemon with verbose logging
+uv run gobby stop                # Stop daemon
+uv run gobby restart             # Restart daemon
+uv run gobby status              # Check daemon status
 
-## Development Workflow
+# Project initialization
+uv run gobby init                # Initialize project (.gobby/)
+uv run gobby install             # Install hooks for detected CLIs
 
-### Quality Checks (Mandatory)
-
-All changes must pass these checks.
-
-```bash
-# Linting & Formatting
-uv run ruff check src/
-uv run ruff format src/
-
-# Type Checking (Strict)
-uv run mypy src/
+# Code quality
+uv run ruff check src/           # Lint
+uv run ruff format src/          # Auto-format
+uv run mypy src/                 # Type check
 
 # Testing
-uv run pytest
+uv run pytest tests/test_file.py -v    # Run specific test file
+uv run pytest tests/storage/ -v        # Run specific module
 ```
+
+**Coverage threshold**: 80% (enforced in CI)
+
+**Test markers**: `unit`, `slow`, `integration`, `e2e`
+
+## Architecture Overview
 
 ### Directory Structure
 
-* `src/gobby/cli/`: Click CLI entry points.
-* `src/gobby/runner.py`: Main daemon process runner.
-* `src/gobby/servers/`: HTTP (:8765) and WebSocket (:8766) servers.
-* `src/gobby/hooks/`: Central hook management logic.
-* `src/gobby/mcp_proxy/`: Logic for connecting to downstream MCP servers.
-* `src/gobby/storage/`: SQLite database layer (`~/.gobby/gobby-hub.db`).
+```text
+src/gobby/
+├── cli/                    # CLI commands (Click)
+├── runner.py              # Main daemon entry point
+├── servers/               # HTTP and WebSocket servers
+├── mcp_proxy/            # MCP proxy layer (20+ tool modules)
+├── hooks/                # Hook event system
+├── adapters/             # CLI-specific hook adapters (gemini.py)
+├── sessions/             # Session lifecycle and parsers
+├── tasks/                # Task system (expansion, validation)
+├── workflows/            # Workflow engine (state machine)
+├── agents/               # Agent spawning logic
+├── worktrees/            # Git worktree management
+├── memory/               # Memory system (TF-IDF, semantic)
+├── storage/              # SQLite storage layer
+├── llm/                  # Multi-provider LLM abstraction
+├── config/               # Configuration (YAML/JSON)
+└── utils/                # Git, logging, project utilities
+```
 
-## Architecture Quick Reference
+### Key File Locations
 
-1. **CLI Hook** (from Claude/Gemini) -> **Hook Script** -> **HTTP POST** (`/api/v1/hooks/...`)
-2. **Daemon** (`HookManager`) processes event -> Updates **Session** / **Memory**.
-3. **MCP Proxy**:
-   * Tools are *not* loaded at startup.
-   * `list_tools` fetches metadata only.
-   * `get_tool_schema` fetches full schema on-demand.
+| Path | Purpose |
+| :--- | :--- |
+| `~/.gobby/config.yaml` | Daemon configuration |
+| `~/.gobby/gobby-hub.db` | SQLite database (sessions, tasks, etc.) |
+| `~/.gobby/logs/` | Log files |
+| `.gobby/project.json` | Project metadata |
+| `.gobby/tasks.jsonl` | Task sync file (git-native) |
 
-## Agent Protocol (CRITICAL)
+## MCP Tool Discovery (Progressive Disclosure)
 
-> "If it's not a task, it didn't happen."
+**IMPORTANT**: Gobby uses progressive disclosure to minimize token usage. Follow this pattern:
 
-You are operating within a Gobby-enabled environment. You **must** use the `gobby-tasks` system to track your work. Do not rely on chat history or loose files.
+1.  **Discover available servers**: `list_mcp_servers()`
+2.  **List tools on a specific server (lightweight)**: `list_tools(server="gobby-tasks")`
+3.  **Get full schema when you need to call a tool**: `get_tool_schema(server_name="gobby-tasks", tool_name="create_task")`
+4.  **Execute the tool**: `call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})`
 
-## 🛑 CRITICAL: NO CODE EDITS WITHOUT TASK ID
+### Internal MCP Servers
 
-**Required Sequence (Progressive Disclosure):**
-1. **List Tools:** `mcp_list_tools(server_name="gobby-tasks")` (Metadata only, finding tools)
-2. **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
-    * *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
-3. **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", ...)`
-4. **Link Session:** `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", ...)`
+| Server | Purpose | Key Tools |
+| :--- | :--- | :--- |
+| `gobby-tasks` | Task management | `create_task`, `expand_task`, `close_task`, `suggest_next_task` |
+| `gobby-sessions` | Session handoff | `pickup`, `get_handoff_context`, `list_sessions` |
+| `gobby-memory` | Persistent memory | `remember`, `recall`, `forget` |
+| `gobby-workflows` | Workflow control | `activate_workflow`, `set_variable`, `get_status` |
+| `gobby-agents` | Agent spawning | `start_agent`, `list_agents` |
+| `gobby-worktrees` | Git worktrees | `spawn_agent_in_worktree`, `list_worktrees` |
+| `gobby-skills` | Skill management | `list_skills`, `get_skill`, `install_skill` |
 
-> "If it's not a task, it didn't happen."
-
-You are operating within a Gobby-enabled environment. You **must** use the `gobby-tasks` system to track your work. Do not rely on chat history or loose files.
+## Task Management (CRITICAL)
 
 ### Getting Your Session ID
 
-**Tasks require a `session_id` parameter.** The session_id may be injected into your context by the Gobby daemon via the `session-start` hook.
+**Tasks require a `session_id` parameter.** This is usually injected by the Gobby daemon via the `session-start` hook.
 
-**Where to find it**: Look for `session_id:` in your system context at the start of the conversation.
+**Where to find it**: Look for `session_id:` in your system context or initial prompt.
 
-**Fallback - Using `get_current`**: If `session_id` wasn't injected in your context, you can look it up using your CLI's external session ID:
-
+**Fallback - Using `get_current`**:
+If `session_id` is missing, look it up:
 ```python
-# Extract external_id from your transcript path filename
-# The external_id is typically the session ID portion of the path
-
-mcp_call_tool(server="gobby-sessions", tool="get_current", arguments={
-    "external_id": "<your-session-id>",
-    "source": "gemini"  # or "antigravity" if running in Antigravity IDE
+call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+    "external_id": "<your-gemini-session-id>", # Often found in environment or history
+    "source": "gemini"
 })
-# Returns: {"session_id": "...", "found": true, ...}
 ```
 
-### ⚠️ Common Mistake: Using list_sessions to Find Your Session
+### Workflow Requirements
 
-**WRONG:**
-```python
-# ❌ This will NOT work with multiple active sessions!
-result = mcp_call_tool("gobby-sessions", "list_sessions", {"status": "active", "limit": 1})
-my_session_id = result["sessions"][0]["id"]  # Could be ANY active session!
-```
-
-**CORRECT:**
-```python
-# ✅ Use get_current with your unique identifiers
-result = mcp_call_tool("gobby-sessions", "get_current", {"external_id": "...", "source": "gemini"})
-my_session_id = result["session_id"]
-```
-
-Multiple sessions can be active simultaneously (parallel agents, multiple terminals). The `get_current` tool uses a composite key (external_id + source + machine_id + project_id) to reliably find YOUR session.
-
-### 1. Start of Session
-
-1. **Check Context:**
-    * `mcp_call_tool("gobby-tasks", "list_ready_tasks", {})`
-    * `mcp_call_tool("gobby-tasks", "get_task", {"task_id": "..."})` (if ID is known)
-
-2. **Define Work:**
-    * **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
-        * *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
-    * **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "...", "session_id": "<your_session_id>", "depends_on": ["#N", ...]})`
-
-3. **Link Session:**
-    * `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", {})`
-
-### 2. Execution Loop
-
-* **Update Status:** Mark task as `in_progress`.
-* **Dependencies:** If blocked, use `add_dependency`.
-* **Bugs:** Found a side-issue? `create_task` (don't get distracted).
-
-### Task Workflow (Mandatory)
-
-1. **Start Task**:
-   * **Get Schema:** `mcp_get_tool_schema(..., tool="update_task")` (If not yet fetched this session)
-   * **Update Status:** `mcp_call_tool(..., tool="update_task", arguments={..., "status": "in_progress"})`
-2. **Understand**: Read the task details and linked issues.
-3. **Work**: Implement the changes.
-4. **Confirm**: `gobby-tasks.list_tasks(status="in_progress")` to verify tracking.
-5. **Close**: See Exit Protocol below.
-
-> **CRITICAL**: Do NOT leave tasks `in_progress` if you are done. Always close them with a commit SHA.
-
-### 3. End of Session ("Landing the Plane")
-
-## 🏁 EXIT PROTOCOL
-
-1. **Commit Work:** `git commit -m "..."`
-2. **Verify SHA:** `git rev-parse HEAD`
-3. **Get Schema:** `mcp_get_tool_schema(..., tool="close_task")` (If not yet fetched this session)
-4. **Close Task:** `mcp_call_tool(..., tool="close_task", arguments={..., "commit_sha": "..."})`
-
-## MCP Tool Usage Guide
-
-Gobby uses a proxy pattern for tools.
-
-* **List Tools:** `mcp_list_tools(server_name="gobby-tasks")`
-* **Get Schema:** `mcp_get_tool_schema(server_name="gobby-tasks", tool_name="create_task")`
-* **Call Tool:** `mcp_call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})`
-
-*Note: Replace "gobby-tasks" with "gobby-memory" for other internal domains.*
-
-## Skills
-
-Skills are reusable instructions for AI agents. Use the `gobby-skills` MCP server:
+**BEFORE editing files (Edit/Write tools), you MUST have a task with `status: in_progress`.**
+The workflow system blocks modifications without an active task to ensure traceability.
 
 ```python
-# List available skills
-mcp_call_tool(server="gobby-skills", tool="list_skills", arguments={})
+# 1. Create task
+call_tool("gobby-tasks", "create_task", {"title": "...", "session_id": "...", "task_type": "feature"})
 
-# Get a specific skill
-mcp_call_tool(server="gobby-skills", tool="get_skill", arguments={"name": "gobby-tasks"})
+# 2. Set to in_progress
+call_tool("gobby-tasks", "update_task", {"task_id": "gt-xxx", "status": "in_progress"})
 
-# Search for skills
-mcp_call_tool(server="gobby-skills", tool="search_skills", arguments={"query": "testing coverage"})
+# 3. Perform edits...
+
+# 4. Commit with task ID: [gt-xxx] feat: ...
+
+# 5. Close task
+call_tool("gobby-tasks", "close_task", {"task_id": "gt-xxx", "commit_sha": "..."})
 ```
 
-**Skill Locations:**
-- Core skills: bundled with Gobby
-- Project skills: `.gobby/skills/`
-- User skills: `~/.gobby/skills/`
+## Session Handoff
 
-## Worktree Agent Mode
+Gobby preserves context across sessions. Look for `## Continuation Context` blocks at session start - this contains your previous state, git status, and pending tasks.
 
-When you are spawned in a worktree (via `spawn_agent_in_worktree`), you operate with restricted tool access enforced by the `worktree-agent` workflow. This prevents runaway recursion and keeps you focused on your assigned task.
+## Code Conventions
 
-### Available Tools
+- **Type Hints**: Required for all functions.
+- **Python Version**: Target Python 3.13+.
+- **Formatting**: Use `ruff format`.
+- **Linting**: Use `ruff check`.
+- **Testing**: Minimum 80% coverage. Use `pytest`.
+- **Async**: Use `async/await` for I/O operations (FastAPI, httpx).
 
-| Category | Tools |
-|----------|-------|
-| **Task Management** | `get_task`, `update_task`, `close_task` |
-| **Memory** | `remember`, `recall`, `forget` |
-| **Development** | Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch, NotebookEdit, TodoWrite |
+## Troubleshooting
 
-### What You CANNOT Do
-
-| Blocked Operation | Why |
-|-------------------|-----|
-| `create_task`, `expand_task`, `search_tasks`, `suggest_next_task` | Work on your assigned task only |
-| `start_agent`, `spawn_agent_in_worktree`, `list_agents` | No nested agent spawning |
-| `create_worktree`, `list_worktrees`, `delete_worktree` | Stay in your assigned worktree |
-| `pickup`, `handoff` | You have your own session |
-
-### Workflow
-
-1. **Get your task**: `get_task(task_id="<assigned_task_id>")`
-2. **Mark in progress**: `update_task(task_id="...", status="in_progress")`
-3. **Implement the changes**: Use Read, Edit, Write, Bash as needed
-4. **Commit your work**: `git commit -m "[task-id] ..."`
-5. **Close task**: `close_task(task_id="...", commit_sha="...")`
-
-### If You're Stuck
-
-If you cannot complete the task:
-1. Check task details: `get_task(task_id="...")`
-2. Note blockers in comments or task description: `update_task(task_id="...", description="BLOCKED: ...")`
-3. Do NOT try to spawn helper agents or create new tasks
-
-### Exit Condition
-
-The workflow allows exit when `close_task()` is called successfully. If you try to stop before completing the task, you'll receive guidance to continue.
-
-## Task Validation Overrides
-
-* **Task #2124 (Workflow Cache Reload):** Validation criteria demanded comprehensive automatic cache invalidation (watchdog/mtime), but implementation followed the simpler manual reload approach specified in the task description. User authorized override on 2026-01-12.
+- **"Edit/Write blocked"**: Ensure you have a task in `in_progress` status.
+- **"Task has no commits"**: You must commit your changes with the task ID in the message before closing.
+- **Agent depth exceeded**: You are too deep in nested agent spawns (limit is 3).
