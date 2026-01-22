@@ -916,3 +916,67 @@ async def test_spawn_agent_create_worktree_fails(
 
     assert result["success"] is False
     assert "Branch already exists" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_agent_default_workflow(
+    registry, mock_worktree_storage, mock_git_manager, mock_agent_runner
+):
+    """Test that spawn_agent_in_worktree defaults to 'worktree-agent' workflow."""
+    # Setup
+    mock_agent_runner.can_spawn.return_value = (True, None, 1)
+
+    mock_context = MagicMock()
+    mock_context.session.id = "child-sess-1"
+    mock_context.session.agent_depth = 1
+    mock_context.run.id = "run-1"
+    mock_agent_runner.prepare_run.return_value = mock_context
+
+    wt = Worktree(
+        id="wt-default",
+        project_id="proj-1",
+        branch_name="feat/default",
+        worktree_path="/tmp/default",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.create.return_value = wt
+    mock_worktree_storage.get_by_branch.return_value = None
+
+    with (
+        patch("gobby.mcp_proxy.tools.worktrees._generate_worktree_path", return_value="/tmp/default"),
+        patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks", return_value=True),
+        patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
+        patch("gobby.utils.machine_id.get_machine_id", return_value="machine-1"),
+        patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+        patch("gobby.agents.runner.AgentConfig") as MockAgentConfig,
+    ):
+        mock_spawner_instance = MockSpawner.return_value
+        mock_spawner_instance.spawn_agent.return_value = MagicMock(
+            success=True, pid=456, terminal_type="test-term"
+        )
+
+        # Call WITHOUT specifying workflow
+        result = await registry.call(
+            "spawn_agent_in_worktree",
+            {
+                "prompt": "do work",
+                "branch_name": "feat/default",
+                "parent_session_id": "parent-1",
+                "provider": "claude",
+            },
+        )
+
+        assert result["success"] is True
+
+        # Verify AgentConfig was called with workflow='worktree-agent'
+        MockAgentConfig.assert_called_once()
+        call_kwargs = MockAgentConfig.call_args[1]
+        assert call_kwargs.get("workflow") == "worktree-agent", (
+            f"Expected workflow='worktree-agent', got workflow={call_kwargs.get('workflow')!r}"
+        )

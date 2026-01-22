@@ -1014,6 +1014,11 @@ def create_worktrees_registry(
         if isinstance(terminal, str):
             terminal = terminal.lower()
 
+        # Default to 'worktree-agent' workflow if not specified
+        # This workflow restricts tools available to spawned agents in worktrees
+        if workflow is None:
+            workflow = "worktree-agent"
+
         # Validate workflow (reject lifecycle workflows)
         if workflow:
             workflow_loader = WorkflowLoader()
