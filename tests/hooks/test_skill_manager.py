@@ -101,3 +101,41 @@ class TestHookSkillManager:
         skill = manager.get_skill_by_name("nonexistent-skill")
 
         assert skill is None
+
+    def test_recommend_skills_returns_list(self):
+        """Test that recommend_skills returns a list."""
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        manager = HookSkillManager()
+        result = manager.recommend_skills()
+
+        assert isinstance(result, list)
+
+    def test_recommend_skills_for_code_category(self):
+        """Test that recommend_skills returns code-related skills."""
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        manager = HookSkillManager()
+        result = manager.recommend_skills(category="code")
+
+        assert "gobby-tasks" in result
+
+    def test_recommend_skills_for_docs_category(self):
+        """Test that recommend_skills returns docs-related skills."""
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        manager = HookSkillManager()
+        result = manager.recommend_skills(category="docs")
+
+        assert "gobby-tasks" in result
+        assert "gobby-plan" in result
+
+    def test_recommend_skills_unknown_category_returns_always_apply(self):
+        """Test that recommend_skills returns alwaysApply skills for unknown category."""
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        manager = HookSkillManager()
+        result = manager.recommend_skills(category="unknown-category")
+
+        # Should at least return some skills (alwaysApply ones)
+        assert isinstance(result, list)

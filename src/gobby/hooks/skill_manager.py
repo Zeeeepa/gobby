@@ -90,3 +90,41 @@ class HookSkillManager:
     def refresh(self) -> None:
         """Clear the cache and rediscover skills."""
         self._core_skills = None
+
+    def recommend_skills(self, category: str | None = None) -> list[str]:
+        """Recommend relevant skills based on task category.
+
+        Maps task categories to relevant core skills that would be helpful
+        for that type of work.
+
+        Args:
+            category: Task category (e.g., 'code', 'docs', 'test', 'config')
+
+        Returns:
+            List of skill names that are relevant for the category
+        """
+        # Category to skill mappings
+        category_skills: dict[str, list[str]] = {
+            "code": ["gobby-tasks", "gobby-expand", "gobby-worktrees"],
+            "test": ["gobby-tasks", "gobby-expand"],
+            "docs": ["gobby-tasks", "gobby-plan"],
+            "config": ["gobby-tasks", "gobby-mcp"],
+            "refactor": ["gobby-tasks", "gobby-expand", "gobby-worktrees"],
+            "planning": ["gobby-tasks", "gobby-plan", "gobby-expand"],
+            "research": ["gobby-tasks", "gobby-memory"],
+        }
+
+        # Get skills for the category (or empty list if no match)
+        recommended = category_skills.get(category or "", [])
+
+        # Always include alwaysApply skills
+        skills = self.discover_core_skills()
+        always_apply = [s.name for s in skills if s.is_always_apply()]
+
+        # Combine and dedupe while preserving order
+        result = list(always_apply)
+        for skill_name in recommended:
+            if skill_name not in result:
+                result.append(skill_name)
+
+        return result
