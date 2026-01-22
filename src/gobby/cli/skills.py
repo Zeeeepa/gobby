@@ -343,3 +343,72 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
 
     except SkillLoadError as e:
         click.echo(f"Error updating {name}: {e}")
+
+
+@skills.command()
+@click.argument("path")
+@click.option("--json", "json_output", is_flag=True, help="Output as JSON")
+@click.pass_context
+def validate(ctx: click.Context, path: str, json_output: bool) -> None:
+    """Validate a SKILL.md file against the Agent Skills specification.
+
+    PATH is the path to a SKILL.md file or directory containing one.
+
+    Validates:
+    - name: max 64 chars, lowercase + hyphens only
+    - description: max 1024 chars, non-empty
+    - version: semver pattern (if provided)
+    - category: lowercase alphanumeric + hyphens (if provided)
+    - tags: list of strings, each max 64 chars (if provided)
+    """
+    from gobby.skills.loader import SkillLoader, SkillLoadError
+    from gobby.skills.validator import SkillValidator
+
+    source_path = Path(path)
+
+    if not source_path.exists():
+        if json_output:
+            click.echo(json.dumps({"error": "Path not found", "path": path}))
+        else:
+            click.echo(f"Error: Path not found: {path}")
+        return
+
+    # Load the skill
+    loader = SkillLoader()
+    try:
+        # Don't validate during load - we want to do it ourselves
+        parsed_skill = loader.load_skill(source_path, validate=False, check_dir_name=False)
+    except SkillLoadError as e:
+        if json_output:
+            click.echo(json.dumps({"error": str(e), "path": path}))
+        else:
+            click.echo(f"Error loading skill: {e}")
+        return
+
+    # Validate the skill
+    validator = SkillValidator()
+    result = validator.validate(parsed_skill)
+
+    if json_output:
+        output = result.to_dict()
+        output["path"] = path
+        output["skill_name"] = parsed_skill.name
+        click.echo(json.dumps(output, indent=2))
+        return
+
+    # Human-readable output
+    if result.valid:
+        click.echo(f"✓ Valid: {parsed_skill.name}")
+        if result.warnings:
+            click.echo("\nWarnings:")
+            for warning in result.warnings:
+                click.echo(f"  - {warning}")
+    else:
+        click.echo(f"✗ Invalid: {parsed_skill.name}")
+        click.echo("\nErrors:")
+        for error in result.errors:
+            click.echo(f"  - {error}")
+        if result.warnings:
+            click.echo("\nWarnings:")
+            for warning in result.warnings:
+                click.echo(f"  - {warning}")

@@ -416,6 +416,146 @@ class TestSkillsInstallCommand:
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
+class TestSkillsValidateCommand:
+    """Tests for gobby skills validate command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_validate_help(self, runner: CliRunner):
+        """Test skills validate --help."""
+        result = runner.invoke(cli, ["skills", "validate", "--help"])
+        assert result.exit_code == 0
+        assert "validate" in result.output.lower()
+
+    def test_validate_help_shows_json_flag(self, runner: CliRunner):
+        """Test skills validate --help shows --json flag."""
+        result = runner.invoke(cli, ["skills", "validate", "--help"])
+        assert result.exit_code == 0
+        assert "--json" in result.output
+
+    def test_validate_requires_path(self, runner: CliRunner):
+        """Test that validate requires path argument."""
+        result = runner.invoke(cli, ["skills", "validate"])
+        # Should show missing argument error
+        assert result.exit_code != 0
+
+    def test_validate_valid_skill(self, runner: CliRunner):
+        """Test validating a valid skill file."""
+        with runner.isolated_filesystem():
+            import os
+
+            os.makedirs("test-skill")
+            with open("test-skill/SKILL.md", "w") as f:
+                f.write(
+                    """---
+name: test-skill
+description: A valid test skill
+version: 1.0.0
+metadata:
+  skillport:
+    category: testing
+    tags:
+      - test
+      - demo
+---
+
+# Test Skill
+
+Instructions here.
+"""
+                )
+
+            result = runner.invoke(cli, ["skills", "validate", "test-skill"])
+
+            assert result.exit_code == 0
+            assert "valid" in result.output.lower()
+
+    def test_validate_invalid_skill(self, runner: CliRunner):
+        """Test validating an invalid skill file."""
+        with runner.isolated_filesystem():
+            import os
+
+            os.makedirs("bad-skill")
+            with open("bad-skill/SKILL.md", "w") as f:
+                f.write(
+                    """---
+name: Bad_Skill_Name
+description: ""
+---
+
+# Bad Skill
+"""
+                )
+
+            result = runner.invoke(cli, ["skills", "validate", "bad-skill"])
+
+            assert result.exit_code == 0
+            # Should show errors for invalid name and empty description
+            assert "error" in result.output.lower() or "invalid" in result.output.lower()
+
+    def test_validate_json_output_valid(self, runner: CliRunner):
+        """Test validating with JSON output for valid skill."""
+        import json
+
+        with runner.isolated_filesystem():
+            import os
+
+            os.makedirs("test-skill")
+            with open("test-skill/SKILL.md", "w") as f:
+                f.write(
+                    """---
+name: test-skill
+description: A valid test skill
+---
+
+# Test Skill
+"""
+                )
+
+            result = runner.invoke(cli, ["skills", "validate", "test-skill", "--json"])
+
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["valid"] is True
+            assert data["errors"] == []
+
+    def test_validate_json_output_invalid(self, runner: CliRunner):
+        """Test validating with JSON output for invalid skill."""
+        import json
+
+        with runner.isolated_filesystem():
+            import os
+
+            os.makedirs("bad-skill")
+            with open("bad-skill/SKILL.md", "w") as f:
+                f.write(
+                    """---
+name: BAD_NAME
+description: A skill
+---
+
+# Bad
+"""
+                )
+
+            result = runner.invoke(cli, ["skills", "validate", "bad-skill", "--json"])
+
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["valid"] is False
+            assert len(data["errors"]) > 0
+
+    def test_validate_path_not_found(self, runner: CliRunner):
+        """Test validating non-existent path."""
+        result = runner.invoke(cli, ["skills", "validate", "/nonexistent/path"])
+
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower() or "error" in result.output.lower()
+
+
 class TestSkillsUpdateCommand:
     """Tests for gobby skills update command."""
 
