@@ -4,7 +4,7 @@
 
 ### 1.1 What is the Conductor?
 
-The Conductor is Gobby's persistent orchestration daemon that monitors tasks, coordinates agents, tracks resources, and speaks in haiku. Think of it as a friendly daemon that keeps the task system tidy while occasionally offering dry, TARS-style wit.
+The Conductor is Gobby's persistent orchestration daemon that monitors tasks, coordinates agents, and tracks resources. Think of it as a persistent daemon that keeps the task system tidy and enables autonomous task processing.
 
 **Key responsibilities:**
 
@@ -28,7 +28,6 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 │   │   workflows         │    │ - Token budget throttling           │   │
 │   │ - Reviews at gates  │    │ - Auto-spawn on ready tasks         │   │
 │   │ - /gobby commands   │    │ - Alerts via callme                 │   │
-│   │                     │    │ - TARS personality (15% humor)      │   │
 │   └─────────────────────┘    └─────────────────────────────────────┘   │
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
@@ -60,7 +59,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 | Blocking wait tools | Synchronous wait for task completion |
 | `review` status | Review gates in task flow |
 | Token aggregation/pricing | Sum across sessions + cost calculation |
-| Conductor daemon loop | Persistent monitoring + TARS personality |
+| Conductor daemon loop | Persistent monitoring and autonomous spawning |
 
 ---
 
@@ -159,7 +158,7 @@ gobby conductor restart
 
 ### 3.4 `gobby conductor status`
 
-Show current state with haiku, active agents, pending tasks, token usage.
+Show current state: active agents, pending tasks, token usage.
 
 ```bash
 gobby conductor status
@@ -1463,7 +1462,7 @@ conductor:
 | B | `review` status + wait tools | Review gates |
 | C | Orchestration workflow definitions | Interactive mode |
 | D | Token tracking + throttling | Budget awareness |
-| E | ConductorLoop + TARS haikus | Autonomous mode |
+| E | ConductorLoop daemon | Autonomous mode |
 | F | Live integration tests | End-to-end system |
 
 ---
