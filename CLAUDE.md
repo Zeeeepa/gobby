@@ -204,6 +204,7 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 | `gobby-merge`     | AI merge resolution   | `merge_start`, `merge_resolve`, `merge_apply`                    |
 | `gobby-hub`       | Cross-project queries | `list_all_projects`, `hub_stats`                                 |
 | `gobby-metrics`   | Tool metrics          | `get_metrics`, `get_failing_tools`                               |
+| `gobby-skills`    | Skill management      | `list_skills`, `get_skill`, `search_skills`, `install_skill`     |
 
 Use `list_mcp_servers()` to see connected servers, then `list_tools(server="...")` for tools.
 
