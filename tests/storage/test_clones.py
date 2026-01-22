@@ -6,6 +6,8 @@ import pytest
 
 from gobby.storage.clones import Clone, CloneStatus, LocalCloneManager
 
+pytestmark = pytest.mark.unit
+
 
 class TestCloneStatus:
     """Tests for CloneStatus enum."""

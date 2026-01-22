@@ -145,7 +145,7 @@ class TestParallelOrchestratorCloneTools:
                 tool in allowed or "clone" in tool.lower()
                 for tool in ["create_clone", "spawn_agent_in_clone", "list_clones"]
             )
-            assert clone_tools_present or step.allowed_tools == "all"
+            assert clone_tools_present
 
 
 class TestParallelOrchestratorSettings:

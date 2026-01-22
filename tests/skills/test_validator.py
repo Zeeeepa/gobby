@@ -14,6 +14,8 @@ from gobby.skills.validator import (
     validate_skill_version,
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestValidationResult:
     """Tests for ValidationResult class."""

@@ -15,6 +15,8 @@ import pytest
 
 from gobby.storage.clones import Clone
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mock_clone_storage():

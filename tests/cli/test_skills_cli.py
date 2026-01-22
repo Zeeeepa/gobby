@@ -192,7 +192,7 @@ class TestSkillsShowCommand:
 
         result = runner.invoke(cli, ["skills", "show", "nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
     @patch("gobby.cli.skills.get_skill_storage")
@@ -269,7 +269,7 @@ class TestSkillsShowCommand:
 
         result = runner.invoke(cli, ["skills", "show", "nonexistent", "--json"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         data = json.loads(result.output)
         assert data["error"] == "Skill not found"
         assert data["name"] == "nonexistent"
@@ -404,7 +404,7 @@ class TestSkillsInstallCommand:
 
         result = runner.invoke(cli, ["skills", "install", "/nonexistent/path/to/skill"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
@@ -481,7 +481,7 @@ class TestSkillsEnableDisableCommands:
 
         result = runner.invoke(cli, ["skills", "enable", "nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
     @patch("gobby.cli.skills.get_skill_storage")
@@ -493,7 +493,7 @@ class TestSkillsEnableDisableCommands:
 
         result = runner.invoke(cli, ["skills", "disable", "nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
 
@@ -689,7 +689,7 @@ class TestSkillsNewCommand:
             os.makedirs("my-skill")
             result = runner.invoke(cli, ["skills", "new", "my-skill"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "exists" in result.output.lower()
 
     def test_new_with_description(self, runner: CliRunner):
@@ -841,7 +841,7 @@ class TestSkillsMetaCommand:
 
         result = runner.invoke(cli, ["skills", "meta", "get", "test-skill", "nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower() or "null" in result.output.lower()
 
     @patch("gobby.cli.skills.get_skill_storage")
@@ -915,7 +915,7 @@ class TestSkillsMetaCommand:
 
         result = runner.invoke(cli, ["skills", "meta", "get", "nonexistent", "author"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
 
@@ -995,7 +995,7 @@ description: ""
 
             result = runner.invoke(cli, ["skills", "validate", "bad-skill"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             # Should show errors for invalid name and empty description
             assert "error" in result.output.lower() or "invalid" in result.output.lower()
 
@@ -1046,7 +1046,7 @@ description: A skill
 
             result = runner.invoke(cli, ["skills", "validate", "bad-skill", "--json"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             data = json.loads(result.output)
             assert data["valid"] is False
             assert len(data["errors"]) > 0
@@ -1055,7 +1055,7 @@ description: A skill
         """Test validating non-existent path."""
         result = runner.invoke(cli, ["skills", "validate", "/nonexistent/path"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
@@ -1124,7 +1124,7 @@ class TestSkillsUpdateCommand:
 
         result = runner.invoke(cli, ["skills", "update", "nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
     @patch("gobby.cli.skills.call_skills_tool")
@@ -1228,7 +1228,7 @@ class TestSkillsRemoveCommand:
 
         result = runner.invoke(cli, ["skills", "remove", "nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
     @patch("gobby.cli.skills.call_skills_tool")

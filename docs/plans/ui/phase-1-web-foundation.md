@@ -23,7 +23,7 @@
 
 ### 1.1.3 Component Library
 
-- [ ] Install shadcn/ui: `npx shadcn-ui@latest init`
+- [ ] Install shadcn/ui: `npx shadcn@latest init`
 - [ ] Add core components: Button, Input, Card, Dialog, DropdownMenu
 - [ ] Add data components: Table, Badge, Tabs
 - [ ] Add feedback components: Toast, Skeleton, Progress
