@@ -42,6 +42,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.health_monitor import HealthMonitor
 from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
 from gobby.hooks.session_coordinator import SessionCoordinator
+from gobby.hooks.skill_manager import HookSkillManager
 from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
 from gobby.sessions.manager import SessionManager
@@ -350,6 +351,9 @@ class HookManager:
             logger=self.logger,
         )
 
+        # Skill manager for core skill injection
+        self._skill_manager = HookSkillManager()
+
         # Event handlers (delegated to EventHandlers module)
         self._event_handlers = EventHandlers(
             session_manager=self._session_manager,
@@ -361,6 +365,8 @@ class HookManager:
             task_manager=self._task_manager,
             session_coordinator=self._session_coordinator,
             message_manager=self._message_manager,
+            skill_manager=self._skill_manager,
+            skills_config=self._config.skills if self._config else None,
             get_machine_id=self.get_machine_id,
             resolve_project_id=self._resolve_project_id,
             logger=self.logger,

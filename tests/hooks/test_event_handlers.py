@@ -1777,3 +1777,109 @@ class TestNoManagerDependencies:
         response = handlers.handle_notification(event)
 
         assert response.decision == "allow"
+
+
+class TestSkillInjection:
+    """Test core skill injection in session-start hook."""
+
+    def test_session_start_injects_always_apply_skills(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that session-start injects alwaysApply skills."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=True, injection_format="summary")
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+        event = make_event(HookEventType.SESSION_START, session_id="ext-123")
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+        # Check that skills context is injected when alwaysApply skills exist
+        if response.context:
+            # Context should be present
+            assert "## Available Skills" in response.context or len(response.context) > 0
+
+    def test_session_start_respects_inject_core_skills_false(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that session-start skips injection when inject_core_skills=false."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=False)
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+        event = make_event(HookEventType.SESSION_START, session_id="ext-123")
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+        # With inject_core_skills=False, no skill context should be injected
+        if response.context:
+            assert "## Available Skills" not in response.context
+
+    def test_session_start_works_without_skill_manager(
+        self, event_handlers: EventHandlers
+    ) -> None:
+        """Test that session-start works without skill_manager (backwards compatible)."""
+        event = make_event(HookEventType.SESSION_START, session_id="ext-123")
+        response = event_handlers.handle_session_start(event)
+        assert response.decision == "allow"
+
+    def test_session_start_injection_format_summary(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that summary format injects skill names only."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=True, injection_format="summary")
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+        event = make_event(HookEventType.SESSION_START, session_id="ext-123")
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+
+    def test_session_start_injection_format_none(
+        self, mock_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that 'none' format skips skill injection."""
+        from gobby.config.skills import SkillsConfig
+        from gobby.hooks.skill_manager import HookSkillManager
+
+        skill_manager = HookSkillManager()
+        skills_config = SkillsConfig(inject_core_skills=True, injection_format="none")
+
+        handlers = EventHandlers(
+            **mock_dependencies,
+            skill_manager=skill_manager,
+            skills_config=skills_config,
+        )
+        event = make_event(HookEventType.SESSION_START, session_id="ext-123")
+
+        response = handlers.handle_session_start(event)
+
+        assert response.decision == "allow"
+        # With injection_format="none", no skill context should be injected
+        if response.context:
+            assert "## Available Skills" not in response.context

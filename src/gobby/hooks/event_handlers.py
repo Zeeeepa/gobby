@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING, Any
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
+    from gobby.config.skills import SkillsConfig
     from gobby.hooks.session_coordinator import SessionCoordinator
+    from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
     from gobby.sessions.summary import SummaryFileGenerator
     from gobby.storage.session_messages import LocalSessionMessageManager
@@ -48,6 +50,8 @@ class EventHandlers:
         task_manager: LocalTaskManager | None = None,
         session_coordinator: SessionCoordinator | None = None,
         message_manager: LocalSessionMessageManager | None = None,
+        skill_manager: HookSkillManager | None = None,
+        skills_config: SkillsConfig | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
         logger: logging.Logger | None = None,
@@ -65,6 +69,8 @@ class EventHandlers:
             task_manager: LocalTaskManager for task operations
             session_coordinator: SessionCoordinator for session tracking
             message_manager: LocalSessionMessageManager for messages
+            skill_manager: HookSkillManager for skill discovery
+            skills_config: SkillsConfig for skill injection settings
             get_machine_id: Function to get machine ID
             resolve_project_id: Function to resolve project ID from cwd
             logger: Optional logger instance
@@ -78,6 +84,8 @@ class EventHandlers:
         self._task_manager = task_manager
         self._session_coordinator = session_coordinator
         self._message_manager = message_manager
+        self._skill_manager = skill_manager
+        self._skills_config = skills_config
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
         self.logger = logger or logging.getLogger(__name__)
@@ -322,6 +330,11 @@ class EventHandlers:
             context_parts.append("\n## Active Task Context\n")
             context_parts.append(f"You are working on task: {task_title} ({event.task_id})")
 
+        # Inject core skills if enabled
+        skill_context = self._build_skill_injection_context()
+        if skill_context:
+            context_parts.append(skill_context)
+
         # Build metadata with terminal context (filter out nulls)
         metadata: dict[str, Any] = {
             "session_id": session_id,
@@ -433,6 +446,55 @@ class EventHandlers:
                 self.logger.warning(f"Failed to unregister session from message processor: {e}")
 
         return HookResponse(decision="allow")
+
+    def _build_skill_injection_context(self) -> str | None:
+        """Build skill injection context for session-start.
+
+        Returns context string with available skills if injection is enabled,
+        or None if disabled.
+        """
+        # Skip if no skill manager or config
+        if not self._skill_manager or not self._skills_config:
+            return None
+
+        # Check if injection is enabled
+        if not self._skills_config.inject_core_skills:
+            return None
+
+        # Check injection format
+        if self._skills_config.injection_format == "none":
+            return None
+
+        # Get alwaysApply skills
+        try:
+            core_skills = self._skill_manager.discover_core_skills()
+            always_apply_skills = [s for s in core_skills if s.is_always_apply()]
+
+            if not always_apply_skills:
+                return None
+
+            # Build context based on format
+            if self._skills_config.injection_format == "summary":
+                skill_names = [s.name for s in always_apply_skills]
+                return (
+                    "\n## Available Skills\n"
+                    f"The following skills are always available: {', '.join(skill_names)}\n"
+                    "Use the /skill-name syntax to invoke them."
+                )
+            elif self._skills_config.injection_format == "full":
+                parts = ["\n## Available Skills\n"]
+                for skill in always_apply_skills:
+                    parts.append(f"### {skill.name}")
+                    if skill.description:
+                        parts.append(skill.description)
+                    parts.append("")
+                return "\n".join(parts)
+            else:
+                return None
+
+        except Exception as e:
+            self.logger.warning(f"Failed to build skill injection context: {e}")
+            return None
 
     # ==================== AGENT HANDLERS ====================
 
