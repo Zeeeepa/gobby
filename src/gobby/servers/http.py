@@ -239,6 +239,13 @@ class HTTPServer:
         self._metrics = get_metrics_collector()
         self._daemon: Any = None  # Set externally by daemon
 
+    @property
+    def tool_proxy(self) -> Any:
+        """Get the ToolProxyService instance for routing tool calls with error enrichment."""
+        if self._tools_handler is not None:
+            return self._tools_handler.tool_proxy
+        return None
+
     def _resolve_project_id(self, project_id: str | None, cwd: str | None) -> str:
         """
         Resolve project_id from cwd if not provided.

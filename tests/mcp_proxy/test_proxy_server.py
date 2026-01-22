@@ -259,3 +259,68 @@ async def test_call_hook(daemon_tools):
     # GobbyDaemonTools no longer exposes call_hook - this functionality
     # is handled by the hook system directly, not through MCP tools
     pass
+
+
+@pytest.mark.asyncio
+async def test_call_tool_returns_mcp_error_on_validation_failure(daemon_tools):
+    """Test that call_tool returns CallToolResult(isError=True) when validation fails."""
+    from mcp.types import CallToolResult, TextContent
+
+    # Mock tool_proxy.call_tool to return an error dict
+    daemon_tools.tool_proxy.call_tool = AsyncMock(
+        return_value={
+            "success": False,
+            "error": "Invalid arguments: ['Missing required parameter foo']",
+            "hint": "Review the schema below and retry with correct parameters",
+            "schema": {"type": "object", "required": ["foo"], "properties": {"foo": {"type": "string"}}},
+        }
+    )
+
+    result = await daemon_tools.call_tool("gobby-tasks", "create_task", {"wrong": "arg"})
+
+    # Should return CallToolResult with isError=True
+    assert isinstance(result, CallToolResult)
+    assert result.isError is True
+    assert len(result.content) == 1
+    assert isinstance(result.content[0], TextContent)
+    # Error message should include the error, hint, and schema
+    assert "Invalid arguments" in result.content[0].text
+    assert "Review the schema" in result.content[0].text
+    assert '"foo"' in result.content[0].text  # Schema should be included
+
+
+@pytest.mark.asyncio
+async def test_call_tool_returns_mcp_error_without_schema(daemon_tools):
+    """Test that call_tool returns CallToolResult(isError=True) even without schema info."""
+    from mcp.types import CallToolResult, TextContent
+
+    # Mock tool_proxy.call_tool to return an error dict without schema
+    daemon_tools.tool_proxy.call_tool = AsyncMock(
+        return_value={
+            "success": False,
+            "error": "Server 'unknown' not found",
+        }
+    )
+
+    result = await daemon_tools.call_tool("unknown", "some_tool", {})
+
+    # Should return CallToolResult with isError=True
+    assert isinstance(result, CallToolResult)
+    assert result.isError is True
+    assert "Server 'unknown' not found" in result.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_call_tool_success_returns_raw_result(daemon_tools):
+    """Test that successful call_tool returns raw result (not CallToolResult wrapper)."""
+    # Mock tool_proxy.call_tool to return a successful result
+    daemon_tools.tool_proxy.call_tool = AsyncMock(
+        return_value={"tasks": [{"id": "1", "title": "Test"}], "count": 1}
+    )
+
+    result = await daemon_tools.call_tool("gobby-tasks", "list_tasks", {})
+
+    # Should return raw dict, not CallToolResult
+    assert isinstance(result, dict)
+    assert result.get("tasks") is not None
+    assert result.get("count") == 1

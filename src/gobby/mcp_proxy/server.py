@@ -2,11 +2,13 @@
 Gobby Daemon Tools MCP Server.
 """
 
+import json
 import logging
 from datetime import UTC
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import CallToolResult, TextContent
 
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.manager import MCPClientManager
@@ -96,8 +98,35 @@ class GobbyDaemonTools:
         tool_name: str,
         arguments: dict[str, Any] | None = None,
     ) -> Any:
-        """Call a tool."""
-        return await self.tool_proxy.call_tool(server_name, tool_name, arguments)
+        """Call a tool.
+
+        Returns the tool result, or a CallToolResult with isError=True if the
+        underlying service indicates an error. This ensures the MCP protocol
+        properly signals errors to LLM clients instead of returning error dicts
+        as successful responses.
+        """
+        result = await self.tool_proxy.call_tool(server_name, tool_name, arguments)
+
+        # Check if result indicates an error (ToolProxyService returns dict with success: False)
+        if isinstance(result, dict) and result.get("success") is False:
+            # Build helpful error message with schema hint if available
+            error_msg = result.get("error", "Unknown error")
+            hint = result.get("hint", "")
+            schema = result.get("schema")
+
+            parts = [f"Error: {error_msg}"]
+            if hint:
+                parts.append(f"\n{hint}")
+            if schema:
+                parts.append(f"\nCorrect schema:\n{json.dumps(schema, indent=2)}")
+
+            # Return MCP error response with isError=True
+            return CallToolResult(
+                content=[TextContent(type="text", text="\n".join(parts))],
+                isError=True,
+            )
+
+        return result
 
     async def list_tools(self, server: str, session_id: str | None = None) -> dict[str, Any]:
         """List tools for a specific server, optionally filtered by workflow phase restrictions."""
