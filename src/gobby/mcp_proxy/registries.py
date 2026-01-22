@@ -196,12 +196,22 @@ def setup_internal_registries(
 
     # Initialize clones registry if clone_storage is available
     if clone_storage is not None:
+        from gobby.clones.git import CloneGitManager
         from gobby.mcp_proxy.tools.clones import create_clones_registry
+
+        # Create CloneGitManager from the same repo path as WorktreeGitManager
+        clone_git_manager = None
+        if git_manager is not None:
+            try:
+                clone_git_manager = CloneGitManager(git_manager.repo_path)
+            except Exception as e:
+                logger.warning(f"Failed to create CloneGitManager: {e}")
 
         clones_registry = create_clones_registry(
             clone_storage=clone_storage,
-            git_manager=None,  # Created per-project when needed
+            git_manager=clone_git_manager,
             project_id=project_id or "",
+            agent_runner=agent_runner,
         )
         manager.add_registry(clones_registry)
         logger.debug("Clones registry initialized")

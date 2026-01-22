@@ -177,6 +177,14 @@ class LocalCloneManager:
         row = self.db.fetchone("SELECT * FROM clones WHERE clone_path = ?", (clone_path,))
         return Clone.from_row(row) if row else None
 
+    def get_by_branch(self, project_id: str, branch_name: str) -> Clone | None:
+        """Get clone by project and branch name."""
+        row = self.db.fetchone(
+            "SELECT * FROM clones WHERE project_id = ? AND branch_name = ?",
+            (project_id, branch_name),
+        )
+        return Clone.from_row(row) if row else None
+
     def list_clones(
         self,
         project_id: str | None = None,
@@ -343,3 +351,28 @@ class LocalCloneManager:
             status=CloneStatus.ACTIVE.value,
             last_sync_at=now,
         )
+
+    def claim(self, clone_id: str, session_id: str) -> Clone | None:
+        """
+        Claim a clone for an agent session.
+
+        Args:
+            clone_id: Clone ID
+            session_id: Session ID claiming ownership
+
+        Returns:
+            Updated Clone or None if not found
+        """
+        return self.update(clone_id, agent_session_id=session_id)
+
+    def release(self, clone_id: str) -> Clone | None:
+        """
+        Release a clone from its current owner.
+
+        Args:
+            clone_id: Clone ID
+
+        Returns:
+            Updated Clone or None if not found
+        """
+        return self.update(clone_id, agent_session_id=None)
