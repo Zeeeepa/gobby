@@ -38,14 +38,24 @@ def call_skills_tool(
     arguments: dict[str, Any],
     timeout: float = 30.0,
 ) -> dict[str, Any] | None:
-    """Call a gobby-skills MCP tool via the daemon."""
+    """Call a gobby-skills MCP tool via the daemon.
+
+    Returns the inner result from the MCP response, or None on error.
+    """
     try:
-        return client.call_mcp_tool(
+        response = client.call_mcp_tool(
             server_name="gobby-skills",
             tool_name=tool_name,
             arguments=arguments,
             timeout=timeout,
         )
+        # Response format is {"success": true, "result": {...}}
+        # Extract the inner result for the caller
+        if response.get("success") and "result" in response:
+            return response["result"]
+        # If outer call failed, return None and log error
+        click.echo("Error: MCP call failed", err=True)
+        return None
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         return None
