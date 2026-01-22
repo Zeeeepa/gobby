@@ -911,13 +911,23 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
     mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
     mock_task_manager.close_task.return_value = task
 
+    def git_command_side_effect(cmd, cwd=None):
+        """Return appropriate values for different git commands."""
+        if "diff" in cmd:
+            # Return empty string for diff commands (no uncommitted changes)
+            return ""
+        if "rev-parse" in cmd:
+            # Return commit SHA for rev-parse
+            return "abc123"
+        return ""
+
     with (
         patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
         patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
         patch("gobby.tasks.commits.get_task_diff") as mock_diff,
         patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
         patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
-        patch("gobby.utils.git.run_git_command", return_value="abc123"),
+        patch("gobby.utils.git.run_git_command", side_effect=git_command_side_effect),
     ):
         mock_smart_context.return_value = "Smart context fallback"
         mock_pm.return_value.get.return_value = MagicMock(repo_path="/test/repo")
