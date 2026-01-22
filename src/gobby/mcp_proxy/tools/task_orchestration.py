@@ -11,6 +11,7 @@ from gobby.mcp_proxy.tools.orchestration.monitor import register_monitor
 from gobby.mcp_proxy.tools.orchestration.orchestrate import register_orchestrator
 from gobby.mcp_proxy.tools.orchestration.review import register_reviewer
 from gobby.mcp_proxy.tools.orchestration.utils import get_current_project_id
+from gobby.mcp_proxy.tools.orchestration.wait import register_wait
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -72,6 +73,12 @@ def create_orchestration_registry(
         worktree_storage=worktree_storage,
         git_manager=git_manager,
         default_project_id=default_project_id,
+    )
+
+    # Register wait tools
+    register_wait(
+        registry=registry,
+        task_manager=task_manager,
     )
 
     return registry
