@@ -48,6 +48,7 @@ from gobby.config.sessions import (
     SessionSummaryConfig,
     TitleSynthesisConfig,
 )
+from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import (
     CompactHandoffConfig,
     GobbyTasksConfig,
@@ -84,6 +85,8 @@ __all__ = [
     # From gobby.config.servers
     "MCPClientProxyConfig",
     "WebSocketSettings",
+    # From gobby.config.skills
+    "SkillsConfig",
     # From gobby.config.sessions
     "ArtifactHandoffConfig",
     "ContextInjectionConfig",
@@ -279,6 +282,10 @@ class DaemonConfig(BaseModel):
         default_factory=MemorySyncConfig,
         description="Memory synchronization configuration",
     )
+    skills: SkillsConfig = Field(
+        default_factory=SkillsConfig,
+        description="Skills injection configuration",
+    )
     message_tracking: MessageTrackingConfig = Field(
         default_factory=MessageTrackingConfig,
         description="Session message tracking configuration",
@@ -323,6 +330,10 @@ class DaemonConfig(BaseModel):
     def get_memory_sync_config(self) -> MemorySyncConfig:
         """Get memory sync configuration."""
         return self.memory_sync
+
+    def get_skills_config(self) -> SkillsConfig:
+        """Get skills configuration."""
+        return self.skills
 
     def get_gobby_tasks_config(self) -> GobbyTasksConfig:
         """Get gobby-tasks configuration."""
