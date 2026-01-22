@@ -17,7 +17,6 @@ Test scenario:
 
 import uuid
 
-import httpx
 import pytest
 
 from tests.e2e.conftest import (
