@@ -717,6 +717,112 @@ gobby skills search "query"          # Search skills
 
 See `docs/guides/skills.md` for the complete skills guide.
 
+## Autonomous Task Orchestration
+
+When running as an orchestrator (the `auto-task` workflow or custom orchestration), you can spawn multiple agents to work on tasks in parallel. Two patterns are supported:
+
+### Sequential Pattern
+
+Execute tasks one at a time with human review between each:
+
+```python
+# 1. Get the next task to work on
+next_task = call_tool("gobby-tasks", "suggest_next_task", {"session_id": "<session_id>"})
+
+# 2. Spawn an agent in a worktree to work on it
+result = call_tool("gobby-worktrees", "spawn_agent_in_worktree", {
+    "prompt": f"Work on task {next_task['ref']}: {next_task['title']}",
+    "branch_name": f"task/{next_task['ref']}",
+    "task_id": next_task["ref"],
+    "mode": "terminal",
+    "workflow": "worktree-agent"  # Restricts agent to single task
+})
+
+# 3. Wait for agent to complete (or poll status)
+# Agent will close the task when done
+
+# 4. Review the work
+status = call_tool("gobby-merge", "merge_start", {
+    "worktree_id": result["worktree_id"],
+    "source_branch": f"task/{next_task['ref']}",
+    "target_branch": "main"
+})
+
+# 5. If merge successful, cleanup and repeat
+if status["success"]:
+    call_tool("gobby-worktrees", "delete_worktree", {
+        "worktree_id": result["worktree_id"]
+    })
+    # Loop back to step 1
+```
+
+**Loop**: `suggest → spawn → wait → review → merge → cleanup → repeat`
+
+### Parallel Pattern
+
+Spawn multiple agents to work on independent tasks simultaneously:
+
+```python
+# 1. Get multiple ready tasks
+ready_tasks = call_tool("gobby-tasks", "list_ready_tasks", {"limit": 5})
+
+# 2. Batch spawn agents (one per task)
+active_agents = []
+for task in ready_tasks["tasks"]:
+    result = call_tool("gobby-worktrees", "spawn_agent_in_worktree", {
+        "prompt": f"Work on task {task['ref']}: {task['title']}",
+        "branch_name": f"task/{task['ref']}",
+        "task_id": task["ref"],
+        "mode": "headless",  # Background execution
+        "workflow": "worktree-agent"
+    })
+    active_agents.append(result)
+
+# 3. Wait for any agent to complete
+while active_agents:
+    # Check agent status periodically
+    for agent in active_agents[:]:
+        status = call_tool("gobby-agents", "get_agent_result", {
+            "agent_id": agent["agent_id"]
+        })
+        if status["status"] == "completed":
+            # Review and merge this work
+            merge_result = call_tool("gobby-merge", "merge_start", {...})
+
+            # Refill: spawn new agent for next task
+            next_task = call_tool("gobby-tasks", "suggest_next_task", {...})
+            if next_task:
+                new_agent = call_tool("gobby-worktrees", "spawn_agent_in_worktree", {...})
+                active_agents.append(new_agent)
+
+            active_agents.remove(agent)
+```
+
+**Loop**: `batch spawn → wait_for_any → review → refill → repeat`
+
+### Key Differences
+
+| Aspect | Sequential | Parallel |
+|--------|-----------|----------|
+| Mode | `terminal` (interactive) | `headless` (background) |
+| Concurrency | 1 agent at a time | Multiple agents (configurable limit) |
+| Review | After each task | As agents complete |
+| Use Case | Careful review, dependent tasks | Independent tasks, high throughput |
+
+### Safety Limits
+
+- **Max Depth**: Spawned agents cannot spawn additional agents (enforced by `worktree-agent` workflow)
+- **Budget**: Daily token budget limits total agent work
+- **Task Scope**: Each agent works on exactly one task
+
+### Orchestration Workflows
+
+| Workflow | Pattern | Description |
+|----------|---------|-------------|
+| `sequential-orchestrator` | Sequential | Careful task-by-task execution |
+| `parallel-orchestrator` | Parallel | High-throughput parallel execution |
+| `worktree-agent` | N/A | Restricted workflow for spawned agents |
+
 ## Hook System
 
 Gobby intercepts CLI events through hooks (13 total):
