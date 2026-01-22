@@ -416,6 +416,111 @@ class TestSkillsInstallCommand:
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
 
+class TestSkillsNewCommand:
+    """Tests for gobby skills new command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_new_help(self, runner: CliRunner):
+        """Test skills new --help."""
+        result = runner.invoke(cli, ["skills", "new", "--help"])
+        assert result.exit_code == 0
+        assert "new" in result.output.lower()
+
+    def test_new_requires_name(self, runner: CliRunner):
+        """Test that new requires name argument."""
+        result = runner.invoke(cli, ["skills", "new"])
+        # Should show missing argument error
+        assert result.exit_code != 0
+
+    def test_new_creates_skill_directory(self, runner: CliRunner):
+        """Test that new creates skill directory."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            assert os.path.isdir("my-skill")
+
+    def test_new_creates_skill_md(self, runner: CliRunner):
+        """Test that new creates SKILL.md file."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            assert os.path.isfile("my-skill/SKILL.md")
+
+    def test_new_creates_scripts_directory(self, runner: CliRunner):
+        """Test that new creates scripts/ directory."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            assert os.path.isdir("my-skill/scripts")
+
+    def test_new_creates_assets_directory(self, runner: CliRunner):
+        """Test that new creates assets/ directory."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            assert os.path.isdir("my-skill/assets")
+
+    def test_new_creates_references_directory(self, runner: CliRunner):
+        """Test that new creates references/ directory."""
+        import os
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            assert os.path.isdir("my-skill/references")
+
+    def test_new_skill_md_has_frontmatter(self, runner: CliRunner):
+        """Test that SKILL.md has valid frontmatter."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            with open("my-skill/SKILL.md") as f:
+                content = f.read()
+            assert content.startswith("---")
+            assert "name: my-skill" in content
+
+    def test_new_skill_already_exists(self, runner: CliRunner):
+        """Test new when skill directory already exists."""
+        import os
+
+        with runner.isolated_filesystem():
+            os.makedirs("my-skill")
+            result = runner.invoke(cli, ["skills", "new", "my-skill"])
+
+            assert result.exit_code == 0
+            assert "exists" in result.output.lower()
+
+    def test_new_with_description(self, runner: CliRunner):
+        """Test new with --description flag."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                cli, ["skills", "new", "my-skill", "--description", "A custom description"]
+            )
+
+            assert result.exit_code == 0
+            with open("my-skill/SKILL.md") as f:
+                content = f.read()
+            assert "A custom description" in content
+
+
 class TestSkillsInitCommand:
     """Tests for gobby skills init command."""
 

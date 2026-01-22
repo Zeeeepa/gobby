@@ -623,3 +623,74 @@ def init(ctx: click.Context) -> None:
         click.echo(f"Config already exists: {config_file}")
 
     click.echo("\nSkills initialized successfully!")
+
+
+@skills.command()
+@click.argument("name")
+@click.option("--description", "-d", default=None, help="Skill description")
+@click.pass_context
+def new(ctx: click.Context, name: str, description: str | None) -> None:
+    """Create a new skill scaffold.
+
+    NAME is the skill name (lowercase, hyphens allowed).
+
+    Creates a new skill directory with:
+    - SKILL.md with frontmatter template
+    - scripts/ directory for helper scripts
+    - assets/ directory for images and files
+    - references/ directory for documentation
+    """
+    skill_dir = Path(name)
+
+    # Check if directory already exists
+    if skill_dir.exists():
+        click.echo(f"Directory already exists: {name}")
+        return
+
+    # Create skill directory structure
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "scripts").mkdir()
+    (skill_dir / "assets").mkdir()
+    (skill_dir / "references").mkdir()
+
+    # Default description if not provided
+    if description is None:
+        description = f"Description for {name}"
+
+    # Create SKILL.md with template
+    skill_template = f"""---
+name: {name}
+description: {description}
+version: 1.0.0
+metadata:
+  skillport:
+    category: general
+    tags: []
+    alwaysApply: false
+  gobby:
+    triggers: []
+---
+
+# {name.replace("-", " ").title()}
+
+## Overview
+
+{description}
+
+## Instructions
+
+Add your skill instructions here.
+
+## Examples
+
+Provide usage examples here.
+"""
+
+    with open(skill_dir / "SKILL.md", "w") as f:
+        f.write(skill_template)
+
+    click.echo(f"Created skill scaffold: {name}/")
+    click.echo(f"  - {name}/SKILL.md")
+    click.echo(f"  - {name}/scripts/")
+    click.echo(f"  - {name}/assets/")
+    click.echo(f"  - {name}/references/")
