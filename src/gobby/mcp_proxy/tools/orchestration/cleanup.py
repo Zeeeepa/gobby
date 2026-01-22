@@ -26,6 +26,164 @@ def register_cleanup(
     default_project_id: str | None = None,
 ) -> None:
     """Register cleanup tools."""
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+    from gobby.storage.tasks import TaskNotFoundError
+
+    async def approve_and_cleanup(
+        task_id: str,
+        push_branch: bool = False,
+        delete_worktree: bool = True,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Approve a reviewed task and clean up its worktree.
+
+        This tool transitions a task from "review" to "closed" status
+        and optionally deletes the associated worktree.
+
+        Args:
+            task_id: Task reference (#N, N, path, or UUID)
+            push_branch: Whether to push the branch to remote before cleanup
+            delete_worktree: Whether to delete the git worktree (default: True)
+            force: Force deletion even if worktree is dirty
+
+        Returns:
+            Dict with:
+            - success: Whether the operation succeeded
+            - task_status: New task status
+            - worktree_deleted: Whether worktree was deleted
+            - branch_pushed: Whether branch was pushed
+        """
+        # Resolve task ID
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {
+                "success": False,
+                "error": f"Task not found: {task_id} ({e})",
+            }
+
+        # Get the task
+        task = task_manager.get_task(resolved_task_id)
+        if task is None:
+            return {
+                "success": False,
+                "error": f"Task not found: {task_id}",
+            }
+
+        # Verify task is in review status
+        if task.status != "review":
+            return {
+                "success": False,
+                "error": f"Task must be in 'review' status to approve. Current status: {task.status}",
+            }
+
+        # Get associated worktree (if any)
+        worktree = worktree_storage.get_by_task(resolved_task_id)
+        branch_pushed = False
+        worktree_deleted = False
+
+        # Push branch to remote if requested
+        if push_branch and worktree and git_manager:
+            try:
+                push_result = git_manager._run_git(
+                    ["push", "origin", worktree.branch_name],
+                    timeout=60,
+                )
+                branch_pushed = push_result.returncode == 0
+                if not branch_pushed:
+                    logger.warning(f"Failed to push branch: {push_result.stderr}")
+            except Exception as e:
+                logger.warning(f"Error pushing branch: {e}")
+
+        # Delete worktree if requested and available
+        if delete_worktree and worktree:
+            if git_manager is None:
+                # No git manager - can't delete worktree, but continue
+                logger.warning("Git manager not available, skipping worktree deletion")
+            else:
+                try:
+                    delete_result = git_manager.delete_worktree(
+                        worktree_path=worktree.worktree_path,
+                        force=force,
+                        delete_branch=False,  # Keep branch for history
+                    )
+
+                    if delete_result.success:
+                        worktree_deleted = True
+                        # Mark worktree as merged and delete record
+                        worktree_storage.mark_merged(worktree.id)
+                        worktree_storage.delete(worktree.id)
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Failed to delete worktree: {delete_result.message}",
+                            "task_id": resolved_task_id,
+                        }
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Error deleting worktree: {e}",
+                        "task_id": resolved_task_id,
+                    }
+
+        # Update task status to closed
+        try:
+            task_manager.update_task(
+                resolved_task_id,
+                status="closed",
+                closed_reason="approved",
+            )
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to update task status: {e}",
+                "task_id": resolved_task_id,
+                "worktree_deleted": worktree_deleted,
+            }
+
+        return {
+            "success": True,
+            "task_id": resolved_task_id,
+            "task_status": "closed",
+            "worktree_deleted": worktree_deleted,
+            "branch_pushed": branch_pushed,
+            "message": f"Task {task_id} approved and marked as closed",
+        }
+
+    registry.register(
+        name="approve_and_cleanup",
+        description=(
+            "Approve a reviewed task and clean up its worktree. "
+            "Transitions task from 'review' to 'closed' status and deletes worktree."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
+                },
+                "push_branch": {
+                    "type": "boolean",
+                    "description": "Whether to push branch to remote before cleanup",
+                    "default": False,
+                },
+                "delete_worktree": {
+                    "type": "boolean",
+                    "description": "Whether to delete the git worktree",
+                    "default": True,
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "Force deletion even if worktree is dirty",
+                    "default": False,
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=approve_and_cleanup,
+    )
 
     async def cleanup_reviewed_worktrees(
         parent_session_id: str,
