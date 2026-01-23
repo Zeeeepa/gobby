@@ -299,6 +299,8 @@ class SkillUpdater:
 
     def _fetch_from_local(self, skill: Skill) -> ParsedSkill:
         """Fetch updated skill from local filesystem."""
+        if skill.source_path is None:
+            raise SkillLoadError("Source path is not set")
         source_path = Path(skill.source_path)
 
         # Check if path exists
@@ -321,7 +323,9 @@ class SkillUpdater:
     ) -> ParsedSkill:
         """Fetch updated skill from GitHub."""
         # Parse the source path to get GitHub ref
-        source = skill.source_path
+        if skill.source_path is None:
+            raise SkillLoadError("Source path is not set")
+        source: str = skill.source_path
         if source.startswith("github:"):
             source = source[7:]  # Remove github: prefix
 

@@ -60,7 +60,8 @@ def call_skills_tool(
         # Response format is {"success": true, "result": {...}}
         # Extract the inner result for the caller
         if response.get("success") and "result" in response:
-            return response["result"]
+            result = response["result"]
+            return dict(result) if isinstance(result, dict) else None
         # If outer call failed, return None and log error
         click.echo("Error: MCP call failed", err=True)
         return None
@@ -104,7 +105,7 @@ def list_skills(
 
     # When filtering by tags, fetch all skills first, then filter and apply limit
     # This ensures the limit applies to filtered results, not pre-filter
-    fetch_limit = None if tags else limit
+    fetch_limit = 10000 if tags else limit
 
     skills_list = storage.list_skills(
         category=category,
@@ -150,7 +151,8 @@ def _get_skill_tags(skill: Any) -> list[str]:
     if skill.metadata and isinstance(skill.metadata, dict):
         skillport = skill.metadata.get("skillport", {})
         if isinstance(skillport, dict):
-            return skillport.get("tags", [])
+            tags = skillport.get("tags", [])
+            return list(tags) if isinstance(tags, list) else []
     return []
 
 
@@ -250,16 +252,22 @@ def install(ctx: click.Context, source: str, project: bool) -> None:
     if not check_daemon(client):
         sys.exit(1)
 
-    result = call_skills_tool(client, "install_skill", {
-        "source": source,
-        "project_scoped": project,
-    })
+    result = call_skills_tool(
+        client,
+        "install_skill",
+        {
+            "source": source,
+            "project_scoped": project,
+        },
+    )
 
     if result is None:
         click.echo("Error: Failed to communicate with daemon", err=True)
         sys.exit(1)
     elif result.get("success"):
-        click.echo(f"Installed skill: {result['skill_name']} ({result.get('source_type', 'unknown')})")
+        click.echo(
+            f"Installed skill: {result['skill_name']} ({result.get('source_type', 'unknown')})"
+        )
     else:
         click.echo(f"Error: {result.get('error', 'Unknown error')}", err=True)
         sys.exit(1)
@@ -318,7 +326,10 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
         # Get all skills and update each via MCP
         result = call_skills_tool(client, "list_skills", {"limit": 1000})
         if not result or not result.get("success"):
-            click.echo(f"Error: {result.get('error', 'Failed to list skills') if result else 'No response'}", err=True)
+            click.echo(
+                f"Error: {result.get('error', 'Failed to list skills') if result else 'No response'}",
+                err=True,
+            )
             sys.exit(1)
 
         updated = 0
@@ -330,7 +341,9 @@ def update(ctx: click.Context, name: str | None, update_all: bool) -> None:
                     click.echo(f"Updated: {skill['name']}")
                     updated += 1
                 else:
-                    click.echo(f"Skipped: {skill['name']} ({update_result.get('skip_reason', 'up to date')})")
+                    click.echo(
+                        f"Skipped: {skill['name']} ({update_result.get('skip_reason', 'up to date')})"
+                    )
                     skipped += 1
             else:
                 click.echo(f"Failed: {skill['name']}")

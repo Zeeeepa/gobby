@@ -101,7 +101,6 @@ def register_cleanup(
             task_manager.update_task(
                 resolved_task_id,
                 status="closed",
-                closed_reason="approved",
             )
         except Exception as e:
             return {

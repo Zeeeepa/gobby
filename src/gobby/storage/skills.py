@@ -153,21 +153,23 @@ class Skill:
         if not self.metadata:
             return None
         skillport = self.metadata.get("skillport", {})
-        return skillport.get("category")
+        result = skillport.get("category")
+        return str(result) if result is not None else None
 
     def get_tags(self) -> list[str]:
         """Get the skill tags from metadata.skillport.tags."""
         if not self.metadata:
             return []
         skillport = self.metadata.get("skillport", {})
-        return skillport.get("tags", [])
+        tags = skillport.get("tags", [])
+        return list(tags) if isinstance(tags, list) else []
 
     def is_always_apply(self) -> bool:
         """Check if this is a core skill that should always be applied."""
         if not self.metadata:
             return False
         skillport = self.metadata.get("skillport", {})
-        return skillport.get("alwaysApply", False)
+        return bool(skillport.get("alwaysApply", False))
 
 
 # Change event types
@@ -677,9 +679,7 @@ class LocalSkillManager:
             List of matching Skills
         """
         # Escape LIKE wildcards
-        escaped_query = (
-            query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        )
+        escaped_query = query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         sql = """
             SELECT * FROM skills
             WHERE (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')

@@ -85,7 +85,8 @@ class ParsedSkill:
         if not self.metadata:
             return None
         skillport = self.metadata.get("skillport", {})
-        return skillport.get("category")
+        result = skillport.get("category")
+        return str(result) if result is not None else None
 
     def get_tags(self) -> list[str]:
         """Get tags from metadata.skillport.tags."""
@@ -104,7 +105,7 @@ class ParsedSkill:
         if not self.metadata:
             return False
         skillport = self.metadata.get("skillport", {})
-        return skillport.get("alwaysApply", False)
+        return bool(skillport.get("alwaysApply", False))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""

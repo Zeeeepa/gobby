@@ -216,14 +216,18 @@ def setup_internal_registries(
             except Exception as e:
                 logger.warning(f"Failed to create CloneGitManager: {e}")
 
-        clones_registry = create_clones_registry(
-            clone_storage=clone_storage,
-            git_manager=clone_git_manager,
-            project_id=project_id or "",
-            agent_runner=agent_runner,
-        )
-        manager.add_registry(clones_registry)
-        logger.debug("Clones registry initialized")
+        # Only create clones registry if we have a git manager
+        if clone_git_manager is not None:
+            clones_registry = create_clones_registry(
+                clone_storage=clone_storage,
+                git_manager=clone_git_manager,
+                project_id=project_id or "",
+                agent_runner=agent_runner,
+            )
+            manager.add_registry(clones_registry)
+            logger.debug("Clones registry initialized")
+        else:
+            logger.debug("Clones registry not initialized: CloneGitManager not available")
 
     # Initialize merge resolution registry if merge components are available
     if merge_storage is not None and merge_resolver is not None:

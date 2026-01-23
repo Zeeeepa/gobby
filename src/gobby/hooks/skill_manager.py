@@ -39,8 +39,8 @@ class HookSkillManager:
         self._base_dir = Path(__file__).parent.parent
         self._core_skills_path = self._base_dir / "install" / "shared" / "skills"
 
-        # Loader for parsing skills
-        self._loader = SkillLoader(default_source_type="core")
+        # Loader for parsing skills (use "filesystem" for bundled core skills)
+        self._loader = SkillLoader(default_source_type="filesystem")
 
         # Cache of discovered skills
         self._core_skills: list[ParsedSkill] | None = None

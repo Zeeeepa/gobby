@@ -479,13 +479,17 @@ def create_skills_registry(
             source = source.strip()
 
             # Determine source type and load skill
+            from gobby.storage.skills import SkillSourceType
+
             parsed_skill = None
-            source_type = None
+            source_type: SkillSourceType | None = None
 
             # Check if it's a GitHub URL/reference
             # Pattern for owner/repo format (e.g., "anthropic/claude-code")
             # Must match owner/repo pattern without path traversal or absolute paths
-            github_owner_repo_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$")
+            github_owner_repo_pattern = re.compile(
+                r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$"
+            )
 
             # Explicit GitHub references (always treated as GitHub, no filesystem check)
             is_explicit_github = (
@@ -558,6 +562,16 @@ def create_skills_registry(
                     "success": False,
                     "error": "Failed to load skill from source",
                 }
+
+            # Handle case where load_from_github/load_from_zip returns a list
+            if isinstance(parsed_skill, list):
+                if len(parsed_skill) == 0:
+                    return {
+                        "success": False,
+                        "error": "No skills found in source",
+                    }
+                # Use the first skill if multiple were found
+                parsed_skill = parsed_skill[0]
 
             # Determine project ID for the skill
             skill_project_id = project_id if project_scoped else None
