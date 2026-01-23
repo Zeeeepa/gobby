@@ -105,6 +105,17 @@ call_tool("gobby-worktrees", "spawn_agent_in_worktree", {
 })
 ```
 
+### 🔗 Claude Code Task Integration
+
+Gobby transparently intercepts Claude Code's built-in task system (TaskCreate, TaskUpdate, etc.) and syncs operations to Gobby's persistent task store. Benefits:
+
+- **Tasks persist** across sessions (unlike CC's session-scoped tasks)
+- **Commit linking** — tasks auto-link to git commits
+- **Validation gates** — define criteria for task completion
+- **LLM expansion** — break complex tasks into subtasks
+
+No configuration needed — just use Claude Code's native task tools and Gobby handles the rest.
+
 ### 📚 Skills System
 
 Reusable instructions that teach agents how to perform specific tasks. Compatible with the [Agent Skills specification](https://agentskills.io) and SkillPort.

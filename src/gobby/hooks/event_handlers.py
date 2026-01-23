@@ -662,6 +662,7 @@ class EventHandlers:
         input_data = event.data
         tool_name = input_data.get("tool_name", "unknown")
         session_id = event.metadata.get("_platform_session_id")
+        project_id = event.metadata.get("_project_id")
         is_failure = event.metadata.get("is_failure", False)
 
         status = "FAIL" if is_failure else "OK"
@@ -671,6 +672,10 @@ class EventHandlers:
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
 
         context_parts = []
+
+        # Sync Claude Code task tools to Gobby (CC Task Interop)
+        if not is_failure and self._task_manager:
+            self._sync_cc_task_tool(tool_name, input_data, session_id, project_id)
 
         # Execute lifecycle workflow triggers
         if self._workflow_handler:
@@ -687,6 +692,41 @@ class EventHandlers:
             decision="allow",
             context="\n\n".join(context_parts) if context_parts else None,
         )
+
+    def _sync_cc_task_tool(
+        self,
+        tool_name: str,
+        input_data: dict[str, Any],
+        session_id: str | None,
+        project_id: str | None,
+    ) -> None:
+        """Sync Claude Code task tool operations to Gobby.
+
+        This provides persistence for CC's session-scoped tasks by mirroring
+        them to Gobby's persistent task storage.
+        """
+        from gobby.adapters.claude_code_tasks import ClaudeCodeTaskAdapter
+
+        if not ClaudeCodeTaskAdapter.is_cc_task_tool(tool_name):
+            return
+
+        try:
+            adapter = ClaudeCodeTaskAdapter(
+                task_manager=self._task_manager,
+                session_id=session_id,
+                project_id=project_id,
+            )
+
+            # Extract tool input and result from event data
+            tool_input = input_data.get("tool_input", {})
+            tool_result = input_data.get("tool_result")
+
+            result = adapter.handle_post_tool(tool_name, tool_input, tool_result)
+            if result:
+                self.logger.debug(f"CC task sync result: {result}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to sync CC task tool {tool_name}: {e}")
 
     # ==================== STOP HANDLER ====================
 

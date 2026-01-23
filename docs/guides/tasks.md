@@ -628,3 +628,72 @@ gobby tasks stats
 - Generated: `gt-{6 hex chars}` (e.g., `gt-a1b2c3`)
 - Hierarchical: `gt-a1b2c3.1`, `gt-a1b2c3.2` (subtasks)
 - Prefix matching supported: `gt-a1b` matches `gt-a1b2c3`
+
+## Claude Code Task Integration
+
+Gobby transparently intercepts Claude Code's built-in task tools (`TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`) and syncs operations to Gobby's persistent task store.
+
+### How It Works
+
+When you use Claude Code's built-in task tools, Gobby:
+
+1. Lets the CC tool execute normally
+2. Syncs the result to Gobby's persistent storage via post-tool-use hooks
+3. Enriches responses with Gobby-specific metadata
+
+This gives you the best of both worlds: Claude Code's native task UI + Gobby's persistence and features.
+
+### Using Gobby Features via CC
+
+Pass Gobby options in the `metadata.gobby` field:
+
+```python
+TaskCreate(
+    subject="Implement OAuth",
+    metadata={
+        "gobby": {
+            "task_type": "feature",
+            "priority": 1,
+            "validation_criteria": "All tests pass"
+        }
+    }
+)
+```
+
+### Status Mapping
+
+| Claude Code | Gobby |
+|-------------|-------|
+| `pending` | `open` |
+| `in_progress` | `in_progress` |
+| `completed` | `closed` |
+
+### Dual ID Format
+
+Tasks are addressable by both:
+- **Seq number**: `#47` (human-friendly, project-scoped)
+- **UUID**: `abc123-...` (globally unique)
+
+Both formats work when referencing tasks.
+
+### Response Enrichment
+
+Gobby enriches CC task responses with additional metadata in a `gobby` block:
+
+- `validation_status`: Current validation state
+- `is_expanded`: Whether task has been broken into subtasks
+- `subtask_count`: Number of child tasks
+- `commit_count`: Linked commits
+- `path_cache`: Hierarchical position (e.g., "1.2.3")
+- `task_type`: Gobby task type
+- `priority`: Task priority
+
+### Benefits Over Session-Scoped Tasks
+
+Claude Code's built-in tasks are session-scoped and don't persist across sessions. With Gobby's integration:
+
+- **Persistence**: Tasks survive session restarts and compactions
+- **Commit Linking**: Include `[task-id]` in commit messages for auto-linking
+- **Validation Gates**: Define criteria that must pass before closing
+- **LLM Expansion**: Break complex tasks into subtasks with embedded TDD steps
+- **Git Sync**: Tasks export to `.gobby/tasks.jsonl` for version control

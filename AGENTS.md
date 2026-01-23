@@ -19,24 +19,19 @@ Gobby is a local-first daemon that unifies AI coding assistants (Codex, Claude C
 
 ```bash
 # Environment setup
-uv sync                          # Install dependencies (Python 3.11+)
+uv sync                          # Install dependencies (Python 3.13+)
 
 # Daemon management
 uv run gobby start --verbose     # Start daemon with verbose logging
 uv run gobby stop                # Stop daemon
-uv run gobby restart             # Restart daemon
 uv run gobby status              # Check daemon status
-
-# Project initialization
-uv run gobby init                # Initialize project (.gobby/)
-uv run gobby install             # Install hooks for detected CLIs
 
 # Code quality
 uv run ruff check src/           # Lint
 uv run ruff format src/          # Auto-format
 uv run mypy src/                 # Type check
 
-# Testing
+# Testing (run specific tests, not full suite)
 uv run pytest tests/test_file.py -v    # Run specific test file
 uv run pytest tests/storage/ -v        # Run specific module
 ```
@@ -46,8 +41,6 @@ uv run pytest tests/storage/ -v        # Run specific module
 **Test markers**: `unit`, `slow`, `integration`, `e2e`
 
 ## Architecture Overview
-
-### Directory Structure
 
 ```text
 src/gobby/
@@ -74,92 +67,80 @@ src/gobby/
 | Path | Purpose |
 | :--- | :--- |
 | `~/.gobby/config.yaml` | Daemon configuration |
-| `~/.gobby/gobby-hub.db` | SQLite database (sessions, tasks, etc.) |
-| `~/.gobby/logs/` | Log files |
+| `~/.gobby/gobby-hub.db` | SQLite database |
 | `.gobby/project.json` | Project metadata |
-| `.gobby/tasks.jsonl` | Task sync file (git-native) |
+| `.gobby/tasks.jsonl` | Task sync file |
 
-## MCP Tool Discovery (Progressive Disclosure)
+## MCP Tool Discovery
 
-When working on project tasks, Gobby uses progressive disclosure to minimize token usage. Follow this pattern:
+Gobby uses progressive disclosure for MCP tools. Use `list_mcp_servers()` to discover available servers, then `list_tools(server="...")` for lightweight metadata, and `get_tool_schema(server, tool)` only when you need the full schema.
 
-1.  **Discover available servers**: `list_mcp_servers()`
-2.  **List tools on a specific server (lightweight)**: `list_tools(server="gobby-tasks")`
-3.  **Get full schema when you need to call a tool**: `get_tool_schema(server_name="gobby-tasks", tool_name="create_task")`
-4.  **Execute the tool**: `call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})`
+**Never load all schemas upfront** - it wastes your context window.
 
-### Internal MCP Servers
-
-| Server | Purpose | Key Tools |
-| :--- | :--- | :--- |
-| `gobby-tasks` | Task management | `create_task`, `expand_task`, `close_task`, `suggest_next_task` |
-| `gobby-sessions` | Session handoff | `pickup`, `get_handoff_context`, `list_sessions` |
-| `gobby-memory` | Persistent memory | `create_memory`, `search_memories`, `delete_memory`, `update_memory` |
-| `gobby-workflows` | Workflow control | `activate_workflow`, `set_variable`, `get_status` |
-| `gobby-agents` | Agent spawning | `start_agent`, `list_agents` |
-| `gobby-worktrees` | Git worktrees | `spawn_agent_in_worktree`, `list_worktrees` |
-| `gobby-skills` | Skill management | `list_skills`, `get_skill`, `install_skill` |
+See skill: **discovering-tools** for the complete pattern.
 
 ## Task Management
 
-When working on project tasks that require file modifications, use the task system for traceability.
+Before editing files, create or claim a task:
 
-### Getting Your Session ID
-
-**Tasks require a `session_id` parameter.** This is usually injected by the Gobby daemon via the `session-start` hook.
-
-**Where to find it**: Look for `session_id:` in your system context or initial prompt.
-
-**Fallback - Using `get_current`**:
-If `session_id` is missing, look it up:
 ```python
-call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+# Create task
+call_tool("gobby-tasks", "create_task", {
+    "title": "Fix bug",
+    "task_type": "bug",
+    "session_id": "<your_session_id>"  # From SessionStart context
+})
+
+# Set to in_progress
+call_tool("gobby-tasks", "update_task", {
+    "task_id": "...",
+    "status": "in_progress"
+})
+
+# After work: commit with [task-id] prefix, then close
+call_tool("gobby-tasks", "close_task", {
+    "task_id": "...",
+    "commit_sha": "..."
+})
+```
+
+**If blocked**: See skill: **claiming-tasks** for help.
+
+## Session Context
+
+Your `session_id` is injected at session start. Look for:
+
+```
+session_id: fd59c8fc-...
+```
+
+If not present, use `get_current`:
+
+```python
+call_tool("gobby-sessions", "get_current", {
     "external_id": "<your-codex-session-id>",
     "source": "codex"
 })
 ```
 
-### Workflow Requirements
-
-When modifying files, you should have a task with `status: in_progress`. This ensures traceability of changes.
-
-```python
-# 1. Create task
-call_tool("gobby-tasks", "create_task", {"title": "...", "session_id": "...", "task_type": "feature"})
-
-# 2. Set to in_progress
-call_tool("gobby-tasks", "update_task", {"task_id": "gt-xxx", "status": "in_progress"})
-
-# 3. Perform edits...
-
-# 4. Commit with task ID: [gt-xxx] feat: ...
-
-# 5. Close task
-call_tool("gobby-tasks", "close_task", {"task_id": "gt-xxx", "commit_sha": "..."})
-```
-
-## Session Handoff
-
-Gobby preserves context across sessions. Look for `## Continuation Context` blocks at session start - this contains your previous state, git status, and pending tasks.
-
 ## Spawned Agent Protocol
 
-When spawned as a subagent (by another agent using `start_agent` or `spawn_agent_in_worktree`), use these tools to communicate results and terminate cleanly:
+When spawned as a subagent (via `start_agent` or `spawn_agent_in_worktree`), use these tools to communicate and terminate:
 
-### 1. Get your session info (for self-termination)
+### 1. Get your session info
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
-    "external_id": "<your-session-id>",  # From environment or transcript path
-    "source": "codex"  # or "gemini", "claude", etc.
+call_tool("gobby-sessions", "get_current", {
+    "external_id": "<your-session-id>",
+    "source": "codex"
 })
-# Returns: {"session_id": "...", "project_id": "...", "status": "...", "agent_run_id": "..."}
+# Returns: {"session_id": "...", "agent_run_id": "..."}
 ```
 
 ### 2. Send results to parent
 
 ```python
-call_tool(server_name="gobby-agents", tool_name="send_to_parent", arguments={
+call_tool("gobby-agents", "send_to_parent", {
     "message": "Task completed: implemented authentication flow"
 })
 ```
@@ -167,36 +148,35 @@ call_tool(server_name="gobby-agents", tool_name="send_to_parent", arguments={
 ### 3. Mark work complete
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="mark_loop_complete", arguments={
+call_tool("gobby-sessions", "mark_loop_complete", {
     "session_id": "<session_id>"
 })
 ```
 
-### 4. Terminate yourself (when fully done)
+### 4. Terminate yourself
 
 ```python
-call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={
+call_tool("gobby-agents", "kill_agent", {
     "run_id": "<agent_run_id>"  # From get_current response
 })
 ```
 
-**IMPORTANT**: Do NOT use `/quit` or similar CLI commands - they don't work for spawned agents. Always use `kill_agent` with your `agent_run_id` to properly terminate.
+**IMPORTANT**: Do NOT use `/quit` or similar CLI commands - always use `kill_agent` to properly terminate.
 
 ## Code Conventions
 
-- **Type Hints**: Required for all functions.
-- **Python Version**: Target Python 3.11+.
-- **Formatting**: Use `ruff format`.
-- **Linting**: Use `ruff check`.
-- **Testing**: Minimum 80% coverage. Use `pytest`.
-- **Async**: Use `async/await` for I/O operations (FastAPI, httpx).
-
-## Commit & Pull Request Guidelines
-
-Write clear, descriptive commit messages. PRs should be focused, include a concise description, reference related issues, and ensure CI passes. Update docs when behavior changes.
+- **Type Hints**: Required for all functions
+- **Python Version**: 3.13+
+- **Formatting**: `ruff format`
+- **Linting**: `ruff check`
+- **Testing**: 80% coverage minimum with `pytest`
+- **Async**: Use `async/await` for I/O operations
 
 ## Troubleshooting
 
-- **"Edit/Write blocked"**: Ensure you have a task in `in_progress` status.
-- **"Task has no commits"**: You must commit your changes with the task ID in the message before closing.
-- **Agent depth exceeded**: You are too deep in nested agent spawns (limit is 3).
+| Issue | Solution |
+|-------|----------|
+| "Edit/Write blocked" | Create or claim a task first (see **claiming-tasks** skill) |
+| "Task has no commits" | Commit with `[task-id]` in message before closing |
+| "Agent depth exceeded" | Max nesting is 3 - reduce agent spawning depth |
+| Import errors | Run `uv sync` |
