@@ -964,8 +964,8 @@ extends: nonexistent_parent
         assert "child_orphan" in discovered
 
 
-class TestClearDiscoveryCache:
-    """Tests for clear_discovery_cache method."""
+class TestClearCache:
+    """Tests for clear_cache method."""
 
     def test_clear_cache(self, temp_workflow_dir):
         """Test that discovery cache is cleared."""
@@ -986,7 +986,7 @@ type: lifecycle
         assert len(loader._discovery_cache) > 0
 
         # Clear cache
-        loader.clear_discovery_cache()
+        loader.clear_cache()
         assert len(loader._discovery_cache) == 0
 
 

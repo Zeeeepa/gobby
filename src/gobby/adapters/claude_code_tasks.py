@@ -237,9 +237,7 @@ class ClaudeCodeTaskAdapter:
 
             if updates:
                 self.task_manager.update_task(gobby_task.id, **updates)
-                logger.info(
-                    f"Synced CC TaskUpdate: cc_id={cc_task_id} -> gobby_id={gobby_task.id}"
-                )
+                logger.info(f"Synced CC TaskUpdate: cc_id={cc_task_id} -> gobby_id={gobby_task.id}")
 
             return {"synced": True, "gobby_id": gobby_task.id}
 

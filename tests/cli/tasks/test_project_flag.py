@@ -1,10 +1,8 @@
 """Tests for --project/-p flag on task CLI commands.
 
-Tests verify the --project flag for specifying project context:
-- expand command with --project
+Tests verify the --project flag for specifying project context.
+Note: The expand command is deprecated but the --project option is still accepted.
 """
-
-from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -18,22 +16,8 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-@pytest.fixture
-def mock_task():
-    """Create a mock task."""
-    task = MagicMock()
-    task.id = "task-123"
-    task.seq_num = 42
-    task.title = "Test Task"
-    task.description = "Test description"
-    task.project_id = "proj-123"
-    task.status = "open"
-    task.priority = 2
-    return task
-
-
 class TestExpandProjectFlag:
-    """Tests for expand command --project flag."""
+    """Tests for expand command --project flag (deprecated)."""
 
     def test_expand_has_project_option(self, runner: CliRunner):
         """Test that expand command has --project option."""
@@ -41,33 +25,11 @@ class TestExpandProjectFlag:
         assert result.exit_code == 0
         assert "--project" in result.output or "-p" in result.output
 
-    def test_expand_with_project_flag(self, runner: CliRunner, mock_task):
-        """Test expand with --project flag."""
-        with (
-            patch("gobby.cli.tasks.ai.get_task_manager") as mock_get_manager,
-            patch("gobby.cli.tasks.ai.resolve_task_id", return_value=mock_task),
-            patch("gobby.config.app.load_config") as mock_config,
-            patch("gobby.llm.LLMService"),
-            patch("gobby.tasks.expansion.TaskExpander") as mock_expander_cls,
-            patch("gobby.cli.utils.get_active_session_id", return_value="sess-123"),
-        ):
-            mock_manager = MagicMock()
-            mock_get_manager.return_value = mock_manager
-            mock_config.return_value.gobby_tasks.expansion.enabled = True
+    def test_expand_with_project_flag(self, runner: CliRunner):
+        """Test expand with --project flag shows deprecation message."""
+        result = runner.invoke(tasks, ["expand", "#42", "--project", "myproject"])
 
-            mock_expander = MagicMock()
-            mock_expander_cls.return_value = mock_expander
-
-            async def mock_expand(*args, **kwargs):
-                return {"phases": []}
-
-            mock_expander.expand_task = mock_expand
-
-            result = runner.invoke(tasks, ["expand", "#42", "--project", "myproject"])
-
-            # Command should succeed with --project flag
-            assert result.exit_code == 0, f"--project flag failed: {result.output}"
-            # Verify the expander was invoked
-            assert mock_expander_cls.called, "TaskExpander should be instantiated"
-
-
+        # Command should show deprecation message and exit with code 1
+        assert result.exit_code == 1
+        assert "DEPRECATED" in result.output
+        assert "/gobby-expand" in result.output

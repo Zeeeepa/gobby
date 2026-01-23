@@ -288,11 +288,6 @@ class WorkflowLoader:
         self._cache.clear()
         self._discovery_cache.clear()
 
-    def clear_discovery_cache(self) -> None:
-        """Clear the discovery cache. Call when workflows may have changed."""
-        # Deprecated: use clear_cache instead to clear everything
-        self.clear_cache()
-
     def validate_workflow_for_agent(
         self,
         workflow_name: str,

@@ -95,10 +95,7 @@ def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:
         return result
 
     # Find gobby-prefixed skill directories
-    gobby_skills = [
-        d for d in skills_dir.iterdir()
-        if d.is_dir() and d.name.startswith("gobby-")
-    ]
+    gobby_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gobby-")]
 
     if not gobby_skills:
         return result

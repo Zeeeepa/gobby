@@ -112,6 +112,8 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
             result["errors"].append(error_msg)
 
     total = result["synced"] + result["skipped"]
-    logger.info(f"Skill sync complete: {result['synced']} synced, {result['skipped']} skipped, {total} total")
+    logger.info(
+        f"Skill sync complete: {result['synced']} synced, {result['skipped']} skipped, {total} total"
+    )
 
     return result

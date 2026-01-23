@@ -710,6 +710,11 @@ class EventHandlers:
         if not ClaudeCodeTaskAdapter.is_cc_task_tool(tool_name):
             return
 
+        # Guard against None task_manager
+        if self._task_manager is None:
+            self.logger.debug("Task manager not available, skipping CC task sync")
+            return
+
         try:
             adapter = ClaudeCodeTaskAdapter(
                 task_manager=self._task_manager,

@@ -43,7 +43,6 @@ class GobbyRunner:
 
     def __init__(self, config_path: Path | None = None, verbose: bool = False):
         setup_file_logging(verbose=verbose)
-        # setup_mcp_logging(verbose=verbose) # Removed as per instruction
 
         config_file = str(config_path) if config_path else None
         self.config = load_config(config_file)

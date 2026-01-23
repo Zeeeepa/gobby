@@ -508,34 +508,6 @@ class TestCreateClaudeExecutorIntegration:
             assert executor.auth_mode == "subscription"
 
 
-class TestCreateGeminiExecutorIntegration:
-    """Integration tests for _create_gemini_executor."""
-
-    def test_creates_executor_with_api_key(self):
-        """Test creating Gemini executor with API key."""
-        import sys
-        from unittest.mock import MagicMock, patch
-
-        # Mock google modules
-        mock_genai = MagicMock()
-
-        with patch.dict(
-            sys.modules,
-            {
-                "google": MagicMock(),
-                "google.generativeai": mock_genai,
-                "google.auth": MagicMock(),
-            },
-        ):
-            with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
-                from gobby.llm.resolver import _create_gemini_executor
-
-                executor = _create_gemini_executor(None, None)
-
-                assert executor.provider_name == "gemini"
-                assert executor.auth_mode == "api_key"
-
-
 class TestCreateLitellmExecutorIntegration:
     """Integration tests for _create_litellm_executor."""
 
@@ -907,38 +879,6 @@ class TestExecutorCreationWithConfig:
             executor = _create_claude_executor(None, None)
 
             assert executor.auth_mode == "subscription"
-
-    def test_gemini_executor_deprecated_with_warning(self):
-        """Test GeminiExecutor is deprecated and shows warning."""
-        import sys
-        import warnings
-        from unittest.mock import MagicMock, patch
-
-        mock_genai = MagicMock()
-
-        with patch.dict(
-            sys.modules,
-            {
-                "google": MagicMock(),
-                "google.generativeai": mock_genai,
-                "google.auth": MagicMock(),
-            },
-        ):
-            with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
-                from gobby.llm.resolver import _create_gemini_executor
-
-                mock_config = MagicMock()
-                mock_config.auth_mode = "api_key"
-                mock_config.models = "gemini-1.5-pro"
-
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
-                    _create_gemini_executor(mock_config, None)
-
-                    # Should have deprecation warning
-                    assert len(w) >= 1
-                    assert issubclass(w[0].category, DeprecationWarning)
-                    assert "deprecated" in str(w[0].message).lower()
 
     def test_litellm_executor_with_models_config(self):
         """Test LiteLLM executor uses first model from config."""

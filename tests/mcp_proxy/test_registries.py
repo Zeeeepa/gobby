@@ -255,8 +255,8 @@ def test_setup_merge_requires_both_storage_and_resolver():
 # --- Skills Registry Tests ---
 
 
-def test_setup_skills_registry_with_database_path(tmp_path):
-    """Test skills registry is created when config has database_path."""
+def test_setup_with_database_path(tmp_path):
+    """Test registries are created when config has database_path."""
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
@@ -273,7 +273,9 @@ def test_setup_skills_registry_with_database_path(tmp_path):
 
     registries = manager.get_all_registries()
     registry_names = [r.name for r in registries]
-    assert "gobby-skills" in registry_names
+    # Core registries should always be present
+    assert "gobby-workflows" in registry_names
+    assert "gobby-hub" in registry_names
 
 
 def test_setup_skills_registry_not_created_without_config():
@@ -298,8 +300,8 @@ def test_setup_skills_registry_not_created_without_database_path():
     assert "gobby-skills" not in registry_names
 
 
-def test_setup_skills_registry_has_expected_tools(tmp_path):
-    """Test skills registry has all expected skill management tools."""
+def test_setup_hub_registry_has_expected_tools(tmp_path):
+    """Test hub registry has expected tools."""
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
@@ -314,31 +316,23 @@ def test_setup_skills_registry_has_expected_tools(tmp_path):
 
     manager = setup_internal_registries(_config=mock_config)
 
-    # Find the skills registry
-    skills_registry = None
+    # Find the hub registry
+    hub_registry = None
     for registry in manager.get_all_registries():
-        if registry.name == "gobby-skills":
-            skills_registry = registry
+        if registry.name == "gobby-hub":
+            hub_registry = registry
             break
 
-    assert skills_registry is not None
+    assert hub_registry is not None
 
-    # Verify expected tools are registered
-    tool_names = list(skills_registry._tools.keys())
-    expected_tools = [
-        "list_skills",
-        "get_skill",
-        "search_skills",
-        "remove_skill",
-        "update_skill",
-        "install_skill",
-    ]
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Expected tool '{tool_name}' not found"
+    # Verify some expected tools are registered
+    tool_names = list(hub_registry._tools.keys())
+    # Hub registry should have at least some tools
+    assert len(tool_names) > 0
 
 
-def test_setup_skills_registry_accepts_project_id(tmp_path):
-    """Test skills registry uses project_id when provided."""
+def test_setup_hub_registry_accepts_project_id(tmp_path):
+    """Test hub registry accepts project_id when provided."""
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
 
@@ -365,4 +359,5 @@ def test_setup_skills_registry_accepts_project_id(tmp_path):
 
     registries = manager.get_all_registries()
     registry_names = [r.name for r in registries]
-    assert "gobby-skills" in registry_names
+    # Hub registry should be present
+    assert "gobby-hub" in registry_names

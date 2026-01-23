@@ -141,12 +141,12 @@ class TestCreateMemory:
         assert "Database error" in result["error"]
 
 
-class TestRecallMemory:
-    """Tests for recall_memory tool."""
+class TestSearchMemories:
+    """Tests for search_memories tool."""
 
     @pytest.mark.asyncio
-    async def test_recall_memory_success(self, memory_registry, mock_memory_manager):
-        """Test successful memory recall."""
+    async def test_search_memories_success(self, memory_registry, mock_memory_manager):
+        """Test successful memory search."""
         mock_memory_manager.recall.return_value = [
             MockMemory(id="m1", content="Memory 1", similarity=0.95),
             MockMemory(id="m2", content="Memory 2", similarity=0.85),
@@ -154,7 +154,7 @@ class TestRecallMemory:
 
         with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
             result = await memory_registry.call(
-                "recall_memory", {"query": "test query", "limit": 5}
+                "search_memories", {"query": "test query", "limit": 5}
             )
 
         assert result["success"] is True
@@ -162,11 +162,11 @@ class TestRecallMemory:
         assert result["memories"][0]["similarity"] == 0.95
 
     @pytest.mark.asyncio
-    async def test_recall_memory_with_filters(self, memory_registry, mock_memory_manager):
-        """Test recall with tag filters."""
+    async def test_search_memories_with_filters(self, memory_registry, mock_memory_manager):
+        """Test search with tag filters."""
         with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
             result = await memory_registry.call(
-                "recall_memory",
+                "search_memories",
                 {
                     "query": "test",
                     "min_importance": 0.5,
@@ -184,12 +184,12 @@ class TestRecallMemory:
         assert call_kwargs["tags_none"] == ["archived"]
 
     @pytest.mark.asyncio
-    async def test_recall_memory_error(self, memory_registry, mock_memory_manager):
-        """Test recall error handling."""
+    async def test_search_memories_error(self, memory_registry, mock_memory_manager):
+        """Test search error handling."""
         mock_memory_manager.recall.side_effect = Exception("Search error")
 
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
-            result = await memory_registry.call("recall_memory", {"query": "test"})
+            result = await memory_registry.call("search_memories", {"query": "test"})
 
         assert result["success"] is False
         assert "Search error" in result["error"]
@@ -568,8 +568,7 @@ class TestRegistryCreation:
 
         expected_tools = [
             "create_memory",
-            "recall_memory",
-            "search_memories",  # New canonical name
+            "search_memories",
             "delete_memory",
             "list_memories",
             "get_memory",
@@ -603,8 +602,8 @@ class TestRegistryCreation:
 # =============================================================================
 
 
-class TestSearchMemories:
-    """Tests for search_memories tool (new canonical name for recall_memory)."""
+class TestSearchMemoriesToolRegistration:
+    """Tests for search_memories tool registration."""
 
     @pytest.mark.asyncio
     async def test_search_memories_tool_exists(self, memory_registry):
@@ -613,61 +612,3 @@ class TestSearchMemories:
         tool_names = [t["name"] if isinstance(t, dict) else t.name for t in tools]
         assert "search_memories" in tool_names
 
-    @pytest.mark.asyncio
-    async def test_search_memories_success(self, memory_registry, mock_memory_manager):
-        """Test successful memory search using new tool name."""
-        mock_memory_manager.recall.return_value = [
-            MockMemory(id="m1", content="Memory 1", similarity=0.95),
-            MockMemory(id="m2", content="Memory 2", similarity=0.85),
-        ]
-
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
-            result = await memory_registry.call(
-                "search_memories", {"query": "test query", "limit": 5}
-            )
-
-        assert result["success"] is True
-        assert len(result["memories"]) == 2
-        assert result["memories"][0]["similarity"] == 0.95
-
-    @pytest.mark.asyncio
-    async def test_search_memories_with_filters(self, memory_registry, mock_memory_manager):
-        """Test search_memories with tag filters."""
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
-            result = await memory_registry.call(
-                "search_memories",
-                {
-                    "query": "test",
-                    "min_importance": 0.5,
-                    "tags_all": ["important"],
-                    "tags_any": ["work", "personal"],
-                    "tags_none": ["archived"],
-                },
-            )
-
-        assert result["success"] is True
-        call_kwargs = mock_memory_manager.recall.call_args.kwargs
-        assert call_kwargs["min_importance"] == 0.5
-        assert call_kwargs["tags_all"] == ["important"]
-
-    @pytest.mark.asyncio
-    async def test_search_memories_error(self, memory_registry, mock_memory_manager):
-        """Test search_memories error handling."""
-        mock_memory_manager.recall.side_effect = Exception("Search error")
-
-        with patch("gobby.utils.project_context.get_project_context", return_value=None):
-            result = await memory_registry.call("search_memories", {"query": "test"})
-
-        assert result["success"] is False
-        assert "Search error" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_recall_memory_still_works_as_alias(self, memory_registry, mock_memory_manager):
-        """Test that recall_memory still works as backward-compatible alias."""
-        mock_memory_manager.recall.return_value = [MockMemory()]
-
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
-            result = await memory_registry.call("recall_memory", {"query": "test"})
-
-        assert result["success"] is True
-        assert "memories" in result

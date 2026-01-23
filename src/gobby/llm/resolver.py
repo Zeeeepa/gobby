@@ -354,50 +354,6 @@ def _create_claude_executor(
     )
 
 
-def _create_gemini_executor(
-    provider_config: "LLMProviderConfig | None",
-    model: str | None,
-) -> AgentExecutor:
-    """
-    Create GeminiExecutor with appropriate auth mode.
-
-    DEPRECATED: All Gemini calls (api_key and adc modes) are now routed through
-    LiteLLMExecutor for unified cost tracking. This function is kept for backward
-    compatibility but should not be called by create_executor().
-
-    Use LiteLLMExecutor with provider="gemini" instead:
-    - api_key mode -> gemini/model-name
-    - adc mode -> vertex_ai/model-name
-    """
-    import warnings
-
-    warnings.warn(
-        "GeminiExecutor is deprecated. All Gemini calls now route through LiteLLMExecutor. "
-        "Use create_executor(provider='gemini', config=...) which routes to LiteLLM.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    from gobby.llm.gemini_executor import GeminiExecutor
-
-    # Determine auth mode and model from config
-    auth_mode = "api_key"
-    default_model = "gemini-2.0-flash"
-
-    if provider_config:
-        auth_mode = getattr(provider_config, "auth_mode", "api_key") or "api_key"
-        models_str = getattr(provider_config, "models", None)
-        if models_str:
-            models = [m.strip() for m in models_str.split(",") if m.strip()]
-            if models:
-                default_model = models[0]
-
-    return GeminiExecutor(
-        auth_mode=auth_mode,  # type: ignore[arg-type]
-        default_model=model or default_model,
-    )
-
-
 def _create_litellm_executor(
     provider_config: "LLMProviderConfig | None",
     config: "DaemonConfig | None",

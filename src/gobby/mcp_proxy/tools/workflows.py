@@ -808,7 +808,7 @@ def create_workflows_registry(
         shutil.copy(source, dest_path)
 
         # Clear loader cache so new workflow is discoverable
-        _loader.clear_discovery_cache()
+        _loader.clear_cache()
 
         return {
             "success": True,

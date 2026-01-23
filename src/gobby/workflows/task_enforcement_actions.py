@@ -754,7 +754,7 @@ async def require_active_task(
             "inject_context": (
                 f"**Task Required**: `{tool_name}` blocked. "
                 f"Create or claim a task before editing files (see previous error for details).\n"
-                f"For detailed guidance: `get_skill(name=\"claiming-tasks\")`"
+                f'For detailed guidance: `get_skill(name="claiming-tasks")`'
                 f"{project_task_hint}"
             ),
         }
@@ -777,7 +777,7 @@ async def require_active_task(
             f'2. **Claim an existing task**: `update_task(task_id="...", status="in_progress")`\n\n'
             f"Use `list_ready_tasks()` to see available tasks."
             f"{project_task_hint}\n\n"
-            f"For detailed guidance: `get_skill(name=\"claiming-tasks\")`"
+            f'For detailed guidance: `get_skill(name="claiming-tasks")`'
         ),
     }
 

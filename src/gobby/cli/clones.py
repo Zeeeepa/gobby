@@ -141,7 +141,13 @@ def create_clone(
 @clones.command("spawn")
 @click.argument("clone_ref")
 @click.argument("prompt")
-@click.option("--parent-session-id", "-p", "parent_session_id", required=True, help="Parent session ID (required)")
+@click.option(
+    "--parent-session-id",
+    "-p",
+    "parent_session_id",
+    required=True,
+    help="Parent session ID (required)",
+)
 @click.option("--mode", "-m", default="terminal", help="Agent mode (terminal, embedded, headless)")
 @click.option("--workflow", "-w", help="Workflow to activate")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
@@ -362,7 +368,9 @@ def delete_clone(clone_ref: str, force: bool, yes: bool, json_format: bool) -> N
         return
     except httpx.HTTPStatusError as e:
         if json_format:
-            click.echo(json.dumps({"success": False, "error": f"HTTP Error {e.response.status_code}"}))
+            click.echo(
+                json.dumps({"success": False, "error": f"HTTP Error {e.response.status_code}"})
+            )
         else:
             click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
         return
