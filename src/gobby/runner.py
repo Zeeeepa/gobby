@@ -59,6 +59,16 @@ class GobbyRunner:
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
+        # Sync bundled skills to database
+        from gobby.skills.sync import sync_bundled_skills
+
+        try:
+            skill_result = sync_bundled_skills(self.database)
+            if skill_result["synced"] > 0:
+                logger.info(f"Synced {skill_result['synced']} bundled skills to database")
+        except Exception as e:
+            logger.warning(f"Failed to sync bundled skills: {e}")
+
         # Initialize LLM Service
         self.llm_service: LLMService | None = None  # Added type hint
         try:
