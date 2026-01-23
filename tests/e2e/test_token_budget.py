@@ -371,8 +371,8 @@ class TestAgentSpawnThrottling:
         assert budget.get("over_budget") is True, f"Budget should be exceeded: {budget}"
 
         # Attempt to spawn agent - should fail due to budget
-        # Note: This will fail for other reasons first (no remote URL in test env)
-        # but if budget checking happens first, it will mention budget
+        # Note: May fail for other reasons (no remote URL in test env) but we check
+        # that if budget is mentioned in the error, the budget check is working
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
             tool_name="spawn_agent_in_clone",
@@ -385,8 +385,19 @@ class TestAgentSpawnThrottling:
         result = unwrap_result(raw_result)
 
         # Should fail - either due to budget or spawn depth/remote issues
-        # The important thing is the spawn doesn't succeed
         assert result.get("success") is False, f"Spawn should fail when over budget: {result}"
+
+        # Check if the error is budget-related (preferred) or another valid failure
+        error_msg = str(result.get("error", "")).lower()
+        is_budget_error = any(
+            term in error_msg for term in ["budget", "exceeded", "over budget", "daily budget"]
+        )
+        is_valid_other_error = any(
+            term in error_msg for term in ["remote", "url", "spawn", "depth", "runner"]
+        )
+        assert is_budget_error or is_valid_other_error, (
+            f"Expected budget-related or valid infrastructure error, got: {result.get('error')}"
+        )
 
 
 class TestMultiSessionBudgetAggregation:

@@ -5,6 +5,10 @@ Verifies that FastMCP instances are created with the instructions parameter.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 
 class TestCreateMcpServer:
     """Test create_mcp_server in server.py."""
