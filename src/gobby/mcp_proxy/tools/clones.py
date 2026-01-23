@@ -365,8 +365,9 @@ def create_clones_registry(
             )
 
             if result.success:
-                # Record successful sync
+                # Record successful sync and mark as active
                 clone_storage.record_sync(clone_id)
+                clone_storage.update(clone_id, status="active")
                 return {
                     "success": True,
                     "message": f"Synced clone {clone_id} ({direction})",

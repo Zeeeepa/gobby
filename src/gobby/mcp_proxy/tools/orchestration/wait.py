@@ -136,6 +136,11 @@ def register_wait(
             elapsed = time.monotonic() - start_time
 
             if elapsed >= timeout:
+                # Re-fetch latest task state before returning timeout
+                try:
+                    _, task_info = _is_task_complete(resolved_id)
+                except Exception as e:
+                    logger.warning(f"Error fetching final task status on timeout: {e}")
                 return {
                     "success": True,
                     "completed": False,
