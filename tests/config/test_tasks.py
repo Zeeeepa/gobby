@@ -179,7 +179,6 @@ class TestTaskExpansionConfigDefaults:
         assert config.codebase_research_enabled is True
         assert config.research_model is None
         assert config.research_max_steps == 10
-        assert config.tdd_mode is True
         assert config.max_subtasks == 15
         assert config.default_strategy == "auto"
         assert config.timeout == 300.0
@@ -210,13 +209,6 @@ class TestTaskExpansionConfigCustom:
 
         config = TaskExpansionConfig(provider="gemini")
         assert config.provider == "gemini"
-
-    def test_tdd_mode_disabled(self) -> None:
-        """Test disabling TDD mode."""
-        from gobby.config.tasks import TaskExpansionConfig
-
-        config = TaskExpansionConfig(tdd_mode=False)
-        assert config.tdd_mode is False
 
     def test_custom_max_subtasks(self) -> None:
         """Test setting custom max_subtasks."""
@@ -477,10 +469,10 @@ class TestGobbyTasksConfigCustom:
         """Test custom expansion config."""
         from gobby.config.tasks import GobbyTasksConfig, TaskExpansionConfig
 
-        expansion = TaskExpansionConfig(model="claude-sonnet-4-5", tdd_mode=False)
+        expansion = TaskExpansionConfig(model="claude-sonnet-4-5", max_subtasks=20)
         config = GobbyTasksConfig(expansion=expansion)
         assert config.expansion.model == "claude-sonnet-4-5"
-        assert config.expansion.tdd_mode is False
+        assert config.expansion.max_subtasks == 20
 
     def test_custom_validation_config(self) -> None:
         """Test custom validation config."""
@@ -599,7 +591,7 @@ class TestTaskExpansionConfigFromAppPy:
 
         config = TaskExpansionConfig()
         assert config.enabled is True
-        assert config.tdd_mode is True
+        assert config.max_subtasks == 15
 
 
 class TestTaskValidationConfigFromAppPy:
@@ -675,7 +667,6 @@ class TestWorkflowVariablesConfigDefaults:
 
         config = WorkflowVariablesConfig()
         assert config.require_task_before_edit is False
-        assert config.tdd_mode is True
         assert config.session_task is None
 
     def test_all_fields_have_correct_types(self) -> None:
@@ -684,7 +675,6 @@ class TestWorkflowVariablesConfigDefaults:
 
         config = WorkflowVariablesConfig()
         assert isinstance(config.require_task_before_edit, bool)
-        assert isinstance(config.tdd_mode, bool)
         # session_task can be None, str, or list
 
 
@@ -697,10 +687,10 @@ class TestWorkflowVariablesConfigCustom:
 
         config = WorkflowVariablesConfig(
             require_task_before_edit=True,
-            tdd_mode=False,
+            session_task="test-123",
         )
         assert config.require_task_before_edit is True
-        assert config.tdd_mode is False
+        assert config.session_task == "test-123"
 
     def test_session_task_string_value(self) -> None:
         """Test session_task with single task ID string."""
@@ -742,7 +732,6 @@ class TestWorkflowVariablesMergeWithDB:
         # YAML defaults (from session-lifecycle.yaml pattern)
         yaml_defaults = {
             "require_task_before_edit": False,
-            "tdd_mode": True,
             "session_task": None,
         }
 
@@ -757,7 +746,7 @@ class TestWorkflowVariablesMergeWithDB:
 
         # Validate through config class
         config = WorkflowVariablesConfig(**effective)
-        assert config.tdd_mode is True
+        assert config.require_task_before_edit is False
 
     def test_partial_db_overrides_merge_correctly(self) -> None:
         """Partial DB overrides merge with YAML defaults."""
@@ -765,13 +754,11 @@ class TestWorkflowVariablesMergeWithDB:
 
         yaml_defaults = {
             "require_task_before_edit": False,
-            "tdd_mode": True,
             "session_task": None,
         }
 
         # DB overrides only some fields
         db_overrides = {
-            "tdd_mode": False,  # Override
             "session_task": "xyz789",  # Override
         }
 
@@ -779,13 +766,11 @@ class TestWorkflowVariablesMergeWithDB:
         effective = {**yaml_defaults, **db_overrides}
 
         # Verify partial overrides work
-        assert effective["tdd_mode"] is False  # From DB
         assert effective["session_task"] == "xyz789"  # From DB
         assert effective["require_task_before_edit"] is False  # From YAML (not overridden)
 
         # Validate through config class
         config = WorkflowVariablesConfig(**effective)
-        assert config.tdd_mode is False
         assert config.session_task == "xyz789"
 
     def test_full_db_overrides_take_precedence(self) -> None:
@@ -794,14 +779,12 @@ class TestWorkflowVariablesMergeWithDB:
 
         yaml_defaults = {
             "require_task_before_edit": False,
-            "tdd_mode": True,
             "session_task": None,
         }
 
         # DB overrides everything
         db_overrides = {
             "require_task_before_edit": True,
-            "tdd_mode": False,
             "session_task": ["aaa", "bbb"],
         }
 
@@ -813,17 +796,16 @@ class TestWorkflowVariablesMergeWithDB:
         # Validate through config class
         config = WorkflowVariablesConfig(**effective)
         assert config.require_task_before_edit is True
-        assert config.tdd_mode is False
         assert config.session_task == ["aaa", "bbb"]
 
     def test_invalid_db_values_rejected_wrong_type_bool(self) -> None:
         """Invalid boolean value from DB is rejected by validator."""
         from gobby.config.tasks import WorkflowVariablesConfig
 
-        yaml_defaults = {"tdd_mode": True}
+        yaml_defaults = {"require_task_before_edit": True}
 
         # DB has wrong type - string instead of bool
-        db_overrides = {"tdd_mode": "not_a_bool"}
+        db_overrides = {"require_task_before_edit": "not_a_bool"}
 
         effective = {**yaml_defaults, **db_overrides}
 
@@ -836,9 +818,9 @@ class TestWorkflowVariablesMergeWithDB:
         """Extra fields from DB that aren't in config are ignored (model_config)."""
         from gobby.config.tasks import WorkflowVariablesConfig
 
-        yaml_defaults = {"tdd_mode": True}
+        yaml_defaults = {"require_task_before_edit": False}
         db_overrides = {
-            "tdd_mode": False,
+            "require_task_before_edit": True,
             "unknown_field": "should_be_ignored",
         }
 
@@ -846,7 +828,7 @@ class TestWorkflowVariablesMergeWithDB:
 
         # Should not raise - extra fields are ignored by default Pydantic
         config = WorkflowVariablesConfig(**effective)
-        assert config.tdd_mode is False
+        assert config.require_task_before_edit is True
         # unknown_field should not be accessible
         assert not hasattr(config, "unknown_field")
 
@@ -871,38 +853,38 @@ class TestMergeWorkflowVariablesFunction:
         from gobby.config.tasks import merge_workflow_variables
 
         yaml_defaults = {
-            "tdd_mode": True,
             "require_task_before_edit": False,
+            "session_task": None,
         }
 
         effective = merge_workflow_variables(yaml_defaults, None)
 
-        assert effective["tdd_mode"] is True
         assert effective["require_task_before_edit"] is False
+        assert effective["session_task"] is None
 
     def test_merge_with_empty_overrides(self) -> None:
         """When db_overrides is empty dict, returns YAML defaults."""
         from gobby.config.tasks import merge_workflow_variables
 
-        yaml_defaults = {"tdd_mode": True}
+        yaml_defaults = {"require_task_before_edit": False}
         effective = merge_workflow_variables(yaml_defaults, {})
 
-        assert effective["tdd_mode"] is True
+        assert effective["require_task_before_edit"] is False
 
     def test_merge_partial_overrides(self) -> None:
         """Partial DB overrides merge correctly with YAML defaults."""
         from gobby.config.tasks import merge_workflow_variables
 
         yaml_defaults = {
-            "tdd_mode": True,
             "require_task_before_edit": False,
+            "session_task": None,
         }
-        db_overrides = {"tdd_mode": False}
+        db_overrides = {"require_task_before_edit": True}
 
         effective = merge_workflow_variables(yaml_defaults, db_overrides)
 
-        assert effective["tdd_mode"] is False  # From DB
-        assert effective["require_task_before_edit"] is False  # From YAML
+        assert effective["require_task_before_edit"] is True  # From DB
+        assert effective["session_task"] is None  # From YAML
 
     def test_merge_full_overrides(self) -> None:
         """Full DB overrides take precedence."""
@@ -910,12 +892,10 @@ class TestMergeWorkflowVariablesFunction:
 
         yaml_defaults = {
             "require_task_before_edit": False,
-            "tdd_mode": True,
             "session_task": None,
         }
         db_overrides = {
             "require_task_before_edit": True,
-            "tdd_mode": False,
             "session_task": "xyz",
         }
 
@@ -923,7 +903,6 @@ class TestMergeWorkflowVariablesFunction:
 
         # All should come from DB
         assert effective["require_task_before_edit"] is True
-        assert effective["tdd_mode"] is False
         assert effective["session_task"] == "xyz"
 
     def test_validation_enabled_by_default(self) -> None:
@@ -931,20 +910,20 @@ class TestMergeWorkflowVariablesFunction:
         from gobby.config.tasks import merge_workflow_variables
 
         # Should fill in defaults for missing fields
-        effective = merge_workflow_variables({"tdd_mode": False}, None)
+        effective = merge_workflow_variables({"require_task_before_edit": True}, None)
 
         # Should have all fields from model defaults
-        assert "require_task_before_edit" in effective
+        assert "session_task" in effective
 
     def test_returns_dict_for_action_access(self) -> None:
         """Returns dict that actions can access like effective['key']."""
         from gobby.config.tasks import merge_workflow_variables
 
-        effective = merge_workflow_variables({"tdd_mode": True})
+        effective = merge_workflow_variables({"require_task_before_edit": False})
 
         # Should be a dict, not a Pydantic model
         assert isinstance(effective, dict)
-        assert effective["tdd_mode"] is True
+        assert effective["require_task_before_edit"] is False
 
 
 # =============================================================================
@@ -976,10 +955,10 @@ class TestBackwardCompatibilityLayer:
         """
         from gobby.config.tasks import WorkflowVariablesConfig
 
-        # Simulate old config.yaml values (from WorkflowConfig, TaskExpansionConfig, etc.)
+        # Simulate old config.yaml values (from WorkflowConfig, etc.)
         old_config_values = {
             "require_task_before_edit": True,  # From WorkflowConfig
-            "tdd_mode": False,  # From TaskExpansionConfig
+            "session_task": "old-task",
         }
 
         # New workflow YAML has empty variables (not specified)
@@ -992,7 +971,7 @@ class TestBackwardCompatibilityLayer:
 
         # Old config values should be used
         assert effective["require_task_before_edit"] is True
-        assert effective["tdd_mode"] is False
+        assert effective["session_task"] == "old-task"
 
     def test_new_location_takes_precedence_over_old(self) -> None:
         """New workflow YAML location takes precedence over old config.yaml."""
@@ -1001,13 +980,13 @@ class TestBackwardCompatibilityLayer:
         # Old config.yaml values
         old_config_values = {
             "require_task_before_edit": True,
-            "tdd_mode": False,
+            "session_task": "old-task",
         }
 
         # New workflow YAML variables (takes precedence)
         yaml_variables = {
             "require_task_before_edit": False,  # Override old config
-            "tdd_mode": True,  # Override old config
+            "session_task": "new-task",  # Override old config
         }
 
         # Merge order: defaults < old_config < yaml_variables
@@ -1016,7 +995,7 @@ class TestBackwardCompatibilityLayer:
 
         # New YAML values should take precedence
         assert effective["require_task_before_edit"] is False  # From YAML
-        assert effective["tdd_mode"] is True  # From YAML
+        assert effective["session_task"] == "new-task"  # From YAML
         # Old config value used where YAML doesn't override
 
     def test_both_locations_missing_uses_hardcoded_defaults(self) -> None:
@@ -1035,7 +1014,6 @@ class TestBackwardCompatibilityLayer:
 
         # Should match hardcoded defaults
         assert effective["require_task_before_edit"] is False
-        assert effective["tdd_mode"] is True
         assert effective["session_task"] is None
 
     def test_deprecation_warning_logged_for_old_location(self) -> None:
@@ -1077,14 +1055,14 @@ class TestBackwardCompatibilityLayer:
 
         # When old config is used without YAML override, warning should be possible
         yaml_variables: dict = {}
-        old_config_values = {"tdd_mode": False}
+        old_config_values = {"require_task_before_edit": True}
 
         with unittest.mock.patch.object(test_logger, "warning") as mock_warning:
             get_effective_with_deprecation_check(yaml_variables, old_config_values, test_logger)
             mock_warning.assert_called_once()
             warning_msg = mock_warning.call_args[0][0]
             assert "deprecated" in warning_msg.lower()
-            assert "tdd_mode" in warning_msg
+            assert "require_task_before_edit" in warning_msg
 
     def test_no_deprecation_warning_when_yaml_overrides(self) -> None:
         """No deprecation warning when YAML variables override old config."""
@@ -1112,8 +1090,8 @@ class TestBackwardCompatibilityLayer:
         test_logger = logging.getLogger("test_no_deprecation")
 
         # YAML overrides old config - no warning should be logged
-        yaml_variables = {"tdd_mode": True}  # Overrides old config
-        old_config_values = {"tdd_mode": False}
+        yaml_variables = {"require_task_before_edit": True}  # Overrides old config
+        old_config_values = {"require_task_before_edit": False}
 
         with unittest.mock.patch.object(test_logger, "warning") as mock_warning:
             get_effective_with_deprecation_check(yaml_variables, old_config_values, test_logger)

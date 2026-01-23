@@ -276,7 +276,6 @@ def update_task(
     agent_name: Any = UNSET,
     reference_doc: Any = UNSET,
     is_expanded: Any = UNSET,
-    is_tdd_applied: Any = UNSET,
     expansion_status: Any = UNSET,
     validation_override_reason: Any = UNSET,
     requires_user_review: Any = UNSET,
@@ -413,9 +412,6 @@ def update_task(
     if is_expanded is not UNSET:
         updates.append("is_expanded = ?")
         params.append(1 if is_expanded else 0)
-    if is_tdd_applied is not UNSET:
-        updates.append("is_tdd_applied = ?")
-        params.append(1 if is_tdd_applied else 0)
     if expansion_status is not UNSET:
         updates.append("expansion_status = ?")
         params.append(expansion_status)

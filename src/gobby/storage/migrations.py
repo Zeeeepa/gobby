@@ -358,7 +358,6 @@ CREATE TABLE tasks (
     agent_name TEXT,
     reference_doc TEXT,
     is_expanded INTEGER DEFAULT 0,
-    is_tdd_applied INTEGER DEFAULT 0,
     expansion_status TEXT DEFAULT 'none',
     requires_user_review INTEGER DEFAULT 0,
     accepted_by_user INTEGER DEFAULT 0,
@@ -607,7 +606,11 @@ def _migrate_add_reference_doc(db: LocalDatabase) -> None:
 
 
 def _migrate_add_boolean_columns(db: LocalDatabase) -> None:
-    """Add is_enriched, is_expanded, is_tdd_applied columns to tasks table."""
+    """Add is_enriched and is_expanded columns to tasks table.
+
+    Note: is_tdd_applied was previously added here but is now deprecated and
+    removed in migration 74. This migration only adds is_enriched and is_expanded.
+    """
     row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
     if not row:
         return
@@ -622,10 +625,6 @@ def _migrate_add_boolean_columns(db: LocalDatabase) -> None:
     if "is_expanded" not in sql_lower:
         db.execute("ALTER TABLE tasks ADD COLUMN is_expanded INTEGER DEFAULT 0")
         logger.info("Added is_expanded column to tasks table")
-
-    if "is_tdd_applied" not in sql_lower:
-        db.execute("ALTER TABLE tasks ADD COLUMN is_tdd_applied INTEGER DEFAULT 0")
-        logger.info("Added is_tdd_applied column to tasks table")
 
 
 def _migrate_add_review_columns(db: LocalDatabase) -> None:
@@ -860,6 +859,27 @@ def _migrate_add_model_column(db: LocalDatabase) -> None:
         logger.debug("model column already exists, skipping")
 
 
+def _migrate_drop_is_tdd_applied(db: LocalDatabase) -> None:
+    """Drop deprecated is_tdd_applied column from tasks table.
+
+    The is_tdd_applied flag is no longer used after removing the TDD sandwich pattern.
+    TDD instructions are now embedded directly in task descriptions for code/config categories.
+    SQLite 3.35.0+ supports ALTER TABLE DROP COLUMN.
+    """
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if not row:
+        return
+
+    if "is_tdd_applied" in row["sql"].lower():
+        try:
+            db.execute("ALTER TABLE tasks DROP COLUMN is_tdd_applied")
+            logger.info("Dropped is_tdd_applied column from tasks table")
+        except Exception as e:
+            # SQLite < 3.35.0 doesn't support DROP COLUMN
+            # Column will remain but be unused - not a problem
+            logger.warning(f"Could not drop is_tdd_applied column (SQLite < 3.35?): {e}")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -887,6 +907,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (72, "Add clones table", _migrate_add_clones_table),
     # Token tracking: Add model column to sessions for cost tracking by model
     (73, "Add model column to sessions", _migrate_add_model_column),
+    # TDD cleanup: Drop unused is_tdd_applied column from tasks
+    (74, "Drop is_tdd_applied column from tasks", _migrate_drop_is_tdd_applied),
 ]
 
 

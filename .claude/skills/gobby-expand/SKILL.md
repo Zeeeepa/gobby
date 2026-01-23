@@ -62,37 +62,34 @@ If `pending=True`, skip to **Phase 4** immediately.
    ```python
    children = call_tool("gobby-tasks", "list_tasks", {"parent_task_id": task_id})
    if children["tasks"]:
-       # IMPORTANT: Re-expansion will delete all existing subtasks.
-       # First, capture the full task object to preserve all fields.
-       backup = call_tool("gobby-tasks", "get_task", {"task_id": task_id})
+       # IMPORTANT: Re-expansion preserves the parent task and its associations.
+       # Only child tasks are deleted; the parent task_id remains intact.
 
-       # Prompt user for confirmation before cascade delete
+       # Prompt user for confirmation before deleting children
        print(f"Task #{task_id} has {len(children['tasks'])} existing subtasks.")
        print("Re-expansion will delete all subtasks and their descendants.")
        # In practice, use AskUserQuestion tool for confirmation:
        # response = AskUserQuestion("Confirm re-expansion? This deletes all subtasks.", ...)
        # if not confirmed: return
 
-       # Delete parent cascades to children
-       call_tool("gobby-tasks", "delete_task", {"task_id": task_id, "cascade": True})
+       # Delete only the child tasks (NOT the parent)
+       for child in children["tasks"]:
+           call_tool("gobby-tasks", "delete_task", {"task_id": child["id"], "cascade": True})
 
-       # Re-create the parent task with ALL preserved fields from backup
-       result = call_tool("gobby-tasks", "create_task", {
-           "title": backup["title"],
-           "description": backup["description"],
-           "task_type": backup["type"],
-           "priority": backup.get("priority"),
-           "labels": backup.get("labels", []),
-           "metadata": backup.get("metadata"),
-           "validation_criteria": backup.get("validation_criteria"),
-           "category": backup.get("category"),
-           "session_id": "<session_id>"
-       })
-       task_id = result["task"]["id"]
+       # Parent task remains intact with its:
+       # - Original task_id
+       # - Assignees/claims
+       # - Incoming dependency links (tasks that depend on this one)
+       # - Commit links
+       # - Validation history
 
-       # Note: Commit links are tracked separately and cannot be preserved
-       # through delete/create. If commits were linked, you may need to
-       # re-link them manually using link_commit after re-creation.
+       # KNOWN LIMITATIONS:
+       # - Child task associations (assignees, commits) are lost when children are deleted
+       # - If you need to preserve child associations, back them up first:
+       #   for child in children["tasks"]:
+       #       child_detail = call_tool("gobby-tasks", "get_task", {"task_id": child["id"]})
+       #       # Store child_detail["assignee"], child_detail["commits"], etc.
+       # - After re-expansion, re-apply associations to new subtasks as needed
    ```
 
 ### Phase 2: Analyze Codebase (VISIBLE)

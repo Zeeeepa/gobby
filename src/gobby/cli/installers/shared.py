@@ -69,6 +69,58 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     return installed
 
 
+def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:
+    """Move gobby-prefixed skill directories to a backup location.
+
+    This function is called during installation to preserve existing gobby skills
+    before they are replaced by database-synced skills. User custom skills
+    (non-gobby prefixed) are not touched.
+
+    Args:
+        skills_dir: Path to skills directory (e.g., .claude/skills)
+
+    Returns:
+        Dict with:
+        - success: bool
+        - backed_up: int - number of skills moved to backup
+        - skipped: str (optional) - reason for skipping
+    """
+    result: dict[str, Any] = {
+        "success": True,
+        "backed_up": 0,
+    }
+
+    if not skills_dir.exists():
+        result["skipped"] = "skills directory does not exist"
+        return result
+
+    # Find gobby-prefixed skill directories
+    gobby_skills = [
+        d for d in skills_dir.iterdir()
+        if d.is_dir() and d.name.startswith("gobby-")
+    ]
+
+    if not gobby_skills:
+        return result
+
+    # Create backup directory (sibling to skills/)
+    backup_dir = skills_dir.parent / "skills.backup"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    # Move each gobby skill to backup
+    import shutil
+
+    for skill_dir in gobby_skills:
+        target = backup_dir / skill_dir.name
+        # If already exists in backup, remove it first (replace with newer)
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.move(str(skill_dir), str(target))
+        result["backed_up"] += 1
+
+    return result
+
+
 def install_shared_skills(target_dir: Path) -> list[str]:
     """Install shared SKILL.md files to target directory.
 

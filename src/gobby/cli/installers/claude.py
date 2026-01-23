@@ -17,6 +17,7 @@ from typing import Any
 from gobby.cli.utils import get_install_dir
 
 from .shared import (
+    backup_gobby_skills,
     configure_mcp_server_json,
     install_cli_content,
     install_shared_content,
@@ -53,6 +54,12 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     claude_path.mkdir(parents=True, exist_ok=True)
     hooks_dir = claude_path / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    # Backup existing gobby skills (now auto-synced from database)
+    skills_dir = claude_path / "skills"
+    backup_result = backup_gobby_skills(skills_dir)
+    if backup_result["backed_up"] > 0:
+        logger.info(f"Backed up {backup_result['backed_up']} existing gobby skills")
 
     # Get source files
     install_dir = get_install_dir()

@@ -181,15 +181,11 @@ class TaskExpansionConfig(BaseModel):
     )
     tdd_prompt: str | None = Field(
         default=None,
-        description="DEPRECATED: TDD mode is now integrated into the system prompt template via Jinja2 conditionals",
+        description="DEPRECATED: TDD instructions are now embedded in task descriptions for code/config categories",
     )
     web_research_enabled: bool = Field(
         default=True,
         description="Enable web research for task expansion using MCP tools",
-    )
-    tdd_mode: bool = Field(
-        default=True,
-        description="Enable TDD mode: create test->implement task pairs with appropriate blocking for coding tasks",
     )
     max_subtasks: int = Field(
         default=15,
@@ -724,10 +720,6 @@ class WorkflowVariablesConfig(BaseModel):
         default=False,
         description="Require an active task (in_progress) before allowing file edits",
     )
-    tdd_mode: bool = Field(
-        default=True,
-        description="Enable TDD mode for task expansion (test-implementation pairs)",
-    )
     session_task: str | list[str] | None = Field(
         default=None,
         description="Task(s) to complete before stopping. "
@@ -759,13 +751,13 @@ def merge_workflow_variables(
         ValidationError: If validate=True and merged values fail validation.
 
     Example:
-        >>> yaml_defaults = {"tdd_mode": True, "require_task_before_edit": False}
-        >>> db_overrides = {"tdd_mode": False}
+        >>> yaml_defaults = {"require_task_before_edit": False, "session_task": None}
+        >>> db_overrides = {"require_task_before_edit": True}
         >>> effective = merge_workflow_variables(yaml_defaults, db_overrides)
-        >>> effective["tdd_mode"]
-        False
         >>> effective["require_task_before_edit"]
-        False
+        True
+        >>> effective["session_task"]
+        None
     """
     # Start with defaults
     effective = dict(yaml_defaults)

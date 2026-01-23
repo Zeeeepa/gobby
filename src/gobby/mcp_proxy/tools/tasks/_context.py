@@ -48,7 +48,6 @@ class RegistryContext:
     # Config settings (initialized in __post_init__)
     show_result_on_create: bool = field(init=False)
     auto_generate_on_expand: bool = field(init=False)
-    tdd_mode_config: bool = field(init=False)
     validation_config: "TaskValidationConfig | None" = field(init=False)
 
     def __post_init__(self) -> None:
@@ -63,7 +62,6 @@ class RegistryContext:
         # Initialize config settings
         self.show_result_on_create = False
         self.auto_generate_on_expand = True
-        self.tdd_mode_config = False
         self.validation_config = None
 
         if self.config is not None:
@@ -71,7 +69,6 @@ class RegistryContext:
             self.show_result_on_create = tasks_config.show_result_on_create
             self.validation_config = tasks_config.validation
             self.auto_generate_on_expand = self.validation_config.auto_generate_on_expand
-            self.tdd_mode_config = tasks_config.expansion.tdd_mode
 
     def get_project_repo_path(self, project_id: str | None) -> str | None:
         """Get the repo_path for a project by ID."""
@@ -93,18 +90,3 @@ class RegistryContext:
         if not session_id:
             return None
         return self.workflow_state_manager.get_state(session_id)
-
-    def resolve_tdd_mode(self, session_id: str | None) -> bool:
-        """
-        Resolve tdd_mode from workflow state > config hierarchy.
-
-        Returns:
-            True if TDD mode is enabled, False otherwise.
-        """
-        # Check workflow state first (takes precedence)
-        state = self.get_workflow_state(session_id)
-        if state and "tdd_mode" in state.variables:
-            return bool(state.variables["tdd_mode"])
-
-        # Fall back to config
-        return self.tdd_mode_config

@@ -96,6 +96,7 @@ knowledge_base:
 
 # Ignore patterns - files to skip reviewing
 ignore:
+  - "docs/plans/completed/**"  # Historical plans, not active guidelines
   - "**/*.lock"
   - "**/uv.lock"
   - "**/.gobby/tasks.jsonl"
