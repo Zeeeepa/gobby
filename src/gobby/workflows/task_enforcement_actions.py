@@ -21,6 +21,125 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Block Tools Action (Unified Tool Blocking)
+# =============================================================================
+
+
+def _evaluate_block_condition(
+    condition: str,
+    workflow_state: "WorkflowState | None",
+    event_data: dict[str, Any] | None = None,
+) -> bool:
+    """
+    Evaluate a blocking rule condition against workflow state.
+
+    Supports simple Python expressions with access to:
+    - variables: workflow state variables dict
+    - task_claimed: shorthand for variables.get('task_claimed')
+    - plan_mode: shorthand for variables.get('plan_mode')
+
+    Args:
+        condition: Python expression to evaluate
+        workflow_state: Current workflow state
+        event_data: Optional hook event data
+
+    Returns:
+        True if condition matches (tool should be blocked), False otherwise.
+    """
+    if not condition:
+        return True  # No condition means always match
+
+    # Build evaluation context
+    variables = workflow_state.variables if workflow_state else {}
+    context = {
+        "variables": variables,
+        "task_claimed": variables.get("task_claimed", False),
+        "plan_mode": variables.get("plan_mode", False),
+        "event": event_data or {},
+    }
+
+    # Allowed globals for safe evaluation
+    allowed_globals = {
+        "__builtins__": {},
+        "not": lambda x: not x,
+        "True": True,
+        "False": False,
+        "None": None,
+        "bool": bool,
+        "str": str,
+        "int": int,
+    }
+
+    try:
+        # nosec B307: eval is intentional here for DSL evaluation with
+        # restricted globals (__builtins__={}) and controlled conditions
+        return bool(eval(condition, allowed_globals, context))  # nosec B307
+    except Exception as e:
+        logger.warning(f"block_tools condition evaluation failed: '{condition}'. Error: {e}")
+        return False
+
+
+async def block_tools(
+    rules: list[dict[str, Any]] | None = None,
+    event_data: dict[str, Any] | None = None,
+    workflow_state: "WorkflowState | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """
+    Unified tool blocking with multiple configurable rules.
+
+    Each rule can specify:
+      - tools: List of tool names to block
+      - when: Optional condition (evaluated against workflow state)
+      - reason: Block message to display
+
+    Args:
+        rules: List of blocking rules
+        event_data: Hook event data with tool_name
+        workflow_state: For evaluating conditions
+
+    Returns:
+        Dict with decision="block" and reason if blocked, None to allow.
+
+    Example rule:
+        {
+            "tools": ["TaskCreate", "TaskUpdate"],
+            "reason": "CC native task tools are disabled. Use gobby-tasks MCP tools."
+        }
+
+    Example rule with condition:
+        {
+            "tools": ["Edit", "Write"],
+            "when": "not task_claimed and not plan_mode",
+            "reason": "Claim a task before editing files."
+        }
+    """
+    if not event_data or not rules:
+        return None
+
+    tool_name = event_data.get("tool_name")
+    if not tool_name:
+        return None
+
+    for rule in rules:
+        tools = rule.get("tools", [])
+        if tool_name not in tools:
+            continue
+
+        # Check optional condition
+        condition = rule.get("when")
+        if condition:
+            if not _evaluate_block_condition(condition, workflow_state, event_data):
+                continue
+
+        reason = rule.get("reason", f"Tool '{tool_name}' is blocked.")
+        logger.info(f"block_tools: Blocking '{tool_name}' - {reason[:100]}")
+        return {"decision": "block", "reason": reason}
+
+    return None
+
+
 def _get_dirty_files(project_path: str | None = None) -> set[str]:
     """
     Get the set of dirty files from git status --porcelain.

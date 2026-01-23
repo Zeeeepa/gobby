@@ -2315,3 +2315,307 @@ class TestRequireActiveTaskLiveness:
         # msg should suggest claiming
         assert "appears unattended" in result["inject_context"]
         assert "claim it" in result["inject_context"]
+
+
+# =============================================================================
+# Tests for block_tools action (unified tool blocking)
+# =============================================================================
+
+
+class TestBlockTools:
+    """Tests for block_tools action."""
+
+    @pytest.fixture
+    def workflow_state(self):
+        """Create a workflow state with empty variables."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+    async def test_block_tools_no_rules(self, workflow_state):
+        """Returns None when no rules are provided."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        result = await block_tools(
+            rules=None,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+        assert result is None
+
+    async def test_block_tools_no_event_data(self, workflow_state):
+        """Returns None when no event_data is provided."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        result = await block_tools(
+            rules=[{"tools": ["Edit"], "reason": "Blocked"}],
+            event_data=None,
+            workflow_state=workflow_state,
+        )
+        assert result is None
+
+    async def test_block_tools_blocks_matching_tool(self, workflow_state):
+        """Blocks tool when it matches a rule."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        rules = [
+            {
+                "tools": ["TaskCreate", "TaskUpdate"],
+                "reason": "CC native task tools are disabled.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "TaskCreate"},
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "CC native task tools are disabled" in result["reason"]
+
+    async def test_block_tools_allows_non_matching_tool(self, workflow_state):
+        """Allows tool when it doesn't match any rule."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        rules = [
+            {
+                "tools": ["TaskCreate", "TaskUpdate"],
+                "reason": "CC native task tools are disabled.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    async def test_block_tools_with_condition_true(self, workflow_state):
+        """Blocks tool when condition evaluates to true."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["plan_mode"] = False
+
+        rules = [
+            {
+                "tools": ["Edit", "Write"],
+                "when": "not task_claimed and not plan_mode",
+                "reason": "Task Required: Claim a task before editing.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Task Required" in result["reason"]
+
+    async def test_block_tools_with_condition_false(self, workflow_state):
+        """Allows tool when condition evaluates to false."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        workflow_state.variables["task_claimed"] = True
+        workflow_state.variables["plan_mode"] = False
+
+        rules = [
+            {
+                "tools": ["Edit", "Write"],
+                "when": "not task_claimed and not plan_mode",
+                "reason": "Task Required: Claim a task before editing.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    async def test_block_tools_plan_mode_allows_edit(self, workflow_state):
+        """Allows edit tools when in plan mode."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["plan_mode"] = True
+
+        rules = [
+            {
+                "tools": ["Edit", "Write"],
+                "when": "not task_claimed and not plan_mode",
+                "reason": "Task Required: Claim a task before editing.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    async def test_block_tools_multiple_rules(self, workflow_state):
+        """First matching rule blocks the tool."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["plan_mode"] = False
+
+        rules = [
+            {
+                "tools": ["TaskCreate"],
+                "reason": "CC task tools disabled.",
+            },
+            {
+                "tools": ["Edit", "Write"],
+                "when": "not task_claimed",
+                "reason": "Task required for edits.",
+            },
+        ]
+
+        # Test TaskCreate matches first rule
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "TaskCreate"},
+            workflow_state=workflow_state,
+        )
+        assert result is not None
+        assert "CC task tools disabled" in result["reason"]
+
+        # Test Edit matches second rule
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+        assert result is not None
+        assert "Task required for edits" in result["reason"]
+
+    async def test_block_tools_invalid_condition(self, workflow_state):
+        """Invalid condition returns False (allows tool)."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        rules = [
+            {
+                "tools": ["Edit"],
+                "when": "invalid_syntax[[[",
+                "reason": "Should not see this.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "Edit"},
+            workflow_state=workflow_state,
+        )
+
+        # Invalid condition should return False, so tool is allowed
+        assert result is None
+
+    async def test_block_tools_no_workflow_state(self):
+        """Works without workflow state (condition always matches if no condition)."""
+        from gobby.workflows.task_enforcement_actions import block_tools
+
+        rules = [
+            {
+                "tools": ["TaskCreate"],
+                "reason": "Blocked without condition.",
+            }
+        ]
+
+        result = await block_tools(
+            rules=rules,
+            event_data={"tool_name": "TaskCreate"},
+            workflow_state=None,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+
+class TestEvaluateBlockCondition:
+    """Tests for _evaluate_block_condition helper."""
+
+    @pytest.fixture
+    def workflow_state(self):
+        """Create a workflow state."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+    def test_empty_condition_returns_true(self, workflow_state):
+        """Empty condition means always match (block)."""
+        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+
+        assert _evaluate_block_condition("", workflow_state) is True
+        assert _evaluate_block_condition(None, workflow_state) is True
+
+    def test_task_claimed_shorthand(self, workflow_state):
+        """task_claimed shorthand works."""
+        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+
+        workflow_state.variables["task_claimed"] = True
+        assert _evaluate_block_condition("task_claimed", workflow_state) is True
+
+        workflow_state.variables["task_claimed"] = False
+        assert _evaluate_block_condition("task_claimed", workflow_state) is False
+
+    def test_not_operator(self, workflow_state):
+        """not operator works."""
+        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+
+        workflow_state.variables["task_claimed"] = False
+        assert _evaluate_block_condition("not task_claimed", workflow_state) is True
+
+        workflow_state.variables["task_claimed"] = True
+        assert _evaluate_block_condition("not task_claimed", workflow_state) is False
+
+    def test_variables_get_access(self, workflow_state):
+        """variables.get() works."""
+        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+
+        workflow_state.variables["custom_var"] = True
+        assert (
+            _evaluate_block_condition("variables.get('custom_var')", workflow_state) is True
+        )
+
+        workflow_state.variables["custom_var"] = False
+        assert (
+            _evaluate_block_condition("variables.get('custom_var')", workflow_state) is False
+        )
+
+    def test_combined_conditions(self, workflow_state):
+        """Combined conditions work."""
+        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["plan_mode"] = False
+        assert (
+            _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state)
+            is True
+        )
+
+        workflow_state.variables["plan_mode"] = True
+        assert (
+            _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state)
+            is False
+        )

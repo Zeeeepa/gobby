@@ -58,6 +58,7 @@ from gobby.workflows.summary_actions import (
     synthesize_title,
 )
 from gobby.workflows.task_enforcement_actions import (
+    block_tools,
     capture_baseline_dirty_files,
     require_active_task,
     require_commit_before_stop,
@@ -236,6 +237,7 @@ class ActionExecutor:
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
         # Task enforcement
+        self.register("block_tools", self._handle_block_tools)
         self.register("require_active_task", self._handle_require_active_task)
         self.register("require_commit_before_stop", self._handle_require_commit_before_stop)
         self.register(
@@ -840,10 +842,28 @@ class ActionExecutor:
             project_path=project_path,
         )
 
+    async def _handle_block_tools(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Block tools based on configurable rules.
+
+        This is the unified tool blocking action that replaces require_active_task
+        for CC native task blocking while also supporting task-before-edit enforcement.
+        """
+        return await block_tools(
+            rules=kwargs.get("rules"),
+            event_data=context.event_data,
+            workflow_state=context.state,
+        )
+
     async def _handle_require_active_task(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Check for active task before allowing protected tools."""
+        """Check for active task before allowing protected tools.
+
+        DEPRECATED: Use block_tools action with rules instead.
+        Kept for backward compatibility with existing workflows.
+        """
         # Get project_id from session for project-scoped task filtering
         current_session = context.session_manager.get(context.session_id)
         project_id = current_session.project_id if current_session else None
