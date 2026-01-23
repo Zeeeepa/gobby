@@ -55,6 +55,13 @@ def validate_commit_requirements(
     if requires_commit_check and not task.commits:
         # No commits linked - require explicit acknowledgment
         if no_commit_needed:
+            # Check for uncommitted changes FIRST - hard blocker regardless of justification
+            # If there are uncommitted changes, claiming "no commit needed" is a contradiction
+            uncommitted_result = _check_uncommitted_changes(repo_path)
+            if uncommitted_result:
+                return uncommitted_result
+
+            # Only then require justification (when there truly are no uncommitted changes)
             if not override_justification:
                 return ValidationResult(
                     can_close=False,
@@ -65,12 +72,7 @@ def validate_commit_requirements(
                     ),
                 )
 
-            # Check for uncommitted changes - contradicts no_commit_needed claim
-            uncommitted_result = _check_uncommitted_changes(repo_path)
-            if uncommitted_result:
-                return uncommitted_result
-
-            # Allowed to proceed - agent confirmed no commit needed
+            # Allowed to proceed - no uncommitted changes and agent confirmed no commit needed
         else:
             return ValidationResult(
                 can_close=False,
