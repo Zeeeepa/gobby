@@ -18,7 +18,6 @@ from .shared import (
     configure_mcp_server_json,
     install_cli_content,
     install_shared_content,
-    install_shared_skills,
     remove_mcp_server_json,
 )
 
@@ -81,13 +80,8 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     # Install CLI-specific content (can override shared)
     cli = install_cli_content("gemini", gemini_path)
 
-    # Install shared skills (SKILL.md)
-    try:
-        skills = install_shared_skills(gemini_path / "skills")
-        result["commands_installed"].extend([f"{s} (skill)" for s in skills])
-    except Exception as e:
-        logger.error(f"Failed to install shared skills: {e}")
-        # Proceeding despite skill install failure
+    # Skills are now auto-synced to database on daemon startup (sync_bundled_skills)
+    # No longer need to copy to .gemini/skills/
 
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
