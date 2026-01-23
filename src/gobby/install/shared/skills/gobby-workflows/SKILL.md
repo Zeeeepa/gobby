@@ -81,6 +81,32 @@ After executing the appropriate MCP tool, present the results clearly:
 - **Transitions**: Move between steps based on conditions
 - **Tool filtering**: Each step restricts which tools are available
 
+## Step Transitions
+
+Transitions between steps can be automatic or manual:
+
+### Automatic Transitions
+Most workflows use condition-based transitions that fire automatically:
+- `step_action_count >= N` - after N tool calls in the step
+- `task_tree_complete(...)` - when tasks are done
+- Variable comparisons - when workflow state changes
+
+**You don't need to manually transition** - just perform the required actions and the workflow engine handles the rest.
+
+### Manual Transitions
+If you need to force a transition, use `request_step_transition`:
+```python
+call_tool("gobby-workflows", "request_step_transition", {
+    "session_id": "<from context>",
+    "target_step": "work",
+    "reason": "Research complete, ready to implement"
+})
+```
+
+Only use manual transitions when automatic conditions aren't met and you have justification.
+
+**Common mistake**: Guessing tool names like `transition_step` or `step_transition`. The actual tool is `request_step_transition`.
+
 ## Error Handling
 
 If the subcommand is not recognized, show available subcommands:
