@@ -681,10 +681,8 @@ steps:
           ```
           L1: Root Epic (created in create_hierarchy)
           └── L2: Phase Epic (created in create_hierarchy)
-              └── L3: Feature Task (created in create_hierarchy, is_tdd_applied=True after expand)
-                  ├── L4: [TDD] Write failing tests (created by expand_task)
-                  ├── L4: [IMPL] Implementation subtask (created by expand_task)
-                  └── L4: [REF] Refactor/cleanup (created by expand_task)
+              └── L3: Feature Task (created in create_hierarchy, is_expanded=True after expand)
+                  └── L4: Implementation subtasks with embedded TDD steps (created by expand_task)
           ```
 
           ### Loop Behavior
