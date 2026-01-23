@@ -12,6 +12,8 @@ import pytest
 
 from gobby.workflows.loader import WorkflowLoader
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def workflow_loader_with_install_dir():

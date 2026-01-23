@@ -274,7 +274,7 @@ When hooks block actions, include skill references:
 **New**:
 ```
 Blocked: No active task. Create or claim a task before editing files.
-See skill: /claiming-tasks
+See skill (MCP): claiming-tasks
 ```
 
 ### 3.2 Unknown Tool Called
@@ -284,7 +284,7 @@ See skill: /claiming-tasks
 Tool not found. Use progressive disclosure:
 1. list_tools(server="...") to discover tools
 2. get_tool_schema(server, tool) for full schema
-See skill: /discovering-tools
+See skill (MCP): discovering-tools
 ```
 
 **Files to modify**:
@@ -390,7 +390,7 @@ mcp = FastMCP("gobby", instructions=build_gobby_instructions())
 
 ### Test 2: Edit Blocked Without Task
 1. Try to edit file without active task
-2. Verify error message references `/task-before-edit` skill
+2. Verify error message references `claiming-tasks` skill
 3. Invoke skill and follow instructions
 4. Verify edit succeeds after task creation
 

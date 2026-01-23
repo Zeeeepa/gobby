@@ -142,9 +142,8 @@ class TestParallelOrchestratorCloneTools:
             allowed = step.allowed_tools
             # Check for clone-related tools
             clone_tools_present = any(
-                tool in allowed or "clone" in tool.lower()
-                for tool in ["create_clone", "spawn_agent_in_clone", "list_clones"]
-            )
+                tool in allowed for tool in ["create_clone", "spawn_agent_in_clone", "list_clones"]
+            ) or any("clone" in t.lower() for t in allowed)
             assert clone_tools_present
 
 

@@ -19,7 +19,7 @@ Gobby is a local-first daemon that unifies AI coding assistants (Codex, Claude C
 
 ```bash
 # Environment setup
-uv sync                          # Install dependencies (Python 3.13+)
+uv sync                          # Install dependencies (Python 3.11+)
 
 # Daemon management
 uv run gobby start --verbose     # Start daemon with verbose logging
@@ -185,7 +185,7 @@ call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={
 ## Code Conventions
 
 - **Type Hints**: Required for all functions.
-- **Python Version**: Target Python 3.13+.
+- **Python Version**: Target Python 3.11+.
 - **Formatting**: Use `ruff format`.
 - **Linting**: Use `ruff check`.
 - **Testing**: Minimum 80% coverage. Use `pytest`.

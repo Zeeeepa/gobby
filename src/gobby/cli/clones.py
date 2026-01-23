@@ -318,7 +318,8 @@ def merge_clone(clone_ref: str, target_branch: str, json_format: bool) -> None:
 @click.argument("clone_ref")
 @click.option("--force", "-f", is_flag=True, help="Force delete even if active")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
-def delete_clone(clone_ref: str, force: bool, yes: bool) -> None:
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def delete_clone(clone_ref: str, force: bool, yes: bool, json_format: bool) -> None:
     """Delete a clone.
 
     Examples:
@@ -331,10 +332,13 @@ def delete_clone(clone_ref: str, force: bool, yes: bool) -> None:
     clone_id = resolve_clone_id(manager, clone_ref)
 
     if not clone_id:
-        click.echo(f"Clone not found: {clone_ref}", err=True)
+        if json_format:
+            click.echo(json.dumps({"success": False, "error": f"Clone not found: {clone_ref}"}))
+        else:
+            click.echo(f"Clone not found: {clone_ref}", err=True)
         return
 
-    if not yes:
+    if not yes and not json_format:
         click.confirm("Are you sure you want to delete this clone?", abort=True)
 
     daemon_url = get_daemon_url()
@@ -348,13 +352,26 @@ def delete_clone(clone_ref: str, force: bool, yes: bool) -> None:
         response.raise_for_status()
         result = response.json()
     except httpx.ConnectError:
-        click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        if json_format:
+            click.echo(json.dumps({"success": False, "error": "Cannot connect to Gobby daemon"}))
+        else:
+            click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
         return
     except httpx.HTTPStatusError as e:
-        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
+        if json_format:
+            click.echo(json.dumps({"success": False, "error": f"HTTP Error {e.response.status_code}"}))
+        else:
+            click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
         return
     except Exception as e:
-        click.echo(f"Error: {e}", err=True)
+        if json_format:
+            click.echo(json.dumps({"success": False, "error": str(e)}))
+        else:
+            click.echo(f"Error: {e}", err=True)
+        return
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2, default=str))
         return
 
     if result.get("success"):

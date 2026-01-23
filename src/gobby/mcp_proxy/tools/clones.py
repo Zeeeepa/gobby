@@ -372,20 +372,21 @@ def create_clones_registry(
                     "message": f"Synced clone {clone_id} ({direction})",
                 }
             else:
-                # Revert to active status
-                clone_storage.update(clone_id, status="active")
                 return {
                     "success": False,
                     "error": f"Sync failed: {result.error or result.message}",
                 }
 
         except Exception as e:
-            # Revert to active status
-            clone_storage.update(clone_id, status="active")
             return {
                 "success": False,
                 "error": str(e),
             }
+        finally:
+            # Ensure status is reset to active if record_sync didn't complete
+            clone = clone_storage.get(clone_id)
+            if clone and clone.status == "syncing":
+                clone_storage.update(clone_id, status="active")
 
     registry.register(
         name="sync_clone",

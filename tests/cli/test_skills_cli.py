@@ -7,6 +7,8 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.cli
+
 
 class TestSkillsCommandGroup:
     """Tests for gobby skills command group."""

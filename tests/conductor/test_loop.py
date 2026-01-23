@@ -10,6 +10,10 @@ Tests for the ConductorLoop class that:
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 
 class TestConductorLoopTick:
     """Tests for ConductorLoop.tick() method."""

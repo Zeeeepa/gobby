@@ -212,10 +212,12 @@ class TestSkillSearch:
 
     def test_update_skill_marks_update(self, sample_skills):
         """Test that update_skill increments pending updates."""
+        import copy
+
         search = SkillSearch()
         search.index_skills(sample_skills)
 
-        updated_skill = sample_skills[0]
+        updated_skill = copy.deepcopy(sample_skills[0])
         updated_skill.name = "updated-name"
         search.update_skill(updated_skill)
 

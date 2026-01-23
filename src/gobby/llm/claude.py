@@ -554,6 +554,8 @@ class ClaudeLLMProvider(LLMProvider):
                 max_tokens=1024,
             )
 
+            if not response or not getattr(response, "choices", None):
+                return "No description generated"
             return response.choices[0].message.content or "No description generated"
 
         except ImportError:

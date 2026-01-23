@@ -266,7 +266,7 @@ def install(ctx: click.Context, source: str, project: bool) -> None:
         sys.exit(1)
     elif result.get("success"):
         click.echo(
-            f"Installed skill: {result['skill_name']} ({result.get('source_type', 'unknown')})"
+            f"Installed skill: {result.get('skill_name', '<unknown>')} ({result.get('source_type', 'unknown')})"
         )
     else:
         click.echo(f"Error: {result.get('error', 'Unknown error')}", err=True)

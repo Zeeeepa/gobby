@@ -16,6 +16,8 @@ from click.testing import CliRunner
 
 from gobby.storage.clones import Clone
 
+pytestmark = pytest.mark.cli
+
 # Mock clone data
 MOCK_CLONE = Clone(
     id="clone-123",

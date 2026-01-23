@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 
 class TestEmbeddingProviderProtocol:
     """Tests for EmbeddingProvider Protocol definition."""

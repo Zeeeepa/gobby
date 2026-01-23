@@ -1,5 +1,9 @@
 """Tests for HookSkillManager (TDD - written before implementation)."""
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 
 class TestHookSkillManager:
     """Tests for HookSkillManager class."""

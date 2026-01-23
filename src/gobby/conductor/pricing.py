@@ -12,7 +12,10 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-import litellm
+try:
+    import litellm
+except ImportError:
+    litellm = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,10 @@ class TokenTracker:
             Total cost in USD, or 0.0 if pricing is unavailable
         """
         if input_tokens == 0 and output_tokens == 0:
+            return 0.0
+
+        if litellm is None:
+            logger.debug("litellm not available, cannot calculate cost")
             return 0.0
 
         try:
@@ -137,6 +144,10 @@ class TokenTracker:
         Returns:
             Total cost in USD, or 0.0 if calculation fails
         """
+        if litellm is None:
+            logger.debug("litellm not available, cannot calculate cost from response")
+            return 0.0
+
         try:
             return litellm.completion_cost(response)
         except Exception as e:

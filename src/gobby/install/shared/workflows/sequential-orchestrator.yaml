@@ -83,6 +83,8 @@ steps:
     transitions:
       - to: wait
         when: "variables.current_agent_run_id is not None"
+      - to: select_task
+        when: "variables.current_agent_run_id is None"
 
   - name: wait
     description: "Wait for the spawned agent to complete"
