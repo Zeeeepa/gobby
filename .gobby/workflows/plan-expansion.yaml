@@ -1079,25 +1079,23 @@ steps:
           })
           ```
 
-          ### Step 2: Verify TDD Triplets
+          ### Step 2: Verify Task Expansion
 
           For each feature task with `category: code` or `category: config`:
-          - Should have child tasks with `[TDD]`, `[IMPL]`, and `[REF]` prefixes
-          - `is_expanded=True` and `is_tdd_applied=True` flags should be set
+          - Should have implementation subtasks with TDD steps embedded in descriptions
+          - `is_expanded=True` flag should be set
 
           **Expected structure:**
           ```
           #42 [epic] Root Epic
           ├── #43 [epic] Phase 1: Setup
-          │   ├── #45 [task] Create protocol.py (is_tdd_applied=True)
-          │   │   ├── [TDD] Write failing tests for protocol
-          │   │   ├── [IMPL] Define MemoryCapability enum
-          │   │   ├── [IMPL] Define MemoryQuery dataclass
-          │   │   └── [REF] Refactor and verify protocol
-          │   └── #46 [task] Create backends/__init__.py (is_tdd_applied=True)
-          │       ├── [TDD] Write failing tests for factory
-          │       ├── [IMPL] Implement get_backend()
-          │       └── [REF] Refactor and verify factory
+          │   ├── #45 [task] Create protocol.py (is_expanded=True)
+          │   │   ├── Define MemoryCapability enum
+          │   │   ├── Define MemoryQuery dataclass
+          │   │   └── Add type exports
+          │   └── #46 [task] Create backends/__init__.py (is_expanded=True)
+          │       ├── Implement get_backend()
+          │       └── Add backend registry
           └── #44 [epic] Phase 2: Integration
               └── ...
           ```
