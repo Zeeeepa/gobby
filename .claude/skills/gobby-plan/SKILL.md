@@ -265,8 +265,8 @@ call_tool("gobby-tasks", "expand_task", {
 **What expand_task does per feature task:**
 - LLM reads the task title + description
 - Creates implementation subtasks (granular work items)
-- TDD sandwich applied: ONE [TDD] + [IMPL] tasks + ONE [REF]
-- Sets `is_expanded=True` and `is_tdd_applied=True` on the feature task
+- TDD steps embedded in code/config task descriptions
+- Sets `is_expanded=True` on the feature task
 
 ### 6e. Update Plan Doc with Task Refs
 
@@ -370,34 +370,29 @@ expand_task(task_id="#104")
 ```
 #100 [epic] Memory V3 Backend                      L1
 ├── #101 [epic] Phase 1: Backend Setup             L2
-│   ├── #102 [task] Create protocol.py             L3 (is_tdd_applied=True)
-│   │   ├── [TDD] Write failing tests for protocol L4
-│   │   ├── [IMPL] Define MemoryCapability enum    L4
-│   │   ├── [IMPL] Define MemoryQuery dataclass    L4
-│   │   └── [REF] Refactor and verify protocol     L4
-│   ├── #103 [task] Create backends/__init__.py    L3 (is_tdd_applied=True)
-│   │   ├── [TDD] Write failing tests for factory  L4
-│   │   ├── [IMPL] Implement get_backend()         L4
-│   │   └── [REF] Refactor and verify factory      L4
-│   └── #104 [task] Add config schema              L3 (is_tdd_applied=True)
-│       ├── [TDD] Write failing tests for config   L4
-│       ├── [IMPL] Add memory.backend option       L4
-│       └── [REF] Refactor and verify config       L4
+│   ├── #102 [task] Create protocol.py             L3 (is_expanded=True)
+│   │   ├── #105 Define MemoryCapability enum      L4
+│   │   ├── #106 Define MemoryQuery dataclass      L4
+│   │   └── #107 Add type exports                  L4
+│   ├── #103 [task] Create backends/__init__.py    L3 (is_expanded=True)
+│   │   ├── #108 Implement get_backend()           L4
+│   │   └── #109 Add backend registry              L4
+│   └── #104 [task] Add config schema              L3 (is_expanded=True)
+│       ├── #110 Add memory.backend option         L4
+│       └── #111 Add validation                    L4
 ```
 
-### 4-Level Hierarchy
+### 3-Level Hierarchy
 
 ```
 L1: Root Epic (created manually)
 └── L2: Phase Epic (created manually)
     └── L3: Feature Task (created manually, category: code/config)
-        ├── L4: [TDD] Write failing tests (created by expand_task)
-        ├── L4: [IMPL] Implementation subtask (created by expand_task)
-        └── L4: [REF] Refactor/cleanup (created by expand_task)
+        └── L4: Implementation subtasks (created by expand_task)
 ```
 
-**CRITICAL**: TDD triplets are only created at L4 when you expand **feature tasks** (L3).
-Expanding phase epics (L2) does NOT create TDD triplets because `task.task_type == "epic"`.
+**NOTE**: TDD steps are embedded in task descriptions for code/config category tasks.
+The descriptions include test requirements that agents follow during implementation.
 
 ## Example Usage
 

@@ -38,8 +38,9 @@ import yaml
 
 # Pattern to extract YAML frontmatter (content between --- delimiters)
 # Allows empty frontmatter (---\n---) or content between delimiters
+# Supports both LF (\n) and CRLF (\r\n) line endings
 FRONTMATTER_PATTERN = re.compile(
-    r"^---[ \t]*\n(.*?)^---[ \t]*\n?",
+    r"^---[ \t]*\r?\n(.*?)^---[ \t]*\r?\n?",
     re.DOTALL | re.MULTILINE,
 )
 

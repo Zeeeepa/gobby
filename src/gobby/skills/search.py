@@ -363,9 +363,12 @@ class SkillSearch:
             # Get embedding similarity scores (with null check)
             embedding_scores: dict[str, float] = {}
             if self._embedding_provider is None:
+                # No embedding provider available - fall back to TF-IDF only results
+                # to avoid incorrectly downweighting TF-IDF scores
                 logger.warning(
-                    "Embedding provider is None in hybrid search, using TF-IDF scores only"
+                    "Embedding provider is None in hybrid search, falling back to TF-IDF only"
                 )
+                return self.search(query, top_k, filters)
             else:
                 query_embedding = await self._embedding_provider.embed(query)
                 for skill_id, skill_embedding in self._skill_embeddings.items():
