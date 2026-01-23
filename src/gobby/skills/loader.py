@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404 - required for git clone/pull operations with validated input
 import tempfile
 import zipfile
 from collections.abc import Generator
@@ -219,17 +219,21 @@ def clone_skill_repo(
     if is_existing:
         # Update existing repo
         if ref.branch:
-            # Checkout the specific branch first
+            # Checkout the specific branch first (git command with validated ref)
             checkout_cmd = ["git", "-C", str(repo_path), "checkout", ref.branch]
-            result = subprocess.run(checkout_cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(  # nosec B603 - hardcoded git command, input validated
+                checkout_cmd, capture_output=True, text=True, timeout=60
+            )
             if result.returncode != 0:
                 raise SkillLoadError(
                     f"Failed to checkout branch {ref.branch}: {result.stderr}",
                     ref.clone_url,
                 )
-        # Pull latest changes
+        # Pull latest changes (hardcoded git command)
         pull_cmd = ["git", "-C", str(repo_path), "pull", "--ff-only"]
-        result = subprocess.run(pull_cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(  # nosec B603 - hardcoded git command
+            pull_cmd, capture_output=True, text=True, timeout=120
+        )
         if result.returncode != 0:
             raise SkillLoadError(
                 f"Failed to pull repository updates: {result.stderr}",
@@ -244,7 +248,9 @@ def clone_skill_repo(
             cmd.extend(["--branch", ref.branch])
         cmd.extend([ref.clone_url, str(repo_path)])
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(  # nosec B603 - hardcoded git clone, input validated
+            cmd, capture_output=True, text=True, timeout=120
+        )
 
         if result.returncode != 0:
             raise SkillLoadError(

@@ -114,7 +114,7 @@ class TokenTracker:
                     # already account for cache tokens in cost_per_token. Check if
                     # the response usage includes cached_tokens to avoid double-counting.
 
-                except Exception:
+                except Exception:  # nosec B110 - best effort cache pricing, failure is non-critical
                     # If cache pricing lookup fails, skip cache cost calculation
                     pass
 

@@ -326,7 +326,7 @@ class LiteLLMExecutor(AgentExecutor):
                     try:
                         turn_cost = litellm.completion_cost(response)
                         cost_tracker[0].total_cost += turn_cost
-                    except Exception:
+                    except Exception:  # nosec B110 - best effort cost tracking, failure is non-critical
                         # Cost calculation may fail for some models
                         pass
 
