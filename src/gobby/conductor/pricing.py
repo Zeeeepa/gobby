@@ -87,9 +87,7 @@ class TokenTracker:
                     model_info = litellm.get_model_info(model=model)
 
                     # Check for cache-specific pricing in model info
-                    cache_read_cost_per_token = model_info.get(
-                        "cache_read_input_token_cost"
-                    )
+                    cache_read_cost_per_token = model_info.get("cache_read_input_token_cost")
                     cache_creation_cost_per_token = model_info.get(
                         "cache_creation_input_token_cost"
                     )
@@ -100,9 +98,7 @@ class TokenTracker:
                             total += cache_read_tokens * cache_read_cost_per_token
                         else:
                             # Fallback: cache reads are typically 10% of input cost
-                            input_cost_per_token = model_info.get(
-                                "input_cost_per_token", 0
-                            )
+                            input_cost_per_token = model_info.get("input_cost_per_token", 0)
                             total += cache_read_tokens * input_cost_per_token * 0.1
 
                     if cache_write_tokens > 0:
@@ -111,9 +107,7 @@ class TokenTracker:
                             total += cache_write_tokens * cache_creation_cost_per_token
                         else:
                             # Fallback: cache writes are typically 1.25x input cost
-                            input_cost_per_token = model_info.get(
-                                "input_cost_per_token", 0
-                            )
+                            input_cost_per_token = model_info.get("input_cost_per_token", 0)
                             total += cache_write_tokens * input_cost_per_token * 1.25
 
                     # Note: For Anthropic models with prompt caching, LiteLLM may

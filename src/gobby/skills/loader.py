@@ -185,7 +185,9 @@ def _validate_github_ref(ref: GitHubRef) -> None:
         if not safe_branch_pattern.match(ref.branch):
             raise SkillLoadError(f"Invalid characters in branch name: {ref.branch}")
         # Reject shell metacharacters and path traversal
-        if ".." in ref.branch or any(c in ref.branch for c in ("$", "`", ";", "&", "|", "<", ">", "\\", "\n", "\r")):
+        if ".." in ref.branch or any(
+            c in ref.branch for c in ("$", "`", ";", "&", "|", "<", ">", "\\", "\n", "\r")
+        ):
             raise SkillLoadError(f"Invalid branch name: {ref.branch}")
 
 

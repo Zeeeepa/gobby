@@ -59,7 +59,9 @@ class GeminiProvider(LLMProvider):
             import litellm
 
             self._litellm = litellm
-            self.logger.debug(f"GeminiProvider initialized with LiteLLM (auth_mode={self._auth_mode})")
+            self.logger.debug(
+                f"GeminiProvider initialized with LiteLLM (auth_mode={self._auth_mode})"
+            )
 
         except ImportError:
             self.logger.error(
@@ -235,7 +237,13 @@ class GeminiProvider(LLMProvider):
 
             # Determine media type
             mime_type, _ = mimetypes.guess_type(str(path))
-            if mime_type not in ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]:
+            if mime_type not in [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/heic",
+                "image/heif",
+            ]:
                 mime_type = "image/png"
 
             # Build prompt
@@ -258,9 +266,7 @@ class GeminiProvider(LLMProvider):
                             {"type": "text", "text": prompt},
                             {
                                 "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{image_base64}"
-                                },
+                                "image_url": {"url": f"data:{mime_type};base64,{image_base64}"},
                             },
                         ],
                     }

@@ -124,9 +124,7 @@ class SessionTokenTracker:
             "over_budget": used_today > self.daily_budget_usd,
         }
 
-    def can_spawn_agent(
-        self, estimated_cost: float | None = None
-    ) -> tuple[bool, str | None]:
+    def can_spawn_agent(self, estimated_cost: float | None = None) -> tuple[bool, str | None]:
         """Check if we can spawn an agent based on budget.
 
         Args:

@@ -103,9 +103,7 @@ def setup_provider_env(
         # Vertex AI needs project and location
         # Check if already set, otherwise try common GCP env vars
         if "VERTEXAI_PROJECT" not in os.environ:
-            project = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get(
-                "GCLOUD_PROJECT"
-            )
+            project = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
             if project:
                 os.environ["VERTEXAI_PROJECT"] = project
                 logger.debug(f"Set VERTEXAI_PROJECT from GCP env: {project}")
@@ -322,9 +320,7 @@ class LiteLLMExecutor(AgentExecutor):
                     # Track costs
                     if hasattr(response, "usage") and response.usage:
                         cost_tracker[0].prompt_tokens += response.usage.prompt_tokens or 0
-                        cost_tracker[0].completion_tokens += (
-                            response.usage.completion_tokens or 0
-                        )
+                        cost_tracker[0].completion_tokens += response.usage.completion_tokens or 0
 
                     # Calculate cost using LiteLLM's cost tracking
                     try:

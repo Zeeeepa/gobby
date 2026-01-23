@@ -85,9 +85,7 @@ def add_messaging_tools(
                 priority=priority,
             )
 
-            logger.info(
-                f"Message sent from {session_id} to parent {parent_session_id}: {msg.id}"
-            )
+            logger.info(f"Message sent from {session_id} to parent {parent_session_id}: {msg.id}")
 
             return {
                 "success": True,

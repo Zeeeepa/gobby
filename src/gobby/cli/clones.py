@@ -71,7 +71,9 @@ def list_clones(
         }.get(clone.status, "?")
 
         session_info = f" (session: {clone.agent_session_id[:8]})" if clone.agent_session_id else ""
-        click.echo(f"{status_icon} {clone.id}  {clone.branch_name:<30} {clone.status:<10}{session_info}")
+        click.echo(
+            f"{status_icon} {clone.id}  {clone.branch_name:<30} {clone.status:<10}{session_info}"
+        )
 
 
 @clones.command("create")

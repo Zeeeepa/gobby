@@ -509,9 +509,7 @@ class CloneGitManager:
                         cwd=cwd,
                         timeout=10,
                     )
-                    conflicted_files = [
-                        f for f in status_result.stdout.strip().split("\n") if f
-                    ]
+                    conflicted_files = [f for f in status_result.stdout.strip().split("\n") if f]
 
                     # Abort the merge to leave repo in clean state
                     self._run_git(["merge", "--abort"], cwd=cwd, timeout=10)

@@ -736,9 +736,7 @@ def _migrate_add_skills_table(db: LocalDatabase) -> None:
     Agent Skills specification (agentskills.io) with Gobby-specific extensions.
     """
     # Check if table already exists
-    row = db.fetchone(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='skills'"
-    )
+    row = db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name='skills'")
     if row:
         logger.debug("skills table already exists, skipping")
         return
@@ -795,9 +793,7 @@ def _migrate_add_skills_global_unique_index(db: LocalDatabase) -> None:
         return
 
     # Check if skills table exists (might not if on old version that never created it)
-    row = db.fetchone(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='skills'"
-    )
+    row = db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name='skills'")
     if not row:
         logger.debug("skills table does not exist, skipping")
         return
@@ -816,9 +812,7 @@ def _migrate_add_clones_table(db: LocalDatabase) -> None:
     or isolated environments.
     """
     # Check if table already exists
-    row = db.fetchone(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='clones'"
-    )
+    row = db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name='clones'")
     if row:
         logger.debug("clones table already exists, skipping")
         return

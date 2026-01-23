@@ -103,12 +103,14 @@ class TaskMonitor:
 
                     if updated_at < threshold:
                         hours_stale = (datetime.now(UTC) - updated_at).total_seconds() / 3600
-                        stale_tasks.append({
-                            "task_id": task.id,
-                            "title": task.title,
-                            "updated_at": task.updated_at,
-                            "hours_stale": round(hours_stale, 1),
-                        })
+                        stale_tasks.append(
+                            {
+                                "task_id": task.id,
+                                "title": task.title,
+                                "updated_at": task.updated_at,
+                                "hours_stale": round(hours_stale, 1),
+                            }
+                        )
             except (ValueError, TypeError) as e:
                 logger.warning(f"Could not parse updated_at for task {task.id}: {e}")
                 continue
@@ -135,10 +137,12 @@ class TaskMonitor:
 
         blocked_chains = []
         for task in blocked_tasks:
-            blocked_chains.append({
-                "task_id": task.id,
-                "title": task.title,
-                "status": task.status,
-            })
+            blocked_chains.append(
+                {
+                    "task_id": task.id,
+                    "title": task.title,
+                    "status": task.status,
+                }
+            )
 
         return blocked_chains

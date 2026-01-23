@@ -95,13 +95,15 @@ class AgentWatcher:
 
             if started_at < threshold:
                 minutes_running = (datetime.now(UTC) - started_at).total_seconds() / 60
-                stuck_agents.append({
-                    "run_id": agent.run_id,
-                    "session_id": agent.session_id,
-                    "mode": agent.mode,
-                    "started_at": started_at.isoformat(),
-                    "minutes_running": round(minutes_running, 1),
-                    "provider": getattr(agent, "provider", "unknown"),
-                })
+                stuck_agents.append(
+                    {
+                        "run_id": agent.run_id,
+                        "session_id": agent.session_id,
+                        "mode": agent.mode,
+                        "started_at": started_at.isoformat(),
+                        "minutes_running": round(minutes_running, 1),
+                        "provider": getattr(agent, "provider", "unknown"),
+                    }
+                )
 
         return stuck_agents
