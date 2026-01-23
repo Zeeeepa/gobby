@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
 
 from gobby.config.app import DaemonConfig
+from gobby.mcp_proxy.instructions import build_gobby_instructions
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.services.recommendation import RecommendationService, SearchMode
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
@@ -542,7 +543,7 @@ class GobbyDaemonTools:
 
 def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
     """Create the FastMCP server instance for the HTTP daemon."""
-    mcp = FastMCP("gobby")
+    mcp = FastMCP("gobby", instructions=build_gobby_instructions())
 
     # System tools
     mcp.add_tool(tools_handler.status)

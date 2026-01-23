@@ -22,6 +22,7 @@ from gobby.mcp_proxy.daemon_control import (
     start_daemon_process,
     stop_daemon_process,
 )
+from gobby.mcp_proxy.instructions import build_gobby_instructions
 from gobby.mcp_proxy.registries import setup_internal_registries
 
 __all__ = [
@@ -264,7 +265,7 @@ def create_stdio_mcp_server() -> FastMCP:
     _ = setup_internal_registries(config, session_manager, memory_manager)
 
     # Initialize MCP server and daemon proxy
-    mcp = FastMCP("gobby")
+    mcp = FastMCP("gobby", instructions=build_gobby_instructions())
     proxy = DaemonProxy(config.daemon_port)
 
     register_proxy_tools(mcp, proxy)
