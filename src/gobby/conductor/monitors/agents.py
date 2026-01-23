@@ -89,9 +89,16 @@ class AgentWatcher:
             # Check if agent has been running longer than threshold
             started_at = agent.started_at
 
-            # Ensure timezone-aware comparison
+            # Timezone policy: All timestamps are expected to be in UTC.
+            # If started_at is naive (no tzinfo), log a warning and skip this agent
+            # rather than assume UTC, as the source may be using local time.
             if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=UTC)
+                logger.warning(
+                    f"Agent {agent.run_id} has naive started_at timestamp "
+                    f"({started_at}); skipping stuck detection. "
+                    "Ensure the agent registry stores UTC timestamps."
+                )
+                continue
 
             if started_at < threshold:
                 minutes_running = (datetime.now(UTC) - started_at).total_seconds() / 60

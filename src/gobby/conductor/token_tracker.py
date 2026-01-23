@@ -62,11 +62,12 @@ class SessionTokenTracker:
         usage_by_model: dict[str, dict[str, Any]] = {}
 
         for session in sessions:
-            total_cost += session.usage_total_cost_usd
-            total_input_tokens += session.usage_input_tokens
-            total_output_tokens += session.usage_output_tokens
-            total_cache_creation_tokens += session.usage_cache_creation_tokens
-            total_cache_read_tokens += session.usage_cache_read_tokens
+            # Safely handle None values by defaulting to 0
+            total_cost += session.usage_total_cost_usd or 0
+            total_input_tokens += session.usage_input_tokens or 0
+            total_output_tokens += session.usage_output_tokens or 0
+            total_cache_creation_tokens += session.usage_cache_creation_tokens or 0
+            total_cache_read_tokens += session.usage_cache_read_tokens or 0
 
             # Aggregate by model
             model = session.model or "unknown"
@@ -78,9 +79,9 @@ class SessionTokenTracker:
                     "sessions": 0,
                 }
 
-            usage_by_model[model]["cost"] += session.usage_total_cost_usd
-            usage_by_model[model]["input_tokens"] += session.usage_input_tokens
-            usage_by_model[model]["output_tokens"] += session.usage_output_tokens
+            usage_by_model[model]["cost"] += session.usage_total_cost_usd or 0
+            usage_by_model[model]["input_tokens"] += session.usage_input_tokens or 0
+            usage_by_model[model]["output_tokens"] += session.usage_output_tokens or 0
             usage_by_model[model]["sessions"] += 1
 
         return {

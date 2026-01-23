@@ -141,12 +141,14 @@ def create_clone(
 @clones.command("spawn")
 @click.argument("clone_ref")
 @click.argument("prompt")
+@click.option("--parent-session-id", "-p", "parent_session_id", required=True, help="Parent session ID (required)")
 @click.option("--mode", "-m", default="terminal", help="Agent mode (terminal, embedded, headless)")
 @click.option("--workflow", "-w", help="Workflow to activate")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def spawn_agent(
     clone_ref: str,
     prompt: str,
+    parent_session_id: str,
     mode: str,
     workflow: str | None,
     json_format: bool,
@@ -171,6 +173,7 @@ def spawn_agent(
     arguments = {
         "clone_id": clone_id,
         "prompt": prompt,
+        "parent_session_id": parent_session_id,
         "mode": mode,
     }
 

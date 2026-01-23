@@ -97,9 +97,16 @@ class TaskMonitor:
                     else:
                         updated_at = task.updated_at
 
-                    # Make timezone-aware if needed
+                    # Timezone policy: All timestamps are expected to be stored in UTC.
+                    # If updated_at is naive (no tzinfo), log a warning and skip
+                    # rather than assuming UTC which could cause incorrect staleness detection.
                     if updated_at.tzinfo is None:
-                        updated_at = updated_at.replace(tzinfo=UTC)
+                        logger.warning(
+                            f"Task {task.id} has naive updated_at timestamp "
+                            f"({updated_at}); skipping staleness check. "
+                            "Ensure the task storage stores UTC timestamps."
+                        )
+                        continue
 
                     if updated_at < threshold:
                         hours_stale = (datetime.now(UTC) - updated_at).total_seconds() / 3600
