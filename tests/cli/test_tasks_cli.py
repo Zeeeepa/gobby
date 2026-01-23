@@ -50,7 +50,6 @@ def mock_task():
     task.estimated_subtasks = None
     task.category = None
     task.is_expanded = False
-    task.is_tdd_applied = False
     task.to_dict.return_value = {
         "id": "gt-abc123",
         "title": "Test Task",
