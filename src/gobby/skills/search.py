@@ -1,39 +1,26 @@
-"""Skill search with TF-IDF backend and optional hybrid mode.
+"""Skill search using unified search backend.
 
-This module provides skill search functionality using TF-IDF vectorization
-for relevance ranking. It indexes skills by combining:
-- name
-- description
-- tags (from metadata.skillport.tags)
-- category (from metadata.skillport.category)
+This module provides skill search functionality using the UnifiedSearcher
+for TF-IDF, embedding, or hybrid search with automatic fallback.
 
-The search returns results ranked by cosine similarity to the query.
-
-Hybrid mode (optional):
-- Combines TF-IDF (40%) and embedding (60%) similarity scores
-- Requires an EmbeddingProvider for generating embeddings
-- Falls back to TF-IDF only if embeddings are unavailable
+Features:
+- Indexes skills by name, description, tags, and category
+- Post-search filtering by category and tags
+- Automatic fallback from embedding to TF-IDF when API unavailable
 """
 
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
+
+from gobby.search import SearchConfig, UnifiedSearcher
 
 if TYPE_CHECKING:
-    from gobby.skills.embeddings import EmbeddingProvider
     from gobby.storage.skills import Skill
 
 logger = logging.getLogger(__name__)
-
-# Search modes
-SearchMode = Literal["tfidf", "hybrid"]
-
-# Default weights for hybrid search
-DEFAULT_TFIDF_WEIGHT = 0.4
-DEFAULT_EMBEDDING_WEIGHT = 0.6
 
 
 @dataclass
@@ -86,146 +73,101 @@ class _SkillMeta:
     tags: list[str]
 
 
-def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
-    """Compute cosine similarity between two vectors."""
-    if len(vec1) != len(vec2):
-        return 0.0
-
-    dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=True))
-    norm1 = math.sqrt(sum(a * a for a in vec1))
-    norm2 = math.sqrt(sum(b * b for b in vec2))
-
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-
-    return dot_product / (norm1 * norm2)
-
-
 class SkillSearch:
-    """Search skills using TF-IDF similarity with optional hybrid mode.
+    """Search skills using unified search with automatic fallback.
 
-    This class wraps TFIDFSearcher to provide skill-specific search
-    functionality. It builds search content from multiple skill fields
-    and maintains a mapping from skill IDs to names.
-
-    Supports two modes:
-    - "tfidf" (default): Uses TF-IDF similarity only
-    - "hybrid": Combines TF-IDF (40%) and embedding (60%) similarity
+    Uses UnifiedSearcher to provide skill search with:
+    - TF-IDF mode (always available)
+    - Embedding mode (requires API key)
+    - Auto mode (embedding with TF-IDF fallback)
+    - Hybrid mode (combines both with weighted scores)
 
     Example usage:
         ```python
         from gobby.skills.search import SkillSearch
-        from gobby.storage.skills import LocalSkillManager
+        from gobby.search import SearchConfig
 
-        # Basic TF-IDF search
-        search = SkillSearch()
-        skills = skill_manager.list_skills()
-        search.index_skills(skills)
-        results = search.search("git commit", top_k=5)
-
-        # Hybrid search with embeddings
-        from gobby.skills.embeddings import get_embedding_provider
-        provider = get_embedding_provider()
-        search = SkillSearch(mode="hybrid", embedding_provider=provider)
+        # Basic auto mode (embedding with fallback)
+        config = SearchConfig(mode="auto")
+        search = SkillSearch(config)
         await search.index_skills_async(skills)
         results = await search.search_async("git commit", top_k=5)
+
+        # Check if using fallback
+        if search.is_using_fallback():
+            print(f"Using TF-IDF fallback: {search.get_fallback_reason()}")
         ```
     """
 
     def __init__(
         self,
-        ngram_range: tuple[int, int] = (1, 2),
-        max_features: int = 5000,
-        min_df: int = 1,
+        config: SearchConfig | None = None,
         refit_threshold: int = 10,
-        mode: SearchMode = "tfidf",
-        embedding_provider: EmbeddingProvider | None = None,
-        tfidf_weight: float = DEFAULT_TFIDF_WEIGHT,
-        embedding_weight: float = DEFAULT_EMBEDDING_WEIGHT,
+        # Backwards compatibility parameters (deprecated)
+        ngram_range: tuple[int, int] | None = None,
+        max_features: int | None = None,
+        min_df: int | None = None,
+        mode: str | None = None,
+        embedding_provider: Any | None = None,
+        tfidf_weight: float | None = None,
+        embedding_weight: float | None = None,
     ):
         """Initialize skill search.
 
         Args:
-            ngram_range: Min/max n-gram sizes for tokenization
-            max_features: Maximum vocabulary size
-            min_df: Minimum document frequency for inclusion
+            config: Search configuration (defaults to auto mode)
             refit_threshold: Number of updates before automatic refit
-            mode: Search mode - "tfidf" or "hybrid"
-            embedding_provider: Provider for generating embeddings (required for hybrid)
-            tfidf_weight: Weight for TF-IDF score in hybrid mode (default: 0.4)
-            embedding_weight: Weight for embedding score in hybrid mode (default: 0.6)
+            ngram_range: Deprecated, ignored
+            max_features: Deprecated, ignored
+            min_df: Deprecated, ignored
+            mode: Deprecated, use config.mode instead
+            embedding_provider: Deprecated, not used with UnifiedSearcher
+            tfidf_weight: Deprecated, use config.tfidf_weight instead
+            embedding_weight: Deprecated, use config.embedding_weight instead
         """
-        self._ngram_range = ngram_range
-        self._max_features = max_features
-        self._min_df = min_df
+        # Handle backwards compatibility
+        if config is None:
+            config = SearchConfig(
+                mode=mode or "auto",
+                tfidf_weight=tfidf_weight if tfidf_weight is not None else 0.4,
+                embedding_weight=embedding_weight if embedding_weight is not None else 0.6,
+            )
+
+        # Log deprecation warnings for old params
+        if any([ngram_range, max_features, min_df]):
+            logger.debug("ngram_range, max_features, min_df parameters are deprecated and ignored")
+        if embedding_provider is not None:
+            logger.debug("embedding_provider parameter is deprecated; UnifiedSearcher handles embedding")
+
+        self._config = config
         self._refit_threshold = refit_threshold
 
-        # Hybrid mode settings
-        self._mode: SearchMode = mode
-        self._embedding_provider = embedding_provider
+        # Initialize unified searcher
+        self._searcher = UnifiedSearcher(self._config)
 
-        # Validate weights are non-negative
-        if tfidf_weight < 0 or embedding_weight < 0:
-            raise ValueError(
-                f"Weights must be non-negative: tfidf_weight={tfidf_weight}, "
-                f"embedding_weight={embedding_weight}"
-            )
-
-        # Normalize weights to sum to 1
-        total_weight = tfidf_weight + embedding_weight
-        if total_weight == 0:
-            logger.warning(
-                f"Both tfidf_weight ({tfidf_weight}) and embedding_weight ({embedding_weight}) "
-                "are zero; using defaults"
-            )
-            self._tfidf_weight = DEFAULT_TFIDF_WEIGHT
-            self._embedding_weight = DEFAULT_EMBEDDING_WEIGHT
-        else:
-            self._tfidf_weight = tfidf_weight / total_weight
-            self._embedding_weight = embedding_weight / total_weight
-
-        # Internal state
-        self._searcher: Any = None  # TFIDFSearcher, lazy loaded
+        # Skill metadata tracking
         self._skill_names: dict[str, str] = {}  # skill_id -> skill_name
-        self._skill_meta: dict[str, _SkillMeta] = {}  # skill_id -> metadata for filtering
-        self._skill_embeddings: dict[str, list[float]] = {}  # skill_id -> embedding
-        self._skill_content: dict[str, str] = {}  # skill_id -> search content (for embedding)
+        self._skill_meta: dict[str, _SkillMeta] = {}  # skill_id -> metadata
+        self._skill_items: list[tuple[str, str]] = []  # (skill_id, content) for reindexing
+
+        # State tracking
         self._indexed = False
-        self._embeddings_indexed = False
         self._pending_updates = 0
 
     @property
-    def mode(self) -> SearchMode:
+    def mode(self) -> str:
         """Return the current search mode."""
-        return self._mode
-
-    @mode.setter
-    def mode(self, value: SearchMode) -> None:
-        """Set the search mode."""
-        self._mode = value
+        return self._config.mode
 
     @property
     def tfidf_weight(self) -> float:
         """Return the TF-IDF weight for hybrid search."""
-        return self._tfidf_weight
+        return self._config.tfidf_weight
 
     @property
     def embedding_weight(self) -> float:
         """Return the embedding weight for hybrid search."""
-        return self._embedding_weight
-
-    def _ensure_searcher(self) -> Any:
-        """Create or return the TF-IDF searcher."""
-        if self._searcher is None:
-            from gobby.search.tfidf import TFIDFSearcher
-
-            self._searcher = TFIDFSearcher(
-                ngram_range=self._ngram_range,
-                max_features=self._max_features,
-                min_df=self._min_df,
-                refit_threshold=self._refit_threshold,
-            )
-        return self._searcher
+        return self._config.embedding_weight
 
     def _build_search_content(self, skill: Skill) -> str:
         """Build searchable content from skill fields.
@@ -257,7 +199,22 @@ class SkillSearch:
         return " ".join(parts)
 
     def index_skills(self, skills: list[Skill]) -> None:
+        """Build search index from skills (sync, TF-IDF only).
+
+        For embedding/hybrid modes, use index_skills_async() instead.
+
+        Args:
+            skills: List of skills to index
+        """
+        import asyncio
+
+        asyncio.get_event_loop().run_until_complete(self.index_skills_async(skills))
+
+    async def index_skills_async(self, skills: list[Skill]) -> None:
         """Build search index from skills.
+
+        Indexes skills using the configured search mode (auto, tfidf,
+        embedding, or hybrid).
 
         Args:
             skills: List of skills to index
@@ -265,12 +222,12 @@ class SkillSearch:
         if not skills:
             self._skill_names.clear()
             self._skill_meta.clear()
+            self._skill_items = []
             self._indexed = False
             self._pending_updates = 0
+            self._searcher.clear()
             logger.debug("Skill search index cleared (no skills)")
             return
-
-        searcher = self._ensure_searcher()
 
         # Build (skill_id, content) tuples and metadata
         items: list[tuple[str, str]] = []
@@ -287,47 +244,14 @@ class SkillSearch:
                 tags=skill.get_tags(),
             )
 
-        searcher.fit(items)
+        # Store for potential reindexing
+        self._skill_items = items
+
+        # Index using unified searcher
+        await self._searcher.fit_async(items)
         self._indexed = True
         self._pending_updates = 0
         logger.info(f"Skill search index built with {len(skills)} skills")
-
-    async def index_skills_async(self, skills: list[Skill]) -> None:
-        """Build search index from skills with embeddings for hybrid mode.
-
-        This method indexes skills for both TF-IDF and embedding-based search.
-        If no embedding provider is available, only TF-IDF is indexed.
-
-        Args:
-            skills: List of skills to index
-        """
-        # Always do TF-IDF indexing first
-        self.index_skills(skills)
-
-        # Generate embeddings if provider is available and mode is hybrid
-        if self._mode == "hybrid" and self._embedding_provider is not None:
-            try:
-                # Build content for embedding
-                texts = []
-                skill_ids = []
-                for skill in skills:
-                    content = self._build_search_content(skill)
-                    texts.append(content)
-                    skill_ids.append(skill.id)
-                    self._skill_content[skill.id] = content
-
-                # Generate embeddings in batch
-                embeddings = await self._embedding_provider.embed_batch(texts)
-
-                # Store embeddings
-                for skill_id, embedding in zip(skill_ids, embeddings, strict=True):
-                    self._skill_embeddings[skill_id] = embedding
-
-                self._embeddings_indexed = True
-                logger.info(f"Generated embeddings for {len(skills)} skills")
-            except Exception as e:
-                logger.warning(f"Failed to generate embeddings, falling back to TF-IDF: {e}")
-                self._embeddings_indexed = False
 
     async def search_async(
         self,
@@ -335,89 +259,10 @@ class SkillSearch:
         top_k: int = 10,
         filters: SearchFilters | None = None,
     ) -> list[SkillSearchResult]:
-        """Search for skills using hybrid mode (TF-IDF + embeddings).
-
-        Falls back to TF-IDF only if embeddings are unavailable.
-
-        Args:
-            query: Search query text
-            top_k: Maximum number of results to return
-            filters: Optional filters to apply after ranking
-
-        Returns:
-            List of SkillSearchResult objects, sorted by similarity descending
-        """
-        # If not in hybrid mode or no embeddings, use regular search
-        if self._mode != "hybrid" or not self._embeddings_indexed:
-            return self.search(query, top_k, filters)
-
-        if not self._indexed or self._searcher is None:
-            return []
-
-        try:
-            # Get TF-IDF scores
-            search_limit = top_k * 3 if filters else top_k
-            tfidf_results = self._searcher.search(query, top_k=search_limit)
-            tfidf_scores = dict(tfidf_results)
-
-            # Get embedding similarity scores (with null check)
-            embedding_scores: dict[str, float] = {}
-            if self._embedding_provider is None:
-                # No embedding provider available - fall back to TF-IDF only results
-                # to avoid incorrectly downweighting TF-IDF scores
-                logger.warning(
-                    "Embedding provider is None in hybrid search, falling back to TF-IDF only"
-                )
-                return self.search(query, top_k, filters)
-            else:
-                query_embedding = await self._embedding_provider.embed(query)
-                for skill_id, skill_embedding in self._skill_embeddings.items():
-                    similarity = _cosine_similarity(query_embedding, skill_embedding)
-                    embedding_scores[skill_id] = similarity
-
-            # Combine scores with weights
-            all_skill_ids = set(tfidf_scores.keys()) | set(embedding_scores.keys())
-            combined_scores = {}
-            for skill_id in all_skill_ids:
-                tfidf_score = tfidf_scores.get(skill_id, 0.0)
-                emb_score = embedding_scores.get(skill_id, 0.0)
-                combined = (self._tfidf_weight * tfidf_score) + (self._embedding_weight * emb_score)
-                combined_scores[skill_id] = combined
-
-            # Sort by combined score
-            sorted_results = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)
-
-            # Build results with filtering
-            results = []
-            for skill_id, similarity in sorted_results:
-                if filters and not self._passes_filters(skill_id, filters):
-                    continue
-
-                skill_name = self._skill_names.get(skill_id, skill_id)
-                results.append(
-                    SkillSearchResult(
-                        skill_id=skill_id,
-                        skill_name=skill_name,
-                        similarity=similarity,
-                    )
-                )
-
-                if len(results) >= top_k:
-                    break
-
-            return results
-        except Exception as e:
-            logger.warning(f"Hybrid search failed, falling back to TF-IDF: {e}")
-            return self.search(query, top_k, filters)
-
-    def search(
-        self,
-        query: str,
-        top_k: int = 10,
-        filters: SearchFilters | None = None,
-    ) -> list[SkillSearchResult]:
         """Search for skills matching the query.
 
+        Uses the configured search mode with automatic fallback.
+
         Args:
             query: Search query text
             top_k: Maximum number of results to return
@@ -426,16 +271,16 @@ class SkillSearch:
         Returns:
             List of SkillSearchResult objects, sorted by similarity descending
         """
-        if not self._indexed or self._searcher is None:
+        if not self._indexed:
             return []
 
-        # Get more results than top_k if filtering, since filters reduce the set
+        # Get more results than top_k if filtering
         search_limit = top_k * 3 if filters else top_k
-        raw_results = self._searcher.search(query, top_k=search_limit)
+        raw_results = await self._searcher.search_async(query, top_k=search_limit)
 
+        # Build results with filtering
         results = []
         for skill_id, similarity in raw_results:
-            # Apply filters if provided
             if filters and not self._passes_filters(skill_id, filters):
                 continue
 
@@ -448,11 +293,34 @@ class SkillSearch:
                 )
             )
 
-            # Stop once we have enough results
             if len(results) >= top_k:
                 break
 
         return results
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: SearchFilters | None = None,
+    ) -> list[SkillSearchResult]:
+        """Search for skills matching the query (sync wrapper).
+
+        For async usage, prefer search_async().
+
+        Args:
+            query: Search query text
+            top_k: Maximum number of results to return
+            filters: Optional filters to apply after ranking
+
+        Returns:
+            List of SkillSearchResult objects, sorted by similarity descending
+        """
+        import asyncio
+
+        return asyncio.get_event_loop().run_until_complete(
+            self.search_async(query, top_k, filters)
+        )
 
     def _passes_filters(self, skill_id: str, filters: SearchFilters) -> bool:
         """Check if a skill passes the given filters.
@@ -488,12 +356,6 @@ class SkillSearch:
     def add_skill(self, skill: Skill) -> None:
         """Mark that a skill was added (requires reindex).
 
-        This tracks the update but doesn't immediately reindex.
-        Call index_skills() when needs_reindex() returns True.
-
-        For hybrid mode, embeddings are invalidated and will be regenerated
-        on the next call to index_skills_async().
-
         Args:
             skill: The skill that was added
         """
@@ -504,17 +366,10 @@ class SkillSearch:
             category=skill.get_category(),
             tags=skill.get_tags(),
         )
-        # Invalidate embeddings for hybrid mode - new skill needs embedding
-        if self._mode == "hybrid":
-            self._embeddings_indexed = False
-            # Store content for later embedding generation
-            self._skill_content[skill.id] = self._build_search_content(skill)
+        self._searcher.mark_update()
 
     def update_skill(self, skill: Skill) -> None:
         """Mark that a skill was updated (requires reindex).
-
-        For hybrid mode, embeddings are invalidated and will be regenerated
-        on the next call to index_skills_async().
 
         Args:
             skill: The skill that was updated
@@ -526,12 +381,7 @@ class SkillSearch:
             category=skill.get_category(),
             tags=skill.get_tags(),
         )
-        # Invalidate embeddings for hybrid mode - updated skill needs new embedding
-        if self._mode == "hybrid":
-            self._embeddings_indexed = False
-            # Remove stale embedding and update content for later regeneration
-            self._skill_embeddings.pop(skill.id, None)
-            self._skill_content[skill.id] = self._build_search_content(skill)
+        self._searcher.mark_update()
 
     def remove_skill(self, skill_id: str) -> None:
         """Mark that a skill was removed (requires reindex).
@@ -542,8 +392,7 @@ class SkillSearch:
         self._pending_updates += 1
         self._skill_names.pop(skill_id, None)
         self._skill_meta.pop(skill_id, None)
-        self._skill_embeddings.pop(skill_id, None)
-        self._skill_content.pop(skill_id, None)
+        self._searcher.mark_update()
 
     def needs_reindex(self) -> bool:
         """Check if the search index needs rebuilding.
@@ -553,7 +402,31 @@ class SkillSearch:
         """
         if not self._indexed:
             return True
-        return self._pending_updates >= self._refit_threshold
+        return self._pending_updates >= self._refit_threshold or self._searcher.needs_refit()
+
+    def is_using_fallback(self) -> bool:
+        """Check if search is using TF-IDF fallback.
+
+        Returns:
+            True if using TF-IDF due to embedding failure
+        """
+        return self._searcher.is_using_fallback()
+
+    def get_fallback_reason(self) -> str | None:
+        """Get the reason for fallback, if any.
+
+        Returns:
+            Human-readable fallback reason, or None if not using fallback
+        """
+        return self._searcher.get_fallback_reason()
+
+    def get_active_backend(self) -> str:
+        """Get the name of the currently active backend.
+
+        Returns:
+            One of "tfidf", "embedding", "hybrid", or "none"
+        """
+        return self._searcher.get_active_backend()
 
     def get_stats(self) -> dict[str, Any]:
         """Get statistics about the search index.
@@ -566,24 +439,21 @@ class SkillSearch:
             "skill_count": len(self._skill_names),
             "pending_updates": self._pending_updates,
             "refit_threshold": self._refit_threshold,
+            "active_backend": self.get_active_backend(),
+            "using_fallback": self.is_using_fallback(),
         }
 
-        if self._searcher is not None:
-            searcher_stats = self._searcher.get_stats()
-            stats["vocabulary_size"] = searcher_stats.get("vocabulary_size")
-            stats["ngram_range"] = self._ngram_range
-            stats["max_features"] = self._max_features
+        # Add unified searcher stats
+        searcher_stats = self._searcher.get_stats()
+        stats.update(searcher_stats)
 
         return stats
 
     def clear(self) -> None:
         """Clear the search index."""
-        if self._searcher is not None:
-            self._searcher.clear()
+        self._searcher.clear()
         self._skill_names.clear()
         self._skill_meta.clear()
-        self._skill_embeddings.clear()
-        self._skill_content.clear()
+        self._skill_items = []
         self._indexed = False
-        self._embeddings_indexed = False
         self._pending_updates = 0

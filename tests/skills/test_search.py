@@ -283,18 +283,18 @@ class TestSkillSearch:
 
     def test_custom_parameters(self, sample_skills):
         """Test creating search with custom parameters."""
+        from gobby.search import SearchConfig
+
+        config = SearchConfig(mode="tfidf", tfidf_weight=0.5, embedding_weight=0.5)
         search = SkillSearch(
-            ngram_range=(1, 3),
-            max_features=1000,
-            min_df=1,
+            config=config,
             refit_threshold=5,
         )
         search.index_skills(sample_skills)
 
         stats = search.get_stats()
-        assert stats["ngram_range"] == (1, 3)
-        assert stats["max_features"] == 1000
         assert stats["refit_threshold"] == 5
+        assert stats["mode"] == "tfidf"
 
 
 class TestSkillSearchIntegration:

@@ -67,6 +67,14 @@ gobby-tasks:
     escalation_enabled: true # Enable task escalation on failures
     escalation_notify: none # Notification method: webhook, slack, or none
     # escalation_webhook_url: null  # Webhook URL for escalation notifications
+search:
+  mode: auto  # tfidf, embedding, auto, hybrid
+  embedding_model: text-embedding-3-small
+  # For Ollama: set embedding_model: openai/nomic-embed-text
+  # embedding_api_base: http://localhost:11434/v1
+  tfidf_weight: 0.4
+  embedding_weight: 0.6
+  notify_on_fallback: true
 llm_providers:
   claude:
     models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
