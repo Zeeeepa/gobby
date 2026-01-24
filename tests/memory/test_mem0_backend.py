@@ -20,6 +20,19 @@ import pytest
 
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
 
+# Check if mem0ai is available (optional dependency due to CVE-2026-0994)
+try:
+    import mem0  # noqa: F401
+
+    MEM0_AVAILABLE = True
+except ImportError:
+    MEM0_AVAILABLE = False
+
+pytestmark = pytest.mark.skipif(
+    not MEM0_AVAILABLE,
+    reason="mem0ai package not installed (optional dependency)",
+)
+
 # =============================================================================
 # Test: Mem0Backend Import and Factory
 # =============================================================================

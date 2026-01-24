@@ -67,6 +67,8 @@ class HTTPServer:
         agent_runner: Any | None = None,
         worktree_storage: Any | None = None,
         clone_storage: Any | None = None,
+        git_manager: Any | None = None,
+        project_id: str | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -108,6 +110,8 @@ class HTTPServer:
         self.agent_runner = agent_runner
         self.worktree_storage = worktree_storage
         self.clone_storage = clone_storage
+        self.git_manager = git_manager
+        self.project_id = project_id
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -174,10 +178,10 @@ class HTTPServer:
                 agent_runner=self.agent_runner,
                 worktree_storage=self.worktree_storage,
                 clone_storage=self.clone_storage,
-                git_manager=None,  # Created per-project, not at daemon startup
+                git_manager=self.git_manager,
                 merge_storage=merge_storage,
                 merge_resolver=merge_resolver,
-                project_id=None,  # Project-specific, not global
+                project_id=self.project_id,
                 tool_proxy_getter=tool_proxy_getter,
                 inter_session_message_manager=inter_session_message_manager,
             )

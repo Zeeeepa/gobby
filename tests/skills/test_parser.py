@@ -410,7 +410,7 @@ docs: update API documentation
         )
         assert skill.license == "MIT"
         assert skill.compatibility == "Requires git CLI"
-        assert skill.version == "1.0"
+        assert skill.version == "1.0.0"
         assert skill.allowed_tools == ["Bash(git:*)"]
         assert skill.metadata["author"] == "anthropic"
         assert skill.get_category() == "git"

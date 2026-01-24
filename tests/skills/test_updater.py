@@ -83,7 +83,7 @@ class TestSkillUpdaterLocalUpdate:
         (skill_dir / "SKILL.md").write_text("""---
 name: local-skill
 description: A local skill v2.0
-version: "2.0"
+version: "2.0.0"
 ---
 
 # Local Skill
@@ -184,7 +184,7 @@ class TestSkillUpdaterGitHubUpdate:
         (repo_dir / "SKILL.md").write_text("""---
 name: github-skill
 description: GitHub skill v2.0
-version: "2.0"
+version: "2.0.0"
 ---
 
 # GitHub Skill

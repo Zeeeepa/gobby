@@ -32,6 +32,7 @@ from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.logging import setup_file_logging
 from gobby.utils.machine_id import get_machine_id
+from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -163,6 +164,23 @@ class GobbyRunner:
         # Initialize Clone Storage (local git clones for isolated development)
         self.clone_storage = LocalCloneManager(self.database)
 
+        # Initialize Git Manager for current project (if in a git repo)
+        self.git_manager: WorktreeGitManager | None = None
+        self.project_id: str | None = None
+        try:
+            cwd = Path.cwd()
+            project_json = cwd / ".gobby" / "project.json"
+            if project_json.exists():
+                import json
+
+                project_data = json.loads(project_json.read_text())
+                repo_path = project_data.get("repo_path", str(cwd))
+                self.project_id = project_data.get("id")
+                self.git_manager = WorktreeGitManager(repo_path)
+                logger.info(f"Git manager initialized for project: {self.project_id}")
+        except Exception as e:
+            logger.debug(f"Could not initialize git manager: {e}")
+
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
         self.executor_registry = ExecutorRegistry(config=self.config)
@@ -213,6 +231,8 @@ class GobbyRunner:
             agent_runner=self.agent_runner,
             worktree_storage=self.worktree_storage,
             clone_storage=self.clone_storage,
+            git_manager=self.git_manager,
+            project_id=self.project_id,
         )
 
         # Ensure message_processor property is set (redundant but explicit):

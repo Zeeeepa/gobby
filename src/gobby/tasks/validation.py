@@ -689,7 +689,26 @@ class TaskValidator:
                 system_prompt=self.config.criteria_system_prompt,
                 model=self.config.model,
             )
-            return response.strip()
+            llm_result = response.strip()
+
+            # Inject pattern criteria if labels provided
+            if labels:
+                from gobby.config.tasks import PatternCriteriaConfig
+
+                pattern_config = PatternCriteriaConfig()
+                pattern_sections = []
+
+                for label in labels:
+                    if label in pattern_config.patterns:
+                        criteria_list = pattern_config.patterns[label]
+                        section = f"\n\n## {label.title().replace('-', ' ')} Pattern Criteria\n"
+                        section += "\n".join(f"- [ ] {c}" for c in criteria_list)
+                        pattern_sections.append(section)
+
+                if pattern_sections:
+                    llm_result += "".join(pattern_sections)
+
+            return llm_result
         except Exception as e:
             logger.error(f"Failed to generate validation criteria: {e}")
             return None

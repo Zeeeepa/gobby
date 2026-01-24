@@ -207,6 +207,40 @@ def e2e_project_dir() -> Generator[Path]:
         gobby_dir = project_dir / ".gobby"
         gobby_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize git repository for clone/worktree tests
+        subprocess.run(
+            ["git", "init"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        # Create initial commit (needed for worktree/clone operations)
+        (project_dir / "README.md").write_text("# E2E Test Project\n")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+
         # Create project.json
         project_json = gobby_dir / "project.json"
         project_json.write_text(
