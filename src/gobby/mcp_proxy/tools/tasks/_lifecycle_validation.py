@@ -79,8 +79,9 @@ def validate_commit_requirements(
                 error_type="no_commits_linked",
                 message=(
                     "Cannot close task: no commits are linked. Either:\n"
-                    "1. Commit your changes and use link_commit() or include [task_id] in commit message\n"
-                    "2. Set no_commit_needed=True with override_justification if this task didn't require code changes"
+                    "1. Commit your changes and use close_task(task_id, commit_sha='...') to link and close in one call\n"
+                    "2. Include [#N] in your commit message for auto-linking, then call close_task\n"
+                    "3. Set no_commit_needed=True with override_justification if this task didn't require code changes"
                 ),
             )
 

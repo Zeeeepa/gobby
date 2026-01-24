@@ -229,7 +229,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="close_task",
-        description="Close a task. Commits should use [#N] format (e.g., git commit -m '[#42] feat: add feature'). Requires commits to be linked (auto-detected from commit message or use link_commit). Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
+        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
         input_schema={
             "type": "object",
             "properties": {
@@ -281,7 +281,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "commit_sha": {
                     "type": "string",
-                    "description": "Git commit SHA to link before closing. Convenience for commit + close in one call.",
+                    "description": "RECOMMENDED: Git commit SHA to link and close in one call. Use this instead of separate link_commit + close_task calls.",
                     "default": None,
                 },
             },
