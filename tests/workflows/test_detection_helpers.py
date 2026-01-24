@@ -202,15 +202,23 @@ class TestDetectPlanModeFromContext:
 
 
 # =============================================================================
-# Tests for detect_task_claim - close_task error handling
+# Tests for detect_task_claim - close_task behavior
 # =============================================================================
 
 
-class TestDetectTaskClaimCloseTaskErrors:
-    """Tests for detect_task_claim function, specifically close_task error handling."""
+class TestDetectTaskClaimCloseTaskBehavior:
+    """Tests for detect_task_claim close_task behavior.
 
-    def test_clears_task_claim_on_successful_close(self, workflow_state, make_after_tool_event):
-        """Successfully closing claimed task clears task_claimed."""
+    Note: close_task handling has been moved to the MCP proxy (_lifecycle.py) because
+    Claude Code doesn't include tool_result in post-tool-use hooks, making it impossible
+    to verify if close_task succeeded in the detection code. The MCP proxy updates
+    the workflow state directly when close_task succeeds.
+
+    These tests verify that detect_task_claim correctly IGNORES close_task calls.
+    """
+
+    def test_ignores_close_task_calls(self, workflow_state, make_after_tool_event):
+        """close_task calls should be ignored - state update happens in MCP proxy."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
 
@@ -226,18 +234,15 @@ class TestDetectTaskClaimCloseTaskErrors:
 
         detect_task_claim(event, workflow_state)
 
-        assert workflow_state.variables.get("task_claimed") is False
-        assert workflow_state.variables.get("claimed_task_id") is None
+        # Task claim should NOT be changed by detection code - MCP proxy handles this
+        assert workflow_state.variables.get("task_claimed") is True
+        assert workflow_state.variables.get("claimed_task_id") == "task-123"
 
-    def test_does_not_clear_task_claim_on_close_error(
-        self, workflow_state, make_after_tool_event
-    ):
-        """close_task with error response should NOT clear task_claimed."""
+    def test_ignores_close_task_with_error(self, workflow_state, make_after_tool_event):
+        """close_task with error should also be ignored."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
 
-        # This is the critical test case - close_task returns success at MCP level
-        # but the result contains an error (e.g., uncommitted_changes)
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
             tool_input={
@@ -256,74 +261,7 @@ class TestDetectTaskClaimCloseTaskErrors:
 
         detect_task_claim(event, workflow_state)
 
-        # Task claim should NOT be cleared because close_task failed
-        assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
-
-    def test_does_not_clear_task_claim_on_top_level_error(
-        self, workflow_state, make_after_tool_event
-    ):
-        """close_task with top-level error should NOT clear task_claimed."""
-        workflow_state.variables["task_claimed"] = True
-        workflow_state.variables["claimed_task_id"] = "task-123"
-
-        event = make_after_tool_event(
-            "mcp__gobby__call_tool",
-            tool_input={
-                "server_name": "gobby-tasks",
-                "tool_name": "close_task",
-                "arguments": {"task_id": "task-123"},
-            },
-            tool_output={"error": "server_error", "message": "Internal error"},
-        )
-
-        detect_task_claim(event, workflow_state)
-
-        # Task claim should NOT be cleared because close_task failed
-        assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
-
-    def test_does_not_clear_task_claim_on_status_error(
-        self, workflow_state, make_after_tool_event
-    ):
-        """close_task with status=error should NOT clear task_claimed."""
-        workflow_state.variables["task_claimed"] = True
-        workflow_state.variables["claimed_task_id"] = "task-123"
-
-        event = make_after_tool_event(
-            "mcp__gobby__call_tool",
-            tool_input={
-                "server_name": "gobby-tasks",
-                "tool_name": "close_task",
-                "arguments": {"task_id": "task-123"},
-            },
-            tool_output={"status": "error", "message": "Failed to close task"},
-        )
-
-        detect_task_claim(event, workflow_state)
-
-        # Task claim should NOT be cleared because close_task failed
-        assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
-
-    def test_does_not_clear_different_task(self, workflow_state, make_after_tool_event):
-        """Closing a different task should NOT clear the claimed task."""
-        workflow_state.variables["task_claimed"] = True
-        workflow_state.variables["claimed_task_id"] = "task-123"
-
-        event = make_after_tool_event(
-            "mcp__gobby__call_tool",
-            tool_input={
-                "server_name": "gobby-tasks",
-                "tool_name": "close_task",
-                "arguments": {"task_id": "task-456"},  # Different task
-            },
-            tool_output={"success": True, "result": {"id": "task-456", "status": "done"}},
-        )
-
-        detect_task_claim(event, workflow_state)
-
-        # Task claim should NOT be cleared because we closed a different task
+        # Task claim should remain unchanged
         assert workflow_state.variables.get("task_claimed") is True
         assert workflow_state.variables.get("claimed_task_id") == "task-123"
 

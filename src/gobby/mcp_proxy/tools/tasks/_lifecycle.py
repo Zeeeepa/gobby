@@ -194,6 +194,19 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             except Exception:
                 pass  # nosec B110 - best-effort linking, don't fail the close
 
+        # Clear workflow task_claimed state if this was the claimed task
+        # This is done here because Claude Code's post-tool-use hook doesn't include
+        # the tool result, so the detection_helpers can't verify close succeeded
+        if session_id:
+            try:
+                state = ctx.workflow_state_manager.get_state(session_id)
+                if state and state.variables.get("claimed_task_id") == resolved_id:
+                    state.variables["task_claimed"] = False
+                    state.variables["claimed_task_id"] = None
+                    ctx.workflow_state_manager.save_state(state)
+            except Exception:
+                pass  # nosec B110 - best-effort state update
+
         # Update worktree status based on closure reason (case-insensitive)
         try:
             reason_normalized = reason.lower()

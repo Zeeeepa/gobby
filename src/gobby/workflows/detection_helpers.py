@@ -44,7 +44,8 @@ def detect_task_claim(
 
     tool_name = event.data.get("tool_name", "")
     tool_input = event.data.get("tool_input", {}) or {}
-    tool_output = event.data.get("tool_output", {}) or {}
+    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
+    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
 
     # Check if this is a gobby-tasks call via MCP proxy
     # Tool name could be "call_tool" (from legacy) or "mcp__gobby__call_tool" (direct)
@@ -57,8 +58,11 @@ def detect_task_claim(
         return
 
     # Check inner tool name
+    # Note: close_task is NOT handled here because Claude Code doesn't include tool_result
+    # in post-tool-use hooks, so we can't verify if close succeeded. The workflow state
+    # is updated directly in the MCP proxy's close_task function instead.
     inner_tool_name = tool_input.get("tool_name", "")
-    if inner_tool_name not in ("create_task", "update_task", "claim_task", "close_task"):
+    if inner_tool_name not in ("create_task", "update_task", "claim_task"):
         return
 
     # For update_task, only count if status is being set to in_progress
@@ -67,52 +71,6 @@ def detect_task_claim(
         if arguments.get("status") != "in_progress":
             return
     # claim_task always counts (it sets status to in_progress internally)
-
-    # For close_task, we'll clear task_claimed after success check
-    is_close_task = inner_tool_name == "close_task"
-
-    # Handle close_task separately - verify it succeeded before clearing task_claimed
-    # This is critical: we must NOT clear task_claimed if close_task failed with an error
-    if is_close_task:
-        # First verify close_task actually succeeded (not an error response)
-        # MCP proxy returns: {"success": true, "result": {"error": "...", "message": "..."}}
-        # when the tool executes but the operation fails (e.g., uncommitted_changes)
-        if isinstance(tool_output, dict):
-            # Check for top-level error
-            if tool_output.get("error") or tool_output.get("status") == "error":
-                logger.debug(
-                    f"Session {state.session_id}: close_task failed (top-level error), "
-                    f"NOT clearing task_claimed"
-                )
-                return
-            # Check for nested error in MCP proxy response (e.g., uncommitted_changes)
-            result = tool_output.get("result", {})
-            if isinstance(result, dict) and result.get("error"):
-                logger.debug(
-                    f"Session {state.session_id}: close_task failed with error "
-                    f"'{result.get('error')}', NOT clearing task_claimed"
-                )
-                return
-
-        # close_task succeeded - now clear the claim only if closing the claimed task
-        arguments = tool_input.get("arguments", {}) or {}
-        closed_task_id = arguments.get("task_id")
-        claimed_task_id = state.variables.get("claimed_task_id")
-
-        # Only clear task_claimed if we're closing the task that was claimed
-        if closed_task_id and claimed_task_id and closed_task_id == claimed_task_id:
-            state.variables["task_claimed"] = False
-            state.variables["claimed_task_id"] = None
-            logger.info(
-                f"Session {state.session_id}: task_claimed=False "
-                f"(claimed task {closed_task_id} closed via close_task)"
-            )
-        else:
-            logger.debug(
-                f"Session {state.session_id}: close_task for {closed_task_id} "
-                f"(claimed: {claimed_task_id}) - not clearing task_claimed"
-            )
-        return
 
     # Check if the call succeeded (not an error) - for non-close_task operations
     # tool_output structure varies, but errors typically have "error" key
@@ -257,7 +215,8 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
 
     tool_name = event.data.get("tool_name", "")
     tool_input = event.data.get("tool_input", {}) or {}
-    tool_output = event.data.get("tool_output", {}) or {}
+    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
+    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
 
     # Check for MCP proxy call
     if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
