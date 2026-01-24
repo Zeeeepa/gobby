@@ -15,7 +15,12 @@ from .audit_helpers import (
     log_transition,
 )
 from .definitions import WorkflowDefinition, WorkflowState
-from .detection_helpers import detect_mcp_call, detect_plan_mode, detect_task_claim
+from .detection_helpers import (
+    detect_mcp_call,
+    detect_plan_mode,
+    detect_plan_mode_from_context,
+    detect_task_claim,
+)
 from .evaluator import ConditionEvaluator
 from .lifecycle_evaluator import (
     evaluate_all_lifecycle_workflows as _evaluate_all_lifecycle_workflows,
@@ -375,6 +380,7 @@ class WorkflowEngine:
             evaluator=self.evaluator,
             detect_task_claim_fn=self._detect_task_claim,
             detect_plan_mode_fn=self._detect_plan_mode,
+            detect_plan_mode_from_context_fn=self._detect_plan_mode_from_context,
             check_premature_stop_fn=self._check_premature_stop,
             context_data=context_data,
         )
@@ -479,6 +485,10 @@ class WorkflowEngine:
     def _detect_plan_mode(self, event: HookEvent, state: WorkflowState) -> None:
         """Detect Claude Code plan mode entry/exit and set workflow variable."""
         detect_plan_mode(event, state)
+
+    def _detect_plan_mode_from_context(self, event: HookEvent, state: WorkflowState) -> None:
+        """Detect plan mode from system reminders in user prompt."""
+        detect_plan_mode_from_context(event, state)
 
     def _detect_mcp_call(self, event: HookEvent, state: WorkflowState) -> None:
         """Track MCP tool calls by server/tool for workflow conditions."""

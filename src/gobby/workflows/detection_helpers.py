@@ -71,19 +71,30 @@ def detect_task_claim(
     # For close_task, we'll clear task_claimed after success check
     is_close_task = inner_tool_name == "close_task"
 
-    # Check if the call succeeded (not an error)
-    # tool_output structure varies, but errors typically have "error" key
-    # or the MCP response has "status": "error"
-    if isinstance(tool_output, dict):
-        if tool_output.get("error") or tool_output.get("status") == "error":
-            return
-        # Also check nested result for MCP proxy responses
-        result = tool_output.get("result", {})
-        if isinstance(result, dict) and result.get("error"):
-            return
-
-    # Handle close_task - clear the claim only if closing the claimed task
+    # Handle close_task separately - verify it succeeded before clearing task_claimed
+    # This is critical: we must NOT clear task_claimed if close_task failed with an error
     if is_close_task:
+        # First verify close_task actually succeeded (not an error response)
+        # MCP proxy returns: {"success": true, "result": {"error": "...", "message": "..."}}
+        # when the tool executes but the operation fails (e.g., uncommitted_changes)
+        if isinstance(tool_output, dict):
+            # Check for top-level error
+            if tool_output.get("error") or tool_output.get("status") == "error":
+                logger.debug(
+                    f"Session {state.session_id}: close_task failed (top-level error), "
+                    f"NOT clearing task_claimed"
+                )
+                return
+            # Check for nested error in MCP proxy response (e.g., uncommitted_changes)
+            result = tool_output.get("result", {})
+            if isinstance(result, dict) and result.get("error"):
+                logger.debug(
+                    f"Session {state.session_id}: close_task failed with error "
+                    f"'{result.get('error')}', NOT clearing task_claimed"
+                )
+                return
+
+        # close_task succeeded - now clear the claim only if closing the claimed task
         arguments = tool_input.get("arguments", {}) or {}
         closed_task_id = arguments.get("task_id")
         claimed_task_id = state.variables.get("claimed_task_id")
@@ -102,6 +113,17 @@ def detect_task_claim(
                 f"(claimed: {claimed_task_id}) - not clearing task_claimed"
             )
         return
+
+    # Check if the call succeeded (not an error) - for non-close_task operations
+    # tool_output structure varies, but errors typically have "error" key
+    # or the MCP response has "status": "error"
+    if isinstance(tool_output, dict):
+        if tool_output.get("error") or tool_output.get("status") == "error":
+            return
+        # Also check nested result for MCP proxy responses
+        result = tool_output.get("result", {})
+        if isinstance(result, dict) and result.get("error"):
+            return
 
     # Extract task_id based on tool type
     arguments = tool_input.get("arguments", {}) or {}
@@ -158,6 +180,60 @@ def detect_plan_mode(event: "HookEvent", state: "WorkflowState") -> None:
     elif tool_name == "ExitPlanMode":
         state.variables["plan_mode"] = False
         logger.info(f"Session {state.session_id}: plan_mode=False (exited plan mode)")
+
+
+def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") -> None:
+    """Detect plan mode from system reminders injected by Claude Code.
+
+    Claude Code injects system reminders like "Plan mode is active" when the user
+    enters plan mode via the UI (not via the EnterPlanMode tool). This function
+    detects those reminders and sets the plan_mode variable accordingly.
+
+    This complements detect_plan_mode() which only catches programmatic tool calls.
+
+    Args:
+        event: The BEFORE_AGENT hook event (contains user prompt with system reminders)
+        state: Current workflow state (modified in place)
+    """
+    if not event.data:
+        return
+
+    # Check for plan mode system reminder in the prompt
+    prompt = event.data.get("prompt", "") or ""
+
+    # Claude Code injects these phrases in system reminders when plan mode is active
+    plan_mode_indicators = [
+        "Plan mode is active",
+        "Plan mode still active",
+        "You are in plan mode",
+    ]
+
+    # Check if plan mode is indicated in the prompt
+    for indicator in plan_mode_indicators:
+        if indicator in prompt:
+            if not state.variables.get("plan_mode"):
+                state.variables["plan_mode"] = True
+                logger.info(
+                    f"Session {state.session_id}: plan_mode=True "
+                    f"(detected from system reminder: '{indicator}')"
+                )
+            return
+
+    # Detect exit from plan mode
+    exit_indicators = [
+        "Exited Plan Mode",
+        "Plan mode exited",
+    ]
+
+    for indicator in exit_indicators:
+        if indicator in prompt:
+            if state.variables.get("plan_mode"):
+                state.variables["plan_mode"] = False
+                logger.info(
+                    f"Session {state.session_id}: plan_mode=False "
+                    f"(detected from system reminder: '{indicator}')"
+                )
+            return
 
 
 def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
