@@ -42,6 +42,9 @@ def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
                         text_parts.append(f"[Thinking: {block.get('thinking', '')}]")
                     elif block.get("type") == "tool_use":
                         text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+                    elif block.get("type") == "tool_result":
+                        preview = str(block.get("content", ""))[:100]
+                        text_parts.append(f"[Result: {preview}...]")
             content = " ".join(text_parts)
 
         formatted.append(f"[Turn {i + 1} - {role}]: {content}")

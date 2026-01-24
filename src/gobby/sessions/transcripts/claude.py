@@ -123,7 +123,11 @@ class ClaudeTranscriptParser:
 
         # If no /clear found, just take the last max_turns
         if most_recent_clear_idx is None:
-            return turns[-max_turns:] if len(turns) > max_turns else turns
+            result = turns[-max_turns:] if len(turns) > max_turns else turns
+            result, removed = self._validate_tool_pairing(result)
+            if removed:
+                self.logger.debug(f"Removed {len(removed)} orphaned tool_results: {removed}")
+            return result
 
         # Start after this /clear (which is the last in any cluster since we scanned backwards)
         start_idx = most_recent_clear_idx + 1
@@ -159,7 +163,11 @@ class ClaudeTranscriptParser:
                     start_idx = max(start_idx, boundary_idx + 1)
                     break
 
-            return turns[start_idx:end_idx]
+            result = turns[start_idx:end_idx]
+            result, removed = self._validate_tool_pairing(result)
+            if removed:
+                self.logger.debug(f"Removed {len(removed)} orphaned tool_results: {removed}")
+            return result
 
         # Segment is > max_turns, so we need to limit it
         # Take the last max_turns from the segment
@@ -184,7 +192,11 @@ class ClaudeTranscriptParser:
                 start_idx = boundary_idx + 1
                 break
 
-        return turns[start_idx:end_idx]
+        result = turns[start_idx:end_idx]
+        result, removed = self._validate_tool_pairing(result)
+        if removed:
+            self.logger.debug(f"Removed {len(removed)} orphaned tool_results: {removed}")
+        return result
 
     def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         """
@@ -211,6 +223,51 @@ class ClaudeTranscriptParser:
         # Check for /clear command marker
         # Check for /clear command marker
         return "<command-name>/clear</command-name>" in str(content)
+
+    def _validate_tool_pairing(
+        self, turns: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """Remove orphaned tool_results that reference missing tool_use blocks.
+
+        This prevents Claude API validation errors when truncation cuts between
+        a tool_use and its corresponding tool_result.
+
+        Args:
+            turns: List of transcript turns to validate
+
+        Returns:
+            Tuple of (cleaned turns, list of removed tool_use_ids)
+        """
+        # Collect valid tool_use_ids from assistant messages
+        valid_ids: set[str] = set()
+        for turn in turns:
+            content = turn.get("message", {}).get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        if tid := block.get("id"):
+                            valid_ids.add(tid)
+
+        # Filter orphaned tool_results from user messages
+        cleaned: list[dict[str, Any]] = []
+        removed: list[str] = []
+        for turn in turns:
+            msg = turn.get("message", {})
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                new_content: list[Any] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        tid = block.get("tool_use_id")
+                        if tid and tid not in valid_ids:
+                            removed.append(tid)
+                            continue
+                    new_content.append(block)
+                if new_content != content:
+                    turn = {**turn, "message": {**msg, "content": new_content}}
+            cleaned.append(turn)
+
+        return cleaned, removed
 
     def parse_line(self, line: str, index: int) -> ParsedMessage | None:
         """
@@ -247,6 +304,7 @@ class ClaudeTranscriptParser:
         tool_name = None
         tool_input = None
         tool_result = None
+        tool_use_id = None
 
         if msg_type == "user":
             role = "user"
@@ -274,8 +332,7 @@ class ClaudeTranscriptParser:
                         content_type = "tool_use"
                         tool_name = block.get("name")
                         tool_input = block.get("input")
-                        # We capture the tool use ID as content if needed,
-                        # but for now we append nothing to text content
+                        tool_use_id = block.get("id")
 
                     elif block_type == "tool_result":
                         content_type = "tool_result"
@@ -291,6 +348,7 @@ class ClaudeTranscriptParser:
             content_type = "tool_result"
             tool_name = data.get("tool_name")
             tool_result = data.get("result")
+            tool_use_id = data.get("tool_use_id")
             content = str(tool_result)
 
         else:
@@ -308,6 +366,7 @@ class ClaudeTranscriptParser:
             timestamp=timestamp,
             raw_json=data,
             usage=self._extract_usage(data),
+            tool_use_id=tool_use_id,
         )
 
     def _extract_usage(self, data: dict[str, Any]) -> TokenUsage | None:
