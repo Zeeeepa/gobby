@@ -57,10 +57,14 @@ def _process_tool_proxy_result(
         metrics_collector.inc_counter("mcp_tool_calls_failed_total")
         # Server not found/not configured is a transport/configuration error → HTTP 404
         error_msg = str(result.get("error", "")).lower()
-        if "server" in error_msg and (
-            "not found" in error_msg or "not configured" in error_msg
-        ):
-            raise HTTPException(status_code=404, detail=result)
+        if "server" in error_msg and ("not found" in error_msg or "not configured" in error_msg):
+            # Normalize result to standard error shape while preserving existing fields
+            normalized = {"success": False, "error": result.get("error", "Unknown error")}
+            # Preserve any additional fields from result
+            for key, value in result.items():
+                if key not in normalized:
+                    normalized[key] = value
+            raise HTTPException(status_code=404, detail=normalized)
     else:
         metrics_collector.inc_counter("mcp_tool_calls_succeeded_total")
         logger.debug(
@@ -126,25 +130,33 @@ def create_mcp_router() -> APIRouter:
                         "response_time_ms": response_time_ms,
                     }
                 raise HTTPException(
-                    status_code=404, detail=f"Internal server '{server_name}' not found"
+                    status_code=404,
+                    detail={"success": False, "error": f"Internal server '{server_name}' not found"},
                 )
 
             if mcp_manager is None:
-                raise HTTPException(status_code=503, detail="MCP manager not available")
+                raise HTTPException(
+                    status_code=503, detail={"success": False, "error": "MCP manager not available"}
+                )
 
             # Check if server is configured
             if not mcp_manager.has_server(server_name):
-                raise HTTPException(status_code=404, detail=f"Unknown MCP server: '{server_name}'")
+                raise HTTPException(
+                    status_code=404,
+                    detail={"success": False, "error": f"Unknown MCP server: '{server_name}'"},
+                )
 
             # Use ensure_connected for lazy loading - connects on-demand if not connected
             try:
                 session = await mcp_manager.ensure_connected(server_name)
             except KeyError as e:
-                raise HTTPException(status_code=404, detail=str(e)) from e
+                raise HTTPException(
+                    status_code=404, detail={"success": False, "error": str(e)}
+                ) from e
             except Exception as e:
                 raise HTTPException(
                     status_code=503,
-                    detail=f"MCP server '{server_name}' connection failed: {e}",
+                    detail={"success": False, "error": f"MCP server '{server_name}' connection failed: {e}"},
                 ) from e
 
             # List tools using MCP SDK
@@ -195,14 +207,18 @@ def create_mcp_router() -> APIRouter:
                     exc_info=True,
                     extra={"server": server_name},
                 )
-                raise HTTPException(status_code=500, detail=f"Failed to list tools: {e}") from e
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": f"Failed to list tools: {e}"}
+                ) from e
 
         except HTTPException:
             raise
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"MCP list tools error: {server_name}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.get("/servers")
     async def list_mcp_servers(
@@ -264,7 +280,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"List MCP servers error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.get("/tools")
     async def list_all_mcp_tools(
@@ -393,7 +411,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"List MCP tools error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/tools/schema")
     async def get_tool_schema(
@@ -422,7 +442,8 @@ def create_mcp_router() -> APIRouter:
 
             if not server_name or not tool_name:
                 raise HTTPException(
-                    status_code=400, detail="Required fields: server_name, tool_name"
+                    status_code=400,
+                    detail={"success": False, "error": "Required fields: server_name, tool_name"},
                 )
 
             # Check internal first
@@ -440,11 +461,17 @@ def create_mcp_router() -> APIRouter:
                         }
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Tool '{tool_name}' not found on server '{server_name}'",
+                        detail={
+                            "success": False,
+                            "error": f"Tool '{tool_name}' not found on server '{server_name}'",
+                        },
                     )
 
             if server.mcp_manager is None:
-                raise HTTPException(status_code=503, detail="MCP manager not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
 
             # Get from external MCP server
             try:
@@ -459,14 +486,18 @@ def create_mcp_router() -> APIRouter:
                 }
 
             except Exception as e:
-                raise HTTPException(status_code=404, detail=str(e)) from e
+                raise HTTPException(
+                    status_code=404, detail={"success": False, "error": str(e)}
+                ) from e
 
         except HTTPException:
             raise
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Get tool schema error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/tools/call")
     async def call_mcp_tool(
@@ -498,7 +529,8 @@ def create_mcp_router() -> APIRouter:
 
             if not server_name or not tool_name:
                 raise HTTPException(
-                    status_code=400, detail="Required fields: server_name, tool_name"
+                    status_code=400,
+                    detail={"success": False, "error": "Required fields: server_name, tool_name"},
                 )
 
             # Route through ToolProxyService for consistent error enrichment
@@ -519,10 +551,13 @@ def create_mcp_router() -> APIRouter:
                         available = [t["name"] for t in registry.list_tools()]
                         raise HTTPException(
                             status_code=404,
-                            detail=f"Tool '{tool_name}' not found on '{server_name}'. "
-                            f"Available: {', '.join(available)}. "
-                            f"Use list_tools(server='{server_name}') to see all tools, "
-                            f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+                            detail={
+                                "success": False,
+                                "error": f"Tool '{tool_name}' not found on '{server_name}'. "
+                                f"Available: {', '.join(available)}. "
+                                f"Use list_tools(server='{server_name}') to see all tools, "
+                                f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+                            },
                         )
                     try:
                         result = await registry.call(tool_name, arguments or {})
@@ -542,7 +577,10 @@ def create_mcp_router() -> APIRouter:
                         ) from e
 
             if server.mcp_manager is None:
-                raise HTTPException(status_code=503, detail="MCP manager not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
 
             # Call external MCP tool
             try:
@@ -559,7 +597,9 @@ def create_mcp_router() -> APIRouter:
             except Exception as e:
                 metrics.inc_counter("mcp_tool_calls_failed_total")
                 error_msg = str(e) or f"{type(e).__name__}: (no message)"
-                raise HTTPException(status_code=500, detail=error_msg) from e
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": error_msg}
+                ) from e
 
         except HTTPException:
             raise
@@ -567,7 +607,9 @@ def create_mcp_router() -> APIRouter:
             metrics.inc_counter("mcp_tool_calls_failed_total")
             error_msg = str(e) or f"{type(e).__name__}: (no message)"
             logger.error(f"Call MCP tool error: {error_msg}", exc_info=True)
-            raise HTTPException(status_code=500, detail=error_msg) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": error_msg}
+            ) from e
 
     @router.post("/servers")
     async def add_mcp_server(
@@ -596,7 +638,10 @@ def create_mcp_router() -> APIRouter:
             transport = body.get("transport")
 
             if not name or not transport:
-                raise HTTPException(status_code=400, detail="Required fields: name, transport")
+                raise HTTPException(
+                    status_code=400,
+                    detail={"success": False, "error": "Required fields: name, transport"},
+                )
 
             # Import here to avoid circular imports
             from gobby.mcp_proxy.models import MCPServerConfig
@@ -605,7 +650,8 @@ def create_mcp_router() -> APIRouter:
             project_ctx = get_project_context()
             if not project_ctx or not project_ctx.get("id"):
                 raise HTTPException(
-                    status_code=400, detail="No current project found. Run 'gobby init'."
+                    status_code=400,
+                    detail={"success": False, "error": "No current project found. Run 'gobby init'."},
                 )
             project_id = project_ctx["id"]
 
@@ -622,7 +668,10 @@ def create_mcp_router() -> APIRouter:
             )
 
             if server.mcp_manager is None:
-                raise HTTPException(status_code=503, detail="MCP manager not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
 
             await server.mcp_manager.add_server(config)
 
@@ -632,13 +681,17 @@ def create_mcp_router() -> APIRouter:
             }
 
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise HTTPException(
+                status_code=400, detail={"success": False, "error": str(e)}
+            ) from e
         except HTTPException:
             raise
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Add MCP server error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/servers/import")
     async def import_mcp_server(
@@ -671,7 +724,10 @@ def create_mcp_router() -> APIRouter:
             if not from_project and not github_url and not query:
                 raise HTTPException(
                     status_code=400,
-                    detail="Specify at least one: from_project, github_url, or query",
+                    detail={
+                        "success": False,
+                        "error": "Specify at least one: from_project, github_url, or query",
+                    },
                 )
 
             # Get current project ID from context
@@ -680,12 +736,16 @@ def create_mcp_router() -> APIRouter:
             project_ctx = get_project_context()
             if not project_ctx or not project_ctx.get("id"):
                 raise HTTPException(
-                    status_code=400, detail="No current project. Run 'gobby init' first."
+                    status_code=400,
+                    detail={"success": False, "error": "No current project. Run 'gobby init' first."},
                 )
             current_project_id = project_ctx["id"]
 
             if not server.config:
-                raise HTTPException(status_code=500, detail="Daemon configuration not available")
+                raise HTTPException(
+                    status_code=500,
+                    detail={"success": False, "error": "Daemon configuration not available"},
+                )
 
             # Create importer
             from gobby.mcp_proxy.importer import MCPServerImporter
@@ -719,7 +779,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Import MCP server error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.delete("/servers/{name}")
     async def remove_mcp_server(
@@ -739,7 +801,10 @@ def create_mcp_router() -> APIRouter:
 
         try:
             if server.mcp_manager is None:
-                raise HTTPException(status_code=503, detail="MCP manager not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
 
             await server.mcp_manager.remove_server(name)
 
@@ -749,11 +814,15 @@ def create_mcp_router() -> APIRouter:
             }
 
         except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e)) from e
+            raise HTTPException(
+                status_code=404, detail={"success": False, "error": str(e)}
+            ) from e
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Remove MCP server error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/tools/recommend")
     async def recommend_mcp_tools(
@@ -789,7 +858,10 @@ def create_mcp_router() -> APIRouter:
             cwd = body.get("cwd")
 
             if not task_description:
-                raise HTTPException(status_code=400, detail="Required field: task_description")
+                raise HTTPException(
+                    status_code=400,
+                    detail={"success": False, "error": "Required field: task_description"},
+                )
 
             # For semantic/hybrid modes, resolve project_id from cwd
             project_id = None
@@ -831,7 +903,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Recommend tools error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/tools/search")
     async def search_mcp_tools(
@@ -865,7 +939,10 @@ def create_mcp_router() -> APIRouter:
             cwd = body.get("cwd")
 
             if not query:
-                raise HTTPException(status_code=400, detail="Required field: query")
+                raise HTTPException(
+                    status_code=400,
+                    detail={"success": False, "error": "Required field: query"},
+                )
 
             # Resolve project_id from cwd
             try:
@@ -930,7 +1007,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Search tools error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/tools/embed")
     async def embed_mcp_tools(
@@ -1000,7 +1079,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Embed tools error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.get("/status")
     async def get_mcp_status(
@@ -1061,7 +1142,9 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Get MCP status error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     @router.post("/{server_name}/tools/{tool_name}")
     async def mcp_proxy(
@@ -1091,7 +1174,8 @@ def create_mcp_router() -> APIRouter:
                 args = await request.json()
             except (json.JSONDecodeError, ValueError) as e:
                 raise HTTPException(
-                    status_code=400, detail=f"Invalid JSON in request body: {e}"
+                    status_code=400,
+                    detail={"success": False, "error": f"Invalid JSON in request body: {e}"},
                 ) from e
 
             # Route through ToolProxyService for consistent error enrichment
@@ -1112,10 +1196,13 @@ def create_mcp_router() -> APIRouter:
                         available = [t["name"] for t in registry.list_tools()]
                         raise HTTPException(
                             status_code=404,
-                            detail=f"Tool '{tool_name}' not found on '{server_name}'. "
-                            f"Available: {', '.join(available)}. "
-                            f"Use list_tools(server='{server_name}') to see all tools, "
-                            f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+                            detail={
+                                "success": False,
+                                "error": f"Tool '{tool_name}' not found on '{server_name}'. "
+                                f"Available: {', '.join(available)}. "
+                                f"Use list_tools(server='{server_name}') to see all tools, "
+                                f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+                            },
                         )
                     try:
                         result = await registry.call(tool_name, args or {})
@@ -1129,13 +1216,19 @@ def create_mcp_router() -> APIRouter:
                     except Exception as e:
                         metrics.inc_counter("mcp_tool_calls_failed_total")
                         error_msg = str(e) or f"{type(e).__name__}: (no message)"
-                        raise HTTPException(status_code=500, detail=error_msg) from e
+                        raise HTTPException(
+                            status_code=500, detail={"success": False, "error": error_msg}
+                        ) from e
                 raise HTTPException(
-                    status_code=404, detail=f"Internal server '{server_name}' not found"
+                    status_code=404,
+                    detail={"success": False, "error": f"Internal server '{server_name}' not found"},
                 )
 
             if server.mcp_manager is None:
-                raise HTTPException(status_code=503, detail="MCP manager not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
 
             # Call MCP tool
             try:
@@ -1166,7 +1259,9 @@ def create_mcp_router() -> APIRouter:
                     f"MCP tool not found: {server_name}.{tool_name}",
                     extra={"server": server_name, "tool": tool_name, "error": str(e)},
                 )
-                raise HTTPException(status_code=404, detail=str(e)) from e
+                raise HTTPException(
+                    status_code=404, detail={"success": False, "error": str(e)}
+                ) from e
             except Exception as e:
                 metrics.inc_counter("mcp_tool_calls_failed_total")
                 error_msg = str(e) or f"{type(e).__name__}: (no message)"
@@ -1175,7 +1270,9 @@ def create_mcp_router() -> APIRouter:
                     exc_info=True,
                     extra={"server": server_name, "tool": tool_name},
                 )
-                raise HTTPException(status_code=500, detail=error_msg) from e
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": error_msg}
+                ) from e
 
         except HTTPException:
             raise
@@ -1183,7 +1280,9 @@ def create_mcp_router() -> APIRouter:
             metrics.inc_counter("mcp_tool_calls_failed_total")
             error_msg = str(e) or f"{type(e).__name__}: (no message)"
             logger.error(f"MCP proxy error: {server_name}.{tool_name}", exc_info=True)
-            raise HTTPException(status_code=500, detail=error_msg) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": error_msg}
+            ) from e
 
     @router.post("/refresh")
     async def refresh_mcp_tools(
@@ -1402,6 +1501,8 @@ def create_mcp_router() -> APIRouter:
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Refresh tools error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(
+                status_code=500, detail={"success": False, "error": str(e)}
+            ) from e
 
     return router
