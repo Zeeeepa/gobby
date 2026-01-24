@@ -28,6 +28,7 @@ from gobby.workflows.git_utils import get_file_changes, get_git_status, get_rece
 from gobby.workflows.llm_actions import call_llm
 from gobby.workflows.mcp_actions import call_mcp_tool
 from gobby.workflows.memory_actions import (
+    memory_extract,
     memory_recall_relevant,
     memory_save,
     memory_sync_export,
@@ -227,6 +228,7 @@ class ActionExecutor:
         self.register("memory_recall_relevant", self._handle_memory_recall_relevant)
         self.register("memory_sync_import", self._handle_memory_sync_import)
         self.register("memory_sync_export", self._handle_memory_sync_export)
+        self.register("memory_extract", self._handle_memory_extract)
         self.register(
             "reset_memory_injection_tracking", self._handle_reset_memory_injection_tracking
         )
@@ -660,6 +662,8 @@ class ActionExecutor:
 
         For compact mode, fetches the current session's existing summary_markdown
         as previous_summary for cumulative compression.
+
+        Supports loading prompts from the prompts collection via the 'prompt' parameter.
         """
         # Detect mode from kwargs or event data
         mode = kwargs.get("mode", "clear")
@@ -685,12 +689,27 @@ class ActionExecutor:
                         f"for cumulative compression"
                     )
 
+        # Load template from prompts collection if 'prompt' parameter provided
+        template = kwargs.get("template")
+        prompt_path = kwargs.get("prompt")
+        if prompt_path and not template:
+            try:
+                from gobby.prompts.loader import PromptLoader
+
+                loader = PromptLoader()
+                prompt_template = loader.load(prompt_path)
+                template = prompt_template.content
+                logger.debug(f"Loaded prompt template from: {prompt_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load prompt from {prompt_path}: {e}")
+                # Fall back to inline template or default
+
         return await generate_handoff(
             session_manager=context.session_manager,
             session_id=context.session_id,
             llm_service=context.llm_service,
             transcript_processor=context.transcript_processor,
-            template=kwargs.get("template"),
+            template=template,
             previous_summary=previous_summary,
             mode=mode,
         )
@@ -781,6 +800,30 @@ class ActionExecutor:
     ) -> dict[str, Any] | None:
         """Reset memory injection tracking to allow re-injection after context loss."""
         return reset_memory_injection_tracking(state=context.state)
+
+    async def _handle_memory_extract(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Extract memories from the current session.
+
+        Args (via kwargs):
+            min_importance: Minimum importance threshold (default: 0.7)
+            max_memories: Maximum memories to extract (default: 5)
+            dry_run: If True, don't store memories (default: False)
+
+        Returns:
+            Dict with extracted_count and optional memory details
+        """
+        return await memory_extract(
+            session_manager=context.session_manager,
+            session_id=context.session_id,
+            llm_service=context.llm_service,
+            memory_manager=context.memory_manager,
+            transcript_processor=context.transcript_processor,
+            min_importance=kwargs.get("min_importance", 0.7),
+            max_memories=kwargs.get("max_memories", 5),
+            dry_run=kwargs.get("dry_run", False),
+        )
 
     async def _handle_mark_session_status(
         self, context: ActionContext, **kwargs: Any
