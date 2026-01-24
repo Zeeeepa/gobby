@@ -103,43 +103,15 @@ class SkillSearch:
         self,
         config: SearchConfig | None = None,
         refit_threshold: int = 10,
-        # Backwards compatibility parameters (deprecated)
-        ngram_range: tuple[int, int] | None = None,
-        max_features: int | None = None,
-        min_df: int | None = None,
-        mode: str | None = None,
-        embedding_provider: Any | None = None,
-        tfidf_weight: float | None = None,
-        embedding_weight: float | None = None,
     ):
         """Initialize skill search.
 
         Args:
             config: Search configuration (defaults to auto mode)
             refit_threshold: Number of updates before automatic refit
-            ngram_range: Deprecated, ignored
-            max_features: Deprecated, ignored
-            min_df: Deprecated, ignored
-            mode: Deprecated, use config.mode instead
-            embedding_provider: Deprecated, not used with UnifiedSearcher
-            tfidf_weight: Deprecated, use config.tfidf_weight instead
-            embedding_weight: Deprecated, use config.embedding_weight instead
         """
-        # Handle backwards compatibility
         if config is None:
-            config = SearchConfig(
-                mode=mode or "auto",
-                tfidf_weight=tfidf_weight if tfidf_weight is not None else 0.4,
-                embedding_weight=embedding_weight if embedding_weight is not None else 0.6,
-            )
-
-        # Log deprecation warnings for old params
-        if any([ngram_range, max_features, min_df]):
-            logger.debug("ngram_range, max_features, min_df parameters are deprecated and ignored")
-        if embedding_provider is not None:
-            logger.debug(
-                "embedding_provider parameter is deprecated; UnifiedSearcher handles embedding"
-            )
+            config = SearchConfig(mode="auto")
 
         self._config = config
         self._refit_threshold = refit_threshold
