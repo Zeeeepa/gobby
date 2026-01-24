@@ -85,6 +85,6 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})
 ## Key Rules
 
 - **Always have a task** before using Edit/Write tools
-- **Pass session_id** to all task operations
+- **Pass session_id** to `create_task` (required), `claim_task` (required), and `close_task` (optional, for tracking)
 - **Never load all schemas upfront** - use progressive disclosure
 - **Check skills** when stuck - `search_skills(query="your problem")`

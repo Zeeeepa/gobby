@@ -47,7 +47,7 @@ Skills provide detailed guidance. Use progressive disclosure:
 
 <rules>
 - Create/claim a task before editing files
-- Pass session_id to create_task (required) and close_task (optional, for tracking)
+- Pass session_id to create_task (required), claim_task (required), and close_task (optional, for tracking)
 - NEVER load all tool schemas upfront — use progressive disclosure
 </rules>
 
