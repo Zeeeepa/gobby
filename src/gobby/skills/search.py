@@ -194,9 +194,7 @@ class SkillSearch:
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 # Defer coroutine construction to the executor thread
-                future = executor.submit(
-                    lambda: asyncio.run(self.index_skills_async(skills))
-                )
+                future = executor.submit(lambda: asyncio.run(self.index_skills_async(skills)))
                 future.result()
         else:
             asyncio.run(self.index_skills_async(skills))

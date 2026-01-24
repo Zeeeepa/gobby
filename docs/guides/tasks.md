@@ -18,12 +18,22 @@ Gobby includes a native task tracking system designed for AI-assisted developmen
 # Check what's ready to work on
 call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
 
-# Create a task (auto-claimed when session_id is provided)
+# Create a task (status='open', no assignee by default)
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix authentication bug",
     "priority": 1,
     "task_type": "bug",
-    "session_id": "<your_session_id>"  # Required - task is auto-claimed
+    "session_id": "<your_session_id>"  # Required - tracks who created the task
+})
+# Task is created with status='open' and no assignee
+
+# Create AND claim a task in one call (set claim=True)
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Fix authentication bug",
+    "priority": 1,
+    "task_type": "bug",
+    "session_id": "<your_session_id>",
+    "claim": True  # Auto-claim: status='in_progress', assignee=session_id
 })
 # Task is now in_progress and assigned to your session
 

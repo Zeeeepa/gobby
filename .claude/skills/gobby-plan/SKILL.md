@@ -31,6 +31,7 @@ constraints, and dependencies before proposing new work.
 ## Step 1: Requirements Gathering
 
 Ask the user:
+
 1. "What is the name/title for this feature or project?"
 2. "What is the high-level goal? (1-2 sentences)"
 3. "Are there any constraints or requirements I should know about?"
@@ -39,6 +40,7 @@ Ask the user:
 ## Step 2: Draft Plan Structure
 
 Create a plan with:
+
 - **Epic title**: The overall feature name
 - **Phases**: Logical groupings of work (e.g., "Foundation", "Core Implementation", "Polish")
 - **Tasks**: Atomic units of work under each phase
@@ -82,6 +84,7 @@ Write to `.gobby/plans/{kebab-name}.md`:
 ```
 
 **Dependency Notation:**
+
 - Use `(depends: Task 1)` or `(depends: Phase N)` in markdown
 - Dependencies are resolved when tasks are created via `create_task` with `parent_task_id`
 
@@ -94,6 +97,7 @@ Before presenting to the user, verify the plan does NOT contain TDD anti-pattern
 Scan for tasks that should NOT exist (TDD sandwich creates these automatically):
 
 **FORBIDDEN patterns - remove these if found:**
+
 - `"Write tests for..."` or `"Add tests for..."`
 - `"Test..."` as task title prefix
 - `"[TDD]..."` or `"[IMPL]..."` or `"[REF]..."`
@@ -102,6 +106,7 @@ Scan for tasks that should NOT exist (TDD sandwich creates these automatically):
 - Any task with `test` as the primary verb
 
 **ALLOWED (these are fine):**
+
 - `"Add TestClient fixture"` (not a test task, but test infrastructure)
 - `"Configure pytest settings"` (configuration, not test writing)
 
@@ -117,6 +122,7 @@ Verify the dependency structure is valid:
 ### Check 3: Task Categorization
 
 Ensure each task has a valid category:
+
 - `code` - Implementation tasks (gets TDD triplets)
 - `config` - Configuration changes (gets TDD triplets)
 - `docs` - Documentation tasks (no TDD)
@@ -128,7 +134,8 @@ Ensure each task has a valid category:
 ### Verification Output
 
 After verification, report:
-```
+
+```text
 Plan Verification:
 ✓ No explicit test tasks found
 ✓ Dependency tree is valid (no cycles, all refs exist)
@@ -138,7 +145,8 @@ Ready for user approval.
 ```
 
 Or if issues found:
-```
+
+```text
 Plan Verification:
 ✗ Found 2 explicit test tasks (removed):
   - "Add tests for user authentication" → REMOVED
@@ -152,6 +160,7 @@ Plan updated. Ready for user approval.
 ## Step 5: User Approval
 
 Present the plan to the user:
+
 - Show the full plan document
 - Show verification results
 - Ask: "Does this plan look correct? Would you like any changes before I create tasks?"
@@ -258,11 +267,13 @@ call_tool("gobby-tasks", "expand_task", {
 ```
 
 **Why expand feature tasks, not phase epics?**
+
 - TDD is explicitly SKIPPED when `task.task_type == "epic"` (line 496 in task_expansion.py)
 - Expanding a phase epic creates feature tasks BUT without TDD triplets
 - Expanding a feature task creates implementation subtasks WITH TDD triplets
 
 **What expand_task does per feature task:**
+
 - LLM reads the task title + description
 - Creates implementation subtasks (granular work items)
 - TDD steps embedded in code/config task descriptions
@@ -286,6 +297,7 @@ call_tool("gobby-tasks", "list_tasks", {
 ## Step 7: Task Verification
 
 After creating all tasks:
+
 1. Show the created task tree (call `list_tasks` with `parent_task_id`)
 2. Confirm task count matches plan items
 3. Show the updated plan doc with task refs
@@ -293,7 +305,8 @@ After creating all tasks:
 ## Task Granularity Guidelines
 
 Each task should be:
-- **Atomic**: Completable in one AI session 
+
+- **Atomic**: Completable in one AI session
 - **Testable**: Has clear pass/fail criteria
 - **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
 - **Scoped**: References specific files/functions when possible
@@ -308,11 +321,12 @@ The /gobby-plan skill creates **feature tasks** knowing that `expand_task` will 
 ### TDD Triplet Pattern
 
 Each feature task (category: code) gets expanded into three children:
+
 - **[TDD]** - Write failing tests first
 - **[IMPL]** - Make tests pass
 - **[REF]** - Refactor while keeping tests green
 
-```
+```text
 Feature Task
 ├── [TDD] Write failing tests for feature
 ├── [IMPL] Implement feature
@@ -322,6 +336,7 @@ Feature Task
 ### Task Categories
 
 Valid categories (from `src/gobby/storage/tasks.py`):
+
 - `code` - Implementation tasks (gets TDD triplets)
 - `config` - Configuration changes (gets TDD triplets)
 - `docs` - Documentation tasks (no TDD)
@@ -334,12 +349,14 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 ### What You Create vs What expand_task Produces
 
 **DO NOT manually create:**
+
 - `[TDD]`, `[IMPL]`, `[REF]` prefixed tasks
 - "Write tests for: ..." tasks
 - "Ensure tests pass" tasks
 - Separate test tasks alongside implementation
 
 **DO create:**
+
 - Feature tasks with `category: "code"` or `category: "config"`
 - Documentation tasks with `category: "docs"`
 
@@ -347,7 +364,7 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 
 **Step 1: Skill creates Levels 1-3 manually via create_task:**
 
-```
+```text
 #100 [epic] Memory V3 Backend                    ← L1: Root Epic
 ├── #101 [epic] Phase 1: Backend Setup           ← L2: Phase Epic
 │   ├── #102 [task] Create protocol.py (code)    ← L3: Feature Task
@@ -367,7 +384,7 @@ expand_task(task_id="#104")
 
 **Result after expansion:**
 
-```
+```text
 #100 [epic] Memory V3 Backend                      L1
 ├── #101 [epic] Phase 1: Backend Setup             L2
 │   ├── #102 [task] Create protocol.py             L3 (is_expanded=True)
@@ -384,7 +401,7 @@ expand_task(task_id="#104")
 
 ### 3-Level Hierarchy
 
-```
+```text
 L1: Root Epic (created manually)
 └── L2: Phase Epic (created manually)
     └── L3: Feature Task (created manually, category: code/config)
@@ -415,6 +432,7 @@ you can activate the `plan-expansion` workflow instead of following this skill m
 ### When to Use the Workflow
 
 Use the workflow when you want:
+
 - **Hard step gates** - Can't proceed to task creation without approval
 - **Tool restrictions** - Edit/Write blocked during discovery and gather phases
 - **Loop enforcement** - Expansion loop can't be skipped or abandoned
@@ -461,10 +479,12 @@ call_tool("gobby-workflows", "activate_workflow", {
 ### Hybrid Approach
 
 The skill and workflow are complementary:
+
 - **Skill**: Interactive flexibility for requirements and drafting
 - **Workflow**: Deterministic expansion with enforced gates
 
 Recommended pattern:
+
 1. Use this skill for Steps 1-5 (requirements through approval)
 2. Activate `plan-expansion` workflow at Step 6 (task creation)
 3. Workflow handles expansion loop deterministically

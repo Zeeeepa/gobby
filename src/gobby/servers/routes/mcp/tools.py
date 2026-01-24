@@ -29,6 +29,58 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _process_tool_proxy_result(
+    result: Any,
+    server_name: str,
+    tool_name: str,
+    response_time_ms: float,
+    metrics_collector: Any,
+) -> dict[str, Any]:
+    """
+    Process tool proxy result with consistent metrics, logging, and error handling.
+
+    Args:
+        result: The result from tool_proxy.call_tool()
+        server_name: Name of the MCP server
+        tool_name: Name of the tool called
+        response_time_ms: Response time in milliseconds
+        metrics_collector: Metrics collector instance
+
+    Returns:
+        Wrapped result dict with success status and response time
+
+    Raises:
+        HTTPException: 404 if server not found/not configured
+    """
+    # Track metrics for tool-level failures vs successes
+    if isinstance(result, dict) and result.get("success") is False:
+        metrics_collector.inc_counter("mcp_tool_calls_failed_total")
+        # Server not found/not configured is a transport/configuration error → HTTP 404
+        error_msg = str(result.get("error", "")).lower()
+        if "server" in error_msg and (
+            "not found" in error_msg or "not configured" in error_msg
+        ):
+            raise HTTPException(status_code=404, detail=result)
+    else:
+        metrics_collector.inc_counter("mcp_tool_calls_succeeded_total")
+        logger.debug(
+            f"MCP tool call successful: {server_name}.{tool_name}",
+            extra={
+                "server": server_name,
+                "tool": tool_name,
+                "response_time_ms": response_time_ms,
+            },
+        )
+
+    # Return 200 with wrapped result for all other cases
+    # Tool-level errors (tool not found, validation, execution) are application data
+    return {
+        "success": True,
+        "result": result,
+        "response_time_ms": response_time_ms,
+    }
+
+
 def create_mcp_router() -> APIRouter:
     """
     Create MCP router with endpoints using dependency injection.
@@ -453,26 +505,9 @@ def create_mcp_router() -> APIRouter:
             if server.tool_proxy:
                 result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
                 response_time_ms = (time.perf_counter() - start_time) * 1000
-
-                # Track metrics for tool-level failures vs successes
-                if isinstance(result, dict) and result.get("success") is False:
-                    metrics.inc_counter("mcp_tool_calls_failed_total")
-                    # Server not found/not configured is a transport/configuration error → HTTP 404
-                    error_msg = str(result.get("error", "")).lower()
-                    if "server" in error_msg and (
-                        "not found" in error_msg or "not configured" in error_msg
-                    ):
-                        raise HTTPException(status_code=404, detail=result)
-                else:
-                    metrics.inc_counter("mcp_tool_calls_succeeded_total")
-
-                # Return 200 with wrapped result for all other cases
-                # Tool-level errors (tool not found, validation, execution) are application data
-                return {
-                    "success": True,
-                    "result": result,
-                    "response_time_ms": response_time_ms,
-                }
+                return _process_tool_proxy_result(
+                    result, server_name, tool_name, response_time_ms, metrics
+                )
 
             # Fallback: no tool_proxy available, use direct registry calls
             # Check internal first
@@ -1063,34 +1098,9 @@ def create_mcp_router() -> APIRouter:
             if server.tool_proxy:
                 result = await server.tool_proxy.call_tool(server_name, tool_name, args)
                 response_time_ms = (time.perf_counter() - start_time) * 1000
-
-                # Track metrics for tool-level failures vs successes
-                if isinstance(result, dict) and result.get("success") is False:
-                    metrics.inc_counter("mcp_tool_calls_failed_total")
-                    # Server not found/not configured is a transport/configuration error → HTTP 404
-                    error_msg = str(result.get("error", "")).lower()
-                    if "server" in error_msg and (
-                        "not found" in error_msg or "not configured" in error_msg
-                    ):
-                        raise HTTPException(status_code=404, detail=result)
-                else:
-                    metrics.inc_counter("mcp_tool_calls_succeeded_total")
-                    logger.debug(
-                        f"MCP tool call successful: {server_name}.{tool_name}",
-                        extra={
-                            "server": server_name,
-                            "tool": tool_name,
-                            "response_time_ms": response_time_ms,
-                        },
-                    )
-
-                # Return 200 with wrapped result for all other cases
-                # Tool-level errors (tool not found, validation, execution) are application data
-                return {
-                    "success": True,
-                    "result": result,
-                    "response_time_ms": response_time_ms,
-                }
+                return _process_tool_proxy_result(
+                    result, server_name, tool_name, response_time_ms, metrics
+                )
 
             # Fallback: no tool_proxy available, use direct registry calls
             # Check internal registries first (gobby-tasks, gobby-memory, etc.)

@@ -37,10 +37,12 @@ Call `gobby-tasks.create_task` with:
 - `labels`: List of labels
 - `category`: "code", "config", "docs", "refactor", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
+- `claim`: If true, auto-claim the task (status=`in_progress`, assignee=session_id). Default: false
 
-**Auto-claim**: When `session_id` is provided, the task is automatically claimed (status set to `in_progress`, assignee set to your session).
+**Default behavior**: Tasks are created with status `open` and no assignee. Use `claim=true` to auto-claim when creating, or use `claim_task` to claim existing tasks.
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
+Example: `/gobby-tasks create Fix login button --claim` → `create_task(title="Fix login button", session_id="<your_session_id>", claim=true)`
 Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature", session_id="<your_session_id>")`
 Example: `/gobby-tasks create Integrate API --depends-on=#1,#2` → `create_task(title="Integrate API", depends_on=["#1", "#2"], session_id="<your_session_id>")`
 

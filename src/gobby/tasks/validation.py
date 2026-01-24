@@ -689,6 +689,12 @@ class TaskValidator:
                 system_prompt=self.config.criteria_system_prompt,
                 model=self.config.model,
             )
+            if not response or not response.strip():
+                logger.warning("Empty LLM response for criteria generation")
+                return None
+
+            llm_result = response.strip()
+
             llm_result = response.strip()
 
             # Inject pattern criteria if labels provided

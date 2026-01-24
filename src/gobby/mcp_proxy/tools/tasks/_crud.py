@@ -41,18 +41,16 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         labels: list[str] | None = None,
         category: str | None = None,
         validation_criteria: str | None = None,
+        claim: bool = False,
     ) -> dict[str, Any]:
         """Create a single task in the current project.
 
         This tool creates exactly ONE task. Auto-decomposition of multi-step
         descriptions is disabled. Use expand_task for complex decompositions.
 
-        When session_id is provided, the task is automatically claimed:
-        status is set to 'in_progress' and assignee is set to the session.
-
         Args:
             title: Task title
-            session_id: Your session ID for tracking (REQUIRED). Task is auto-claimed.
+            session_id: Your session ID for tracking (REQUIRED).
             description: Detailed description
             priority: Priority level (1=High, 2=Medium, 3=Low)
             task_type: Task type (task, bug, feature, epic)
@@ -62,6 +60,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             labels: List of labels
             category: Task domain category (test, code, document, research, config, manual)
             validation_criteria: Acceptance criteria for validating completion.
+            claim: If True, auto-claim the task (set assignee and status to in_progress).
 
         Returns:
             Created task dict with id (minimal) or full task details based on config.
@@ -104,17 +103,24 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         task = ctx.task_manager.get_task(create_result["task"]["id"])
 
-        # Auto-claim: set assignee and status to in_progress
-        ctx.task_manager.update_task(
-            task.id,
-            assignee=session_id,
-            status="in_progress",
-        )
-        # Link task to session (best-effort)
+        # Link task to session (best-effort) - tracks which session created the task
         try:
-            ctx.session_task_manager.link_task(session_id, task.id, "claimed")
+            ctx.session_task_manager.link_task(session_id, task.id, "created")
         except Exception:
             pass  # nosec B110 - best-effort linking
+
+        # Auto-claim if requested: set assignee and status to in_progress
+        if claim:
+            task = ctx.task_manager.update_task(
+                task.id,
+                assignee=session_id,
+                status="in_progress",
+            )
+            # Link task to session with "claimed" action (best-effort)
+            try:
+                ctx.session_task_manager.link_task(session_id, task.id, "claimed")
+            except Exception:
+                pass  # nosec B110 - best-effort linking
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         # Collect errors consistently with depends_on handling below
@@ -225,6 +231,11 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "session_id": {
                     "type": "string",
                     "description": "Your session ID (from system context). Required to track which session created the task.",
+                },
+                "claim": {
+                    "type": "boolean",
+                    "description": "If true, auto-claim the task (set assignee to session_id and status to in_progress). Default: false - task is created with status 'open' and no assignee.",
+                    "default": False,
                 },
             },
             "required": ["title", "session_id"],

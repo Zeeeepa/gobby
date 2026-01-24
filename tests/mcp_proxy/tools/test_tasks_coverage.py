@@ -562,13 +562,106 @@ class TestCreateTaskTool:
 
             result = await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
-            # update_task is called once for auto-claim (assignee + status), not for validation
-            mock_task_manager.update_task.assert_called_once_with(
-                "550e8400-e29b-41d4-a716-446655440012",
-                assignee="test-session",
-                status="in_progress",
-            )
+            # Without claim=True, update_task should NOT be called (no auto-claim)
+            mock_task_manager.update_task.assert_not_called()
             assert "validation_generated" not in result
+
+    @pytest.mark.asyncio
+    async def test_create_task_default_no_claim(self, mock_task_manager, mock_sync_manager):
+        """Test create_task without claim parameter does NOT auto-claim."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440020"
+            mock_task.seq_num = 100
+            mock_task.status = "open"
+            mock_task.assignee = None
+            mock_task.to_dict.return_value = {
+                "id": "550e8400-e29b-41d4-a716-446655440020",
+                "status": "open",
+                "assignee": None,
+            }
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "auto_decomposed": False,
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440020"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+
+                result = await registry.call(
+                    "create_task",
+                    {"title": "New Task", "session_id": "test-session"},
+                )
+
+                # Task should be created
+                assert result["id"] == "550e8400-e29b-41d4-a716-446655440020"
+
+                # update_task should NOT be called (no auto-claim)
+                mock_task_manager.update_task.assert_not_called()
+
+                # Session link should be "created", not "claimed"
+                mock_st_instance.link_task.assert_called_once_with(
+                    "test-session", "550e8400-e29b-41d4-a716-446655440020", "created"
+                )
+
+    @pytest.mark.asyncio
+    async def test_create_task_with_claim_true(self, mock_task_manager, mock_sync_manager):
+        """Test create_task with claim=True auto-claims the task."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440021"
+            mock_task.seq_num = 101
+            mock_task.status = "in_progress"
+            mock_task.assignee = "test-session"
+            mock_task.to_dict.return_value = {
+                "id": "550e8400-e29b-41d4-a716-446655440021",
+                "status": "in_progress",
+                "assignee": "test-session",
+            }
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "auto_decomposed": False,
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.update_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+
+                result = await registry.call(
+                    "create_task",
+                    {"title": "New Task", "session_id": "test-session", "claim": True},
+                )
+
+                # Task should be created
+                assert result["id"] == "550e8400-e29b-41d4-a716-446655440021"
+
+                # update_task should be called with assignee and status
+                mock_task_manager.update_task.assert_called_once_with(
+                    "550e8400-e29b-41d4-a716-446655440021",
+                    assignee="test-session",
+                    status="in_progress",
+                )
+
+                # Session links should include both "created" and "claimed"
+                assert mock_st_instance.link_task.call_count == 2
+                mock_st_instance.link_task.assert_any_call(
+                    "test-session", "550e8400-e29b-41d4-a716-446655440021", "created"
+                )
+                mock_st_instance.link_task.assert_any_call(
+                    "test-session", "550e8400-e29b-41d4-a716-446655440021", "claimed"
+                )
 
 # =============================================================================
 # get_task Tool Tests
@@ -1636,6 +1729,19 @@ class TestToolSchemas:
         assert schema is not None
         assert "title" in schema["inputSchema"]["properties"]
         assert "title" in schema["inputSchema"]["required"]
+
+    def test_create_task_schema_has_claim_parameter(self, task_registry):
+        """Test create_task schema includes optional claim parameter."""
+        schema = task_registry.get_schema("create_task")
+
+        assert schema is not None
+        props = schema["inputSchema"]["properties"]
+
+        assert "claim" in props, "Missing claim parameter in create_task schema"
+        assert props["claim"]["type"] == "boolean"
+        assert props["claim"]["default"] is False
+        # claim should NOT be in required
+        assert "claim" not in schema["inputSchema"]["required"]
 
     def test_update_task_schema_has_all_fields(self, task_registry):
         """Test update_task schema includes all updatable fields."""

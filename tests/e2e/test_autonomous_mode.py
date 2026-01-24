@@ -291,10 +291,26 @@ class TestAutonomousSpawningGate:
         )
         result = unwrap_result(raw_result)
 
-        # Should suggest a task
-        assert result.get("success") is True, f"suggest_next_task failed: {result}"
-        # The suggested task might be our task or another one from other tests
-        assert "task" in result or "ref" in result or "id" in result, f"Should return task info: {result}"
+        # Should suggest a task - suggest_next_task returns 'suggestion' key, not 'success'
+        assert result.get("suggestion") is not None, f"suggest_next_task returned no suggestion: {result}"
+        suggestion = result["suggestion"]
+        assert "ref" in suggestion or "id" in suggestion, f"Suggestion should have task info: {suggestion}"
+
+        # Verify the suggestion refers to the task we created
+        suggested_id = None
+        if "id" in suggestion:
+            suggested_id = suggestion["id"]
+        elif "ref" in suggestion:
+            ref = suggestion["ref"]
+            if isinstance(ref, str):
+                suggested_id = ref
+            elif isinstance(ref, dict) and "id" in ref:
+                suggested_id = ref["id"]
+
+        assert suggested_id == task_id, (
+            f"Suggestion should refer to created task {task_id}, "
+            f"but got {suggested_id}. Full suggestion: {suggestion}"
+        )
 
 
 class TestAutonomousThrottling:
