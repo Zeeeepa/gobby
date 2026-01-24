@@ -38,6 +38,8 @@ Call `gobby-tasks.create_task` with:
 - `category`: "code", "config", "docs", "refactor", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
 
+**Auto-claim**: When `session_id` is provided, the task is automatically claimed (status set to `in_progress`, assignee set to your session).
+
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
 Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature", session_id="<your_session_id>")`
 Example: `/gobby-tasks create Integrate API --depends-on=#1,#2` → `create_task(title="Integrate API", depends_on=["#1", "#2"], session_id="<your_session_id>")`

@@ -47,9 +47,12 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         This tool creates exactly ONE task. Auto-decomposition of multi-step
         descriptions is disabled. Use expand_task for complex decompositions.
 
+        When session_id is provided, the task is automatically claimed:
+        status is set to 'in_progress' and assignee is set to the session.
+
         Args:
             title: Task title
-            session_id: Your session ID for tracking (REQUIRED)
+            session_id: Your session ID for tracking (REQUIRED). Task is auto-claimed.
             description: Detailed description
             priority: Priority level (1=High, 2=Medium, 3=Low)
             task_type: Task type (task, bug, feature, epic)

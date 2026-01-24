@@ -94,8 +94,8 @@ triggers:
         - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList]
           reason: |
             CC native task tools are disabled. Use gobby-tasks MCP tools:
-            - create_task(title, description, session_id) - Create new task.
-            - claim_task(task_id, session_id) - Claim existing task.
+            - create_task(title, description, session_id) - Create and auto-claim new task.
+            - claim_task(task_id, session_id) - Claim existing unclaimed task.
             - list_ready_tasks() - List available tasks.
 
         # Block file edits without active task (replaces require_active_task)
@@ -103,8 +103,8 @@ triggers:
           when: "not task_claimed and not variables.get('plan_mode')"
           reason: |
             Task Required: Claim a task before editing files.
-            - create_task(title, description, session_id) - Create new task.
-            - claim_task(task_id, session_id) - Claim existing task.
+            - create_task(title, description, session_id) - Create and auto-claim new task.
+            - claim_task(task_id, session_id) - Claim existing unclaimed task.
 
   on_session_end:
     # Session summary generation - always runs on session end
