@@ -454,17 +454,20 @@ def create_mcp_router() -> APIRouter:
                 result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
                 response_time_ms = (time.perf_counter() - start_time) * 1000
 
-                # Check if result indicates an error (ToolProxyService returns dict with success: False)
+                # Track metrics for tool-level failures vs successes
                 if isinstance(result, dict) and result.get("success") is False:
                     metrics.inc_counter("mcp_tool_calls_failed_total")
+                    # Server not found/not configured is a transport/configuration error → HTTP 404
                     error_msg = str(result.get("error", "")).lower()
-                    # Check if error is "not found" type - return 404
-                    if "not found" in error_msg or "unknown" in error_msg:
+                    if "server" in error_msg and (
+                        "not found" in error_msg or "not configured" in error_msg
+                    ):
                         raise HTTPException(status_code=404, detail=result)
-                    # Return 400 for validation errors (includes schema for self-correction)
-                    raise HTTPException(status_code=400, detail=result)
+                else:
+                    metrics.inc_counter("mcp_tool_calls_succeeded_total")
 
-                metrics.inc_counter("mcp_tool_calls_succeeded_total")
+                # Return 200 with wrapped result for all other cases
+                # Tool-level errors (tool not found, validation, execution) are application data
                 return {
                     "success": True,
                     "result": result,
@@ -1061,25 +1064,28 @@ def create_mcp_router() -> APIRouter:
                 result = await server.tool_proxy.call_tool(server_name, tool_name, args)
                 response_time_ms = (time.perf_counter() - start_time) * 1000
 
-                # Check if result indicates an error (ToolProxyService returns dict with success: False)
+                # Track metrics for tool-level failures vs successes
                 if isinstance(result, dict) and result.get("success") is False:
                     metrics.inc_counter("mcp_tool_calls_failed_total")
+                    # Server not found/not configured is a transport/configuration error → HTTP 404
                     error_msg = str(result.get("error", "")).lower()
-                    # Check if error is "not found" type - return 404
-                    if "not found" in error_msg or "unknown" in error_msg:
+                    if "server" in error_msg and (
+                        "not found" in error_msg or "not configured" in error_msg
+                    ):
                         raise HTTPException(status_code=404, detail=result)
-                    # Return 400 for validation errors (includes schema for self-correction)
-                    raise HTTPException(status_code=400, detail=result)
+                else:
+                    metrics.inc_counter("mcp_tool_calls_succeeded_total")
+                    logger.debug(
+                        f"MCP tool call successful: {server_name}.{tool_name}",
+                        extra={
+                            "server": server_name,
+                            "tool": tool_name,
+                            "response_time_ms": response_time_ms,
+                        },
+                    )
 
-                logger.debug(
-                    f"MCP tool call successful: {server_name}.{tool_name}",
-                    extra={
-                        "server": server_name,
-                        "tool": tool_name,
-                        "response_time_ms": response_time_ms,
-                    },
-                )
-                metrics.inc_counter("mcp_tool_calls_succeeded_total")
+                # Return 200 with wrapped result for all other cases
+                # Tool-level errors (tool not found, validation, execution) are application data
                 return {
                     "success": True,
                     "result": result,

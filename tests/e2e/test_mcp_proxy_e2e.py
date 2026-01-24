@@ -159,7 +159,7 @@ class TestMCPProxyToolInvocation:
     def test_invalid_tool_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
     ):
-        """Verify calling invalid tool returns error."""
+        """Verify calling invalid tool returns error in response body."""
         response = daemon_client.post(
             "/mcp/tools/call",
             json={
@@ -169,12 +169,14 @@ class TestMCPProxyToolInvocation:
             },
         )
 
-        # Should get an error response (404 for tool not found)
-        assert response.status_code in [
-            400,
-            404,
-            500,
-        ], f"Invalid tool should return error, got {response.status_code}"
+        # Tool-level errors return HTTP 200 with error in response body
+        # (HTTP 4xx/5xx reserved for transport/configuration errors)
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        data = response.json()
+        assert data.get("success") is True, "Wrapper should indicate HTTP success"
+        result = data.get("result", {})
+        assert result.get("success") is False, "Tool result should indicate failure"
+        assert "not found" in result.get("error", "").lower()
 
 
 class TestMCPProxyConcurrency:
