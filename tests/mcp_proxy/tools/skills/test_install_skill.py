@@ -1,6 +1,5 @@
 """Tests for install_skill MCP tool (TDD - written before implementation)."""
 
-import asyncio
 import zipfile
 from collections.abc import Generator
 from pathlib import Path
@@ -38,7 +37,7 @@ def skill_dir(tmp_path: Path) -> Path:
     (skill_dir / "SKILL.md").write_text("""---
 name: test-skill
 description: A test skill for installation
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Test Skill
@@ -56,7 +55,7 @@ def skill_zip(tmp_path: Path) -> Path:
     (skill_dir / "SKILL.md").write_text("""---
 name: zip-skill
 description: A skill from a ZIP file
-version: "1.0"
+version: "1.0.0"
 ---
 
 # ZIP Skill
@@ -74,14 +73,15 @@ Content from ZIP.
 class TestInstallSkillTool:
     """Tests for install_skill MCP tool."""
 
-    def test_install_skill_from_local_path(self, db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_install_skill_from_local_path(self, db, storage, skill_dir):
         """Test installing a skill from a local directory path."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool(source=str(skill_dir)))
+        result = await tool(source=str(skill_dir))
 
         assert result["success"] is True
         assert result["installed"] is True
@@ -93,7 +93,8 @@ class TestInstallSkillTool:
         assert skill is not None
         assert skill.source_type == "local"
 
-    def test_install_skill_from_local_file(self, db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_install_skill_from_local_file(self, db, storage, skill_dir):
         """Test installing a skill from a SKILL.md file path."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -101,19 +102,20 @@ class TestInstallSkillTool:
         tool = registry.get_tool("install_skill")
 
         skill_file = skill_dir / "SKILL.md"
-        result = asyncio.run(tool(source=str(skill_file)))
+        result = await tool(source=str(skill_file))
 
         assert result["success"] is True
         assert result["skill_name"] == "test-skill"
 
-    def test_install_skill_from_zip(self, db, storage, skill_zip):
+    @pytest.mark.asyncio
+    async def test_install_skill_from_zip(self, db, storage, skill_zip):
         """Test installing a skill from a ZIP archive."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool(source=str(skill_zip)))
+        result = await tool(source=str(skill_zip))
 
         assert result["success"] is True
         assert result["installed"] is True
@@ -124,7 +126,8 @@ class TestInstallSkillTool:
         skill = storage.get_by_name("zip-skill")
         assert skill is not None
 
-    def test_install_skill_auto_detects_source_type(self, db, storage, skill_dir, skill_zip):
+    @pytest.mark.asyncio
+    async def test_install_skill_auto_detects_source_type(self, db, storage, skill_dir, skill_zip):
         """Test that install_skill auto-detects the source type."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -132,14 +135,15 @@ class TestInstallSkillTool:
         tool = registry.get_tool("install_skill")
 
         # Local directory
-        result1 = asyncio.run(tool(source=str(skill_dir)))
+        result1 = await tool(source=str(skill_dir))
         assert result1["source_type"] == "local"
 
         # ZIP file
-        result2 = asyncio.run(tool(source=str(skill_zip)))
+        result2 = await tool(source=str(skill_zip))
         assert result2["source_type"] == "zip"
 
-    def test_install_skill_github_url(self, db, storage, mocker):
+    @pytest.mark.asyncio
+    async def test_install_skill_github_url(self, db, storage, mocker):
         """Test installing a skill from a GitHub URL (mocked)."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -165,26 +169,28 @@ class TestInstallSkillTool:
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool(source="github:owner/repo"))
+        result = await tool(source="github:owner/repo")
 
         assert result["success"] is True
         assert result["skill_name"] == "github-skill"
         assert result["source_type"] == "github"
 
-    def test_install_skill_returns_skill_id(self, db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_install_skill_returns_skill_id(self, db, storage, skill_dir):
         """Test that install_skill returns the installed skill's ID."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool(source=str(skill_dir)))
+        result = await tool(source=str(skill_dir))
 
         assert result["success"] is True
         assert "skill_id" in result
         assert result["skill_id"] is not None
 
-    def test_install_skill_project_scoped_param_accepted(self, db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_install_skill_project_scoped_param_accepted(self, db, storage, skill_dir):
         """Test that project_scoped parameter is accepted (installs globally when False)."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -192,7 +198,7 @@ class TestInstallSkillTool:
         tool = registry.get_tool("install_skill")
 
         # With project_scoped=False (default), skill is installed globally
-        result = asyncio.run(tool(source=str(skill_dir), project_scoped=False))
+        result = await tool(source=str(skill_dir), project_scoped=False)
 
         assert result["success"] is True
         assert result["skill_name"] == "test-skill"
@@ -200,19 +206,21 @@ class TestInstallSkillTool:
         skill = storage.get_by_name("test-skill")
         assert skill is not None
 
-    def test_install_skill_source_not_found(self, db, tmp_path):
+    @pytest.mark.asyncio
+    async def test_install_skill_source_not_found(self, db, tmp_path):
         """Test that install_skill returns error for non-existent source."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool(source=str(tmp_path / "nonexistent")))
+        result = await tool(source=str(tmp_path / "nonexistent"))
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    def test_install_skill_invalid_skill(self, db, tmp_path):
+    @pytest.mark.asyncio
+    async def test_install_skill_invalid_skill(self, db, tmp_path):
         """Test that install_skill returns error for invalid skill."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -228,23 +236,25 @@ Content
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool(source=str(invalid_dir)))
+        result = await tool(source=str(invalid_dir))
 
         assert result["success"] is False
 
-    def test_install_skill_requires_source(self, db):
+    @pytest.mark.asyncio
+    async def test_install_skill_requires_source(self, db):
         """Test that install_skill requires source parameter."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(db)
         tool = registry.get_tool("install_skill")
 
-        result = asyncio.run(tool())
+        result = await tool()
 
         assert result["success"] is False
         assert "source" in result["error"].lower()
 
-    def test_install_skill_updates_search_index(self, db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_install_skill_updates_search_index(self, db, storage, skill_dir):
         """Test that installing a skill updates the search index."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -253,10 +263,10 @@ Content
         search_tool = registry.get_tool("search_skills")
 
         # Install skill
-        asyncio.run(install_tool(source=str(skill_dir)))
+        await install_tool(source=str(skill_dir))
 
         # Search should find it
-        result = asyncio.run(search_tool(query="test skill"))
+        result = await search_tool(query="test skill")
 
         assert result["success"] is True
         assert result["count"] > 0

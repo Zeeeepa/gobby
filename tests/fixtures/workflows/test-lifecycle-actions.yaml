@@ -1,7 +1,7 @@
 name: test-lifecycle-actions
 description: "Test workflow exercising all lifecycle actions"
 type: lifecycle
-version: "1.0"
+version: "1.0.0"
 
 settings:
   priority: 999  # Low priority so it doesn't interfere with real workflows

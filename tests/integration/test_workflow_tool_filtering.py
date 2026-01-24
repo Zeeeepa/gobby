@@ -71,7 +71,7 @@ def workflow_dir():
         restrictive_workflow = {
             "name": "restrictive-workflow",
             "type": "step",
-            "version": "1.0",
+            "version": "1.0.0",
             "steps": [
                 {
                     "name": "discovery",
@@ -101,7 +101,7 @@ def workflow_dir():
         open_workflow = {
             "name": "open-workflow",
             "type": "step",
-            "version": "1.0",
+            "version": "1.0.0",
             "steps": [
                 {
                     "name": "open",
@@ -119,7 +119,7 @@ def workflow_dir():
         minimal_workflow = {
             "name": "minimal-workflow",
             "type": "step",
-            "version": "1.0",
+            "version": "1.0.0",
             "steps": [
                 {
                     "name": "read-only",

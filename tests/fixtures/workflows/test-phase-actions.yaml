@@ -1,7 +1,7 @@
 name: test-phase-actions
 description: "Test workflow exercising all phase/general actions"
 type: phased
-version: "1.0"
+version: "1.0.0"
 
 settings:
   priority: 999

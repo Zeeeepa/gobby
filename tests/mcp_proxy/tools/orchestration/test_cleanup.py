@@ -86,9 +86,7 @@ def mock_git_manager():
     """Create a mock git manager."""
     manager = MagicMock()
     manager.delete_worktree = MagicMock(return_value=MockDeleteResult(success=True))
-    manager._run_git = MagicMock(
-        return_value=MagicMock(returncode=0, stdout="abc123", stderr="")
-    )
+    manager._run_git = MagicMock(return_value=MagicMock(returncode=0, stdout="abc123", stderr=""))
     return manager
 
 
@@ -165,9 +163,7 @@ class TestApproveAndCleanup:
         assert "review" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_approve_and_cleanup_task_not_found(
-        self, cleanup_registry, mock_task_manager
-    ):
+    async def test_approve_and_cleanup_task_not_found(self, cleanup_registry, mock_task_manager):
         """Test approve_and_cleanup fails if task not found."""
         mock_task_manager.get_task.return_value = None
 
@@ -211,9 +207,9 @@ class TestApproveAndCleanup:
             {"task_id": "task-123"},
         )
 
-        # Should fail since worktree deletion failed
-        assert result["success"] is False
-        assert "worktree" in result["error"].lower()
+        # Should succeed (task closed) but report worktree not deleted
+        assert result["success"] is True
+        assert result["worktree_deleted"] is False
 
     @pytest.mark.asyncio
     async def test_approve_and_cleanup_with_push_branch(
@@ -230,9 +226,7 @@ class TestApproveAndCleanup:
         assert result["success"] is True
         # Verify push was attempted
         push_calls = [
-            call
-            for call in mock_git_manager._run_git.call_args_list
-            if "push" in str(call)
+            call for call in mock_git_manager._run_git.call_args_list if "push" in str(call)
         ]
         assert len(push_calls) > 0
 

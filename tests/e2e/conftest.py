@@ -238,6 +238,7 @@ def e2e_config(e2e_project_dir: Path) -> Generator[tuple[Path, int, int]]:
 
     config_content = f"""
 daemon_port: {http_port}
+test_mode: true
 database_path: "{db_path}"
 
 websocket:

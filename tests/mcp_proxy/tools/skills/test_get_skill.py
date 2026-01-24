@@ -1,6 +1,5 @@
 """Tests for get_skill MCP tool (TDD - written before implementation)."""
 
-import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -60,27 +59,29 @@ def populated_db(db: LocalDatabase, storage: LocalSkillManager) -> LocalDatabase
 class TestGetSkillTool:
     """Tests for get_skill MCP tool."""
 
-    def test_get_skill_by_name(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_by_name(self, populated_db):
         """Test getting a skill by name returns full content."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         assert result["success"] is True
         assert result["skill"]["name"] == "git-commit"
         assert "Git Commit Helper" in result["skill"]["content"]
 
-    def test_get_skill_returns_full_content(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_returns_full_content(self, populated_db):
         """Test that get_skill returns full content field."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         assert result["success"] is True
         skill = result["skill"]
@@ -89,14 +90,15 @@ class TestGetSkillTool:
         assert "content" in skill
         assert len(skill["content"]) > 50  # Not truncated
 
-    def test_get_skill_returns_all_fields(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_returns_all_fields(self, populated_db):
         """Test that get_skill returns all skill fields."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         assert result["success"] is True
         skill = result["skill"]
@@ -111,14 +113,15 @@ class TestGetSkillTool:
         assert skill["allowed_tools"] == ["Bash", "Read"]
         assert skill["enabled"] is True
 
-    def test_get_skill_returns_metadata(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_returns_metadata(self, populated_db):
         """Test that get_skill returns metadata including skillport."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         assert result["success"] is True
         skill = result["skill"]
@@ -128,19 +131,21 @@ class TestGetSkillTool:
         assert skill["metadata"]["skillport"]["category"] == "git"
         assert "git" in skill["metadata"]["skillport"]["tags"]
 
-    def test_get_skill_not_found(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_not_found(self, populated_db):
         """Test that get_skill returns error for non-existent skill."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(name="nonexistent"))
+        result = await tool(name="nonexistent")
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    def test_get_skill_by_id(self, populated_db, storage):
+    @pytest.mark.asyncio
+    async def test_get_skill_by_id(self, populated_db, storage):
         """Test getting a skill by ID."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -150,12 +155,13 @@ class TestGetSkillTool:
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(skill_id=skill.id))
+        result = await tool(skill_id=skill.id)
 
         assert result["success"] is True
         assert result["skill"]["name"] == "git-commit"
 
-    def test_get_skill_prefers_id_over_name(self, populated_db, storage):
+    @pytest.mark.asyncio
+    async def test_get_skill_prefers_id_over_name(self, populated_db, storage):
         """Test that skill_id takes precedence over name."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -166,31 +172,33 @@ class TestGetSkillTool:
         tool = registry.get_tool("get_skill")
 
         # Pass both id and name - id should win
-        result = asyncio.run(tool(skill_id=skill.id, name="git-commit"))
+        result = await tool(skill_id=skill.id, name="git-commit")
 
         assert result["success"] is True
         assert result["skill"]["name"] == "minimal-skill"
 
-    def test_get_skill_requires_identifier(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_requires_identifier(self, populated_db):
         """Test that get_skill requires either name or skill_id."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool())
+        result = await tool()
 
         assert result["success"] is False
         assert "name or skill_id" in result["error"].lower()
 
-    def test_get_skill_minimal_fields(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_get_skill_minimal_fields(self, populated_db):
         """Test getting a skill with minimal fields set."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("get_skill")
 
-        result = asyncio.run(tool(name="minimal-skill"))
+        result = await tool(name="minimal-skill")
 
         assert result["success"] is True
         skill = result["skill"]

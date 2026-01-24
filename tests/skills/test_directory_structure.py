@@ -22,7 +22,7 @@ def skill_with_directories(tmp_path: Path) -> Path:
     (skill_dir / "SKILL.md").write_text("""---
 name: my-skill
 description: A skill with directory structure
-version: "1.0"
+version: "1.0.0"
 ---
 
 # My Skill

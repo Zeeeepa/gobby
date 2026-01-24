@@ -137,7 +137,9 @@ class SkillSearch:
         if any([ngram_range, max_features, min_df]):
             logger.debug("ngram_range, max_features, min_df parameters are deprecated and ignored")
         if embedding_provider is not None:
-            logger.debug("embedding_provider parameter is deprecated; UnifiedSearcher handles embedding")
+            logger.debug(
+                "embedding_provider parameter is deprecated; UnifiedSearcher handles embedding"
+            )
 
         self._config = config
         self._refit_threshold = refit_threshold
@@ -208,7 +210,17 @@ class SkillSearch:
         """
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(self.index_skills_async(skills))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # If we're already in a loop, we can't use run_until_complete.
+            # We schedule as a task (best effort for sync contexts inside async)
+            loop.create_task(self.index_skills_async(skills))
+        else:
+            asyncio.get_event_loop().run_until_complete(self.index_skills_async(skills))
 
     async def index_skills_async(self, skills: list[Skill]) -> None:
         """Build search index from skills.
@@ -318,9 +330,7 @@ class SkillSearch:
         """
         import asyncio
 
-        return asyncio.get_event_loop().run_until_complete(
-            self.search_async(query, top_k, filters)
-        )
+        return asyncio.get_event_loop().run_until_complete(self.search_async(query, top_k, filters))
 
     def _passes_filters(self, skill_id: str, filters: SearchFilters) -> bool:
         """Check if a skill passes the given filters.

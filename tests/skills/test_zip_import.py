@@ -15,7 +15,7 @@ def skill_md_content():
     return """---
 name: test-skill
 description: A test skill for ZIP import
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Test Skill
@@ -58,7 +58,7 @@ def zip_with_multiple_skills(tmp_path):
     content1 = """---
 name: skill-one
 description: First skill
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Skill One
@@ -73,7 +73,7 @@ Content for skill one.
     content2 = """---
 name: skill-two
 description: Second skill
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Skill Two

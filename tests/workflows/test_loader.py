@@ -51,7 +51,7 @@ class TestWorkflowLoader:
         """Test loading a valid workflow YAML."""
         yaml_content = """
         name: test_workflow
-        version: "1.0"
+        version: "1.0.0"
         steps:
           - name: step1
             allowed_tools: all
@@ -82,7 +82,7 @@ class TestWorkflowLoader:
         """Test that non-ValueError exceptions during loading return None."""
         yaml_content = """
         name: test_workflow
-        version: "1.0"
+        version: "1.0.0"
         steps:
           - name: step1
             allowed_tools: all
@@ -115,7 +115,7 @@ class TestWorkflowLoader:
         """Test that loaded workflows are cached."""
         yaml_content = """
         name: cached_workflow
-        version: "1.0"
+        version: "1.0.0"
         steps:
           - name: step1
             allowed_tools: all
@@ -137,7 +137,7 @@ class TestWorkflowLoader:
         """Test that cache keys include project path for proper isolation."""
         yaml_content = """
         name: project_workflow
-        version: "1.0"
+        version: "1.0.0"
         steps:
           - name: step1
             allowed_tools: all
@@ -165,7 +165,7 @@ class TestWorkflowLoader:
         """Test that clearing cache forces reload from disk."""
         yaml_content_v1 = """
         name: dynamic_workflow
-        version: "1.0"
+        version: "1.0.0"
         """
         yaml_content_v2 = """
         name: dynamic_workflow
@@ -308,7 +308,7 @@ class TestWorkflowInheritance:
 
         parent_yaml = """
         name: parent_workflow
-        version: "1.0"
+        version: "1.0.0"
         steps:
           - name: step1
             allowed_tools: all
@@ -316,7 +316,7 @@ class TestWorkflowInheritance:
 
         child_yaml = """
         name: child_workflow
-        version: "1.0"
+        version: "1.0.0"
         extends: parent_workflow
         steps:
           - name: step2
@@ -352,7 +352,7 @@ class TestWorkflowInheritance:
 
         child_yaml = """
         name: orphan_workflow
-        version: "1.0"
+        version: "1.0.0"
         extends: nonexistent_parent
         steps:
           - name: step1
@@ -377,7 +377,7 @@ class TestWorkflowInheritance:
 
         self_ref_yaml = """
         name: self_ref
-        version: "1.0"
+        version: "1.0.0"
         extends: self_ref
         steps:
           - name: step1
@@ -399,7 +399,7 @@ class TestWorkflowInheritance:
 
         workflow_a_yaml = """
         name: workflow_a
-        version: "1.0"
+        version: "1.0.0"
         extends: workflow_b
         steps:
           - name: step_a
@@ -408,7 +408,7 @@ class TestWorkflowInheritance:
 
         workflow_b_yaml = """
         name: workflow_b
-        version: "1.0"
+        version: "1.0.0"
         extends: workflow_a
         steps:
           - name: step_b
@@ -440,7 +440,7 @@ class TestWorkflowInheritance:
 
         workflow_a_yaml = """
         name: workflow_a
-        version: "1.0"
+        version: "1.0.0"
         extends: workflow_b
         steps:
           - name: step_a
@@ -449,7 +449,7 @@ class TestWorkflowInheritance:
 
         workflow_b_yaml = """
         name: workflow_b
-        version: "1.0"
+        version: "1.0.0"
         extends: workflow_c
         steps:
           - name: step_b
@@ -458,7 +458,7 @@ class TestWorkflowInheritance:
 
         workflow_c_yaml = """
         name: workflow_c
-        version: "1.0"
+        version: "1.0.0"
         extends: workflow_a
         steps:
           - name: step_c
@@ -495,7 +495,7 @@ class TestWorkflowInheritance:
 
         base_yaml = """
         name: base
-        version: "1.0"
+        version: "1.0.0"
         steps:
           - name: base_step
             allowed_tools: all
@@ -503,7 +503,7 @@ class TestWorkflowInheritance:
 
         middle_yaml = """
         name: middle
-        version: "1.0"
+        version: "1.0.0"
         extends: base
         steps:
           - name: middle_step
@@ -512,7 +512,7 @@ class TestWorkflowInheritance:
 
         top_yaml = """
         name: top
-        version: "1.0"
+        version: "1.0.0"
         extends: middle
         steps:
           - name: top_step
@@ -554,7 +554,7 @@ class TestMergeWorkflows:
 
     def test_simple_merge(self, loader):
         """Test basic parent/child merge."""
-        parent = {"name": "parent", "version": "1.0", "description": "Parent desc"}
+        parent = {"name": "parent", "version": "1.0.0", "description": "Parent desc"}
         child = {"name": "child", "version": "2.0"}
 
         result = loader._merge_workflows(parent, child)
@@ -710,7 +710,7 @@ class TestDiscoverLifecycleWorkflows:
         # Create a lifecycle workflow
         workflow_yaml = """
 name: session_start
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 settings:
   priority: 10
@@ -735,7 +735,7 @@ settings:
 
         global_yaml = """
 name: session_start
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 settings:
   priority: 100
@@ -767,7 +767,7 @@ settings:
         for name, priority in [("b_workflow", 50), ("a_workflow", 100), ("c_workflow", 50)]:
             yaml_content = f"""
 name: {name}
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 settings:
   priority: {priority}
@@ -789,12 +789,12 @@ settings:
 
         lifecycle_yaml = """
 name: lifecycle_wf
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 """
         step_yaml = """
 name: step_wf
-version: "1.0"
+version: "1.0.0"
 type: step
 """
         (global_dir / "lifecycle" / "lifecycle_wf.yaml").write_text(lifecycle_yaml)
@@ -813,7 +813,7 @@ type: step
 
         yaml_content = """
 name: cached_workflow
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 """
         (global_dir / "lifecycle" / "cached_workflow.yaml").write_text(yaml_content)
@@ -834,7 +834,7 @@ type: lifecycle
 
         yaml_content = """
 name: no_priority
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 """
         (global_dir / "lifecycle" / "no_priority.yaml").write_text(yaml_content)
@@ -890,7 +890,7 @@ class TestScanDirectory:
 
         parent_yaml = """
 name: parent
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 steps:
   - name: base_step
@@ -898,7 +898,7 @@ steps:
 """
         child_yaml = """
 name: child
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 extends: parent
 """
@@ -920,13 +920,13 @@ extends: parent
 
         cycle_a = """
 name: cycle_a
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 extends: cycle_b
 """
         cycle_b = """
 name: cycle_b
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 extends: cycle_a
 """
@@ -949,7 +949,7 @@ extends: cycle_a
 
         child_yaml = """
 name: child_orphan
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 extends: nonexistent_parent
 """
@@ -974,7 +974,7 @@ class TestClearCache:
 
         yaml_content = """
 name: test_workflow
-version: "1.0"
+version: "1.0.0"
 type: lifecycle
 """
         (global_dir / "lifecycle" / "test_workflow.yaml").write_text(yaml_content)

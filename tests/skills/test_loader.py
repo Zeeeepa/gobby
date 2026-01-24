@@ -14,7 +14,7 @@ def skill_dir(tmp_path):
     skill_file.write_text("""---
 name: commit-message
 description: Generate conventional commit messages
-version: "1.0"
+version: "1.0.0"
 license: MIT
 metadata:
   skillport:

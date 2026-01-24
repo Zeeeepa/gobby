@@ -233,6 +233,10 @@ class DaemonConfig(BaseModel):
         default=10.0,
         description="Daemon health check interval in seconds",
     )
+    test_mode: bool = Field(
+        default=False,
+        description="Run daemon in test mode (enables test endpoints)",
+    )
 
     # Local storage
     database_path: str = Field(

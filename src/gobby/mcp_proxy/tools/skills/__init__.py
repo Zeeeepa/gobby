@@ -207,6 +207,8 @@ def create_skills_registry(
 
     # Initialize search and index skills
     search = SkillSearch()
+    # Expose search instance on registry for testing/manual indexing
+    registry.search = search
 
     def _index_skills() -> None:
         """Index all skills for search."""
@@ -264,7 +266,7 @@ def create_skills_registry(
                 )
 
             # Perform search
-            results = search.search(query=query, top_k=top_k, filters=filters)
+            results = await search.search_async(query=query, top_k=top_k, filters=filters)
 
             # Format results with skill metadata
             result_list = []
@@ -359,7 +361,12 @@ def create_skills_registry(
             storage.delete_skill(skill.id)
 
             # Re-index skills after deletion
-            _index_skills()
+            skills = storage.list_skills(
+                project_id=project_id,
+                limit=10000,
+                include_global=True,
+            )
+            await search.index_skills_async(skills)
 
             return {
                 "success": True,
@@ -425,7 +432,12 @@ def create_skills_registry(
 
             # Re-index skills if updated
             if result.updated:
-                _index_skills()
+                skills = storage.list_skills(
+                    project_id=project_id,
+                    limit=10000,
+                    include_global=True,
+                )
+                await search.index_skills_async(skills)
 
             return {
                 "success": result.success,
@@ -594,7 +606,12 @@ def create_skills_registry(
             )
 
             # Re-index skills
-            _index_skills()
+            skills = storage.list_skills(
+                project_id=project_id,
+                limit=10000,
+                include_global=True,
+            )
+            await search.index_skills_async(skills)
 
             return {
                 "success": True,

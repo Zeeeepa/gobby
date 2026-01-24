@@ -35,7 +35,7 @@ def skill_dir(tmp_path):
     skill_file.write_text("""---
 name: local-skill
 description: A local skill v1.0
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Local Skill
@@ -115,7 +115,7 @@ Updated content.
         skill_file.write_text("""---
 name: no-change-skill
 description: No changes here
-version: "1.0"
+version: "1.0.0"
 ---
 
 # No Change Skill

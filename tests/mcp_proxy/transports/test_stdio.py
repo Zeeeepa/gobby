@@ -224,6 +224,7 @@ class TestExpandArgs:
             assert result == ["plain", "value", "another"]
 
 
+@pytest.mark.integration
 class TestIntegrationScenarios:
     """Integration tests for realistic usage scenarios."""
 

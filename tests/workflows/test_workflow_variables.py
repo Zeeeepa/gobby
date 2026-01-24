@@ -33,7 +33,7 @@ class TestWorkflowDefinitionVariables:
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
         name: test_workflow
-        version: "1.0"
+        version: "1.0.0"
         type: lifecycle
         variables:
           auto_decompose: true
@@ -62,7 +62,7 @@ class TestWorkflowDefinitionVariables:
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
         name: no_vars_workflow
-        version: "1.0"
+        version: "1.0.0"
         steps: []
         """
 
@@ -82,7 +82,7 @@ class TestWorkflowDefinitionVariables:
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
         name: typed_vars
-        version: "1.0"
+        version: "1.0.0"
         variables:
           string_var: "hello"
           int_var: 42
@@ -121,7 +121,7 @@ class TestWorkflowVariableInheritance:
 
         parent_yaml = """
         name: parent
-        version: "1.0"
+        version: "1.0.0"
         variables:
           from_parent: "inherited"
           shared: "parent_value"
@@ -130,7 +130,7 @@ class TestWorkflowVariableInheritance:
 
         child_yaml = """
         name: child
-        version: "1.0"
+        version: "1.0.0"
         extends: parent
         variables:
           from_child: "new"
@@ -166,7 +166,7 @@ class TestWorkflowVariableInheritance:
 
         parent_yaml = """
         name: parent
-        version: "1.0"
+        version: "1.0.0"
         variables:
           shared_var: "parent_value"
           only_parent: 100
@@ -175,7 +175,7 @@ class TestWorkflowVariableInheritance:
 
         child_yaml = """
         name: child
-        version: "1.0"
+        version: "1.0.0"
         extends: parent
         variables:
           shared_var: "child_value"
@@ -210,7 +210,7 @@ class TestWorkflowVariableInheritance:
 
         base_yaml = """
         name: base
-        version: "1.0"
+        version: "1.0.0"
         variables:
           level: "base"
           from_base: true
@@ -219,7 +219,7 @@ class TestWorkflowVariableInheritance:
 
         middle_yaml = """
         name: middle
-        version: "1.0"
+        version: "1.0.0"
         extends: base
         variables:
           level: "middle"
@@ -229,7 +229,7 @@ class TestWorkflowVariableInheritance:
 
         top_yaml = """
         name: top
-        version: "1.0"
+        version: "1.0.0"
         extends: middle
         variables:
           level: "top"

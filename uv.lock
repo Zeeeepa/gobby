@@ -880,7 +880,6 @@ dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "litellm" },
-    { name = "mem0ai" },
     { name = "memu-py" },
     { name = "msgspec" },
     { name = "psutil" },
@@ -893,6 +892,11 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "wcwidth" },
     { name = "websockets" },
+]
+
+[package.optional-dependencies]
+mem0 = [
+    { name = "mem0ai" },
 ]
 
 [package.dev-dependencies]
@@ -922,7 +926,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "litellm", specifier = ">=1.0.0" },
-    { name = "mem0ai" },
+    { name = "mem0ai", marker = "extra == 'mem0'" },
     { name = "memu-py", specifier = ">=1.0.0" },
     { name = "msgspec", specifier = ">=0.20.0" },
     { name = "psutil", specifier = ">=6.1.0" },
@@ -936,6 +940,7 @@ requires-dist = [
     { name = "wcwidth", specifier = ">=0.2.14" },
     { name = "websockets", specifier = ">=15.0" },
 ]
+provides-extras = ["mem0"]
 
 [package.metadata.requires-dev]
 dev = [
