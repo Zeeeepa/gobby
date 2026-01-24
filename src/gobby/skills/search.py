@@ -341,7 +341,10 @@ class SkillSearch:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, self.search_async(query, top_k, filters))
+                # Defer coroutine construction to the executor thread
+                future = executor.submit(
+                    lambda: asyncio.run(self.search_async(query, top_k, filters))
+                )
                 return future.result()
         else:
             return asyncio.run(self.search_async(query, top_k, filters))
