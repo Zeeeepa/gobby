@@ -80,7 +80,6 @@ def create_base_patches(
         patch("gobby.runner.TaskSyncManager"),
         patch("gobby.runner.MemorySyncManager"),
         patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-        patch("gobby.runner.TaskExpander"),
         patch("gobby.runner.TaskValidator"),
         patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
         patch("gobby.runner.create_llm_service", return_value=None),
@@ -517,68 +516,6 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
 
             assert runner.message_processor == mock_message_processor
-
-    def test_init_with_task_expander(self):
-        """Test TaskExpander initialization when LLM service and expansion enabled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.gobby_tasks = MagicMock()
-        mock_config.gobby_tasks.expansion = MagicMock()
-        mock_config.gobby_tasks.expansion.enabled = True
-        mock_config.gobby_tasks.validation = MagicMock()
-        mock_config.gobby_tasks.validation.enabled = False
-
-        mock_llm_service = MagicMock()
-        mock_llm_service.enabled_providers = ["test"]
-        mock_task_expander = MagicMock()
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches = [p for p in patches if "create_llm_service" not in str(p)]
-        patches = [p for p in patches if "TaskExpander" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(patch("gobby.runner.TaskExpander", return_value=mock_task_expander))
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-
-            assert runner.task_expander == mock_task_expander
-
-    def test_init_task_expander_exception(self):
-        """Test TaskExpander initialization exception is handled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.gobby_tasks = MagicMock()
-        mock_config.gobby_tasks.expansion = MagicMock()
-        mock_config.gobby_tasks.expansion.enabled = True
-        mock_config.gobby_tasks.validation = MagicMock()
-        mock_config.gobby_tasks.validation.enabled = False
-
-        mock_llm_service = MagicMock()
-        mock_llm_service.enabled_providers = ["test"]
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches = [p for p in patches if "create_llm_service" not in str(p)]
-        patches = [p for p in patches if "TaskExpander" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(patch("gobby.runner.TaskExpander", side_effect=Exception("Expander error")))
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-            assert runner.task_expander is None
 
     def test_init_with_task_validator(self):
         """Test TaskValidator initialization when LLM service and validation enabled."""

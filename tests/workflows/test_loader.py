@@ -178,12 +178,12 @@ class TestWorkflowLoader:
             # First load
             with patch("builtins.open", mock_open(read_data=yaml_content_v1)):
                 wf1 = loader.load_workflow("dynamic_workflow")
-                assert wf1.version == "1.0"
+                assert wf1.version == "1.0.0"
 
             # Cache hit check
             with patch("builtins.open", mock_open(read_data="should not be read")):
                 wf_cached = loader.load_workflow("dynamic_workflow")
-                assert wf_cached.version == "1.0"
+                assert wf_cached.version == "1.0.0"
 
             # Clear cache
             loader.clear_cache()
