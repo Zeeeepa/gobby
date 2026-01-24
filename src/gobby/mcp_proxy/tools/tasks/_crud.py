@@ -3,6 +3,7 @@
 Provides core task operations: create, get, update, list, and tree building.
 """
 
+import logging
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -13,6 +14,8 @@ from gobby.storage.task_dependencies import DependencyCycleError
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
+
+logger = logging.getLogger(__name__)
 
 
 def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
@@ -333,8 +336,9 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 try:
                     resolved_parent = resolve_task_id_for_mcp(ctx.task_manager, parent_task_id)
                     kwargs["parent_task_id"] = resolved_parent
-                except (TaskNotFoundError, ValueError):
-                    kwargs["parent_task_id"] = parent_task_id  # Fall back to original
+                except (TaskNotFoundError, ValueError) as e:
+                    logger.warning(f"Invalid parent_task_id '{parent_task_id}': {e}")
+                    raise ValueError(f"Invalid parent_task_id '{parent_task_id}': {e}") from e
             else:
                 kwargs["parent_task_id"] = None
         if category is not None:

@@ -88,6 +88,14 @@ def validate_commit_requirements(
     return ValidationResult(can_close=True)
 
 
+# Files to ignore in uncommitted changes check (Gobby state files that change frequently)
+_IGNORED_UNCOMMITTED = {
+    ".gobby/tasks.jsonl",
+    ".gobby/tasks_meta.json",
+    ".gobby/memories.jsonl",
+}
+
+
 def _check_uncommitted_changes(repo_path: str | None) -> ValidationResult | None:
     """Check if there are uncommitted changes to tracked files.
 
@@ -109,6 +117,10 @@ def _check_uncommitted_changes(repo_path: str | None) -> ValidationResult | None
 
         staged_files = [f for f in (staged or "").strip().split("\n") if f]
         unstaged_files = [f for f in (unstaged or "").strip().split("\n") if f]
+
+        # Filter out Gobby state files that change frequently during normal operation
+        staged_files = [f for f in staged_files if f not in _IGNORED_UNCOMMITTED]
+        unstaged_files = [f for f in unstaged_files if f not in _IGNORED_UNCOMMITTED]
 
         if staged_files or unstaged_files:
             all_files = sorted(set(staged_files + unstaged_files))
