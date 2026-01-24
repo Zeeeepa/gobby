@@ -201,9 +201,9 @@ class SkillSearch:
         return " ".join(parts)
 
     def index_skills(self, skills: list[Skill]) -> None:
-        """Build search index from skills (sync, TF-IDF only).
+        """Build search index from skills (sync wrapper).
 
-        For embedding/hybrid modes, use index_skills_async() instead.
+        For async usage, prefer index_skills_async() instead.
 
         Args:
             skills: List of skills to index
@@ -216,9 +216,16 @@ class SkillSearch:
             loop = None
 
         if loop and loop.is_running():
-            # If we're already in a loop, we can't use run_until_complete.
-            # We schedule as a task (best effort for sync contexts inside async)
-            loop.create_task(self.index_skills_async(skills))
+            # Can't use asyncio.run() inside a running loop
+            # Use ThreadPoolExecutor to run in a separate thread and block until complete
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                # Defer coroutine construction to the executor thread
+                future = executor.submit(
+                    lambda: asyncio.run(self.index_skills_async(skills))
+                )
+                future.result()
         else:
             asyncio.run(self.index_skills_async(skills))
 
