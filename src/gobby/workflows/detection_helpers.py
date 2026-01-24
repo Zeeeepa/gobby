@@ -58,7 +58,7 @@ def detect_task_claim(
 
     # Check inner tool name
     inner_tool_name = tool_input.get("tool_name", "")
-    if inner_tool_name not in ("create_task", "update_task", "close_task"):
+    if inner_tool_name not in ("create_task", "update_task", "claim_task", "close_task"):
         return
 
     # For update_task, only count if status is being set to in_progress
@@ -66,6 +66,7 @@ def detect_task_claim(
         arguments = tool_input.get("arguments", {}) or {}
         if arguments.get("status") != "in_progress":
             return
+    # claim_task always counts (it sets status to in_progress internally)
 
     # For close_task, we'll clear task_claimed after success check
     is_close_task = inner_tool_name == "close_task"
@@ -104,7 +105,7 @@ def detect_task_claim(
 
     # Extract task_id based on tool type
     arguments = tool_input.get("arguments", {}) or {}
-    if inner_tool_name == "update_task":
+    if inner_tool_name in ("update_task", "claim_task"):
         task_id = arguments.get("task_id")
     elif inner_tool_name == "create_task":
         # For create_task, the id is in the result
@@ -121,8 +122,8 @@ def detect_task_claim(
         f"(via {inner_tool_name})"
     )
 
-    # Auto-link task to session when status is set to in_progress
-    if inner_tool_name == "update_task":
+    # Auto-link task to session when claiming a task
+    if inner_tool_name in ("update_task", "claim_task"):
         arguments = tool_input.get("arguments", {}) or {}
         task_id = arguments.get("task_id")
         if task_id and session_task_manager:
