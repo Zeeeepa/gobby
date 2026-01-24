@@ -53,11 +53,11 @@ async def generate_embeddings(
         api_key: Optional API key (uses environment variable if not set)
 
     Returns:
-        List of embedding vectors (one per input text)
+        List of embedding vectors (one per input text). Returns an empty
+        list if the input texts list is empty.
 
     Raises:
         RuntimeError: If LiteLLM is not installed or embedding fails
-        ValueError: If texts list is empty
     """
     if not texts:
         return []
@@ -65,9 +65,7 @@ async def generate_embeddings(
     try:
         import litellm
     except ImportError as e:
-        raise RuntimeError(
-            "litellm package not installed. Run: uv add litellm"
-        ) from e
+        raise RuntimeError("litellm package not installed. Run: uv add litellm") from e
 
     # Build kwargs for LiteLLM
     kwargs: dict[str, str | list[str]] = {

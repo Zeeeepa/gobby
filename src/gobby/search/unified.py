@@ -149,19 +149,27 @@ class UnifiedSearcher:
         self,
         reason: str,
         error: Exception | None = None,
+        items: list[tuple[str, str]] | None = None,
     ) -> None:
-        """Switch to TF-IDF backend and reindex if needed."""
+        """Switch to TF-IDF backend and reindex.
+
+        Args:
+            reason: Human-readable reason for fallback
+            error: Optional exception that caused the fallback
+            items: Items to index. If None, uses cached self._items
+        """
         self._using_fallback = True
         self._fallback_reason = reason
         self._active_backend = "tfidf"
 
-        # Reindex into TF-IDF if we have items
+        # Fit TF-IDF with provided items or cached items
+        fit_items = items if items is not None else self._items
         items_reindexed = 0
-        if self._items:
+        if fit_items:
             tfidf = self._get_tfidf_backend()
-            if tfidf.needs_refit():
-                await tfidf.fit_async(self._items)
-                items_reindexed = len(self._items)
+            await tfidf.fit_async(fit_items)
+            items_reindexed = len(fit_items)
+            self._fitted = True
 
         self._emit_fallback_event(reason, error, items_reindexed)
 
@@ -217,11 +225,9 @@ class UnifiedSearcher:
             ):
                 # No embedding available - use TF-IDF
                 await self._fallback_to_tfidf(
-                    f"Embedding unavailable (no API key for {self._config.embedding_model})"
+                    f"Embedding unavailable (no API key for {self._config.embedding_model})",
+                    items=items,
                 )
-                tfidf = self._get_tfidf_backend()
-                await tfidf.fit_async(items)
-                self._fitted = True
             else:
                 try:
                     embedding = self._get_embedding_backend()
@@ -233,10 +239,8 @@ class UnifiedSearcher:
                     await self._fallback_to_tfidf(
                         f"Embedding indexing failed: {e}",
                         error=e,
+                        items=items,
                     )
-                    tfidf = self._get_tfidf_backend()
-                    await tfidf.fit_async(items)
-                    self._fitted = True
 
         elif mode == SearchMode.HYBRID:
             # Both TF-IDF and embedding
@@ -332,9 +336,7 @@ class UnifiedSearcher:
         embedding_scores: dict[str, float] = {}
         if self._embedding_backend is not None and not self._using_fallback:
             try:
-                embedding_results = await self._embedding_backend.search_async(
-                    query, top_k * 2
-                )
+                embedding_results = await self._embedding_backend.search_async(query, top_k * 2)
                 embedding_scores = dict(embedding_results)
             except Exception as e:
                 logger.warning(f"Hybrid embedding search failed: {e}")
@@ -400,9 +402,7 @@ class UnifiedSearcher:
         if mode == SearchMode.HYBRID:
             tfidf_needs = self._get_tfidf_backend().needs_refit()
             embedding_needs = (
-                self._embedding_backend.needs_refit()
-                if self._embedding_backend
-                else False
+                self._embedding_backend.needs_refit() if self._embedding_backend else False
             )
             return tfidf_needs or embedding_needs
 

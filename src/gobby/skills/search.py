@@ -220,7 +220,7 @@ class SkillSearch:
             # We schedule as a task (best effort for sync contexts inside async)
             loop.create_task(self.index_skills_async(skills))
         else:
-            asyncio.get_event_loop().run_until_complete(self.index_skills_async(skills))
+            asyncio.run(self.index_skills_async(skills))
 
     async def index_skills_async(self, skills: list[Skill]) -> None:
         """Build search index from skills.
@@ -330,7 +330,21 @@ class SkillSearch:
         """
         import asyncio
 
-        return asyncio.get_event_loop().run_until_complete(self.search_async(query, top_k, filters))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Can't use asyncio.run() inside a running loop
+            # This is a best-effort sync wrapper; prefer search_async() in async contexts
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, self.search_async(query, top_k, filters))
+                return future.result()
+        else:
+            return asyncio.run(self.search_async(query, top_k, filters))
 
     def _passes_filters(self, skill_id: str, filters: SearchFilters) -> bool:
         """Check if a skill passes the given filters.

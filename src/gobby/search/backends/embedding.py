@@ -179,9 +179,7 @@ class EmbeddingBackend:
 
         # Compute similarities
         similarities: list[tuple[str, float]] = []
-        for item_id, item_embedding in zip(
-            self._item_ids, self._item_embeddings, strict=True
-        ):
+        for item_id, item_embedding in zip(self._item_ids, self._item_embeddings, strict=True):
             similarity = _cosine_similarity(query_embedding, item_embedding)
             if similarity > 0:
                 similarities.append((item_id, similarity))

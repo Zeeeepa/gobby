@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = [pytest.mark.integration]
+
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.skills import LocalSkillManager
