@@ -58,10 +58,31 @@ def detect_task_claim(
         return
 
     # Check inner tool name
-    # Note: close_task is NOT handled here because Claude Code doesn't include tool_result
-    # in post-tool-use hooks, so we can't verify if close succeeded. The workflow state
-    # is updated directly in the MCP proxy's close_task function instead.
     inner_tool_name = tool_input.get("tool_name", "")
+
+    # Handle close_task - clears task_claimed when task is closed
+    # Note: Claude Code doesn't include tool_result in post-tool-use hooks, so for CC
+    # the workflow state is updated directly in the MCP proxy's close_task function.
+    # This detection provides a fallback for CLIs that do report tool results (Gemini/Codex).
+    if inner_tool_name == "close_task":
+        tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
+        # Check if close succeeded (not an error)
+        if isinstance(tool_output, dict):
+            if tool_output.get("error") or tool_output.get("status") == "error":
+                return
+            result = tool_output.get("result", {})
+            if isinstance(result, dict) and result.get("error"):
+                return
+
+        # Clear task_claimed on successful close
+        state.variables["task_claimed"] = False
+        state.variables["claimed_task_id"] = None
+        logger.info(
+            f"Session {state.session_id}: task_claimed=False "
+            f"(detected close_task success)"
+        )
+        return
+
     if inner_tool_name not in ("create_task", "update_task", "claim_task"):
         return
 

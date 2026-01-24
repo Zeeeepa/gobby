@@ -13,6 +13,14 @@ variables:
   # Auto-decompose multi-step task descriptions into subtasks
   auto_decompose: false
 
+  # Task lifecycle policies
+  # Block close_task until a commit is linked to the task
+  require_commit_before_close: true
+  # Block no_commit_needed flag if session has uncommitted (dirty) files
+  block_no_commit_with_dirty: true
+  # Clear task_claimed variable on successful close_task
+  clear_task_on_close: true
+
 triggers:
   on_stop:
     # Task closure enforcement - block stop if task is still in_progress
@@ -105,6 +113,30 @@ triggers:
             Task Required: Claim a task before editing files.
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
             - claim_task(task_id, session_id) - Claim existing unclaimed task.
+
+        # Block close_task with no_commit_needed if session has dirty files
+        # This prevents agents from incorrectly using no_commit_needed when they have uncommitted changes
+        - mcp_tools: ["gobby-tasks:close_task"]
+          when: "variables.get('block_no_commit_with_dirty') and tool_input.get('no_commit_needed') and session_has_dirty_files"
+          reason: |
+            Cannot use no_commit_needed=True with uncommitted changes.
+
+            You have modified files that haven't been committed. Either:
+            1. Commit your changes: git commit -m "[#N] description"
+            2. Then close with commit_sha: close_task(task_id="#N", commit_sha="<sha>")
+
+            no_commit_needed is only for tasks with NO code changes (research, planning).
+
+        # Block close_task without a linked commit (unless using special close reasons)
+        - mcp_tools: ["gobby-tasks:close_task"]
+          when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('no_commit_needed') and not tool_input.get('commit_sha')"
+          reason: |
+            A commit is required before closing this task.
+
+            Either:
+            1. Pass commit_sha: close_task(task_id="#N", commit_sha="<sha>")
+            2. Include [#N] in commit message for auto-linking, then close_task(task_id="#N")
+            3. For non-code tasks: close_task(task_id="#N", no_commit_needed=True, override_justification="...")
 
   on_session_end:
     # Session summary generation - always runs on session end

@@ -816,7 +816,12 @@ class TestMCPEndpointsWithManager:
         mcp_client: TestClient,
         http_server_with_mcp: HTTPServer,
     ) -> None:
-        """Test MCP proxy for unknown tool."""
+        """Test MCP proxy for unknown tool.
+
+        Tool-level errors (tool not found, validation, execution) are returned as
+        200 with error in response body. Only server-level errors return 404.
+        See _process_tool_proxy_result in routes/mcp/tools.py.
+        """
         assert http_server_with_mcp.mcp_manager is not None
         http_server_with_mcp.mcp_manager.call_tool = AsyncMock(
             side_effect=ValueError("Tool not found")
@@ -826,7 +831,13 @@ class TestMCPEndpointsWithManager:
             "/mcp/test-server/tools/unknown-tool",
             json={},
         )
-        assert response.status_code == 404
+        # Tool-level errors return 200 with error in body (application-level error)
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("success") is True  # Outer wrapper success
+        result = data.get("result", {})
+        assert result.get("success") is False  # Inner error from ToolProxyService
+        assert "Tool not found" in result.get("error", "")
 
     def test_add_mcp_server_success(
         self,
@@ -877,10 +888,10 @@ class TestMCPEndpointsWithManager:
             )
 
         assert response.status_code == 400
-        assert (
-            "No current project configuration found" in response.json()["detail"]
-            or "No current project found" in response.json()["detail"]
-        )
+        # HTTPException returns {"success": False, "error": "..."} in detail
+        detail = response.json()["detail"]
+        error_msg = detail.get("error", "") if isinstance(detail, dict) else str(detail)
+        assert "No current project" in error_msg
 
 
 class TestExceptionHandling:

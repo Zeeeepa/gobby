@@ -30,6 +30,9 @@ def _evaluate_block_condition(
     condition: str,
     workflow_state: "WorkflowState | None",
     event_data: dict[str, Any] | None = None,
+    tool_input: dict[str, Any] | None = None,
+    session_has_dirty_files: bool = False,
+    task_has_commits: bool = False,
 ) -> bool:
     """
     Evaluate a blocking rule condition against workflow state.
@@ -38,11 +41,17 @@ def _evaluate_block_condition(
     - variables: workflow state variables dict
     - task_claimed: shorthand for variables.get('task_claimed')
     - plan_mode: shorthand for variables.get('plan_mode')
+    - tool_input: the tool's input arguments (for MCP tool checks)
+    - session_has_dirty_files: whether session has NEW dirty files (beyond baseline)
+    - task_has_commits: whether the current task has linked commits
 
     Args:
         condition: Python expression to evaluate
         workflow_state: Current workflow state
         event_data: Optional hook event data
+        tool_input: Tool input arguments (for MCP tools, this is the 'arguments' field)
+        session_has_dirty_files: Whether session has dirty files beyond baseline
+        task_has_commits: Whether claimed task has linked commits
 
     Returns:
         True if condition matches (tool should be blocked), False otherwise.
@@ -57,6 +66,9 @@ def _evaluate_block_condition(
         "task_claimed": variables.get("task_claimed", False),
         "plan_mode": variables.get("plan_mode", False),
         "event": event_data or {},
+        "tool_input": tool_input or {},
+        "session_has_dirty_files": session_has_dirty_files,
+        "task_has_commits": task_has_commits,
     }
 
     # Allowed globals for safe evaluation
@@ -69,6 +81,8 @@ def _evaluate_block_condition(
         "bool": bool,
         "str": str,
         "int": int,
+        "and": lambda x, y: x and y,
+        "or": lambda x, y: x or y,
     }
 
     try:
@@ -84,25 +98,40 @@ async def block_tools(
     rules: list[dict[str, Any]] | None = None,
     event_data: dict[str, Any] | None = None,
     workflow_state: "WorkflowState | None" = None,
+    project_path: str | None = None,
+    task_manager: "LocalTaskManager | None" = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """
     Unified tool blocking with multiple configurable rules.
 
     Each rule can specify:
-      - tools: List of tool names to block
+      - tools: List of tool names to block (for native CC tools)
+      - mcp_tools: List of "server:tool" patterns to block (for MCP tools)
       - when: Optional condition (evaluated against workflow state)
       - reason: Block message to display
 
+    For MCP tools, the tool_name in event_data is "call_tool" or "mcp__gobby__call_tool",
+    and we look inside tool_input for server_name and tool_name.
+
+    Condition evaluation has access to:
+      - variables: workflow state variables
+      - task_claimed, plan_mode: shortcuts
+      - tool_input: the MCP tool's arguments (for checking no_commit_needed etc.)
+      - session_has_dirty_files: whether session has NEW dirty files beyond baseline
+      - task_has_commits: whether the claimed task has linked commits
+
     Args:
         rules: List of blocking rules
-        event_data: Hook event data with tool_name
+        event_data: Hook event data with tool_name, tool_input
         workflow_state: For evaluating conditions
+        project_path: Path to project for git status checks
+        task_manager: For checking task commit status
 
     Returns:
         Dict with decision="block" and reason if blocked, None to allow.
 
-    Example rule:
+    Example rule (native tools):
         {
             "tools": ["TaskCreate", "TaskUpdate"],
             "reason": "CC native task tools are disabled. Use gobby-tasks MCP tools."
@@ -114,6 +143,13 @@ async def block_tools(
             "when": "not task_claimed and not plan_mode",
             "reason": "Claim a task before editing files."
         }
+
+    Example rule (MCP tools):
+        {
+            "mcp_tools": ["gobby-tasks:close_task"],
+            "when": "tool_input.get('no_commit_needed') and session_has_dirty_files",
+            "reason": "Cannot use no_commit_needed with uncommitted changes."
+        }
     """
     if not event_data or not rules:
         return None
@@ -122,15 +158,70 @@ async def block_tools(
     if not tool_name:
         return None
 
+    tool_input = event_data.get("tool_input", {}) or {}
+
+    # Pre-compute context values for MCP tool blocking
+    session_has_dirty_files = False
+    task_has_commits = False
+
+    if workflow_state:
+        # Check for session dirty files (new files beyond baseline)
+        baseline_dirty = set(workflow_state.variables.get("baseline_dirty_files", []))
+        current_dirty = _get_dirty_files(project_path)
+        new_dirty = current_dirty - baseline_dirty
+        session_has_dirty_files = len(new_dirty) > 0
+
+        # Check if claimed task has commits
+        claimed_task_id = workflow_state.variables.get("claimed_task_id")
+        if claimed_task_id and task_manager:
+            try:
+                task = task_manager.get_task(claimed_task_id)
+                if task and task.commits:
+                    task_has_commits = True
+            except Exception:
+                pass  # nosec B110 - best-effort check
+
     for rule in rules:
-        tools = rule.get("tools", [])
-        if tool_name not in tools:
+        # Determine if this rule matches the current tool
+        rule_matches = False
+        mcp_tool_args: dict[str, Any] = {}
+
+        # Check native CC tools (Edit, Write, etc.)
+        if "tools" in rule:
+            tools = rule.get("tools", [])
+            if tool_name in tools:
+                rule_matches = True
+
+        # Check MCP tools (server:tool format)
+        elif "mcp_tools" in rule:
+            # MCP calls come in as "call_tool" or "mcp__gobby__call_tool"
+            if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+                mcp_server = tool_input.get("server_name", "")
+                mcp_tool = tool_input.get("tool_name", "")
+                mcp_key = f"{mcp_server}:{mcp_tool}"
+
+                mcp_tools = rule.get("mcp_tools", [])
+                if mcp_key in mcp_tools:
+                    rule_matches = True
+                    # For MCP tools, the actual arguments are in tool_input.arguments
+                    mcp_tool_args = tool_input.get("arguments", {}) or {}
+
+        if not rule_matches:
             continue
 
         # Check optional condition
         condition = rule.get("when")
         if condition:
-            if not _evaluate_block_condition(condition, workflow_state, event_data):
+            # For MCP tools, use the nested arguments for condition evaluation
+            eval_tool_input = mcp_tool_args if mcp_tool_args else tool_input
+            if not _evaluate_block_condition(
+                condition,
+                workflow_state,
+                event_data,
+                tool_input=eval_tool_input,
+                session_has_dirty_files=session_has_dirty_files,
+                task_has_commits=task_has_commits,
+            ):
                 continue
 
         reason = rule.get("reason", f"Tool '{tool_name}' is blocked.")

@@ -892,11 +892,22 @@ class ActionExecutor:
 
         This is the unified tool blocking action that replaces require_active_task
         for CC native task blocking while also supporting task-before-edit enforcement.
+
+        For MCP tool blocking (mcp_tools rules), also passes:
+        - project_path: for checking dirty files in git status
+        - task_manager: for checking if claimed task has commits
         """
+        # Get project_path for git dirty file checks
+        project_path = kwargs.get("project_path")
+        if not project_path and context.event_data:
+            project_path = context.event_data.get("cwd")
+
         return await block_tools(
             rules=kwargs.get("rules"),
             event_data=context.event_data,
             workflow_state=context.state,
+            project_path=project_path,
+            task_manager=self.task_manager,
         )
 
     async def _handle_require_active_task(

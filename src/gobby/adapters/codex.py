@@ -775,6 +775,28 @@ class CodexAdapter(BaseAdapter):
         "item/completed": HookEventType.AFTER_TOOL,
     }
 
+    # Tool name mapping: Codex tool names -> canonical CC-style names
+    # Codex uses different tool names - normalize to Claude Code conventions
+    # so block_tools rules work across CLIs
+    TOOL_MAP: dict[str, str] = {
+        # File operations
+        "read_file": "Read",
+        "ReadFile": "Read",
+        "write_file": "Write",
+        "WriteFile": "Write",
+        "edit_file": "Edit",
+        "EditFile": "Edit",
+        # Shell
+        "run_shell_command": "Bash",
+        "RunShellCommand": "Bash",
+        "commandExecution": "Bash",
+        # Search
+        "glob": "Glob",
+        "grep": "Grep",
+        "GlobTool": "Glob",
+        "GrepTool": "Grep",
+    }
+
     # Item types that represent tool operations
     TOOL_ITEM_TYPES = {"commandExecution", "fileChange", "mcpToolCall"}
 
@@ -813,6 +835,19 @@ class CodexAdapter(BaseAdapter):
         if self._machine_id is None:
             self._machine_id = _get_machine_id()
         return self._machine_id
+
+    def normalize_tool_name(self, codex_tool_name: str) -> str:
+        """Normalize Codex tool name to canonical CC-style format.
+
+        This ensures block_tools rules work consistently across CLIs.
+
+        Args:
+            codex_tool_name: Tool name from Codex CLI.
+
+        Returns:
+            Normalized tool name (e.g., "Bash", "Read", "Write", "Edit").
+        """
+        return self.TOOL_MAP.get(codex_tool_name, codex_tool_name)
 
     def attach_to_client(self, codex_client: CodexAppServerClient) -> None:
         """Attach to an existing CodexAppServerClient for event handling.
@@ -876,14 +911,17 @@ class CodexAdapter(BaseAdapter):
         thread_id = params.get("threadId", "")
         item_id = params.get("itemId", "")
 
-        # Determine tool name from method
+        # Determine tool name from method and normalize to CC-style
         if "commandExecution" in method:
-            tool_name = "Bash"
+            original_tool = "commandExecution"
+            tool_name = self.normalize_tool_name(original_tool)  # -> "Bash"
             tool_input = params.get("parsedCmd", params.get("command", ""))
         elif "fileChange" in method:
-            tool_name = "Write"
+            original_tool = "fileChange"
+            tool_name = "Write"  # File changes are writes
             tool_input = params.get("changes", [])
         else:
+            original_tool = "unknown"
             tool_name = "unknown"
             tool_input = params
 
@@ -905,6 +943,8 @@ class CodexAdapter(BaseAdapter):
                 "requires_response": True,
                 "item_id": item_id,
                 "approval_method": method,
+                "original_tool_name": original_tool,
+                "normalized_tool_name": tool_name,
             },
         )
 

@@ -209,16 +209,19 @@ class TestDetectPlanModeFromContext:
 class TestDetectTaskClaimCloseTaskBehavior:
     """Tests for detect_task_claim close_task behavior.
 
-    Note: close_task handling has been moved to the MCP proxy (_lifecycle.py) because
-    Claude Code doesn't include tool_result in post-tool-use hooks, making it impossible
-    to verify if close_task succeeded in the detection code. The MCP proxy updates
-    the workflow state directly when close_task succeeds.
+    close_task is handled in two places for broad CLI support:
+    1. MCP proxy (_lifecycle.py) - for Claude Code which doesn't include tool_result
+    2. detect_task_claim - for CLIs that do send tool_result (Gemini, Codex)
 
-    These tests verify that detect_task_claim correctly IGNORES close_task calls.
+    These tests verify that detect_task_claim correctly handles close_task:
+    - Successful close_task clears task_claimed
+    - Failed close_task leaves task_claimed unchanged
     """
 
-    def test_ignores_close_task_calls(self, workflow_state, make_after_tool_event):
-        """close_task calls should be ignored - state update happens in MCP proxy."""
+    def test_successful_close_task_clears_task_claimed(
+        self, workflow_state, make_after_tool_event
+    ):
+        """Successful close_task should clear task_claimed for CLIs that send tool_result."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
 
@@ -234,12 +237,12 @@ class TestDetectTaskClaimCloseTaskBehavior:
 
         detect_task_claim(event, workflow_state)
 
-        # Task claim should NOT be changed by detection code - MCP proxy handles this
-        assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
+        # Task claim should be cleared on successful close
+        assert workflow_state.variables.get("task_claimed") is False
+        assert workflow_state.variables.get("claimed_task_id") is None
 
-    def test_ignores_close_task_with_error(self, workflow_state, make_after_tool_event):
-        """close_task with error should also be ignored."""
+    def test_failed_close_task_with_error(self, workflow_state, make_after_tool_event):
+        """close_task with error should NOT clear task_claimed."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
 
