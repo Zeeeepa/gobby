@@ -101,6 +101,18 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         task = ctx.task_manager.get_task(create_result["task"]["id"])
 
+        # Auto-claim: set assignee and status to in_progress
+        ctx.task_manager.update_task(
+            task.id,
+            assignee=session_id,
+            status="in_progress",
+        )
+        # Link task to session (best-effort)
+        try:
+            ctx.session_task_manager.link_task(session_id, task.id, "claimed")
+        except Exception:
+            pass  # nosec B110 - best-effort linking
+
         # Handle 'blocks' argument if provided (syntactic sugar)
         # Collect errors consistently with depends_on handling below
         dependency_errors: list[str] = []

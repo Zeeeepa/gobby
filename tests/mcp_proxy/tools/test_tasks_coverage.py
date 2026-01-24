@@ -562,7 +562,12 @@ class TestCreateTaskTool:
 
             result = await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
-            mock_task_manager.update_task.assert_not_called()
+            # update_task is called once for auto-claim (assignee + status), not for validation
+            mock_task_manager.update_task.assert_called_once_with(
+                "550e8400-e29b-41d4-a716-446655440012",
+                assignee="test-session",
+                status="in_progress",
+            )
             assert "validation_generated" not in result
 
 # =============================================================================
