@@ -108,58 +108,17 @@ triggers:
 
   on_session_end:
     # Session summary generation - always runs on session end
+    # Uses external prompt from prompts collection: handoff/session_end.md
     - action: generate_handoff
       include:
         - artifacts
         - pending_tasks
-      template: |
-        Analyze this Claude Code session transcript and create a comprehensive session summary.
+      prompt: handoff/session_end
 
-        ## Transcript (last 50 turns):
-        {transcript_summary}
-
-        ## Last Messages:
-        {last_messages}
-
-        ## Git Status:
-        {git_status}
-
-        ## Files Changed:
-        {file_changes}
-
-        Create a markdown summary with the following sections (do NOT include a top-level '# Session Summary' header):
-
-        ## Overview
-        [1-2 paragraph summary of what was accomplished in this session]
-
-        ## Key Decisions
-        [List of important technical or architectural decisions made, with bullet points]
-
-        ## Important Lessons Learned
-        [Technical insights, gotchas, or patterns discovered, with bullet points]
-
-        ## Substantive Interrupts
-        [Times when the user changed direction significantly - NOT simple "continue" or "resume" prompts]
-
-        ## Research & Epiphanies
-        [Key discoveries from research or debugging that should be remembered, with bullet points]
-
-        ## Files Changed
-        {file_changes}
-        [Add specific details about WHY each file was changed and WHAT the changes accomplish.]
-
-        ## Git Status
-        ```
-        {git_status}
-        ```
-
-        {todo_list}
-
-        ## Next Steps
-        [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]
-
-        Focus on actionable insights and context that would be valuable when resuming work later.
-        Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
+    # Extract memories from session (before sync export)
+    - action: memory_extract
+      min_importance: 0.7
+      max_memories: 5
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
@@ -180,56 +139,7 @@ triggers:
 
     # Generate LLM summary with cumulative compression
     # Each compact builds on previous summary, weighting recent work higher
+    # Uses external prompt from prompts collection: handoff/compact.md
     - action: generate_handoff
       mode: compact
-      template: |
-        You are creating a session continuation summary after a compaction event.
-
-        ## Context from Earlier in This Session (if any):
-        {previous_summary}
-
-        If there is previous context above, focus your summary on what happened AFTER
-        that point. Compress the historical context into a brief "Session History" section.
-        If no previous context, this is the first segment - summarize the full session.
-
-        ## Current Transcript:
-        {transcript_summary}
-
-        ## Last Messages:
-        {last_messages}
-
-        ## Git Status:
-        {git_status}
-
-        ## Files Changed:
-        {file_changes}
-
-        {todo_list}
-
-        ---
-
-        Create a continuation summary optimized for resuming work after compaction.
-        Use these sections:
-
-        ### Current Focus
-        [What is being actively worked on RIGHT NOW - be specific and detailed.
-        This is the most important section.]
-
-        ### This Segment's Progress
-        [Bullet points of what was accomplished in this segment]
-
-        ### Session History
-        [1-2 sentences summarizing the overall session journey. Include if there was
-        previous context, otherwise skip this section.]
-
-        ### Technical State
-        - Key files modified: [list files]
-        - Git status: [uncommitted changes summary]
-        - Any blockers or pending items
-
-        ### Next Steps
-        [Numbered list of concrete actions to take when resuming]
-
-        IMPORTANT: Prioritize recency. "Current Focus" and "This Segment's Progress"
-        should be detailed and specific. Historical context should be compressed.
-        Use only ASCII-safe characters.
+      prompt: handoff/compact
