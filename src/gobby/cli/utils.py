@@ -263,7 +263,7 @@ def kill_all_gobby_daemons() -> int:
 
     Detection methods:
     1. Matches gobby.runner (the main daemon process)
-    2. Matches processes listening on daemon ports (60334/60335)
+    2. Matches processes listening on daemon ports (60887/60888)
 
     Returns:
         Number of processes killed
@@ -275,8 +275,8 @@ def kill_all_gobby_daemons() -> int:
         ws_port = config.websocket.port
     except Exception:
         # Fallback to defaults if config can't be loaded
-        http_port = 60334
-        ws_port = 60335
+        http_port = 60887
+        ws_port = 60888
 
     killed_count = 0
     current_pid = os.getpid()

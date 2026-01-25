@@ -166,7 +166,7 @@ hook_extensions:
 
 **Client Subscription Example**:
 ```javascript
-const ws = new WebSocket('ws://localhost:60335');
+const ws = new WebSocket('ws://localhost:60888');
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
   if (data.type === 'hook_event') {

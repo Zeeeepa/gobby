@@ -112,7 +112,7 @@ class TestWebSocketSettings:
         """Test default WebSocket settings."""
         settings = WebSocketSettings()
         assert settings.enabled is True
-        assert settings.port == 60335
+        assert settings.port == 60888
         assert settings.ping_interval == 30
         assert settings.ping_timeout == 10
 
@@ -279,7 +279,7 @@ class TestDaemonConfig:
     def test_default_values(self):
         """Test default daemon config."""
         config = DaemonConfig()
-        assert config.daemon_port == 60334
+        assert config.daemon_port == 60887
         assert config.daemon_health_check_interval == 10.0
         assert config.database_path == "~/.gobby/gobby-hub.db"
 
@@ -397,7 +397,7 @@ class TestApplyCliOverrides:
 
     def test_simple_override(self):
         """Test simple key override."""
-        config = {"daemon_port": 60334}
+        config = {"daemon_port": 60887}
         overrides = {"daemon_port": 9000}
 
         result = apply_cli_overrides(config, overrides)

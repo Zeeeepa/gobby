@@ -7,14 +7,14 @@ import click
 @click.option(
     "--port",
     "-p",
-    default=60334,
+    default=60887,
     help="Daemon HTTP port",
     show_default=True,
 )
 @click.option(
     "--ws-port",
     "-w",
-    default=60335,
+    default=60888,
     help="Daemon WebSocket port",
     show_default=True,
 )

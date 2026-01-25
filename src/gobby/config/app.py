@@ -226,7 +226,7 @@ class DaemonConfig(BaseModel):
 
     # Daemon settings
     daemon_port: int = Field(
-        default=60334,
+        default=60887,
         description="Port for daemon to listen on",
     )
     daemon_health_check_interval: float = Field(

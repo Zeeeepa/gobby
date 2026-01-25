@@ -484,7 +484,7 @@ class WebSocketSettings(BaseModel):
         description="Enable WebSocket server",
     )
     port: int = Field(
-        default=60335,
+        default=60888,
         description="Port for WebSocket server",
     )
 

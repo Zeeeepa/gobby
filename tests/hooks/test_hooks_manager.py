@@ -59,7 +59,7 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
 
         manager = HookManager(
             daemon_host="localhost",
-            daemon_port=60334,
+            daemon_port=60887,
             config=test_config,
             log_file=str(temp_dir / "logs" / "hook-manager.log"),
         )
@@ -109,7 +109,7 @@ class TestHookManagerInit:
     def test_init_sets_daemon_url(self, hook_manager_with_mocks: HookManager):
         """Test that daemon URL is set correctly."""
         manager = hook_manager_with_mocks
-        assert manager.daemon_url == "http://localhost:60334"
+        assert manager.daemon_url == "http://localhost:60887"
 
     def test_init_creates_event_handlers(self, hook_manager_with_mocks: HookManager):
         """Test that event handlers are created."""
@@ -539,7 +539,7 @@ class TestHookManagerConfigLoadError:
             # Should not raise - handles error gracefully
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=60334,
+                daemon_port=60887,
                 config=None,  # Force config loading
                 log_file=str(temp_dir / "logs" / "hook-manager.log"),
             )
@@ -562,7 +562,7 @@ class TestHookManagerConfigLoadError:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=60334,
+                daemon_port=60887,
                 config=None,
                 log_file=str(temp_dir / "logs" / "hook-manager.log"),
             )
@@ -1512,7 +1512,7 @@ class TestHookManagerLogging:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=60334,
+                daemon_port=60887,
                 log_file=str(log_path),
             )
 
@@ -1539,7 +1539,7 @@ class TestHookManagerLogging:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=60334,
+                daemon_port=60887,
                 log_file=str(temp_dir / "logs" / "hook.log"),
             )
 
@@ -1582,7 +1582,7 @@ class TestHookManagerPluginLoading:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=60334,
+                daemon_port=60887,
                 config=mock_config,
                 log_file=str(temp_dir / "logs" / "hook.log"),
             )
@@ -1620,7 +1620,7 @@ class TestHookManagerPluginLoading:
             # Should not raise
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=60334,
+                daemon_port=60887,
                 config=mock_config,
                 log_file=str(temp_dir / "logs" / "hook.log"),
             )

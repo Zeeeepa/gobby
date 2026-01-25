@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 # Default daemon configuration
-DEFAULT_DAEMON_PORT = 60334
+DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
@@ -39,10 +39,10 @@ def get_daemon_url() -> str:
     """Get the daemon HTTP URL from config file.
 
     Reads daemon_port from ~/.gobby/config.yaml if it exists,
-    otherwise uses the default port 60334.
+    otherwise uses the default port 60887.
 
     Returns:
-        Full daemon URL like http://localhost:60334
+        Full daemon URL like http://localhost:60887
     """
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 

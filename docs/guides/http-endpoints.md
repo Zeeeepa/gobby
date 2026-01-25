@@ -5,10 +5,10 @@ This document lists all HTTP endpoints exposed by the Gobby daemon's HTTP server
 ## Base URL
 
 ```text
-http://localhost:60334
+http://localhost:60887
 ```
 
-The port is configurable via `~/.gobby/config.yaml` (default: 60334).
+The port is configurable via `~/.gobby/config.yaml` (default: 60887).
 
 ---
 
@@ -24,7 +24,7 @@ Comprehensive status check endpoint.
 {
   "status": "healthy",
   "server": {
-    "port": 60334,
+    "port": 60887,
     "test_mode": false,
     "running": true,
     "uptime_seconds": 3600
@@ -84,7 +84,7 @@ Get daemon configuration and version information.
   "status": "success",
   "config": {
     "server": {
-      "port": 60334,
+      "port": 60887,
       "test_mode": false,
       "running": true,
       "version": "1.0.0"

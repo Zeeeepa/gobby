@@ -216,7 +216,7 @@ class TestAgentsStartCommand:
         runner: CliRunner,
     ):
         """Test successful agent start."""
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent123"
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -249,7 +249,7 @@ class TestAgentsStartCommand:
         runner: CliRunner,
     ):
         """Test start with all optional parameters."""
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent123"
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -320,7 +320,7 @@ class TestAgentsStartCommand:
         runner: CliRunner,
     ):
         """Test start with JSON output format."""
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -362,7 +362,7 @@ class TestAgentsStartCommand:
         """Test start when daemon is not running."""
         import httpx
 
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_post.side_effect = httpx.ConnectError("Connection refused")
         mock_resolve_session.return_value = "sess-parent"
 
@@ -388,7 +388,7 @@ class TestAgentsStartCommand:
         """Test start when daemon returns HTTP error."""
         import httpx
 
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -417,7 +417,7 @@ class TestAgentsStartCommand:
         runner: CliRunner,
     ):
         """Test start with failure response from daemon."""
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-nonexistent"
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -447,7 +447,7 @@ class TestAgentsStartCommand:
         runner: CliRunner,
     ):
         """Test start in in_process mode shows output."""
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -489,7 +489,7 @@ class TestAgentsStartCommand:
         runner: CliRunner,
     ):
         """Test start handles generic exceptions."""
-        mock_get_url.return_value = "http://localhost:60334"
+        mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
         mock_post.side_effect = Exception("Unexpected error")
 

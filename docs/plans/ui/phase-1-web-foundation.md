@@ -34,7 +34,7 @@
 - [ ] Configure ESLint with Next.js rules
 - [ ] Set up Prettier with Tailwind plugin
 - [ ] Add `ui:dev` script to root package.json
-- [ ] Create `.env.local` with `NEXT_PUBLIC_DAEMON_URL=http://localhost:60334`
+- [ ] Create `.env.local` with `NEXT_PUBLIC_DAEMON_URL=http://localhost:60887`
 
 ## 1.2 Static File Serving
 
@@ -49,7 +49,7 @@
 
 - [ ] Add `next.config.js` with `output: 'export'` for static export
 - [ ] Create build script: `cd ui && npm run build`
-- [ ] Add `gobby ui --web` CLI command to open browser at `http://localhost:60334/ui`
+- [ ] Add `gobby ui --web` CLI command to open browser at `http://localhost:60887/ui`
 - [ ] Add build step to `uv run gobby build` command
 
 ## 1.3 Core Layout

@@ -37,7 +37,7 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 │  ┌──────────────┐      ┌──────────────┐       ┌──────────────┐         │
 │  │ HTTP Server  │      │  WebSocket   │       │  MCP Server  │         │
 │  │  (FastAPI)   │      │   Server     │       │  (FastMCP)   │         │
-│  │  :60334      │      │   :60335     │       │  (stdio)     │         │
+│  │  :60887      │      │   :60888     │       │  (stdio)     │         │
 │  └──────┬───────┘      └──────────────┘       └──────┬───────┘         │
 └─────────┼────────────────────────────────────────────┼──────────────────┘
           │                                            │
@@ -80,8 +80,8 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 
 | Component | File | Protocol | Port |
 |-----------|------|----------|------|
-| **HTTP Server** | `src/servers/http.py` | HTTP REST + MCP | 60334 |
-| **WebSocket Server** | `src/servers/websocket.py` | WebSocket | 60335 |
+| **HTTP Server** | `src/servers/http.py` | HTTP REST + MCP | 60887 |
+| **WebSocket Server** | `src/servers/websocket.py` | WebSocket | 60888 |
 | **MCP Server** | `src/mcp_proxy/server.py` | MCP (JSON-RPC) | - |
 | **Stdio MCP** | `src/mcp_proxy/stdio.py` | stdio transport | - |
 
@@ -273,12 +273,12 @@ CREATE TABLE tools (
 ### Main Config (`~/.gobby/config.yaml`)
 
 ```yaml
-daemon_port: 60334
+daemon_port: 60887
 database_path: "~/.gobby/gobby-hub.db"
 
 websocket:
   enabled: true
-  port: 60335
+  port: 60888
   ping_interval: 30
 
 logging:

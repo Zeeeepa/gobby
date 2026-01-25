@@ -17,7 +17,7 @@ Example:
 
     manager = HookManager(
         daemon_host="localhost",
-        daemon_port=60334
+        daemon_port=60887
     )
 
     result = manager.execute(
@@ -105,7 +105,7 @@ class HookManager:
     def __init__(
         self,
         daemon_host: str = "localhost",
-        daemon_port: int = 60334,
+        daemon_port: int = 60887,
         llm_service: "LLMService | None" = None,
         config: Any | None = None,
         log_file: str | None = None,

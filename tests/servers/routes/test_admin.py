@@ -12,7 +12,7 @@ class TestAdminRoutes:
         server = MagicMock()
         server._start_time = 1234567890.0
         server._running = True
-        server.port = 60334
+        server.port = 60887
         server.test_mode = False
 
         # Mock Daemon

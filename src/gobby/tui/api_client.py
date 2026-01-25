@@ -10,7 +10,7 @@ import httpx
 class GobbyAPIClient:
     """HTTP client for communicating with Gobby daemon."""
 
-    def __init__(self, base_url: str = "http://localhost:60334") -> None:
+    def __init__(self, base_url: str = "http://localhost:60887") -> None:
         self.base_url = base_url.rstrip("/")
         self._client: httpx.AsyncClient | None = None
 

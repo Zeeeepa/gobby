@@ -1,8 +1,8 @@
-daemon_port: 60334
+daemon_port: 60887
 daemon_health_check_interval: 60.0
 websocket:
   enabled: true
-  port: 60335
+  port: 60888
   ping_interval: 30
   ping_timeout: 10
 logging:

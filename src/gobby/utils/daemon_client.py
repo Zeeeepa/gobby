@@ -11,7 +11,7 @@ Example:
     ```python
     from gobby.utils.daemon_client import DaemonClient
 
-    client = DaemonClient(host="localhost", port=60334)
+    client = DaemonClient(host="localhost", port=60887)
 
     # Check daemon health
     is_healthy, error = client.check_health()
@@ -57,7 +57,7 @@ class DaemonClient:
     def __init__(
         self,
         host: str = "localhost",
-        port: int = 60334,
+        port: int = 60887,
         timeout: float = 5.0,
         logger: logging.Logger | None = None,
     ):

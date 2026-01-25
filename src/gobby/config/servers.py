@@ -23,7 +23,7 @@ class WebSocketSettings(BaseModel):
         description="Enable WebSocket server for real-time communication",
     )
     port: int = Field(
-        default=60335,
+        default=60888,
         description="Port for WebSocket server to listen on",
     )
     ping_interval: int = Field(

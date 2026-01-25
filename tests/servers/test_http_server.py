@@ -48,7 +48,7 @@ def http_server(
 ) -> HTTPServer:
     """Create an HTTP server instance for testing."""
     return HTTPServer(
-        port=60334,
+        port=60887,
         test_mode=True,
         mcp_manager=None,
         config=None,
@@ -458,7 +458,7 @@ class TestSessionEndpoints:
     ) -> None:
         """Test listing sessions when session manager is None returns 503."""
         server = HTTPServer(
-            port=60334,
+            port=60887,
             test_mode=True,
             session_manager=None,  # No session manager
         )
@@ -470,7 +470,7 @@ class TestSessionEndpoints:
     def test_register_without_manager(self) -> None:
         """Test registering when session manager is None returns 503."""
         server = HTTPServer(
-            port=60334,
+            port=60887,
             test_mode=True,
             session_manager=None,
         )
@@ -785,7 +785,7 @@ class TestMCPEndpointsWithManager:
     ) -> HTTPServer:
         """Create HTTP server with mock MCP manager."""
         return HTTPServer(
-            port=60334,
+            port=60887,
             test_mode=True,
             mcp_manager=mock_mcp_manager,
             config=None,
@@ -904,7 +904,7 @@ class TestExceptionHandling:
         """Test that global exception handler returns 200 to prevent hook failures."""
         # Create server that will raise an exception
         server = HTTPServer(
-            port=60334,
+            port=60887,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1009,7 +1009,7 @@ class TestStopSignalEndpoints:
     ) -> HTTPServer:
         """Create HTTP server with mock stop registry."""
         server = HTTPServer(
-            port=60334,
+            port=60887,
             test_mode=True,
             mcp_manager=None,
             config=None,
@@ -1111,7 +1111,7 @@ class TestStopSignalEndpoints:
     def test_stop_signal_without_stop_registry(self, session_storage: LocalSessionManager) -> None:
         """Test stop signal endpoints when stop registry not available."""
         server = HTTPServer(
-            port=60334,
+            port=60887,
             test_mode=True,
             session_manager=session_storage,
         )
