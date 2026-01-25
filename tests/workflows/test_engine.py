@@ -548,6 +548,7 @@ class TestDetectTaskClaim:
 
         assert state.variables.get("task_claimed") is True
         assert state.variables.get("claimed_task_id") == "#123"
+        mock_state_manager.save_state.assert_called()
 
     async def test_update_task_without_status_change_does_not_set_task_claimed(
         self, workflow_engine, mock_state_manager, mock_loader

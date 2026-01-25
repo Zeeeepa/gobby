@@ -338,7 +338,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     kwargs["parent_task_id"] = resolved_parent
                 except (TaskNotFoundError, ValueError) as e:
                     logger.warning(f"Invalid parent_task_id '{parent_task_id}': {e}")
-                    raise ValueError(f"Invalid parent_task_id '{parent_task_id}': {e}") from e
+                    return {"error": f"Invalid parent_task_id '{parent_task_id}': {e}"}
             else:
                 kwargs["parent_task_id"] = None
         if category is not None:

@@ -74,15 +74,12 @@ def _evaluate_block_condition(
     # Allowed globals for safe evaluation
     allowed_globals = {
         "__builtins__": {},
-        "not": lambda x: not x,
         "True": True,
         "False": False,
         "None": None,
         "bool": bool,
         "str": str,
         "int": int,
-        "and": lambda x, y: x and y,
-        "or": lambda x, y: x or y,
     }
 
     try:

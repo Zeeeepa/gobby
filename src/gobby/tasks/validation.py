@@ -697,20 +697,23 @@ class TaskValidator:
 
             # Inject pattern criteria if labels provided
             if labels:
-                from gobby.config.tasks import PatternCriteriaConfig
+                try:
+                    from gobby.config.tasks import PatternCriteriaConfig
 
-                pattern_config = PatternCriteriaConfig()
-                pattern_sections = []
+                    pattern_config = PatternCriteriaConfig()
+                    pattern_sections = []
 
-                for label in labels:
-                    if label in pattern_config.patterns:
-                        criteria_list = pattern_config.patterns[label]
-                        section = f"\n\n## {label.title().replace('-', ' ')} Pattern Criteria\n"
-                        section += "\n".join(f"- [ ] {c}" for c in criteria_list)
-                        pattern_sections.append(section)
+                    for label in labels:
+                        if label in pattern_config.patterns:
+                            criteria_list = pattern_config.patterns[label]
+                            section = f"\n\n## {label.title().replace('-', ' ')} Pattern Criteria\n"
+                            section += "\n".join(f"- [ ] {c}" for c in criteria_list)
+                            pattern_sections.append(section)
 
-                if pattern_sections:
-                    llm_result += "".join(pattern_sections)
+                    if pattern_sections:
+                        llm_result += "".join(pattern_sections)
+                except Exception as e:
+                    logger.warning(f"Failed to inject pattern criteria: {e}")
 
             return llm_result
         except Exception as e:

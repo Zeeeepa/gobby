@@ -261,7 +261,7 @@ gobby-tasks.list_tasks()
 ```
 For each task with title starting with `__diag__`:
 ```
-gobby-tasks.close_task(task_id=<id>, reason="cancelled")
+gobby-tasks.close_task(task_id=<id>, reason="obsolete")
 ```
 
 ### Step 4: Clean Memories

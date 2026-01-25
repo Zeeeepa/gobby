@@ -826,7 +826,7 @@ class OrchestratorScreen(Widget):
                 return
             await self.api_client.close_task(
                 task_id,
-                reason="obsolete",
+                reason="completed",
             )
             self.notify(f"Approved: {task.get('ref', task_id)}")
 
