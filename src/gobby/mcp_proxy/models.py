@@ -31,6 +31,21 @@ class MCPError(Exception):
         self.code = code
 
 
+class ToolProxyErrorCode(str, Enum):
+    """Structured error codes for ToolProxyService responses.
+
+    Used by _process_tool_proxy_result to determine HTTP status codes
+    without fragile string matching.
+    """
+
+    SERVER_NOT_FOUND = "SERVER_NOT_FOUND"
+    SERVER_NOT_CONFIGURED = "SERVER_NOT_CONFIGURED"
+    TOOL_NOT_FOUND = "TOOL_NOT_FOUND"
+    INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
+    EXECUTION_ERROR = "EXECUTION_ERROR"
+    CONNECTION_ERROR = "CONNECTION_ERROR"
+
+
 class HealthState(str, Enum):
     """Connection health state for monitoring."""
 

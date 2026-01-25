@@ -15,6 +15,26 @@ from gobby.utils.git import normalize_commit_sha
 logger = logging.getLogger(__name__)
 
 
+def _normalize_timestamp(ts: str | None) -> str | None:
+    """Ensure timestamp has timezone suffix for RFC 3339 compliance.
+
+    If timestamp lacks timezone info, assumes UTC and appends 'Z' suffix.
+
+    Args:
+        ts: ISO 8601 timestamp string (may lack timezone)
+
+    Returns:
+        Timestamp with timezone suffix, or None if input was None
+    """
+    if ts is None:
+        return None
+    # Check if already has timezone info (Z, +HH:MM, or -HH:MM)
+    if ts.endswith("Z") or "+" in ts[-6:] or (len(ts) > 6 and ts[-6] == "-" and ":" in ts[-5:]):
+        return ts
+    # Assume UTC and add Z suffix
+    return ts + "Z"
+
+
 class TaskSyncManager:
     """
     Manages synchronization of tasks to the filesystem (JSONL) for Git versioning.
@@ -137,8 +157,9 @@ class TaskSyncManager:
                     "title": task.title,
                     "description": task.description,
                     "status": task.status,
-                    "created_at": task.created_at,
-                    "updated_at": task.updated_at,
+                    # Normalize timestamps to ensure RFC 3339 compliance (with timezone)
+                    "created_at": _normalize_timestamp(task.created_at),
+                    "updated_at": _normalize_timestamp(task.updated_at),
                     "project_id": task.project_id,
                     "parent_id": task.parent_task_id,
                     "deps_on": sorted(deps_map.get(task.id, [])),  # Sort deps for stability
@@ -157,8 +178,8 @@ class TaskSyncManager:
                         if task.validation_status
                         else None
                     ),
-                    # Escalation fields
-                    "escalated_at": task.escalated_at,
+                    # Escalation fields (normalize timestamps)
+                    "escalated_at": _normalize_timestamp(task.escalated_at),
                     "escalation_reason": task.escalation_reason,
                     # Human-friendly IDs (preserve across sync)
                     "seq_num": task.seq_num,

@@ -20,7 +20,11 @@ import pytest
 
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
 
-# Check if mem0ai is available (optional dependency due to CVE-2026-0994)
+# Check if mem0ai is available (optional dependency)
+# Note: mem0ai depends on protobuf (>=5.29.0,<6.0.0) which is affected by
+# CVE-2026-0994 in google.protobuf.json_format.ParseDict. The mem0 package
+# itself is not vulnerable, but is optional here due to this supply-chain
+# dependency concern until protobuf releases a patched version.
 try:
     import mem0  # noqa: F401
 
@@ -30,7 +34,7 @@ except ImportError:
 
 pytestmark = pytest.mark.skipif(
     not MEM0_AVAILABLE,
-    reason="mem0ai package not installed (optional dependency)",
+    reason="mem0ai package not installed (optional due to protobuf CVE-2026-0994)",
 )
 
 # =============================================================================

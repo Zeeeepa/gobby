@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.manager import MCPClientManager
-from gobby.mcp_proxy.models import MCPError
+from gobby.mcp_proxy.models import MCPError, ToolProxyErrorCode
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.services.fallback import ToolFallbackResolver
@@ -99,6 +99,44 @@ class ToolProxyService:
         ]
         error_lower = error_message.lower()
         return any(indicator in error_lower for indicator in indicators)
+
+    def _classify_error(self, error_message: str, exception: Exception) -> str:
+        """Classify an error into a structured error code.
+
+        Used to provide structured error codes that consumers can rely on
+        instead of fragile string matching.
+
+        Args:
+            error_message: The error message string
+            exception: The original exception
+
+        Returns:
+            ToolProxyErrorCode value as string
+        """
+        error_lower = error_message.lower()
+
+        # Check for server not found/configured errors
+        if "server" in error_lower:
+            if "not found" in error_lower:
+                return ToolProxyErrorCode.SERVER_NOT_FOUND.value
+            if "not configured" in error_lower:
+                return ToolProxyErrorCode.SERVER_NOT_CONFIGURED.value
+
+        # Check for tool not found
+        if "tool" in error_lower and "not found" in error_lower:
+            return ToolProxyErrorCode.TOOL_NOT_FOUND.value
+
+        # Check for argument/validation errors
+        if self._is_argument_error(error_message):
+            return ToolProxyErrorCode.INVALID_ARGUMENTS.value
+
+        # Check for connection errors
+        connection_indicators = ["connection", "timeout", "refused", "unreachable", "circuit"]
+        if any(ind in error_lower for ind in connection_indicators):
+            return ToolProxyErrorCode.CONNECTION_ERROR.value
+
+        # Default to execution error
+        return ToolProxyErrorCode.EXECUTION_ERROR.value
 
     async def list_tools(
         self,
@@ -219,6 +257,7 @@ class ToolProxyService:
             response: dict[str, Any] = {
                 "success": False,
                 "error": error_message,
+                "error_code": self._classify_error(error_message, e),
                 "server_name": server_name,
                 "tool_name": tool_name,
             }

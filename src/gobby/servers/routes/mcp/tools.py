@@ -55,16 +55,30 @@ def _process_tool_proxy_result(
     # Track metrics for tool-level failures vs successes
     if isinstance(result, dict) and result.get("success") is False:
         metrics_collector.inc_counter("mcp_tool_calls_failed_total")
-        # Server not found/not configured is a transport/configuration error → HTTP 404
-        error_msg = str(result.get("error", "")).lower()
-        if "server" in error_msg and ("not found" in error_msg or "not configured" in error_msg):
+
+        # Check structured error code first (preferred)
+        error_code = result.get("error_code")
+        if error_code in ("SERVER_NOT_FOUND", "SERVER_NOT_CONFIGURED"):
             # Normalize result to standard error shape while preserving existing fields
             normalized = {"success": False, "error": result.get("error", "Unknown error")}
-            # Preserve any additional fields from result
             for key, value in result.items():
                 if key not in normalized:
                     normalized[key] = value
             raise HTTPException(status_code=404, detail=normalized)
+
+        # Backward compatibility: fall back to string matching if no error_code
+        if not error_code:
+            logger.debug(
+                "ToolProxyService returned error without error_code - using string fallback"
+            )
+            error_msg = str(result.get("error", "")).lower()
+            if "server" in error_msg and ("not found" in error_msg or "not configured" in error_msg):
+                normalized = {"success": False, "error": result.get("error", "Unknown error")}
+                for key, value in result.items():
+                    if key not in normalized:
+                        normalized[key] = value
+                raise HTTPException(status_code=404, detail=normalized)
+
         # Tool-level failure (not a transport error) - return failure envelope
         return {
             "success": False,

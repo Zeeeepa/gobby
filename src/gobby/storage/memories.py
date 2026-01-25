@@ -143,7 +143,8 @@ class LocalMemoryManager:
         # whitespace differences or project_id inconsistency)
         normalized_content = content.strip()
         project_str = project_id if project_id else ""
-        memory_id = generate_prefixed_id("mm", normalized_content + project_str)
+        # Use delimiter to prevent collisions (e.g., "abc" + "def" vs "abcd" + "ef")
+        memory_id = generate_prefixed_id("mm", f"{normalized_content}||{project_str}")
 
         # Check if memory already exists to avoid duplicate insert errors
         existing_row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))
@@ -195,7 +196,8 @@ class LocalMemoryManager:
         # Normalize content same way as ID generation in create_memory
         normalized_content = content.strip()
         project_str = project_id if project_id else ""
-        memory_id = generate_prefixed_id("mm", normalized_content + project_str)
+        # Use delimiter to match create_memory ID generation
+        memory_id = generate_prefixed_id("mm", f"{normalized_content}||{project_str}")
 
         # Check by ID (content-hash based) for consistent dedup
         row = self.db.fetchone("SELECT 1 FROM memories WHERE id = ?", (memory_id,))
@@ -217,7 +219,8 @@ class LocalMemoryManager:
         # Normalize content same way as ID generation in create_memory
         normalized_content = content.strip()
         project_str = project_id if project_id else ""
-        memory_id = generate_prefixed_id("mm", normalized_content + project_str)
+        # Use delimiter to match create_memory ID generation
+        memory_id = generate_prefixed_id("mm", f"{normalized_content}||{project_str}")
 
         try:
             return self.get_memory(memory_id)

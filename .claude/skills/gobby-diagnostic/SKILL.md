@@ -261,13 +261,27 @@ Search for tasks with `__diag__` prefix:
 ```
 gobby-tasks.list_tasks()
 ```
-For each task with title starting with `__diag__`:
+Filter the results to find tasks where title starts with `__diag__`, then for each matching task:
 ```
 gobby-tasks.close_task(task_id=<id>, reason="obsolete")
 ```
-Or for hard deletion:
+Or for hard deletion (permanently removes the task):
 ```
 gobby-tasks.delete_task(task_id=<id>)
+```
+
+**Example iteration pattern:**
+```python
+# 1. Get all tasks
+result = gobby-tasks.list_tasks()
+tasks = result.get("tasks", [])
+
+# 2. Filter for __diag__ prefix
+diag_tasks = [t for t in tasks if t.get("title", "").startswith("__diag__")]
+
+# 3. Close each matching task
+for task in diag_tasks:
+    gobby-tasks.close_task(task_id=task["id"], reason="obsolete")
 ```
 
 ### Step 4: Clean Memories
