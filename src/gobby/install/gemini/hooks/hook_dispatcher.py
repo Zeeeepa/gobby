@@ -62,13 +62,13 @@ def get_daemon_url() -> str:
     return f"http://localhost:{port}"
 
 
-def get_terminal_context() -> dict[str, str | int | None]:
+def get_terminal_context() -> dict[str, str | int | bool | None]:
     """Capture terminal/process context for session correlation.
 
     Returns:
         Dict with terminal identifiers (values may be None if unavailable)
     """
-    context: dict[str, str | int | None] = {}
+    context: dict[str, str | int | bool | None] = {}
 
     # Parent process ID (shell or Gemini process)
     try:

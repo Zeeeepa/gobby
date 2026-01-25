@@ -64,7 +64,7 @@ class Mem0Backend:
             from mem0 import MemoryClient
         except ImportError as e:
             raise ImportError(
-                "Mem0 backend requires 'mem0ai' package. Install it with: pip install mem0ai"
+                "Mem0 backend requires 'mem0ai' package. Install it with: pip install gobby[mem0]"
             ) from e
 
         self._client: MemoryClient = MemoryClient(api_key=api_key, **kwargs)

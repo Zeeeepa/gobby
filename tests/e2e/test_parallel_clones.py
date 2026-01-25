@@ -512,13 +512,13 @@ class TestParallelTaskProcessing:
 
         # Complete all tasks (simulating agents finishing)
         for task_id in subtask_ids:
-            # Close with skip reason
+            # Close as already implemented (simulating completed work)
             mcp_client.call_tool(
                 server_name="gobby-tasks",
                 tool_name="close_task",
                 arguments={
                     "task_id": task_id,
-                    "reason": "obsolete",
+                    "reason": "already_implemented",
                 },
             )
 
@@ -542,13 +542,13 @@ class TestParallelTaskProcessing:
         ready_tasks = result.get("tasks", [])
         assert len(ready_tasks) == 0, f"Should have no ready tasks after completion: {ready_tasks}"
 
-        # Close the epic
+        # Close the epic (all subtasks completed)
         mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="close_task",
             arguments={
                 "task_id": epic_id,
-                "reason": "obsolete",
+                "reason": "already_implemented",
             },
         )
 

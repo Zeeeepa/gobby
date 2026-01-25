@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def _evaluate_block_condition(
-    condition: str,
+    condition: str | None,
     workflow_state: "WorkflowState | None",
     event_data: dict[str, Any] | None = None,
     tool_input: dict[str, Any] | None = None,

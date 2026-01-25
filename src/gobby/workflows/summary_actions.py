@@ -43,8 +43,20 @@ def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
                     elif block.get("type") == "tool_use":
                         text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
                     elif block.get("type") == "tool_result":
-                        preview = str(block.get("content", ""))[:100]
-                        text_parts.append(f"[Result: {preview}...]")
+                        content = block.get("content", "")
+                        # Extract text from list of content blocks if needed
+                        if isinstance(content, list):
+                            extracted = []
+                            for item in content:
+                                if isinstance(item, dict):
+                                    extracted.append(item.get("text", "") or item.get("content", ""))
+                                else:
+                                    extracted.append(str(item))
+                            content = " ".join(extracted)
+                        content_str = str(content)
+                        preview = content_str[:100]
+                        suffix = "..." if len(content_str) > 100 else ""
+                        text_parts.append(f"[Result: {preview}{suffix}]")
             content = " ".join(text_parts)
 
         formatted.append(f"[Turn {i + 1} - {role}]: {content}")

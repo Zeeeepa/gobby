@@ -151,7 +151,7 @@ Store returned `task_id` in `cleanup_tracker["tasks"]`.
 
 **Verify update:** Call `gobby-tasks.get_task(task_id=<id>)` - status should be "completed".
 
-**Close:** Call `gobby-tasks.close_task(task_id=<id>, resolution="completed")`
+**Close:** Call `gobby-tasks.close_task(task_id=<id>, reason="completed")`
 
 ### 3.3 Workflow Variable Cycle (session-scoped, no cleanup needed)
 
@@ -261,7 +261,7 @@ gobby-tasks.list_tasks()
 ```
 For each task with title starting with `__diag__`:
 ```
-gobby-tasks.close_task(task_id=<id>, resolution="cancelled")
+gobby-tasks.close_task(task_id=<id>, reason="cancelled")
 ```
 
 ### Step 4: Clean Memories
