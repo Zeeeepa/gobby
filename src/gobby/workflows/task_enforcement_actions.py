@@ -104,7 +104,7 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
     """
 
     # Comparison operators mapping
-    CMP_OPS = {
+    CMP_OPS: dict[type[ast.cmpop], Callable[[Any, Any], bool]] = {
         ast.Eq: operator.eq,
         ast.NotEq: operator.ne,
         ast.Lt: operator.lt,
@@ -117,7 +117,9 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         ast.NotIn: lambda a, b: a not in b,
     }
 
-    def __init__(self, context: dict[str, Any], allowed_funcs: dict[str, Callable]) -> None:
+    def __init__(
+        self, context: dict[str, Any], allowed_funcs: dict[str, Callable[..., Any]]
+    ) -> None:
         self.context = context
         self.allowed_funcs = allowed_funcs
 
@@ -288,7 +290,7 @@ def _evaluate_block_condition(
     }
 
     # Allowed functions for safe evaluation
-    allowed_funcs = {
+    allowed_funcs: dict[str, Callable[..., Any]] = {
         "is_plan_file": _is_plan_file,
         "bool": bool,
         "str": str,
