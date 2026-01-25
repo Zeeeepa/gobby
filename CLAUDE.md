@@ -6,6 +6,12 @@ This file provides guidance for developing the Gobby codebase.
 
 **For skills and workflows**: Use `list_skills()` to discover available skills, then `get_skill(name)` for details.
 
+## Task Requirement
+
+**Create/claim a task before using Edit, Write, or NotebookEdit tools.**
+
+See skill: **claiming-tasks** for quick reference when blocked.
+
 ## Project Overview
 
 Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) under one persistent, extensible platform. It provides:

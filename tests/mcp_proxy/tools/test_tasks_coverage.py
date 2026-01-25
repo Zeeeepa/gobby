@@ -185,8 +185,7 @@ class TestCreateTaskTool:
         }
         # Mock create_task_with_decomposition to return non-decomposed result
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -215,8 +214,7 @@ class TestCreateTaskTool:
             mock_task.id = "550e8400-e29b-41d4-a716-446655440002"
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440002"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -262,8 +260,7 @@ class TestCreateTaskTool:
             mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -313,8 +310,7 @@ class TestCreateTaskTool:
             mock_task.seq_num = 1
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440011"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -357,8 +353,7 @@ class TestCreateTaskTool:
             "labels": ["urgent", "bug"],
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -382,8 +377,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440006"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440006"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -406,8 +400,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440007"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440007"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -432,8 +425,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -475,8 +467,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -512,8 +503,7 @@ class TestCreateTaskTool:
             "status": "open",
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {
+                        "task": {
                 "id": "550e8400-e29b-41d4-a716-446655440011",
                 "title": "Full Task",
                 "status": "open",
@@ -552,8 +542,7 @@ class TestCreateTaskTool:
         mock_task.task_type = "task"  # Not epic
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440012"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -562,8 +551,104 @@ class TestCreateTaskTool:
 
             result = await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
+            # Without claim=True, update_task should NOT be called (no auto-claim)
             mock_task_manager.update_task.assert_not_called()
             assert "validation_generated" not in result
+
+    @pytest.mark.asyncio
+    async def test_create_task_default_no_claim(self, mock_task_manager, mock_sync_manager):
+        """Test create_task without claim parameter does NOT auto-claim."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440020"
+            mock_task.seq_num = 100
+            mock_task.status = "open"
+            mock_task.assignee = None
+            mock_task.to_dict.return_value = {
+                "id": "550e8400-e29b-41d4-a716-446655440020",
+                "status": "open",
+                "assignee": None,
+            }
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440020"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+
+                result = await registry.call(
+                    "create_task",
+                    {"title": "New Task", "session_id": "test-session"},
+                )
+
+                # Task should be created
+                assert result["id"] == "550e8400-e29b-41d4-a716-446655440020"
+
+                # update_task should NOT be called (no auto-claim)
+                mock_task_manager.update_task.assert_not_called()
+
+                # Session link should be "created", not "claimed"
+                mock_st_instance.link_task.assert_called_once_with(
+                    "test-session", "550e8400-e29b-41d4-a716-446655440020", "created"
+                )
+
+    @pytest.mark.asyncio
+    async def test_create_task_with_claim_true(self, mock_task_manager, mock_sync_manager):
+        """Test create_task with claim=True auto-claims the task."""
+        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+            mock_st_instance = MagicMock()
+            MockSessionTaskManager.return_value = mock_st_instance
+
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440021"
+            mock_task.seq_num = 101
+            mock_task.status = "in_progress"
+            mock_task.assignee = "test-session"
+            mock_task.to_dict.return_value = {
+                "id": "550e8400-e29b-41d4-a716-446655440021",
+                "status": "in_progress",
+                "assignee": "test-session",
+            }
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
+            mock_task_manager.update_task.return_value = mock_task
+
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
+
+                result = await registry.call(
+                    "create_task",
+                    {"title": "New Task", "session_id": "test-session", "claim": True},
+                )
+
+                # Task should be created
+                assert result["id"] == "550e8400-e29b-41d4-a716-446655440021"
+
+                # update_task should be called with assignee and status
+                mock_task_manager.update_task.assert_called_once_with(
+                    "550e8400-e29b-41d4-a716-446655440021",
+                    assignee="test-session",
+                    status="in_progress",
+                )
+
+                # Session links should include both "created" and "claimed"
+                assert mock_st_instance.link_task.call_count == 2
+                mock_st_instance.link_task.assert_any_call(
+                    "test-session", "550e8400-e29b-41d4-a716-446655440021", "created"
+                )
+                mock_st_instance.link_task.assert_any_call(
+                    "test-session", "550e8400-e29b-41d4-a716-446655440021", "claimed"
+                )
 
 # =============================================================================
 # get_task Tool Tests
@@ -863,122 +948,6 @@ class TestCloseTaskTool:
 
             assert "error" in result
             assert result["error"] == "no_commits_linked"
-
-    @pytest.mark.asyncio
-    async def test_close_task_no_commit_needed_requires_justification(
-        self, mock_task_manager, mock_sync_manager
-    ):
-        """Test close_task with no_commit_needed requires justification."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_task.commits = None
-        mock_task.project_id = "proj-1"
-        mock_task_manager.get_task.return_value = mock_task
-
-        with patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager:
-            mock_proj_instance = MagicMock()
-            mock_proj_instance.get.return_value = None
-            MockProjManager.return_value = mock_proj_instance
-
-            result = await registry.call(
-                "close_task",
-                {"task_id": "550e8400-e29b-41d4-a716-446655440000", "no_commit_needed": True},
-            )
-
-            assert "error" in result
-            assert result["error"] == "justification_required"
-
-    @pytest.mark.asyncio
-    async def test_close_task_no_commit_needed_rejects_uncommitted_changes(
-        self, mock_task_manager, mock_sync_manager
-    ):
-        """Test close_task with no_commit_needed rejects when tracked files are modified."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_task.commits = None
-        mock_task.project_id = "proj-1"
-        mock_task_manager.get_task.return_value = mock_task
-
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
-            ) as MockProjManager,
-            patch("gobby.utils.git.run_git_command") as mock_git,
-        ):
-            mock_proj_instance = MagicMock()
-            mock_proj_instance.get.return_value = None
-            MockProjManager.return_value = mock_proj_instance
-            # Simulate uncommitted changes: staged file returned by git diff --cached
-            mock_git.side_effect = lambda cmd, cwd=None: (
-                "src/modified_file.py" if "--cached" in cmd else ""
-            )
-
-            result = await registry.call(
-                "close_task",
-                {
-                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "no_commit_needed": True,
-                    "override_justification": "Research task",
-                },
-            )
-
-            assert "error" in result
-            assert result["error"] == "uncommitted_changes"
-            assert "src/modified_file.py" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_close_task_no_commit_needed_allows_clean_workdir(
-        self, mock_task_manager, mock_sync_manager
-    ):
-        """Test close_task with no_commit_needed succeeds when workdir is clean.
-
-        Note: When override_justification is provided with no_commit_needed,
-        the task routes to review status for human approval (HITL).
-        """
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_task.commits = None
-        mock_task.project_id = "proj-1"
-        mock_task.requires_user_review = False
-        mock_task.to_brief.return_value = {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "status": "review",
-        }
-        mock_task_manager.get_task.return_value = mock_task
-        mock_task_manager.list_tasks.return_value = []  # No children
-
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
-            ) as MockProjManager,
-            patch("gobby.utils.git.run_git_command") as mock_git,
-        ):
-            mock_proj_instance = MagicMock()
-            mock_proj_instance.get.return_value = None
-            MockProjManager.return_value = mock_proj_instance
-            # No uncommitted changes
-            mock_git.return_value = ""
-
-            result = await registry.call(
-                "close_task",
-                {
-                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "no_commit_needed": True,
-                    "override_justification": "Research task - no code changes",
-                },
-            )
-
-            # Task routes to review when override_justification is used
-            assert "error" not in result
-            assert result.get("routed_to_review") is True
-            # Verify update_task was called to set status to review
-            mock_task_manager.update_task.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_close_task_with_skip_reason_skips_commit_check(
@@ -1632,6 +1601,19 @@ class TestToolSchemas:
         assert "title" in schema["inputSchema"]["properties"]
         assert "title" in schema["inputSchema"]["required"]
 
+    def test_create_task_schema_has_claim_parameter(self, task_registry):
+        """Test create_task schema includes optional claim parameter."""
+        schema = task_registry.get_schema("create_task")
+
+        assert schema is not None
+        props = schema["inputSchema"]["properties"]
+
+        assert "claim" in props, "Missing claim parameter in create_task schema"
+        assert props["claim"]["type"] == "boolean"
+        assert props["claim"]["default"] is False
+        # claim should NOT be in required
+        assert "claim" not in schema["inputSchema"]["required"]
+
     def test_update_task_schema_has_all_fields(self, task_registry):
         """Test update_task schema includes all updatable fields."""
         schema = task_registry.get_schema("update_task")
@@ -1672,7 +1654,6 @@ class TestToolSchemas:
             "skip_validation",
             "session_id",
             "override_justification",
-            "no_commit_needed",
             "commit_sha",
         ]
 

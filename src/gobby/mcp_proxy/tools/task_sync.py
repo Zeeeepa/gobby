@@ -159,7 +159,7 @@ def create_sync_registry(
 
     registry.register(
         name="link_commit",
-        description="Link a git commit to a task. Useful for tracking which commits implement a task.",
+        description="Link a git commit to a task. NOTE: For closing tasks, prefer close_task(task_id, commit_sha='...') which links and closes in one call. Use link_commit only when you need to link without closing.",
         input_schema={
             "type": "object",
             "properties": {

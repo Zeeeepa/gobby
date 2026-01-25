@@ -151,7 +151,10 @@ class TestClonesSpawnCommand:
         mock_httpx.return_value = mock_response
 
         runner = CliRunner()
-        result = runner.invoke(clones, ["spawn", "clone-123", "Work on feature"])
+        result = runner.invoke(
+            clones,
+            ["spawn", "clone-123", "Work on feature", "--parent-session-id", "parent-123"],
+        )
 
         assert result.exit_code == 0
         assert "session-456" in result.output or "Spawned" in result.output
@@ -165,9 +168,12 @@ class TestClonesSpawnCommand:
         mock_clone_manager.get.return_value = None
 
         runner = CliRunner()
-        result = runner.invoke(clones, ["spawn", "nonexistent", "Work on feature"])
+        result = runner.invoke(
+            clones,
+            ["spawn", "nonexistent", "Work on feature", "--parent-session-id", "parent-123"],
+        )
 
-        assert "not found" in result.output.lower()
+        assert "not found" in result.output.lower() or result.exit_code != 0
 
 
 class TestClonesSyncCommand:

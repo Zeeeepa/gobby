@@ -380,83 +380,6 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
     )
 
 
-def _find_unexpanded_epic(manager: LocalTaskManager, root_task_id: str) -> Task | None:
-    """Depth-first search for first unexpanded epic in the task tree."""
-    task = manager.get_task(root_task_id)
-    if not task:
-        return None
-
-    # Check if this task itself is an unexpanded epic
-    if task.task_type == "epic" and not task.is_expanded:
-        return task
-
-    # Search children depth-first
-    children = manager.list_tasks(parent_task_id=root_task_id, limit=1000)
-    for child in children:
-        if child.task_type == "epic":
-            result = _find_unexpanded_epic(manager, child.id)
-            if result:
-                return result
-
-    return None
-
-
-def _count_unexpanded_epics(manager: LocalTaskManager, root_task_id: str) -> int:
-    """Count unexpanded epics in the task tree."""
-    count = 0
-    task = manager.get_task(root_task_id)
-    if not task:
-        return 0
-
-    # Count this task if it's an unexpanded epic
-    if task.task_type == "epic" and not task.is_expanded:
-        count += 1
-
-    # Count children recursively
-    children = manager.list_tasks(parent_task_id=root_task_id, limit=1000)
-    for child in children:
-        count += _count_unexpanded_epics(manager, child.id)
-
-    return count
-
-
-@click.command("expand")
-@click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
-@click.option("--context", "-c", help="[DEPRECATED]")
-@click.option("--web-research/--no-web-research", default=False, help="[DEPRECATED]")
-@click.option("--code-context/--no-code-context", default=True, help="[DEPRECATED]")
-@click.option("--cascade", is_flag=True, help="[DEPRECATED]")
-@click.option("--force", "-f", is_flag=True, help="[DEPRECATED]")
-@click.option("--project", "-p", "project_name", help="[DEPRECATED]")
-def expand_task_cmd(
-    task_refs: tuple[str, ...],
-    context: str | None,
-    web_research: bool,
-    code_context: bool,
-    cascade: bool,
-    force: bool,
-    project_name: str | None,
-) -> None:
-    """[DEPRECATED] Use /gobby-expand skill in Claude Code instead.
-
-    The CLI expand command has been replaced with a skill-based expansion
-    that provides visible agent reasoning and survives session compaction.
-
-    Usage in Claude Code:
-        /gobby-expand #42
-    """
-    click.echo("DEPRECATED: The 'gobby tasks expand' command has been removed.", err=True)
-    click.echo("", err=True)
-    click.echo("Use the /gobby-expand skill in Claude Code instead:", err=True)
-    click.echo("    /gobby-expand #42", err=True)
-    click.echo("", err=True)
-    click.echo("The new skill-based expansion provides:", err=True)
-    click.echo("  - Visible agent reasoning in the conversation", err=True)
-    click.echo("  - Survives session compaction and can resume", err=True)
-    click.echo("  - TDD as validation criteria (not separate tasks)", err=True)
-    sys.exit(1)
-
-
 @click.command("complexity")
 @click.argument("task_id", required=False)
 @click.option("--all", "analyze_all", is_flag=True, help="Analyze all pending tasks")
@@ -570,33 +493,6 @@ def _analyze_task_complexity(manager: LocalTaskManager, task: Task) -> dict[str,
         "recommended_subtasks": recommended,
         "existing_subtasks": subtask_count,
     }
-
-
-@click.command("expand-all")
-@click.option("--max", "-m", "max_tasks", default=5, help="[DEPRECATED]")
-@click.option("--min-complexity", default=1, help="[DEPRECATED]")
-@click.option("--type", "task_type", help="[DEPRECATED]")
-@click.option("--web-research/--no-web-research", default=False, help="[DEPRECATED]")
-@click.option("--dry-run", "-d", is_flag=True, help="[DEPRECATED]")
-def expand_all_cmd(
-    max_tasks: int,
-    min_complexity: int,
-    task_type: str | None,
-    web_research: bool,
-    dry_run: bool,
-) -> None:
-    """[DEPRECATED] Use /gobby-expand skill in Claude Code instead.
-
-    The CLI expand-all command has been replaced with skill-based expansion.
-
-    Usage in Claude Code:
-        /gobby-expand #42
-    """
-    click.echo("DEPRECATED: The 'gobby tasks expand-all' command has been removed.", err=True)
-    click.echo("", err=True)
-    click.echo("Use the /gobby-expand skill in Claude Code instead:", err=True)
-    click.echo("    /gobby-expand #42", err=True)
-    sys.exit(1)
 
 
 @click.command("suggest")

@@ -17,7 +17,7 @@ Example:
 
     manager = HookManager(
         daemon_host="localhost",
-        daemon_port=8765
+        daemon_port=60887
     )
 
     result = manager.execute(
@@ -80,6 +80,21 @@ class HookManager:
     - TranscriptProcessor: JSONL parsing and analysis
     - WorkflowEngine: Handles session handoff and LLM-powered summaries
 
+    Session ID Mapping:
+        There are two types of session IDs used throughout the system:
+
+        | Name                     | Description                                    | Example                                |
+        |--------------------------|------------------------------------------------|----------------------------------------|
+        | external_id / session_id | CLI's internal session UUID (Claude Code, etc) | 683bc13e-091e-4911-9e59-e7546e385cd6   |
+        | _platform_session_id     | Gobby's internal session.id (database PK)      | 0ebb2c00-0f58-4c39-9370-eba1833dec33   |
+
+        The _platform_session_id is derived from session_manager.get_session_id(external_id, source)
+        which looks up Gobby's session by the CLI's external_id.
+
+        When injecting into agent context:
+        - "session_id" in response.metadata = Gobby's _platform_session_id (for MCP tool calls)
+        - "external_id" in response.metadata = CLI's session UUID (for transcript lookups)
+
     Attributes:
         daemon_host: Host for daemon communication
         daemon_port: Port for daemon communication
@@ -90,7 +105,7 @@ class HookManager:
     def __init__(
         self,
         daemon_host: str = "localhost",
-        daemon_port: int = 8765,
+        daemon_port: int = 60887,
         llm_service: "LLMService | None" = None,
         config: Any | None = None,
         log_file: str | None = None,
@@ -625,6 +640,31 @@ class HookManager:
         # Execute handler
         try:
             response = handler(event)
+
+            # Copy session metadata from event to response for adapter injection
+            # The adapter reads response.metadata to inject session info into agent context
+            if event.metadata.get("_platform_session_id"):
+                response.metadata["session_id"] = event.metadata["_platform_session_id"]
+            if event.session_id:  # external_id (e.g., Claude Code's session UUID)
+                response.metadata["external_id"] = event.session_id
+            if event.machine_id:
+                response.metadata["machine_id"] = event.machine_id
+            if event.project_id:
+                response.metadata["project_id"] = event.project_id
+            # Copy terminal context if present
+            for key in [
+                "terminal_term_program",
+                "terminal_tty",
+                "terminal_parent_pid",
+                "terminal_iterm_session_id",
+                "terminal_term_session_id",
+                "terminal_kitty_window_id",
+                "terminal_tmux_pane",
+                "terminal_vscode_terminal_id",
+                "terminal_alacritty_socket",
+            ]:
+                if event.metadata.get(key):
+                    response.metadata[key] = event.metadata[key]
 
             # Merge workflow context if present
             if workflow_context:

@@ -439,6 +439,7 @@ async def evaluate_all_lifecycle_workflows(
     detect_plan_mode_fn: Any,
     check_premature_stop_fn: Any,
     context_data: dict[str, Any] | None = None,
+    detect_plan_mode_from_context_fn: Any | None = None,
 ) -> HookResponse:
     """
     Discover and evaluate all lifecycle workflows for the given event.
@@ -453,9 +454,10 @@ async def evaluate_all_lifecycle_workflows(
         action_executor: Action executor for running actions
         evaluator: Condition evaluator
         detect_task_claim_fn: Function to detect task claims
-        detect_plan_mode_fn: Function to detect plan mode
+        detect_plan_mode_fn: Function to detect plan mode (from tool calls)
         check_premature_stop_fn: Async function to check premature stop
         context_data: Optional context data passed between actions
+        detect_plan_mode_from_context_fn: Function to detect plan mode from system reminders
 
     Returns:
         Merged HookResponse with combined context and first non-allow decision.
@@ -594,6 +596,21 @@ async def evaluate_all_lifecycle_workflows(
             detect_plan_mode_fn(event, state)
             state_manager.save_state(state)
 
+    # Detect plan mode from system reminders for BEFORE_AGENT events
+    # This catches plan mode when user enters via UI (not via EnterPlanMode tool)
+    if event.event_type == HookEventType.BEFORE_AGENT and detect_plan_mode_from_context_fn:
+        session_id = event.metadata.get("_platform_session_id")
+        if session_id:
+            state = state_manager.get_state(session_id)
+            if state is None:
+                state = WorkflowState(
+                    session_id=session_id,
+                    workflow_name="__lifecycle__",
+                    step="",
+                )
+            detect_plan_mode_from_context_fn(event, state)
+            state_manager.save_state(state)
+
     # Check for premature stop in active step workflows on STOP events
     if event.event_type == HookEventType.STOP:
         premature_response = await check_premature_stop_fn(event, context_data)
@@ -610,4 +627,15 @@ async def evaluate_all_lifecycle_workflows(
         reason=final_reason,
         context="\n\n".join(all_context) if all_context else None,
         system_message=final_system_message,
+        metadata={
+            "discovered_workflows": [
+                {
+                    "name": w.name,
+                    "priority": w.priority,
+                    "is_project": w.is_project,
+                    "path": str(w.path),
+                }
+                for w in workflows
+            ]
+        },
     )

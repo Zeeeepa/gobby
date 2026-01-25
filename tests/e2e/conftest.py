@@ -207,6 +207,40 @@ def e2e_project_dir() -> Generator[Path]:
         gobby_dir = project_dir / ".gobby"
         gobby_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize git repository for clone/worktree tests
+        subprocess.run(
+            ["git", "init"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        # Create initial commit (needed for worktree/clone operations)
+        (project_dir / "README.md").write_text("# E2E Test Project\n")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+        )
+
         # Create project.json
         project_json = gobby_dir / "project.json"
         project_json.write_text(
@@ -238,6 +272,7 @@ def e2e_config(e2e_project_dir: Path) -> Generator[tuple[Path, int, int]]:
 
     config_content = f"""
 daemon_port: {http_port}
+test_mode: true
 database_path: "{db_path}"
 
 websocket:
@@ -321,6 +356,16 @@ def daemon_instance(
             start_new_session=True,
         )
 
+    # Brief delay to catch immediate failures
+    time.sleep(0.5)
+    if process.poll() is not None:
+        error_logs = error_log_file.read_text() if error_log_file.exists() else ""
+        logs = log_file.read_text() if log_file.exists() else ""
+        pytest.fail(
+            f"Daemon subprocess died immediately with exit code {process.poll()}.\n"
+            f"Logs:\n{logs}\nError output:\n{error_logs}"
+        )
+
     instance = DaemonInstance(
         process=process,
         pid=process.pid,
@@ -339,9 +384,12 @@ def daemon_instance(
         # Daemon failed to start - capture logs for debugging
         logs = instance.read_logs()
         error_logs = instance.read_error_logs()
+        exit_code = process.poll()
         terminate_process_tree(process.pid)
+        extra_info = f"\nProcess exited with code: {exit_code}" if exit_code is not None else ""
         pytest.fail(
-            f"Daemon failed to start within timeout.\nLogs:\n{logs}\nError logs:\n{error_logs}"
+            f"Daemon failed to start within timeout.{extra_info}\n"
+            f"Logs:\n{logs}\nError logs:\n{error_logs}"
         )
 
     yield instance

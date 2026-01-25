@@ -40,8 +40,8 @@ Gobby is designed as a local-first daemon:
 
 By default, Gobby binds to `localhost`:
 
-- HTTP server: `127.0.0.1:8765`
-- WebSocket server: `127.0.0.1:8766`
+- HTTP server: `127.0.0.1:60887`
+- WebSocket server: `127.0.0.1:60888`
 
 **Do not** expose these ports to the public internet without proper authentication.
 

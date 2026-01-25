@@ -1,7 +1,7 @@
 ---
 name: gobby-tasks
 description: This skill should be used when the user asks to "/gobby-tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, validate, dependencies, and orchestration.
-version: "2.0"
+version: "2.0.0"
 ---
 
 # /gobby-tasks - Task Management Skill
@@ -37,6 +37,8 @@ Call `gobby-tasks.create_task` with:
 - `labels`: List of labels
 - `category`: "code", "config", "docs", "refactor", "test", "research", "planning", or "manual"
 - `validation_criteria`: Acceptance criteria
+
+**Auto-claim**: When both `session_id` AND `claim=true` are provided, the task is automatically claimed (status set to `in_progress`, assignee set to your session). Default: `claim=false`.
 
 Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
 Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature", session_id="<your_session_id>")`
@@ -95,15 +97,20 @@ Call `gobby-tasks.close_task` with:
 - `changes_summary`: Summary of changes (triggers validation)
 - `commit_sha`: Git commit SHA to link
 - `skip_validation`: Skip LLM validation (requires justification)
-- `override_justification`: Why skipping validation/commit
-- `no_commit_needed`: Only for non-code tasks (requires justification)
+- `override_justification`: Why skipping validation
 - `session_id`: Your session ID for tracking
 
 **IMPORTANT**: Commit changes first, then close with commit SHA.
 
+**Edge cases (no work done):** Use `reason` to close without a commit:
+- `reason="already_implemented"` - Task was already done
+- `reason="obsolete"` - Task is no longer needed
+- `reason="duplicate"` - Task duplicates another
+- `reason="wont_fix"` - Decided not to do it
+
 **Review routing**: Tasks may route to `review` status instead of `closed` when:
 - Task has `requires_user_review=true`, OR
-- `override_justification` is provided
+- `skip_validation=true` with `override_justification`
 
 Returns `routed_to_review: true` if task was sent to review instead of closed.
 

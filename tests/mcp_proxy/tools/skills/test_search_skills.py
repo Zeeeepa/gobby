@@ -1,6 +1,5 @@
 """Tests for search_skills MCP tool (TDD - written before implementation)."""
 
-import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -63,30 +62,43 @@ def populated_db(db: LocalDatabase, storage: LocalSkillManager) -> LocalDatabase
     return db
 
 
+@pytest.fixture
+async def registry(populated_db):
+    """Create a registry with search index fully built."""
+    from gobby.mcp_proxy.tools.skills import create_skills_registry
+    from gobby.storage.skills import LocalSkillManager
+
+    registry = create_skills_registry(populated_db)
+
+    # Ensure indexing is complete
+    storage = LocalSkillManager(populated_db)
+    skills = storage.list_skills(limit=1000, include_global=True)
+    if hasattr(registry, "search"):
+        await registry.search.index_skills_async(skills)
+
+    return registry
+
+
 class TestSearchSkillsTool:
     """Tests for search_skills MCP tool."""
 
-    def test_search_skills_returns_results(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_returns_results(self, registry):
         """Test that search_skills returns matching results."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="git commit"))
+        result = await tool(query="git commit")
 
         assert result["success"] is True
         assert result["count"] > 0
         assert len(result["results"]) > 0
 
-    def test_search_skills_returns_scores(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_returns_scores(self, registry):
         """Test that search results include relevance scores."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="git"))
+        result = await tool(query="git")
 
         assert result["success"] is True
         for res in result["results"]:
@@ -94,67 +106,57 @@ class TestSearchSkillsTool:
             assert isinstance(res["score"], (int, float))
             assert res["score"] >= 0
 
-    def test_search_skills_ranked_by_relevance(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_ranked_by_relevance(self, registry):
         """Test that results are ranked by relevance."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="git commit message"))
+        result = await tool(query="git commit message")
 
         assert result["success"] is True
         # Results should be sorted by score descending
         scores = [r["score"] for r in result["results"]]
         assert scores == sorted(scores, reverse=True)
 
-    def test_search_skills_respects_top_k(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_respects_top_k(self, registry):
         """Test that search respects top_k limit."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="git", top_k=1))
+        result = await tool(query="git", top_k=1)
 
         assert result["success"] is True
         assert result["count"] <= 1
 
-    def test_search_skills_filters_by_category(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_filters_by_category(self, registry):
         """Test that search filters by category."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="code", category="code-quality"))
+        result = await tool(query="code", category="code-quality")
 
         assert result["success"] is True
         for res in result["results"]:
             assert res["category"] == "code-quality"
 
-    def test_search_skills_filters_by_tags_any(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_filters_by_tags_any(self, registry):
         """Test that search filters by any of the specified tags."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="code", tags_any=["quality", "typing"]))
+        result = await tool(query="code", tags_any=["quality", "typing"])
 
         assert result["success"] is True
         # All results should have at least one of the tags
         for res in result["results"]:
             assert any(tag in res["tags"] for tag in ["quality", "typing"])
 
-    def test_search_skills_filters_by_tags_all(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_filters_by_tags_all(self, registry):
         """Test that search filters by all of the specified tags."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="git", tags_all=["git", "commits"]))
+        result = await tool(query="git", tags_all=["git", "commits"])
 
         assert result["success"] is True
         # All results should have all the tags
@@ -162,39 +164,33 @@ class TestSearchSkillsTool:
             assert "git" in res["tags"]
             assert "commits" in res["tags"]
 
-    def test_search_skills_empty_query(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_empty_query(self, registry):
         """Test search with empty query returns error."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query=""))
+        result = await tool(query="")
 
         assert result["success"] is False
         assert "query" in result["error"].lower()
 
-    def test_search_skills_no_matches(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_no_matches(self, registry):
         """Test search with no matches returns empty results."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="nonexistent gibberish xyz"))
+        result = await tool(query="nonexistent gibberish xyz")
 
         assert result["success"] is True
         assert result["count"] == 0
         assert result["results"] == []
 
-    def test_search_skills_returns_skill_metadata(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_returns_skill_metadata(self, registry):
         """Test that search results include skill metadata."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(query="git commit"))
+        result = await tool(query="git commit")
 
         assert result["success"] is True
         assert len(result["results"]) > 0
@@ -206,18 +202,16 @@ class TestSearchSkillsTool:
         assert "category" in res
         assert "tags" in res
 
-    def test_search_skills_combined_filters(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_search_skills_combined_filters(self, registry):
         """Test search with multiple filters."""
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        registry = create_skills_registry(populated_db)
         tool = registry.get_tool("search_skills")
 
-        result = asyncio.run(tool(
+        result = await tool(
             query="code quality",
             category="python",
             tags_any=["typing"],
-        ))
+        )
 
         assert result["success"] is True
         for res in result["results"]:

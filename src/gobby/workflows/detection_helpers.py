@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEvent
+    from gobby.storage.tasks import LocalTaskManager
     from gobby.tasks.session_tasks import SessionTaskManager
 
     from .definitions import WorkflowState
@@ -22,6 +23,7 @@ def detect_task_claim(
     event: "HookEvent",
     state: "WorkflowState",
     session_task_manager: "SessionTaskManager | None" = None,
+    task_manager: "LocalTaskManager | None" = None,
 ) -> None:
     """Detect gobby-tasks calls that claim or release a task for this session.
 
@@ -44,7 +46,8 @@ def detect_task_claim(
 
     tool_name = event.data.get("tool_name", "")
     tool_input = event.data.get("tool_input", {}) or {}
-    tool_output = event.data.get("tool_output", {}) or {}
+    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
+    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
 
     # Check if this is a gobby-tasks call via MCP proxy
     # Tool name could be "call_tool" (from legacy) or "mcp__gobby__call_tool" (direct)
@@ -58,7 +61,34 @@ def detect_task_claim(
 
     # Check inner tool name
     inner_tool_name = tool_input.get("tool_name", "")
-    if inner_tool_name not in ("create_task", "update_task", "close_task"):
+
+    # Handle close_task - clears task_claimed when task is closed
+    # Note: Claude Code doesn't include tool_result in post-tool-use hooks, so for CC
+    # the workflow state is updated directly in the MCP proxy's close_task function.
+    # This detection provides a fallback for CLIs that do report tool results (Gemini/Codex).
+    if inner_tool_name == "close_task":
+        tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
+
+        # If no tool output, skip - can't verify success
+        # The MCP proxy's close_task handles state clearing for successful closes
+        if not tool_output:
+            return
+
+        # Check if close succeeded (not an error)
+        if isinstance(tool_output, dict):
+            if tool_output.get("error") or tool_output.get("status") == "error":
+                return
+            result = tool_output.get("result", {})
+            if isinstance(result, dict) and result.get("error"):
+                return
+
+        # Clear task_claimed on successful close
+        state.variables["task_claimed"] = False
+        state.variables["claimed_task_id"] = None
+        logger.info(f"Session {state.session_id}: task_claimed=False (detected close_task success)")
+        return
+
+    if inner_tool_name not in ("create_task", "update_task", "claim_task"):
         return
 
     # For update_task, only count if status is being set to in_progress
@@ -66,11 +96,9 @@ def detect_task_claim(
         arguments = tool_input.get("arguments", {}) or {}
         if arguments.get("status") != "in_progress":
             return
+    # claim_task always counts (it sets status to in_progress internally)
 
-    # For close_task, we'll clear task_claimed after success check
-    is_close_task = inner_tool_name == "close_task"
-
-    # Check if the call succeeded (not an error)
+    # Check if the call succeeded (not an error) - for non-close_task operations
     # tool_output structure varies, but errors typically have "error" key
     # or the MCP response has "status": "error"
     if isinstance(tool_output, dict):
@@ -81,35 +109,26 @@ def detect_task_claim(
         if isinstance(result, dict) and result.get("error"):
             return
 
-    # Handle close_task - clear the claim only if closing the claimed task
-    if is_close_task:
-        arguments = tool_input.get("arguments", {}) or {}
-        closed_task_id = arguments.get("task_id")
-        claimed_task_id = state.variables.get("claimed_task_id")
-
-        # Only clear task_claimed if we're closing the task that was claimed
-        if closed_task_id and claimed_task_id and closed_task_id == claimed_task_id:
-            state.variables["task_claimed"] = False
-            state.variables["claimed_task_id"] = None
-            logger.info(
-                f"Session {state.session_id}: task_claimed=False "
-                f"(claimed task {closed_task_id} closed via close_task)"
-            )
-        else:
-            logger.debug(
-                f"Session {state.session_id}: close_task for {closed_task_id} "
-                f"(claimed: {claimed_task_id}) - not clearing task_claimed"
-            )
-        return
-
     # Extract task_id based on tool type
     arguments = tool_input.get("arguments", {}) or {}
-    if inner_tool_name == "update_task":
+    if inner_tool_name in ("update_task", "claim_task"):
         task_id = arguments.get("task_id")
+        # Resolve to UUID for consistent comparison with close_task
+        if task_id and task_manager:
+            try:
+                task = task_manager.get_task(task_id)
+                if task:
+                    task_id = task.id  # Use UUID
+            except Exception:  # nosec B110 - best effort resolution, keep original if fails
+                pass
     elif inner_tool_name == "create_task":
         # For create_task, the id is in the result
         result = tool_output.get("result", {}) if isinstance(tool_output, dict) else {}
         task_id = result.get("id") if isinstance(result, dict) else None
+        # Skip if we can't get the task ID (e.g., Claude Code doesn't include tool results)
+        # The MCP tool itself handles state updates in this case via _crud.py
+        if not task_id:
+            return
     else:
         task_id = None
 
@@ -121,8 +140,8 @@ def detect_task_claim(
         f"(via {inner_tool_name})"
     )
 
-    # Auto-link task to session when status is set to in_progress
-    if inner_tool_name == "update_task":
+    # Auto-link task to session when claiming a task
+    if inner_tool_name in ("update_task", "claim_task"):
         arguments = tool_input.get("arguments", {}) or {}
         task_id = arguments.get("task_id")
         if task_id and session_task_manager:
@@ -159,6 +178,70 @@ def detect_plan_mode(event: "HookEvent", state: "WorkflowState") -> None:
         logger.info(f"Session {state.session_id}: plan_mode=False (exited plan mode)")
 
 
+def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") -> None:
+    """Detect plan mode from system reminders injected by Claude Code.
+
+    Claude Code injects system reminders like "Plan mode is active" when the user
+    enters plan mode via the UI (not via the EnterPlanMode tool). This function
+    detects those reminders and sets the plan_mode variable accordingly.
+
+    IMPORTANT: Only matches indicators within <system-reminder> tags to avoid
+    false positives from handoff context or user messages that mention plan mode.
+
+    This complements detect_plan_mode() which only catches programmatic tool calls.
+
+    Args:
+        event: The BEFORE_AGENT hook event (contains user prompt with system reminders)
+        state: Current workflow state (modified in place)
+    """
+    if not event.data:
+        return
+
+    # Check for plan mode system reminder in the prompt
+    prompt = event.data.get("prompt", "") or ""
+
+    # Extract only content within <system-reminder> tags to avoid false positives
+    # from handoff context or user messages mentioning plan mode
+    import re
+
+    system_reminders = re.findall(r"<system-reminder>(.*?)</system-reminder>", prompt, re.DOTALL)
+    reminder_text = " ".join(system_reminders)
+
+    # Claude Code injects these phrases in system reminders when plan mode is active
+    plan_mode_indicators = [
+        "Plan mode is active",
+        "Plan mode still active",
+        "You are in plan mode",
+    ]
+
+    # Check if plan mode is indicated in system reminders only
+    for indicator in plan_mode_indicators:
+        if indicator in reminder_text:
+            if not state.variables.get("plan_mode"):
+                state.variables["plan_mode"] = True
+                logger.info(
+                    f"Session {state.session_id}: plan_mode=True "
+                    f"(detected from system reminder: '{indicator}')"
+                )
+            return
+
+    # Detect exit from plan mode (also only in system reminders)
+    exit_indicators = [
+        "Exited Plan Mode",
+        "Plan mode exited",
+    ]
+
+    for indicator in exit_indicators:
+        if indicator in reminder_text:
+            if state.variables.get("plan_mode"):
+                state.variables["plan_mode"] = False
+                logger.info(
+                    f"Session {state.session_id}: plan_mode=False "
+                    f"(detected from system reminder: '{indicator}')"
+                )
+            return
+
+
 def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
     """Track MCP tool calls by server/tool for workflow conditions.
 
@@ -180,7 +263,8 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
 
     tool_name = event.data.get("tool_name", "")
     tool_input = event.data.get("tool_input", {}) or {}
-    tool_output = event.data.get("tool_output", {}) or {}
+    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
+    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
 
     # Check for MCP proxy call
     if tool_name not in ("call_tool", "mcp__gobby__call_tool"):

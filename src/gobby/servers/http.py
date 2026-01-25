@@ -67,6 +67,8 @@ class HTTPServer:
         agent_runner: Any | None = None,
         worktree_storage: Any | None = None,
         clone_storage: Any | None = None,
+        git_manager: Any | None = None,
+        project_id: str | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -108,6 +110,8 @@ class HTTPServer:
         self.agent_runner = agent_runner
         self.worktree_storage = worktree_storage
         self.clone_storage = clone_storage
+        self.git_manager = git_manager
+        self.project_id = project_id
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -132,7 +136,7 @@ class HTTPServer:
         self._mcp_db_manager = mcp_db_manager
         if mcp_manager:
             # Determine WebSocket port
-            ws_port = 8766
+            ws_port = 60888
             if config and hasattr(config, "websocket") and config.websocket:
                 ws_port = config.websocket.port
 
@@ -174,10 +178,10 @@ class HTTPServer:
                 agent_runner=self.agent_runner,
                 worktree_storage=self.worktree_storage,
                 clone_storage=self.clone_storage,
-                git_manager=None,  # Created per-project, not at daemon startup
+                git_manager=self.git_manager,
                 merge_storage=merge_storage,
                 merge_resolver=merge_resolver,
-                project_id=None,  # Project-specific, not global
+                project_id=self.project_id,
                 tool_proxy_getter=tool_proxy_getter,
                 inter_session_message_manager=inter_session_message_manager,
             )
@@ -559,7 +563,7 @@ class HTTPServer:
 
 
 async def create_server(
-    port: int = 8765,
+    port: int = 60887,
     test_mode: bool = False,
     mcp_manager: Any | None = None,
     config: Any | None = None,

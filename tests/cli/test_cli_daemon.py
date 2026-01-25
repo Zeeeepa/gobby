@@ -31,8 +31,8 @@ class TestStartCommand:
     def mock_config(self):
         """Create a mock configuration object."""
         config = MagicMock()
-        config.daemon_port = 8765
-        config.websocket.port = 8766
+        config.daemon_port = 60887
+        config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
@@ -508,8 +508,8 @@ class TestRestartCommand:
     def mock_config(self):
         """Create a mock configuration object."""
         config = MagicMock()
-        config.daemon_port = 8765
-        config.websocket.port = 8766
+        config.daemon_port = 60887
+        config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
@@ -665,8 +665,8 @@ class TestStatusCommand:
     def mock_config(self):
         """Create a mock configuration object."""
         config = MagicMock()
-        config.daemon_port = 8765
-        config.websocket.port = 8766
+        config.daemon_port = 60887
+        config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
@@ -848,8 +848,8 @@ class TestDaemonCommandsIntegration:
     def mock_config(self):
         """Create a mock configuration object."""
         config = MagicMock()
-        config.daemon_port = 8765
-        config.websocket.port = 8766
+        config.daemon_port = 60887
+        config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
@@ -942,8 +942,8 @@ class TestEdgeCases:
     def mock_config(self):
         """Create a mock configuration object."""
         config = MagicMock()
-        config.daemon_port = 8765
-        config.websocket.port = 8766
+        config.daemon_port = 60887
+        config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
@@ -1168,8 +1168,8 @@ class TestCommandBuilding:
     def mock_config(self):
         """Create a mock configuration object."""
         config = MagicMock()
-        config.daemon_port = 8765
-        config.websocket.port = 8766
+        config.daemon_port = 60887
+        config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config

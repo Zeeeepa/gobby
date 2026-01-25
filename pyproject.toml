@@ -40,9 +40,12 @@ dependencies = [
     # scikit-learn for TF-IDF memory search
     "scikit-learn>=1.0.0",
     "textual>=7.3.0",
-    "mem0ai",
+    # mem0ai moved to optional [mem0] extra due to CVE-2026-0994 (protobuf<=6.33.4 vulnerable)
     "memu-py>=1.0.0",
 ]
+
+[project.optional-dependencies]
+mem0 = ["mem0ai"]
 
 [project.scripts]
 gobby = "gobby.cli:cli"
@@ -90,6 +93,8 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "e2e: marks tests as end-to-end tests",
+    "cli: marks tests as CLI command tests",
+    "no_config_protection: skip config protection for this test",
 ]
 filterwarnings = [
     # Ignore coroutine warnings from fire-and-forget async patterns in hook/webhook code
@@ -104,6 +109,8 @@ filterwarnings = [
     "ignore:unclosed database:ResourceWarning:coverage",
     "ignore:unclosed database:ResourceWarning:unittest.mock",
     "ignore:unclosed database:ResourceWarning",
+    # Ignore fork() deprecation warning from embedded spawner tests (expected on macOS)
+    "ignore:This process.*is multi-threaded.*use of fork:DeprecationWarning",
 ]
 
 [tool.ruff]

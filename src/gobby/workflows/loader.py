@@ -193,6 +193,7 @@ class WorkflowLoader:
             return self._discovery_cache[cache_key]
 
         discovered: dict[str, DiscoveredWorkflow] = {}  # name -> workflow (for shadowing)
+        failed: dict[str, str] = {}  # name -> error message for failed workflows
 
         # 1. Scan global lifecycle directory first (will be shadowed by project)
         for global_dir in self.global_dirs:
@@ -201,7 +202,14 @@ class WorkflowLoader:
         # 2. Scan project lifecycle directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows" / "lifecycle"
-            self._scan_directory(project_dir, is_project=True, discovered=discovered)
+            self._scan_directory(project_dir, is_project=True, discovered=discovered, failed=failed)
+
+            # Log errors when project workflow fails but global exists (failed shadowing)
+            for name, error in failed.items():
+                if name in discovered and not discovered[name].is_project:
+                    logger.error(
+                        f"Project workflow '{name}' failed to load, using global instead: {error}"
+                    )
 
         # 3. Filter to lifecycle workflows only
         lifecycle_workflows = [w for w in discovered.values() if w.definition.type == "lifecycle"]
@@ -225,6 +233,7 @@ class WorkflowLoader:
         directory: Path,
         is_project: bool,
         discovered: dict[str, DiscoveredWorkflow],
+        failed: dict[str, str] | None = None,
     ) -> None:
         """
         Scan a directory for workflow YAML files and add to discovered dict.
@@ -233,6 +242,7 @@ class WorkflowLoader:
             directory: Directory to scan
             is_project: Whether this is a project directory (for shadowing)
             discovered: Dict to update (name -> DiscoveredWorkflow)
+            failed: Optional dict to track failed workflows (name -> error message)
         """
         if not directory.exists():
             return
@@ -258,6 +268,8 @@ class WorkflowLoader:
                             data = self._merge_workflows(parent.model_dump(), data)
                     except ValueError as e:
                         logger.warning(f"Skipping workflow {name}: {e}")
+                        if failed is not None:
+                            failed[name] = str(e)
                         continue
 
                 definition = WorkflowDefinition(**data)
@@ -266,6 +278,10 @@ class WorkflowLoader:
                 priority = 100
                 if definition.settings and "priority" in definition.settings:
                     priority = definition.settings["priority"]
+
+                # Log successful shadowing when project workflow overrides global
+                if name in discovered and is_project and not discovered[name].is_project:
+                    logger.info(f"Project workflow '{name}' shadows global workflow")
 
                 # Project workflows shadow global (overwrite in dict)
                 # Global is scanned first, so project overwrites
@@ -279,6 +295,8 @@ class WorkflowLoader:
 
             except Exception as e:
                 logger.warning(f"Failed to load workflow from {yaml_path}: {e}")
+                if failed is not None:
+                    failed[name] = str(e)
 
     def clear_cache(self) -> None:
         """
@@ -287,11 +305,6 @@ class WorkflowLoader:
         """
         self._cache.clear()
         self._discovery_cache.clear()
-
-    def clear_discovery_cache(self) -> None:
-        """Clear the discovery cache. Call when workflows may have changed."""
-        # Deprecated: use clear_cache instead to clear everything
-        self.clear_cache()
 
     def validate_workflow_for_agent(
         self,

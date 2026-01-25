@@ -158,7 +158,7 @@ class TestSkillManagerSearch:
         # Force reindex
         manager.reindex()
 
-        results = manager.search("database queries")
+        results = manager.search_skills("database queries")
         assert len(results) > 0
         assert results[0].skill_name == "searchable"
 
@@ -185,7 +185,7 @@ class TestSkillManagerSearch:
 
         # Search with category filter
         filters = SearchFilters(category="git")
-        results = manager.search("skill", filters=filters)
+        results = manager.search_skills("skill", filters=filters)
 
         assert len(results) == 1
         assert results[0].skill_name == "git-skill"

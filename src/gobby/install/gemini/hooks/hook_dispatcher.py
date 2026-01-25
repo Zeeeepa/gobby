@@ -26,11 +26,12 @@ Exit Codes:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 # Default daemon configuration
-DEFAULT_DAEMON_PORT = 8765
+DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
@@ -38,10 +39,10 @@ def get_daemon_url() -> str:
     """Get the daemon HTTP URL from config file.
 
     Reads daemon_port from ~/.gobby/config.yaml if it exists,
-    otherwise uses the default port 8765.
+    otherwise uses the default port 60887.
 
     Returns:
-        Full daemon URL like http://localhost:8765
+        Full daemon URL like http://localhost:60887
     """
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
@@ -59,6 +60,55 @@ def get_daemon_url() -> str:
         port = DEFAULT_DAEMON_PORT
 
     return f"http://localhost:{port}"
+
+
+def get_terminal_context() -> dict[str, str | int | bool | None]:
+    """Capture terminal/process context for session correlation.
+
+    Returns:
+        Dict with terminal identifiers (values may be None if unavailable)
+    """
+    context: dict[str, str | int | bool | None] = {}
+
+    # Parent process ID (shell or Gemini process)
+    try:
+        context["parent_pid"] = os.getppid()
+    except Exception:
+        context["parent_pid"] = None
+
+    # TTY device name
+    try:
+        context["tty"] = os.ttyname(0)
+    except Exception:
+        context["tty"] = None
+
+    # macOS Terminal.app session ID
+    context["term_session_id"] = os.environ.get("TERM_SESSION_ID")
+
+    # iTerm2 session ID
+    context["iterm_session_id"] = os.environ.get("ITERM_SESSION_ID")
+
+    # VS Code integrated terminal detection
+    # VSCODE_IPC_HOOK_CLI is set when running in VS Code's integrated terminal
+    # TERM_PROGRAM == "vscode" is also a reliable indicator
+    vscode_ipc_hook = os.environ.get("VSCODE_IPC_HOOK_CLI")
+    term_program = os.environ.get("TERM_PROGRAM")
+    context["vscode_ipc_hook_cli"] = vscode_ipc_hook
+    context["vscode_terminal_detected"] = bool(vscode_ipc_hook) or term_program == "vscode"
+
+    # Tmux pane (if running in tmux)
+    context["tmux_pane"] = os.environ.get("TMUX_PANE")
+
+    # Kitty terminal window ID
+    context["kitty_window_id"] = os.environ.get("KITTY_WINDOW_ID")
+
+    # Alacritty IPC socket path (unique per instance)
+    context["alacritty_socket"] = os.environ.get("ALACRITTY_SOCKET")
+
+    # Generic terminal program identifier (set by many terminals)
+    context["term_program"] = os.environ.get("TERM_PROGRAM")
+
+    return context
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -128,11 +178,26 @@ def main() -> int:
 
     # Check if gobby daemon is running before processing hooks
     if not check_daemon_running():
-        # Daemon is not running - return gracefully without processing
-        print(
-            json.dumps({"status": "daemon_not_running", "message": "gobby daemon is not running"})
-        )
-        return 0  # Exit 0 (allow) - this is expected behavior, not an error
+        # Critical hooks that manage session state MUST have daemon running
+        # Per Gemini CLI docs: SessionEnd, Notification, PreCompress are async/non-blocking
+        # Only SessionStart is critical for session initialization
+        critical_hooks = {"SessionStart"}
+        if hook_type in critical_hooks:
+            # Block the hook - forces user to start daemon before critical lifecycle events
+            print(
+                f"Gobby daemon is not running. Start with 'gobby start' before continuing. "
+                f"({hook_type} requires daemon for session state management)",
+                file=sys.stderr,
+            )
+            return 2  # Exit 2 = block operation
+        else:
+            # Non-critical hooks can proceed without daemon
+            print(
+                json.dumps(
+                    {"status": "daemon_not_running", "message": "gobby daemon is not running"}
+                )
+            )
+            return 0  # Exit 0 (allow) - allow operation to continue
 
     # Setup logger for dispatcher (not HookManager)
     import logging
@@ -146,6 +211,11 @@ def main() -> int:
     try:
         # Read JSON input from stdin
         input_data = json.load(sys.stdin)
+
+        # Inject terminal context for SessionStart hooks
+        # This captures the terminal/process info for session correlation
+        if hook_type == "SessionStart":
+            input_data["terminal_context"] = get_terminal_context()
 
         # Log what Gemini CLI sends us (for debugging hook data issues)
         logger.info(f"[{hook_type}] Received input keys: {list(input_data.keys())}")
@@ -228,13 +298,18 @@ def main() -> int:
             # Determine exit code based on decision
             decision = result.get("decision", "allow")
 
-            # Print JSON output for Gemini CLI
+            # Check for block/deny decision - return exit code 2 to signal blocking
+            # For blocking, output goes to STDERR (Gemini reads stderr on exit 2)
+            if result.get("continue") is False or decision in ("deny", "block"):
+                # Output just the reason, not the full JSON
+                reason = result.get("stopReason") or result.get("reason") or "Blocked by hook"
+                print(reason, file=sys.stderr)
+                return 2
+
+            # Only print output if there's something meaningful to show
             if result and result != {}:
                 print(json.dumps(result))
 
-            # Exit code: 0 = allow, 2 = deny
-            if decision == "deny":
-                return 2
             return 0
         else:
             # HTTP error from daemon

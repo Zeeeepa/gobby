@@ -84,7 +84,6 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
     mock_task_manager.create_task_with_decomposition.return_value = {
         "task": {"id": "t1"},
-        "auto_decomposed": False,
     }
     mock_task_manager.get_task.return_value = mock_task
 
@@ -123,7 +122,6 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
     mock_task_manager.create_task_with_decomposition.return_value = {
         "task": {"id": "t1"},
-        "auto_decomposed": False,
     }
     mock_task_manager.get_task.return_value = mock_task
 

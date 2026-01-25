@@ -26,7 +26,7 @@ def cli_runner(mock_daemon_client):
 
 @pytest.fixture
 def mock_config():
-    return MagicMock(spec=DaemonConfig, daemon_port=8765)
+    return MagicMock(spec=DaemonConfig, daemon_port=60887)
 
 
 def test_list_servers_success(cli_runner, mock_daemon_client, mock_config):

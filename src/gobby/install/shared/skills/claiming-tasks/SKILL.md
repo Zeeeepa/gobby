@@ -1,18 +1,18 @@
 ---
 name: claiming-tasks
-description: Quick reference when blocked by "no active task" error. Shows how to create or claim a task before editing files.
+description: Quick reference when blocked by "no active task" error. Shows how to create or claim a task before using Edit, Write, or NotebookEdit tools.
 ---
 
 # Claiming Tasks - Resolving Edit Blocks
 
-This skill helps when you're blocked from editing files due to missing an active task.
+This skill helps when you're blocked from using Edit, Write, or NotebookEdit tools due to missing an active task.
 
 ## You've Been Blocked
 
-The workflow system requires an active task before file modifications. If you see:
+The workflow system requires an active task before using Edit, Write, or NotebookEdit. If you see:
 
 ```
-Blocked: No active task. Create or claim a task before editing files.
+Blocked: No active task. Create or claim a task before using Edit, Write, or NotebookEdit tools.
 ```
 
 Follow the steps below to resolve.
@@ -22,7 +22,7 @@ Follow the steps below to resolve.
 ### Option 1: Create a New Task
 
 ```python
-# 1. Create the task
+# Create the task (automatically claims it - sets status to in_progress)
 result = call_tool("gobby-tasks", "create_task", {
     "title": "Your task title",
     "description": "What you're doing",
@@ -30,13 +30,7 @@ result = call_tool("gobby-tasks", "create_task", {
     "session_id": "<your_session_id>"  # Required - from SessionStart context
 })
 
-# 2. Set to in_progress
-call_tool("gobby-tasks", "update_task", {
-    "task_id": result["task_id"],
-    "status": "in_progress"
-})
-
-# 3. Now you can edit files
+# Now you can edit files - task is already in_progress and assigned to your session
 ```
 
 ### Option 2: Claim an Existing Task
@@ -47,10 +41,14 @@ result = call_tool("gobby-tasks", "suggest_next_task", {
     "session_id": "<your_session_id>"
 })
 
-# Set to in_progress
-call_tool("gobby-tasks", "update_task", {
-    "task_id": result["ref"],
-    "status": "in_progress"
+# Extract task ID from suggestion (ref preferred, id as fallback)
+suggestion = result.get("suggestion", {})
+task_id = suggestion.get("ref") or suggestion.get("id")
+
+# Claim it (sets status to in_progress and assignee to your session)
+call_tool("gobby-tasks", "claim_task", {
+    "task_id": task_id,
+    "session_id": "<your_session_id>"
 })
 ```
 

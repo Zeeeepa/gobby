@@ -121,7 +121,7 @@ def daemon_tools(mock_mcp_manager, mock_llm_service):
     tools = GobbyDaemonTools(
         mcp_manager=mock_mcp_manager,
         daemon_port=8080,
-        websocket_port=8766,
+        websocket_port=60888,
         start_time=1000.0,
         internal_manager=internal_manager,
         config=mock_config,

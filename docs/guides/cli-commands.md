@@ -29,8 +29,8 @@ gobby start [--verbose]
 The daemon runs in the background and:
 
 - Initializes local storage
-- Starts HTTP server (default: port 8765)
-- Starts WebSocket server (default: port 8766)
+- Starts HTTP server (default: port 60887)
+- Starts WebSocket server (default: port 60888)
 - Connects to configured MCP servers
 
 ### `gobby stop`

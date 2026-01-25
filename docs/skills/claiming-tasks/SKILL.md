@@ -22,7 +22,7 @@ Follow the steps below to resolve.
 ### Option 1: Create a New Task
 
 ```python
-# 1. Create the task
+# Create the task (automatically sets status to in_progress)
 result = call_tool("gobby-tasks", "create_task", {
     "title": "Your task title",
     "description": "What you're doing",
@@ -30,13 +30,7 @@ result = call_tool("gobby-tasks", "create_task", {
     "session_id": "<your_session_id>"  # Required - from SessionStart context
 })
 
-# 2. Set to in_progress
-call_tool("gobby-tasks", "update_task", {
-    "task_id": result["task_id"],
-    "status": "in_progress"
-})
-
-# 3. Now you can edit files
+# Now you can edit files
 ```
 
 ### Option 2: Claim an Existing Task
@@ -47,10 +41,10 @@ result = call_tool("gobby-tasks", "suggest_next_task", {
     "session_id": "<your_session_id>"
 })
 
-# Set to in_progress
-call_tool("gobby-tasks", "update_task", {
-    "task_id": result["ref"],
-    "status": "in_progress"
+# Claim it (sets status to in_progress and assignee to your session)
+call_tool("gobby-tasks", "claim_task", {
+    "task_id": result["suggestion"]["ref"],
+    "session_id": "<your_session_id>"
 })
 ```
 

@@ -15,6 +15,56 @@ from gobby.utils.git import normalize_commit_sha
 logger = logging.getLogger(__name__)
 
 
+def _parse_timestamp(ts: str) -> datetime:
+    """Parse ISO 8601 timestamp string to datetime.
+
+    Handles both Z suffix and +HH:MM offset formats for compatibility
+    with existing data that may use either format.
+
+    Args:
+        ts: ISO 8601 timestamp string (e.g., "2026-01-25T01:43:54Z" or
+            "2026-01-25T01:43:54.123456+00:00")
+
+    Returns:
+        Timezone-aware datetime object in UTC
+    """
+    # Handle Z suffix for fromisoformat compatibility
+    parse_ts = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
+    dt = datetime.fromisoformat(parse_ts)
+
+    # Ensure timezone is UTC
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _normalize_timestamp(ts: str | None) -> str | None:
+    """Normalize timestamp to consistent RFC 3339 format.
+
+    Ensures all timestamps have:
+    - Microsecond precision (.ffffff)
+    - UTC timezone as +00:00 suffix
+
+    Args:
+        ts: ISO 8601 timestamp string
+
+    Returns:
+        Timestamp in format YYYY-MM-DDTHH:MM:SS.ffffff+00:00, or None if input was None
+    """
+    if ts is None:
+        return None
+
+    try:
+        dt = _parse_timestamp(ts)
+    except ValueError:
+        # If parsing fails, return original (shouldn't happen with valid ISO 8601)
+        return ts
+
+    # Format with consistent microseconds and +00:00 suffix
+    base = dt.strftime("%Y-%m-%dT%H:%M:%S")
+    return f"{base}.{dt.microsecond:06d}+00:00"
+
+
 class TaskSyncManager:
     """
     Manages synchronization of tasks to the filesystem (JSONL) for Git versioning.
@@ -137,8 +187,9 @@ class TaskSyncManager:
                     "title": task.title,
                     "description": task.description,
                     "status": task.status,
-                    "created_at": task.created_at,
-                    "updated_at": task.updated_at,
+                    # Normalize timestamps to ensure RFC 3339 compliance (with timezone)
+                    "created_at": _normalize_timestamp(task.created_at),
+                    "updated_at": _normalize_timestamp(task.updated_at),
                     "project_id": task.project_id,
                     "parent_id": task.parent_task_id,
                     "deps_on": sorted(deps_map.get(task.id, [])),  # Sort deps for stability
@@ -157,8 +208,8 @@ class TaskSyncManager:
                         if task.validation_status
                         else None
                     ),
-                    # Escalation fields
-                    "escalated_at": task.escalated_at,
+                    # Escalation fields (normalize timestamps)
+                    "escalated_at": _normalize_timestamp(task.escalated_at),
                     "escalation_reason": task.escalation_reason,
                     # Human-friendly IDs (preserve across sync)
                     "seq_num": task.seq_num,
@@ -248,7 +299,21 @@ class TaskSyncManager:
 
                         data = json.loads(line)
                         task_id = data["id"]
-                        updated_at_file = datetime.fromisoformat(data["updated_at"])
+                        # Guard against None/missing updated_at in JSONL
+                        raw_updated_at = data.get("updated_at")
+                        if raw_updated_at is None:
+                            # Skip tasks without timestamps or use a safe default
+                            logger.warning(f"Task {task_id} missing updated_at, skipping")
+                            skipped_count += 1
+                            continue
+                        try:
+                            updated_at_file = _parse_timestamp(raw_updated_at)
+                        except ValueError as e:
+                            logger.warning(
+                                f"Task {task_id}: malformed timestamp '{raw_updated_at}': {e}, skipping"
+                            )
+                            skipped_count += 1
+                            continue
 
                         # Check if task exists (also fetch seq_num/path_cache to preserve)
                         existing_row = self.db.fetchone(
@@ -263,7 +328,19 @@ class TaskSyncManager:
                             should_update = True
                             imported_count += 1
                         else:
-                            updated_at_db = datetime.fromisoformat(existing_row["updated_at"])
+                            # Handle NULL timestamps in DB (treat as infinitely old)
+                            db_updated_at = existing_row["updated_at"]
+                            if db_updated_at is None:
+                                updated_at_db = datetime.min.replace(tzinfo=UTC)
+                            else:
+                                try:
+                                    updated_at_db = _parse_timestamp(db_updated_at)
+                                except ValueError as e:
+                                    logger.warning(
+                                        f"Task {task_id}: failed to parse DB timestamp "
+                                        f"'{db_updated_at}': {e}, treating as old"
+                                    )
+                                    updated_at_db = datetime.min.replace(tzinfo=UTC)
                             existing_seq_num = existing_row["seq_num"]
                             existing_path_cache = existing_row["path_cache"]
                             if updated_at_file > updated_at_db:

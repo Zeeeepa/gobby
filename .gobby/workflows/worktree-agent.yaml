@@ -1,0 +1,118 @@
+name: worktree-agent
+description: |
+  Restricted workflow for agents spawned in worktrees.
+
+  This workflow limits tool access to prevent spawned agents from:
+  - Creating new tasks (use existing tasks only)
+  - Spawning additional agents (no nested spawning)
+  - Creating new worktrees (stay in assigned worktree)
+
+  Allowed operations:
+  - Task management: get_task, update_task, close_task
+  - Memory: remember, recall, forget
+  - Standard development: Read, Write, Edit, Bash, Glob, Grep
+
+  Use case: Assigned to agents spawned via spawn_agent_in_worktree to
+  enforce single-task focus and prevent orchestration recursion.
+
+version: "1.0"
+type: step
+
+settings:
+  auto_activate_on: worktree_spawn
+  upstream_servers: allow_all
+  # The assigned_task_id is populated from spawn parameters when
+  # spawn_agent_in_worktree is called with a task_id argument
+
+variables:
+  assigned_task_id: null      # Set by spawn_agent_in_worktree(task_id=...)
+
+steps:
+  - name: work
+    description: "Work on assigned task with restricted tool access"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKTREE AGENT: Starting work.
+
+          Assigned task: {{ variables.assigned_task_id }}
+
+          {% if variables.assigned_task_id %}
+          Fetch task details with get_task(task_id="{{ variables.assigned_task_id }}").
+          All operations should be scoped to this task.
+          {% else %}
+          WARNING: No task ID assigned. Check spawn parameters.
+          {% endif %}
+
+          When complete:
+          1. Commit your changes
+          2. Call close_task(task_id="{{ variables.assigned_task_id }}")
+
+    # Core development tools + specific MCP tools
+    allowed_tools:
+      # Core development
+      - Read
+      - Write
+      - Edit
+      - Bash
+      - Glob
+      - Grep
+      - WebFetch
+      - WebSearch
+      - NotebookEdit
+      - TodoWrite
+      # MCP proxy for calling specific tools
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      # Task tools (restricted set)
+      - get_task
+      - update_task
+      - close_task
+      # Memory tools
+      - remember
+      - recall
+      - forget
+
+    # Block dangerous operations
+    blocked_tools:
+      # Task creation/expansion (agent should work on assigned task only)
+      - list_tasks
+      - create_task
+      - expand_task
+      - suggest_next_task
+      - search_tasks
+      # Agent spawning (prevent recursive spawning)
+      - start_agent
+      - cancel_agent
+      - list_agents
+      - get_agent_result
+      # Worktree management (agent is already in a worktree)
+      - create_worktree
+      - spawn_agent_in_worktree
+      - list_worktrees
+      - delete_worktree
+      - sync_worktree
+      # Session tools (agent has its own session)
+      - pickup
+      - handoff
+
+    transitions:
+      - to: complete
+        when: "mcp_called('gobby-tasks', 'close_task')"
+
+  - name: complete
+    description: "Task complete - agent can exit"
+
+exit_condition: "current_step == 'complete'"
+
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    Your assigned task is not yet complete. Please:
+    1. Continue working on task {{ variables.assigned_task_id }}
+    2. Commit your changes when ready
+    3. Call close_task(task_id="{{ variables.assigned_task_id }}") to mark complete
+
+    If you're stuck, check the task details with:
+    get_task(task_id="{{ variables.assigned_task_id }}")

@@ -14,7 +14,7 @@ from gobby.runner import GobbyRunner, main, run_gobby
 def mock_config():
     """Create a mock config with WebSocket disabled by default."""
     config = MagicMock()
-    config.daemon_port = 8765
+    config.daemon_port = 60887
     config.websocket = None
     config.session_lifecycle = MagicMock()
     config.message_tracking = None
@@ -27,10 +27,10 @@ def mock_config():
 def mock_config_with_websocket():
     """Create a mock config with WebSocket enabled."""
     config = MagicMock()
-    config.daemon_port = 8765
+    config.daemon_port = 60887
     config.websocket = MagicMock()
     config.websocket.enabled = True
-    config.websocket.port = 8766
+    config.websocket.port = 60888
     config.websocket.ping_interval = 30
     config.websocket.ping_timeout = 10
     config.session_lifecycle = MagicMock()
@@ -65,7 +65,7 @@ def create_base_patches(
     if mock_http is None:
         mock_http = MagicMock()
         mock_http.app = MagicMock()
-        mock_http.port = 8765
+        mock_http.port = 60887
 
     patches = [
         patch("gobby.runner.setup_file_logging"),
@@ -80,7 +80,6 @@ def create_base_patches(
         patch("gobby.runner.TaskSyncManager"),
         patch("gobby.runner.MemorySyncManager"),
         patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-        patch("gobby.runner.TaskExpander"),
         patch("gobby.runner.TaskValidator"),
         patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
         patch("gobby.runner.create_llm_service", return_value=None),
@@ -309,7 +308,7 @@ class TestGobbyRunnerRun:
 
         mock_http = MagicMock()
         mock_http.app = MagicMock()
-        mock_http.port = 8765
+        mock_http.port = 60887
 
         patches = create_base_patches(
             mock_config=mock_config_with_websocket,
@@ -386,7 +385,7 @@ class TestGobbyRunnerInitialization:
     def test_init_with_memory_manager(self):
         """Test that MemoryManager is initialized when memory config exists."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -411,7 +410,7 @@ class TestGobbyRunnerInitialization:
     def test_init_memory_manager_exception(self):
         """Test that MemoryManager initialization exception is handled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -435,7 +434,7 @@ class TestGobbyRunnerInitialization:
     def test_init_with_memory_sync_manager(self):
         """Test MemorySyncManager initialization when enabled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -466,7 +465,7 @@ class TestGobbyRunnerInitialization:
     def test_init_memory_sync_manager_exception(self):
         """Test MemorySyncManager initialization exception is handled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -494,7 +493,7 @@ class TestGobbyRunnerInitialization:
     def test_init_with_message_processor(self):
         """Test SessionMessageProcessor initialization when message_tracking enabled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.memory_sync = MagicMock()
@@ -518,72 +517,10 @@ class TestGobbyRunnerInitialization:
 
             assert runner.message_processor == mock_message_processor
 
-    def test_init_with_task_expander(self):
-        """Test TaskExpander initialization when LLM service and expansion enabled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.gobby_tasks = MagicMock()
-        mock_config.gobby_tasks.expansion = MagicMock()
-        mock_config.gobby_tasks.expansion.enabled = True
-        mock_config.gobby_tasks.validation = MagicMock()
-        mock_config.gobby_tasks.validation.enabled = False
-
-        mock_llm_service = MagicMock()
-        mock_llm_service.enabled_providers = ["test"]
-        mock_task_expander = MagicMock()
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches = [p for p in patches if "create_llm_service" not in str(p)]
-        patches = [p for p in patches if "TaskExpander" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(patch("gobby.runner.TaskExpander", return_value=mock_task_expander))
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-
-            assert runner.task_expander == mock_task_expander
-
-    def test_init_task_expander_exception(self):
-        """Test TaskExpander initialization exception is handled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.gobby_tasks = MagicMock()
-        mock_config.gobby_tasks.expansion = MagicMock()
-        mock_config.gobby_tasks.expansion.enabled = True
-        mock_config.gobby_tasks.validation = MagicMock()
-        mock_config.gobby_tasks.validation.enabled = False
-
-        mock_llm_service = MagicMock()
-        mock_llm_service.enabled_providers = ["test"]
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches = [p for p in patches if "create_llm_service" not in str(p)]
-        patches = [p for p in patches if "TaskExpander" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(patch("gobby.runner.TaskExpander", side_effect=Exception("Expander error")))
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-            assert runner.task_expander is None
-
     def test_init_with_task_validator(self):
         """Test TaskValidator initialization when LLM service and validation enabled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -615,7 +552,7 @@ class TestGobbyRunnerInitialization:
     def test_init_task_validator_exception(self):
         """Test TaskValidator initialization exception is handled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -647,7 +584,7 @@ class TestGobbyRunnerInitialization:
     def test_init_agent_runner_exception(self):
         """Test AgentRunner initialization exception is handled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None
@@ -668,7 +605,7 @@ class TestGobbyRunnerInitialization:
     def test_init_llm_service_exception(self):
         """Test LLM service initialization exception is handled."""
         mock_config = MagicMock()
-        mock_config.daemon_port = 8765
+        mock_config.daemon_port = 60887
         mock_config.websocket = None
         mock_config.session_lifecycle = MagicMock()
         mock_config.message_tracking = None

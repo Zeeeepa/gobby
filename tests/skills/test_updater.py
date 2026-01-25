@@ -35,7 +35,7 @@ def skill_dir(tmp_path):
     skill_file.write_text("""---
 name: local-skill
 description: A local skill v1.0
-version: "1.0"
+version: "1.0.0"
 ---
 
 # Local Skill
@@ -83,7 +83,7 @@ class TestSkillUpdaterLocalUpdate:
         (skill_dir / "SKILL.md").write_text("""---
 name: local-skill
 description: A local skill v2.0
-version: "2.0"
+version: "2.0.0"
 ---
 
 # Local Skill
@@ -115,7 +115,7 @@ Updated content.
         skill_file.write_text("""---
 name: no-change-skill
 description: No changes here
-version: "1.0"
+version: "1.0.0"
 ---
 
 # No Change Skill
@@ -184,7 +184,7 @@ class TestSkillUpdaterGitHubUpdate:
         (repo_dir / "SKILL.md").write_text("""---
 name: github-skill
 description: GitHub skill v2.0
-version: "2.0"
+version: "2.0.0"
 ---
 
 # GitHub Skill

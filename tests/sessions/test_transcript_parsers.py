@@ -202,6 +202,202 @@ class TestClaudeTranscriptParser:
         assert len(extracted) == 1
         assert extracted[0]["message"]["content"] == "real start"
 
+    def test_parse_line_tool_use_extracts_id(self, parser):
+        """Test that tool_use_id is extracted from tool_use blocks."""
+        line = json.dumps(
+            {
+                "type": "agent",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_abc123",
+                            "name": "read_file",
+                            "input": {"path": "foo.txt"},
+                        }
+                    ]
+                },
+                "timestamp": "2024-01-01T12:00:02Z",
+            }
+        )
+
+        msg = parser.parse_line(line, 2)
+
+        assert msg is not None
+        assert msg.tool_use_id == "toolu_abc123"
+
+    def test_parse_line_tool_result_extracts_id(self, parser):
+        """Test that tool_use_id is extracted from tool_result messages."""
+        line = json.dumps(
+            {
+                "type": "tool_result",
+                "tool_name": "read_file",
+                "tool_use_id": "toolu_abc123",
+                "result": "file content",
+                "timestamp": "2024-01-01T12:00:03Z",
+            }
+        )
+
+        msg = parser.parse_line(line, 3)
+
+        assert msg is not None
+        assert msg.tool_use_id == "toolu_abc123"
+
+    def test_validate_tool_pairing_empty(self, parser):
+        """Test _validate_tool_pairing with empty turns."""
+        cleaned, removed = parser._validate_tool_pairing([])
+        assert cleaned == []
+        assert removed == []
+
+    def test_validate_tool_pairing_properly_paired(self, parser):
+        """Test _validate_tool_pairing with properly paired tool_use/tool_result."""
+        turns = [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "toolu_001", "name": "read"},
+                    ],
+                }
+            },
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "toolu_001", "content": "ok"},
+                    ],
+                }
+            },
+        ]
+
+        cleaned, removed = parser._validate_tool_pairing(turns)
+
+        assert len(cleaned) == 2
+        assert removed == []
+        # Content should be unchanged
+        assert cleaned[1]["message"]["content"][0]["tool_use_id"] == "toolu_001"
+
+    def test_validate_tool_pairing_orphaned_result(self, parser):
+        """Test _validate_tool_pairing removes orphaned tool_result."""
+        turns = [
+            # No tool_use, just an orphaned tool_result
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "toolu_orphan", "content": "orphaned"},
+                    ],
+                }
+            },
+        ]
+
+        cleaned, removed = parser._validate_tool_pairing(turns)
+
+        assert len(cleaned) == 1
+        assert removed == ["toolu_orphan"]
+        # The tool_result block should be removed
+        assert cleaned[0]["message"]["content"] == []
+
+    def test_validate_tool_pairing_mixed(self, parser):
+        """Test _validate_tool_pairing with mixed valid and orphaned results."""
+        turns = [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "toolu_valid", "name": "read"},
+                    ],
+                }
+            },
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "toolu_valid", "content": "ok"},
+                        {"type": "tool_result", "tool_use_id": "toolu_orphan", "content": "bad"},
+                    ],
+                }
+            },
+        ]
+
+        cleaned, removed = parser._validate_tool_pairing(turns)
+
+        assert removed == ["toolu_orphan"]
+        # Valid result should remain
+        assert len(cleaned[1]["message"]["content"]) == 1
+        assert cleaned[1]["message"]["content"][0]["tool_use_id"] == "toolu_valid"
+
+    def test_validate_tool_pairing_multiple_tool_use(self, parser):
+        """Test _validate_tool_pairing with multiple tool_use in one message."""
+        turns = [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "toolu_001", "name": "read"},
+                        {"type": "tool_use", "id": "toolu_002", "name": "write"},
+                    ],
+                }
+            },
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "toolu_001", "content": "ok1"},
+                        {"type": "tool_result", "tool_use_id": "toolu_002", "content": "ok2"},
+                    ],
+                }
+            },
+        ]
+
+        cleaned, removed = parser._validate_tool_pairing(turns)
+
+        assert removed == []
+        assert len(cleaned[1]["message"]["content"]) == 2
+
+    def test_extract_turns_since_clear_validates_tool_pairing(self, parser):
+        """Test that extract_turns_since_clear removes orphaned tool_results after truncation."""
+        # Create turns where truncation would orphan a tool_result
+        turns = []
+        # Add a tool_use that will be truncated away
+        turns.append(
+            {
+                "type": "agent",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "id": "toolu_truncated", "name": "read"}],
+                },
+            }
+        )
+        # Add many user messages to push the tool_use out of range
+        for i in range(60):
+            turns.append({"type": "user", "message": {"content": f"msg {i}"}})
+        # Add a tool_result referencing the truncated tool_use (edge case)
+        turns.append(
+            {
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "toolu_truncated", "content": "late result"},
+                    ],
+                },
+            }
+        )
+
+        # Extract with max_turns=50, which should truncate the tool_use
+        extracted = parser.extract_turns_since_clear(turns, max_turns=50)
+
+        # The orphaned tool_result should be removed from the last turn
+        last_turn = extracted[-1]
+        content = last_turn["message"]["content"]
+        # Either content is empty list or the tool_result block was removed
+        has_orphan = any(
+            isinstance(b, dict) and b.get("tool_use_id") == "toolu_truncated"
+            for b in (content if isinstance(content, list) else [])
+        )
+        assert not has_orphan, "Orphaned tool_result should have been removed"
+
 
 class TestCodexTranscriptParser:
     """Tests for Codex transcript parser."""

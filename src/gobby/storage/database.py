@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 def _adapt_datetime(val: datetime) -> str:
     """Adapt datetime to ISO format string for SQLite storage."""
-    return val.isoformat(" ")
+    return val.isoformat()
 
 
 def _adapt_date(val: date) -> str:

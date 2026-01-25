@@ -19,7 +19,7 @@ class GobbyWebSocketClient:
 
     def __init__(
         self,
-        ws_url: str = "ws://localhost:8766",
+        ws_url: str = "ws://localhost:60888",
         reconnect_interval: float = 5.0,
         max_reconnect_attempts: int = 10,
     ) -> None:

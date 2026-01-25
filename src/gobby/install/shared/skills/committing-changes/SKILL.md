@@ -64,12 +64,12 @@ call_tool("gobby-tasks", "close_task", {
 
 ## Closing Without Commits
 
-For non-code tasks (research, planning):
+For tasks that don't require code changes (research, planning, obsolete tasks):
 
 ```python
 call_tool("gobby-tasks", "close_task", {
     "task_id": "<task-id>",
-    "no_commit_needed": True
+    "reason": "obsolete"  # or "already_implemented", "duplicate", "wont_fix"
 })
 ```
 

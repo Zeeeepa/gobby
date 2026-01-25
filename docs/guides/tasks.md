@@ -18,18 +18,29 @@ Gobby includes a native task tracking system designed for AI-assisted developmen
 # Check what's ready to work on
 call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
 
-# Create a task
+# Create a task (status='open', no assignee by default)
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix authentication bug",
     "priority": 1,
     "task_type": "bug",
-    "session_id": "<your_session_id>"  # Required
+    "session_id": "<your_session_id>"  # Required - tracks who created the task
 })
+# Task is created with status='open' and no assignee
 
-# Claim and work on it
-call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={
+# Create AND claim a task in one call (set claim=True)
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Fix authentication bug",
+    "priority": 1,
+    "task_type": "bug",
+    "session_id": "<your_session_id>",
+    "claim": True  # Auto-claim: status='in_progress', assignee=session_id
+})
+# Task is now in_progress and assigned to your session
+
+# To claim an EXISTING unclaimed task, use claim_task:
+call_tool(server_name="gobby-tasks", tool_name="claim_task", arguments={
     "task_id": "gt-abc123",
-    "status": "in_progress"
+    "session_id": "<your_session_id>"
 })
 
 # Complete it
@@ -146,78 +157,6 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 | `blocks` | Hard dependency - prevents task from being "ready" |
 | `related` | Soft link - informational only |
 | `discovered-from` | Task found while working on another |
-
-## Auto-Decomposition
-
-When creating tasks with multi-step descriptions (numbered lists, bullet points with action verbs), the system automatically breaks them into subtasks.
-
-### How It Works
-
-```python
-# Multi-step descriptions are preserved but NOT auto-decomposed (use expand_task instead)
-call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
-    "title": "Implement auth",
-    "description": """1. Create user model
-2. Add login endpoint
-3. Generate JWT tokens""",
-    "session_id": "<your_session_id>"  # Required
-})
-+# Result: single task with multi-step description preserved
-+# Use expand_task(task_id) to break down into subtasks if needed
-```
-
-### Detection Patterns
-
-Multi-step content is detected when:
-- **Numbered lists** with 3+ items (e.g., `1. First`, `2. Second`, `3. Third`)
-- **Bullet lists** with 3+ action verbs (`- Create`, `- Add`, `- Implement`)
-- **Phase headers** (`## Phase 1`, `## Phase 2`)
-- **Sequence words** (`first`, `then`, `finally`, `next`)
-
-**False positives avoided:**
-- Bug reproduction steps (`Steps to Reproduce: 1. Click...`)
-- Acceptance criteria
-- Requirements lists
-- Options/approaches
-
-### Opting Out
-
-```python
-# Create a complex task (auto-decomposition is disabled by default)
-call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
-    "title": "Complex task",
-    "description": "1. Step one\n2. Step two\n3. Step three",
-    "session_id": "<your_session_id>"  # Required
-})
-# Note: auto_decompose parameter is deprecated. Use expand_task() to decompose tasks
-
-# Disable for entire session via workflow variable
-call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
-    "name": "auto_decompose",
-    "value": False
-})
-```
-
-### The `needs_decomposition` Status
-
-When `auto_decompose=False` on a multi-step description:
-- Task is created with `status: needs_decomposition`
-- Task **cannot** be claimed (`in_progress`) until decomposed
-- Task **cannot** have validation criteria set until decomposed
-- Adding subtasks automatically transitions status to `open`
-
-```python
-# Check if task needs decomposition
-task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"task_id": "gt-xxx"})
-if task["status"] == "needs_decomposition":
-    # Add subtasks manually
-    call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
-        "title": "Subtask 1",
-        "parent_task_id": task["id"],
-        "session_id": "<your_session_id>"  # Required
-    })
-    # Parent automatically transitions to 'open'
-```
 
 ## Task Decomposition Workflow
 

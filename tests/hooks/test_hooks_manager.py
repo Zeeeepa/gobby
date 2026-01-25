@@ -59,7 +59,7 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
 
         manager = HookManager(
             daemon_host="localhost",
-            daemon_port=8765,
+            daemon_port=60887,
             config=test_config,
             log_file=str(temp_dir / "logs" / "hook-manager.log"),
         )
@@ -109,7 +109,7 @@ class TestHookManagerInit:
     def test_init_sets_daemon_url(self, hook_manager_with_mocks: HookManager):
         """Test that daemon URL is set correctly."""
         manager = hook_manager_with_mocks
-        assert manager.daemon_url == "http://localhost:8765"
+        assert manager.daemon_url == "http://localhost:60887"
 
     def test_init_creates_event_handlers(self, hook_manager_with_mocks: HookManager):
         """Test that event handlers are created."""
@@ -251,7 +251,8 @@ class TestHookManagerSessionStart:
         assert response.decision == "allow"
         # Response should include system message indicating session enhancement
         assert response.system_message is not None
-        assert "Session enhanced by gobby" in response.system_message
+        assert "Gobby Session ID:" in response.system_message
+        assert "External ID:" in response.system_message
 
     def test_session_resume_no_handoff_message(
         self,
@@ -285,7 +286,8 @@ class TestHookManagerSessionStart:
         # Should have basic session info but NOT "Context restored" message
         # Parent finding only runs on source='clear'
         assert response.system_message is not None
-        assert "Session enhanced by gobby" in response.system_message
+        assert "Gobby Session ID:" in response.system_message
+        assert "External ID:" in response.system_message
         assert "Context restored" not in (response.system_message or "")
 
 
@@ -539,7 +541,7 @@ class TestHookManagerConfigLoadError:
             # Should not raise - handles error gracefully
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=8765,
+                daemon_port=60887,
                 config=None,  # Force config loading
                 log_file=str(temp_dir / "logs" / "hook-manager.log"),
             )
@@ -562,7 +564,7 @@ class TestHookManagerConfigLoadError:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=8765,
+                daemon_port=60887,
                 config=None,
                 log_file=str(temp_dir / "logs" / "hook-manager.log"),
             )
@@ -1512,7 +1514,7 @@ class TestHookManagerLogging:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=8765,
+                daemon_port=60887,
                 log_file=str(log_path),
             )
 
@@ -1539,7 +1541,7 @@ class TestHookManagerLogging:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=8765,
+                daemon_port=60887,
                 log_file=str(temp_dir / "logs" / "hook.log"),
             )
 
@@ -1582,7 +1584,7 @@ class TestHookManagerPluginLoading:
 
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=8765,
+                daemon_port=60887,
                 config=mock_config,
                 log_file=str(temp_dir / "logs" / "hook.log"),
             )
@@ -1620,7 +1622,7 @@ class TestHookManagerPluginLoading:
             # Should not raise
             manager = HookManager(
                 daemon_host="localhost",
-                daemon_port=8765,
+                daemon_port=60887,
                 config=mock_config,
                 log_file=str(temp_dir / "logs" / "hook.log"),
             )

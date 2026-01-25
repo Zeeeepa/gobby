@@ -3,16 +3,15 @@
 This module provides:
 - YAML frontmatter parsing for SKILL.md files
 - Validation against Agent Skills specification
-- Search integration (TF-IDF + optional embeddings)
+- Search integration (TF-IDF + optional embeddings via UnifiedSearcher)
 - Skill loading from filesystem, GitHub, and ZIP archives
 - Skill updates from source
-- Optional embedding provider abstraction for semantic search
 """
 
-from gobby.skills.embeddings import (
-    EmbeddingProvider,
-    OpenAIEmbeddingProvider,
-    get_embedding_provider,
+# Embedding utilities are now in gobby.search
+from gobby.search import (
+    generate_embedding,
+    generate_embeddings,
     is_embedding_available,
 )
 from gobby.skills.loader import (
@@ -53,10 +52,9 @@ from gobby.skills.validator import (
 )
 
 __all__ = [
-    # Embeddings
-    "EmbeddingProvider",
-    "OpenAIEmbeddingProvider",
-    "get_embedding_provider",
+    # Embeddings (from gobby.search)
+    "generate_embedding",
+    "generate_embeddings",
     "is_embedding_available",
     # Loader
     "GitHubRef",

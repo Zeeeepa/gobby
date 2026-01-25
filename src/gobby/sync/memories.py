@@ -16,8 +16,10 @@ Classes:
 import asyncio
 import json
 import logging
+import os
 import time
 from pathlib import Path
+from typing import Any
 
 __all__ = [
     "MemoryBackupManager",
@@ -251,19 +253,52 @@ class MemoryBackupManager:
 
         return count
 
+    def _sanitize_content(self, content: str) -> str:
+        """Replace user home directories with ~ for privacy.
+
+        Prevents absolute user paths like /Users/josh from being
+        committed to version control.
+        """
+        home = os.path.expanduser("~")
+        return content.replace(home, "~")
+
+    def _deduplicate_memories(self, memories: list[Any]) -> list[Any]:
+        """Deduplicate memories by normalized content, keeping earliest.
+
+        Args:
+            memories: List of memory objects
+
+        Returns:
+            List of unique memories (by content), keeping the earliest created_at
+        """
+        seen_content: dict[str, Any] = {}  # normalized_content -> memory
+        for memory in memories:
+            normalized = memory.content.strip()
+            if normalized not in seen_content:
+                seen_content[normalized] = memory
+            else:
+                # Keep the one with earlier created_at
+                existing = seen_content[normalized]
+                if memory.created_at < existing.created_at:
+                    seen_content[normalized] = memory
+        return list(seen_content.values())
+
     def _export_memories_sync(self, file_path: Path) -> int:
-        """Export memories to JSONL file (sync)."""
+        """Export memories to JSONL file (sync) with deduplication and path sanitization."""
         if not self.memory_manager:
             return 0
 
         try:
             memories = self.memory_manager.list_memories()
 
+            # Deduplicate by content before export
+            unique_memories = self._deduplicate_memories(memories)
+
             with open(file_path, "w", encoding="utf-8") as f:
-                for memory in memories:
+                for memory in unique_memories:
                     data = {
                         "id": memory.id,
-                        "content": memory.content,
+                        "content": self._sanitize_content(memory.content),
                         "type": memory.memory_type,
                         "importance": memory.importance,
                         "tags": memory.tags,
@@ -274,7 +309,7 @@ class MemoryBackupManager:
                     }
                     f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
-            return len(memories)
+            return len(unique_memories)
         except Exception as e:
             logger.error(f"Failed to export memories: {e}")
             return 0

@@ -1,0 +1,272 @@
+name: parallel-orchestrator
+description: |
+  Parallel multi-agent orchestration workflow with clone-based isolation.
+
+  Manages parallel task execution with the following steps:
+  1. select_batch: Select a batch of ready tasks (up to max_parallel_agents)
+  2. spawn_batch: Spawn agents in clones for each selected task
+  3. wait_any: Wait for any agent to complete
+  4. sync_and_review: Sync completed clone and review changes
+  5. process_completed: Process completed agent results
+  6. loop: Check for more tasks and continue or complete
+
+  Features:
+  - Clone-based isolation (safer than worktrees, no branch conflicts)
+  - Parallel agent execution with configurable concurrency
+  - Wait for any completion pattern (not wait for all)
+  - Automatic sync from clone back to main repo
+  - Exit condition based on task tree completion
+
+version: "1.0"
+type: step
+
+variables:
+  session_task: null          # Epic/parent task ID
+  target_branch: "dev"        # Branch to merge into
+  max_parallel_agents: 3      # Max concurrent agents
+  isolation_mode: "clone"     # Use clones for isolation (not worktrees)
+  coding_provider: "gemini"   # Provider for subtasks
+  spawn_mode: "terminal"      # Mode for spawning subagents
+  spawned_agents: []          # Track {task_id, run_id, clone_id, clone_path}
+  completed_clones: []        # Clones with completed work
+  selected_tasks: []          # Tasks selected for current batch
+  completed_agent: null       # Most recently completed agent
+  block_resolved: null        # Set to "true" to exit blocked state
+
+steps:
+  - name: select_batch
+    description: "Select a batch of ready tasks for parallel execution"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Selecting task batch.
+
+          Epic: {{ variables.session_task }}
+          Max parallel: {{ variables.max_parallel_agents }}
+          Currently running: {{ variables.spawned_agents | length }}
+          Available slots: {{ variables.max_parallel_agents - variables.spawned_agents | length }}
+
+          Use list_ready_tasks(parent_task_id="{{ variables.session_task }}")
+          to find ready subtasks.
+
+          Select up to (max_parallel_agents - currently_running) tasks.
+          Store in selected_tasks variable.
+
+          If tasks available -> transition to 'spawn_batch'
+          If no tasks ready and agents running -> transition to 'wait_any'
+          If no tasks and no agents -> transition to 'loop'
+
+    allowed_tools: all
+
+    transitions:
+      - to: spawn_batch
+        when: "len(variables.selected_tasks) > 0"
+      - to: wait_any
+        when: "len(variables.selected_tasks) == 0 and len(variables.spawned_agents) > 0"
+      - to: loop
+        when: "len(variables.selected_tasks) == 0 and len(variables.spawned_agents) == 0"
+
+  - name: spawn_batch
+    description: "Spawn agents in clones for selected tasks"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Spawning agent batch.
+
+          Tasks to spawn: {{ variables.selected_tasks | length }}
+          Provider: {{ variables.coding_provider }}
+          Isolation mode: {{ variables.isolation_mode }}
+
+          For each task in selected_tasks:
+          1. Create a clone: create_clone()
+          2. Spawn agent in clone: spawn_agent_in_clone(
+               clone_id=<clone_id>,
+               prompt="Work on task <task_id>",
+               provider="{{ variables.coding_provider }}",
+               mode="{{ variables.spawn_mode }}",
+               workflow="worktree-agent"
+             )
+          3. Add to spawned_agents: {task_id, run_id, clone_id, clone_path}
+
+          Clear selected_tasks after spawning.
+          Transition to 'wait_any'.
+
+    allowed_tools: all
+
+    transitions:
+      - to: wait_any
+        when: "len(variables.selected_tasks) == 0"
+
+  - name: wait_any
+    description: "Wait for any agent to complete"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Waiting for agent completion.
+
+          Running agents: {{ variables.spawned_agents | length }}
+
+          Poll agents with get_agent_result() or use poll_agent_status().
+          Check each agent in spawned_agents for completion.
+
+          When ANY agent completes (status: success/error/timeout):
+          - Store in completed_agent variable
+          - Transition to 'sync_and_review'
+
+          If all agents still running, continue polling.
+
+    allowed_tools: all
+
+    transitions:
+      - to: sync_and_review
+        when: "variables.completed_agent is not None"
+      - to: loop
+        when: "len(variables.spawned_agents) == 0"
+
+  - name: sync_and_review
+    description: "Sync completed clone and review changes"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Syncing and reviewing.
+
+          Completed agent: {{ variables.completed_agent }}
+
+          1. Sync clone to main repo:
+             sync_clone(clone_id=<clone_id>)
+
+          2. Review the changes:
+             - Check commits from the clone
+             - Verify task requirements met
+             - Note any issues
+
+          3. Add clone_path to completed_clones
+
+          Transition to 'process_completed'.
+
+    allowed_tools: all
+
+    transitions:
+      - to: process_completed
+        when: "true"
+
+  - name: process_completed
+    description: "Process completed agent and update tracking"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Processing completion.
+
+          1. Remove completed agent from spawned_agents
+          2. Clear completed_agent variable
+          3. Check if more tasks are ready
+
+          Transition to 'loop' to check for more work.
+
+    allowed_tools: all
+
+    transitions:
+      - to: loop
+        when: "variables.completed_agent is None"
+
+  - name: loop
+    description: "Check for more tasks and continue or complete"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Checking task status.
+
+          Epic: {{ variables.session_task }}
+          Running agents: {{ variables.spawned_agents | length }}
+          Completed clones: {{ variables.completed_clones | length }}
+
+          Check if there are more ready tasks or running agents.
+          - If tasks ready and slots available: go to 'select_batch'
+          - If agents still running: go to 'wait_any'
+          - If task tree complete: go to 'complete'
+          - If blocked (no tasks, no agents, not complete): go to 'blocked'
+
+    allowed_tools: all
+
+    transitions:
+      - to: select_batch
+        when: "has_ready_tasks(variables.session_task) and len(variables.spawned_agents) < variables.max_parallel_agents"
+      - to: wait_any
+        when: "len(variables.spawned_agents) > 0"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+      - to: blocked
+        when: "not has_ready_tasks(variables.session_task) and len(variables.spawned_agents) == 0 and not task_tree_complete(variables.session_task)"
+
+  - name: blocked
+    description: "No ready tasks, no running agents, but task tree not complete - blocked state"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Workflow blocked!
+
+          Epic: {{ variables.session_task }}
+          Completed clones: {{ variables.completed_clones | length }}
+
+          The workflow is blocked:
+          - No tasks are ready (all may be blocked by dependencies)
+          - No agents are currently running
+          - The task tree is not yet complete
+
+          Possible causes:
+          1. Circular dependencies in the task tree
+          2. Tasks blocked by external conditions
+          3. Tasks in an unexpected state
+
+          Actions to resolve:
+          1. Review task dependencies with list_tasks()
+          2. Check for stuck or failed tasks
+          3. Manually unblock tasks if needed
+          4. Use close_task() on orphaned tasks
+
+          After resolving, use set_variable to clear the block:
+          set_variable(name="block_resolved", value="true")
+
+          Then transition back to 'loop' to re-check.
+
+    allowed_tools: all
+
+    transitions:
+      - to: loop
+        when: "variables.block_resolved == 'true'"
+
+  - name: complete
+    description: "Orchestration complete - all tasks done"
+    on_enter:
+      - action: inject_message
+        content: |
+          PARALLEL ORCHESTRATOR: Complete!
+
+          All subtasks of {{ variables.session_task }} have been processed.
+
+          Completed clones:
+          {% for clone in variables.completed_clones %}
+          - {{ clone }}
+          {% endfor %}
+
+          The orchestration is complete. All changes have been synced.
+          You may now:
+          - Review the merged changes
+          - Run final tests
+          - Close the epic task
+
+exit_condition: "task_tree_complete(variables.session_task)"
+
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    You cannot stop yet. The epic task tree is not complete.
+
+    Current state:
+    - Epic: {{ variables.session_task }}
+    - Running agents: {{ variables.spawned_agents | length }}
+    - Completed clones: {{ variables.completed_clones | length }}
+
+    If agents are running, wait for any to complete.
+    If slots are available and tasks are ready, spawn more agents.
+    Continue until task_tree_complete({{ variables.session_task }}).

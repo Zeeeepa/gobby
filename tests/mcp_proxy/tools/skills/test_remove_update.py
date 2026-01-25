@@ -1,10 +1,11 @@
 """Tests for remove_skill and update_skill MCP tools (TDD - written before implementation)."""
 
-import asyncio
 from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+
+pytestmark = [pytest.mark.integration]
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -68,7 +69,8 @@ def populated_db(db: LocalDatabase, storage: LocalSkillManager, skill_dir: Path)
 class TestRemoveSkillTool:
     """Tests for remove_skill MCP tool."""
 
-    def test_remove_skill_by_name(self, populated_db, storage):
+    @pytest.mark.asyncio
+    async def test_remove_skill_by_name(self, populated_db, storage):
         """Test removing a skill by name."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -78,7 +80,7 @@ class TestRemoveSkillTool:
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("remove_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         assert result["success"] is True
         assert result["removed"] is True
@@ -86,7 +88,8 @@ class TestRemoveSkillTool:
         # Verify skill is gone
         assert storage.get_by_name("git-commit") is None
 
-    def test_remove_skill_by_id(self, populated_db, storage):
+    @pytest.mark.asyncio
+    async def test_remove_skill_by_id(self, populated_db, storage):
         """Test removing a skill by ID."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -96,55 +99,59 @@ class TestRemoveSkillTool:
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("remove_skill")
 
-        result = asyncio.run(tool(skill_id=skill_id))
+        result = await tool(skill_id=skill_id)
 
         assert result["success"] is True
         assert result["removed"] is True
 
-    def test_remove_skill_not_found_by_name(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_remove_skill_not_found_by_name(self, populated_db):
         """Test removing non-existent skill returns error."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("remove_skill")
 
-        result = asyncio.run(tool(name="nonexistent"))
+        result = await tool(name="nonexistent")
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    def test_remove_skill_not_found_by_id(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_remove_skill_not_found_by_id(self, populated_db):
         """Test removing non-existent skill ID returns error."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("remove_skill")
 
-        result = asyncio.run(tool(skill_id="nonexistent-id"))
+        result = await tool(skill_id="nonexistent-id")
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    def test_remove_skill_requires_identifier(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_remove_skill_requires_identifier(self, populated_db):
         """Test that remove_skill requires name or skill_id."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("remove_skill")
 
-        result = asyncio.run(tool())
+        result = await tool()
 
         assert result["success"] is False
         assert "name or skill_id" in result["error"].lower()
 
-    def test_remove_skill_returns_skill_name(self, populated_db, storage):
+    @pytest.mark.asyncio
+    async def test_remove_skill_returns_skill_name(self, populated_db, storage):
         """Test that remove_skill returns the removed skill's name."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("remove_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         assert result["success"] is True
         assert result["skill_name"] == "git-commit"
@@ -153,7 +160,8 @@ class TestRemoveSkillTool:
 class TestUpdateSkillTool:
     """Tests for update_skill MCP tool."""
 
-    def test_update_skill_by_name(self, populated_db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_update_skill_by_name(self, populated_db, storage, skill_dir):
         """Test updating a skill by name refreshes from source."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -172,7 +180,7 @@ Updated content.
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("update_skill")
 
-        result = asyncio.run(tool(name="updatable-skill"))
+        result = await tool(name="updatable-skill")
 
         assert result["success"] is True
         assert result["updated"] is True
@@ -181,7 +189,8 @@ Updated content.
         skill = storage.get_by_name("updatable-skill")
         assert skill.description == "Updated description"
 
-    def test_update_skill_by_id(self, populated_db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_update_skill_by_id(self, populated_db, storage, skill_dir):
         """Test updating a skill by ID."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -203,49 +212,53 @@ Content.
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("update_skill")
 
-        result = asyncio.run(tool(skill_id=skill_id))
+        result = await tool(skill_id=skill_id)
 
         assert result["success"] is True
 
-    def test_update_skill_not_found(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_update_skill_not_found(self, populated_db):
         """Test updating non-existent skill returns error."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("update_skill")
 
-        result = asyncio.run(tool(name="nonexistent"))
+        result = await tool(name="nonexistent")
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    def test_update_skill_no_source(self, populated_db, storage):
+    @pytest.mark.asyncio
+    async def test_update_skill_no_source(self, populated_db, storage):
         """Test updating skill without source returns appropriate error."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("update_skill")
 
-        result = asyncio.run(tool(name="git-commit"))
+        result = await tool(name="git-commit")
 
         # Should still succeed but indicate no update happened
         assert result["success"] is True
         assert result["updated"] is False
         assert result["skipped"] is True
 
-    def test_update_skill_requires_identifier(self, populated_db):
+    @pytest.mark.asyncio
+    async def test_update_skill_requires_identifier(self, populated_db):
         """Test that update_skill requires name or skill_id."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("update_skill")
 
-        result = asyncio.run(tool())
+        result = await tool()
 
         assert result["success"] is False
         assert "name or skill_id" in result["error"].lower()
 
-    def test_update_skill_no_changes(self, populated_db, storage, skill_dir):
+    @pytest.mark.asyncio
+    async def test_update_skill_no_changes(self, populated_db, storage, skill_dir):
         """Test updating skill that hasn't changed returns updated=False."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
         from gobby.skills.parser import parse_skill_file
@@ -262,7 +275,7 @@ Content.
         registry = create_skills_registry(populated_db)
         tool = registry.get_tool("update_skill")
 
-        result = asyncio.run(tool(name="updatable-skill"))
+        result = await tool(name="updatable-skill")
 
         assert result["success"] is True
         assert result["updated"] is False

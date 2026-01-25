@@ -76,7 +76,12 @@ def get_backend(backend_type: str, **kwargs: Any) -> MemoryBackendProtocol:
         return NullBackend()
 
     elif backend_type == "mem0":
-        from gobby.memory.backends.mem0 import Mem0Backend
+        try:
+            from gobby.memory.backends.mem0 import Mem0Backend
+        except ImportError as e:
+            raise ImportError(
+                "mem0ai is not installed. Install with: pip install gobby[mem0]"
+            ) from e
 
         api_key: str | None = kwargs.get("api_key")
         if api_key is None:

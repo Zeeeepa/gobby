@@ -28,7 +28,7 @@ class TestWebSocketSettingsDefaults:
 
         settings = WebSocketSettings()
         assert settings.enabled is True
-        assert settings.port == 8766
+        assert settings.port == 60888
         assert settings.ping_interval == 30
         assert settings.ping_timeout == 10
 
@@ -279,7 +279,7 @@ class TestWebSocketSettingsFromAppPy:
 
         settings = WebSocketSettings()
         assert settings.enabled is True
-        assert settings.port == 8766
+        assert settings.port == 60888
 
     def test_validation_via_app_py(self) -> None:
         """Test validation works when imported from app.py."""

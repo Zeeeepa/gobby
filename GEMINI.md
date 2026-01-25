@@ -84,17 +84,18 @@ See skill: **discovering-tools** for the complete pattern.
 Before editing files, create or claim a task:
 
 ```python
-# Create task
+# Create task (with claim=true to auto-claim and set status to in_progress)
 call_tool("gobby-tasks", "create_task", {
     "title": "Fix bug",
     "task_type": "bug",
-    "session_id": "<your_session_id>"  # From SessionStart context
+    "session_id": "<your_session_id>",  # From SessionStart context
+    "claim": True  # Required to auto-claim the task
 })
 
-# Set to in_progress
-call_tool("gobby-tasks", "update_task", {
-    "task_id": "...",
-    "status": "in_progress"
+# Or claim an existing task
+call_tool("gobby-tasks", "claim_task", {
+    "task_id": "#123",  # The task to claim
+    "session_id": "<your_session_id>"
 })
 
 # After work: commit with [task-id] prefix, then close

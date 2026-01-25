@@ -5,8 +5,11 @@ Provides actions that enforce task tracking before allowing certain tools,
 and enforce task completion before allowing agent to stop.
 """
 
+import ast
 import logging
+import operator
 import subprocess  # nosec B404 - subprocess needed for git commands
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
@@ -19,6 +22,440 @@ if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Lazy Evaluation Helpers
+# =============================================================================
+
+
+class _LazyBool:
+    """Lazy boolean that defers computation until first access.
+
+    Used to avoid expensive operations (git status, DB queries) when
+    evaluating block_tools conditions that don't reference certain values.
+
+    The computation is triggered when the value is used in a boolean context
+    (e.g., `if lazy_val:` or `not lazy_val`), which happens during eval().
+    """
+
+    __slots__ = ("_thunk", "_computed", "_value")
+
+    def __init__(self, thunk: "Callable[[], bool]") -> None:
+        self._thunk = thunk
+        self._computed = False
+        self._value = False
+
+    def __bool__(self) -> bool:
+        if not self._computed:
+            self._value = self._thunk()
+            self._computed = True
+        return self._value
+
+    def __repr__(self) -> str:
+        if self._computed:
+            return f"_LazyBool({self._value})"
+        return "_LazyBool(<not computed>)"
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def _is_plan_file(file_path: str, source: str | None = None) -> bool:
+    """Check if file path is a Claude Code plan file (platform-agnostic).
+
+    Only exempts plan files for Claude Code sessions to avoid accidental
+    exemptions for Gemini/Codex users.
+
+    The pattern `/.claude/plans/` matches paths like:
+    - Unix: /Users/xxx/.claude/plans/file.md  (the / comes from xxx/)
+    - Windows: C:/Users/xxx/.claude/plans/file.md  (after normalization)
+
+    Args:
+        file_path: The file path being edited
+        source: CLI source (e.g., "claude", "gemini", "codex")
+
+    Returns:
+        True if this is a CC plan file that should be exempt from task requirement
+    """
+    if not file_path:
+        return False
+    # Only exempt for Claude Code sessions
+    if source != "claude":
+        return False
+    # Normalize path separators (Windows backslash to forward slash)
+    normalized = file_path.replace("\\", "/")
+    return "/.claude/plans/" in normalized
+
+
+# =============================================================================
+# Safe Expression Evaluator (AST-based)
+# =============================================================================
+
+
+class SafeExpressionEvaluator(ast.NodeVisitor):
+    """Safe expression evaluator using AST.
+
+    Evaluates simple Python expressions without using eval().
+    Supports boolean operations, comparisons, attribute access, subscripts,
+    and a limited set of allowed function calls.
+    """
+
+    # Comparison operators mapping
+    CMP_OPS: dict[type[ast.cmpop], Callable[[Any, Any], bool]] = {
+        ast.Eq: operator.eq,
+        ast.NotEq: operator.ne,
+        ast.Lt: operator.lt,
+        ast.LtE: operator.le,
+        ast.Gt: operator.gt,
+        ast.GtE: operator.ge,
+        ast.Is: operator.is_,
+        ast.IsNot: operator.is_not,
+        ast.In: lambda a, b: a in b,
+        ast.NotIn: lambda a, b: a not in b,
+    }
+
+    def __init__(
+        self, context: dict[str, Any], allowed_funcs: dict[str, Callable[..., Any]]
+    ) -> None:
+        self.context = context
+        self.allowed_funcs = allowed_funcs
+
+    def evaluate(self, expr: str) -> bool:
+        """Evaluate expression and return boolean result."""
+        try:
+            tree = ast.parse(expr, mode="eval")
+            return bool(self.visit(tree.body))
+        except Exception as e:
+            raise ValueError(f"Invalid expression: {e}") from e
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> bool:
+        """Handle 'and' / 'or' operations."""
+        if isinstance(node.op, ast.And):
+            return all(self.visit(v) for v in node.values)
+        elif isinstance(node.op, ast.Or):
+            return any(self.visit(v) for v in node.values)
+        raise ValueError(f"Unsupported boolean operator: {type(node.op).__name__}")
+
+    def visit_Compare(self, node: ast.Compare) -> bool:
+        """Handle comparison operations (==, !=, <, >, in, not in, etc.)."""
+        left = self.visit(node.left)
+        for op, comparator in zip(node.ops, node.comparators, strict=False):
+            right = self.visit(comparator)
+            op_func = self.CMP_OPS.get(type(op))
+            if op_func is None:
+                raise ValueError(f"Unsupported comparison: {type(op).__name__}")
+            if not op_func(left, right):
+                return False
+            left = right
+        return True
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
+        """Handle unary operations (not, -, +)."""
+        operand = self.visit(node.operand)
+        if isinstance(node.op, ast.Not):
+            return not operand
+        elif isinstance(node.op, ast.USub):
+            return -operand
+        elif isinstance(node.op, ast.UAdd):
+            return +operand
+        raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+
+    def visit_Name(self, node: ast.Name) -> Any:
+        """Handle variable names."""
+        name = node.id
+        # Built-in constants
+        if name == "True":
+            return True
+        if name == "False":
+            return False
+        if name == "None":
+            return None
+        # Context variables
+        if name in self.context:
+            return self.context[name]
+        raise ValueError(f"Unknown variable: {name}")
+
+    def visit_Constant(self, node: ast.Constant) -> Any:
+        """Handle literal values (strings, numbers, booleans, None)."""
+        return node.value
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        """Handle function calls (only allowed functions)."""
+        # Get function name
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            # Handle method calls like tool_input.get('key')
+            obj = self.visit(node.func.value)
+            method_name = node.func.attr
+            if method_name == "get" and isinstance(obj, dict):
+                args = [self.visit(arg) for arg in node.args]
+                return obj.get(*args)
+            raise ValueError(f"Unsupported method call: {method_name}")
+        else:
+            raise ValueError(f"Unsupported call type: {type(node.func).__name__}")
+
+        # Check if function is allowed
+        if func_name not in self.allowed_funcs:
+            raise ValueError(f"Function not allowed: {func_name}")
+
+        # Evaluate arguments
+        args = [self.visit(arg) for arg in node.args]
+        kwargs = {kw.arg: self.visit(kw.value) for kw in node.keywords if kw.arg}
+
+        return self.allowed_funcs[func_name](*args, **kwargs)
+
+    def visit_Attribute(self, node: ast.Attribute) -> Any:
+        """Handle attribute access (e.g., obj.attr)."""
+        obj = self.visit(node.value)
+        attr = node.attr
+        if isinstance(obj, dict):
+            # Allow dict-style attribute access for convenience
+            if attr in obj:
+                return obj[attr]
+            raise ValueError(f"Key not found: {attr}")
+        if hasattr(obj, attr):
+            return getattr(obj, attr)
+        raise ValueError(f"Attribute not found: {attr}")
+
+    def visit_Subscript(self, node: ast.Subscript) -> Any:
+        """Handle subscript access (e.g., obj['key'] or obj[0])."""
+        obj = self.visit(node.value)
+        key = self.visit(node.slice)
+        try:
+            return obj[key]
+        except (KeyError, IndexError, TypeError) as e:
+            raise ValueError(f"Subscript access failed: {e}") from e
+
+    def generic_visit(self, node: ast.AST) -> Any:
+        """Reject any unsupported AST nodes."""
+        raise ValueError(f"Unsupported expression type: {type(node).__name__}")
+
+
+# =============================================================================
+# Block Tools Action (Unified Tool Blocking)
+# =============================================================================
+
+
+def _evaluate_block_condition(
+    condition: str | None,
+    workflow_state: "WorkflowState | None",
+    event_data: dict[str, Any] | None = None,
+    tool_input: dict[str, Any] | None = None,
+    session_has_dirty_files: "_LazyBool | bool" = False,
+    task_has_commits: "_LazyBool | bool" = False,
+    source: str | None = None,
+) -> bool:
+    """
+    Evaluate a blocking rule condition against workflow state.
+
+    Supports simple Python expressions with access to:
+    - variables: workflow state variables dict
+    - task_claimed: shorthand for variables.get('task_claimed')
+    - plan_mode: shorthand for variables.get('plan_mode')
+    - tool_input: the tool's input arguments (for MCP tool checks)
+    - session_has_dirty_files: whether session has NEW dirty files (beyond baseline)
+    - task_has_commits: whether the current task has linked commits
+    - source: CLI source (e.g., "claude", "gemini", "codex")
+
+    Args:
+        condition: Python expression to evaluate
+        workflow_state: Current workflow state
+        event_data: Optional hook event data
+        tool_input: Tool input arguments (for MCP tools, this is the 'arguments' field)
+        session_has_dirty_files: Whether session has dirty files beyond baseline (lazy or bool)
+        task_has_commits: Whether claimed task has linked commits (lazy or bool)
+        source: CLI source identifier
+
+    Returns:
+        True if condition matches (tool should be blocked), False otherwise.
+    """
+    if not condition:
+        return True  # No condition means always match
+
+    # Build evaluation context
+    variables = workflow_state.variables if workflow_state else {}
+    context = {
+        "variables": variables,
+        "task_claimed": variables.get("task_claimed", False),
+        "plan_mode": variables.get("plan_mode", False),
+        "event": event_data or {},
+        "tool_input": tool_input or {},
+        "session_has_dirty_files": session_has_dirty_files,
+        "task_has_commits": task_has_commits,
+        "source": source or "",
+    }
+
+    # Allowed functions for safe evaluation
+    allowed_funcs: dict[str, Callable[..., Any]] = {
+        "is_plan_file": _is_plan_file,
+        "bool": bool,
+        "str": str,
+        "int": int,
+    }
+
+    try:
+        evaluator = SafeExpressionEvaluator(context, allowed_funcs)
+        return evaluator.evaluate(condition)
+    except Exception as e:
+        logger.warning(f"block_tools condition evaluation failed: '{condition}'. Error: {e}")
+        return False
+
+
+async def block_tools(
+    rules: list[dict[str, Any]] | None = None,
+    event_data: dict[str, Any] | None = None,
+    workflow_state: "WorkflowState | None" = None,
+    project_path: str | None = None,
+    task_manager: "LocalTaskManager | None" = None,
+    source: str | None = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """
+    Unified tool blocking with multiple configurable rules.
+
+    Each rule can specify:
+      - tools: List of tool names to block (for native CC tools)
+      - mcp_tools: List of "server:tool" patterns to block (for MCP tools)
+      - when: Optional condition (evaluated against workflow state)
+      - reason: Block message to display
+
+    For MCP tools, the tool_name in event_data is "call_tool" or "mcp__gobby__call_tool",
+    and we look inside tool_input for server_name and tool_name.
+
+    Condition evaluation has access to:
+      - variables: workflow state variables
+      - task_claimed, plan_mode: shortcuts
+      - tool_input: the MCP tool's arguments (for checking commit_sha etc.)
+      - session_has_dirty_files: whether session has NEW dirty files beyond baseline
+      - task_has_commits: whether the claimed task has linked commits
+      - source: CLI source (e.g., "claude", "gemini", "codex")
+
+    Args:
+        rules: List of blocking rules
+        event_data: Hook event data with tool_name, tool_input
+        workflow_state: For evaluating conditions
+        project_path: Path to project for git status checks
+        task_manager: For checking task commit status
+        source: CLI source identifier (for is_plan_file checks)
+
+    Returns:
+        Dict with decision="block" and reason if blocked, None to allow.
+
+    Example rule (native tools):
+        {
+            "tools": ["TaskCreate", "TaskUpdate"],
+            "reason": "CC native task tools are disabled. Use gobby-tasks MCP tools."
+        }
+
+    Example rule with condition:
+        {
+            "tools": ["Edit", "Write", "NotebookEdit"],
+            "when": "not task_claimed and not plan_mode",
+            "reason": "Claim a task before using Edit, Write, or NotebookEdit tools."
+        }
+
+    Example rule (MCP tools):
+        {
+            "mcp_tools": ["gobby-tasks:close_task"],
+            "when": "not task_has_commits and not tool_input.get('commit_sha')",
+            "reason": "A commit is required before closing this task."
+        }
+    """
+    if not event_data or not rules:
+        return None
+
+    tool_name = event_data.get("tool_name")
+    if not tool_name:
+        return None
+
+    tool_input = event_data.get("tool_input", {}) or {}
+
+    # Create lazy thunks for expensive context values (git status, DB queries).
+    # These are only evaluated when actually referenced in a rule condition.
+
+    def _compute_session_has_dirty_files() -> bool:
+        """Lazy thunk: check for new dirty files beyond baseline."""
+        if not workflow_state:
+            return False
+        if project_path is None:
+            # Can't compute without project_path - avoid running git in wrong directory
+            logger.debug("_compute_session_has_dirty_files: project_path is None, returning False")
+            return False
+        baseline_dirty = set(workflow_state.variables.get("baseline_dirty_files", []))
+        current_dirty = _get_dirty_files(project_path)
+        new_dirty = current_dirty - baseline_dirty
+        return len(new_dirty) > 0
+
+    def _compute_task_has_commits() -> bool:
+        """Lazy thunk: check if claimed task has linked commits."""
+        if not workflow_state or not task_manager:
+            return False
+        claimed_task_id = workflow_state.variables.get("claimed_task_id")
+        if not claimed_task_id:
+            return False
+        try:
+            task = task_manager.get_task(claimed_task_id)
+            return bool(task and task.commits)
+        except Exception:
+            return False  # nosec B110 - best-effort check
+
+    # Wrap in _LazyBool so they're only computed when used in boolean context
+    session_has_dirty_files: _LazyBool | bool = _LazyBool(_compute_session_has_dirty_files)
+    task_has_commits: _LazyBool | bool = _LazyBool(_compute_task_has_commits)
+
+    for rule in rules:
+        # Determine if this rule matches the current tool
+        rule_matches = False
+        mcp_tool_args: dict[str, Any] = {}
+
+        # Check native CC tools (Edit, Write, etc.)
+        if "tools" in rule:
+            tools = rule.get("tools", [])
+            if tool_name in tools:
+                rule_matches = True
+
+        # Check MCP tools (server:tool format)
+        elif "mcp_tools" in rule:
+            # MCP calls come in as "call_tool" or "mcp__gobby__call_tool"
+            if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+                mcp_server = tool_input.get("server_name", "")
+                mcp_tool = tool_input.get("tool_name", "")
+                mcp_key = f"{mcp_server}:{mcp_tool}"
+
+                mcp_tools = rule.get("mcp_tools", [])
+                if mcp_key in mcp_tools:
+                    rule_matches = True
+                    # For MCP tools, the actual arguments are in tool_input.arguments
+                    mcp_tool_args = tool_input.get("arguments", {}) or {}
+
+        if not rule_matches:
+            continue
+
+        # Check optional condition
+        condition = rule.get("when")
+        if condition:
+            # For MCP tools, use the nested arguments for condition evaluation
+            eval_tool_input = mcp_tool_args if mcp_tool_args else tool_input
+            if not _evaluate_block_condition(
+                condition,
+                workflow_state,
+                event_data,
+                tool_input=eval_tool_input,
+                session_has_dirty_files=session_has_dirty_files,
+                task_has_commits=task_has_commits,
+                source=source,
+            ):
+                continue
+
+        reason = rule.get("reason", f"Tool '{tool_name}' is blocked.")
+        logger.info(f"block_tools: Blocking '{tool_name}' - {reason[:100]}")
+        return {"decision": "block", "reason": reason}
+
+    return None
 
 
 def _get_dirty_files(project_path: str | None = None) -> set[str]:
@@ -754,7 +1191,7 @@ async def require_active_task(
             "inject_context": (
                 f"**Task Required**: `{tool_name}` blocked. "
                 f"Create or claim a task before editing files (see previous error for details).\n"
-                f"For detailed guidance: `get_skill(name=\"claiming-tasks\")`"
+                f'For detailed guidance: `get_skill(name="claiming-tasks")`'
                 f"{project_task_hint}"
             ),
         }
@@ -777,7 +1214,7 @@ async def require_active_task(
             f'2. **Claim an existing task**: `update_task(task_id="...", status="in_progress")`\n\n'
             f"Use `list_ready_tasks()` to see available tasks."
             f"{project_task_hint}\n\n"
-            f"For detailed guidance: `get_skill(name=\"claiming-tasks\")`"
+            f'For detailed guidance: `get_skill(name="claiming-tasks")`'
         ),
     }
 

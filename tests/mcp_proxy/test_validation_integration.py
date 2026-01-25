@@ -884,13 +884,13 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_close_task_falls_back_to_smart_context_when_no_commits(
+async def test_close_task_skip_reason_bypasses_commit_check(
     mock_task_manager, mock_task_validator
 ):
-    """Test that close_task falls back to smart context when no commits linked.
+    """Test that close_task with skip reason (obsolete) bypasses commit check.
 
-    Note: Tasks without commits require no_commit_needed=True to proceed past
-    the commit check. Once past that check, validation uses smart context.
+    When using a skip reason like 'obsolete', 'duplicate', 'already_implemented',
+    or 'wont_fix', the commit check is skipped and validation is also auto-skipped.
     """
     task = Task(
         id="t1",
@@ -913,9 +913,6 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
 
     def git_command_side_effect(cmd, cwd=None):
         """Return appropriate values for different git commands."""
-        if "diff" in cmd:
-            # Return empty string for diff commands (no uncommitted changes)
-            return ""
         if "rev-parse" in cmd:
             # Return commit SHA for rev-parse
             return "abc123"
@@ -924,12 +921,9 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
     with (
         patch("gobby.mcp_proxy.tools.tasks._context.TaskDependencyManager"),
         patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"),
-        patch("gobby.tasks.commits.get_task_diff") as mock_diff,
-        patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
         patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", side_effect=git_command_side_effect),
     ):
-        mock_smart_context.return_value = "Smart context fallback"
         mock_pm.return_value.get.return_value = MagicMock(repo_path="/test/repo")
 
         registry = create_task_registry(
@@ -938,23 +932,21 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
             task_validator=mock_task_validator,
         )
 
-        # Must provide no_commit_needed=True with justification to close without commits
-        await registry.call(
+        # Using reason="obsolete" bypasses commit check and validation
+        result = await registry.call(
             "close_task",
             {
                 "task_id": "t1",
-                "no_commit_needed": True,
-                "override_justification": "Research task - no code changes",
+                "reason": "obsolete",
             },
         )
 
-        # Should NOT have called get_task_diff (no commits)
-        mock_diff.assert_not_called()
-        # Should have used smart context fallback
-        mock_smart_context.assert_called_once()
-        # Validator should have received smart context
-        validator_call = mock_task_validator.validate_task.call_args
-        assert "Smart context fallback" in validator_call.kwargs["changes_summary"]
+        # Should succeed without error
+        assert "error" not in result
+        # close_task should have been called
+        mock_task_manager.close_task.assert_called_once()
+        # Validator should NOT have been called (skip reasons auto-skip validation)
+        mock_task_validator.validate_task.assert_not_called()
 
 
 @pytest.mark.integration

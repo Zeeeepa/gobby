@@ -254,6 +254,48 @@ class TestFormatTurnsForLlm:
         assert "dict item" in result
         assert "string item" not in result
 
+    def test_format_assistant_turn_tool_result_block(self):
+        """Test formatting an assistant turn with tool_result block."""
+        turns = [
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_123",
+                            "content": "File contents here",
+                        }
+                    ],
+                }
+            }
+        ]
+        result = format_turns_for_llm(turns)
+        assert "[Turn 1 - user]: [Result: File contents here]" in result
+
+    def test_format_tool_result_truncates_long_content(self):
+        """Test that tool_result content is truncated to 100 chars."""
+        long_content = "x" * 200  # 200 characters
+        turns = [
+            {
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_123",
+                            "content": long_content,
+                        }
+                    ],
+                }
+            }
+        ]
+        result = format_turns_for_llm(turns)
+        # Should show first 100 chars followed by "..."
+        assert "[Result: " + "x" * 100 + "...]" in result
+        # Should NOT contain the full 200 chars
+        assert "x" * 200 not in result
+
 
 # =============================================================================
 # Tests for extract_todowrite_state

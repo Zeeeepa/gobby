@@ -502,6 +502,54 @@ class TestDetectTaskClaim:
 
         assert state.variables.get("task_claimed") is True
 
+    async def test_claim_task_sets_task_claimed(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """claim_task sets task_claimed=True."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "claim_task",
+                    "arguments": {"task_id": "#123", "session_id": "sess1"},
+                },
+                "tool_output": {"status": "success"},
+            },
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        await workflow_engine.handle_event(event)
+
+        assert state.variables.get("task_claimed") is True
+        assert state.variables.get("claimed_task_id") == "#123"
+        mock_state_manager.save_state.assert_called()
+
     async def test_update_task_without_status_change_does_not_set_task_claimed(
         self, workflow_engine, mock_state_manager, mock_loader
     ):

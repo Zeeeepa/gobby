@@ -191,11 +191,17 @@ class ClaudeCodeAdapter(BaseAdapter):
             additional_context_parts.append(response.context)
 
         # Add session identifiers from metadata
+        # Note: "session_id" in metadata is Gobby's internal platform session ID
+        #       "external_id" in metadata is the CLI's session UUID
         if response.metadata:
-            session_id = response.metadata.get("session_id")
-            if session_id:
+            gobby_session_id = response.metadata.get("session_id")
+            external_id = response.metadata.get("external_id")
+            if gobby_session_id:
                 # Build context with all available identifiers
-                context_lines = [f"session_id: {session_id}"]
+                # Use clear naming: Gobby Session ID for MCP calls, External ID for transcripts
+                context_lines = [f"Gobby Session ID: {gobby_session_id}"]
+                if external_id:
+                    context_lines.append(f"External ID: {external_id}")
                 if response.metadata.get("parent_session_id"):
                     context_lines.append(
                         f"parent_session_id: {response.metadata['parent_session_id']}"
@@ -227,7 +233,10 @@ class ClaudeCodeAdapter(BaseAdapter):
                 additional_context_parts.append("\n".join(context_lines))
 
         # Build hookSpecificOutput if we have any context to inject
-        if additional_context_parts:
+        # Only include hookSpecificOutput for hook types that Claude Code's schema accepts
+        # Valid hookEventName values: PreToolUse, UserPromptSubmit, PostToolUse
+        valid_hook_event_names = {"PreToolUse", "UserPromptSubmit", "PostToolUse"}
+        if additional_context_parts and hook_event_name in valid_hook_event_names:
             result["hookSpecificOutput"] = {
                 "hookEventName": hook_event_name,
                 "additionalContext": "\n\n".join(additional_context_parts),

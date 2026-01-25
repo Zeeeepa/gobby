@@ -39,6 +39,7 @@ from gobby.config.persistence import (
     MemoryConfig,
     MemorySyncConfig,
 )
+from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
     ArtifactHandoffConfig,
@@ -82,6 +83,8 @@ __all__ = [
     # From gobby.config.persistence
     "MemoryConfig",
     "MemorySyncConfig",
+    # From gobby.config.search
+    "SearchConfig",
     # From gobby.config.servers
     "MCPClientProxyConfig",
     "WebSocketSettings",
@@ -223,12 +226,16 @@ class DaemonConfig(BaseModel):
 
     # Daemon settings
     daemon_port: int = Field(
-        default=8765,
+        default=60887,
         description="Port for daemon to listen on",
     )
     daemon_health_check_interval: float = Field(
         default=10.0,
         description="Daemon health check interval in seconds",
+    )
+    test_mode: bool = Field(
+        default=False,
+        description="Run daemon in test mode (enables test endpoints)",
     )
 
     # Local storage
@@ -338,6 +345,10 @@ class DaemonConfig(BaseModel):
         default_factory=ConductorConfig,
         description="Conductor orchestration system configuration",
     )
+    search: SearchConfig = Field(
+        default_factory=SearchConfig,
+        description="Unified search configuration with embedding fallback",
+    )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""
@@ -382,6 +393,10 @@ class DaemonConfig(BaseModel):
     def get_verification_defaults(self) -> ProjectVerificationConfig:
         """Get default verification commands configuration."""
         return self.verification_defaults
+
+    def get_search_config(self) -> SearchConfig:
+        """Get search configuration."""
+        return self.search
 
     @field_validator("daemon_port")
     @classmethod

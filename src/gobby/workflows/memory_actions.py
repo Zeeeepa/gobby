@@ -270,3 +270,77 @@ def reset_memory_injection_tracking(state: Any | None = None) -> dict[str, Any]:
         logger.info(f"reset_memory_injection_tracking: Cleared {cleared_count} injected memory IDs")
 
     return {"success": True, "cleared": cleared_count}
+
+
+async def memory_extract(
+    session_manager: Any,
+    session_id: str,
+    llm_service: Any,
+    memory_manager: Any,
+    transcript_processor: Any | None = None,
+    min_importance: float = 0.7,
+    max_memories: int = 5,
+    dry_run: bool = False,
+) -> dict[str, Any] | None:
+    """Extract memories from a session transcript.
+
+    Uses LLM analysis to identify high-value, reusable knowledge from
+    session transcripts and stores them as memories.
+
+    Args:
+        session_manager: The session manager instance
+        session_id: Current session ID
+        llm_service: LLM service for analysis
+        memory_manager: Memory manager for storage
+        transcript_processor: Optional transcript processor
+        min_importance: Minimum importance threshold (0.0-1.0)
+        max_memories: Maximum memories to extract
+        dry_run: If True, don't store memories
+
+    Returns:
+        Dict with extracted_count and memory details, or error
+    """
+    if not memory_manager:
+        return {"error": "Memory Manager not available"}
+
+    if not memory_manager.config.enabled:
+        logger.debug("memory_extract: Memory system disabled")
+        return None
+
+    if not llm_service:
+        return {"error": "LLM service not available"}
+
+    try:
+        from gobby.memory.extractor import SessionMemoryExtractor
+
+        extractor = SessionMemoryExtractor(
+            memory_manager=memory_manager,
+            session_manager=session_manager,
+            llm_service=llm_service,
+            transcript_processor=transcript_processor,
+        )
+
+        candidates = await extractor.extract(
+            session_id=session_id,
+            min_importance=min_importance,
+            max_memories=max_memories,
+            dry_run=dry_run,
+        )
+
+        if not candidates:
+            logger.debug(f"memory_extract: No memories extracted from session {session_id}")
+            return {"extracted_count": 0, "memories": []}
+
+        logger.info(
+            f"memory_extract: Extracted {len(candidates)} memories from session {session_id}"
+        )
+
+        return {
+            "extracted_count": len(candidates),
+            "memories": [c.to_dict() for c in candidates],
+            "dry_run": dry_run,
+        }
+
+    except Exception as e:
+        logger.error(f"memory_extract: Failed: {e}", exc_info=True)
+        return {"error": str(e)}

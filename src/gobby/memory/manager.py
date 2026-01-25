@@ -178,8 +178,17 @@ class MemoryManager:
             source_session_id: Origin session
             tags: Optional tags
         """
-        # Future: Duplicate detection via embeddings or fuzzy match?
-        # For now, rely on storage layer (which uses content-hash ID for dedup)
+        # Check for existing memory with same content to avoid duplicates.
+        # The storage layer also checks via content-hash ID, but this provides
+        # an additional safeguard against race conditions and project_id mismatches.
+        normalized_content = content.strip()
+        if self.storage.content_exists(normalized_content, project_id):
+            # Return existing memory by computing the same content-derived ID
+            # that the storage layer uses, avoiding reliance on search ordering
+            existing_memory = self.storage.get_memory_by_content(normalized_content, project_id)
+            if existing_memory:
+                logger.debug(f"Memory already exists: {existing_memory.id}")
+                return existing_memory
 
         memory = self.storage.create_memory(
             content=content,

@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-DEFAULT_DAEMON_PORT = 8765
+DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 DEBUG_ENV_VAR = "GOBBY_CODEX_NOTIFY_DEBUG"
 

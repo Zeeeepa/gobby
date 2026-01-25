@@ -3,6 +3,7 @@
 Provides core task operations: create, get, update, list, and tree building.
 """
 
+import logging
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -13,6 +14,8 @@ from gobby.storage.task_dependencies import DependencyCycleError
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
+
+logger = logging.getLogger(__name__)
 
 
 def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
@@ -41,6 +44,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         labels: list[str] | None = None,
         category: str | None = None,
         validation_criteria: str | None = None,
+        claim: bool = False,
     ) -> dict[str, Any]:
         """Create a single task in the current project.
 
@@ -49,7 +53,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             title: Task title
-            session_id: Your session ID for tracking (REQUIRED)
+            session_id: Your session ID for tracking (REQUIRED).
             description: Detailed description
             priority: Priority level (1=High, 2=Medium, 3=Low)
             task_type: Task type (task, bug, feature, epic)
@@ -59,6 +63,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             labels: List of labels
             category: Task domain category (test, code, document, research, config, manual)
             validation_criteria: Acceptance criteria for validating completion.
+            claim: If True, auto-claim the task (set assignee and status to in_progress).
 
         Returns:
             Created task dict with id (minimal) or full task details based on config.
@@ -100,6 +105,40 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         )
 
         task = ctx.task_manager.get_task(create_result["task"]["id"])
+
+        # Link task to session (best-effort) - tracks which session created the task
+        try:
+            ctx.session_task_manager.link_task(session_id, task.id, "created")
+        except Exception:
+            pass  # nosec B110 - best-effort linking
+
+        # Auto-claim if requested: set assignee and status to in_progress
+        if claim:
+            updated_task = ctx.task_manager.update_task(
+                task.id,
+                assignee=session_id,
+                status="in_progress",
+            )
+            if updated_task is None:
+                logger.warning(f"Failed to auto-claim task {task.id}: update_task returned None")
+            else:
+                task = updated_task
+                # Link task to session with "claimed" action (best-effort)
+                try:
+                    ctx.session_task_manager.link_task(session_id, task.id, "claimed")
+                except Exception:
+                    pass  # nosec B110 - best-effort linking
+
+            # Set workflow state for Claude Code (CC doesn't include tool results in PostToolUse)
+            # This mirrors close_task behavior in _lifecycle.py:196-207
+            try:
+                state = ctx.workflow_state_manager.get_state(session_id)
+                if state:
+                    state.variables["task_claimed"] = True
+                    state.variables["claimed_task_id"] = task.id  # Always use UUID
+                    ctx.workflow_state_manager.save_state(state)
+            except Exception:
+                pass  # nosec B110 - best-effort state update
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         # Collect errors consistently with depends_on handling below
@@ -211,6 +250,11 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "type": "string",
                     "description": "Your session ID (from system context). Required to track which session created the task.",
                 },
+                "claim": {
+                    "type": "boolean",
+                    "description": "If true, auto-claim the task (set assignee to session_id and status to in_progress). Default: false - task is created with status 'open' and no assignee.",
+                    "default": False,
+                },
             },
             "required": ["title", "session_id"],
         },
@@ -307,8 +351,9 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 try:
                     resolved_parent = resolve_task_id_for_mcp(ctx.task_manager, parent_task_id)
                     kwargs["parent_task_id"] = resolved_parent
-                except (TaskNotFoundError, ValueError):
-                    kwargs["parent_task_id"] = parent_task_id  # Fall back to original
+                except (TaskNotFoundError, ValueError) as e:
+                    logger.warning(f"Invalid parent_task_id '{parent_task_id}': {e}")
+                    return {"error": f"Invalid parent_task_id '{parent_task_id}': {e}"}
             else:
                 kwargs["parent_task_id"] = None
         if category is not None:

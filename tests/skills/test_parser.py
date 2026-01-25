@@ -37,7 +37,7 @@ description: Generate commit messages
 license: MIT
 metadata:
   author: anthropic
-  version: "1.0"
+  version: "1.0.0"
   skillport:
     category: git
     tags: [git, commits]
@@ -372,7 +372,7 @@ license: MIT
 compatibility: Requires git CLI
 metadata:
   author: anthropic
-  version: "1.0"
+  version: "1.0.0"
   skillport:
     category: git
     tags: [git, commits, workflow]
@@ -404,10 +404,13 @@ docs: update API documentation
         skill = parse_skill_file(skill_file)
 
         assert skill.name == "commit-message"
-        assert skill.description == "Generate conventional commit messages following Angular conventions"
+        assert (
+            skill.description
+            == "Generate conventional commit messages following Angular conventions"
+        )
         assert skill.license == "MIT"
         assert skill.compatibility == "Requires git CLI"
-        assert skill.version == "1.0"
+        assert skill.version == "1.0.0"
         assert skill.allowed_tools == ["Bash(git:*)"]
         assert skill.metadata["author"] == "anthropic"
         assert skill.get_category() == "git"

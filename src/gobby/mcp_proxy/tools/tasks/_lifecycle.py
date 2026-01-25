@@ -41,7 +41,6 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         skip_validation: bool = False,
         session_id: str | None = None,
         override_justification: str | None = None,
-        no_commit_needed: bool = False,
         commit_sha: str | None = None,
     ) -> dict[str, Any]:
         """Close a task with validation.
@@ -51,14 +50,12 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             task_id: Task reference (#N, path, or UUID)
-            reason: Reason for closing
+            reason: Reason for closing. Use "duplicate", "already_implemented", "wont_fix",
+                or "obsolete" to auto-skip commit check (these imply no work was done).
             changes_summary: Summary of changes (enables LLM validation for leaf tasks)
             skip_validation: Skip all validation checks
             session_id: Session ID where task is being closed (auto-links to session)
             override_justification: Why agent bypassed validation (stored for audit).
-                Also used to explain why no commit was needed when no_commit_needed=True.
-            no_commit_needed: Set to True for tasks that don't produce code changes
-                (research, planning, documentation review). Requires override_justification.
             commit_sha: Git commit SHA to link before closing. Convenience for link + close in one call.
 
         Returns:
@@ -85,9 +82,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         cwd = repo_path or "."
 
         # Check for linked commits (unless task type doesn't require commits)
-        commit_result = validate_commit_requirements(
-            task, reason, no_commit_needed, override_justification, repo_path
-        )
+        commit_result = validate_commit_requirements(task, reason, repo_path)
         if not commit_result.can_close:
             return {
                 "error": commit_result.error_type,
@@ -141,7 +136,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Determine close outcome
         route_to_review, store_override = determine_close_outcome(
-            task, skip_validation, no_commit_needed, override_justification
+            task, skip_validation, override_justification
         )
 
         # Get git commit SHA (best-effort, dynamic short format for consistency)
@@ -194,6 +189,23 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             except Exception:
                 pass  # nosec B110 - best-effort linking, don't fail the close
 
+        # Clear workflow task_claimed state if this was the claimed task
+        # Respects the clear_task_on_close variable (defaults to True if not set)
+        # This is done here because Claude Code's post-tool-use hook doesn't include
+        # the tool result, so the detection_helpers can't verify close succeeded
+        if session_id:
+            try:
+                state = ctx.workflow_state_manager.get_state(session_id)
+                if state and state.variables.get("claimed_task_id") == resolved_id:
+                    # Check if clear_task_on_close is enabled (default: True)
+                    clear_on_close = state.variables.get("clear_task_on_close", True)
+                    if clear_on_close:
+                        state.variables["task_claimed"] = False
+                        state.variables["claimed_task_id"] = None
+                        ctx.workflow_state_manager.save_state(state)
+            except Exception:
+                pass  # nosec B110 - best-effort state update
+
         # Update worktree status based on closure reason (case-insensitive)
         try:
             reason_normalized = reason.lower()
@@ -216,7 +228,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="close_task",
-        description="Close a task. Commits should use [#N] format (e.g., git commit -m '[#42] feat: add feature'). Requires commits to be linked (auto-detected from commit message or use link_commit). Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
+        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
         input_schema={
             "type": "object",
             "properties": {
@@ -251,24 +263,14 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "override_justification": {
                     "type": "string",
                     "description": (
-                        "Justification for bypassing validation or commit check. "
-                        "Required when skip_validation=True or no_commit_needed=True. "
+                        "Justification for bypassing validation. Required when skip_validation=True. "
                         "Example: 'Validation saw truncated diff - verified via git show that commit includes all changes'"
                     ),
                     "default": None,
                 },
-                "no_commit_needed": {
-                    "type": "boolean",
-                    "description": (
-                        "ONLY for tasks with NO code changes (pure research, planning, documentation review). "
-                        "Do NOT use this to bypass validation when a commit exists - use skip_validation instead. "
-                        "Requires override_justification."
-                    ),
-                    "default": False,
-                },
                 "commit_sha": {
                     "type": "string",
-                    "description": "Git commit SHA to link before closing. Convenience for commit + close in one call.",
+                    "description": "RECOMMENDED: Git commit SHA to link and close in one call. Use this instead of separate link_commit + close_task calls.",
                     "default": None,
                 },
             },

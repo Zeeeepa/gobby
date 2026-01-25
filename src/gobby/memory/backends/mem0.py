@@ -60,7 +60,12 @@ class Mem0Backend:
             **kwargs: Additional MemoryClient configuration
         """
         # Lazy import to avoid requiring mem0ai when not used
-        from mem0 import MemoryClient
+        try:
+            from mem0 import MemoryClient
+        except ImportError as e:
+            raise ImportError(
+                "Mem0 backend requires 'mem0ai' package. Install it with: pip install gobby[mem0]"
+            ) from e
 
         self._client: MemoryClient = MemoryClient(api_key=api_key, **kwargs)
         self._default_user_id = user_id

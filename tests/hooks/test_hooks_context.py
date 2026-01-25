@@ -51,7 +51,7 @@ def mock_hook_manager(temp_dir: Path):
 
         manager = HookManager(
             daemon_host="localhost",
-            daemon_port=8765,
+            daemon_port=60887,
             config=test_config,
             log_file=str(temp_dir / "logs" / "hook-manager.log"),
         )

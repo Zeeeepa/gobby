@@ -269,7 +269,7 @@ AI CLI (Claude/Gemini/Codex)
    Hook Dispatcher
         │ HTTP POST
         ▼
-  Gobby Daemon (:8765)
+  Gobby Daemon (:60887)
         │
    ┌────┴────┐
    ▼         ▼

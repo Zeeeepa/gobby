@@ -41,10 +41,17 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     if shared_workflows.exists():
         target_workflows = project_path / ".gobby" / "workflows"
         target_workflows.mkdir(parents=True, exist_ok=True)
-        for workflow_file in shared_workflows.iterdir():
-            if workflow_file.is_file():
-                copy2(workflow_file, target_workflows / workflow_file.name)
-                installed["workflows"].append(workflow_file.name)
+        for item in shared_workflows.iterdir():
+            if item.is_file():
+                copy2(item, target_workflows / item.name)
+                installed["workflows"].append(item.name)
+            elif item.is_dir():
+                # Copy subdirectories (e.g., lifecycle/)
+                target_subdir = target_workflows / item.name
+                if target_subdir.exists():
+                    shutil.rmtree(target_subdir)
+                copytree(item, target_subdir)
+                installed["workflows"].append(f"{item.name}/")
 
     # Install shared plugins to ~/.gobby/plugins/ (global)
     shared_plugins = shared_dir / "plugins"
@@ -95,10 +102,7 @@ def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:
         return result
 
     # Find gobby-prefixed skill directories
-    gobby_skills = [
-        d for d in skills_dir.iterdir()
-        if d.is_dir() and d.name.startswith("gobby-")
-    ]
+    gobby_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gobby-")]
 
     if not gobby_skills:
         return result
@@ -201,10 +205,17 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
     if cli_workflows.exists():
         target_workflows = target_path / "workflows"
         target_workflows.mkdir(parents=True, exist_ok=True)
-        for workflow_file in cli_workflows.iterdir():
-            if workflow_file.is_file():
-                copy2(workflow_file, target_workflows / workflow_file.name)
-                installed["workflows"].append(workflow_file.name)
+        for item in cli_workflows.iterdir():
+            if item.is_file():
+                copy2(item, target_workflows / item.name)
+                installed["workflows"].append(item.name)
+            elif item.is_dir():
+                # Copy subdirectories
+                target_subdir = target_workflows / item.name
+                if target_subdir.exists():
+                    shutil.rmtree(target_subdir)
+                copytree(item, target_subdir)
+                installed["workflows"].append(f"{item.name}/")
 
     # CLI-specific commands (slash commands)
     # Claude/Gemini: commands/, Codex: prompts/

@@ -158,8 +158,8 @@ class GobbyApp(App[None]):
 
     def __init__(
         self,
-        daemon_url: str = "http://localhost:8765",
-        ws_url: str = "ws://localhost:8766",
+        daemon_url: str = "http://localhost:60887",
+        ws_url: str = "ws://localhost:60888",
     ) -> None:
         super().__init__()
         self.daemon_url = daemon_url
@@ -321,7 +321,9 @@ class GobbyApp(App[None]):
         await self.ws_client.disconnect()
 
 
-def run_tui(daemon_url: str = "http://localhost:8765", ws_url: str = "ws://localhost:8766") -> None:
+def run_tui(
+    daemon_url: str = "http://localhost:60887", ws_url: str = "ws://localhost:60888"
+) -> None:
     """Entry point for the TUI application."""
     app = GobbyApp(daemon_url=daemon_url, ws_url=ws_url)
     app.run()

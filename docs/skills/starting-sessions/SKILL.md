@@ -47,24 +47,26 @@ Returns skill names and descriptions (~100 tokens/skill). Use `get_skill(name=".
 **Before editing any files**, you must have an active task:
 
 ```python
-# Create new task
+# Create new task and auto-claim it (sets status to in_progress)
 call_tool("gobby-tasks", "create_task", {
     "title": "Your task title",
     "task_type": "task",  # or bug, feature, epic
-    "session_id": "<your_session_id>"
-})
-
-# Set to in_progress
-call_tool("gobby-tasks", "update_task", {
-    "task_id": "<task_id>",
-    "status": "in_progress"
+    "session_id": "<your_session_id>",
+    "claim": True  # Auto-claim sets status to in_progress
 })
 ```
 
 Or claim an existing task:
 
 ```python
-call_tool("gobby-tasks", "suggest_next_task", {"session_id": "<your_session_id>"})
+# Find a task
+result = call_tool("gobby-tasks", "suggest_next_task", {"session_id": "<your_session_id>"})
+
+# Claim it
+call_tool("gobby-tasks", "claim_task", {
+    "task_id": result["ref"],
+    "session_id": "<your_session_id>"
+})
 ```
 
 ### 5. Use Progressive Tool Disclosure
@@ -85,6 +87,6 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})
 ## Key Rules
 
 - **Always have a task** before using Edit/Write tools
-- **Pass session_id** to all task operations
+- **Pass session_id** to `create_task` (required), `claim_task` (required), and `close_task` (optional, for tracking)
 - **Never load all schemas upfront** - use progressive disclosure
 - **Check skills** when stuck - `search_skills(query="your problem")`

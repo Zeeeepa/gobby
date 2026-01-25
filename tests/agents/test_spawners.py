@@ -700,7 +700,8 @@ class TestEmbeddedSpawner:
 
     @patch("gobby.agents.spawners.embedded.pty")
     @patch("os.fork")
-    def test_spawn_handles_fork_error(self, mock_fork, mock_pty):
+    @patch("os.close")
+    def test_spawn_handles_fork_error(self, mock_close, mock_fork, mock_pty):
         """Spawn handles fork() errors gracefully."""
         mock_pty.openpty.return_value = (10, 11)
         mock_fork.side_effect = OSError("Fork failed")

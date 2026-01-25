@@ -14,8 +14,6 @@ from gobby.cli.tasks._utils import (
 )
 from gobby.cli.tasks.ai import (
     complexity_cmd,
-    expand_all_cmd,
-    expand_task_cmd,
     generate_criteria_cmd,
     suggest_cmd,
     validate_task_cmd,
@@ -65,9 +63,7 @@ tasks.add_command(validation_history_cmd)
 # Register AI-powered commands from extracted module
 tasks.add_command(validate_task_cmd)
 tasks.add_command(generate_criteria_cmd)
-tasks.add_command(expand_task_cmd)
 tasks.add_command(complexity_cmd)
-tasks.add_command(expand_all_cmd)
 tasks.add_command(suggest_cmd)
 
 # Register search commands

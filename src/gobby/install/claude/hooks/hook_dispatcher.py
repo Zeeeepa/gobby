@@ -23,7 +23,7 @@ from pathlib import Path
 # No longer need to import HookManager - we call it via HTTP daemon instead
 
 # Default daemon configuration
-DEFAULT_DAEMON_PORT = 8765
+DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
@@ -31,10 +31,10 @@ def get_daemon_url() -> str:
     """Get the daemon HTTP URL from config file.
 
     Reads daemon_port from ~/.gobby/config.yaml if it exists,
-    otherwise uses the default port 8765.
+    otherwise uses the default port 60887.
 
     Returns:
-        Full daemon URL like http://localhost:8765
+        Full daemon URL like http://localhost:60887
     """
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
@@ -308,7 +308,7 @@ def main() -> int:
                 "input_data": input_data,
                 "source": "claude",  # Required: identifies CLI source
             },
-            timeout=30.0,  # Generous timeout for hook processing
+            timeout=90.0,  # LLM-powered hooks (pre-compact summary) need more time
         )
 
         if response.status_code == 200:

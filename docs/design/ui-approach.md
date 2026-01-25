@@ -45,7 +45,7 @@ gobby ui agents             # Agent monitoring
 - TanStack Query for data
 - Native WebSocket to daemon
 
-**Hosting**: Local daemon serves web UI on port 8767
+**Hosting**: Local daemon serves web UI on port 60336
 - `gobby ui --web` opens browser
 - Or access from phone on same network
 - Optional: Cloudflare tunnel for remote access
@@ -235,7 +235,7 @@ Already have `viz.py` generating HTML. Integrate into TUI via:
          │                 │                 │
          ▼                 ▼                 ▼
     ┌─────────┐       ┌─────────┐       ┌─────────┐
-    │ :8765   │       │ :8766   │       │ :8767   │
+    │ :60887  │       │ :60888  │       │ :60336  │
     │ REST    │       │ WS      │       │ Web UI  │
     │ API     │       │ Events  │       │ (PWA)   │
     └────┬────┘       └────┬────┘       └────┬────┘
@@ -259,7 +259,7 @@ Already have `viz.py` generating HTML. Integrate into TUI via:
 ## Remote Access Options
 
 ### Option A: Local Network (Simple)
-- Daemon binds to `0.0.0.0:8767`
+- Daemon binds to `0.0.0.0:60336`
 - Access from phone on same WiFi
 - Pro: No setup
 - Con: Only works on same network
@@ -318,7 +318,7 @@ Already have `viz.py` generating HTML. Integrate into TUI via:
 | Web Framework | Next.js 14 | SSR, good mobile story, Vercel patterns |
 | Component Library | shadcn/ui | Accessible, matches design system |
 | State Management | TanStack Query | Built-in caching, real-time sync |
-| Real-time | Native WebSocket | Already have port 8766 |
+| Real-time | Native WebSocket | Already have port 60888 |
 | Mobile | PWA | No app store, works offline, push notifications |
 | Remote Access | Cloudflare Tunnel | Secure, free, no port forwarding |
 
