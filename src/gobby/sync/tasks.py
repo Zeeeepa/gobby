@@ -306,7 +306,14 @@ class TaskSyncManager:
                             logger.warning(f"Task {task_id} missing updated_at, skipping")
                             skipped_count += 1
                             continue
-                        updated_at_file = _parse_timestamp(raw_updated_at)
+                        try:
+                            updated_at_file = _parse_timestamp(raw_updated_at)
+                        except ValueError as e:
+                            logger.warning(
+                                f"Task {task_id}: malformed timestamp '{raw_updated_at}': {e}, skipping"
+                            )
+                            skipped_count += 1
+                            continue
 
                         # Check if task exists (also fetch seq_num/path_cache to preserve)
                         existing_row = self.db.fetchone(
@@ -326,7 +333,14 @@ class TaskSyncManager:
                             if db_updated_at is None:
                                 updated_at_db = datetime.min.replace(tzinfo=UTC)
                             else:
-                                updated_at_db = _parse_timestamp(db_updated_at)
+                                try:
+                                    updated_at_db = _parse_timestamp(db_updated_at)
+                                except ValueError as e:
+                                    logger.warning(
+                                        f"Task {task_id}: failed to parse DB timestamp "
+                                        f"'{db_updated_at}': {e}, treating as old"
+                                    )
+                                    updated_at_db = datetime.min.replace(tzinfo=UTC)
                             existing_seq_num = existing_row["seq_num"]
                             existing_path_cache = existing_row["path_cache"]
                             if updated_at_file > updated_at_db:

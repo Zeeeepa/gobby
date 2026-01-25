@@ -30,7 +30,9 @@ If no previous context, this is the first segment - summarize the full session.
 ## Files Changed:
 {{ file_changes }}
 
+{% if todo_list %}
 {{ todo_list }}
+{% endif %}
 
 ---
 

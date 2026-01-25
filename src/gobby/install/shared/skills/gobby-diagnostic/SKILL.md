@@ -136,13 +136,17 @@ Store returned `memory_id` in `cleanup_tracker["memories"]`.
 
 ### 3.2 Task Create/Close Cycle
 
+**Get session ID first:**
+Call `gobby-sessions.get_current_session()` to retrieve the current session object.
+Use the returned `id` field as the `session_id` parameter below.
+
 **Create:**
 ```
 gobby-tasks.create_task(
     title="__diag__ diagnostic test task",
     description="Diagnostic test task - safe to delete",
     task_type="chore",
-    session_id=<your_session_id>
+    session_id=<id from gobby-sessions.get_current_session()>
 )
 ```
 Store returned `task_id` in `cleanup_tracker["tasks"]`.

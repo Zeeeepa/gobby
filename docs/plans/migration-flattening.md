@@ -65,7 +65,7 @@ BACKUP_PATH="$DB_PATH.pre-flatten.bak"
 echo "Backing up DB to $BACKUP_PATH..."
 cp "$DB_PATH" "$BACKUP_PATH"
 echo "Dumping schema..."
-sqlite3 "$DB_PATH" .schema > src/gobby/storage/schema_dump.sql
+echo ".schema" | sqlite3 "$DB_PATH" > src/gobby/storage/schema_dump.sql
 echo "Ready to copy schema_dump.sql into migrations.py"
 ```
 

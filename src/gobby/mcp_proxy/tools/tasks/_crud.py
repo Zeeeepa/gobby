@@ -114,16 +114,20 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Auto-claim if requested: set assignee and status to in_progress
         if claim:
-            task = ctx.task_manager.update_task(
+            updated_task = ctx.task_manager.update_task(
                 task.id,
                 assignee=session_id,
                 status="in_progress",
             )
-            # Link task to session with "claimed" action (best-effort)
-            try:
-                ctx.session_task_manager.link_task(session_id, task.id, "claimed")
-            except Exception:
-                pass  # nosec B110 - best-effort linking
+            if updated_task is None:
+                logger.warning(f"Failed to auto-claim task {task.id}: update_task returned None")
+            else:
+                task = updated_task
+                # Link task to session with "claimed" action (best-effort)
+                try:
+                    ctx.session_task_manager.link_task(session_id, task.id, "claimed")
+                except Exception:
+                    pass  # nosec B110 - best-effort linking
 
             # Set workflow state for Claude Code (CC doesn't include tool results in PostToolUse)
             # This mirrors close_task behavior in _lifecycle.py:196-207
