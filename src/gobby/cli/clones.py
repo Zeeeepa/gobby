@@ -369,7 +369,13 @@ def delete_clone(clone_ref: str, force: bool, yes: bool, json_format: bool) -> N
     except httpx.HTTPStatusError as e:
         if json_format:
             click.echo(
-                json.dumps({"success": False, "error": f"HTTP Error {e.response.status_code}"})
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": f"HTTP Error {e.response.status_code}",
+                        "detail": e.response.text,
+                    }
+                )
             )
         else:
             click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)

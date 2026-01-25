@@ -8,6 +8,8 @@ import pytest
 from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.validation import TaskValidator
 
+pytestmark = pytest.mark.integration
+
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
     from gobby.storage.projects import LocalProjectManager
