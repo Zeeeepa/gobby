@@ -119,8 +119,8 @@ def detect_task_claim(
                 task = task_manager.get_task(task_id)
                 if task:
                     task_id = task.id  # Use UUID
-            except Exception:
-                pass  # Keep original if resolution fails
+            except Exception:  # nosec B110 - best effort resolution, keep original if fails
+                pass
     elif inner_tool_name == "create_task":
         # For create_task, the id is in the result
         result = tool_output.get("result", {}) if isinstance(tool_output, dict) else {}
