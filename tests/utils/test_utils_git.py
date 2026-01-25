@@ -7,6 +7,7 @@ Tests cover:
 - get_git_metadata: normal repo, non-repo, nonexistent path, default cwd, exceptions
 """
 
+import logging
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -584,6 +585,11 @@ class TestEdgeCases:
 class TestLogging:
     """Tests to verify logging behavior."""
 
+    @pytest.fixture(autouse=True)
+    def setup_logging(self, caplog) -> None:
+        """Ensure gobby.utils.git logger is captured."""
+        caplog.set_level(logging.DEBUG, logger="gobby.utils.git")
+
     def test_run_git_command_logs_failure(self, temp_dir: Path, caplog) -> None:
         """Test debug logging on command failure."""
         with patch("subprocess.run") as mock_run:
@@ -592,10 +598,7 @@ class TestLogging:
             mock_result.stderr = "error message"
             mock_run.return_value = mock_result
 
-            import logging
-
-            with caplog.at_level(logging.DEBUG):
-                run_git_command(["git", "status"], temp_dir)
+            run_git_command(["git", "status"], temp_dir)
 
             assert "Git command failed" in caplog.text
 
@@ -604,10 +607,7 @@ class TestLogging:
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
 
-            import logging
-
-            with caplog.at_level(logging.WARNING):
-                run_git_command(["git", "status"], temp_dir, timeout=5)
+            run_git_command(["git", "status"], temp_dir, timeout=5)
 
             assert "timed out" in caplog.text
 
@@ -616,10 +616,7 @@ class TestLogging:
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError()
 
-            import logging
-
-            with caplog.at_level(logging.WARNING):
-                run_git_command(["git", "status"], temp_dir)
+            run_git_command(["git", "status"], temp_dir)
 
             assert "not found" in caplog.text
 
@@ -628,10 +625,7 @@ class TestLogging:
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = PermissionError("Access denied")
 
-            import logging
-
-            with caplog.at_level(logging.ERROR):
-                run_git_command(["git", "status"], temp_dir)
+            run_git_command(["git", "status"], temp_dir)
 
             assert "error" in caplog.text.lower()
 
@@ -644,10 +638,7 @@ class TestLogging:
                 "https://github.com/upstream/repo.git",  # upstream URL
             ]
 
-            import logging
-
-            with caplog.at_level(logging.DEBUG):
-                get_github_url(temp_dir)
+            get_github_url(temp_dir)
 
             assert "upstream" in caplog.text
 
@@ -656,10 +647,7 @@ class TestLogging:
         with patch("gobby.utils.git.run_git_command") as mock_run:
             mock_run.side_effect = [None, None]
 
-            import logging
-
-            with caplog.at_level(logging.DEBUG):
-                get_github_url(temp_dir)
+            get_github_url(temp_dir)
 
             assert "No git remotes found" in caplog.text
 
@@ -668,10 +656,7 @@ class TestLogging:
         with patch("gobby.utils.git.run_git_command") as mock_run:
             mock_run.side_effect = [None, None]
 
-            import logging
-
-            with caplog.at_level(logging.DEBUG):
-                get_git_branch(temp_dir)
+            get_git_branch(temp_dir)
 
             assert "detached HEAD" in caplog.text
 
@@ -680,19 +665,13 @@ class TestLogging:
         with patch("gobby.utils.git.run_git_command") as mock_run:
             mock_run.return_value = None
 
-            import logging
-
-            with caplog.at_level(logging.DEBUG):
-                get_git_metadata(temp_dir)
+            get_git_metadata(temp_dir)
 
             assert "Not a git repository" in caplog.text
 
     def test_get_git_metadata_logs_nonexistent_path(self, caplog) -> None:
         """Test warning logging for nonexistent path."""
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            get_git_metadata(Path("/nonexistent/path"))
+        get_git_metadata(Path("/nonexistent/path"))
 
         assert "does not exist" in caplog.text
 

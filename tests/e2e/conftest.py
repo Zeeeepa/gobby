@@ -356,6 +356,16 @@ def daemon_instance(
             start_new_session=True,
         )
 
+    # Brief delay to catch immediate failures
+    time.sleep(0.5)
+    if process.poll() is not None:
+        error_logs = error_log_file.read_text() if error_log_file.exists() else ""
+        logs = log_file.read_text() if log_file.exists() else ""
+        pytest.fail(
+            f"Daemon subprocess died immediately with exit code {process.poll()}.\n"
+            f"Logs:\n{logs}\nError output:\n{error_logs}"
+        )
+
     instance = DaemonInstance(
         process=process,
         pid=process.pid,
@@ -374,9 +384,12 @@ def daemon_instance(
         # Daemon failed to start - capture logs for debugging
         logs = instance.read_logs()
         error_logs = instance.read_error_logs()
+        exit_code = process.poll()
         terminate_process_tree(process.pid)
+        extra_info = f"\nProcess exited with code: {exit_code}" if exit_code is not None else ""
         pytest.fail(
-            f"Daemon failed to start within timeout.\nLogs:\n{logs}\nError logs:\n{error_logs}"
+            f"Daemon failed to start within timeout.{extra_info}\n"
+            f"Logs:\n{logs}\nError logs:\n{error_logs}"
         )
 
     yield instance
