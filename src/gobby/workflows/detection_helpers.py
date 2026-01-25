@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEvent
+    from gobby.storage.tasks import LocalTaskManager
     from gobby.tasks.session_tasks import SessionTaskManager
 
     from .definitions import WorkflowState
@@ -22,6 +23,7 @@ def detect_task_claim(
     event: "HookEvent",
     state: "WorkflowState",
     session_task_manager: "SessionTaskManager | None" = None,
+    task_manager: "LocalTaskManager | None" = None,
 ) -> None:
     """Detect gobby-tasks calls that claim or release a task for this session.
 
@@ -111,10 +113,22 @@ def detect_task_claim(
     arguments = tool_input.get("arguments", {}) or {}
     if inner_tool_name in ("update_task", "claim_task"):
         task_id = arguments.get("task_id")
+        # Resolve to UUID for consistent comparison with close_task
+        if task_id and task_manager:
+            try:
+                task = task_manager.get_task(task_id)
+                if task:
+                    task_id = task.id  # Use UUID
+            except Exception:
+                pass  # Keep original if resolution fails
     elif inner_tool_name == "create_task":
         # For create_task, the id is in the result
         result = tool_output.get("result", {}) if isinstance(tool_output, dict) else {}
         task_id = result.get("id") if isinstance(result, dict) else None
+        # Skip if we can't get the task ID (e.g., Claude Code doesn't include tool results)
+        # The MCP tool itself handles state updates in this case via _crud.py
+        if not task_id:
+            return
     else:
         task_id = None
 

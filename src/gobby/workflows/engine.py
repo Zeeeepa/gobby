@@ -480,7 +480,8 @@ class WorkflowEngine:
     def _detect_task_claim(self, event: HookEvent, state: WorkflowState) -> None:
         """Detect gobby-tasks calls that claim or release a task for this session."""
         session_task_manager = getattr(self.action_executor, "session_task_manager", None)
-        detect_task_claim(event, state, session_task_manager)
+        task_manager = getattr(self.action_executor, "task_manager", None)
+        detect_task_claim(event, state, session_task_manager, task_manager)
 
     def _detect_plan_mode(self, event: HookEvent, state: WorkflowState) -> None:
         """Detect Claude Code plan mode entry/exit and set workflow variable."""

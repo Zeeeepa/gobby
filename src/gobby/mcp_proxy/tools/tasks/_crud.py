@@ -125,6 +125,17 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             except Exception:
                 pass  # nosec B110 - best-effort linking
 
+            # Set workflow state for Claude Code (CC doesn't include tool results in PostToolUse)
+            # This mirrors close_task behavior in _lifecycle.py:196-207
+            try:
+                state = ctx.workflow_state_manager.get_state(session_id)
+                if state:
+                    state.variables["task_claimed"] = True
+                    state.variables["claimed_task_id"] = task.id  # Always use UUID
+                    ctx.workflow_state_manager.save_state(state)
+            except Exception:
+                pass  # nosec B110 - best-effort state update
+
         # Handle 'blocks' argument if provided (syntactic sugar)
         # Collect errors consistently with depends_on handling below
         dependency_errors: list[str] = []
