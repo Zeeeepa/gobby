@@ -66,6 +66,12 @@ def detect_task_claim(
     # This detection provides a fallback for CLIs that do report tool results (Gemini/Codex).
     if inner_tool_name == "close_task":
         tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
+
+        # If no tool output, skip - can't verify success
+        # The MCP proxy's close_task handles state clearing for successful closes
+        if not tool_output:
+            return
+
         # Check if close succeeded (not an error)
         if isinstance(tool_output, dict):
             if tool_output.get("error") or tool_output.get("status") == "error":
