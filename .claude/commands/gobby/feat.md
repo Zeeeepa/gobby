@@ -1,6 +1,6 @@
 ---
 name: feat
-description: Quickly create a feature task. Usage: /feat <title> [description]
+description: "Quickly create a feature task. Usage: /feat <title> [description]"
 ---
 
 # /feat - Create Feature Task

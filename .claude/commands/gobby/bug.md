@@ -1,6 +1,6 @@
 ---
 name: bug
-description: Quickly create a bug task. Usage: /bug <title> [description]
+description: "Quickly create a bug task. Usage: /bug <title> [description]"
 ---
 
 # /bug - Create Bug Task

@@ -1,6 +1,6 @@
 ---
 name: ref
-description: Quickly create a refactoring task. Usage: /ref <title> [description]
+description: "Quickly create a refactoring task. Usage: /ref <title> [description]"
 ---
 
 # /ref - Create Refactoring Task

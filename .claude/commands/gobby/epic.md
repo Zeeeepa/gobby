@@ -1,6 +1,6 @@
 ---
 name: epic
-description: Quickly create an epic (parent task for large features). Usage: /epic <title> [description]
+description: "Quickly create an epic (parent task for large features). Usage: /epic <title> [description]"
 ---
 
 # /epic - Create Epic Task

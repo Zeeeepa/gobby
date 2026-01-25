@@ -1,6 +1,6 @@
 ---
 name: nit
-description: Quickly create a nitpick/minor cleanup task. Usage: /nit <title> [description]
+description: "Quickly create a nitpick/minor cleanup task. Usage: /nit <title> [description]"
 ---
 
 # /nit - Create Nitpick Task

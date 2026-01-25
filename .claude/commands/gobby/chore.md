@@ -1,6 +1,6 @@
 ---
 name: chore
-description: Quickly create a chore/maintenance task. Usage: /chore <title> [description]
+description: "Quickly create a chore/maintenance task. Usage: /chore <title> [description]"
 ---
 
 # /chore - Create Chore Task
