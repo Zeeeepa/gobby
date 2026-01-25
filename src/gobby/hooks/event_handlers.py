@@ -233,7 +233,9 @@ class EventHandlers:
                             system_message += "\nActive workflows:"
                             for w in wf_list:
                                 source = "project" if w["is_project"] else "global"
-                                system_message += f"\n  - {w['name']} ({source})"
+                                system_message += (
+                                    f"\n  - {w['name']} ({source}, priority={w['priority']})"
+                                )
 
                     if wf_response.system_message:
                         system_message += f"\n\n{wf_response.system_message}"
@@ -341,7 +343,7 @@ class EventHandlers:
                 system_message += "\nActive workflows:"
                 for w in wf_list:
                     source = "project" if w["is_project"] else "global"
-                    system_message += f"\n  - {w['name']} ({source})"
+                    system_message += f"\n  - {w['name']} ({source}, priority={w['priority']})"
 
         if wf_response.system_message:
             system_message += f"\n\n{wf_response.system_message}"
