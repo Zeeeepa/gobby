@@ -52,6 +52,8 @@ class Session:
     terminal_context: dict[str, Any] | None = None
     # Global sequence number
     seq_num: int | None = None
+    # Edit history tracking
+    had_edits: bool = False
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -86,6 +88,7 @@ class Session:
             model=row["model"] if "model" in row.keys() else None,
             terminal_context=cls._parse_terminal_context(row["terminal_context"]),
             seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
+            had_edits=bool(row["had_edits"]) if "had_edits" in row.keys() else False,
         )
 
     @classmethod
@@ -135,6 +138,7 @@ class Session:
             "usage_cache_read_tokens": self.usage_cache_read_tokens,
             "usage_total_cost_usd": self.usage_total_cost_usd,
             "terminal_context": self.terminal_context,
+            "had_edits": self.had_edits,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
@@ -234,9 +238,9 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        status, created_at, updated_at, seq_num
+                        status, created_at, updated_at, seq_num, had_edits
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
                     """,
                     (
                         session_id,
@@ -423,6 +427,15 @@ class LocalSessionManager:
         self.db.execute(
             "UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?",
             (status, now, session_id),
+        )
+        return self.get(session_id)
+
+    def mark_had_edits(self, session_id: str) -> Session | None:
+        """Mark session as having edits."""
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            "UPDATE sessions SET had_edits = 1, updated_at = ? WHERE id = ?",
+            (now, session_id),
         )
         return self.get(session_id)
 
