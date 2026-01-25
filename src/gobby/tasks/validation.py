@@ -695,8 +695,6 @@ class TaskValidator:
 
             llm_result = response.strip()
 
-            llm_result = response.strip()
-
             # Inject pattern criteria if labels provided
             if labels:
                 from gobby.config.tasks import PatternCriteriaConfig

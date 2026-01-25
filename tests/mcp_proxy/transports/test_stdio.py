@@ -143,13 +143,18 @@ class TestExpandEnvVar:
             assert result == "http://localhost:8080"
 
     def test_nested_braces_not_supported(self) -> None:
-        """Nested braces are not supported (partial match)."""
-        # ${OUTER:-${INNER}} - inner brace ends the pattern early
+        """Nested braces are not supported (partial match).
+
+        The regex pattern [^}]* captures everything up to the first closing brace,
+        so ${OUTER:-${INNER}} matches with default="${INNER" and leaves a trailing }.
+        When OUTER is unset, the substitution uses the default "${INNER" plus the
+        remaining "}" from the original string, resulting in "${INNER}".
+        """
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("OUTER", None)
             result = _expand_env_var("${OUTER:-${INNER}}")
-            # Default is "${INNER" up to the first }
-            assert "${INNER" in result or "OUTER" in result
+            # Default is "${INNER" (up to first }), plus trailing "}" = "${INNER}"
+            assert result == "${INNER}"
 
 
 class TestExpandEnvDict:

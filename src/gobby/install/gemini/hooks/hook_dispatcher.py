@@ -88,8 +88,13 @@ def get_terminal_context() -> dict[str, str | int | None]:
     # iTerm2 session ID
     context["iterm_session_id"] = os.environ.get("ITERM_SESSION_ID")
 
-    # VS Code terminal ID (if running in VS Code integrated terminal)
-    context["vscode_terminal_id"] = os.environ.get("VSCODE_GIT_ASKPASS_NODE")
+    # VS Code integrated terminal detection
+    # VSCODE_IPC_HOOK_CLI is set when running in VS Code's integrated terminal
+    # TERM_PROGRAM == "vscode" is also a reliable indicator
+    vscode_ipc_hook = os.environ.get("VSCODE_IPC_HOOK_CLI")
+    term_program = os.environ.get("TERM_PROGRAM")
+    context["vscode_ipc_hook_cli"] = vscode_ipc_hook
+    context["vscode_terminal_detected"] = bool(vscode_ipc_hook) or term_program == "vscode"
 
     # Tmux pane (if running in tmux)
     context["tmux_pane"] = os.environ.get("TMUX_PANE")

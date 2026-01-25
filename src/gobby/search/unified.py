@@ -286,10 +286,8 @@ class UnifiedSearcher:
 
         Returns:
             List of (item_id, similarity_score) tuples, sorted by
-            relevance (highest first).
-
-        Raises:
-            RuntimeError: If not fitted or search fails in strict mode
+            relevance (highest first). Returns an empty list if the
+            searcher has not been fitted.
         """
         if not self._fitted:
             return []

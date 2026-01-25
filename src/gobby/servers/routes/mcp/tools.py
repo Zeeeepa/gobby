@@ -65,6 +65,12 @@ def _process_tool_proxy_result(
                 if key not in normalized:
                     normalized[key] = value
             raise HTTPException(status_code=404, detail=normalized)
+        # Tool-level failure (not a transport error) - return failure envelope
+        return {
+            "success": False,
+            "result": result,
+            "response_time_ms": response_time_ms,
+        }
     else:
         metrics_collector.inc_counter("mcp_tool_calls_succeeded_total")
         logger.debug(
@@ -76,8 +82,7 @@ def _process_tool_proxy_result(
             },
         )
 
-    # Return 200 with wrapped result for all other cases
-    # Tool-level errors (tool not found, validation, execution) are application data
+    # Return 200 with wrapped result for success cases
     return {
         "success": True,
         "result": result,
@@ -485,9 +490,17 @@ def create_mcp_router() -> APIRouter:
                     "response_time_ms": response_time_ms,
                 }
 
-            except Exception as e:
+            except (KeyError, ValueError) as e:
+                # Tool or server not found - 404
                 raise HTTPException(
                     status_code=404, detail={"success": False, "error": str(e)}
+                ) from e
+            except Exception as e:
+                # Connection, timeout, or internal errors - 500
+                logger.error(f"Failed to get tool schema {server_name}/{tool_name}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail={"success": False, "error": f"Failed to get tool schema: {e}"},
                 ) from e
 
         except HTTPException:
