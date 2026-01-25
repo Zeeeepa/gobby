@@ -225,6 +225,16 @@ class EventHandlers:
                     system_message += f"\nExternal ID: {external_id}"
                     if parent_session_id:
                         context_parts.append(f"Parent session: {parent_session_id}")
+
+                    # Add active lifecycle workflows
+                    if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
+                        wf_list = wf_response.metadata["discovered_workflows"]
+                        if wf_list:
+                            system_message += "\nActive workflows:"
+                            for w in wf_list:
+                                source = "project" if w["is_project"] else "global"
+                                system_message += f"\n  - {w['name']} ({source})"
+
                     if wf_response.system_message:
                         system_message += f"\n\n{wf_response.system_message}"
 
@@ -323,6 +333,16 @@ class EventHandlers:
         # Build system message (terminal display only)
         system_message = f"\nGobby Session ID: {session_id}"
         system_message += f"\nExternal ID: {external_id}"
+
+        # Add active lifecycle workflows
+        if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
+            wf_list = wf_response.metadata["discovered_workflows"]
+            if wf_list:
+                system_message += "\nActive workflows:"
+                for w in wf_list:
+                    source = "project" if w["is_project"] else "global"
+                    system_message += f"\n  - {w['name']} ({source})"
+
         if wf_response.system_message:
             system_message += f"\n\n{wf_response.system_message}"
 

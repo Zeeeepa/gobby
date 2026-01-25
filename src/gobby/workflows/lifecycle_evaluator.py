@@ -627,4 +627,15 @@ async def evaluate_all_lifecycle_workflows(
         reason=final_reason,
         context="\n\n".join(all_context) if all_context else None,
         system_message=final_system_message,
+        metadata={
+            "discovered_workflows": [
+                {
+                    "name": w.name,
+                    "priority": w.priority,
+                    "is_project": w.is_project,
+                    "path": str(w.path),
+                }
+                for w in workflows
+            ]
+        },
     )
