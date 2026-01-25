@@ -585,7 +585,9 @@ class TestEdgeCases:
 class TestLogging:
     """Tests to verify logging behavior."""
 
-    def test_run_git_command_logs_failure(self, temp_dir: Path, caplog) -> None:
+    def test_run_git_command_logs_failure(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test debug logging on command failure."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("subprocess.run") as mock_run:
@@ -598,7 +600,9 @@ class TestLogging:
 
         assert "Git command failed" in caplog.text
 
-    def test_run_git_command_logs_timeout(self, temp_dir: Path, caplog) -> None:
+    def test_run_git_command_logs_timeout(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test warning logging on timeout."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("subprocess.run") as mock_run:
@@ -608,7 +612,9 @@ class TestLogging:
 
         assert "timed out" in caplog.text
 
-    def test_run_git_command_logs_not_found(self, temp_dir: Path, caplog) -> None:
+    def test_run_git_command_logs_not_found(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test warning logging when git not found."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("subprocess.run") as mock_run:
@@ -618,7 +624,9 @@ class TestLogging:
 
         assert "not found" in caplog.text
 
-    def test_run_git_command_logs_generic_error(self, temp_dir: Path, caplog) -> None:
+    def test_run_git_command_logs_generic_error(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test error logging on generic exception."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("subprocess.run") as mock_run:
@@ -628,7 +636,9 @@ class TestLogging:
 
         assert "error" in caplog.text.lower()
 
-    def test_get_github_url_logs_fallback(self, temp_dir: Path, caplog) -> None:
+    def test_get_github_url_logs_fallback(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test debug logging when using fallback remote."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("gobby.utils.git.run_git_command") as mock_run:
@@ -642,7 +652,9 @@ class TestLogging:
 
         assert "upstream" in caplog.text
 
-    def test_get_github_url_logs_no_remotes(self, temp_dir: Path, caplog) -> None:
+    def test_get_github_url_logs_no_remotes(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test debug logging when no remotes found."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("gobby.utils.git.run_git_command") as mock_run:
@@ -652,7 +664,9 @@ class TestLogging:
 
         assert "No git remotes found" in caplog.text
 
-    def test_get_git_branch_logs_detached(self, temp_dir: Path, caplog) -> None:
+    def test_get_git_branch_logs_detached(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test debug logging in detached HEAD state."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("gobby.utils.git.run_git_command") as mock_run:
@@ -662,7 +676,9 @@ class TestLogging:
 
         assert "detached HEAD" in caplog.text
 
-    def test_get_git_metadata_logs_not_repo(self, temp_dir: Path, caplog) -> None:
+    def test_get_git_metadata_logs_not_repo(
+        self, temp_dir: Path, caplog, enable_log_propagation
+    ) -> None:
         """Test debug logging when not a git repo."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             with patch("gobby.utils.git.run_git_command") as mock_run:
@@ -672,7 +688,9 @@ class TestLogging:
 
         assert "Not a git repository" in caplog.text
 
-    def test_get_git_metadata_logs_nonexistent_path(self, caplog) -> None:
+    def test_get_git_metadata_logs_nonexistent_path(
+        self, caplog, enable_log_propagation
+    ) -> None:
         """Test warning logging for nonexistent path."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             get_git_metadata(Path("/nonexistent/path"))

@@ -27,6 +27,22 @@ def temp_dir() -> Iterator[Path]:
         yield Path(tmpdir)
 
 
+@pytest.fixture
+def enable_log_propagation() -> Iterator[None]:
+    """Enable log propagation for caplog tests.
+
+    The gobby package logger has propagate=False to avoid duplicate logs in production.
+    This fixture temporarily enables propagation so caplog can capture logs.
+    """
+    import logging
+
+    gobby_logger = logging.getLogger("gobby")
+    original_propagate = gobby_logger.propagate
+    gobby_logger.propagate = True
+    yield
+    gobby_logger.propagate = original_propagate
+
+
 @pytest.fixture(scope="session")
 def safe_db_dir() -> Iterator[Path]:
     """Session-scoped temp directory for safe database.
