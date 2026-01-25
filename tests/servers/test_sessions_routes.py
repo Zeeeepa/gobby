@@ -55,7 +55,7 @@ def http_server(
 ) -> HTTPServer:
     """Create an HTTP server instance for testing."""
     return HTTPServer(
-        port=8765,
+        port=60334,
         test_mode=True,
         mcp_manager=None,
         config=None,
@@ -165,7 +165,7 @@ class TestRegisterSessionEdgeCases:
     ) -> None:
         """Test that internal errors during registration return 500."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -233,7 +233,7 @@ class TestListSessionsEdgeCases:
 
         # Create server with mock message manager that fails
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -262,7 +262,7 @@ class TestListSessionsEdgeCases:
     ) -> None:
         """Test that internal errors during list return 500."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -288,7 +288,7 @@ class TestGetSessionEdgeCases:
     ) -> None:
         """Test that internal errors during get return 500."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -302,7 +302,7 @@ class TestGetSessionEdgeCases:
     def test_get_session_without_session_manager(self) -> None:
         """Test getting session when session manager is None returns 503."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=None,
         )
@@ -336,7 +336,7 @@ class TestGetMessagesEdgeCases:
         )
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -377,7 +377,7 @@ class TestGetMessagesEdgeCases:
         )
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -404,7 +404,7 @@ class TestFindCurrentSessionEdgeCases:
     def test_find_current_session_without_session_manager(self) -> None:
         """Test find_current when session manager is None returns 503."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=None,
         )
@@ -428,7 +428,7 @@ class TestFindCurrentSessionEdgeCases:
     ) -> None:
         """Test find_current without project_id or cwd returns 400."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -451,7 +451,7 @@ class TestFindCurrentSessionEdgeCases:
     ) -> None:
         """Test that internal errors during find_by_external_id return 500."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -484,7 +484,7 @@ class TestFindParentSessionEdgeCases:
     def test_find_parent_without_session_manager(self) -> None:
         """Test find_parent when session manager is None returns 503."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=None,
         )
@@ -558,7 +558,7 @@ class TestFindParentSessionEdgeCases:
     ) -> None:
         """Test that internal errors during find_parent return 500."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -590,7 +590,7 @@ class TestUpdateStatusEdgeCases:
     def test_update_status_without_session_manager(self) -> None:
         """Test update_status when session manager is None returns 503."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=None,
         )
@@ -620,7 +620,7 @@ class TestUpdateStatusEdgeCases:
         )
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -651,7 +651,7 @@ class TestUpdateSummaryEdgeCases:
     def test_update_summary_without_session_manager(self) -> None:
         """Test update_summary when session manager is None returns 503."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=None,
         )
@@ -681,7 +681,7 @@ class TestUpdateSummaryEdgeCases:
         )
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -763,7 +763,7 @@ class TestStopSignalEdgeCases:
     ) -> HTTPServer:
         """Create HTTP server with mock stop registry."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -829,7 +829,7 @@ class TestStopSignalEdgeCases:
     ) -> None:
         """Test GET stop signal when hook manager not available."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -847,7 +847,7 @@ class TestStopSignalEdgeCases:
     ) -> None:
         """Test DELETE stop signal when hook manager not available."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -865,7 +865,7 @@ class TestStopSignalEdgeCases:
     ) -> None:
         """Test GET stop signal when stop registry not available."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -885,7 +885,7 @@ class TestStopSignalEdgeCases:
     ) -> None:
         """Test DELETE stop signal when stop registry not available."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )

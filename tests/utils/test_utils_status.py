@@ -49,24 +49,24 @@ class TestFormatStatusMessage:
 
     def test_server_configuration_with_http_port(self):
         """Test server configuration section with HTTP port."""
-        result = format_status_message(running=True, http_port=8765)
+        result = format_status_message(running=True, http_port=60334)
 
         assert "Server Configuration:" in result
-        assert "HTTP: localhost:8765" in result
+        assert "HTTP: localhost:60334" in result
 
     def test_server_configuration_with_websocket_port(self):
         """Test server configuration section with WebSocket port."""
-        result = format_status_message(running=True, websocket_port=8766)
+        result = format_status_message(running=True, websocket_port=60335)
 
         assert "Server Configuration:" in result
-        assert "WebSocket: localhost:8766" in result
+        assert "WebSocket: localhost:60335" in result
 
     def test_server_configuration_with_both_ports(self):
         """Test server configuration with both ports."""
-        result = format_status_message(running=True, http_port=8765, websocket_port=8766)
+        result = format_status_message(running=True, http_port=60334, websocket_port=60335)
 
-        assert "HTTP: localhost:8765" in result
-        assert "WebSocket: localhost:8766" in result
+        assert "HTTP: localhost:60334" in result
+        assert "WebSocket: localhost:60335" in result
 
     def test_no_server_configuration_when_no_ports(self):
         """Test that server configuration section is hidden when no ports."""
@@ -82,8 +82,8 @@ class TestFormatStatusMessage:
             pid_file="/home/user/.gobby/daemon.pid",
             log_files="/home/user/.gobby/logs/",
             uptime="2h 30m 15s",
-            http_port=8765,
-            websocket_port=8766,
+            http_port=60334,
+            websocket_port=60335,
         )
 
         # Header
@@ -101,8 +101,8 @@ class TestFormatStatusMessage:
 
         # Server configuration section
         assert "Server Configuration:" in result
-        assert "HTTP: localhost:8765" in result
-        assert "WebSocket: localhost:8766" in result
+        assert "HTTP: localhost:60334" in result
+        assert "WebSocket: localhost:60335" in result
 
     def test_stopped_status_no_details(self):
         """Test stopped status doesn't show running details."""

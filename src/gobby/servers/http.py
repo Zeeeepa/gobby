@@ -136,7 +136,7 @@ class HTTPServer:
         self._mcp_db_manager = mcp_db_manager
         if mcp_manager:
             # Determine WebSocket port
-            ws_port = 8766
+            ws_port = 60335
             if config and hasattr(config, "websocket") and config.websocket:
                 ws_port = config.websocket.port
 
@@ -563,7 +563,7 @@ class HTTPServer:
 
 
 async def create_server(
-    port: int = 8765,
+    port: int = 60334,
     test_mode: bool = False,
     mcp_manager: Any | None = None,
     config: Any | None = None,

@@ -30,7 +30,7 @@ def mock_mcp_manager():
 def mock_config():
     config = MagicMock()
     config.host = "localhost"
-    config.port = 8765
+    config.port = 60334
     config.ping_interval = 30
     config.ping_timeout = 10
     config.max_message_size = 1024

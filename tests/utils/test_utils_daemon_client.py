@@ -14,7 +14,7 @@ class TestDaemonClientInit:
         """Test default initialization values."""
         client = DaemonClient()
 
-        assert client.url == "http://localhost:8765"
+        assert client.url == "http://localhost:60334"
         assert client.timeout == 5.0
         assert client._cached_is_ready is None
         assert client._cached_status is None

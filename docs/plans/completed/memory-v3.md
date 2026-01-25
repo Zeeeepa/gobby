@@ -40,7 +40,7 @@ Memory V3 transforms gobby-memory from a monolithic implementation into a **plug
  │ Backend │  │  Backend  │ │Backend│ │  Backend   │ │ Backend │
  └────┬────┘  └─────┬─────┘ └───┬───┘ └─────┬──────┘ └────┬────┘
       │             │           │           │             │
-  SQLite DB    MemU markdown  Cloud API  localhost:8765  User impl
+  SQLite DB    MemU markdown  Cloud API  localhost:60334  User impl
   (local)      (local files)  (remote)   (self-hosted)
 
                                 │
@@ -389,7 +389,7 @@ class Mem0MemoryBackend:
 class OpenMemoryBackend:
     """Backend for self-hosted OpenMemory."""
 
-    def __init__(self, base_url: str = "http://localhost:8765"):
+    def __init__(self, base_url: str = "http://localhost:60334"):
         self._base_url = base_url
 
     @property
@@ -453,7 +453,7 @@ memory:
       base_url: null  # For self-hosted
 
     openmemory:
-      base_url: http://localhost:8765
+      base_url: http://localhost:60334
       user_id: default
 
 # Backup settings

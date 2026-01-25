@@ -69,7 +69,7 @@ def test_project(project_storage: LocalProjectManager, temp_dir: Path) -> dict[s
 def basic_http_server(session_storage: LocalSessionManager) -> HTTPServer:
     """Create a basic HTTP server instance for testing."""
     return HTTPServer(
-        port=8765,
+        port=60334,
         test_mode=True,
         mcp_manager=None,
         config=None,
@@ -262,7 +262,7 @@ class TestListMCPTools:
     def test_list_tools_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from internal server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -284,7 +284,7 @@ class TestListMCPTools:
     ) -> None:
         """Test listing tools falls through to MCP manager when internal registry not found."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -302,7 +302,7 @@ class TestListMCPTools:
     ) -> None:
         """Test listing tools from non-configured external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -317,7 +317,7 @@ class TestListMCPTools:
     def test_list_tools_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -344,7 +344,7 @@ class TestListMCPTools:
     ) -> None:
         """Test listing tools when external server connection fails."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -365,7 +365,7 @@ class TestListMCPTools:
     ) -> None:
         """Test handling of list_tools failure from external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -389,7 +389,7 @@ class TestListMCPTools:
     def test_list_tools_with_input_schema_dict(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools with inputSchema as dict."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -422,7 +422,7 @@ class TestListMCPTools:
     ) -> None:
         """Test listing tools with inputSchema having model_dump method."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -476,7 +476,7 @@ class TestListMCPServers:
     ) -> None:
         """Test listing servers includes internal registries."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -499,7 +499,7 @@ class TestListMCPServers:
     def test_list_servers_with_external_servers(self, session_storage: LocalSessionManager) -> None:
         """Test listing servers includes external MCP servers."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -525,7 +525,7 @@ class TestListMCPServers:
     ) -> None:
         """Test listing servers shows disconnected servers."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -548,7 +548,7 @@ class TestListMCPServers:
     def test_list_servers_with_unknown_health(self, session_storage: LocalSessionManager) -> None:
         """Test listing servers handles servers with no health info."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -568,7 +568,7 @@ class TestListMCPServers:
     def test_list_servers_error_handling(self, session_storage: LocalSessionManager) -> None:
         """Test listing servers handles errors gracefully."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -602,7 +602,7 @@ class TestListAllMCPTools:
     def test_list_all_tools_with_server_filter(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools filtered by server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -624,7 +624,7 @@ class TestListAllMCPTools:
     def test_list_all_tools_with_metrics(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools with metrics included."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -668,7 +668,7 @@ class TestListAllMCPTools:
     ) -> None:
         """Test listing tools skips disabled external servers."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -692,7 +692,7 @@ class TestListAllMCPTools:
     ) -> None:
         """Test listing tools handles external server failure."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -729,7 +729,7 @@ class TestGetToolSchema:
     def test_get_schema_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema from internal server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -756,7 +756,7 @@ class TestGetToolSchema:
     ) -> None:
         """Test getting schema for non-existent tool on internal server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -785,7 +785,7 @@ class TestGetToolSchema:
     def test_get_schema_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema from external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -810,7 +810,7 @@ class TestGetToolSchema:
     def test_get_schema_external_server_failure(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema when external server fails."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -845,7 +845,7 @@ class TestCallMCPTool:
     def test_call_tool_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -874,7 +874,7 @@ class TestCallMCPTool:
     def test_call_tool_internal_server_failure(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server with error."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -913,7 +913,7 @@ class TestCallMCPTool:
     def test_call_tool_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -940,7 +940,7 @@ class TestCallMCPTool:
     def test_call_tool_external_server_failure(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on external server with error."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -979,7 +979,7 @@ class TestAddMCPServer:
     def test_add_server_no_project_context(self, session_storage: LocalSessionManager) -> None:
         """Test adding server without project context."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1004,7 +1004,7 @@ class TestAddMCPServer:
     def test_add_server_no_mcp_manager(self, session_storage: LocalSessionManager) -> None:
         """Test adding server when MCP manager not available."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1031,7 +1031,7 @@ class TestAddMCPServer:
     def test_add_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test adding server successfully."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1064,7 +1064,7 @@ class TestAddMCPServer:
     def test_add_server_with_all_options(self, session_storage: LocalSessionManager) -> None:
         """Test adding server with all configuration options."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1098,7 +1098,7 @@ class TestAddMCPServer:
     def test_add_server_validation_error(self, session_storage: LocalSessionManager) -> None:
         """Test adding server with validation error."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1142,7 +1142,7 @@ class TestRemoveMCPServer:
     def test_remove_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test removing server successfully."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1161,7 +1161,7 @@ class TestRemoveMCPServer:
     def test_remove_server_not_found(self, session_storage: LocalSessionManager) -> None:
         """Test removing non-existent server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1192,7 +1192,7 @@ class TestImportMCPServer:
     def test_import_server_no_project_context(self, session_storage: LocalSessionManager) -> None:
         """Test importing server without project context."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1230,7 +1230,7 @@ class TestRecommendMCPTools:
     def test_recommend_tools_no_handler(self, session_storage: LocalSessionManager) -> None:
         """Test recommending tools when handler not available."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1249,7 +1249,7 @@ class TestRecommendMCPTools:
     def test_recommend_tools_with_handler(self, session_storage: LocalSessionManager) -> None:
         """Test recommending tools with tools handler."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1282,7 +1282,7 @@ class TestRecommendMCPTools:
     ) -> None:
         """Test recommending tools with semantic mode when project resolution fails."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1328,7 +1328,7 @@ class TestSearchMCPTools:
     ) -> None:
         """Test searching tools when project resolution fails."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1354,7 +1354,7 @@ class TestSearchMCPTools:
     def test_search_tools_no_semantic_search(self, session_storage: LocalSessionManager) -> None:
         """Test searching tools when semantic search not configured."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1376,7 +1376,7 @@ class TestSearchMCPTools:
     def test_search_tools_success(self, session_storage: LocalSessionManager) -> None:
         """Test searching tools successfully."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1429,7 +1429,7 @@ class TestEmbedMCPTools:
     ) -> None:
         """Test embedding tools when project resolution fails."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1454,7 +1454,7 @@ class TestEmbedMCPTools:
     def test_embed_tools_no_semantic_search(self, session_storage: LocalSessionManager) -> None:
         """Test embedding tools when semantic search not configured."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1476,7 +1476,7 @@ class TestEmbedMCPTools:
     def test_embed_tools_success(self, session_storage: LocalSessionManager) -> None:
         """Test embedding tools successfully."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1524,7 +1524,7 @@ class TestGetMCPStatus:
     def test_get_status_with_internal_servers(self, session_storage: LocalSessionManager) -> None:
         """Test getting status includes internal servers."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1546,7 +1546,7 @@ class TestGetMCPStatus:
     def test_get_status_with_external_servers(self, session_storage: LocalSessionManager) -> None:
         """Test getting status includes external servers."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1588,7 +1588,7 @@ class TestMCPProxy:
     def test_proxy_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test proxy to internal server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1611,7 +1611,7 @@ class TestMCPProxy:
     def test_proxy_internal_server_fallthrough(self, session_storage: LocalSessionManager) -> None:
         """Test proxy falls through to MCP manager when no internal manager."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1629,7 +1629,7 @@ class TestMCPProxy:
     def test_proxy_internal_server_tool_error(self, session_storage: LocalSessionManager) -> None:
         """Test proxy to internal server with tool error."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1660,7 +1660,7 @@ class TestMCPProxy:
     def test_proxy_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test proxy to external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1685,7 +1685,7 @@ class TestMCPProxy:
     ) -> None:
         """Test proxy when tool not found on external server."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1705,7 +1705,7 @@ class TestMCPProxy:
     def test_proxy_external_server_error(self, session_storage: LocalSessionManager) -> None:
         """Test proxy when external server returns error."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1736,7 +1736,7 @@ class TestRefreshMCPTools:
     ) -> None:
         """Test refreshing tools when project resolution fails."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1761,7 +1761,7 @@ class TestRefreshMCPTools:
     def test_refresh_tools_no_mcp_db_manager(self, session_storage: LocalSessionManager) -> None:
         """Test refreshing tools when MCP DB manager not configured."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1785,7 +1785,7 @@ class TestRefreshMCPTools:
     ) -> None:
         """Test refreshing tools with internal servers."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1832,7 +1832,7 @@ class TestRefreshMCPTools:
     def test_refresh_tools_force_mode(self, session_storage: LocalSessionManager) -> None:
         """Test refreshing tools with force mode."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1883,7 +1883,7 @@ class TestCodeExecutionEndpoints:
     def code_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for code endpoint tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1957,7 +1957,7 @@ class TestHooksEndpoints:
     def test_execute_hook_unsupported_source(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with unsupported source."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1987,7 +1987,7 @@ class TestHooksEndpoints:
     def test_execute_hook_claude_source(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with Claude source."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -2017,7 +2017,7 @@ class TestHooksEndpoints:
     def test_execute_hook_gemini_source(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with Gemini source."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -2045,7 +2045,7 @@ class TestHooksEndpoints:
     def test_execute_hook_codex_source(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with Codex source."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -2083,7 +2083,7 @@ class TestPluginsEndpoints:
     def plugins_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for plugins tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -2126,7 +2126,7 @@ class TestPluginsEndpoints:
     def test_reload_plugin_success(self, session_storage: LocalSessionManager) -> None:
         """Test reload plugin successfully."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -2155,7 +2155,7 @@ class TestPluginsEndpoints:
     def test_reload_plugin_not_found(self, session_storage: LocalSessionManager) -> None:
         """Test reload plugin when plugin not found."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -2190,7 +2190,7 @@ class TestWebhooksEndpoints:
     def webhooks_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for webhooks tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )

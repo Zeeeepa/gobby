@@ -44,7 +44,7 @@ class WebSocketConfig:
     """Configuration for WebSocket server."""
 
     host: str = "localhost"
-    port: int = 8765
+    port: int = 60335
     ping_interval: int = 30  # seconds
     ping_timeout: int = 10  # seconds
     max_message_size: int = 2 * 1024 * 1024  # 2MB
@@ -64,7 +64,7 @@ class WebSocketServer:
 
     Example:
         ```python
-        config = WebSocketConfig(host="0.0.0.0", port=8765)
+        config = WebSocketConfig(host="0.0.0.0", port=60335)
 
         async with WebSocketServer(config, mcp_manager) as server:
             await server.serve_forever()

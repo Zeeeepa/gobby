@@ -235,7 +235,7 @@ Already have `viz.py` generating HTML. Integrate into TUI via:
          │                 │                 │
          ▼                 ▼                 ▼
     ┌─────────┐       ┌─────────┐       ┌─────────┐
-    │ :8765   │       │ :8766   │       │ :8767   │
+    │ :60334  │       │ :60335  │       │ :60336  │
     │ REST    │       │ WS      │       │ Web UI  │
     │ API     │       │ Events  │       │ (PWA)   │
     └────┬────┘       └────┬────┘       └────┬────┘
@@ -318,7 +318,7 @@ Already have `viz.py` generating HTML. Integrate into TUI via:
 | Web Framework | Next.js 14 | SSR, good mobile story, Vercel patterns |
 | Component Library | shadcn/ui | Accessible, matches design system |
 | State Management | TanStack Query | Built-in caching, real-time sync |
-| Real-time | Native WebSocket | Already have port 8766 |
+| Real-time | Native WebSocket | Already have port 60335 |
 | Mobile | PWA | No app store, works offline, push notifications |
 | Remote Access | Cloudflare Tunnel | Secure, free, no port forwarding |
 

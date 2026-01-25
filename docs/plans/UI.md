@@ -573,7 +573,7 @@ const result = await fetch('/mcp/tools/call', {
 
 ### WebSocket Events (Current Implementation)
 
-Real-time updates via WebSocket on port 8766.
+Real-time updates via WebSocket on port 60335.
 
 ```typescript
 // Client subscribes to specific events
@@ -1281,7 +1281,7 @@ The TUI and Web UI serve different purposes and should NOT duplicate complex fea
 | 9 | **Initial Focus** | TUI-first, then Web | Validates patterns before web investment |
 | 10 | **Mobile Access** | PWA + Cloudflare Tunnel | Works offline, remote access, push notifications |
 | 11 | **API Pattern** | REST + MCP Tools | REST for admin, MCP for CRUD operations |
-| 12 | **Real-time** | WebSocket on port 8766 | Already implemented, event subscriptions |
+| 12 | **Real-time** | WebSocket on port 60335 | Already implemented, event subscriptions |
 | 13 | **Remote Auth** | **MANDATORY** token auth | Remote = RCE risk, no "trust tunnel" option |
 | 14 | **Event Wiring** | DataEventBus singleton | MCP tools emit via injected event bus |
 

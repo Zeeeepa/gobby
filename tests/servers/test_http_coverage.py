@@ -58,7 +58,7 @@ def test_project(project_storage: LocalProjectManager, temp_dir: Path) -> dict[s
 def basic_http_server(session_storage: LocalSessionManager) -> HTTPServer:
     """Create a basic HTTP server instance for testing."""
     return HTTPServer(
-        port=8765,
+        port=60334,
         test_mode=True,
         mcp_manager=None,
         config=None,
@@ -428,7 +428,7 @@ class TestAdminEndpoints:
         task_manager = LocalTaskManager(temp_db)
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
             task_manager=task_manager,
@@ -454,7 +454,7 @@ class TestAdminEndpoints:
         }
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
             memory_manager=mock_memory_manager,
@@ -476,7 +476,7 @@ class TestAdminEndpoints:
         mock_memory_manager.get_stats.side_effect = RuntimeError("Memory error")
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
             memory_manager=mock_memory_manager,
@@ -514,7 +514,7 @@ class TestAdminEndpoints:
     def test_config_endpoint_error_handling(self, session_storage: LocalSessionManager) -> None:
         """Test config endpoint handles errors."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -546,7 +546,7 @@ class TestMCPEndpoints:
     def mcp_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for MCP tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -680,7 +680,7 @@ class TestMCPEndpointsWithManager:
     ) -> HTTPServer:
         """Create HTTP server and set mcp_manager after init to avoid GobbyDaemonTools."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -738,7 +738,7 @@ class TestCodeEndpoints:
     def code_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for code endpoint tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -798,7 +798,7 @@ class TestHooksEndpoints:
     def test_execute_hook_with_mock_manager(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with mocked hook manager."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -840,7 +840,7 @@ class TestPluginsEndpoints:
     def plugins_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for plugins tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -865,7 +865,7 @@ class TestPluginsEndpoints:
     ) -> None:
         """Test list plugins with mock hook manager."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -905,7 +905,7 @@ class TestWebhooksEndpoints:
     def webhooks_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for webhooks tests."""
         return HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -928,7 +928,7 @@ class TestWebhooksEndpoints:
     def test_list_webhooks_endpoint_exists(self, session_storage: LocalSessionManager) -> None:
         """Test webhooks endpoint works with minimal config."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -971,7 +971,7 @@ class TestExceptionHandlers:
     ) -> None:
         """Test that global exception handler logs request details."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -998,7 +998,7 @@ class TestExceptionHandlers:
     ) -> None:
         """Test exception handler includes request path in logs."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1026,7 +1026,7 @@ class TestLifespan:
     def test_lifespan_sets_running_flag(self, session_storage: LocalSessionManager) -> None:
         """Test that lifespan sets _running flag."""
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1045,7 +1045,7 @@ class TestLifespan:
         mock_config.logging.backup_count = 3
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
             config=mock_config,
@@ -1150,7 +1150,7 @@ class TestInternalRegistries:
         mock_internal_manager.get_registry.return_value = mock_registry
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1174,7 +1174,7 @@ class TestInternalRegistries:
         mock_internal_manager.get_all_registries.return_value = []
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1195,7 +1195,7 @@ class TestInternalRegistries:
         mock_internal_manager.get_registry.return_value = mock_registry
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1222,7 +1222,7 @@ class TestInternalRegistries:
         mock_internal_manager.get_registry.return_value = mock_registry
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )
@@ -1249,7 +1249,7 @@ class TestInternalRegistries:
         mock_internal_manager.get_registry.return_value = mock_registry
 
         server = HTTPServer(
-            port=8765,
+            port=60334,
             test_mode=True,
             session_manager=session_storage,
         )

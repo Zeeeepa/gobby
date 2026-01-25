@@ -686,7 +686,7 @@ import json
 import sys
 import requests
 
-GOBBY_URL = "http://localhost:8765/hooks/claude"
+GOBBY_URL = "http://localhost:60334/hooks/claude"
 
 def main():
     hook_type = sys.argv[1] if len(sys.argv) > 1 else "unknown"
@@ -715,7 +715,7 @@ import json
 import sys
 import requests
 
-GOBBY_URL = "http://localhost:8765/hooks/gemini"
+GOBBY_URL = "http://localhost:60334/hooks/gemini"
 
 def main():
     hook_type = sys.argv[1] if len(sys.argv) > 1 else "unknown"

@@ -90,7 +90,7 @@ def test_set_workflow_lifecycle_error(
 def test_reload_workflows_success(runner):
     # Mock load_config - imported inside function from gobby.config.app
     with patch("gobby.config.app.load_config") as mock_conf:
-        mock_conf.return_value.daemon_port = 8765
+        mock_conf.return_value.daemon_port = 60334
 
         # Mock psutil - imported inside function
         with patch("psutil.process_iter") as mock_iter:

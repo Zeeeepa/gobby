@@ -228,8 +228,8 @@ uv run gobby status
 pkill -f "gobby.runner"
 
 # Check port availability
-lsof -i :8765
-lsof -i :8766
+lsof -i :60334
+lsof -i :60335
 
 # Check logs
 cat ~/.gobby/logs/gobby-error.log

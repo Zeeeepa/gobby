@@ -25,7 +25,7 @@ Get current daemon status and health information.
   "uptime": "2h 15m 30s",
   "uptime_seconds": 8130,
   "pid": 12345,
-  "port": 8765,
+  "port": 60334,
   "mcp_servers": [{"name": "context7", "state": "connected", ...}],
   "mcp_server_count": 3,
   "formatted_message": "..."

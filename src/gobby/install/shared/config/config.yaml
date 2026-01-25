@@ -1,8 +1,8 @@
-daemon_port: 8765
+daemon_port: 60334
 daemon_health_check_interval: 60.0
 websocket:
   enabled: true
-  port: 8766
+  port: 60335
   ping_interval: 30
   ping_timeout: 10
 logging:

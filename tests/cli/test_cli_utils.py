@@ -376,14 +376,14 @@ class TestWaitForPortAvailable:
     def test_already_available(self):
         """Test immediate return when port is already available."""
         with patch("gobby.cli.utils.is_port_available", return_value=True):
-            result = wait_for_port_available(8765, timeout=1.0)
+            result = wait_for_port_available(60334, timeout=1.0)
             assert result is True
 
     def test_timeout_when_unavailable(self):
         """Test timeout when port stays unavailable."""
         with patch("gobby.cli.utils.is_port_available", return_value=False):
             start = time.time()
-            result = wait_for_port_available(8765, timeout=0.3)
+            result = wait_for_port_available(60334, timeout=0.3)
             elapsed = time.time() - start
             assert result is False
             assert elapsed >= 0.3
@@ -398,7 +398,7 @@ class TestWaitForPortAvailable:
             return call_count[0] >= 3
 
         with patch("gobby.cli.utils.is_port_available", side_effect=mock_is_available):
-            result = wait_for_port_available(8765, timeout=5.0)
+            result = wait_for_port_available(60334, timeout=5.0)
             assert result is True
 
 
@@ -449,8 +449,8 @@ class TestKillAllGobbyDaemons:
         """Test when no gobby daemons are running."""
         with patch("psutil.process_iter", return_value=[]):
             with patch("gobby.cli.utils.load_config") as mock_config:
-                mock_config.return_value = MagicMock(daemon_port=8765)
-                mock_config.return_value.websocket.port = 8766
+                mock_config.return_value = MagicMock(daemon_port=60334)
+                mock_config.return_value.websocket.port = 60335
                 result = kill_all_gobby_daemons()
                 assert result == 0
 
@@ -464,8 +464,8 @@ class TestKillAllGobbyDaemons:
 
         with patch("psutil.process_iter", return_value=[mock_proc]):
             with patch("gobby.cli.utils.load_config") as mock_config:
-                mock_config.return_value = MagicMock(daemon_port=8765)
-                mock_config.return_value.websocket.port = 8766
+                mock_config.return_value = MagicMock(daemon_port=60334)
+                mock_config.return_value.websocket.port = 60335
                 with patch("os.getpid", return_value=99999):
                     with patch("os.getppid", return_value=99998):
                         result = kill_all_gobby_daemons()
@@ -481,8 +481,8 @@ class TestKillAllGobbyDaemons:
 
         with patch("psutil.process_iter", return_value=[mock_proc]):
             with patch("gobby.cli.utils.load_config") as mock_config:
-                mock_config.return_value = MagicMock(daemon_port=8765)
-                mock_config.return_value.websocket.port = 8766
+                mock_config.return_value = MagicMock(daemon_port=60334)
+                mock_config.return_value.websocket.port = 60335
                 with patch("os.getpid", return_value=99999):
                     with patch("os.getppid", return_value=99998):
                         result = kill_all_gobby_daemons()
