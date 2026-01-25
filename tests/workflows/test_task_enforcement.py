@@ -2336,6 +2336,7 @@ class TestBlockTools:
             variables={},
         )
 
+    @pytest.mark.asyncio
     async def test_block_tools_no_rules(self, workflow_state):
         """Returns None when no rules are provided."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2347,6 +2348,7 @@ class TestBlockTools:
         )
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_block_tools_no_event_data(self, workflow_state):
         """Returns None when no event_data is provided."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2358,6 +2360,7 @@ class TestBlockTools:
         )
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_block_tools_blocks_matching_tool(self, workflow_state):
         """Blocks tool when it matches a rule."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2379,6 +2382,7 @@ class TestBlockTools:
         assert result["decision"] == "block"
         assert "CC native task tools are disabled" in result["reason"]
 
+    @pytest.mark.asyncio
     async def test_block_tools_allows_non_matching_tool(self, workflow_state):
         """Allows tool when it doesn't match any rule."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2398,6 +2402,7 @@ class TestBlockTools:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_block_tools_with_condition_true(self, workflow_state):
         """Blocks tool when condition evaluates to true."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2423,6 +2428,7 @@ class TestBlockTools:
         assert result["decision"] == "block"
         assert "Task Required" in result["reason"]
 
+    @pytest.mark.asyncio
     async def test_block_tools_with_condition_false(self, workflow_state):
         """Allows tool when condition evaluates to false."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2446,6 +2452,7 @@ class TestBlockTools:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_block_tools_plan_mode_allows_edit(self, workflow_state):
         """Allows edit tools when in plan mode."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2469,6 +2476,7 @@ class TestBlockTools:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_block_tools_multiple_rules(self, workflow_state):
         """First matching rule blocks the tool."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2506,6 +2514,7 @@ class TestBlockTools:
         assert result is not None
         assert "Task required for edits" in result["reason"]
 
+    @pytest.mark.asyncio
     async def test_block_tools_invalid_condition(self, workflow_state):
         """Invalid condition returns False (allows tool)."""
         from gobby.workflows.task_enforcement_actions import block_tools
@@ -2527,6 +2536,7 @@ class TestBlockTools:
         # Invalid condition should return False, so tool is allowed
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_block_tools_no_workflow_state(self):
         """Works without workflow state (condition always matches if no condition)."""
         from gobby.workflows.task_enforcement_actions import block_tools

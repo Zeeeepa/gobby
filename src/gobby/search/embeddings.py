@@ -118,7 +118,7 @@ async def generate_embedding(
         api_key=api_key,
     )
     if not embeddings:
-        raise ValueError(
+        raise RuntimeError(
             f"Embedding API returned empty result for model={model}, "
             f"api_base={api_base}, api_key={'[set]' if api_key else '[not set]'}"
         )

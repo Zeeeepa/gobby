@@ -262,6 +262,13 @@ Search for tasks with `__diag__` prefix:
 gobby-tasks.list_tasks()
 ```
 For each task with title starting with `__diag__`:
+```
+gobby-tasks.close_task(task_id=<id>, reason="obsolete")
+```
+Or for hard deletion:
+```
+gobby-tasks.delete_task(task_id=<id>)
+```
 
 ### Step 4: Clean Memories
 Search for memories with `__diag__` tag:
