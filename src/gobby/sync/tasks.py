@@ -299,7 +299,14 @@ class TaskSyncManager:
 
                         data = json.loads(line)
                         task_id = data["id"]
-                        updated_at_file = _parse_timestamp(data["updated_at"])
+                        # Guard against None/missing updated_at in JSONL
+                        raw_updated_at = data.get("updated_at")
+                        if raw_updated_at is None:
+                            # Skip tasks without timestamps or use a safe default
+                            logger.warning(f"Task {task_id} missing updated_at, skipping")
+                            skipped_count += 1
+                            continue
+                        updated_at_file = _parse_timestamp(raw_updated_at)
 
                         # Check if task exists (also fetch seq_num/path_cache to preserve)
                         existing_row = self.db.fetchone(
@@ -314,7 +321,12 @@ class TaskSyncManager:
                             should_update = True
                             imported_count += 1
                         else:
-                            updated_at_db = _parse_timestamp(existing_row["updated_at"])
+                            # Handle NULL timestamps in DB (treat as infinitely old)
+                            db_updated_at = existing_row["updated_at"]
+                            if db_updated_at is None:
+                                updated_at_db = datetime.min.replace(tzinfo=UTC)
+                            else:
+                                updated_at_db = _parse_timestamp(db_updated_at)
                             existing_seq_num = existing_row["seq_num"]
                             existing_path_cache = existing_row["path_cache"]
                             if updated_at_file > updated_at_db:
