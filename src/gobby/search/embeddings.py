@@ -166,10 +166,15 @@ def is_embedding_available(
         return True
 
     # Check for Ollama-style models that use local endpoints
-    if model.startswith("openai/") or model.startswith("ollama/"):
-        # These models typically use local Ollama - assume available
+    if model.startswith("ollama/"):
+        # Native Ollama models - assume available locally
         # In practice, we'll catch connection errors at runtime
         return True
+
+    # openai/ prefix models require OpenAI API key
+    if model.startswith("openai/"):
+        effective_key = api_key or os.environ.get("OPENAI_API_KEY")
+        return effective_key is not None and len(effective_key) > 0
 
     # Cloud models need API key
     effective_key = api_key

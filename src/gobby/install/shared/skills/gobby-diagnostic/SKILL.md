@@ -159,17 +159,19 @@ Store returned `task_id` in `cleanup_tracker["tasks"]`.
 
 **Close:** Call `gobby-tasks.close_task(task_id=<id>, reason="completed")`
 
-### 3.3 Workflow Variable Cycle (session-scoped, no cleanup needed)
+### 3.3 Workflow Variable Cycle (session-scoped, auto-cleaned on session termination)
+
+**Note:** Workflow variables are session-scoped and automatically cleaned up when the session ends. No `__diag__` prefix needed since they don't persist beyond the session.
 
 **Set:**
 ```
 gobby-workflows.set_variable(
-    name="__diag__test_var",
+    name="diag_test_var",
     value="diagnostic_value"
 )
 ```
 
-**Get:** Call `gobby-workflows.get_variable(name="__diag__test_var")` - should return "diagnostic_value".
+**Get:** Call `gobby-workflows.get_variable(name="diag_test_var")` - should return "diagnostic_value".
 
 Report summary: "Write+Cleanup: X/3 PASS"
 

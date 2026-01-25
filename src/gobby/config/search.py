@@ -97,5 +97,14 @@ class SearchConfig(BaseModel):
 
         Returns:
             SearchMode enum corresponding to the mode string value
+
+        Raises:
+            ValueError: If the configured mode is not a valid SearchMode
         """
-        return SearchMode(self.mode)
+        try:
+            return SearchMode(self.mode)
+        except ValueError as e:
+            valid_modes = [m.value for m in SearchMode]
+            raise ValueError(
+                f"Invalid search mode '{self.mode}'. Valid modes are: {', '.join(valid_modes)}"
+            ) from e
