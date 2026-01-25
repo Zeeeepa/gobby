@@ -49,7 +49,9 @@ def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
                             extracted = []
                             for item in content:
                                 if isinstance(item, dict):
-                                    extracted.append(item.get("text", "") or item.get("content", ""))
+                                    extracted.append(
+                                        item.get("text", "") or item.get("content", "")
+                                    )
                                 else:
                                     extracted.append(str(item))
                             content = " ".join(extracted)

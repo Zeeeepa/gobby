@@ -327,9 +327,7 @@ class UnifiedSearcher:
             # Verify embedding backend is actually fitted
             embedding_backend = self._get_embedding_backend()
             if embedding_backend.needs_refit():
-                logger.warning(
-                    "Embedding backend needs refit. Falling back to TF-IDF."
-                )
+                logger.warning("Embedding backend needs refit. Falling back to TF-IDF.")
                 await self._fallback_to_tfidf("Embedding backend not properly fitted")
                 return await self._get_tfidf_backend().search_async(query, top_k)
             return await embedding_backend.search_async(query, top_k)
