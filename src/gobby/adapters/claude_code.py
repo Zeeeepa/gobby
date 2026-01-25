@@ -233,7 +233,10 @@ class ClaudeCodeAdapter(BaseAdapter):
                 additional_context_parts.append("\n".join(context_lines))
 
         # Build hookSpecificOutput if we have any context to inject
-        if additional_context_parts:
+        # Only include hookSpecificOutput for hook types that Claude Code's schema accepts
+        # Valid hookEventName values: PreToolUse, UserPromptSubmit, PostToolUse
+        valid_hook_event_names = {"PreToolUse", "UserPromptSubmit", "PostToolUse"}
+        if additional_context_parts and hook_event_name in valid_hook_event_names:
             result["hookSpecificOutput"] = {
                 "hookEventName": hook_event_name,
                 "additionalContext": "\n\n".join(additional_context_parts),
