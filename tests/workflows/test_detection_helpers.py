@@ -142,7 +142,9 @@ class TestDetectPlanModeFromContext:
 
     def test_detects_you_are_in_plan_mode(self, workflow_state, make_before_agent_event):
         """Detects 'You are in plan mode' in prompt."""
-        event = make_before_agent_event("You are in plan mode. Please continue planning.")
+        event = make_before_agent_event(
+            "<system-reminder>You are in plan mode</system-reminder>. Please continue planning."
+        )
 
         detect_plan_mode_from_context(event, workflow_state)
 
@@ -151,7 +153,9 @@ class TestDetectPlanModeFromContext:
     def test_detects_exited_plan_mode(self, workflow_state, make_before_agent_event):
         """Detects 'Exited Plan Mode' in prompt."""
         workflow_state.variables["plan_mode"] = True
-        event = make_before_agent_event("Exited Plan Mode. Now implement the changes.")
+        event = make_before_agent_event(
+            "<system-reminder>Exited Plan Mode</system-reminder>. Now implement the changes."
+        )
 
         detect_plan_mode_from_context(event, workflow_state)
 
