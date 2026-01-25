@@ -65,8 +65,8 @@ class TestInstallSharedContent:
         assert (project_path / ".gobby" / "workflows" / "plan-execute.yaml").exists()
         assert (project_path / ".gobby" / "workflows" / "test-driven.yaml").exists()
 
-    def test_install_shared_workflows_skips_directories(self, temp_dir: Path):
-        """Test that directories in workflows folder are skipped."""
+    def test_install_shared_workflows_copies_subdirectories(self, temp_dir: Path):
+        """Test that subdirectories in workflows folder are copied."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
         workflows_dir = shared_dir / "workflows"
@@ -74,8 +74,8 @@ class TestInstallSharedContent:
 
         # Create a file and a directory
         (workflows_dir / "valid.yaml").write_text("name: valid")
-        (workflows_dir / "subdir").mkdir()
-        (workflows_dir / "subdir" / "nested.yaml").write_text("name: nested")
+        (workflows_dir / "lifecycle").mkdir()
+        (workflows_dir / "lifecycle" / "session.yaml").write_text("name: session")
 
         cli_path = temp_dir / ".claude"
         project_path = temp_dir / "project"
@@ -87,7 +87,8 @@ class TestInstallSharedContent:
             result = install_shared_content(cli_path, project_path)
 
         assert "valid.yaml" in result["workflows"]
-        assert "subdir" not in result["workflows"]
+        assert "lifecycle/" in result["workflows"]
+        assert (project_path / ".gobby" / "workflows" / "lifecycle" / "session.yaml").exists()
 
     def test_install_shared_plugins(self, temp_dir: Path):
         """Test installing shared plugins to ~/.gobby/plugins/."""
@@ -962,8 +963,8 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to write" in result["error"]
 
-    def test_install_cli_workflows_skips_directories(self, temp_dir: Path):
-        """Test that directories in CLI workflows folder are skipped."""
+    def test_install_cli_workflows_copies_subdirectories(self, temp_dir: Path):
+        """Test that subdirectories in CLI workflows folder are copied."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "claude"
         workflows_dir = cli_dir / "workflows"
@@ -971,7 +972,8 @@ class TestEdgeCases:
 
         # Create a file and a directory
         (workflows_dir / "valid.yaml").write_text("name: valid")
-        (workflows_dir / "subdir").mkdir()
+        (workflows_dir / "lifecycle").mkdir()
+        (workflows_dir / "lifecycle" / "session.yaml").write_text("name: session")
 
         target_path = temp_dir / ".claude"
         target_path.mkdir(parents=True)
@@ -981,5 +983,5 @@ class TestEdgeCases:
             result = install_cli_content("claude", target_path)
 
         assert "valid.yaml" in result["workflows"]
-        # subdir should not be in list
-        assert "subdir" not in result["workflows"]
+        assert "lifecycle/" in result["workflows"]
+        assert (target_path / "workflows" / "lifecycle" / "session.yaml").exists()
