@@ -22,6 +22,38 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def _is_plan_file(file_path: str, source: str | None = None) -> bool:
+    """Check if file path is a Claude Code plan file (platform-agnostic).
+
+    Only exempts plan files for Claude Code sessions to avoid accidental
+    exemptions for Gemini/Codex users.
+
+    The pattern `/.claude/plans/` matches paths like:
+    - Unix: /Users/xxx/.claude/plans/file.md  (the / comes from xxx/)
+    - Windows: C:/Users/xxx/.claude/plans/file.md  (after normalization)
+
+    Args:
+        file_path: The file path being edited
+        source: CLI source (e.g., "claude", "gemini", "codex")
+
+    Returns:
+        True if this is a CC plan file that should be exempt from task requirement
+    """
+    if not file_path:
+        return False
+    # Only exempt for Claude Code sessions
+    if source and source != "claude":
+        return False
+    # Normalize path separators (Windows backslash to forward slash)
+    normalized = file_path.replace("\\", "/")
+    return "/.claude/plans/" in normalized
+
+
+# =============================================================================
 # Block Tools Action (Unified Tool Blocking)
 # =============================================================================
 
@@ -80,6 +112,7 @@ def _evaluate_block_condition(
         "bool": bool,
         "str": str,
         "int": int,
+        "is_plan_file": _is_plan_file,
     }
 
     try:

@@ -257,7 +257,7 @@ class TestListMCPTools:
         """Test listing tools when MCP manager is not available."""
         response = client.get("/mcp/test-server/tools")
         assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]
+        assert "MCP manager not available" in response.json()["detail"]["error"]
 
     def test_list_tools_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from internal server."""
@@ -295,7 +295,7 @@ class TestListMCPTools:
 
         # Returns 503 because mcp_manager is None
         assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]
+        assert "MCP manager not available" in response.json()["detail"]["error"]
 
     def test_list_tools_external_server_not_configured(
         self, session_storage: LocalSessionManager
@@ -312,7 +312,7 @@ class TestListMCPTools:
             response = client.get("/mcp/unknown-server/tools")
 
         assert response.status_code == 404
-        assert "Unknown MCP server" in response.json()["detail"]
+        assert "Unknown MCP server" in response.json()["detail"]["error"]
 
     def test_list_tools_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from external server."""
@@ -358,7 +358,7 @@ class TestListMCPTools:
             response = client.get("/mcp/failing-server/tools")
 
         assert response.status_code == 503
-        assert "connection failed" in response.json()["detail"]
+        assert "connection failed" in response.json()["detail"]["error"]
 
     def test_list_tools_external_server_list_tools_failure(
         self, session_storage: LocalSessionManager
@@ -384,7 +384,7 @@ class TestListMCPTools:
             response = client.get("/mcp/error-server/tools")
 
         assert response.status_code == 500
-        assert "Failed to list tools" in response.json()["detail"]
+        assert "Failed to list tools" in response.json()["detail"]["error"]
 
     def test_list_tools_with_input_schema_dict(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools with inputSchema as dict."""
@@ -724,7 +724,7 @@ class TestGetToolSchema:
         """Test getting schema with missing required fields."""
         response = client.post("/mcp/tools/schema", json={"server_name": "test"})
         assert response.status_code == 400
-        assert "server_name, tool_name" in response.json()["detail"]
+        assert "server_name, tool_name" in response.json()["detail"]["error"]
 
     def test_get_schema_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema from internal server."""
@@ -771,7 +771,7 @@ class TestGetToolSchema:
             )
 
         assert response.status_code == 404
-        assert "not found" in response.json()["detail"]
+        assert "not found" in response.json()["detail"]["error"]
 
     def test_get_schema_external_server_no_manager(self, client: TestClient) -> None:
         """Test getting schema when MCP manager not available."""
@@ -780,7 +780,7 @@ class TestGetToolSchema:
             json={"server_name": "external-server", "tool_name": "tool"},
         )
         assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]
+        assert "MCP manager not available" in response.json()["detail"]["error"]
 
     def test_get_schema_external_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test getting schema from external server."""
@@ -840,7 +840,7 @@ class TestCallMCPTool:
         """Test calling tool with missing required fields."""
         response = client.post("/mcp/tools/call", json={"tool_name": "test"})
         assert response.status_code == 400
-        assert "server_name" in response.json()["detail"]
+        assert "server_name" in response.json()["detail"]["error"]
 
     def test_call_tool_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server."""
@@ -974,7 +974,7 @@ class TestAddMCPServer:
         """Test adding server with missing required fields."""
         response = client.post("/mcp/servers", json={"name": "test-server"})
         assert response.status_code == 400
-        assert "transport" in response.json()["detail"]
+        assert "transport" in response.json()["detail"]["error"]
 
     def test_add_server_no_project_context(self, session_storage: LocalSessionManager) -> None:
         """Test adding server without project context."""
@@ -999,7 +999,7 @@ class TestAddMCPServer:
             )
 
         assert response.status_code == 400
-        assert "No current project" in response.json()["detail"]
+        assert "No current project" in response.json()["detail"]["error"]
 
     def test_add_server_no_mcp_manager(self, session_storage: LocalSessionManager) -> None:
         """Test adding server when MCP manager not available."""
@@ -1026,7 +1026,7 @@ class TestAddMCPServer:
             )
 
         assert response.status_code == 503
-        assert "MCP manager not available" in response.json()["detail"]
+        assert "MCP manager not available" in response.json()["detail"]["error"]
 
     def test_add_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test adding server successfully."""
@@ -1137,7 +1137,7 @@ class TestRemoveMCPServer:
         response = client.delete("/mcp/servers/test-server")
         # The HTTPException is caught and re-raised as 500 in the except block
         assert response.status_code == 500
-        assert "MCP manager not available" in response.json()["detail"]
+        assert "MCP manager not available" in response.json()["detail"]["error"]
 
     def test_remove_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test removing server successfully."""
@@ -1187,7 +1187,7 @@ class TestImportMCPServer:
         """Test importing server without specifying source."""
         response = client.post("/mcp/servers/import", json={})
         assert response.status_code == 400
-        assert "at least one" in response.json()["detail"]
+        assert "at least one" in response.json()["detail"]["error"]
 
     def test_import_server_no_project_context(self, session_storage: LocalSessionManager) -> None:
         """Test importing server without project context."""
@@ -1207,7 +1207,7 @@ class TestImportMCPServer:
             )
 
         assert response.status_code == 400
-        assert "No current project" in response.json()["detail"]
+        assert "No current project" in response.json()["detail"]["error"]
 
     # Note: Server import tests with complex config are tested via integration tests
     # as they require proper lifespan initialization with config
@@ -1225,7 +1225,7 @@ class TestRecommendMCPTools:
         """Test recommending tools without task description."""
         response = client.post("/mcp/tools/recommend", json={})
         assert response.status_code == 400
-        assert "task_description" in response.json()["detail"]
+        assert "task_description" in response.json()["detail"]["error"]
 
     def test_recommend_tools_no_handler(self, session_storage: LocalSessionManager) -> None:
         """Test recommending tools when handler not available."""
@@ -1321,7 +1321,7 @@ class TestSearchMCPTools:
         """Test searching tools without query."""
         response = client.post("/mcp/tools/search", json={})
         assert response.status_code == 400
-        assert "query" in response.json()["detail"]
+        assert "query" in response.json()["detail"]["error"]
 
     def test_search_tools_project_resolution_failure(
         self, session_storage: LocalSessionManager
@@ -1583,7 +1583,7 @@ class TestMCPProxy:
             headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 400
-        assert "Invalid JSON" in response.json()["detail"]
+        assert "Invalid JSON" in response.json()["detail"]["error"]
 
     def test_proxy_internal_server_success(self, session_storage: LocalSessionManager) -> None:
         """Test proxy to internal server."""

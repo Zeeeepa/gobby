@@ -77,10 +77,7 @@ def detect_task_claim(
         # Clear task_claimed on successful close
         state.variables["task_claimed"] = False
         state.variables["claimed_task_id"] = None
-        logger.info(
-            f"Session {state.session_id}: task_claimed=False "
-            f"(detected close_task success)"
-        )
+        logger.info(f"Session {state.session_id}: task_claimed=False (detected close_task success)")
         return
 
     if inner_tool_name not in ("create_task", "update_task", "claim_task"):
@@ -168,6 +165,9 @@ def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") ->
     enters plan mode via the UI (not via the EnterPlanMode tool). This function
     detects those reminders and sets the plan_mode variable accordingly.
 
+    IMPORTANT: Only matches indicators within <system-reminder> tags to avoid
+    false positives from handoff context or user messages that mention plan mode.
+
     This complements detect_plan_mode() which only catches programmatic tool calls.
 
     Args:
@@ -180,6 +180,13 @@ def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") ->
     # Check for plan mode system reminder in the prompt
     prompt = event.data.get("prompt", "") or ""
 
+    # Extract only content within <system-reminder> tags to avoid false positives
+    # from handoff context or user messages mentioning plan mode
+    import re
+
+    system_reminders = re.findall(r"<system-reminder>(.*?)</system-reminder>", prompt, re.DOTALL)
+    reminder_text = " ".join(system_reminders)
+
     # Claude Code injects these phrases in system reminders when plan mode is active
     plan_mode_indicators = [
         "Plan mode is active",
@@ -187,9 +194,9 @@ def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") ->
         "You are in plan mode",
     ]
 
-    # Check if plan mode is indicated in the prompt
+    # Check if plan mode is indicated in system reminders only
     for indicator in plan_mode_indicators:
-        if indicator in prompt:
+        if indicator in reminder_text:
             if not state.variables.get("plan_mode"):
                 state.variables["plan_mode"] = True
                 logger.info(
@@ -198,14 +205,14 @@ def detect_plan_mode_from_context(event: "HookEvent", state: "WorkflowState") ->
                 )
             return
 
-    # Detect exit from plan mode
+    # Detect exit from plan mode (also only in system reminders)
     exit_indicators = [
         "Exited Plan Mode",
         "Plan mode exited",
     ]
 
     for indicator in exit_indicators:
-        if indicator in prompt:
+        if indicator in reminder_text:
             if state.variables.get("plan_mode"):
                 state.variables["plan_mode"] = False
                 logger.info(

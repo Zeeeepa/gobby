@@ -580,7 +580,7 @@ class TestMCPEndpoints:
             json={"tool_name": "test-tool"},  # missing server_name
         )
         assert response.status_code == 400
-        assert "server_name" in response.json()["detail"]
+        assert "server_name" in response.json()["detail"]["error"]
 
     def test_get_tool_schema_missing_fields(self, mcp_client: TestClient) -> None:
         """Test getting tool schema with missing fields."""
@@ -597,7 +597,7 @@ class TestMCPEndpoints:
             json={"search_mode": "llm"},
         )
         assert response.status_code == 400
-        assert "task_description" in response.json()["detail"]
+        assert "task_description" in response.json()["detail"]["error"]
 
     def test_search_tools_missing_query(self, mcp_client: TestClient) -> None:
         """Test search tools with missing query."""
@@ -606,7 +606,7 @@ class TestMCPEndpoints:
             json={},
         )
         assert response.status_code == 400
-        assert "query" in response.json()["detail"]
+        assert "query" in response.json()["detail"]["error"]
 
     def test_proxy_invalid_json(self, mcp_client: TestClient) -> None:
         """Test MCP proxy with invalid JSON body."""
@@ -616,7 +616,7 @@ class TestMCPEndpoints:
             headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 400
-        assert "Invalid JSON" in response.json()["detail"]
+        assert "Invalid JSON" in response.json()["detail"]["error"]
 
     def test_add_server_missing_fields(self, mcp_client: TestClient) -> None:
         """Test adding server with missing required fields."""
@@ -625,7 +625,7 @@ class TestMCPEndpoints:
             json={"name": "test-server"},  # missing transport
         )
         assert response.status_code == 400
-        assert "transport" in response.json()["detail"]
+        assert "transport" in response.json()["detail"]["error"]
 
     def test_import_server_missing_source(self, mcp_client: TestClient) -> None:
         """Test import server with no source specified."""
@@ -634,7 +634,7 @@ class TestMCPEndpoints:
             json={},
         )
         assert response.status_code == 400
-        assert "at least one" in response.json()["detail"]
+        assert "at least one" in response.json()["detail"]["error"]
 
     def test_list_tools_external_server_not_found(self, mcp_client: TestClient) -> None:
         """Test listing tools for unknown external server."""
