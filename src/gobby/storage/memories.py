@@ -201,6 +201,26 @@ class LocalMemoryManager:
         row = self.db.fetchone("SELECT 1 FROM memories WHERE id = ?", (memory_id,))
         return row is not None
 
+    def get_memory_by_content(self, content: str, project_id: str | None = None) -> Memory | None:
+        """Get a memory by its exact content, using the content-derived ID.
+
+        This provides a reliable way to fetch an existing memory without
+        relying on search result ordering.
+
+        Args:
+            content: The exact content to look up (will be normalized)
+            project_id: Optional project ID for scoping
+
+        Returns:
+            The Memory object if found, None otherwise
+        """
+        # Normalize content same way as ID generation in create_memory
+        normalized_content = content.strip()
+        project_str = project_id if project_id else ""
+        memory_id = generate_prefixed_id("mm", normalized_content + project_str)
+
+        return self.get_memory(memory_id)
+
     def update_memory(
         self,
         memory_id: str,

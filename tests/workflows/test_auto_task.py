@@ -397,8 +397,8 @@ class TestActivateWorkflowWithVariables:
 
         assert result["success"] is True
         assert result["workflow"] == "auto-task"
-        # Note: project's .gobby/workflows/auto-task.yaml uses "work" as first step
-        # (project workflows take precedence over shared workflows)
+        # Note: This test loads the shared workflow from src/gobby/install/shared/workflows
+        # which defines "work" as the first step
         assert result["step"] == "work"
         assert result["variables"]["session_task"] == "gt-abc123"
 

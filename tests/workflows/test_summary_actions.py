@@ -271,7 +271,7 @@ class TestFormatTurnsForLlm:
             }
         ]
         result = format_turns_for_llm(turns)
-        assert "[Turn 1 - user]: [Result: File contents here...]" in result
+        assert "[Turn 1 - user]: [Result: File contents here]" in result
 
     def test_format_tool_result_truncates_long_content(self):
         """Test that tool_result content is truncated to 100 chars."""

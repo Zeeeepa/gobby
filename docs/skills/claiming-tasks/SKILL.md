@@ -43,7 +43,7 @@ result = call_tool("gobby-tasks", "suggest_next_task", {
 
 # Claim it (sets status to in_progress and assignee to your session)
 call_tool("gobby-tasks", "claim_task", {
-    "task_id": result["ref"],
+    "task_id": result["suggestion"]["ref"],
     "session_id": "<your_session_id>"
 })
 ```
