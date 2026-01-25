@@ -65,6 +65,7 @@ def _evaluate_block_condition(
     tool_input: dict[str, Any] | None = None,
     session_has_dirty_files: bool = False,
     task_has_commits: bool = False,
+    source: str | None = None,
 ) -> bool:
     """
     Evaluate a blocking rule condition against workflow state.
@@ -76,6 +77,7 @@ def _evaluate_block_condition(
     - tool_input: the tool's input arguments (for MCP tool checks)
     - session_has_dirty_files: whether session has NEW dirty files (beyond baseline)
     - task_has_commits: whether the current task has linked commits
+    - source: CLI source (e.g., "claude", "gemini", "codex")
 
     Args:
         condition: Python expression to evaluate
@@ -84,6 +86,7 @@ def _evaluate_block_condition(
         tool_input: Tool input arguments (for MCP tools, this is the 'arguments' field)
         session_has_dirty_files: Whether session has dirty files beyond baseline
         task_has_commits: Whether claimed task has linked commits
+        source: CLI source identifier
 
     Returns:
         True if condition matches (tool should be blocked), False otherwise.
@@ -101,6 +104,7 @@ def _evaluate_block_condition(
         "tool_input": tool_input or {},
         "session_has_dirty_files": session_has_dirty_files,
         "task_has_commits": task_has_commits,
+        "source": source or "",
     }
 
     # Allowed globals for safe evaluation
@@ -130,6 +134,7 @@ async def block_tools(
     workflow_state: "WorkflowState | None" = None,
     project_path: str | None = None,
     task_manager: "LocalTaskManager | None" = None,
+    source: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """
@@ -150,6 +155,7 @@ async def block_tools(
       - tool_input: the MCP tool's arguments (for checking commit_sha etc.)
       - session_has_dirty_files: whether session has NEW dirty files beyond baseline
       - task_has_commits: whether the claimed task has linked commits
+      - source: CLI source (e.g., "claude", "gemini", "codex")
 
     Args:
         rules: List of blocking rules
@@ -157,6 +163,7 @@ async def block_tools(
         workflow_state: For evaluating conditions
         project_path: Path to project for git status checks
         task_manager: For checking task commit status
+        source: CLI source identifier (for is_plan_file checks)
 
     Returns:
         Dict with decision="block" and reason if blocked, None to allow.
@@ -251,6 +258,7 @@ async def block_tools(
                 tool_input=eval_tool_input,
                 session_has_dirty_files=session_has_dirty_files,
                 task_has_commits=task_has_commits,
+                source=source,
             ):
                 continue
 

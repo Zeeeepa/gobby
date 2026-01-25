@@ -896,11 +896,18 @@ class ActionExecutor:
         For MCP tool blocking (mcp_tools rules), also passes:
         - project_path: for checking dirty files in git status
         - task_manager: for checking if claimed task has commits
+        - source: CLI source for is_plan_file checks
         """
         # Get project_path for git dirty file checks
         project_path = kwargs.get("project_path")
         if not project_path and context.event_data:
             project_path = context.event_data.get("cwd")
+
+        # Get source from session for is_plan_file checks
+        source = None
+        current_session = context.session_manager.get(context.session_id)
+        if current_session:
+            source = current_session.source
 
         return await block_tools(
             rules=kwargs.get("rules"),
@@ -908,6 +915,7 @@ class ActionExecutor:
             workflow_state=context.state,
             project_path=project_path,
             task_manager=self.task_manager,
+            source=source,
         )
 
     async def _handle_require_active_task(
