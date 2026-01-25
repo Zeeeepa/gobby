@@ -350,7 +350,15 @@ class SessionMemoryExtractor:
                 if memory_type not in ("fact", "pattern", "preference", "context"):
                     memory_type = "fact"
 
-                importance = float(item.get("importance", 0.7))
+                raw_importance = item.get("importance", 0.7)
+                try:
+                    importance = float(raw_importance)
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Invalid importance value '{raw_importance}' in memory item "
+                        f"(content: {content[:50]}...): {e}. Using default 0.7"
+                    )
+                    importance = 0.7
                 importance = max(0.0, min(1.0, importance))
 
                 tags = item.get("tags", [])

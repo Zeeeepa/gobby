@@ -47,11 +47,12 @@ Returns skill names and descriptions (~100 tokens/skill). Use `get_skill(name=".
 **Before editing any files**, you must have an active task:
 
 ```python
-# Create new task (automatically sets status to in_progress)
+# Create new task and auto-claim it (sets status to in_progress)
 call_tool("gobby-tasks", "create_task", {
     "title": "Your task title",
     "task_type": "task",  # or bug, feature, epic
-    "session_id": "<your_session_id>"
+    "session_id": "<your_session_id>",
+    "claim": True  # Auto-claim sets status to in_progress
 })
 ```
 

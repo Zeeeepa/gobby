@@ -135,8 +135,12 @@ class EmbeddingBackend:
             self._fitted = True
             logger.info(f"Embedding index built with {len(items)} items")
         except Exception as e:
-            logger.error(f"Failed to build embedding index: {e}")
+            # Clear stale state to prevent inconsistent data
+            self._item_ids = []
+            self._item_contents = {}
+            self._item_embeddings = []
             self._fitted = False
+            logger.error(f"Failed to build embedding index: {e}")
             raise
 
     async def search_async(
