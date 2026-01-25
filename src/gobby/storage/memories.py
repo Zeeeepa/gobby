@@ -139,9 +139,11 @@ class LocalMemoryManager:
         media: str | None = None,
     ) -> Memory:
         now = datetime.now(UTC).isoformat()
-        # Ensure consistent ID for same content/project to avoid dupes?
-        # Actually random/content-based might be better. Let's use content.
-        memory_id = generate_prefixed_id("mm", content + str(project_id))
+        # Normalize content for consistent ID generation (avoid duplicates from
+        # whitespace differences or project_id inconsistency)
+        normalized_content = content.strip()
+        project_str = project_id if project_id else ""
+        memory_id = generate_prefixed_id("mm", normalized_content + project_str)
 
         # Check if memory already exists to avoid duplicate insert errors
         existing_row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))
@@ -190,16 +192,13 @@ class LocalMemoryManager:
 
     def content_exists(self, content: str, project_id: str | None = None) -> bool:
         """Check if a memory with identical content already exists."""
-        if project_id:
-            row = self.db.fetchone(
-                "SELECT 1 FROM memories WHERE content = ? AND project_id = ?",
-                (content, project_id),
-            )
-        else:
-            row = self.db.fetchone(
-                "SELECT 1 FROM memories WHERE content = ? AND project_id IS NULL",
-                (content,),
-            )
+        # Normalize content same way as ID generation in create_memory
+        normalized_content = content.strip()
+        project_str = project_id if project_id else ""
+        memory_id = generate_prefixed_id("mm", normalized_content + project_str)
+
+        # Check by ID (content-hash based) for consistent dedup
+        row = self.db.fetchone("SELECT 1 FROM memories WHERE id = ?", (memory_id,))
         return row is not None
 
     def update_memory(
