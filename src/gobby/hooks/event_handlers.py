@@ -221,8 +221,7 @@ class EventHandlers:
                             self.logger.warning(f"Workflow error: {e}")
 
                     # Build system message (terminal display only)
-                    system_message = "\nSession enhanced by gobby."
-                    system_message += f"\nGobby Session ID: {session_id}"
+                    system_message = f"\nGobby Session ID: {session_id}"
                     system_message += f"\nExternal ID: {external_id}"
                     if parent_session_id:
                         context_parts.append(f"Parent session: {parent_session_id}")
@@ -322,8 +321,7 @@ class EventHandlers:
             context_parts.append(f"Parent session: {parent_session_id}")
 
         # Build system message (terminal display only)
-        system_message = "\nSession enhanced by gobby."
-        system_message += f"\nGobby Session ID: {session_id}"
+        system_message = f"\nGobby Session ID: {session_id}"
         system_message += f"\nExternal ID: {external_id}"
         if wf_response.system_message:
             system_message += f"\n\n{wf_response.system_message}"
