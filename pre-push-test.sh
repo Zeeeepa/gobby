@@ -56,22 +56,12 @@ else
 fi
 echo ""
 
-# Pytest - tests with compact output
-echo ">>> Running pytest..."
-if uv run pytest -q --tb=line -rFEw 2>&1 | tee "$REPORTS_DIR/pytest-$TIMESTAMP.txt"; then
+# Pytest - tests with coverage (80% threshold)
+echo ">>> Running pytest with coverage..."
+if uv run pytest -q --tb=line -rFEw --cov=gobby --cov-fail-under=80 --cov-report=term-missing 2>&1 | tee "$REPORTS_DIR/pytest-$TIMESTAMP.txt"; then
     echo "✓ Pytest passed"
 else
     echo "✗ Pytest failed"
-    FAILED=1
-fi
-echo ""
-
-# Coverage - strict 80%
-echo ">>> Checking coverage..."
-if uv run pytest --cov=gobby --cov-fail-under=80 --cov-report=term-missing 2>&1 | tee "$REPORTS_DIR/coverage-$TIMESTAMP.txt"; then
-    echo "✓ Coverage checks passed"
-else
-    echo "✗ Coverage checks failed"
     FAILED=1
 fi
 echo ""
