@@ -81,14 +81,15 @@ See skill: **discovering-tools** for the complete pattern.
 
 ## Task Management
 
-Before editing files, create or claim a task:
+Before using Edit, Write, or NotebookEdit tools, create or claim a task:
 
 ```python
-# Create task (automatically sets status to in_progress)
+# Create task and claim it (sets status to in_progress)
 call_tool("gobby-tasks", "create_task", {
     "title": "Fix bug",
     "task_type": "bug",
-    "session_id": "<your_session_id>"  # From SessionStart context
+    "session_id": "<your_session_id>",  # From SessionStart context
+    "claim": true  # Required to auto-claim the task
 })
 
 # Or claim an existing task

@@ -353,9 +353,9 @@ async def block_tools(
 
     Example rule with condition:
         {
-            "tools": ["Edit", "Write"],
+            "tools": ["Edit", "Write", "NotebookEdit"],
             "when": "not task_claimed and not plan_mode",
-            "reason": "Claim a task before editing files."
+            "reason": "Claim a task before using Edit, Write, or NotebookEdit tools."
         }
 
     Example rule (MCP tools):

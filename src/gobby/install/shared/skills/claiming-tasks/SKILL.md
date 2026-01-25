@@ -1,18 +1,18 @@
 ---
 name: claiming-tasks
-description: Quick reference when blocked by "no active task" error. Shows how to create or claim a task before editing files.
+description: Quick reference when blocked by "no active task" error. Shows how to create or claim a task before using Edit, Write, or NotebookEdit tools.
 ---
 
 # Claiming Tasks - Resolving Edit Blocks
 
-This skill helps when you're blocked from editing files due to missing an active task.
+This skill helps when you're blocked from using Edit, Write, or NotebookEdit tools due to missing an active task.
 
 ## You've Been Blocked
 
-The workflow system requires an active task before file modifications. If you see:
+The workflow system requires an active task before using Edit, Write, or NotebookEdit. If you see:
 
 ```
-Blocked: No active task. Create or claim a task before editing files.
+Blocked: No active task. Create or claim a task before using Edit, Write, or NotebookEdit tools.
 ```
 
 Follow the steps below to resolve.

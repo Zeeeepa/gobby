@@ -46,7 +46,7 @@ Skills provide detailed guidance. Use progressive disclosure:
 </skill_discovery>
 
 <rules>
-- Create/claim a task before editing files
+- Create/claim a task before using Edit, Write, or NotebookEdit tools
 - Pass session_id to create_task (required), claim_task (required), and close_task (optional, for tracking)
 - NEVER load all tool schemas upfront — use progressive disclosure
 </rules>
