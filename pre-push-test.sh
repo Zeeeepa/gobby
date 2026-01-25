@@ -4,6 +4,14 @@ set -euo pipefail
 # Pre-push CI/CD test suite
 # Runs linting, type checking, security scanning, and tests
 
+# Check for moreutils (provides `ts` for timestamps)
+if command -v ts &> /dev/null; then
+    timestamp() { ts '[%H:%M:%S]'; }
+else
+    echo "Note: Install moreutils for per-line timestamps (brew install moreutils)"
+    timestamp() { cat; }
+fi
+
 TIMESTAMP=$(date +%s)
 REPORTS_DIR="./reports"
 mkdir -p "$REPORTS_DIR"
@@ -57,8 +65,9 @@ fi
 echo ""
 
 # Pytest - tests with coverage (80% threshold)
+# Uses verbose mode with timestamps to correlate test execution with daemon logs
 echo ">>> Running pytest with coverage..."
-if uv run pytest -q --tb=line -rFEw --cov=gobby --cov-fail-under=80 --cov-report=term-missing 2>&1 | tee "$REPORTS_DIR/pytest-$TIMESTAMP.txt"; then
+if uv run pytest -v --tb=line -rFEw --cov=gobby --cov-fail-under=80 --cov-report=term-missing 2>&1 | timestamp | tee "$REPORTS_DIR/pytest-$TIMESTAMP.txt"; then
     echo "✓ Pytest passed"
 else
     echo "✗ Pytest failed"
