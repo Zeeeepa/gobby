@@ -191,11 +191,17 @@ class ClaudeCodeAdapter(BaseAdapter):
             additional_context_parts.append(response.context)
 
         # Add session identifiers from metadata
+        # Note: "session_id" in metadata is Gobby's internal platform session ID
+        #       "external_id" in metadata is the CLI's session UUID
         if response.metadata:
-            session_id = response.metadata.get("session_id")
-            if session_id:
+            gobby_session_id = response.metadata.get("session_id")
+            external_id = response.metadata.get("external_id")
+            if gobby_session_id:
                 # Build context with all available identifiers
-                context_lines = [f"session_id: {session_id}"]
+                # Use clear naming: Gobby Session ID for MCP calls, External ID for transcripts
+                context_lines = [f"Gobby Session ID: {gobby_session_id}"]
+                if external_id:
+                    context_lines.append(f"External ID: {external_id}")
                 if response.metadata.get("parent_session_id"):
                     context_lines.append(
                         f"parent_session_id: {response.metadata['parent_session_id']}"
