@@ -94,6 +94,7 @@ markers = [
     "integration: marks tests as integration tests",
     "e2e: marks tests as end-to-end tests",
     "cli: marks tests as CLI command tests",
+    "no_config_protection: skip config protection for this test",
 ]
 filterwarnings = [
     # Ignore coroutine warnings from fire-and-forget async patterns in hook/webhook code
