@@ -473,7 +473,6 @@ These variables control how Gobby behaves during a session:
 |----------|---------|-------------|
 | `require_task_before_edit` | `false` | Block Edit/Write tools unless a task is `in_progress` |
 | `require_commit_before_stop` | `true` | Block session stop if task has uncommitted changes |
-| `auto_decompose` | `true` | Auto-expand multi-step task descriptions into subtasks |
 | `tdd_mode` | `true` | Generate test→implement task pairs during expansion |
 | `memory_injection_enabled` | `true` | Enable memory injection (controls `memory_inject` action) |
 | `memory_injection_limit` | `10` | Default limit for memory injection per query |

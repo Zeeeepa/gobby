@@ -36,7 +36,7 @@ class TestWorkflowDefinitionVariables:
         version: "1.0.0"
         type: lifecycle
         variables:
-          auto_decompose: true
+          require_task_before_edit: true
           tdd_mode: false
           session_task: null
         steps: []
@@ -52,7 +52,7 @@ class TestWorkflowDefinitionVariables:
 
         assert wf is not None
         assert wf.variables == {
-            "auto_decompose": True,
+            "require_task_before_edit": True,
             "tdd_mode": False,
             "session_task": None,
         }
@@ -305,7 +305,7 @@ class TestWorkflowStateVariablesPersistence:
             workflow_name="test_workflow",
             step="step1",
             variables={
-                "auto_decompose": True,
+                "require_task_before_edit": True,
                 "tdd_mode": False,
                 "session_task": "gt-abc123",
                 "count": 42,
@@ -320,7 +320,7 @@ class TestWorkflowStateVariablesPersistence:
 
         assert loaded is not None
         assert loaded.variables == {
-            "auto_decompose": True,
+            "require_task_before_edit": True,
             "tdd_mode": False,
             "session_task": "gt-abc123",
             "count": 42,
@@ -396,7 +396,7 @@ class TestWorkflowStateInitFromDefinition:
         definition = WorkflowDefinition(
             name="test_workflow",
             variables={
-                "auto_decompose": True,
+                "require_task_before_edit": True,
                 "tdd_mode": False,
                 "session_task": None,
             },
@@ -412,7 +412,7 @@ class TestWorkflowStateInitFromDefinition:
             variables=initial_variables,
         )
 
-        assert state.variables["auto_decompose"] is True
+        assert state.variables["require_task_before_edit"] is True
         assert state.variables["tdd_mode"] is False
         assert state.variables["session_task"] is None
 
@@ -421,7 +421,7 @@ class TestWorkflowStateInitFromDefinition:
         definition = WorkflowDefinition(
             name="test_workflow",
             variables={
-                "auto_decompose": True,
+                "require_task_before_edit": True,
                 "tdd_mode": False,
             },
         )
@@ -435,10 +435,10 @@ class TestWorkflowStateInitFromDefinition:
         )
 
         # Runtime override
-        state.variables["auto_decompose"] = False
+        state.variables["require_task_before_edit"] = False
         state.variables["new_var"] = "runtime_value"
 
-        assert state.variables["auto_decompose"] is False  # Overridden
+        assert state.variables["require_task_before_edit"] is False  # Overridden
         assert state.variables["tdd_mode"] is False  # From definition
         assert state.variables["new_var"] == "runtime_value"  # New
 
@@ -478,8 +478,8 @@ class TestWorkflowStateInitFromDefinition:
 class TestVariablePrecedencePattern:
     """Tests for the explicit > workflow_variable > config default pattern.
 
-    This pattern is used by auto_decompose in storage/tasks.py and should
-    be followed by other configurable behaviors.
+    This pattern should be followed by configurable behaviors that can be
+    set via explicit parameter, workflow variable, or config default.
     """
 
     def test_explicit_parameter_takes_precedence(self):
@@ -488,15 +488,15 @@ class TestVariablePrecedencePattern:
             session_id="s1",
             workflow_name="w1",
             step="step1",
-            variables={"auto_decompose": False},  # Workflow says False
+            variables={"tdd_mode": False},  # Workflow says False
         )
 
-        # Pattern from storage/tasks.py:1254-1259
-        auto_decompose = True  # Explicit parameter
-        if auto_decompose is not None:
-            effective = auto_decompose
-        elif workflow_state and workflow_state.variables.get("auto_decompose") is not None:
-            effective = bool(workflow_state.variables.get("auto_decompose"))
+        # Precedence pattern: explicit > workflow_variable > config default
+        tdd_mode = True  # Explicit parameter
+        if tdd_mode is not None:
+            effective = tdd_mode
+        elif workflow_state and workflow_state.variables.get("tdd_mode") is not None:
+            effective = bool(workflow_state.variables.get("tdd_mode"))
         else:
             effective = True  # Config default
 
@@ -508,14 +508,14 @@ class TestVariablePrecedencePattern:
             session_id="s1",
             workflow_name="w1",
             step="step1",
-            variables={"auto_decompose": False},  # Workflow says False
+            variables={"tdd_mode": False},  # Workflow says False
         )
 
-        auto_decompose = None  # No explicit parameter
-        if auto_decompose is not None:
-            effective = auto_decompose
-        elif workflow_state and workflow_state.variables.get("auto_decompose") is not None:
-            effective = bool(workflow_state.variables.get("auto_decompose"))
+        tdd_mode = None  # No explicit parameter
+        if tdd_mode is not None:
+            effective = tdd_mode
+        elif workflow_state and workflow_state.variables.get("tdd_mode") is not None:
+            effective = bool(workflow_state.variables.get("tdd_mode"))
         else:
             effective = True  # Config default
 
@@ -527,14 +527,14 @@ class TestVariablePrecedencePattern:
             session_id="s1",
             workflow_name="w1",
             step="step1",
-            variables={},  # No auto_decompose variable
+            variables={},  # No tdd_mode variable
         )
 
-        auto_decompose = None  # No explicit parameter
-        if auto_decompose is not None:
-            effective = auto_decompose
-        elif workflow_state and workflow_state.variables.get("auto_decompose") is not None:
-            effective = bool(workflow_state.variables.get("auto_decompose"))
+        tdd_mode = None  # No explicit parameter
+        if tdd_mode is not None:
+            effective = tdd_mode
+        elif workflow_state and workflow_state.variables.get("tdd_mode") is not None:
+            effective = bool(workflow_state.variables.get("tdd_mode"))
         else:
             effective = True  # Config default
 
@@ -544,11 +544,11 @@ class TestVariablePrecedencePattern:
         """When workflow_state is None, config default is used."""
         workflow_state = None
 
-        auto_decompose = None
-        if auto_decompose is not None:
-            effective = auto_decompose
-        elif workflow_state and workflow_state.variables.get("auto_decompose") is not None:
-            effective = bool(workflow_state.variables.get("auto_decompose"))
+        tdd_mode = None
+        if tdd_mode is not None:
+            effective = tdd_mode
+        elif workflow_state and workflow_state.variables.get("tdd_mode") is not None:
+            effective = bool(workflow_state.variables.get("tdd_mode"))
         else:
             effective = True  # Config default
 

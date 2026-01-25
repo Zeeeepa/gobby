@@ -185,8 +185,7 @@ class TestCreateTaskTool:
         }
         # Mock create_task_with_decomposition to return non-decomposed result
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -215,8 +214,7 @@ class TestCreateTaskTool:
             mock_task.id = "550e8400-e29b-41d4-a716-446655440002"
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440002"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -262,8 +260,7 @@ class TestCreateTaskTool:
             mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -313,8 +310,7 @@ class TestCreateTaskTool:
             mock_task.seq_num = 1
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440011"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -357,8 +353,7 @@ class TestCreateTaskTool:
             "labels": ["urgent", "bug"],
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -382,8 +377,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440006"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440006"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -406,8 +400,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440007"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440007"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -432,8 +425,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -475,8 +467,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -512,8 +503,7 @@ class TestCreateTaskTool:
             "status": "open",
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {
+                        "task": {
                 "id": "550e8400-e29b-41d4-a716-446655440011",
                 "title": "Full Task",
                 "status": "open",
@@ -552,8 +542,7 @@ class TestCreateTaskTool:
         mock_task.task_type = "task"  # Not epic
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440012"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
+                        "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -586,8 +575,7 @@ class TestCreateTaskTool:
                 "assignee": None,
             }
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440020"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440020"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -630,8 +618,7 @@ class TestCreateTaskTool:
                 "assignee": "test-session",
             }
             mock_task_manager.create_task_with_decomposition.return_value = {
-                "auto_decomposed": False,
-                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
+                                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
             }
             mock_task_manager.get_task.return_value = mock_task
             mock_task_manager.update_task.return_value = mock_task

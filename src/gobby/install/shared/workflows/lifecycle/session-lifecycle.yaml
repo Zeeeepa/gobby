@@ -10,8 +10,6 @@ settings:
 variables:
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
-  # Auto-decompose multi-step task descriptions into subtasks
-  auto_decompose: false
 
   # Task lifecycle policies
   # Block close_task until a commit is linked to the task
