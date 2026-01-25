@@ -7,6 +7,7 @@ and enforce task completion before allowing agent to stop.
 
 import logging
 import subprocess  # nosec B404 - subprocess needed for git commands
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
@@ -19,6 +20,40 @@ if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Lazy Evaluation Helpers
+# =============================================================================
+
+
+class _LazyBool:
+    """Lazy boolean that defers computation until first access.
+
+    Used to avoid expensive operations (git status, DB queries) when
+    evaluating block_tools conditions that don't reference certain values.
+
+    The computation is triggered when the value is used in a boolean context
+    (e.g., `if lazy_val:` or `not lazy_val`), which happens during eval().
+    """
+
+    __slots__ = ("_thunk", "_computed", "_value")
+
+    def __init__(self, thunk: "Callable[[], bool]") -> None:
+        self._thunk = thunk
+        self._computed = False
+        self._value = False
+
+    def __bool__(self) -> bool:
+        if not self._computed:
+            self._value = self._thunk()
+            self._computed = True
+        return self._value
+
+    def __repr__(self) -> str:
+        if self._computed:
+            return f"_LazyBool({self._value})"
+        return "_LazyBool(<not computed>)"
 
 
 # =============================================================================
@@ -63,8 +98,8 @@ def _evaluate_block_condition(
     workflow_state: "WorkflowState | None",
     event_data: dict[str, Any] | None = None,
     tool_input: dict[str, Any] | None = None,
-    session_has_dirty_files: bool = False,
-    task_has_commits: bool = False,
+    session_has_dirty_files: "_LazyBool | bool" = False,
+    task_has_commits: "_LazyBool | bool" = False,
     source: str | None = None,
 ) -> bool:
     """
@@ -84,8 +119,8 @@ def _evaluate_block_condition(
         workflow_state: Current workflow state
         event_data: Optional hook event data
         tool_input: Tool input arguments (for MCP tools, this is the 'arguments' field)
-        session_has_dirty_files: Whether session has dirty files beyond baseline
-        task_has_commits: Whether claimed task has linked commits
+        session_has_dirty_files: Whether session has dirty files beyond baseline (lazy or bool)
+        task_has_commits: Whether claimed task has linked commits (lazy or bool)
         source: CLI source identifier
 
     Returns:
@@ -197,26 +232,40 @@ async def block_tools(
 
     tool_input = event_data.get("tool_input", {}) or {}
 
-    # Pre-compute context values for MCP tool blocking
-    session_has_dirty_files = False
-    task_has_commits = False
+    # Create lazy thunks for expensive context values (git status, DB queries).
+    # These are only evaluated when actually referenced in a rule condition.
 
-    if workflow_state:
-        # Check for session dirty files (new files beyond baseline)
+    def _compute_session_has_dirty_files() -> bool:
+        """Lazy thunk: check for new dirty files beyond baseline."""
+        if not workflow_state:
+            return False
+        if project_path is None:
+            # Can't compute without project_path - avoid running git in wrong directory
+            logger.debug(
+                "_compute_session_has_dirty_files: project_path is None, returning False"
+            )
+            return False
         baseline_dirty = set(workflow_state.variables.get("baseline_dirty_files", []))
         current_dirty = _get_dirty_files(project_path)
         new_dirty = current_dirty - baseline_dirty
-        session_has_dirty_files = len(new_dirty) > 0
+        return len(new_dirty) > 0
 
-        # Check if claimed task has commits
+    def _compute_task_has_commits() -> bool:
+        """Lazy thunk: check if claimed task has linked commits."""
+        if not workflow_state or not task_manager:
+            return False
         claimed_task_id = workflow_state.variables.get("claimed_task_id")
-        if claimed_task_id and task_manager:
-            try:
-                task = task_manager.get_task(claimed_task_id)
-                if task and task.commits:
-                    task_has_commits = True
-            except Exception:
-                pass  # nosec B110 - best-effort check
+        if not claimed_task_id:
+            return False
+        try:
+            task = task_manager.get_task(claimed_task_id)
+            return bool(task and task.commits)
+        except Exception:
+            return False  # nosec B110 - best-effort check
+
+    # Wrap in _LazyBool so they're only computed when used in boolean context
+    session_has_dirty_files: _LazyBool | bool = _LazyBool(_compute_session_has_dirty_files)
+    task_has_commits: _LazyBool | bool = _LazyBool(_compute_task_has_commits)
 
     for rule in rules:
         # Determine if this rule matches the current tool
