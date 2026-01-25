@@ -110,7 +110,9 @@ Create test resources, verify, then delete. Track all IDs for cleanup.
 ```
 cleanup_tracker = {
     "memories": [],
-    "tasks": []
+    "tasks": [],
+    "worktrees": [],
+    "clones": []
 }
 ```
 

@@ -63,3 +63,5 @@ echo "Ready to copy schema_dump.sql into migrations.py"
 3.  Update `migrations.py`.
 4.  Delete `migrations_legacy.py`.
 5.  Verify new install.
+6.  Verify existing DB.
+

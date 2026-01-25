@@ -219,7 +219,10 @@ class LocalMemoryManager:
         project_str = project_id if project_id else ""
         memory_id = generate_prefixed_id("mm", normalized_content + project_str)
 
-        return self.get_memory(memory_id)
+        try:
+            return self.get_memory(memory_id)
+        except ValueError:
+            return None
 
     def update_memory(
         self,

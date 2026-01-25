@@ -111,7 +111,8 @@ Create test resources, verify, then delete. Track all IDs for cleanup.
 cleanup_tracker = {
     "memories": [],
     "tasks": [],
-    "sessions": []
+    "worktrees": [],
+    "clones": []
 }
 ```
 
@@ -261,9 +262,6 @@ Search for tasks with `__diag__` prefix:
 gobby-tasks.list_tasks()
 ```
 For each task with title starting with `__diag__`:
-```
-gobby-tasks.close_task(task_id=<id>, resolution="cancelled")
-```
 
 ### Step 4: Clean Memories
 Search for memories with `__diag__` tag:

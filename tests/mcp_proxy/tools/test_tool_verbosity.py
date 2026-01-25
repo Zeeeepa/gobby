@@ -46,7 +46,7 @@ async def test_task_verbosity_reduction():
     # create_task now uses create_task_with_decomposition and get_task
     mock_manager.create_task_with_decomposition.return_value = {
         "task": {"id": "task-123"},
-            }
+    }
     mock_manager.get_task.return_value = mock_task
     mock_manager.update_task.return_value = mock_task
 

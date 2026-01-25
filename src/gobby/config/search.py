@@ -20,6 +20,8 @@ For Ollama (local embeddings):
 
 from pydantic import BaseModel, Field
 
+from gobby.search.models import SearchMode
+
 
 class SearchConfig(BaseModel):
     """Configuration for unified search with fallback.
@@ -89,3 +91,11 @@ class SearchConfig(BaseModel):
             # Default to equal weights if both are 0
             return (0.5, 0.5)
         return (self.tfidf_weight / total, self.embedding_weight / total)
+
+    def get_mode_enum(self) -> SearchMode:
+        """Get the SearchMode enum instance for the configured mode.
+
+        Returns:
+            SearchMode enum corresponding to the mode string value
+        """
+        return SearchMode(self.mode)
