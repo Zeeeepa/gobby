@@ -297,8 +297,7 @@ steps:
           | `code` | Implementation tasks | YES |
           | `config` | Configuration changes | YES |
           | `docs` | Documentation tasks | NO |
-          | `refactor` | Refactoring/updating existing code | NO |
-          | `test` | Test infrastructure | NO |
+          | `refactor` | Refactoring tasks | NO |
           | `research` | Investigation tasks | NO |
           | `planning` | Architecture/design | NO |
           | `manual` | Manual verification | NO |
@@ -374,7 +373,7 @@ steps:
 
     rules:
       - name: only_edit_plan_file
-        when: "tool_name == 'Edit' and str(tool_args.get('file_path', '')) != str(variables.plan_file)"
+        when: "variables.plan_file and tool_name == 'Edit' and str(tool_args.get('file_path', '')) != str(variables.plan_file)"
         action: block
         message: "Can only edit the plan file during verification"
 
@@ -416,8 +415,7 @@ steps:
           - `code` - Implementation tasks (gets TDD triplets)
           - `config` - Configuration changes (gets TDD triplets)
           - `docs` - Documentation tasks (no TDD)
-          - `refactor` - Refactoring/updating existing code (no TDD)
-          - `test` - Test infrastructure (no TDD)
+          - `refactor` - Refactoring tasks (no TDD)
           - `research` - Investigation tasks (no TDD)
           - `planning` - Architecture/design (no TDD)
           - `manual` - Manual verification (no TDD)
@@ -678,7 +676,7 @@ steps:
           variables.expanded_task_ids.append(task_id)
           ```
 
-          ### 3-Level Hierarchy After Expansion
+          ### 4-Level Hierarchy After Expansion
 
           ```
           L1: Root Epic (created in create_hierarchy)
@@ -1081,7 +1079,7 @@ steps:
           })
           ```
 
-          ### Step 2: Verify TDD Triplets
+          ### Step 2: Verify Task Expansion
 
           For each feature task with `category: code` or `category: config`:
           - Should have implementation subtasks with TDD steps embedded in descriptions
