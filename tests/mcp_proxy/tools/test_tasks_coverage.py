@@ -963,122 +963,6 @@ class TestCloseTaskTool:
             assert result["error"] == "no_commits_linked"
 
     @pytest.mark.asyncio
-    async def test_close_task_no_commit_needed_requires_justification(
-        self, mock_task_manager, mock_sync_manager
-    ):
-        """Test close_task with no_commit_needed requires justification."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_task.commits = None
-        mock_task.project_id = "proj-1"
-        mock_task_manager.get_task.return_value = mock_task
-
-        with patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager:
-            mock_proj_instance = MagicMock()
-            mock_proj_instance.get.return_value = None
-            MockProjManager.return_value = mock_proj_instance
-
-            result = await registry.call(
-                "close_task",
-                {"task_id": "550e8400-e29b-41d4-a716-446655440000", "no_commit_needed": True},
-            )
-
-            assert "error" in result
-            assert result["error"] == "justification_required"
-
-    @pytest.mark.asyncio
-    async def test_close_task_no_commit_needed_rejects_uncommitted_changes(
-        self, mock_task_manager, mock_sync_manager
-    ):
-        """Test close_task with no_commit_needed rejects when tracked files are modified."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_task.commits = None
-        mock_task.project_id = "proj-1"
-        mock_task_manager.get_task.return_value = mock_task
-
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
-            ) as MockProjManager,
-            patch("gobby.utils.git.run_git_command") as mock_git,
-        ):
-            mock_proj_instance = MagicMock()
-            mock_proj_instance.get.return_value = None
-            MockProjManager.return_value = mock_proj_instance
-            # Simulate uncommitted changes: staged file returned by git diff --cached
-            mock_git.side_effect = lambda cmd, cwd=None: (
-                "src/modified_file.py" if "--cached" in cmd else ""
-            )
-
-            result = await registry.call(
-                "close_task",
-                {
-                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "no_commit_needed": True,
-                    "override_justification": "Research task",
-                },
-            )
-
-            assert "error" in result
-            assert result["error"] == "uncommitted_changes"
-            assert "src/modified_file.py" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_close_task_no_commit_needed_allows_clean_workdir(
-        self, mock_task_manager, mock_sync_manager
-    ):
-        """Test close_task with no_commit_needed succeeds when workdir is clean.
-
-        Note: When override_justification is provided with no_commit_needed,
-        the task routes to review status for human approval (HITL).
-        """
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_task.commits = None
-        mock_task.project_id = "proj-1"
-        mock_task.requires_user_review = False
-        mock_task.to_brief.return_value = {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "status": "review",
-        }
-        mock_task_manager.get_task.return_value = mock_task
-        mock_task_manager.list_tasks.return_value = []  # No children
-
-        with (
-            patch(
-                "gobby.mcp_proxy.tools.tasks._context.LocalProjectManager"
-            ) as MockProjManager,
-            patch("gobby.utils.git.run_git_command") as mock_git,
-        ):
-            mock_proj_instance = MagicMock()
-            mock_proj_instance.get.return_value = None
-            MockProjManager.return_value = mock_proj_instance
-            # No uncommitted changes
-            mock_git.return_value = ""
-
-            result = await registry.call(
-                "close_task",
-                {
-                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "no_commit_needed": True,
-                    "override_justification": "Research task - no code changes",
-                },
-            )
-
-            # Task routes to review when override_justification is used
-            assert "error" not in result
-            assert result.get("routed_to_review") is True
-            # Verify update_task was called to set status to review
-            mock_task_manager.update_task.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_close_task_with_skip_reason_skips_commit_check(
         self, mock_task_manager, mock_sync_manager
     ):
@@ -1783,7 +1667,6 @@ class TestToolSchemas:
             "skip_validation",
             "session_id",
             "override_justification",
-            "no_commit_needed",
             "commit_sha",
         ]
 

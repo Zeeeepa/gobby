@@ -858,7 +858,7 @@ steps:
           Test-related tasks often slip through plan verification or fail expansion.
           Analyze each test task to determine the correct action:
 
-          **Category 1: Redundant Test Tasks (close with no_commit_needed)**
+          **Category 1: Redundant Test Tasks (close with reason="obsolete")**
 
           Tasks that will be covered by TDD triplets on implementation tasks:
           - "Add tests for X" where X has an [IMPL] sibling → redundant
@@ -934,8 +934,8 @@ steps:
 
           ### Test Task Issues (N found)
           Redundant (covered by TDD): 9 tasks
-          - #4451, #4452, #4453 (Phase 2) → close no_commit_needed
-          - #4460 (Phase 3) → close no_commit_needed
+          - #4451, #4452, #4453 (Phase 2) → close reason="obsolete"
+          - #4460 (Phase 3) → close reason="obsolete"
           - ...
 
           Update existing tests (keep): 3 tasks
@@ -1000,7 +1000,7 @@ steps:
           for task_id in redundant_test_tasks:
               call_tool("gobby-tasks", "close_task", {
                   "task_id": task_id,
-                  "no_commit_needed": true,
+                  "reason": "obsolete",
                   "session_id": "<your_session_id>"
               })
           ```

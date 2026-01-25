@@ -512,21 +512,14 @@ class TestParallelTaskProcessing:
 
         # Complete all tasks (simulating agents finishing)
         for task_id in subtask_ids:
-            # Close (goes to review)
+            # Close with skip reason
             mcp_client.call_tool(
                 server_name="gobby-tasks",
                 tool_name="close_task",
                 arguments={
                     "task_id": task_id,
-                    "no_commit_needed": True,
-                    "override_justification": "E2E test - no actual code changes",
+                    "reason": "obsolete",
                 },
-            )
-            # Approve (review to closed)
-            mcp_client.call_tool(
-                server_name="gobby-tasks",
-                tool_name="update_task",
-                arguments={"task_id": task_id, "status": "closed"},
             )
 
         # Verify all are closed
@@ -555,14 +548,8 @@ class TestParallelTaskProcessing:
             tool_name="close_task",
             arguments={
                 "task_id": epic_id,
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
+                "reason": "obsolete",
             },
-        )
-        mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={"task_id": epic_id, "status": "closed"},
         )
 
         # Verify epic is closed

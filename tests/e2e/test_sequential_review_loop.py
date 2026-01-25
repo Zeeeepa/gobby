@@ -130,42 +130,19 @@ class TestSequentialReviewLoopE2E:
         assert result.get("status") == "in_progress", f"Subtask 1 should be in_progress: {result}"
 
         # 3c: Close first subtask (simulating agent completion)
-        # With override_justification, task goes to review status first
+        # Using reason="obsolete" bypasses commit check and closes directly
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="close_task",
             arguments={
                 "task_id": subtask_ids[0],
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
+                "reason": "obsolete",
             },
         )
         result = unwrap_result(raw_result)
-        assert "error" not in result, f"Close subtask 1 (to review) failed: {result}"
+        assert "error" not in result, f"Close subtask 1 failed: {result}"
 
-        # 3d: Verify first subtask is in review (expected with override_justification)
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="get_task",
-            arguments={"task_id": subtask_ids[0]},
-        )
-        result = unwrap_result(raw_result)
-        assert result.get("status") == "review", f"Subtask 1 should be in review: {result}"
-
-        # 3e: Use update_task to transition from review to closed (simulating user approval)
-        # When a task is in review status, update_task with status=closed completes the review
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={
-                "task_id": subtask_ids[0],
-                "status": "closed",
-            },
-        )
-        result = unwrap_result(raw_result)
-        # update_task returns empty dict on success
-
-        # 3f: Verify first subtask is now closed
+        # 3d: Verify first subtask is closed
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="get_task",
@@ -187,31 +164,19 @@ class TestSequentialReviewLoopE2E:
         result = unwrap_result(raw_result)
         assert result.get("success") is not False, f"Update subtask 2 to in_progress failed: {result}"
 
-        # 4b: Close second subtask (goes to review first)
+        # 4b: Close second subtask
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="close_task",
             arguments={
                 "task_id": subtask_ids[1],
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
+                "reason": "obsolete",
             },
         )
         result = unwrap_result(raw_result)
-        assert "error" not in result, f"Close subtask 2 (to review) failed: {result}"
+        assert "error" not in result, f"Close subtask 2 failed: {result}"
 
-        # 4c: Use update_task to transition from review to closed (simulating user approval)
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={
-                "task_id": subtask_ids[1],
-                "status": "closed",
-            },
-        )
-        result = unwrap_result(raw_result)
-
-        # 4d: Verify second subtask is closed
+        # 4c: Verify second subtask is closed
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="get_task",
@@ -233,29 +198,17 @@ class TestSequentialReviewLoopE2E:
         closed_tasks = result.get("tasks", [])
         assert len(closed_tasks) >= 2, f"Should have 2 closed subtasks: {result}"
 
-        # Step 6: Close the epic (all subtasks done) - goes to review first
+        # Step 6: Close the epic (all subtasks done)
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="close_task",
             arguments={
                 "task_id": epic_id,
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
+                "reason": "obsolete",
             },
         )
         result = unwrap_result(raw_result)
-        assert "error" not in result, f"Close epic (to review) failed: {result}"
-
-        # Use update_task to transition from review to closed (simulating user approval)
-        raw_result = mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={
-                "task_id": epic_id,
-                "status": "closed",
-            },
-        )
-        result = unwrap_result(raw_result)
+        assert "error" not in result, f"Close epic failed: {result}"
 
         # Verify epic is closed
         raw_result = mcp_client.call_tool(
@@ -381,19 +334,18 @@ class TestSequentialReviewLoopE2E:
             tool_name="close_task",
             arguments={
                 "task_id": subtask1_id,
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
+                "reason": "obsolete",
             },
         )
 
-        # Verify subtask 1 is in review status (tasks in review unblock dependents)
+        # Verify subtask 1 is closed
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="get_task",
             arguments={"task_id": subtask1_id},
         )
         result = unwrap_result(raw_result)
-        assert result.get("status") in ["review", "closed"], f"Subtask 1 should be review or closed: {result.get('status')}"
+        assert result.get("status") == "closed", f"Subtask 1 should be closed: {result.get('status')}"
 
         # Verify subtask 2's blocking dependency is now resolved (subtask 1 in review/closed)
         # Since subtask 1 is in review/closed, subtask 2 should now be unblocked
@@ -557,16 +509,16 @@ class TestSequentialReviewLoopE2E:
 class TestReviewStepE2E:
     """E2E tests for the review step in orchestration."""
 
-    def test_task_enters_review_status_with_override(
+    def test_task_closes_with_skip_reason(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
     ):
-        """Test that tasks with override_justification enter review status.
+        """Test that tasks with skip reason (obsolete) close directly.
 
-        When closing a task with override_justification, it should go to
-        review status first for human verification.
+        When closing a task with reason='obsolete', 'duplicate', 'already_implemented',
+        or 'wont_fix', it should close directly without requiring a commit.
         """
         # Setup - use "e2e-test-project" to match fixture's project.json
         project_result = cli_events.register_test_project(
@@ -576,7 +528,7 @@ class TestReviewStepE2E:
         )
         assert project_result["status"] in ["success", "already_exists"]
 
-        session_external_id = f"review-status-{uuid.uuid4().hex[:8]}"
+        session_external_id = f"skip-reason-{uuid.uuid4().hex[:8]}"
         session_result = cli_events.register_session(
             external_id=session_external_id,
             machine_id="test-machine",
@@ -590,7 +542,7 @@ class TestReviewStepE2E:
             server_name="gobby-tasks",
             tool_name="create_task",
             arguments={
-                "title": "Task for Review Test",
+                "title": "Task for Skip Reason Test",
                 "task_type": "task",
                 "session_id": session_id,
             },
@@ -605,25 +557,24 @@ class TestReviewStepE2E:
             arguments={"task_id": task_id, "status": "in_progress"},
         )
 
-        # Close task with override_justification - should enter review status
+        # Close task with skip reason - should close directly
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="close_task",
             arguments={
                 "task_id": task_id,
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
+                "reason": "obsolete",
             },
         )
 
-        # Verify task is in review status
+        # Verify task is closed
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="get_task",
             arguments={"task_id": task_id},
         )
         result = unwrap_result(raw_result)
-        assert result.get("status") == "review", f"Task should be in review: {result}"
+        assert result.get("status") == "closed", f"Task should be closed: {result}"
 
     def test_review_task_can_be_approved(
         self,
@@ -653,7 +604,7 @@ class TestReviewStepE2E:
         )
         session_id = session_result["id"]
 
-        # Create and process task to review status
+        # Create task
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="create_task",
@@ -666,20 +617,11 @@ class TestReviewStepE2E:
         result = unwrap_result(raw_result)
         task_id = result["id"]
 
-        # Process to in_progress then to review via override
+        # Set to review status directly via update_task
         mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="update_task",
-            arguments={"task_id": task_id, "status": "in_progress"},
-        )
-        mcp_client.call_tool(
-            server_name="gobby-tasks",
-            tool_name="close_task",
-            arguments={
-                "task_id": task_id,
-                "no_commit_needed": True,
-                "override_justification": "E2E test - no actual code changes",
-            },
+            arguments={"task_id": task_id, "status": "review"},
         )
 
         # Verify in review

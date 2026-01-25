@@ -826,8 +826,7 @@ class OrchestratorScreen(Widget):
                 return
             await self.api_client.close_task(
                 task_id,
-                no_commit_needed=True,
-                override_justification="Orchestrator approval - manual user review",
+                reason="obsolete",
             )
             self.notify(f"Approved: {task.get('ref', task_id)}")
 

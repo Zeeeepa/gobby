@@ -254,9 +254,7 @@ class TestMCPCloseTaskWithHashFormat:
         ):
             await close_task_func(
                 task_id="#10",
-                skip_validation=True,
-                no_commit_needed=True,
-                override_justification="test",
+                reason="obsolete",
             )
 
         mock_task_manager.resolve_task_reference.assert_called_with("#10", "proj-1")

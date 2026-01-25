@@ -33,8 +33,6 @@ class ValidationResult:
 def validate_commit_requirements(
     task: Task,
     reason: str,
-    no_commit_needed: bool,
-    override_justification: str | None,
     repo_path: str | None = None,
 ) -> ValidationResult:
     """Check if task meets commit requirements for closing.
@@ -42,8 +40,6 @@ def validate_commit_requirements(
     Args:
         task: The task to validate
         reason: Reason for closing
-        no_commit_needed: If True, allow closing without commits
-        override_justification: Justification for skipping commit check
         repo_path: Path to the repository for git operations
 
     Returns:
@@ -53,96 +49,23 @@ def validate_commit_requirements(
     requires_commit_check = reason.lower() not in SKIP_REASONS
 
     if requires_commit_check and not task.commits:
-        # No commits linked - require explicit acknowledgment
-        if no_commit_needed:
-            # Check for uncommitted changes FIRST - hard blocker regardless of justification
-            # If there are uncommitted changes, claiming "no commit needed" is a contradiction
-            uncommitted_result = _check_uncommitted_changes(repo_path)
-            if uncommitted_result:
-                return uncommitted_result
-
-            # Only then require justification (when there truly are no uncommitted changes)
-            if not override_justification:
-                return ValidationResult(
-                    can_close=False,
-                    error_type="justification_required",
-                    message=(
-                        "When no_commit_needed=True, you must provide "
-                        "override_justification explaining why no commit was needed."
-                    ),
-                )
-
-            # Allowed to proceed - no uncommitted changes and agent confirmed no commit needed
-        else:
-            return ValidationResult(
-                can_close=False,
-                error_type="no_commits_linked",
-                message=(
-                    "Cannot close task: no commits are linked. Either:\n"
-                    "1. Commit your changes and use close_task(task_id, commit_sha='...') to link and close in one call\n"
-                    "2. Include [#N] in your commit message for auto-linking, then call close_task\n"
-                    "3. Set no_commit_needed=True with override_justification if this task didn't require code changes"
-                ),
-            )
+        return ValidationResult(
+            can_close=False,
+            error_type="no_commits_linked",
+            message=(
+                "A commit is required before closing this task.\n\n"
+                "**Normal flow:**\n"
+                "1. Commit your changes: git commit -m \"[#N] description\"\n"
+                "2. Close with commit_sha: close_task(task_id=\"#N\", commit_sha=\"<sha>\")\n\n"
+                "**Edge cases (no work done):**\n"
+                "- Task was already done: reason=\"already_implemented\"\n"
+                "- Task is no longer needed: reason=\"obsolete\"\n"
+                "- Task duplicates another: reason=\"duplicate\"\n"
+                "- Decided not to do it: reason=\"wont_fix\""
+            ),
+        )
 
     return ValidationResult(can_close=True)
-
-
-# Files to ignore in uncommitted changes check (Gobby state files that change frequently)
-_IGNORED_UNCOMMITTED = {
-    ".gobby/tasks.jsonl",
-    ".gobby/tasks_meta.json",
-    ".gobby/memories.jsonl",
-}
-
-
-def _check_uncommitted_changes(repo_path: str | None) -> ValidationResult | None:
-    """Check if there are uncommitted changes to tracked files.
-
-    Args:
-        repo_path: Path to the repository
-
-    Returns:
-        ValidationResult if uncommitted changes detected, None otherwise
-    """
-    from gobby.utils.git import run_git_command
-
-    cwd = repo_path or "."
-
-    try:
-        # Check for staged changes
-        staged = run_git_command(["git", "diff", "--cached", "--name-only"], cwd=cwd)
-        # Check for unstaged changes to tracked files
-        unstaged = run_git_command(["git", "diff", "--name-only"], cwd=cwd)
-
-        staged_files = [f for f in (staged or "").strip().split("\n") if f]
-        unstaged_files = [f for f in (unstaged or "").strip().split("\n") if f]
-
-        # Filter out Gobby state files that change frequently during normal operation
-        staged_files = [f for f in staged_files if f not in _IGNORED_UNCOMMITTED]
-        unstaged_files = [f for f in unstaged_files if f not in _IGNORED_UNCOMMITTED]
-
-        if staged_files or unstaged_files:
-            all_files = sorted(set(staged_files + unstaged_files))
-            file_list = ", ".join(all_files[:5])
-            if len(all_files) > 5:
-                file_list += f" and {len(all_files) - 5} more"
-
-            return ValidationResult(
-                can_close=False,
-                error_type="uncommitted_changes",
-                message=(
-                    f"Cannot use no_commit_needed=True: tracked files have uncommitted changes "
-                    f"({file_list}). Commit your changes first: "
-                    "git add . && git commit -m '[task-id] ...'"
-                ),
-                extra={"uncommitted_files": all_files},
-            )
-    except Exception as e:
-        # If git operations fail (not a git repo, etc.), allow proceed
-        logger.debug(f"Git check failed (allowing proceed): {e}")
-
-    return None
 
 
 def validate_parent_task(
@@ -345,7 +268,6 @@ async def validate_leaf_task_with_llm(
 def determine_close_outcome(
     task: Task,
     skip_validation: bool,
-    no_commit_needed: bool,
     override_justification: str | None,
 ) -> tuple[bool, bool]:
     """Determine the close outcome for a task.
@@ -353,14 +275,13 @@ def determine_close_outcome(
     Args:
         task: The task being closed
         skip_validation: Whether validation was skipped
-        no_commit_needed: Whether commit was not needed
         override_justification: Justification for override
 
     Returns:
         Tuple of (route_to_review, store_override)
     """
     # Determine if override should be stored
-    store_override = skip_validation or no_commit_needed
+    store_override = skip_validation
 
     # Route to review if task requires user review OR override was used
     # This ensures tasks with HITL flag or skipped validation go through human review

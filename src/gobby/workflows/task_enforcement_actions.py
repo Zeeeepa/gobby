@@ -117,7 +117,7 @@ async def block_tools(
     Condition evaluation has access to:
       - variables: workflow state variables
       - task_claimed, plan_mode: shortcuts
-      - tool_input: the MCP tool's arguments (for checking no_commit_needed etc.)
+      - tool_input: the MCP tool's arguments (for checking commit_sha etc.)
       - session_has_dirty_files: whether session has NEW dirty files beyond baseline
       - task_has_commits: whether the claimed task has linked commits
 
@@ -147,8 +147,8 @@ async def block_tools(
     Example rule (MCP tools):
         {
             "mcp_tools": ["gobby-tasks:close_task"],
-            "when": "tool_input.get('no_commit_needed') and session_has_dirty_files",
-            "reason": "Cannot use no_commit_needed with uncommitted changes."
+            "when": "not task_has_commits and not tool_input.get('commit_sha')",
+            "reason": "A commit is required before closing this task."
         }
     """
     if not event_data or not rules:
