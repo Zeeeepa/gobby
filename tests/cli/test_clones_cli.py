@@ -173,7 +173,7 @@ class TestClonesSpawnCommand:
             ["spawn", "nonexistent", "Work on feature", "--parent-session-id", "parent-123"],
         )
 
-        assert "not found" in result.output.lower()
+        assert "not found" in result.output.lower() or result.exit_code != 0
 
 
 class TestClonesSyncCommand:

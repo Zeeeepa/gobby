@@ -1,11 +1,13 @@
 import sys
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
+import gobby.mcp_proxy.stdio
 
 # Force import of modules that use load_config to ensure they are in sys.modules
 # BEFORE the fixture runs. pytest collection usually does this anyway, but let's be explicit.
 import gobby.runner
-import gobby.mcp_proxy.stdio
 
 
 def test_import_pathing_trap_is_fixed(protect_production_resources):
@@ -32,7 +34,7 @@ def test_import_pathing_trap_is_fixed(protect_production_resources):
     )
 
 
-def test_runner_uses_patched_config():
+def test_runner_uses_patched_config(protect_production_resources):
     """Integration checks that Runner actually initializes with safe config."""
     runner = gobby.runner.GobbyRunner()
 

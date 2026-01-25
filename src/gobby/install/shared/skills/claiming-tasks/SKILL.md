@@ -41,9 +41,13 @@ result = call_tool("gobby-tasks", "suggest_next_task", {
     "session_id": "<your_session_id>"
 })
 
+# Extract task ID from suggestion (ref preferred, id as fallback)
+suggestion = result.get("suggestion", {})
+task_id = suggestion.get("ref") or suggestion.get("id")
+
 # Claim it (sets status to in_progress and assignee to your session)
 call_tool("gobby-tasks", "claim_task", {
-    "task_id": result["ref"],
+    "task_id": task_id,
     "session_id": "<your_session_id>"
 })
 ```

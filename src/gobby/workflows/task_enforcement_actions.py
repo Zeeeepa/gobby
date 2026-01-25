@@ -81,7 +81,7 @@ def _is_plan_file(file_path: str, source: str | None = None) -> bool:
     if not file_path:
         return False
     # Only exempt for Claude Code sessions
-    if source and source != "claude":
+    if source != "claude":
         return False
     # Normalize path separators (Windows backslash to forward slash)
     normalized = file_path.replace("\\", "/")
