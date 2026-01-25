@@ -7,6 +7,7 @@ Uses FastAPI dependency injection via Depends() for proper testability.
 
 import json
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -66,13 +67,13 @@ def _process_tool_proxy_result(
                     normalized[key] = value
             raise HTTPException(status_code=404, detail=normalized)
 
-        # Backward compatibility: fall back to string matching if no error_code
+        # Backward compatibility: fall back to regex matching if no error_code
         if not error_code:
             logger.debug(
-                "ToolProxyService returned error without error_code - using string fallback"
+                "ToolProxyService returned error without error_code - using regex fallback"
             )
-            error_msg = str(result.get("error", "")).lower()
-            if "server" in error_msg and ("not found" in error_msg or "not configured" in error_msg):
+            error_msg = str(result.get("error", ""))
+            if re.search(r"server\s+(not\s+found|not\s+configured)", error_msg, re.IGNORECASE):
                 normalized = {"success": False, "error": result.get("error", "Unknown error")}
                 for key, value in result.items():
                     if key not in normalized:

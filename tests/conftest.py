@@ -248,6 +248,11 @@ def protect_production_resources(
         p.stop()
         for mod, updates in patched_modules:
             for attr_name in updates:
-                # We interpret the existence of the update as "it was _real_load_config"
-                # so we restore it to _real_load_config
-                setattr(mod, attr_name, _real_load_config)
+                if _real_load_config is not None:
+                    setattr(mod, attr_name, _real_load_config)
+                else:
+                    # Remove the patched attribute instead of setting to None
+                    try:
+                        delattr(mod, attr_name)
+                    except AttributeError:
+                        pass  # Attribute already removed

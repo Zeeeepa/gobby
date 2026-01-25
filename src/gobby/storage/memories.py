@@ -138,6 +138,11 @@ class LocalMemoryManager:
         tags: list[str] | None = None,
         media: str | None = None,
     ) -> Memory:
+        # Validate that content is not empty
+        if not content or not content.strip():
+            logger.warning("Skipping memory creation: empty content provided")
+            raise ValueError("Memory content cannot be empty")
+
         now = datetime.now(UTC).isoformat()
         # Normalize content for consistent ID generation (avoid duplicates from
         # whitespace differences or project_id inconsistency)

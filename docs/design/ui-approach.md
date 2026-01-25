@@ -45,7 +45,7 @@ gobby ui agents             # Agent monitoring
 - TanStack Query for data
 - Native WebSocket to daemon
 
-**Hosting**: Local daemon serves web UI on port 8767
+**Hosting**: Local daemon serves web UI on port 60336
 - `gobby ui --web` opens browser
 - Or access from phone on same network
 - Optional: Cloudflare tunnel for remote access
@@ -259,7 +259,7 @@ Already have `viz.py` generating HTML. Integrate into TUI via:
 ## Remote Access Options
 
 ### Option A: Local Network (Simple)
-- Daemon binds to `0.0.0.0:8767`
+- Daemon binds to `0.0.0.0:60336`
 - Access from phone on same WiFi
 - Pro: No setup
 - Con: Only works on same network

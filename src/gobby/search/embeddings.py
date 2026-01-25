@@ -64,6 +64,12 @@ async def generate_embeddings(
 
     try:
         import litellm
+        from litellm.exceptions import (
+            AuthenticationError,
+            ContextWindowExceededError,
+            NotFoundError,
+            RateLimitError,
+        )
     except ImportError as e:
         raise RuntimeError("litellm package not installed. Run: uv add litellm") from e
 
@@ -84,6 +90,18 @@ async def generate_embeddings(
         embeddings: list[list[float]] = [item["embedding"] for item in response.data]
         logger.debug(f"Generated {len(embeddings)} embeddings via LiteLLM ({model})")
         return embeddings
+    except AuthenticationError as e:
+        logger.error(f"LiteLLM authentication failed: {e}")
+        raise RuntimeError(f"Authentication failed: {e}") from e
+    except NotFoundError as e:
+        logger.error(f"LiteLLM model not found: {e}")
+        raise RuntimeError(f"Model not found: {e}") from e
+    except RateLimitError as e:
+        logger.error(f"LiteLLM rate limit exceeded: {e}")
+        raise RuntimeError(f"Rate limit exceeded: {e}") from e
+    except ContextWindowExceededError as e:
+        logger.error(f"LiteLLM context window exceeded: {e}")
+        raise RuntimeError(f"Context window exceeded: {e}") from e
     except Exception as e:
         logger.error(f"Failed to generate embeddings with LiteLLM: {e}")
         raise RuntimeError(f"Embedding generation failed: {e}") from e
