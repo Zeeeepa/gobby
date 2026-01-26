@@ -17,6 +17,7 @@ from gobby.cli.utils import get_install_dir
 from .shared import (
     configure_mcp_server_json,
     install_cli_content,
+    install_router_skills_as_gemini_skills,
     install_shared_content,
     remove_mcp_server_json,
 )
@@ -86,6 +87,11 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
+
+    # Install router skills (gobby, g) as Gemini skills
+    skills_dir = gemini_path / "skills"
+    router_skills = install_router_skills_as_gemini_skills(skills_dir)
+    result["commands_installed"].extend(router_skills)
 
     # Backup existing settings.json if it exists
     if settings_file.exists():

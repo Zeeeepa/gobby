@@ -77,6 +77,10 @@ class TestInstallGemini:
             ),
             patch("gobby.cli.installers.gemini.install_cli_content", return_value=mock_cli_content),
             patch(
+                "gobby.cli.installers.gemini.install_router_skills_as_gemini_skills",
+                return_value=["gobby/", "g/"],
+            ),
+            patch(
                 "gobby.cli.installers.gemini.configure_mcp_server_json",
                 return_value={"success": True, "added": True},
             ),
@@ -90,7 +94,7 @@ class TestInstallGemini:
             assert "SessionStart" in result["hooks_installed"]
             assert "SessionEnd" in result["hooks_installed"]
             assert result["workflows_installed"] == ["workflow1.yaml", "cli_workflow.yaml"]
-            assert result["commands_installed"] == ["command1.md"]
+            assert result["commands_installed"] == ["command1.md", "gobby/", "g/"]
             assert result["plugins_installed"] == ["plugin1.py"]
             assert result["mcp_configured"] is True
 
@@ -948,6 +952,10 @@ class TestInstallGeminiEdgeCases:
                 return_value={"workflows": [], "commands": []},
             ),
             patch(
+                "gobby.cli.installers.gemini.install_router_skills_as_gemini_skills",
+                return_value=[],
+            ),
+            patch(
                 "gobby.cli.installers.gemini.configure_mcp_server_json",
                 return_value={"success": True, "added": True},
             ),
@@ -999,6 +1007,10 @@ class TestInstallGeminiEdgeCases:
             patch(
                 "gobby.cli.installers.gemini.install_cli_content",
                 return_value={"workflows": []},  # No commands key
+            ),
+            patch(
+                "gobby.cli.installers.gemini.install_router_skills_as_gemini_skills",
+                return_value=[],
             ),
             patch(
                 "gobby.cli.installers.gemini.configure_mcp_server_json",

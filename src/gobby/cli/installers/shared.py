@@ -224,6 +224,48 @@ def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
     return installed
 
 
+def install_router_skills_as_gemini_skills(target_skills_dir: Path) -> list[str]:
+    """Install router skills (gobby, g) as Gemini skills (directory structure).
+
+    Gemini CLI uses .gemini/skills/name/SKILL.md format for skills.
+    This function copies the gobby router skills from shared/skills/ to
+    the target skills directory preserving the directory structure.
+
+    Args:
+        target_skills_dir: Path to skills directory (e.g., .gemini/skills)
+
+    Returns:
+        List of installed skill names
+    """
+    shared_skills_dir = get_install_dir() / "shared" / "skills"
+    installed: list[str] = []
+
+    # Router skills to install
+    router_skills = ["gobby", "g"]
+
+    target_skills_dir.mkdir(parents=True, exist_ok=True)
+
+    for skill_name in router_skills:
+        source_skill_dir = shared_skills_dir / skill_name
+        source_skill_md = source_skill_dir / "SKILL.md"
+        if not source_skill_md.exists():
+            logger.warning(f"Router skill not found: {source_skill_md}")
+            continue
+
+        # Create skill directory and copy SKILL.md
+        target_skill_dir = target_skills_dir / skill_name
+        target_skill_dir.mkdir(parents=True, exist_ok=True)
+        target_skill_md = target_skill_dir / "SKILL.md"
+
+        try:
+            copy2(source_skill_md, target_skill_md)
+            installed.append(f"{skill_name}/")
+        except OSError as e:
+            logger.error(f"Failed to copy router skill {skill_name}: {e}")
+
+    return installed
+
+
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
     """Install CLI-specific workflows/commands (layered on top of shared).
 
