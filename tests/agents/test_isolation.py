@@ -18,6 +18,7 @@ from gobby.agents.isolation import (
     SpawnConfig,
     WorktreeIsolationHandler,
     generate_branch_name,
+    get_isolation_handler,
 )
 
 
@@ -515,3 +516,54 @@ class TestCloneIsolationHandler:
     def test_is_isolation_handler_subclass(self):
         """Test CloneIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(CloneIsolationHandler, IsolationHandler)
+
+
+class TestGetIsolationHandler:
+    """Tests for get_isolation_handler factory function."""
+
+    def test_get_isolation_handler_current(self):
+        """Test get_isolation_handler('current') returns CurrentIsolationHandler."""
+        handler = get_isolation_handler("current")
+
+        assert isinstance(handler, CurrentIsolationHandler)
+
+    def test_get_isolation_handler_worktree(self):
+        """Test get_isolation_handler('worktree', ...) returns WorktreeIsolationHandler."""
+        mock_git_manager = MagicMock()
+        mock_worktree_storage = MagicMock()
+
+        handler = get_isolation_handler(
+            "worktree",
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        assert isinstance(handler, WorktreeIsolationHandler)
+
+    def test_get_isolation_handler_clone(self):
+        """Test get_isolation_handler('clone', ...) returns CloneIsolationHandler."""
+        mock_clone_manager = MagicMock()
+        mock_clone_storage = MagicMock()
+
+        handler = get_isolation_handler(
+            "clone",
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        assert isinstance(handler, CloneIsolationHandler)
+
+    def test_get_isolation_handler_invalid_mode_raises(self):
+        """Test get_isolation_handler raises ValueError for invalid mode."""
+        with pytest.raises(ValueError, match="Unknown isolation mode"):
+            get_isolation_handler("invalid")
+
+    def test_get_isolation_handler_worktree_missing_deps_raises(self):
+        """Test get_isolation_handler('worktree') raises if dependencies missing."""
+        with pytest.raises(ValueError, match="git_manager.*required"):
+            get_isolation_handler("worktree")
+
+    def test_get_isolation_handler_clone_missing_deps_raises(self):
+        """Test get_isolation_handler('clone') raises if dependencies missing."""
+        with pytest.raises(ValueError, match="clone_manager.*required"):
+            get_isolation_handler("clone")
