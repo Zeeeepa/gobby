@@ -17,6 +17,7 @@ import json
 import logging
 import platform
 import tempfile
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -974,7 +975,18 @@ def create_worktrees_registry(
 
         Returns:
             Dict with worktree_id, run_id, and status.
+
+        .. deprecated::
+            Use spawn_agent() instead. spawn_agent_in_worktree will be removed in a future version.
         """
+        # Emit deprecation warning
+        deprecation_msg = (
+            "spawn_agent_in_worktree is deprecated. Use spawn_agent() instead with isolation='worktree'. "
+            "spawn_agent_in_worktree will be removed in a future version."
+        )
+        warnings.warn(deprecation_msg, DeprecationWarning, stacklevel=2)
+        logger.warning(deprecation_msg)
+
         if agent_runner is None:
             return {
                 "success": False,

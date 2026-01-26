@@ -13,6 +13,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -559,7 +560,18 @@ def create_clones_registry(
 
         Returns:
             Dict with clone_id, run_id, and status.
+
+        .. deprecated::
+            Use spawn_agent() instead. spawn_agent_in_clone will be removed in a future version.
         """
+        # Emit deprecation warning
+        deprecation_msg = (
+            "spawn_agent_in_clone is deprecated. Use spawn_agent() instead with isolation='clone'. "
+            "spawn_agent_in_clone will be removed in a future version."
+        )
+        warnings.warn(deprecation_msg, DeprecationWarning, stacklevel=2)
+        logger.warning(deprecation_msg)
+
         if agent_runner is None:
             return {
                 "success": False,

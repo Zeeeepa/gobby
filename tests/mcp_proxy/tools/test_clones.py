@@ -653,6 +653,100 @@ class TestSpawnAgentInClone:
         assert call_kwargs.get("task_id") == "task-456"
 
 
+class TestSpawnAgentInCloneDeprecation:
+    """Tests for spawn_agent_in_clone deprecation warning."""
+
+    @pytest.fixture
+    def registry_with_runner(self, mock_clone_storage, mock_git_manager):
+        """Create registry with clone tools and agent runner."""
+        from unittest.mock import MagicMock
+
+        from gobby.mcp_proxy.tools.clones import create_clones_registry
+
+        mock_runner = MagicMock()
+        mock_runner.can_spawn.return_value = (True, None, 1)
+
+        # Mock prepare_run to return a context with session and run
+        mock_context = MagicMock()
+        mock_context.session = MagicMock()
+        mock_context.session.id = "child-session-123"
+        mock_context.session.agent_depth = 1
+        mock_context.run = MagicMock()
+        mock_context.run.id = "run-123"
+        mock_runner.prepare_run.return_value = mock_context
+        mock_runner._child_session_manager = MagicMock()
+        mock_runner._child_session_manager.max_agent_depth = 3
+
+        return create_clones_registry(
+            clone_storage=mock_clone_storage,
+            git_manager=mock_git_manager,
+            project_id="proj-1",
+            agent_runner=mock_runner,
+        )
+
+    @pytest.mark.asyncio
+    async def test_spawn_agent_in_clone_deprecation_warning(
+        self, registry_with_runner, mock_clone_storage, mock_git_manager, caplog
+    ):
+        """Test that spawn_agent_in_clone logs a deprecation warning."""
+        import logging
+        import warnings
+        from unittest.mock import MagicMock, patch
+
+        # Clone already exists
+        existing_clone = MagicMock(
+            id="clone-deprecation",
+            clone_path="/tmp/clones/deprecation",
+            branch_name="feature/deprecation",
+            to_dict=lambda: {"id": "clone-deprecation", "branch_name": "feature/deprecation"},
+        )
+        mock_clone_storage.get_by_branch.return_value = existing_clone
+        mock_clone_storage.claim = MagicMock()
+
+        with (
+            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+            caplog.at_level(logging.WARNING),
+            warnings.catch_warnings(record=True) as w,
+        ):
+            warnings.simplefilter("always")
+            mock_spawner = MagicMock()
+            mock_spawner.spawn_agent.return_value = MagicMock(
+                success=True,
+                terminal_type="ghostty",
+                pid=12345,
+                error=None,
+            )
+            MockSpawner.return_value = mock_spawner
+
+            result = await registry_with_runner.call(
+                "spawn_agent_in_clone",
+                {
+                    "prompt": "Implement feature X",
+                    "branch_name": "feature/deprecation",
+                    "parent_session_id": "parent-123",
+                },
+            )
+
+        # Should still succeed (backwards compatibility)
+        assert result["success"] is True
+
+        # Should log deprecation warning
+        assert any(
+            "deprecated" in record.message.lower() and "spawn_agent_in_clone" in record.message
+            for record in caplog.records
+        ), f"Expected deprecation warning for spawn_agent_in_clone, got: {[r.message for r in caplog.records]}"
+
+        # Should emit DeprecationWarning
+        deprecation_warnings = [
+            warning for warning in w
+            if issubclass(warning.category, DeprecationWarning)
+            and "spawn_agent_in_clone" in str(warning.message)
+        ]
+        assert len(deprecation_warnings) >= 1, (
+            f"Expected DeprecationWarning for spawn_agent_in_clone, got: {[str(x.message) for x in w]}"
+        )
+
+
 class TestMergeCloneToTarget:
     """Tests for merge_clone_to_target tool."""
 

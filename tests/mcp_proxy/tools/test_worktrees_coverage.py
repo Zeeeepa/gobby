@@ -919,6 +919,85 @@ async def test_spawn_agent_create_worktree_fails(
 
 
 @pytest.mark.asyncio
+async def test_spawn_agent_in_worktree_deprecation_warning(
+    registry, mock_worktree_storage, mock_git_manager, mock_agent_runner, caplog
+):
+    """Test that spawn_agent_in_worktree logs a deprecation warning."""
+    import logging
+    import warnings
+
+    # Setup
+    mock_agent_runner.can_spawn.return_value = (True, None, 1)
+
+    mock_context = MagicMock()
+    mock_context.session.id = "child-sess-1"
+    mock_context.session.agent_depth = 1
+    mock_context.run.id = "run-1"
+    mock_agent_runner.prepare_run.return_value = mock_context
+
+    wt = Worktree(
+        id="wt-deprecation",
+        project_id="proj-1",
+        branch_name="feat/deprecation",
+        worktree_path="/tmp/deprecation",
+        base_branch="main",
+        status="active",
+        created_at="",
+        updated_at="",
+        task_id=None,
+        agent_session_id=None,
+        merged_at=None,
+    )
+    mock_worktree_storage.create.return_value = wt
+    mock_worktree_storage.get_by_branch.return_value = None
+
+    with (
+        patch("gobby.mcp_proxy.tools.worktrees._generate_worktree_path", return_value="/tmp/deprecation"),
+        patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks", return_value=True),
+        patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
+        patch("gobby.utils.machine_id.get_machine_id", return_value="machine-1"),
+        patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+        patch("gobby.agents.runner.AgentConfig"),
+        caplog.at_level(logging.WARNING),
+        warnings.catch_warnings(record=True) as w,
+    ):
+        warnings.simplefilter("always")
+        mock_spawner_instance = MockSpawner.return_value
+        mock_spawner_instance.spawn_agent.return_value = MagicMock(
+            success=True, pid=789, terminal_type="test-term"
+        )
+
+        result = await registry.call(
+            "spawn_agent_in_worktree",
+            {
+                "prompt": "do work",
+                "branch_name": "feat/deprecation",
+                "parent_session_id": "parent-1",
+                "provider": "claude",
+            },
+        )
+
+    # Should still succeed (backwards compatibility)
+    assert result["success"] is True
+
+    # Should log deprecation warning
+    assert any(
+        "deprecated" in record.message.lower() and "spawn_agent_in_worktree" in record.message
+        for record in caplog.records
+    ), f"Expected deprecation warning for spawn_agent_in_worktree, got: {[r.message for r in caplog.records]}"
+
+    # Should emit DeprecationWarning
+    deprecation_warnings = [
+        warning for warning in w
+        if issubclass(warning.category, DeprecationWarning)
+        and "spawn_agent_in_worktree" in str(warning.message)
+    ]
+    assert len(deprecation_warnings) >= 1, (
+        f"Expected DeprecationWarning for spawn_agent_in_worktree, got: {[str(x.message) for x in w]}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_spawn_agent_default_workflow(
     registry, mock_worktree_storage, mock_git_manager, mock_agent_runner
 ):

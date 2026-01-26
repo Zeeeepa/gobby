@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import socket
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -169,7 +170,18 @@ def create_agents_registry(
 
         Returns:
             Dict with run_id, child_session_id, status.
+
+        .. deprecated::
+            Use spawn_agent() instead. start_agent will be removed in a future version.
         """
+        # Emit deprecation warning
+        deprecation_msg = (
+            "start_agent is deprecated. Use spawn_agent() instead with isolation='current'. "
+            "start_agent will be removed in a future version."
+        )
+        warnings.warn(deprecation_msg, DeprecationWarning, stacklevel=2)
+        logger.warning(deprecation_msg)
+
         from gobby.agents.runner import AgentConfig
 
         # Validate mode

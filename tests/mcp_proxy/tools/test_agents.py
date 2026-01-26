@@ -1313,6 +1313,103 @@ class TestProviderSelection:
         assert config.provider == "gemini"
 
 
+class TestStartAgentDeprecationWarning:
+    """Tests for start_agent deprecation warning."""
+
+    @pytest.mark.asyncio
+    async def test_start_agent_logs_deprecation_warning(self, caplog):
+        """Test that start_agent logs a deprecation warning."""
+        import logging
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "OK", 0)
+
+        mock_result = MagicMock()
+        mock_result.status = "success"
+        mock_result.run_id = "run-123"
+        mock_result.output = "Done"
+        mock_result.error = None
+        mock_result.turns_used = 1
+        mock_result.tool_calls = []
+        runner.run = AsyncMock(return_value=mock_result)
+
+        mock_context = {
+            "id": "proj-123",
+            "project_path": "/test/project",
+        }
+
+        registry = create_agents_registry(runner)
+        start_agent = registry._tools["start_agent"].func
+
+        with (
+            patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = await start_agent(
+                prompt="Test prompt",
+                mode="in_process",
+                parent_session_id="sess-123",
+            )
+
+        # Should still succeed (backwards compatibility)
+        assert result["success"] is True
+
+        # Should log deprecation warning
+        assert any(
+            "deprecated" in record.message.lower() and "start_agent" in record.message
+            for record in caplog.records
+        ), f"Expected deprecation warning for start_agent, got: {[r.message for r in caplog.records]}"
+
+    @pytest.mark.asyncio
+    async def test_start_agent_emits_python_deprecation_warning(self):
+        """Test that start_agent emits a Python DeprecationWarning."""
+        import warnings
+
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "OK", 0)
+
+        mock_result = MagicMock()
+        mock_result.status = "success"
+        mock_result.run_id = "run-123"
+        mock_result.output = "Done"
+        mock_result.error = None
+        mock_result.turns_used = 1
+        mock_result.tool_calls = []
+        runner.run = AsyncMock(return_value=mock_result)
+
+        mock_context = {
+            "id": "proj-123",
+            "project_path": "/test/project",
+        }
+
+        registry = create_agents_registry(runner)
+        start_agent = registry._tools["start_agent"].func
+
+        with (
+            patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context),
+            warnings.catch_warnings(record=True) as w,
+        ):
+            warnings.simplefilter("always")
+            result = await start_agent(
+                prompt="Test prompt",
+                mode="in_process",
+                parent_session_id="sess-123",
+            )
+
+        # Should still succeed
+        assert result["success"] is True
+
+        # Should emit DeprecationWarning
+        deprecation_warnings = [
+            warning for warning in w
+            if issubclass(warning.category, DeprecationWarning)
+            and "start_agent" in str(warning.message)
+        ]
+        assert len(deprecation_warnings) >= 1, (
+            f"Expected DeprecationWarning for start_agent, got: {[str(x.message) for x in w]}"
+        )
+
+
 class TestPrepareRunContextValidation:
     """Tests for context validation in prepare_run path."""
 
