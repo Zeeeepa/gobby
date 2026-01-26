@@ -22,12 +22,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
-from gobby.storage.tasks import LocalTaskManager, TaskNotFoundError
+from gobby.mcp_proxy.tools.spawn_agent import spawn_agent_impl
+from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.project_context import get_project_context
-from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.state_manager import WorkflowStateManager
 from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
@@ -977,7 +974,7 @@ def create_worktrees_registry(
             Dict with worktree_id, run_id, and status.
 
         .. deprecated::
-            Use spawn_agent() instead. spawn_agent_in_worktree will be removed in a future version.
+            Use spawn_agent() instead with isolation='worktree'.
         """
         # Emit deprecation warning
         deprecation_msg = (
@@ -993,308 +990,34 @@ def create_worktrees_registry(
                 "error": "Agent runner not configured. Cannot spawn agent.",
             }
 
-        # Resolve project context
-        resolved_git_mgr, resolved_project_id, error = _resolve_project_context(
-            project_path, git_manager, project_id
-        )
-        if error:
-            return {"success": False, "error": error}
-
-        # Type narrowing: if no error, these are guaranteed non-None
-        if resolved_git_mgr is None or resolved_project_id is None:
-            raise RuntimeError("Git manager or project ID unexpectedly None")
-
-        if parent_session_id is None:
-            return {
-                "success": False,
-                "error": "parent_session_id is required for agent spawning.",
-            }
-
-        # Resolve task_id to UUID if provided (supports #N, N, path, or UUID formats)
-        resolved_task_id: str | None = None
-        if task_id:
-            if task_manager is None:
-                return {
-                    "success": False,
-                    "error": "Task manager not configured. Cannot resolve task_id.",
-                }
-            try:
-                resolved_task_id = resolve_task_id_for_mcp(
-                    task_manager, task_id, resolved_project_id
-                )
-            except (TaskNotFoundError, ValueError) as e:
-                return {"success": False, "error": f"Invalid task_id '{task_id}': {e}"}
-
-        # Handle mode aliases and validation
-        # "interactive" is an alias for "terminal" mode
-        if mode == "interactive":
-            mode = "terminal"
-
-        valid_modes = ["terminal", "embedded", "headless"]
-        if mode not in valid_modes:
-            return {
-                "success": False,
-                "error": (
-                    f"Invalid mode '{mode}'. Must be one of: {', '.join(valid_modes)} (or 'interactive' as alias for 'terminal'). "
-                    f"Note: 'in_process' mode is not supported for spawn_agent_in_worktree."
-                ),
-            }
-
-        # Normalize terminal parameter to lowercase for enum compatibility
-        # (TerminalType enum values are lowercase, e.g., "terminal.app" not "Terminal.app")
-        if isinstance(terminal, str):
-            terminal = terminal.lower()
+        # Handle mode aliases: "interactive" -> "terminal"
+        effective_mode = mode
+        if effective_mode == "interactive":
+            effective_mode = "terminal"
 
         # Default to 'worktree-agent' workflow if not specified
-        # This workflow restricts tools available to spawned agents in worktrees
-        if workflow is None:
-            workflow = "worktree-agent"
+        effective_workflow = workflow if workflow is not None else "worktree-agent"
 
-        # Validate workflow (reject lifecycle workflows)
-        if workflow:
-            workflow_loader = WorkflowLoader()
-            is_valid, error_msg = workflow_loader.validate_workflow_for_agent(
-                workflow, project_path=project_path
-            )
-            if not is_valid:
-                return {
-                    "success": False,
-                    "error": error_msg,
-                }
-
-        # Check if worktree already exists for this branch
-        existing = worktree_storage.get_by_branch(resolved_project_id, branch_name)
-        if existing:
-            # Use existing worktree
-            worktree = existing
-            logger.info(f"Using existing worktree for branch '{branch_name}'")
-        else:
-            # Generate worktree path in temp directory
-            project_name = Path(resolved_git_mgr.repo_path).name
-            worktree_path = _generate_worktree_path(branch_name, project_name)
-
-            # Create git worktree
-            result = resolved_git_mgr.create_worktree(
-                worktree_path=worktree_path,
-                branch_name=branch_name,
-                base_branch=base_branch,
-                create_branch=True,
-            )
-
-            if not result.success:
-                return {
-                    "success": False,
-                    "error": result.error or "Failed to create git worktree",
-                }
-
-            # Record in database
-            worktree = worktree_storage.create(
-                project_id=resolved_project_id,
-                branch_name=branch_name,
-                worktree_path=worktree_path,
-                base_branch=base_branch,
-                task_id=resolved_task_id,
-            )
-
-        # Copy project.json and install provider hooks
-        _copy_project_json_to_worktree(resolved_git_mgr.repo_path, worktree.worktree_path)
-        _install_provider_hooks(provider, worktree.worktree_path)
-
-        # Check spawn depth limit
-        can_spawn, reason, _depth = agent_runner.can_spawn(parent_session_id)
-        if not can_spawn:
-            return {
-                "success": False,
-                "error": reason,
-                "worktree_id": worktree.id,
-            }
-
-        # Import AgentConfig and get machine_id
-        from gobby.agents.runner import AgentConfig
-        from gobby.utils.machine_id import get_machine_id
-
-        # Auto-detect machine_id if not provided
-        machine_id = get_machine_id()
-
-        # Create agent config with worktree
-        config = AgentConfig(
+        # Delegate to spawn_agent_impl with isolation='worktree'
+        return await spawn_agent_impl(
             prompt=prompt,
-            parent_session_id=parent_session_id,
-            project_id=resolved_project_id,
-            machine_id=machine_id,
-            source=provider,
-            workflow=workflow,
-            task=resolved_task_id,
-            session_context="summary_markdown",
-            mode=mode,
+            runner=agent_runner,
+            task_id=task_id,
+            task_manager=task_manager,
+            isolation="worktree",
+            branch_name=branch_name,
+            base_branch=base_branch,
+            worktree_storage=worktree_storage,
+            git_manager=git_manager,
+            workflow=effective_workflow,
+            mode=effective_mode,
             terminal=terminal,
-            worktree_id=worktree.id,
             provider=provider,
             model=model,
-            max_turns=max_turns,
             timeout=timeout,
-            project_path=worktree.worktree_path,
+            max_turns=max_turns,
+            parent_session_id=parent_session_id,
+            project_path=project_path,
         )
-
-        # For terminal/embedded/headless modes, use prepare_run + spawner
-        # (runner.run() is only for in_process mode)
-        from gobby.llm.executor import AgentResult
-
-        prepare_result = agent_runner.prepare_run(config)
-        if isinstance(prepare_result, AgentResult):
-            # prepare_run returns AgentResult on error
-            return {
-                "success": False,
-                "worktree_id": worktree.id,
-                "worktree_path": worktree.worktree_path,
-                "branch_name": worktree.branch_name,
-                "error": prepare_result.error,
-            }
-
-        # Successfully prepared - we have context with session and run
-        context = prepare_result
-
-        if context.session is None or context.run is None:
-            return {
-                "success": False,
-                "worktree_id": worktree.id,
-                "error": "Internal error: context missing session or run after prepare_run",
-            }
-
-        child_session = context.session
-        agent_run = context.run
-
-        # Claim worktree for the child session
-        worktree_storage.claim(worktree.id, child_session.id)
-
-        # Pre-save workflow state with session_task if task_id is provided
-        # This ensures suggest_next_task() will scope to this task's subtasks
-        if task_id and workflow:
-            try:
-                workflow_state_manager = WorkflowStateManager(worktree_storage.db)
-                initial_state = WorkflowState(
-                    session_id=child_session.id,
-                    workflow_name=workflow,
-                    step="",  # Will be set when workflow actually starts
-                    variables={"session_task": task_id},
-                )
-                workflow_state_manager.save_state(initial_state)
-                logger.debug(
-                    f"Pre-saved workflow state for session {child_session.id} "
-                    f"with session_task={task_id}"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to pre-save workflow state: {e}")
-                # Continue anyway - this is an optimization, not a requirement
-
-        # Build enhanced prompt with worktree context
-        # This helps the agent understand it's in an isolated worktree, not the main repo
-        enhanced_prompt = _build_worktree_context_prompt(
-            original_prompt=prompt,
-            worktree_path=worktree.worktree_path,
-            branch_name=worktree.branch_name,
-            task_id=task_id,
-            main_repo_path=str(resolved_git_mgr.repo_path),
-        )
-
-        # Spawn in terminal using TerminalSpawner
-        if mode == "terminal":
-            from gobby.agents.spawn import TerminalSpawner
-
-            terminal_spawner = TerminalSpawner()
-            terminal_result = terminal_spawner.spawn_agent(
-                cli=provider,  # claude, gemini, codex
-                cwd=worktree.worktree_path,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=resolved_project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                terminal=terminal,
-                prompt=enhanced_prompt,
-            )
-
-            if not terminal_result.success:
-                return {
-                    "success": False,
-                    "worktree_id": worktree.id,
-                    "worktree_path": worktree.worktree_path,
-                    "branch_name": worktree.branch_name,
-                    "run_id": agent_run.id,
-                    "child_session_id": child_session.id,
-                    "error": terminal_result.error or terminal_result.message,
-                }
-
-            return {
-                "success": True,
-                "worktree_id": worktree.id,
-                "worktree_path": worktree.worktree_path,
-                "branch_name": worktree.branch_name,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending",
-                "message": f"Agent spawned in {terminal_result.terminal_type} (PID: {terminal_result.pid})",
-                "terminal_type": terminal_result.terminal_type,
-                "pid": terminal_result.pid,
-            }
-
-        elif mode == "embedded":
-            from gobby.agents.spawn import EmbeddedSpawner
-
-            embedded_spawner = EmbeddedSpawner()
-            embedded_result = embedded_spawner.spawn_agent(
-                cli=provider,
-                cwd=worktree.worktree_path,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=resolved_project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                prompt=enhanced_prompt,
-            )
-
-            return {
-                "success": embedded_result.success,
-                "worktree_id": worktree.id,
-                "worktree_path": worktree.worktree_path,
-                "branch_name": worktree.branch_name,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending" if embedded_result.success else "error",
-                "error": embedded_result.error if not embedded_result.success else None,
-            }
-
-        else:  # headless
-            from gobby.agents.spawn import HeadlessSpawner
-
-            headless_spawner = HeadlessSpawner()
-            headless_result = headless_spawner.spawn_agent(
-                cli=provider,
-                cwd=worktree.worktree_path,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=resolved_project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                prompt=enhanced_prompt,
-            )
-
-            return {
-                "success": headless_result.success,
-                "worktree_id": worktree.id,
-                "worktree_path": worktree.worktree_path,
-                "branch_name": worktree.branch_name,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending" if headless_result.success else "error",
-                "pid": headless_result.pid if headless_result.success else None,
-                "error": headless_result.error if not headless_result.success else None,
-            }
 
     return registry

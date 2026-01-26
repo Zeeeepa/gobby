@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 import socket
+import uuid
 from typing import TYPE_CHECKING, Any, Literal
 
-from gobby.agents.definitions import AgentDefinitionLoader
+from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
 from gobby.agents.isolation import (
     SpawnConfig,
     get_isolation_handler,
@@ -30,6 +31,201 @@ if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
+
+
+async def spawn_agent_impl(
+    prompt: str,
+    runner: AgentRunner,
+    agent_def: AgentDefinition | None = None,
+    task_id: str | None = None,
+    task_manager: LocalTaskManager | None = None,
+    # Isolation
+    isolation: Literal["current", "worktree", "clone"] | None = None,
+    branch_name: str | None = None,
+    base_branch: str | None = None,
+    # Storage/managers for isolation
+    worktree_storage: Any | None = None,
+    git_manager: Any | None = None,
+    clone_storage: Any | None = None,
+    clone_manager: Any | None = None,
+    # Execution
+    workflow: str | None = None,
+    mode: Literal["terminal", "embedded", "headless"] | None = None,
+    terminal: str = "auto",
+    provider: str | None = None,
+    model: str | None = None,
+    # Limits
+    timeout: float | None = None,
+    max_turns: int | None = None,
+    # Context
+    parent_session_id: str | None = None,
+    project_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    Core spawn_agent implementation that can be called directly.
+
+    This is the internal implementation used by both the spawn_agent MCP tool
+    and the deprecated spawn_agent_in_worktree/spawn_agent_in_clone tools.
+
+    Args:
+        prompt: Required - what the agent should do
+        runner: AgentRunner instance for executing agents
+        agent_def: Optional loaded agent definition
+        task_id: Optional - link to task (supports N, #N, UUID)
+        task_manager: Task manager for task resolution
+        isolation: Isolation mode (current/worktree/clone)
+        branch_name: Git branch name (auto-generated from task if not provided)
+        base_branch: Base branch for worktree/clone
+        worktree_storage: Storage for worktree records
+        git_manager: Git manager for worktree operations
+        clone_storage: Storage for clone records
+        clone_manager: Git manager for clone operations
+        workflow: Workflow to use
+        mode: Execution mode (terminal/embedded/headless)
+        terminal: Terminal type for terminal mode
+        provider: AI provider (claude/gemini/codex)
+        model: Model to use
+        timeout: Timeout in seconds
+        max_turns: Maximum conversation turns
+        parent_session_id: Parent session ID
+        project_path: Project path override
+
+    Returns:
+        Dict with success status, run_id, child_session_id, isolation metadata
+    """
+    # 1. Merge config: agent_def defaults < params
+    effective_isolation = isolation
+    if effective_isolation is None and agent_def:
+        effective_isolation = agent_def.isolation
+    effective_isolation = effective_isolation or "current"
+
+    effective_provider = provider
+    if effective_provider is None and agent_def:
+        effective_provider = agent_def.provider
+    effective_provider = effective_provider or "claude"
+
+    effective_mode = mode
+    if effective_mode is None and agent_def:
+        effective_mode = agent_def.mode
+    effective_mode = effective_mode or "terminal"
+
+    effective_workflow = workflow
+    if effective_workflow is None and agent_def:
+        effective_workflow = agent_def.workflow
+
+    effective_base_branch = base_branch
+    if effective_base_branch is None and agent_def:
+        effective_base_branch = agent_def.base_branch
+    effective_base_branch = effective_base_branch or "main"
+
+    effective_branch_prefix = None
+    if agent_def:
+        effective_branch_prefix = agent_def.branch_prefix
+
+    # 2. Resolve project context
+    ctx = get_project_context(project_path)
+    if ctx is None:
+        return {"success": False, "error": "Could not resolve project context"}
+
+    project_id = ctx.get("id") or ctx.get("project_id")
+    resolved_project_path = ctx.get("project_path")
+
+    # 3. Validate parent_session_id and spawn depth
+    if parent_session_id is None:
+        return {"success": False, "error": "parent_session_id is required"}
+
+    can_spawn, reason, _depth = runner.can_spawn(parent_session_id)
+    if not can_spawn:
+        return {"success": False, "error": reason}
+
+    # 4. Resolve task_id if provided (supports N, #N, UUID)
+    resolved_task_id: str | None = None
+    task_title: str | None = None
+    task_seq_num: int | None = None
+
+    if task_id and task_manager:
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id, project_id)
+            task = task_manager.get_task(resolved_task_id)
+            if task:
+                task_title = task.title
+                task_seq_num = task.seq_num
+        except Exception as e:
+            logger.warning(f"Failed to resolve task_id {task_id}: {e}")
+
+    # 5. Get isolation handler
+    handler = get_isolation_handler(
+        effective_isolation,
+        git_manager=git_manager,
+        worktree_storage=worktree_storage,
+        clone_manager=clone_manager,
+        clone_storage=clone_storage,
+    )
+
+    # 6. Build spawn config
+    spawn_config = SpawnConfig(
+        prompt=prompt,
+        task_id=resolved_task_id,
+        task_title=task_title,
+        task_seq_num=task_seq_num,
+        branch_name=branch_name,
+        branch_prefix=effective_branch_prefix,
+        base_branch=effective_base_branch,
+        project_id=project_id,
+        project_path=resolved_project_path,
+        provider=effective_provider,
+        parent_session_id=parent_session_id,
+    )
+
+    # 7. Prepare environment (worktree/clone creation)
+    try:
+        isolation_ctx = await handler.prepare_environment(spawn_config)
+    except Exception as e:
+        logger.error(f"Failed to prepare environment: {e}", exc_info=True)
+        return {"success": False, "error": f"Failed to prepare environment: {e}"}
+
+    # 8. Build enhanced prompt with isolation context
+    enhanced_prompt = handler.build_context_prompt(prompt, isolation_ctx)
+
+    # 9. Generate session and run IDs
+    session_id = str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
+
+    # 10. Execute spawn via SpawnExecutor
+    spawn_request = SpawnRequest(
+        prompt=enhanced_prompt,
+        cwd=isolation_ctx.cwd,
+        mode=effective_mode,
+        provider=effective_provider,
+        terminal=terminal,
+        session_id=session_id,
+        run_id=run_id,
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        workflow=effective_workflow,
+        worktree_id=isolation_ctx.worktree_id,
+        clone_id=isolation_ctx.clone_id,
+        session_manager=runner._child_session_manager,
+        machine_id=socket.gethostname(),
+    )
+
+    spawn_result = await execute_spawn(spawn_request)
+
+    # 11. Return response with isolation metadata
+    return {
+        "success": spawn_result.success,
+        "run_id": spawn_result.run_id,
+        "child_session_id": spawn_result.child_session_id,
+        "status": spawn_result.status,
+        "isolation": effective_isolation,
+        "branch_name": isolation_ctx.branch_name,
+        "worktree_id": isolation_ctx.worktree_id,
+        "worktree_path": isolation_ctx.cwd if effective_isolation == "worktree" else None,
+        "clone_id": isolation_ctx.clone_id,
+        "pid": spawn_result.pid,
+        "error": spawn_result.error,
+        "message": spawn_result.message,
+    }
 
 
 def create_spawn_agent_registry(
@@ -116,144 +312,34 @@ def create_spawn_agent_registry(
         Returns:
             Dict with success status, run_id, child_session_id, isolation metadata
         """
-        # 1. Load agent definition (defaults to "generic")
+        # Load agent definition (defaults to "generic")
         agent_def = loader.load(agent)
         if agent_def is None and agent != "generic":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
-        # 2. Merge config: agent_def defaults < tool params
-        effective_isolation = isolation
-        if effective_isolation is None and agent_def:
-            effective_isolation = agent_def.isolation
-        effective_isolation = effective_isolation or "current"
-
-        effective_provider = provider
-        if effective_provider is None and agent_def:
-            effective_provider = agent_def.provider
-        effective_provider = effective_provider or "claude"
-
-        effective_mode = mode
-        if effective_mode is None and agent_def:
-            effective_mode = agent_def.mode
-        effective_mode = effective_mode or "terminal"
-
-        effective_workflow = workflow
-        if effective_workflow is None and agent_def:
-            effective_workflow = agent_def.workflow
-
-        effective_base_branch = base_branch
-        if effective_base_branch is None and agent_def:
-            effective_base_branch = agent_def.base_branch
-        effective_base_branch = effective_base_branch or "main"
-
-        effective_branch_prefix = None
-        if agent_def:
-            effective_branch_prefix = agent_def.branch_prefix
-
-        # 3. Resolve project context
-        ctx = get_project_context(project_path)
-        if ctx is None:
-            return {"success": False, "error": "Could not resolve project context"}
-
-        project_id = ctx.project_id
-        resolved_project_path = ctx.project_path
-
-        # 4. Validate parent_session_id and spawn depth
-        if parent_session_id is None:
-            return {"success": False, "error": "parent_session_id is required"}
-
-        can_spawn, reason, _depth = runner.can_spawn(parent_session_id)
-        if not can_spawn:
-            return {"success": False, "error": reason}
-
-        # 5. Resolve task_id if provided (supports N, #N, UUID)
-        resolved_task_id: str | None = None
-        task_title: str | None = None
-        task_seq_num: int | None = None
-
-        if task_id and task_manager:
-            try:
-                resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id, project_id)
-                task = task_manager.get_task(resolved_task_id)
-                if task:
-                    task_title = task.title
-                    task_seq_num = task.seq_num
-            except Exception as e:
-                logger.warning(f"Failed to resolve task_id {task_id}: {e}")
-
-        # 6. Get isolation handler
-        handler = get_isolation_handler(
-            effective_isolation,
-            git_manager=git_manager,
-            worktree_storage=worktree_storage,
-            clone_manager=clone_manager,
-            clone_storage=clone_storage,
-        )
-
-        # 7. Build spawn config
-        spawn_config = SpawnConfig(
+        # Delegate to spawn_agent_impl
+        return await spawn_agent_impl(
             prompt=prompt,
-            task_id=resolved_task_id,
-            task_title=task_title,
-            task_seq_num=task_seq_num,
+            runner=runner,
+            agent_def=agent_def,
+            task_id=task_id,
+            task_manager=task_manager,
+            isolation=isolation,
             branch_name=branch_name,
-            branch_prefix=effective_branch_prefix,
-            base_branch=effective_base_branch,
-            project_id=project_id,
-            project_path=resolved_project_path,
-            provider=effective_provider,
-            parent_session_id=parent_session_id,
-        )
-
-        # 8. Prepare environment (worktree/clone creation)
-        try:
-            isolation_ctx = await handler.prepare_environment(spawn_config)
-        except Exception as e:
-            logger.error(f"Failed to prepare environment: {e}", exc_info=True)
-            return {"success": False, "error": f"Failed to prepare environment: {e}"}
-
-        # 9. Build enhanced prompt with isolation context
-        enhanced_prompt = handler.build_context_prompt(prompt, isolation_ctx)
-
-        # 10. Generate session and run IDs
-        import uuid
-
-        session_id = str(uuid.uuid4())
-        run_id = str(uuid.uuid4())
-
-        # 11. Execute spawn via SpawnExecutor
-        spawn_request = SpawnRequest(
-            prompt=enhanced_prompt,
-            cwd=isolation_ctx.cwd,
-            mode=effective_mode,
-            provider=effective_provider,
+            base_branch=base_branch,
+            worktree_storage=worktree_storage,
+            git_manager=git_manager,
+            clone_storage=clone_storage,
+            clone_manager=clone_manager,
+            workflow=workflow,
+            mode=mode,
             terminal=terminal,
-            session_id=session_id,
-            run_id=run_id,
+            provider=provider,
+            model=model,
+            timeout=timeout,
+            max_turns=max_turns,
             parent_session_id=parent_session_id,
-            project_id=project_id,
-            workflow=effective_workflow,
-            worktree_id=isolation_ctx.worktree_id,
-            clone_id=isolation_ctx.clone_id,
-            session_manager=runner._child_session_manager,
-            machine_id=socket.gethostname(),
+            project_path=project_path,
         )
-
-        spawn_result = await execute_spawn(spawn_request)
-
-        # 12. Return response with isolation metadata
-        return {
-            "success": spawn_result.success,
-            "run_id": spawn_result.run_id,
-            "child_session_id": spawn_result.child_session_id,
-            "status": spawn_result.status,
-            "isolation": effective_isolation,
-            "branch_name": isolation_ctx.branch_name,
-            "worktree_id": isolation_ctx.worktree_id,
-            "clone_id": isolation_ctx.clone_id,
-            "pid": spawn_result.pid,
-            "error": spawn_result.error,
-            "message": spawn_result.message,
-        }
 
     return registry

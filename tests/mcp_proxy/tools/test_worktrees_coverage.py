@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -427,45 +427,48 @@ async def test_cleanup_stale_worktrees(registry, mock_worktree_storage, mock_git
 async def test_spawn_agent_in_worktree(
     registry, mock_worktree_storage, mock_git_manager, mock_agent_runner
 ):
-    # Setup
+    """Test spawn_agent_in_worktree delegates to spawn_agent_impl with isolation='worktree'."""
+    # Setup mock for spawn_agent_impl (the unified implementation)
+    from gobby.agents.isolation import IsolationContext
+    from gobby.agents.spawn_executor import SpawnResult
+
+    # Configure mock_agent_runner.can_spawn to return proper tuple
     mock_agent_runner.can_spawn.return_value = (True, None, 1)
 
-    mock_context = MagicMock()
-    mock_context.session.id = "child-sess-1"
-    mock_context.session.agent_depth = 1
-    mock_context.run.id = "run-1"
-    mock_agent_runner.prepare_run.return_value = mock_context
-
-    wt = Worktree(
-        id="wt-new",
-        project_id="proj-1",
-        branch_name="feat/new",
-        worktree_path="/tmp/new",
-        base_branch="main",
-        status="active",
-        created_at="",
-        updated_at="",
-        task_id=None,
-        agent_session_id=None,
-        merged_at=None,
+    mock_spawn_result = SpawnResult(
+        success=True,
+        run_id="run-123",
+        child_session_id="child-sess-1",
+        status="pending",
+        pid=123,
+        terminal_type="test-term",
+        message="Agent spawned in test-term (PID: 123)",
     )
-    mock_worktree_storage.create.return_value = wt
-    mock_worktree_storage.get_by_branch.return_value = None
 
-    # Needs a lot of patching for internals
+    mock_isolation_ctx = MagicMock(spec=IsolationContext)
+    mock_isolation_ctx.cwd = "/tmp/new"
+    mock_isolation_ctx.branch_name = "feat/new"
+    mock_isolation_ctx.worktree_id = "wt-new"
+    mock_isolation_ctx.clone_id = None
+
+    mock_handler = MagicMock()
+    mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+    mock_handler.build_context_prompt.return_value = "enhanced prompt"
+
     with (
-        patch("gobby.mcp_proxy.tools.worktrees._generate_worktree_path", return_value="/tmp/new"),
-        patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks", return_value=True),
-        patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
-        patch("gobby.utils.machine_id.get_machine_id", return_value="machine-1"),
-        patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
-        patch("gobby.agents.runner.AgentConfig"),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+            return_value=mock_handler,
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+            AsyncMock(return_value=mock_spawn_result),
+        ),
     ):
-        mock_spawner_instance = MockSpawner.return_value
-        mock_spawner_instance.spawn_agent.return_value = MagicMock(
-            success=True, pid=123, terminal_type="test-term"
-        )
-
         result = await registry.call(
             "spawn_agent_in_worktree",
             {
@@ -479,12 +482,7 @@ async def test_spawn_agent_in_worktree(
         assert result["success"] is True
         assert result["worktree_id"] == "wt-new"
         assert result["pid"] == 123
-
-        # Verify spawner called
-        mock_spawner_instance.spawn_agent.assert_called_once()
-
-        # Verify claim
-        mock_worktree_storage.claim.assert_called_with("wt-new", "child-sess-1")
+        assert result["isolation"] == "worktree"
 
 
 # ========== Helper function tests ==========
@@ -926,46 +924,49 @@ async def test_spawn_agent_in_worktree_deprecation_warning(
     import logging
     import warnings
 
+    from gobby.agents.isolation import IsolationContext
+    from gobby.agents.spawn_executor import SpawnResult
+
     # Setup
     mock_agent_runner.can_spawn.return_value = (True, None, 1)
 
-    mock_context = MagicMock()
-    mock_context.session.id = "child-sess-1"
-    mock_context.session.agent_depth = 1
-    mock_context.run.id = "run-1"
-    mock_agent_runner.prepare_run.return_value = mock_context
-
-    wt = Worktree(
-        id="wt-deprecation",
-        project_id="proj-1",
-        branch_name="feat/deprecation",
-        worktree_path="/tmp/deprecation",
-        base_branch="main",
-        status="active",
-        created_at="",
-        updated_at="",
-        task_id=None,
-        agent_session_id=None,
-        merged_at=None,
+    mock_spawn_result = SpawnResult(
+        success=True,
+        run_id="run-123",
+        child_session_id="child-sess-1",
+        status="pending",
+        pid=789,
+        terminal_type="test-term",
+        message="Agent spawned",
     )
-    mock_worktree_storage.create.return_value = wt
-    mock_worktree_storage.get_by_branch.return_value = None
+
+    mock_isolation_ctx = MagicMock(spec=IsolationContext)
+    mock_isolation_ctx.cwd = "/tmp/deprecation"
+    mock_isolation_ctx.branch_name = "feat/deprecation"
+    mock_isolation_ctx.worktree_id = "wt-deprecation"
+    mock_isolation_ctx.clone_id = None
+
+    mock_handler = MagicMock()
+    mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+    mock_handler.build_context_prompt.return_value = "enhanced prompt"
 
     with (
-        patch("gobby.mcp_proxy.tools.worktrees._generate_worktree_path", return_value="/tmp/deprecation"),
-        patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks", return_value=True),
-        patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
-        patch("gobby.utils.machine_id.get_machine_id", return_value="machine-1"),
-        patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
-        patch("gobby.agents.runner.AgentConfig"),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+            return_value=mock_handler,
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+            AsyncMock(return_value=mock_spawn_result),
+        ),
         caplog.at_level(logging.WARNING),
         warnings.catch_warnings(record=True) as w,
     ):
         warnings.simplefilter("always")
-        mock_spawner_instance = MockSpawner.return_value
-        mock_spawner_instance.spawn_agent.return_value = MagicMock(
-            success=True, pid=789, terminal_type="test-term"
-        )
 
         result = await registry.call(
             "spawn_agent_in_worktree",
@@ -1002,44 +1003,46 @@ async def test_spawn_agent_default_workflow(
     registry, mock_worktree_storage, mock_git_manager, mock_agent_runner
 ):
     """Test that spawn_agent_in_worktree defaults to 'worktree-agent' workflow."""
+    from gobby.agents.isolation import IsolationContext
+    from gobby.agents.spawn_executor import SpawnResult
+
     # Setup
     mock_agent_runner.can_spawn.return_value = (True, None, 1)
 
-    mock_context = MagicMock()
-    mock_context.session.id = "child-sess-1"
-    mock_context.session.agent_depth = 1
-    mock_context.run.id = "run-1"
-    mock_agent_runner.prepare_run.return_value = mock_context
-
-    wt = Worktree(
-        id="wt-default",
-        project_id="proj-1",
-        branch_name="feat/default",
-        worktree_path="/tmp/default",
-        base_branch="main",
-        status="active",
-        created_at="",
-        updated_at="",
-        task_id=None,
-        agent_session_id=None,
-        merged_at=None,
+    mock_spawn_result = SpawnResult(
+        success=True,
+        run_id="run-123",
+        child_session_id="child-sess-1",
+        status="pending",
+        pid=456,
+        terminal_type="test-term",
+        message="Agent spawned",
     )
-    mock_worktree_storage.create.return_value = wt
-    mock_worktree_storage.get_by_branch.return_value = None
+
+    mock_isolation_ctx = MagicMock(spec=IsolationContext)
+    mock_isolation_ctx.cwd = "/tmp/default"
+    mock_isolation_ctx.branch_name = "feat/default"
+    mock_isolation_ctx.worktree_id = "wt-default"
+    mock_isolation_ctx.clone_id = None
+
+    mock_handler = MagicMock()
+    mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+    mock_handler.build_context_prompt.return_value = "enhanced prompt"
 
     with (
-        patch("gobby.mcp_proxy.tools.worktrees._generate_worktree_path", return_value="/tmp/default"),
-        patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks", return_value=True),
-        patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
-        patch("gobby.utils.machine_id.get_machine_id", return_value="machine-1"),
-        patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
-        patch("gobby.agents.runner.AgentConfig") as MockAgentConfig,
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+            return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+            return_value=mock_handler,
+        ),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+            AsyncMock(return_value=mock_spawn_result),
+        ) as mock_execute_spawn,
     ):
-        mock_spawner_instance = MockSpawner.return_value
-        mock_spawner_instance.spawn_agent.return_value = MagicMock(
-            success=True, pid=456, terminal_type="test-term"
-        )
-
         # Call WITHOUT specifying workflow
         result = await registry.call(
             "spawn_agent_in_worktree",
@@ -1053,9 +1056,9 @@ async def test_spawn_agent_default_workflow(
 
         assert result["success"] is True
 
-        # Verify AgentConfig was called with workflow='worktree-agent'
-        MockAgentConfig.assert_called_once()
-        call_kwargs = MockAgentConfig.call_args[1]
-        assert call_kwargs.get("workflow") == "worktree-agent", (
-            f"Expected workflow='worktree-agent', got workflow={call_kwargs.get('workflow')!r}"
+        # Verify execute_spawn was called with workflow='worktree-agent'
+        mock_execute_spawn.assert_called_once()
+        spawn_request = mock_execute_spawn.call_args[0][0]
+        assert spawn_request.workflow == "worktree-agent", (
+            f"Expected workflow='worktree-agent', got workflow={spawn_request.workflow!r}"
         )
