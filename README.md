@@ -333,6 +333,10 @@ See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
 **Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management (manage sessions across multiple machines), Plugin ecosystem, Team workflows, Enterprise hardening
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history and detailed changes.
+
 ## Development
 
 ```bash
