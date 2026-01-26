@@ -9,10 +9,11 @@ Tests for the gobby-clones MCP server tools:
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from gobby.agents.spawn_executor import SpawnResult
 from gobby.storage.clones import Clone
 
 pytestmark = pytest.mark.integration
@@ -451,32 +452,39 @@ class TestSpawnAgentInClone:
         self, registry_with_runner, mock_clone_storage, mock_git_manager
     ):
         """Spawn agent creates clone if it doesn't exist."""
-        from unittest.mock import MagicMock, patch
+        # Mock isolation handler that creates a new clone
+        mock_handler = MagicMock()
+        mock_isolation_ctx = MagicMock()
+        mock_isolation_ctx.cwd = "/tmp/clones/test"
+        mock_isolation_ctx.branch_name = "feature/test"
+        mock_isolation_ctx.worktree_id = None
+        mock_isolation_ctx.clone_id = "clone-123"
+        mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+        mock_handler.build_context_prompt.return_value = "Enhanced prompt"
 
-        # Clone doesn't exist yet
-        mock_clone_storage.get_by_branch.return_value = None
-        mock_git_manager.shallow_clone.return_value = MagicMock(success=True)
-        mock_git_manager.get_remote_url.return_value = "https://github.com/user/repo.git"
-        mock_clone_storage.create.return_value = MagicMock(
-            id="clone-123",
-            clone_path="/tmp/clones/test",
-            branch_name="feature/test",
-            to_dict=lambda: {"id": "clone-123", "branch_name": "feature/test"},
+        # Mock spawn result
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-123",
+            child_session_id="child-session-123",
+            status="running",
+            pid=12345,
         )
-        mock_clone_storage.claim = MagicMock()
 
-        # Mock TerminalSpawner
-        with patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner:
-            mock_spawner = MagicMock()
-            mock_spawner.spawn_agent.return_value = MagicMock(
-                success=True,
-                terminal_type="ghostty",
-                pid=12345,
-                error=None,
-                message="Agent spawned",
-            )
-            MockSpawner.return_value = mock_spawner
-
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+                return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+                return_value=mock_handler,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
+            ),
+        ):
             result = await registry_with_runner.call(
                 "spawn_agent_in_clone",
                 {
@@ -489,36 +497,45 @@ class TestSpawnAgentInClone:
         assert result["success"] is True
         assert result["clone_id"] == "clone-123"
         assert "run_id" in result
-        mock_git_manager.shallow_clone.assert_called_once()
-        mock_clone_storage.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_spawn_agent_in_clone_uses_existing_clone(
         self, registry_with_runner, mock_clone_storage, mock_git_manager
     ):
         """Spawn agent uses existing clone if branch exists."""
-        from unittest.mock import MagicMock, patch
+        # Mock isolation handler that reuses an existing clone
+        mock_handler = MagicMock()
+        mock_isolation_ctx = MagicMock()
+        mock_isolation_ctx.cwd = "/tmp/clones/existing"
+        mock_isolation_ctx.branch_name = "feature/test"
+        mock_isolation_ctx.worktree_id = None
+        mock_isolation_ctx.clone_id = "clone-existing"
+        mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+        mock_handler.build_context_prompt.return_value = "Enhanced prompt"
 
-        # Clone already exists
-        existing_clone = MagicMock(
-            id="clone-existing",
-            clone_path="/tmp/clones/existing",
-            branch_name="feature/test",
-            to_dict=lambda: {"id": "clone-existing", "branch_name": "feature/test"},
+        # Mock spawn result
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-123",
+            child_session_id="child-session-123",
+            status="running",
+            pid=12345,
         )
-        mock_clone_storage.get_by_branch.return_value = existing_clone
-        mock_clone_storage.claim = MagicMock()
 
-        with patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner:
-            mock_spawner = MagicMock()
-            mock_spawner.spawn_agent.return_value = MagicMock(
-                success=True,
-                terminal_type="ghostty",
-                pid=12345,
-                error=None,
-            )
-            MockSpawner.return_value = mock_spawner
-
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+                return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+                return_value=mock_handler,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
+            ),
+        ):
             result = await registry_with_runner.call(
                 "spawn_agent_in_clone",
                 {
@@ -530,9 +547,6 @@ class TestSpawnAgentInClone:
 
         assert result["success"] is True
         assert result["clone_id"] == "clone-existing"
-        # Should NOT create a new clone
-        mock_git_manager.shallow_clone.assert_not_called()
-        mock_clone_storage.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_spawn_agent_in_clone_requires_parent_session(
@@ -614,29 +628,39 @@ class TestSpawnAgentInClone:
         self, registry_with_runner, mock_clone_storage, mock_git_manager
     ):
         """Spawn agent can be linked to a task."""
-        from unittest.mock import MagicMock, patch
+        # Mock isolation handler
+        mock_handler = MagicMock()
+        mock_isolation_ctx = MagicMock()
+        mock_isolation_ctx.cwd = "/tmp/clones/test"
+        mock_isolation_ctx.branch_name = "feature/test"
+        mock_isolation_ctx.worktree_id = None
+        mock_isolation_ctx.clone_id = "clone-123"
+        mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+        mock_handler.build_context_prompt.return_value = "Enhanced prompt"
 
-        mock_clone_storage.get_by_branch.return_value = None
-        mock_git_manager.shallow_clone.return_value = MagicMock(success=True)
-        mock_git_manager.get_remote_url.return_value = "https://github.com/user/repo.git"
-        mock_clone_storage.create.return_value = MagicMock(
-            id="clone-123",
-            clone_path="/tmp/clones/test",
-            branch_name="feature/test",
-            to_dict=lambda: {"id": "clone-123"},
+        # Mock spawn result
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-123",
+            child_session_id="child-session-123",
+            status="running",
+            pid=12345,
         )
-        mock_clone_storage.claim = MagicMock()
 
-        with patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner:
-            mock_spawner = MagicMock()
-            mock_spawner.spawn_agent.return_value = MagicMock(
-                success=True,
-                terminal_type="ghostty",
-                pid=12345,
-                error=None,
-            )
-            MockSpawner.return_value = mock_spawner
-
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+                return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+                return_value=mock_handler,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
+            ),
+        ):
             result = await registry_with_runner.call(
                 "spawn_agent_in_clone",
                 {
@@ -648,9 +672,8 @@ class TestSpawnAgentInClone:
             )
 
         assert result["success"] is True
-        # Verify task_id was passed to create
-        call_kwargs = mock_clone_storage.create.call_args.kwargs
-        assert call_kwargs.get("task_id") == "task-456"
+        # Task ID is now handled by spawn_agent_impl via task_manager
+        assert result["clone_id"] == "clone-123"
 
 
 class TestSpawnAgentInCloneDeprecation:
@@ -691,32 +714,43 @@ class TestSpawnAgentInCloneDeprecation:
         """Test that spawn_agent_in_clone logs a deprecation warning."""
         import logging
         import warnings
-        from unittest.mock import MagicMock, patch
 
-        # Clone already exists
-        existing_clone = MagicMock(
-            id="clone-deprecation",
-            clone_path="/tmp/clones/deprecation",
-            branch_name="feature/deprecation",
-            to_dict=lambda: {"id": "clone-deprecation", "branch_name": "feature/deprecation"},
+        # Mock isolation handler
+        mock_handler = MagicMock()
+        mock_isolation_ctx = MagicMock()
+        mock_isolation_ctx.cwd = "/tmp/clones/deprecation"
+        mock_isolation_ctx.branch_name = "feature/deprecation"
+        mock_isolation_ctx.worktree_id = None
+        mock_isolation_ctx.clone_id = "clone-deprecation"
+        mock_handler.prepare_environment = AsyncMock(return_value=mock_isolation_ctx)
+        mock_handler.build_context_prompt.return_value = "Enhanced prompt"
+
+        # Mock spawn result
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-123",
+            child_session_id="child-session-123",
+            status="running",
+            pid=12345,
         )
-        mock_clone_storage.get_by_branch.return_value = existing_clone
-        mock_clone_storage.claim = MagicMock()
 
         with (
-            patch("gobby.agents.spawn.TerminalSpawner") as MockSpawner,
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_project_context",
+                return_value={"id": "proj-1", "project_path": "/tmp/repo"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler",
+                return_value=mock_handler,
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
+            ),
             caplog.at_level(logging.WARNING),
             warnings.catch_warnings(record=True) as w,
         ):
             warnings.simplefilter("always")
-            mock_spawner = MagicMock()
-            mock_spawner.spawn_agent.return_value = MagicMock(
-                success=True,
-                terminal_type="ghostty",
-                pid=12345,
-                error=None,
-            )
-            MockSpawner.return_value = mock_spawner
 
             result = await registry_with_runner.call(
                 "spawn_agent_in_clone",

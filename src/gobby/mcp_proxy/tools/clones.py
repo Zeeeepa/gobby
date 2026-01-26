@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import logging
 import warnings
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.spawn_agent import spawn_agent_impl
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -578,267 +578,30 @@ def create_clones_registry(
                 "error": "Agent runner not configured. Cannot spawn agent.",
             }
 
-        if parent_session_id is None:
-            return {
-                "success": False,
-                "error": "parent_session_id is required for agent spawning.",
-            }
+        # Handle mode aliases: "interactive" -> "terminal"
+        effective_mode = mode
+        if effective_mode == "interactive":
+            effective_mode = "terminal"
 
-        # Handle mode aliases and validation
-        if mode == "interactive":
-            mode = "terminal"
-
-        valid_modes = ["terminal", "embedded", "headless"]
-        if mode not in valid_modes:
-            return {
-                "success": False,
-                "error": (
-                    f"Invalid mode '{mode}'. Must be one of: {', '.join(valid_modes)}. "
-                    f"Note: 'in_process' mode is not supported for spawn_agent_in_clone."
-                ),
-            }
-
-        # Normalize terminal parameter to lowercase
-        if isinstance(terminal, str):
-            terminal = terminal.lower()
-
-        # Check spawn depth limit
-        can_spawn, reason, _depth = agent_runner.can_spawn(parent_session_id)
-        if not can_spawn:
-            return {
-                "success": False,
-                "error": reason,
-            }
-
-        # Check if clone already exists for this branch
-        existing = clone_storage.get_by_branch(project_id, branch_name)
-        if existing:
-            clone = existing
-            logger.info(f"Using existing clone for branch '{branch_name}'")
-        else:
-            # Get remote URL
-            remote_url = git_manager.get_remote_url() if git_manager else None
-            if not remote_url:
-                return {
-                    "success": False,
-                    "error": "No remote URL available. Cannot create clone.",
-                }
-
-            # Generate clone path if not provided
-            if clone_path is None:
-                import platform
-                import tempfile
-
-                if platform.system() == "Windows":
-                    base = Path(tempfile.gettempdir()) / "gobby-clones"
-                else:
-                    # nosec B108: /tmp is intentional for clones - they're temporary
-                    base = Path("/tmp").resolve() / "gobby-clones"  # nosec B108
-                base.mkdir(parents=True, exist_ok=True)
-                safe_branch = branch_name.replace("/", "-")
-                clone_path = str(base / f"{project_id}-{safe_branch}")
-
-            # Create the clone
-            result = git_manager.shallow_clone(
-                remote_url=remote_url,
-                clone_path=clone_path,
-                branch=base_branch,
-                depth=1,
-            )
-
-            if not result.success:
-                return {
-                    "success": False,
-                    "error": f"Clone failed: {result.error or result.message}",
-                }
-
-            # Store clone record
-            clone = clone_storage.create(
-                project_id=project_id,
-                branch_name=branch_name,
-                clone_path=clone_path,
-                base_branch=base_branch,
-                task_id=task_id,
-                remote_url=remote_url,
-            )
-
-        # Import AgentConfig and get machine_id
-        from gobby.agents.runner import AgentConfig
-        from gobby.utils.machine_id import get_machine_id
-
-        machine_id = get_machine_id()
-
-        # Create agent config
-        config = AgentConfig(
+        # Delegate to spawn_agent_impl with isolation='clone'
+        return await spawn_agent_impl(
             prompt=prompt,
-            parent_session_id=parent_session_id,
-            project_id=project_id,
-            machine_id=machine_id,
-            source=provider,
+            runner=agent_runner,
+            task_id=task_id,
+            isolation="clone",
+            branch_name=branch_name,
+            base_branch=base_branch,
+            clone_storage=clone_storage,
+            clone_manager=git_manager,
             workflow=workflow,
-            task=task_id,
-            session_context="summary_markdown",
-            mode=mode,
+            mode=effective_mode,
             terminal=terminal,
             provider=provider,
             model=model,
-            max_turns=max_turns,
             timeout=timeout,
-            project_path=clone.clone_path,
+            max_turns=max_turns,
+            parent_session_id=parent_session_id,
         )
-
-        # Prepare the run
-        from gobby.llm.executor import AgentResult
-
-        prepare_result = agent_runner.prepare_run(config)
-        if isinstance(prepare_result, AgentResult):
-            return {
-                "success": False,
-                "clone_id": clone.id,
-                "clone_path": clone.clone_path,
-                "branch_name": clone.branch_name,
-                "error": prepare_result.error,
-            }
-
-        context = prepare_result
-        if context.session is None or context.run is None:
-            return {
-                "success": False,
-                "clone_id": clone.id,
-                "error": "Internal error: context missing session or run",
-            }
-
-        child_session = context.session
-        agent_run = context.run
-
-        # Claim clone for the child session
-        clone_storage.claim(clone.id, child_session.id)
-
-        # Build enhanced prompt with clone context
-        context_lines = [
-            "## CRITICAL: Clone Context",
-            "You are working in an ISOLATED git clone, NOT the main repository.",
-            "",
-            f"**Your workspace:** {clone.clone_path}",
-            f"**Your branch:** {clone.branch_name}",
-        ]
-        if task_id:
-            context_lines.append(f"**Your task:** {task_id}")
-        context_lines.extend(
-            [
-                "",
-                "**IMPORTANT RULES:**",
-                f"1. ALL file operations must be within {clone.clone_path}",
-                "2. Do NOT access the main repository",
-                "3. Run `pwd` to verify your location before any file operations",
-                f"4. Commit to YOUR branch ({clone.branch_name})",
-                "5. When your assigned task is complete, STOP - do not claim other tasks",
-                "",
-                "---",
-                "",
-            ]
-        )
-        enhanced_prompt = "\n".join(context_lines) + prompt
-
-        # Spawn based on mode
-        if mode == "terminal":
-            from gobby.agents.spawn import TerminalSpawner
-
-            terminal_spawner = TerminalSpawner()
-            terminal_result = terminal_spawner.spawn_agent(
-                cli=provider,
-                cwd=clone.clone_path,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                terminal=terminal,
-                prompt=enhanced_prompt,
-            )
-
-            if not terminal_result.success:
-                return {
-                    "success": False,
-                    "clone_id": clone.id,
-                    "clone_path": clone.clone_path,
-                    "branch_name": clone.branch_name,
-                    "run_id": agent_run.id,
-                    "child_session_id": child_session.id,
-                    "error": terminal_result.error or terminal_result.message,
-                }
-
-            return {
-                "success": True,
-                "clone_id": clone.id,
-                "clone_path": clone.clone_path,
-                "branch_name": clone.branch_name,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending",
-                "message": f"Agent spawned in {terminal_result.terminal_type} (PID: {terminal_result.pid})",
-                "terminal_type": terminal_result.terminal_type,
-                "pid": terminal_result.pid,
-            }
-
-        elif mode == "embedded":
-            from gobby.agents.spawn import EmbeddedSpawner
-
-            embedded_spawner = EmbeddedSpawner()
-            embedded_result = embedded_spawner.spawn_agent(
-                cli=provider,
-                cwd=clone.clone_path,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                prompt=enhanced_prompt,
-            )
-
-            return {
-                "success": embedded_result.success,
-                "clone_id": clone.id,
-                "clone_path": clone.clone_path,
-                "branch_name": clone.branch_name,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending" if embedded_result.success else "error",
-                "error": embedded_result.error if not embedded_result.success else None,
-            }
-
-        else:  # headless
-            from gobby.agents.spawn import HeadlessSpawner
-
-            headless_spawner = HeadlessSpawner()
-            headless_result = headless_spawner.spawn_agent(
-                cli=provider,
-                cwd=clone.clone_path,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                prompt=enhanced_prompt,
-            )
-
-            return {
-                "success": headless_result.success,
-                "clone_id": clone.id,
-                "clone_path": clone.clone_path,
-                "branch_name": clone.branch_name,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending" if headless_result.success else "error",
-                "pid": headless_result.pid if headless_result.success else None,
-                "error": headless_result.error if not headless_result.success else None,
-            }
 
     registry.register(
         name="spawn_agent_in_clone",
