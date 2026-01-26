@@ -1,6 +1,7 @@
 ---
-name: gobby-memory
-description: This skill should be used when the user asks to "/gobby-memory", "remember", "recall", "forget memory". Manage persistent memories across sessions - store, search, delete, update, and list memories.
+name: memory
+description: This skill should be used when the user asks to "/gobby memory", "remember", "recall", "forget memory". Manage persistent memories across sessions - store, search, delete, update, and list memories.
+category: core
 ---
 
 # /gobby-memory - Memory Management Skill

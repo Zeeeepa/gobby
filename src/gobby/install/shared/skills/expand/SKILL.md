@@ -1,6 +1,7 @@
 ---
-name: gobby-expand
-description: "Use when user asks to '/gobby-expand', 'expand task', 'break down task', 'decompose task'. Expand a task into subtasks using codebase analysis and visible LLM reasoning. Survives session compaction."
+name: expand
+description: "Use when user asks to '/gobby expand', 'expand task', 'break down task', 'decompose task'. Expand a task into subtasks using codebase analysis and visible LLM reasoning. Survives session compaction."
+category: core
 ---
 
 # /gobby-expand - Task Expansion Skill

@@ -1,6 +1,7 @@
 ---
-name: gobby-worktrees
-description: This skill should be used when the user asks to "/gobby-worktrees", "create worktree", "spawn in worktree". Manage git worktrees for parallel development - create, list, spawn agents, sync, and cleanup.
+name: worktrees
+description: This skill should be used when the user asks to "/gobby worktrees", "create worktree", "spawn in worktree". Manage git worktrees for parallel development - create, list, spawn agents, sync, and cleanup.
+category: core
 ---
 
 # /gobby-worktrees - Worktree Management Skill

@@ -1,6 +1,7 @@
 ---
-name: gobby-diagnostic
-description: This skill should be used when the user asks to "/gobby-diagnostic", "systems check", "health check", "run diagnostics". Run comprehensive systems check verifying CLI and MCP tools work correctly with self-cleaning test data.
+name: diagnostic
+description: This skill should be used when the user asks to "/gobby diagnostic", "systems check", "health check", "run diagnostics". Run comprehensive systems check verifying CLI and MCP tools work correctly with self-cleaning test data.
+category: core
 ---
 
 # /gobby-diagnostic - System Diagnostics Skill

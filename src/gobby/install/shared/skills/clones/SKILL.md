@@ -1,6 +1,7 @@
 ---
-name: gobby-clones
-description: This skill should be used when the user asks to "/gobby-clones", "create clone", "spawn in clone". Manage git clones for isolated parallel development - create, spawn agents, sync, merge, and delete.
+name: clones
+description: This skill should be used when the user asks to "/gobby clones", "create clone", "spawn in clone". Manage git clones for isolated parallel development - create, spawn agents, sync, merge, and delete.
+category: core
 ---
 
 # /gobby-clones - Clone Management Skill

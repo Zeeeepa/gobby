@@ -1,7 +1,8 @@
 ---
-name: gobby-plan
-description: This skill should be used when the user asks to "/gobby-plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning and task creation.
+name: plan
+description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning and task creation.
 version: "1.0.0"
+category: core
 ---
 
 # /gobby-plan - Implementation Planning Skill

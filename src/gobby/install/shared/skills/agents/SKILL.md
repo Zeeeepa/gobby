@@ -1,9 +1,10 @@
 ---
-name: gobby-agents
-description: This skill should be used when the user asks to "/gobby-agents", "spawn agent", "start agent", "list agents". Manage subagent spawning - start, cancel, list, and check results of autonomous agents.
+name: agents
+description: This skill should be used when the user asks to "/gobby agents", "spawn agent", "start agent", "list agents". Manage subagent spawning - start, cancel, list, and check results of autonomous agents.
+category: core
 ---
 
-# /gobby-agents - Agent Management Skill
+# /gobby agents - Agent Management Skill
 
 This skill manages subagent spawning via the gobby-agents MCP server. Parse the user's input to determine which subcommand to execute.
 

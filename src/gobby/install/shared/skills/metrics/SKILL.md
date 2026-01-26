@@ -1,6 +1,7 @@
 ---
-name: gobby-metrics
-description: This skill should be used when the user asks to "/gobby-metrics", "tool metrics", "usage stats", "performance report". View tool usage metrics, performance statistics, and identify failing tools.
+name: metrics
+description: This skill should be used when the user asks to "/gobby metrics", "tool metrics", "usage stats", "performance report". View tool usage metrics, performance statistics, and identify failing tools.
+category: core
 ---
 
 # /gobby-metrics - Metrics and Statistics Skill

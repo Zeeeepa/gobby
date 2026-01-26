@@ -1,6 +1,7 @@
 ---
-name: gobby-mcp
+name: mcp-guide
 description: Use this skill when discovering and using MCP tools through the Gobby proxy. This skill teaches the progressive disclosure workflow for efficient tool discovery and prevents common mistakes like querying live servers instead of using the local cache.
+category: core
 ---
 
 # Gobby MCP Tool Discovery
