@@ -92,6 +92,33 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Auto-skip validation for certain close reasons
         should_skip = skip_validation or reason.lower() in SKIP_REASONS
 
+        # Enforce commits if session had edits
+        if session_id and not should_skip:
+            try:
+                from gobby.storage.sessions import LocalSessionManager
+
+                session_manager = LocalSessionManager(ctx.task_manager.db)
+                session = session_manager.get(session_id)
+
+                # Check if task has commits (including the one being linked right now)
+                has_commits = bool(task.commits) or bool(commit_sha)
+
+                if session and session.had_edits and not has_commits:
+                    return {
+                        "error": "missing_commits_for_edits",
+                        "message": (
+                            "This session made edits but no commits are linked to the task. "
+                            "You must commit your changes and link them to the task before closing."
+                        ),
+                        "suggestion": (
+                            "Commit your changes with `[#task_id]` in the message, "
+                            "or pass `commit_sha` to `close_task`."
+                        ),
+                    }
+            except Exception:
+                # Don't block close on internal error
+                pass
+
         if not should_skip:
             # Check if task has children (is a parent task)
             parent_result = validate_parent_task(ctx, resolved_id)

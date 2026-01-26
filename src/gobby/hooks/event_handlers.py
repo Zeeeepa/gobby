@@ -29,6 +29,16 @@ if TYPE_CHECKING:
     from gobby.workflows.hooks import WorkflowHookHandler
 
 
+EDIT_TOOLS = {
+    "write_file",
+    "replace",
+    "edit_file",
+    "notebook_edit",
+    "edit",
+    "write",
+}
+
+
 class EventHandlers:
     """
     Manages event handler registration and dispatch.
@@ -691,6 +701,27 @@ class EventHandlers:
         status = "FAIL" if is_failure else "OK"
         if session_id:
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}, session {session_id}")
+
+            # Track edits for session high-water mark
+            # Only if tool succeeded, matches edit tools, and session has claimed a task
+            if (
+                not is_failure
+                and tool_name
+                and tool_name.lower() in EDIT_TOOLS
+                and self._session_storage
+                and self._task_manager
+            ):
+                try:
+                    # Check if session has any claimed tasks in progress
+                    claimed_tasks = self._task_manager.list_tasks(
+                        assignee=session_id, status="in_progress", limit=1
+                    )
+                    if claimed_tasks:
+                        self._session_storage.mark_had_edits(session_id)
+                        self.logger.debug(f"Marked session {session_id} as had_edits")
+                except Exception as e:
+                    self.logger.warning(f"Failed to track edit history: {e}")
+
         else:
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
 

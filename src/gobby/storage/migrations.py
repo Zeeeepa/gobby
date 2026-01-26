@@ -880,6 +880,16 @@ def _migrate_drop_is_tdd_applied(db: LocalDatabase) -> None:
             logger.warning(f"Could not drop is_tdd_applied column (SQLite < 3.35?): {e}")
 
 
+def _migrate_add_had_edits(db: LocalDatabase) -> None:
+    """Add had_edits column to sessions table."""
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'")
+    if row and "had_edits" not in row["sql"].lower():
+        db.execute("ALTER TABLE sessions ADD COLUMN had_edits BOOLEAN DEFAULT 0")
+        logger.info("Added had_edits column to sessions table")
+    else:
+        logger.debug("had_edits column already exists, skipping")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -909,6 +919,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (73, "Add model column to sessions", _migrate_add_model_column),
     # TDD cleanup: Drop unused is_tdd_applied column from tasks
     (74, "Drop is_tdd_applied column from tasks", _migrate_drop_is_tdd_applied),
+    # Edit History Tracking: Add had_edits column to sessions
+    (75, "Add had_edits column to sessions", _migrate_add_had_edits),
 ]
 
 
