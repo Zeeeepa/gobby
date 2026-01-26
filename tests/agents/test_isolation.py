@@ -15,6 +15,7 @@ from gobby.agents.isolation import (
     IsolationContext,
     IsolationHandler,
     SpawnConfig,
+    WorktreeIsolationHandler,
     generate_branch_name,
 )
 
@@ -283,3 +284,119 @@ class TestCurrentIsolationHandler:
         """Test IsolationHandler cannot be instantiated directly."""
         with pytest.raises(TypeError):
             IsolationHandler()  # type: ignore
+
+
+class TestWorktreeIsolationHandler:
+    """Tests for WorktreeIsolationHandler."""
+
+    @pytest.mark.asyncio
+    async def test_prepare_environment_creates_worktree(self):
+        """Test prepare_environment creates worktree if not exists."""
+        mock_git_manager = MagicMock()
+        mock_git_manager.repo_path = "/path/to/main/repo"
+        mock_git_manager.create_worktree.return_value = MagicMock(
+            success=True,
+            worktree_path="/tmp/worktrees/my-branch",
+        )
+
+        mock_worktree_storage = MagicMock()
+        mock_worktree_storage.get_by_branch.return_value = None  # No existing worktree
+        mock_worktree_storage.create.return_value = MagicMock(
+            id="wt-123",
+            worktree_path="/tmp/worktrees/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        ctx = await handler.prepare_environment(config)
+
+        assert ctx.isolation_type == "worktree"
+        assert ctx.worktree_id == "wt-123"
+        assert ctx.branch_name == "my-branch"
+        mock_git_manager.create_worktree.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_prepare_environment_reuses_existing_worktree(self):
+        """Test prepare_environment reuses existing worktree for same branch."""
+        mock_git_manager = MagicMock()
+        mock_git_manager.repo_path = "/path/to/main/repo"
+
+        mock_worktree_storage = MagicMock()
+        mock_worktree_storage.get_by_branch.return_value = MagicMock(
+            id="existing-wt-456",
+            worktree_path="/tmp/worktrees/existing-branch",
+            branch_name="existing-branch",
+        )
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="existing-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        ctx = await handler.prepare_environment(config)
+
+        assert ctx.worktree_id == "existing-wt-456"
+        assert ctx.cwd == "/tmp/worktrees/existing-branch"
+        # Should NOT create a new worktree
+        mock_git_manager.create_worktree.assert_not_called()
+
+    def test_build_context_prompt_prepends_warning(self):
+        """Test build_context_prompt prepends CRITICAL: Worktree Context warning."""
+        mock_git_manager = MagicMock()
+        mock_worktree_storage = MagicMock()
+
+        handler = WorktreeIsolationHandler(
+            git_manager=mock_git_manager,
+            worktree_storage=mock_worktree_storage,
+        )
+
+        original_prompt = "Please implement the login feature."
+        ctx = IsolationContext(
+            cwd="/tmp/worktrees/feature-branch",
+            branch_name="feature-branch",
+            worktree_id="wt-123",
+            isolation_type="worktree",
+            extra={"main_repo_path": "/path/to/main/repo"},
+        )
+
+        result = handler.build_context_prompt(original_prompt, ctx)
+
+        assert "CRITICAL: Worktree Context" in result
+        assert original_prompt in result
+        assert "feature-branch" in result
+
+    def test_is_isolation_handler_subclass(self):
+        """Test WorktreeIsolationHandler is a subclass of IsolationHandler."""
+        assert issubclass(WorktreeIsolationHandler, IsolationHandler)
