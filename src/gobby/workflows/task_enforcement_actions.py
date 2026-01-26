@@ -807,7 +807,7 @@ async def require_task_review_or_close_before_stop(
         return {
             "decision": "block",
             "reason": (
-                f"\nTask '{claimed_task_id}' is still in_progress. "
+                f"\n\nTask {claimed_task_id} is still in_progress. "
                 f"Close it with close_task() before stopping."
             ),
             "task_id": claimed_task_id,
