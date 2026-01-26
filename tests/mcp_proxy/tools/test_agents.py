@@ -236,7 +236,9 @@ class TestStartAgent:
 
     @pytest.mark.asyncio
     async def test_terminal_mode_spawns_terminal(self, mock_runner, mock_context):
-        """Test terminal mode spawns via TerminalSpawner."""
+        """Test terminal mode spawns via execute_spawn."""
+        from gobby.agents.spawn_executor import SpawnResult
+
         # Setup prepare_run to return context
         mock_session = MagicMock()
         mock_session.id = "child-sess-123"
@@ -252,16 +254,16 @@ class TestStartAgent:
         mock_runner.prepare_run.return_value = mock_context_obj
         mock_runner._child_session_manager.max_agent_depth = 3
 
-        # Mock TerminalSpawner
-        mock_spawn_result = MagicMock()
-        mock_spawn_result.success = True
-        mock_spawn_result.pid = 12345
-        mock_spawn_result.terminal_type = "ghostty"
-        mock_spawn_result.error = None
-        mock_spawn_result.message = "Spawned"
-
-        mock_terminal_spawner = MagicMock()
-        mock_terminal_spawner.spawn_agent.return_value = mock_spawn_result
+        # Mock execute_spawn result
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-456",
+            child_session_id="child-sess-123",
+            status="pending",
+            pid=12345,
+            terminal_type="ghostty",
+            message="Agent spawned in ghostty (PID: 12345)",
+        )
 
         running_registry = RunningAgentRegistry()
         registry = create_agents_registry(mock_runner, running_registry=running_registry)
@@ -270,8 +272,8 @@ class TestStartAgent:
         with (
             patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context),
             patch(
-                "gobby.mcp_proxy.tools.agents.TerminalSpawner",
-                return_value=mock_terminal_spawner,
+                "gobby.mcp_proxy.tools.agents.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
             ),
         ):
             result = await start_agent(
@@ -297,6 +299,8 @@ class TestStartAgent:
     @pytest.mark.asyncio
     async def test_terminal_spawn_failure(self, mock_runner, mock_context):
         """Test terminal spawn failure returns error."""
+        from gobby.agents.spawn_executor import SpawnResult
+
         mock_session = MagicMock()
         mock_session.id = "child-sess-123"
         mock_session.agent_depth = 1
@@ -311,13 +315,13 @@ class TestStartAgent:
         mock_runner.prepare_run.return_value = mock_context_obj
         mock_runner._child_session_manager.max_agent_depth = 3
 
-        mock_spawn_result = MagicMock()
-        mock_spawn_result.success = False
-        mock_spawn_result.error = "Terminal not found"
-        mock_spawn_result.message = "Failed to spawn"
-
-        mock_terminal_spawner = MagicMock()
-        mock_terminal_spawner.spawn_agent.return_value = mock_spawn_result
+        mock_spawn_result = SpawnResult(
+            success=False,
+            run_id="run-456",
+            child_session_id="child-sess-123",
+            status="failed",
+            error="Terminal not found",
+        )
 
         registry = create_agents_registry(mock_runner)
         start_agent = registry._tools["start_agent"].func
@@ -325,8 +329,8 @@ class TestStartAgent:
         with (
             patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context),
             patch(
-                "gobby.mcp_proxy.tools.agents.TerminalSpawner",
-                return_value=mock_terminal_spawner,
+                "gobby.mcp_proxy.tools.agents.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
             ),
         ):
             result = await start_agent(
@@ -340,7 +344,9 @@ class TestStartAgent:
 
     @pytest.mark.asyncio
     async def test_embedded_mode_spawns_with_pty(self, mock_runner, mock_context):
-        """Test embedded mode spawns via EmbeddedSpawner."""
+        """Test embedded mode spawns via execute_spawn."""
+        from gobby.agents.spawn_executor import SpawnResult
+
         mock_session = MagicMock()
         mock_session.id = "child-sess-123"
         mock_session.agent_depth = 1
@@ -355,15 +361,15 @@ class TestStartAgent:
         mock_runner.prepare_run.return_value = mock_context_obj
         mock_runner._child_session_manager.max_agent_depth = 3
 
-        mock_spawn_result = MagicMock()
-        mock_spawn_result.success = True
-        mock_spawn_result.pid = 54321
-        mock_spawn_result.master_fd = 7
-        mock_spawn_result.error = None
-        mock_spawn_result.message = "PTY spawned"
-
-        mock_embedded_spawner = MagicMock()
-        mock_embedded_spawner.spawn_agent.return_value = mock_spawn_result
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-789",
+            child_session_id="child-sess-123",
+            status="pending",
+            pid=54321,
+            master_fd=7,
+            message="Agent spawned with PTY (PID: 54321)",
+        )
 
         running_registry = RunningAgentRegistry()
         registry = create_agents_registry(mock_runner, running_registry=running_registry)
@@ -372,8 +378,8 @@ class TestStartAgent:
         with (
             patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context),
             patch(
-                "gobby.mcp_proxy.tools.agents.EmbeddedSpawner",
-                return_value=mock_embedded_spawner,
+                "gobby.mcp_proxy.tools.agents.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
             ),
         ):
             result = await start_agent(
@@ -393,7 +399,9 @@ class TestStartAgent:
 
     @pytest.mark.asyncio
     async def test_headless_mode_spawns_headless(self, mock_runner, mock_context):
-        """Test headless mode spawns via HeadlessSpawner."""
+        """Test headless mode spawns via execute_spawn."""
+        from gobby.agents.spawn_executor import SpawnResult
+
         mock_session = MagicMock()
         mock_session.id = "child-sess-123"
         mock_session.agent_depth = 1
@@ -408,14 +416,17 @@ class TestStartAgent:
         mock_runner.prepare_run.return_value = mock_context_obj
         mock_runner._child_session_manager.max_agent_depth = 3
 
-        mock_spawn_result = MagicMock()
-        mock_spawn_result.success = True
-        mock_spawn_result.pid = 11111
-        mock_spawn_result.error = None
-        mock_spawn_result.message = "Headless spawned"
-
-        mock_headless_spawner = MagicMock()
-        mock_headless_spawner.spawn_agent.return_value = mock_spawn_result
+        # For headless mode, spawn_result includes a mock process
+        mock_process = MagicMock()
+        mock_spawn_result = SpawnResult(
+            success=True,
+            run_id="run-abc",
+            child_session_id="child-sess-123",
+            status="running",
+            pid=11111,
+            process=mock_process,
+            message="Agent spawned headless (PID: 11111)",
+        )
 
         running_registry = RunningAgentRegistry()
         registry = create_agents_registry(mock_runner, running_registry=running_registry)
@@ -424,8 +435,8 @@ class TestStartAgent:
         with (
             patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context),
             patch(
-                "gobby.mcp_proxy.tools.agents.HeadlessSpawner",
-                return_value=mock_headless_spawner,
+                "gobby.mcp_proxy.tools.agents.execute_spawn",
+                AsyncMock(return_value=mock_spawn_result),
             ),
         ):
             result = await start_agent(

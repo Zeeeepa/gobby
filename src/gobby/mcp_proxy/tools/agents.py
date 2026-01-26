@@ -30,11 +30,7 @@ from gobby.agents.registry import (
     RunningAgentRegistry,
     get_running_agent_registry,
 )
-from gobby.agents.spawn import (
-    EmbeddedSpawner,
-    HeadlessSpawner,
-    TerminalSpawner,
-)
+from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.utils.project_context import get_project_context
 
@@ -378,370 +374,143 @@ def create_agents_registry(
                 "tool_calls_count": len(result.tool_calls),
             }
 
-        # Special handling for Gemini terminal mode: requires preflight session capture
-        # Gemini CLI in interactive mode can't introspect its session_id, so we:
-        # 1. Launch preflight to capture session_id from stream-json output
-        # 2. Create Gobby session with external_id = gemini's session_id
-        # 3. Launch interactive with -r {session_id} to resume
-        if mode == "terminal" and effective_provider == "gemini":
-            from gobby.agents.spawn import (
-                build_gemini_command_with_resume,
-                prepare_gemini_spawn_with_preflight,
-            )
-
-            # Ensure project_id is non-None for spawning
+        # Gemini/Codex terminal mode: use execute_spawn with preflight handling
+        if mode == "terminal" and effective_provider in ("gemini", "codex"):
             if project_id is None:
                 return {
                     "success": False,
-                    "error": "project_id is required for spawning Gemini agent",
+                    "error": f"project_id is required for spawning {effective_provider} agent",
                 }
 
-            # Determine working directory
             cwd = project_path or "."
 
-            try:
-                # Preflight capture: gets Gemini's session_id and creates linked Gobby session
-                spawn_context = await prepare_gemini_spawn_with_preflight(
-                    session_manager=runner._child_session_manager,
-                    parent_session_id=parent_session_id,
-                    project_id=project_id,
-                    machine_id=socket.gethostname(),
-                    workflow_name=workflow,
-                    git_branch=None,  # Will be detected by hook
-                )
-            except FileNotFoundError as e:
-                return {
-                    "success": False,
-                    "error": str(e),
-                }
-            except Exception as e:
-                logger.error(f"Gemini preflight capture failed: {e}", exc_info=True)
-                return {
-                    "success": False,
-                    "error": f"Gemini preflight capture failed: {e}",
-                }
-
-            # Extract IDs from prepared spawn context
-            gobby_session_id = spawn_context.session_id
-            gemini_session_id = spawn_context.env_vars["GOBBY_GEMINI_EXTERNAL_ID"]
-
-            # Build command with session context injected into prompt
-            # build_gemini_command_with_resume handles the context prefix
-            cmd = build_gemini_command_with_resume(
-                gemini_external_id=gemini_session_id,
+            # Build spawn request - execute_spawn handles preflight internally
+            spawn_request = SpawnRequest(
                 prompt=effective_prompt,
-                auto_approve=True,  # Subagents need to work autonomously
-                gobby_session_id=gobby_session_id,
-            )
-
-            # Spawn in terminal
-            terminal_spawner = TerminalSpawner()
-            terminal_result = terminal_spawner.spawn(
-                command=cmd,
                 cwd=cwd,
+                mode="terminal",
+                provider=effective_provider,
                 terminal=terminal,
+                session_id="placeholder",  # Will be replaced by preflight
+                run_id="placeholder",  # Will be replaced by preflight
+                parent_session_id=parent_session_id,
+                project_id=project_id,
+                workflow=workflow,
+                session_manager=runner._child_session_manager,
+                machine_id=machine_id,
             )
 
-            if not terminal_result.success:
+            spawn_result = await execute_spawn(spawn_request)
+
+            if not spawn_result.success:
                 return {
                     "success": False,
-                    "error": terminal_result.error or terminal_result.message,
-                    "child_session_id": gobby_session_id,
+                    "error": spawn_result.error,
+                    "child_session_id": spawn_result.child_session_id,
                 }
 
             # Register in running agents registry
-            registry = get_running_agent_registry()
             running_agent = RunningAgent(
-                run_id=f"gemini-{gemini_session_id[:8]}",
-                session_id=gobby_session_id,
+                run_id=spawn_result.run_id,
+                session_id=spawn_result.child_session_id,
                 parent_session_id=parent_session_id,
-                pid=terminal_result.pid,
+                pid=spawn_result.pid,
                 mode="terminal",
-                provider="gemini",
+                provider=effective_provider,
                 workflow_name=workflow,
             )
-            registry.add(running_agent)
+            agent_registry.add(running_agent)
 
-            return {
+            result: dict[str, Any] = {
                 "success": True,
-                "run_id": running_agent.run_id,
-                "child_session_id": gobby_session_id,
-                "gemini_session_id": gemini_session_id,
+                "run_id": spawn_result.run_id,
+                "child_session_id": spawn_result.child_session_id,
                 "mode": "terminal",
-                "message": (f"Gemini agent spawned in terminal with session {gobby_session_id}"),
-                "pid": terminal_result.pid,
+                "message": spawn_result.message,
+                "pid": spawn_result.pid,
             }
+            if spawn_result.gemini_session_id:
+                result["gemini_session_id"] = spawn_result.gemini_session_id
+            if spawn_result.codex_session_id:
+                result["codex_session_id"] = spawn_result.codex_session_id
+            return result
 
-        # Special handling for Codex terminal mode: requires preflight session capture
-        # Codex outputs session_id in startup banner, which we parse from `codex exec "exit"`
-        if mode == "terminal" and effective_provider == "codex":
-            from gobby.agents.spawn import (
-                build_codex_command_with_resume,
-                prepare_codex_spawn_with_preflight,
-            )
-
-            # Ensure project_id is non-None for spawning
-            if project_id is None:
-                return {
-                    "success": False,
-                    "error": "project_id is required for spawning Codex agent",
-                }
-
-            # Determine working directory
-            cwd = project_path or "."
-
-            try:
-                # Preflight capture: gets Codex's session_id and creates linked Gobby session
-                spawn_context = await prepare_codex_spawn_with_preflight(
-                    session_manager=runner._child_session_manager,
-                    parent_session_id=parent_session_id,
-                    project_id=project_id,
-                    machine_id=socket.gethostname(),
-                    workflow_name=workflow,
-                    git_branch=None,  # Will be detected by hook
-                )
-            except FileNotFoundError as e:
-                return {
-                    "success": False,
-                    "error": str(e),
-                }
-            except Exception as e:
-                logger.error(f"Codex preflight capture failed: {e}", exc_info=True)
-                return {
-                    "success": False,
-                    "error": f"Codex preflight capture failed: {e}",
-                }
-
-            # Extract IDs from prepared spawn context
-            gobby_session_id = spawn_context.session_id
-            codex_session_id = spawn_context.env_vars["GOBBY_CODEX_EXTERNAL_ID"]
-
-            # Build command with session context injected into prompt
-            # build_codex_command_with_resume handles the context prefix
-            cmd = build_codex_command_with_resume(
-                codex_external_id=codex_session_id,
-                prompt=effective_prompt,
-                auto_approve=True,  # --full-auto for sandboxed autonomy
-                gobby_session_id=gobby_session_id,
-                working_directory=cwd,
-            )
-
-            # Spawn in terminal
-            terminal_spawner = TerminalSpawner()
-            terminal_result = terminal_spawner.spawn(
-                command=cmd,
-                cwd=cwd,
-                terminal=terminal,
-            )
-
-            if not terminal_result.success:
-                return {
-                    "success": False,
-                    "error": terminal_result.error or terminal_result.message,
-                    "child_session_id": gobby_session_id,
-                }
-
-            # Register in running agents registry
-            registry = get_running_agent_registry()
-            running_agent = RunningAgent(
-                run_id=f"codex-{codex_session_id[:8]}",
-                session_id=gobby_session_id,
-                parent_session_id=parent_session_id,
-                pid=terminal_result.pid,
-                mode="terminal",
-                provider="codex",
-                workflow_name=workflow,
-            )
-            registry.add(running_agent)
-
-            return {
-                "success": True,
-                "run_id": running_agent.run_id,
-                "child_session_id": gobby_session_id,
-                "codex_session_id": codex_session_id,
-                "mode": "terminal",
-                "message": (f"Codex agent spawned in terminal with session {gobby_session_id}"),
-                "pid": terminal_result.pid,
-            }
-
-        # Terminal, embedded, or headless mode: prepare run then spawn
-        # Use prepare_run to create session and run records
+        # Terminal, embedded, or headless mode: prepare run then spawn via execute_spawn
         from gobby.llm.executor import AgentResult
 
         prepare_result = runner.prepare_run(config)
         if isinstance(prepare_result, AgentResult):
-            # prepare_run returns AgentResult on error
             return {
                 "success": False,
                 "error": prepare_result.error,
             }
 
-        # Successfully prepared - we have context with session and run
         context = prepare_result
-
-        # Validate context has required session and run (should always be set after prepare_run)
         if context.session is None or context.run is None:
             return {
                 "success": False,
                 "error": "Internal error: context missing session or run after prepare_run",
             }
 
-        # Type narrowing: assign to non-optional variables
         child_session = context.session
         agent_run = context.run
-
-        # Determine working directory
         cwd = project_path or "."
 
-        # Ensure project_id is non-None for spawn calls
         if project_id is None:
             return {
                 "success": False,
                 "error": "project_id is required for spawning",
             }
 
-        if mode == "terminal":
-            # Spawn in external terminal
-            terminal_spawner = TerminalSpawner()
-            terminal_result = terminal_spawner.spawn_agent(
-                cli=effective_provider,  # claude, gemini, codex
-                cwd=cwd,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=runner._child_session_manager.max_agent_depth,
-                terminal=terminal,
-                prompt=effective_prompt,
-            )
+        # Build spawn request for execute_spawn
+        spawn_request = SpawnRequest(
+            prompt=effective_prompt,
+            cwd=cwd,
+            mode=mode,  # type: ignore[arg-type]
+            provider=effective_provider,
+            terminal=terminal,
+            session_id=child_session.id,
+            run_id=agent_run.id,
+            parent_session_id=parent_session_id,
+            project_id=project_id,
+            workflow=workflow,
+            worktree_id=worktree_id,
+            agent_depth=child_session.agent_depth,
+            max_agent_depth=runner._child_session_manager.max_agent_depth,
+        )
 
-            if not terminal_result.success:
-                return {
-                    "success": False,
-                    "error": terminal_result.error or terminal_result.message,
-                    "run_id": agent_run.id,
-                    "child_session_id": child_session.id,
-                }
+        spawn_result = await execute_spawn(spawn_request)
 
-            # Register in running agents registry
-            running_agent = RunningAgent(
-                run_id=agent_run.id,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                mode="terminal",
-                pid=terminal_result.pid,
-                terminal_type=terminal_result.terminal_type,
-                provider=effective_provider,
-                workflow_name=workflow,
-                worktree_id=worktree_id,
-            )
-            agent_registry.add(running_agent)
-
+        if not spawn_result.success:
             return {
-                "success": True,
+                "success": False,
+                "error": spawn_result.error,
                 "run_id": agent_run.id,
                 "child_session_id": child_session.id,
-                "status": "pending",
-                "message": f"Agent spawned in {terminal_result.terminal_type} (PID: {terminal_result.pid})",
-                "terminal_type": terminal_result.terminal_type,
-                "pid": terminal_result.pid,
             }
 
-        elif mode == "embedded":
-            # Spawn with PTY for UI attachment
-            embedded_spawner = EmbeddedSpawner()
-            embedded_result = embedded_spawner.spawn_agent(
-                cli=effective_provider,
-                cwd=cwd,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=runner._child_session_manager.max_agent_depth,
-                prompt=effective_prompt,
-            )
+        # Register in running agents registry
+        running_agent = RunningAgent(
+            run_id=agent_run.id,
+            session_id=child_session.id,
+            parent_session_id=parent_session_id,
+            mode=mode,
+            pid=spawn_result.pid,
+            terminal_type=spawn_result.terminal_type,
+            master_fd=spawn_result.master_fd,
+            provider=effective_provider,
+            workflow_name=workflow,
+            worktree_id=worktree_id,
+        )
+        agent_registry.add(running_agent)
 
-            if not embedded_result.success:
-                return {
-                    "success": False,
-                    "error": embedded_result.error or embedded_result.message,
-                    "run_id": agent_run.id,
-                    "child_session_id": child_session.id,
-                }
-
-            # Register in running agents registry
-            running_agent = RunningAgent(
-                run_id=agent_run.id,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                mode="embedded",
-                pid=embedded_result.pid,
-                master_fd=embedded_result.master_fd,
-                provider=effective_provider,
-                workflow_name=workflow,
-                worktree_id=worktree_id,
-            )
-            agent_registry.add(running_agent)
-
-            return {
-                "success": True,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "pending",
-                "message": f"Agent spawned with PTY (PID: {embedded_result.pid})",
-                "pid": embedded_result.pid,
-                "master_fd": embedded_result.master_fd,
-            }
-
-        else:  # headless mode
-            # Spawn headless with output capture
-            headless_spawner = HeadlessSpawner()
-            headless_result = headless_spawner.spawn_agent(
-                cli=effective_provider,
-                cwd=cwd,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                agent_run_id=agent_run.id,
-                project_id=project_id,
-                workflow_name=workflow,
-                agent_depth=child_session.agent_depth,
-                max_agent_depth=runner._child_session_manager.max_agent_depth,
-                prompt=effective_prompt,
-            )
-
-            if not headless_result.success:
-                return {
-                    "success": False,
-                    "error": headless_result.error or headless_result.message,
-                    "run_id": agent_run.id,
-                    "child_session_id": child_session.id,
-                }
-
-            # IMPORTANT: For headless mode with -p flag, hooks are NOT called.
-            # Claude's print mode bypasses the hook system entirely.
-            # We must manually mark the agent run as started.
+        # Headless mode: manually start run and set up monitoring
+        if mode == "headless":
             try:
                 runner._run_storage.start(agent_run.id)
                 logger.info(f"Manually started headless agent run {agent_run.id}")
             except Exception as e:
                 logger.warning(f"Failed to manually start agent run: {e}")
-
-            # Register in running agents registry
-            running_agent = RunningAgent(
-                run_id=agent_run.id,
-                session_id=child_session.id,
-                parent_session_id=parent_session_id,
-                mode="headless",
-                pid=headless_result.pid,
-                provider=effective_provider,
-                workflow_name=workflow,
-                worktree_id=worktree_id,
-            )
-            agent_registry.add(running_agent)
 
             # Start background task to monitor process completion
             import asyncio
@@ -749,20 +518,17 @@ def create_agents_registry(
             async def monitor_headless_process() -> None:
                 """Monitor headless process and update status on completion."""
                 try:
-                    process = headless_result.process
+                    process = spawn_result.process
                     if process is None:
                         return
 
-                    # Wait for process to complete
                     loop = asyncio.get_running_loop()
                     return_code = await loop.run_in_executor(None, process.wait)
 
-                    # Capture output
                     output = ""
                     if process.stdout:
                         output = process.stdout.read() or ""
 
-                    # Update agent run status
                     if return_code == 0:
                         runner._run_storage.complete(
                             agent_run.id,
@@ -779,7 +545,6 @@ def create_agents_registry(
                             f"Headless agent {agent_run.id} failed with code {return_code}"
                         )
 
-                    # Remove from running agents registry
                     agent_registry.remove(agent_run.id)
 
                 except Exception as e:
@@ -790,17 +555,23 @@ def create_agents_registry(
                     except Exception:
                         pass  # nosec B110 - best-effort cleanup during error handling
 
-            # Schedule monitoring task and store reference to prevent GC
             running_agent.monitor_task = asyncio.create_task(monitor_headless_process())
 
-            return {
-                "success": True,
-                "run_id": agent_run.id,
-                "child_session_id": child_session.id,
-                "status": "running",  # Now "running" since we manually started it
-                "message": f"Agent spawned headless (PID: {headless_result.pid})",
-                "pid": headless_result.pid,
-            }
+        # Build response based on mode
+        response: dict[str, Any] = {
+            "success": True,
+            "run_id": agent_run.id,
+            "child_session_id": child_session.id,
+            "status": "running" if mode == "headless" else "pending",
+            "message": spawn_result.message,
+            "pid": spawn_result.pid,
+        }
+        if spawn_result.terminal_type:
+            response["terminal_type"] = spawn_result.terminal_type
+        if spawn_result.master_fd is not None:
+            response["master_fd"] = spawn_result.master_fd
+
+        return response
 
     @registry.tool(
         name="get_agent_result",
