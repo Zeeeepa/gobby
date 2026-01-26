@@ -43,8 +43,7 @@ Legend:
 ### Hooks (determinism layer)
 
 - ✅ Claude Code hook integration
-- ✅ Gemini CLI integration ready on your side
-- 🚧 Gemini CLI: enable on day-1 when upstream hooks v1 is fully landed and stable (tracked upstream)  [oai_citation:1‡GitHub](https://github.com/google-gemini/gemini-cli/issues/9070?utm_source=chatgpt.com)
+- ✅ Gemini CLI hook integration
 - ⚠️ Codex CLI: partial (basic notify/handoff); expand once the right extension points are stable
 
 ### Tasks + TDD expansion (red/green/blue)
@@ -61,7 +60,7 @@ Legend:
 ### Workflows
 
 - ✅ Workflow engine (phases, tool restrictions, exit conditions)
-- 🚧 Autonomous orchestration: inter-agent messaging, review gates, conductor daemon
+- ✅ Autonomous orchestration: inter-agent messaging, review gates, conductor daemon
 
 ### Worktrees
 
@@ -72,7 +71,7 @@ Legend:
 ### Memory
 
 - ✅ `gobby-memory` MCP: lightweight, local, user-initiated memory (TF-IDF search)
-- 🚧 Memory v3: backend abstraction layer (SQLite, MemU, Mem0, OpenMemory)
+- ✅ Memory v3: backend abstraction layer (SQLite, MemU, Mem0, OpenMemory)
 
 ### Integrations + extensibility
 
@@ -89,7 +88,46 @@ Legend:
 - ✅ Install from GitHub, local paths, ZIP archives
 - ✅ Project-scoped and global skill management
 
-**Next up:** Memory v3 → Orchestration
+### Orchestration (beta - needs testing)
+
+- 🧪 Conductor daemon: persistent monitoring, TARS-style haiku status
+- 🧪 Inter-agent messaging: parent↔child message passing during execution
+- 🧪 Token budget tracking: aggregation, pricing, throttling
+- 🧪 Review gates: `review` status, blocking wait tools
+- 🧪 Callme alerts: plumbing ready, needs MCP client wiring
+
+---
+
+## Current work (in progress)
+
+### Skill enhancements
+
+- 🚧 Unified `/gobby` router skill (routes to skills and MCP servers)
+- 🚧 Remove `gobby-` prefix from skill names
+- 🚧 Add `category` and top-level `alwaysApply` support
+
+### Agent spawning v2
+
+- 🚧 Consolidate `start_agent`, `spawn_agent_in_worktree`, `spawn_agent_in_clone` into unified `spawn_agent` API
+- 🚧 Add `isolation` parameter: `current`, `worktree`, `clone`
+- 🚧 Auto-generate branch names from task titles
+
+### Code decomposition (strangler fig)
+
+- 🚧 Break up `mcp/tools.py` (1512 lines) into domain-specific endpoints
+- 🚧 Break up `workflows/actions.py` (1385 lines) into action handlers
+- 🚧 Break up `mcp_proxy/tools/worktrees.py` (1270 lines) into granular toolsets
+- 🚧 Break up `adapters/codex.py` (1333 lines) into types/client/adapter
+
+### API versioning
+
+- 🚧 Add `/api/v1.0` prefix to all API endpoints
+- 🚧 Update clients and tests
+
+### Migration flattening
+
+- 🚧 Flatten migrations into baseline schema
+- 🚧 Delete `migrations_legacy.py`
 
 ---
 
@@ -107,7 +145,7 @@ Goal: a developer installs Gobby and immediately understands the value in minute
 ### 2) Observability (debugging + trust)
 
 - 🗺️ Tool call tracing (latency, success/error, payload size)
-- 🗺️ Session timeline view (hooks fired, tools invoked, compactions, files changed)
+- 🗺️ Session timeline view (event stream: hooks fired, tools invoked, compactions, files changed - distinct from session transcripts which capture raw conversation)
 - 🗺️ Exportable run reports (for PR descriptions / team sharing)
 
 ### 3) Flagship demos (distribution)
@@ -130,18 +168,31 @@ Goal: reduce cognitive load; make the daemon’s behavior legible.
 - 🗺️ Workflow run status + logs
 - 🗺️ Hook inspector (what ran, what changed, what was blocked)
 
-### 2) Orchestration (controlled autonomy)
+### 2) Additional CLI support
 
-- 🗺️ Conductor daemon: persistent monitoring, TARS-style haiku status
-- 🗺️ Inter-agent messaging: parent↔child message passing during execution
-- 🗺️ Token budget tracking: aggregation, pricing, throttling
-- 🗺️ Review gates: `review` status, blocking wait tools
-- 🗺️ callme integration: phone alerts for stuck agents/critical events
+- 🗺️ GitHub Copilot CLI
+- 🗺️ Cursor IDE / Cursor CLI
+- 🗺️ Aider
+- 🗺️ Continue
+- 🗺️ Amazon Q Developer CLI
+- 🗺️ Other emerging coding agent CLIs
 
 ### 3) Worktree production readiness
 
 - 🗺️ Cleanup/GC, conflict strategy, concurrency rules
 - 🗺️ Run workflows per worktree; merge automation hooks
+
+### 4) OpenTelemetry (optional enhancement)
+
+- 🗺️ Replace custom logging/metrics with OpenTelemetry
+- 🗺️ OTLP export + console fallback for local dev
+- 🗺️ Tracing infrastructure ready for future fleet observability
+
+### 5) SWE-bench evaluation
+
+- 🗺️ Evaluation infrastructure for SWE-bench Lite/Verified/Live
+- 🗺️ Track scores over time, A/B test Gobby features
+- 🗺️ Leaderboard submission when ready to show off
 
 ---
 
