@@ -1527,6 +1527,19 @@ def _apply_baseline(db: LocalDatabase) -> None:
     logger.info(f"Baseline schema applied, now at version {BASELINE_VERSION}")
 
 
+def _apply_baseline_v2(db: LocalDatabase) -> None:
+    """Apply V2 baseline schema for new databases (flattened at v75)."""
+    logger.info("Applying V2 baseline schema (v75)")
+
+    # Execute V2 baseline schema
+    for statement in BASELINE_SCHEMA_V2.strip().split(";"):
+        statement = statement.strip()
+        if statement:
+            db.execute(statement)
+
+    logger.info(f"V2 baseline schema applied, now at version {BASELINE_VERSION_V2}")
+
+
 def _run_migration_list(
     db: LocalDatabase,
     current_version: int,

@@ -4,7 +4,9 @@ from unittest.mock import patch
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import (
     BASELINE_VERSION,
+    BASELINE_VERSION_V2,
     MIGRATIONS,
+    _apply_baseline_v2,
     get_current_version,
     run_migrations,
 )
@@ -1889,3 +1891,84 @@ def test_inter_session_messages_migration_in_migrations_list(tmp_path):
     assert migration_found is not None, (
         "inter_session_messages migration not found in MIGRATIONS list"
     )
+
+
+# =============================================================================
+# Migration Flattening: V2 Baseline Schema Tests
+# =============================================================================
+
+
+def test_apply_baseline_v2_creates_schema_at_v75(tmp_path):
+    """Test that _apply_baseline_v2() creates schema at version 75.
+
+    This is the flattened V2 baseline that consolidates all migrations
+    1-75 into a single clean schema definition.
+    """
+    db_path = tmp_path / "baseline_v2_test.db"
+    db = LocalDatabase(db_path)
+
+    # Initial state - no schema version
+    assert get_current_version(db) == 0
+
+    # Apply V2 baseline
+    _apply_baseline_v2(db)
+
+    # Verify version is 75
+    assert get_current_version(db) == BASELINE_VERSION_V2
+    assert get_current_version(db) == 75
+
+
+def test_apply_baseline_v2_creates_all_tables(tmp_path):
+    """Test that _apply_baseline_v2() creates all required tables."""
+    db_path = tmp_path / "baseline_v2_tables.db"
+    db = LocalDatabase(db_path)
+
+    _apply_baseline_v2(db)
+
+    # Check that all major tables exist
+    expected_tables = [
+        "schema_version",
+        "projects",
+        "sessions",
+        "mcp_servers",
+        "tools",
+        "tasks",
+        "task_dependencies",
+        "session_tasks",
+        "session_messages",
+        "memories",
+        "tool_embeddings",
+        "task_validation_history",
+        "inter_session_messages",
+        "skills",
+        "workflow_states",
+        "workflow_audit_log",
+    ]
+    for table in expected_tables:
+        row = db.fetchone(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        )
+        assert row is not None, f"Table {table} not created by _apply_baseline_v2"
+
+
+def test_apply_baseline_v2_creates_placeholder_projects(tmp_path):
+    """Test that _apply_baseline_v2() creates placeholder projects."""
+    db_path = tmp_path / "baseline_v2_placeholders.db"
+    db = LocalDatabase(db_path)
+
+    _apply_baseline_v2(db)
+
+    # Check placeholder projects exist
+    orphaned = db.fetchone(
+        "SELECT * FROM projects WHERE id = ?",
+        ("00000000-0000-0000-0000-000000000000",),
+    )
+    assert orphaned is not None, "_orphaned placeholder project not created"
+    assert orphaned["name"] == "_orphaned"
+
+    migrated = db.fetchone(
+        "SELECT * FROM projects WHERE id = ?",
+        ("00000000-0000-0000-0000-000000000001",),
+    )
+    assert migrated is not None, "_migrated placeholder project not created"
+    assert migrated["name"] == "_migrated"
