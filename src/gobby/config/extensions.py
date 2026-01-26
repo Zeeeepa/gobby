@@ -137,8 +137,8 @@ class PluginsConfig(BaseModel):
         description="Enable plugin system (disabled by default for security)",
     )
     plugin_dirs: list[str] = Field(
-        default_factory=lambda: ["~/.gobby/plugins", ".gobby/plugins"],
-        description="Directories to scan for plugins (supports ~ expansion)",
+        default_factory=lambda: [".gobby/plugins"],
+        description="Directories to scan for plugins (project-scoped)",
     )
     auto_discover: bool = Field(
         default=True,

@@ -1,0 +1,108 @@
+name: meeseeks-box
+description: |
+  Parent workflow for spawning meeseeks child agents.
+  "Hi, I'm Mr. Meeseeks! Look at me!"
+
+  This workflow manages a task by spawning meeseeks children to work on subtasks.
+  The parent stays alive, monitoring progress and collecting results.
+
+  Key features:
+  - Spawns meeseeks agents for subtasks (parallel execution)
+  - Waits for children to complete and collects their messages
+  - Full tool access for coordination and direct work
+  - Exits when task tree is complete
+
+  Usage:
+    1. Create/claim a parent task via gobby-tasks
+    2. Activate this workflow with session_task set to the task ID
+    3. Break down work into subtasks
+    4. Spawn meeseeks children for parallelizable work
+    5. Wait for completion, collect results
+    6. Workflow exits when task tree is complete
+
+version: "1.0"
+type: step
+
+# Session-scoped variables (set on activation)
+variables:
+  session_task: null  # Task ID(s) to complete before exit
+  # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
+  premature_stop_max_attempts: 3
+
+steps:
+  - name: work
+    description: "Coordinate task execution, spawn children as needed"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          You are in meeseeks-box mode - a parent workflow for spawning child agents.
+
+          Session task: {{ variables.session_task }}
+
+          Work on this task and its subtasks until completion.
+          Use suggest_next_task() to find available work.
+
+          For subtasks that can be parallelized, spawn meeseeks child agents:
+
+          1. **Spawn a child agent** with activation prompt:
+             mcp__gobby__call_tool(
+               server_name="gobby-agents",
+               tool_name="start_agent",
+               arguments={
+                 "prompt": "FIRST: Get your session ID, then activate the meeseeks workflow:\n\n1. mcp__gobby__call_tool(server_name='gobby-sessions', tool_name='get_current_session', arguments={})\n\n2. mcp__gobby__call_tool(server_name='gobby-workflows', tool_name='activate_workflow', arguments={'name': 'meeseeks', 'session_id': '<your_session_id>', 'variables': {'assigned_task_id': '<TASK_ID>'}})\n\nThen follow the workflow steps that will be injected.\n\nTask: <task_title>",
+                 "workflow": "meeseeks",
+                 "task": "<subtask_uuid>",
+                 "terminal": "ghostty",
+                 "provider": "gemini",
+                 "model": "gemini-3-pro"
+               }
+             )
+
+          2. **Wait for task completion** (blocking):
+             mcp__gobby__call_tool(
+               server_name="gobby-agents",
+               tool_name="wait_for_task",
+               arguments={"task_id": "<subtask_uuid>", "timeout": 600}
+             )
+
+          3. **Poll for child messages**:
+             mcp__gobby__call_tool(
+               server_name="gobby-agents",
+               tool_name="poll_messages",
+               arguments={"session_id": "<your_session_id>"}
+             )
+
+          You can also do work directly - you have full tool access.
+          When all subtasks are closed, the workflow will complete.
+
+    # Full tool access for implementation and coordination
+    allowed_tools: all
+
+    transitions:
+      # Complete when task tree done
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+
+  - name: complete
+    description: "Task work finished - terminal step"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Task complete! All subtasks for {{ variables.session_task }} have been closed.
+
+          The meeseeks-box workflow will now exit.
+          You may stop the session or start a new task.
+
+# Exit condition for entire workflow
+# When this evaluates to true, the workflow can cleanly exit
+# Uses task_tree_complete directly so stop is allowed when tasks are done
+# (even if transition to 'complete' step hasn't fired yet)
+exit_condition: "task_tree_complete(variables.session_task)"
+
+# Handler for premature stop attempts
+# Triggered when agent tries to stop but exit_condition is not met
+on_premature_stop:
+  action: guide_continuation
+  message: "Task has incomplete subtasks. Use suggest_next_task() or check on spawned children with poll_messages(). Do not wait for user confirmation to proceed."

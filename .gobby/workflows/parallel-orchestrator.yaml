@@ -31,7 +31,6 @@ variables:
   completed_clones: []        # Clones with completed work
   selected_tasks: []          # Tasks selected for current batch
   completed_agent: null       # Most recently completed agent
-  block_resolved: null        # Set to "true" to exit blocked state
 
 steps:
   - name: select_batch
@@ -184,7 +183,6 @@ steps:
           - If tasks ready and slots available: go to 'select_batch'
           - If agents still running: go to 'wait_any'
           - If task tree complete: go to 'complete'
-          - If blocked (no tasks, no agents, not complete): go to 'blocked'
 
     allowed_tools: all
 
@@ -195,45 +193,6 @@ steps:
         when: "len(variables.spawned_agents) > 0"
       - to: complete
         when: "task_tree_complete(variables.session_task)"
-      - to: blocked
-        when: "not has_ready_tasks(variables.session_task) and len(variables.spawned_agents) == 0 and not task_tree_complete(variables.session_task)"
-
-  - name: blocked
-    description: "No ready tasks, no running agents, but task tree not complete - blocked state"
-    on_enter:
-      - action: inject_message
-        content: |
-          PARALLEL ORCHESTRATOR: Workflow blocked!
-
-          Epic: {{ variables.session_task }}
-          Completed clones: {{ variables.completed_clones | length }}
-
-          The workflow is blocked:
-          - No tasks are ready (all may be blocked by dependencies)
-          - No agents are currently running
-          - The task tree is not yet complete
-
-          Possible causes:
-          1. Circular dependencies in the task tree
-          2. Tasks blocked by external conditions
-          3. Tasks in an unexpected state
-
-          Actions to resolve:
-          1. Review task dependencies with list_tasks()
-          2. Check for stuck or failed tasks
-          3. Manually unblock tasks if needed
-          4. Use close_task() on orphaned tasks
-
-          After resolving, use set_variable to clear the block:
-          set_variable(name="block_resolved", value="true")
-
-          Then transition back to 'loop' to re-check.
-
-    allowed_tools: all
-
-    transitions:
-      - to: loop
-        when: "variables.block_resolved == 'true'"
 
   - name: complete
     description: "Orchestration complete - all tasks done"

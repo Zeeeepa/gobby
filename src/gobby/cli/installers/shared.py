@@ -23,7 +23,8 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     """Install shared content from src/install/shared/.
 
     Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
-    Plugins are global and go to ~/.gobby/plugins/.
+    Plugins are project-scoped and go to {project_path}/.gobby/plugins/.
+    Prompts are project-scoped and go to {project_path}/.gobby/prompts/.
     Docs are project-local and go to {project_path}/.gobby/docs/.
 
     Args:
@@ -34,7 +35,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
-    installed: dict[str, list[str]] = {"workflows": [], "plugins": [], "docs": []}
+    installed: dict[str, list[str]] = {"workflows": [], "plugins": [], "prompts": [], "docs": []}
 
     # Install shared workflows to .gobby/workflows/ (cross-CLI)
     shared_workflows = shared_dir / "workflows"
@@ -53,15 +54,32 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
                 copytree(item, target_subdir)
                 installed["workflows"].append(f"{item.name}/")
 
-    # Install shared plugins to ~/.gobby/plugins/ (global)
+    # Install shared plugins to .gobby/plugins/ (project-scoped)
     shared_plugins = shared_dir / "plugins"
     if shared_plugins.exists():
-        target_plugins = Path("~/.gobby/plugins").expanduser()
+        target_plugins = project_path / ".gobby" / "plugins"
         target_plugins.mkdir(parents=True, exist_ok=True)
         for plugin_file in shared_plugins.iterdir():
             if plugin_file.is_file() and plugin_file.suffix == ".py":
                 copy2(plugin_file, target_plugins / plugin_file.name)
                 installed["plugins"].append(plugin_file.name)
+
+    # Install shared prompts to .gobby/prompts/ (project-scoped)
+    shared_prompts = shared_dir / "prompts"
+    if shared_prompts.exists():
+        target_prompts = project_path / ".gobby" / "prompts"
+        target_prompts.mkdir(parents=True, exist_ok=True)
+        for item in shared_prompts.iterdir():
+            if item.is_file():
+                copy2(item, target_prompts / item.name)
+                installed["prompts"].append(item.name)
+            elif item.is_dir():
+                # Copy subdirectories (e.g., expansion/, validation/)
+                target_subdir = target_prompts / item.name
+                if target_subdir.exists():
+                    shutil.rmtree(target_subdir)
+                copytree(item, target_subdir)
+                installed["prompts"].append(f"{item.name}/")
 
     # Install shared docs to .gobby/docs/ (project-local)
     shared_docs = shared_dir / "docs"
@@ -181,6 +199,87 @@ def install_shared_skills(target_dir: Path) -> list[str]:
             installed.append(skill_name)
         except OSError as e:
             logger.error(f"Failed to copy skill {skill_name}: {e}")
+
+    return installed
+
+
+def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
+    """Install router skills (gobby, g) as flattened Claude commands.
+
+    Claude Code uses .claude/commands/name.md format for slash commands.
+    This function copies the gobby router skills from shared/skills/ to
+    commands/ as flattened .md files.
+
+    Args:
+        target_commands_dir: Path to commands directory (e.g., .claude/commands)
+
+    Returns:
+        List of installed command names
+    """
+    shared_skills_dir = get_install_dir() / "shared" / "skills"
+    installed: list[str] = []
+
+    # Router skills to install as commands
+    router_skills = ["gobby", "g"]
+
+    target_commands_dir.mkdir(parents=True, exist_ok=True)
+
+    for skill_name in router_skills:
+        source_skill_md = shared_skills_dir / skill_name / "SKILL.md"
+        if not source_skill_md.exists():
+            logger.warning(f"Router skill not found: {source_skill_md}")
+            continue
+
+        # Flatten: copy SKILL.md to commands/name.md
+        target_cmd = target_commands_dir / f"{skill_name}.md"
+
+        try:
+            copy2(source_skill_md, target_cmd)
+            installed.append(f"{skill_name}.md")
+        except OSError as e:
+            logger.error(f"Failed to copy router skill {skill_name}: {e}")
+
+    return installed
+
+
+def install_router_skills_as_gemini_skills(target_skills_dir: Path) -> list[str]:
+    """Install router skills (gobby, g) as Gemini skills (directory structure).
+
+    Gemini CLI uses .gemini/skills/name/SKILL.md format for skills.
+    This function copies the gobby router skills from shared/skills/ to
+    the target skills directory preserving the directory structure.
+
+    Args:
+        target_skills_dir: Path to skills directory (e.g., .gemini/skills)
+
+    Returns:
+        List of installed skill names
+    """
+    shared_skills_dir = get_install_dir() / "shared" / "skills"
+    installed: list[str] = []
+
+    # Router skills to install
+    router_skills = ["gobby", "g"]
+
+    target_skills_dir.mkdir(parents=True, exist_ok=True)
+
+    for skill_name in router_skills:
+        source_skill_dir = shared_skills_dir / skill_name
+        source_skill_md = source_skill_dir / "SKILL.md"
+        if not source_skill_md.exists():
+            logger.warning(f"Router skill not found: {source_skill_md}")
+            continue
+
+        # Create skill directory and copy SKILL.md
+        target_skill_dir = target_skills_dir / skill_name
+        target_skill_dir.mkdir(parents=True, exist_ok=True)
+        target_skill_md = target_skill_dir / "SKILL.md"
+
+        try:
+            copy2(source_skill_md, target_skill_md)
+            installed.append(f"{skill_name}/")
+        except OSError as e:
+            logger.error(f"Failed to copy router skill {skill_name}: {e}")
 
     return installed
 

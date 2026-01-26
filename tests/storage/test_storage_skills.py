@@ -123,6 +123,59 @@ class TestSkillDataclass:
         )
         assert skill_normal.is_always_apply() is False
 
+    def test_skill_is_always_apply_top_level(self):
+        """Test Skill.is_always_apply() with top-level alwaysApply."""
+        skill = Skill(
+            id="skl-1",
+            name="core-skill",
+            description="Core",
+            content="Content",
+            metadata={"alwaysApply": True},
+        )
+        assert skill.is_always_apply() is True
+
+        skill_false = Skill(
+            id="skl-2",
+            name="optional",
+            description="Optional",
+            content="Content",
+            metadata={"alwaysApply": False},
+        )
+        assert skill_false.is_always_apply() is False
+
+    def test_skill_is_always_apply_top_level_precedence(self):
+        """Test that top-level alwaysApply takes precedence over nested."""
+        skill = Skill(
+            id="skl-1",
+            name="precedence-test",
+            description="Test",
+            content="Content",
+            metadata={"alwaysApply": True, "skillport": {"alwaysApply": False}},
+        )
+        assert skill.is_always_apply() is True
+
+    def test_skill_get_category_top_level(self):
+        """Test Skill.get_category() with top-level category."""
+        skill = Skill(
+            id="skl-1",
+            name="core-skill",
+            description="Core",
+            content="Content",
+            metadata={"category": "core"},
+        )
+        assert skill.get_category() == "core"
+
+    def test_skill_get_category_top_level_precedence(self):
+        """Test that top-level category takes precedence over nested."""
+        skill = Skill(
+            id="skl-1",
+            name="precedence-test",
+            description="Test",
+            content="Content",
+            metadata={"category": "core", "skillport": {"category": "git"}},
+        )
+        assert skill.get_category() == "core"
+
 
 class TestLocalSkillManager:
     """Tests for LocalSkillManager CRUD operations."""

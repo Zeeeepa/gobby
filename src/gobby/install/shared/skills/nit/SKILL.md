@@ -1,6 +1,7 @@
 ---
 name: nit
 description: "Quickly create a nitpick/minor cleanup task. Usage: /nit <title> [description]"
+category: core
 ---
 
 # /nit - Create Nitpick Task

@@ -799,15 +799,16 @@ async def require_task_review_or_close_before_stop(
             return None
 
         # Task is still in_progress - block the stop
+        task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
         logger.info(
             f"require_task_review_or_close_before_stop: Blocking stop - task "
-            f"'{claimed_task_id}' is still in_progress"
+            f"{task_ref} is still in_progress"
         )
 
         return {
             "decision": "block",
             "reason": (
-                f"Task '{claimed_task_id}' is still in_progress. "
+                f"\nTask {task_ref} is still in_progress. "
                 f"Close it with close_task() before stopping."
             ),
             "task_id": claimed_task_id,

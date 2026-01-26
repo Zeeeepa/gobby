@@ -3,8 +3,8 @@ description: |
   Single-task focused agent workflow. "I'm Mr. Meeseeks, look at me!"
 
   Each step has strict exit conditions. The agent cannot proceed
-  until requirements are met. Designed to be spawned from auto-task
-  for individual task execution.
+  until requirements are met. Designed to be spawned from meeseeks-box
+  or auto-task for individual task execution.
 
   Steps:
   1. Get session ID from gobby-sessions
@@ -14,7 +14,8 @@ description: |
   5. [If coding] Save findings to gobby-memory
   6. Work on task until closed
   7. Generate and save session summary
-  8. Run shutdown script to terminate
+  7.5. Report completion to parent session
+  8. Close session and run shutdown script to terminate
 
 version: "1.0"
 type: step
@@ -272,32 +273,93 @@ steps:
         value: true
 
     transitions:
-      - to: shutdown
+      - to: report_to_parent
         when: "variables.get('summary_file_written', False) and (variables.get('session_update_completed', False) or variables.get('_premature_stop_count', 0) >= 3)"
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 7.5: Report to Parent
+  # ─────────────────────────────────────────────────────────────
+  - name: report_to_parent
+    description: "Report completion status to parent session"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Step 7.5: Report completion to parent.
+
+          If you were spawned by a parent session, notify them of completion:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="send_to_parent",
+            arguments={
+              "session_id": "<your session_id>",
+              "content": "Task completed. Summary: <brief summary of work done>"
+            }
+          )
+
+          If send_to_parent fails (no parent), that's okay - proceed to shutdown.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    on_mcp_error:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true  # Still proceed on error (no parent is valid)
+
+    transitions:
+      - to: shutdown
+        when: "mcp_called('gobby-agents', 'send_to_parent')"
 
   # ─────────────────────────────────────────────────────────────
   # Step 8: Shutdown
   # ─────────────────────────────────────────────────────────────
   - name: shutdown
-    description: "Run shutdown script and terminate"
+    description: "Close session and terminate"
 
     on_enter:
       - action: inject_message
         content: |
           Step 8: Shutdown sequence.
 
-          Run: ~/.gobby/scripts/agent_shutdown.sh
+          1. First, close your session:
+             mcp__gobby__call_tool(
+               server_name="gobby-sessions",
+               tool_name="update_session",
+               arguments={"session_id": "<your session_id>", "status": "completed"}
+             )
+
+          2. Then run: ~/.gobby/scripts/agent_shutdown.sh
 
           This will terminate your terminal session.
 
     allowed_tools:
       - Bash
+      - mcp__gobby__call_tool
 
     blocked_tools:
       - Edit
       - Write
       - NotebookEdit
-      - mcp__gobby__call_tool
 
     transitions:
       - to: complete

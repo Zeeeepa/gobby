@@ -21,32 +21,13 @@ type: step
 settings:
   auto_activate_on: worktree_spawn
   upstream_servers: allow_all
-  # The assigned_task_id is populated from spawn parameters when
-  # spawn_agent_in_worktree is called with a task_id argument
 
 variables:
-  assigned_task_id: null      # Set by spawn_agent_in_worktree(task_id=...)
+  assigned_task_id: null
 
 steps:
   - name: work
     description: "Work on assigned task with restricted tool access"
-    on_enter:
-      - action: inject_message
-        content: |
-          WORKTREE AGENT: Starting work.
-
-          Assigned task: {{ variables.assigned_task_id }}
-
-          {% if variables.assigned_task_id %}
-          Fetch task details with get_task(task_id="{{ variables.assigned_task_id }}").
-          All operations should be scoped to this task.
-          {% else %}
-          WARNING: No task ID assigned. Check spawn parameters.
-          {% endif %}
-
-          When complete:
-          1. Commit your changes
-          2. Call close_task(task_id="{{ variables.assigned_task_id }}")
 
     # Core development tools + specific MCP tools
     allowed_tools:
@@ -110,9 +91,8 @@ on_premature_stop:
   action: guide_continuation
   message: |
     Your assigned task is not yet complete. Please:
-    1. Continue working on task {{ variables.assigned_task_id }}
+    1. Continue working on the task
     2. Commit your changes when ready
-    3. Call close_task(task_id="{{ variables.assigned_task_id }}") to mark complete
+    3. Call close_task() to mark the task complete
 
-    If you're stuck, check the task details with:
-    get_task(task_id="{{ variables.assigned_task_id }}")
+    If you're stuck, check the task details with get_task().

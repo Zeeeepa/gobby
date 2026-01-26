@@ -1,6 +1,8 @@
 ---
 name: starting-sessions
 description: First 5 things every session should do. Use at session start or when asked "how do I begin" with Gobby.
+category: core
+alwaysApply: true
 ---
 
 # Starting Sessions - Session Startup Checklist

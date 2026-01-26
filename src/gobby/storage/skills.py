@@ -149,9 +149,18 @@ class Skill:
         }
 
     def get_category(self) -> str | None:
-        """Get the skill category from metadata.skillport.category."""
+        """Get the skill category from top-level or metadata.skillport.category.
+
+        Supports both top-level category and nested metadata.skillport.category.
+        Top-level takes precedence.
+        """
         if not self.metadata:
             return None
+        # Check top-level first
+        result = self.metadata.get("category")
+        if result is not None:
+            return str(result)
+        # Fall back to nested skillport.category
         skillport = self.metadata.get("skillport", {})
         result = skillport.get("category")
         return str(result) if result is not None else None
@@ -165,9 +174,18 @@ class Skill:
         return list(tags) if isinstance(tags, list) else []
 
     def is_always_apply(self) -> bool:
-        """Check if this is a core skill that should always be applied."""
+        """Check if this is a core skill that should always be applied.
+
+        Supports both top-level alwaysApply and nested metadata.skillport.alwaysApply.
+        Top-level takes precedence.
+        """
         if not self.metadata:
             return False
+        # Check top-level first
+        top_level = self.metadata.get("alwaysApply")
+        if top_level is not None:
+            return bool(top_level)
+        # Fall back to nested skillport.alwaysApply
         skillport = self.metadata.get("skillport", {})
         return bool(skillport.get("alwaysApply", False))
 
@@ -465,21 +483,32 @@ class LocalSkillManager:
         self,
         name: str,
         project_id: str | None = None,
+        include_global: bool = True,
     ) -> Skill | None:
         """Get a skill by name within a project scope.
 
         Args:
             name: The skill name
             project_id: Project scope (None for global)
+            include_global: Include global skills when project_id is set.
+                           When True and project_id is set, first looks for
+                           project-scoped skill, then falls back to global.
 
         Returns:
             The Skill if found, None otherwise
         """
         if project_id:
+            # First try project-scoped skill
             row = self.db.fetchone(
                 "SELECT * FROM skills WHERE name = ? AND project_id = ?",
                 (name, project_id),
             )
+            # If not found and include_global, try global
+            if row is None and include_global:
+                row = self.db.fetchone(
+                    "SELECT * FROM skills WHERE name = ? AND project_id IS NULL",
+                    (name,),
+                )
         else:
             row = self.db.fetchone(
                 "SELECT * FROM skills WHERE name = ? AND project_id IS NULL",
@@ -649,9 +678,13 @@ class LocalSkillManager:
             params.append(enabled)
 
         # Filter by category using JSON extraction in SQL to avoid under-filled results
+        # Check both top-level $.category and nested $.skillport.category
         if category:
-            query += " AND json_extract(metadata, '$.skillport.category') = ?"
-            params.append(category)
+            query += """ AND (
+                json_extract(metadata, '$.category') = ?
+                OR json_extract(metadata, '$.skillport.category') = ?
+            )"""
+            params.extend([category, category])
 
         query += " ORDER BY name ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])

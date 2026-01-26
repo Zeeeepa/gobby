@@ -3,7 +3,7 @@ Tests for Named Agent Definitions.
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,6 +50,76 @@ class TestAgentDefinition:
         # Missing name
         with pytest.raises(ValueError):
             AgentDefinition(name=None, description="test")  # type: ignore
+
+    def test_isolation_fields_defaults(self):
+        """Test that new isolation fields have correct defaults."""
+        data: dict[str, Any] = {
+            "name": "test-agent",
+            "description": "A test agent",
+        }
+        agent = AgentDefinition(**data)
+
+        # New fields with their expected defaults
+        assert agent.isolation is None
+        assert agent.branch_prefix is None
+        assert agent.base_branch == "main"
+        assert agent.provider == "claude"
+
+    def test_isolation_fields_custom_values(self):
+        """Test that new isolation fields accept custom values."""
+        data: dict[str, Any] = {
+            "name": "feature-developer",
+            "description": "Agent for feature development",
+            "isolation": "worktree",
+            "branch_prefix": "feat/",
+            "base_branch": "develop",
+            "provider": "gemini",
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.isolation == "worktree"
+        assert agent.branch_prefix == "feat/"
+        assert agent.base_branch == "develop"
+        assert agent.provider == "gemini"
+
+    def test_isolation_literal_values(self):
+        """Test that isolation accepts all valid literal values."""
+        for isolation_value in ["current", "worktree", "clone"]:
+            data: dict[str, Any] = {
+                "name": "test-agent",
+                "isolation": isolation_value,
+            }
+            agent = AgentDefinition(**data)
+            assert agent.isolation == isolation_value
+
+    def test_yaml_loading_with_isolation_fields(self):
+        """Test that YAML loading works with new isolation fields."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "isolation-test-agent",
+            "description": "Test agent with isolation config",
+            "isolation": "clone",
+            "branch_prefix": "agent/",
+            "base_branch": "main",
+            "provider": "claude",
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/test-agent.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("isolation-test-agent")
+
+            assert agent is not None
+            assert agent.name == "isolation-test-agent"
+            assert agent.isolation == "clone"
+            assert agent.branch_prefix == "agent/"
+            assert agent.base_branch == "main"
+            assert agent.provider == "claude"
 
 
 class TestAgentDefinitionLoader:
@@ -184,3 +254,91 @@ class TestAgentDefinitionLoader:
         # Check lifecycle variables
         assert definition.lifecycle_variables.get("validation_model") is None
         assert definition.lifecycle_variables.get("require_task") is False
+
+
+class TestGenericAgentDefinition:
+    """Tests for the generic.yaml agent definition."""
+
+    def test_generic_agent_loads_successfully(self):
+        """Test that the generic agent definition can be loaded."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "generic",
+            "description": "Default generic agent",
+            "mode": "terminal",
+            "provider": "claude",
+            "isolation": None,
+            "base_branch": "main",
+            "workflow": "generic",
+            "timeout": 120.0,
+            "max_turns": 10,
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("generic")
+
+            assert agent is not None
+            assert agent.name == "generic"
+
+    def test_generic_agent_has_expected_defaults(self):
+        """Test that generic agent has correct default values."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "generic",
+            "description": "Default generic agent with minimal configuration.",
+            "mode": "terminal",
+            "provider": "claude",
+            "base_branch": "main",
+            "workflow": "generic",
+            "timeout": 120.0,
+            "max_turns": 10,
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("generic")
+
+            assert agent is not None
+            assert agent.name == "generic"
+            assert agent.mode == "terminal"
+            assert agent.provider == "claude"
+            assert agent.workflow == "generic"
+            assert agent.timeout == 120.0
+            assert agent.max_turns == 10
+            assert agent.base_branch == "main"
+
+    def test_generic_agent_isolation_is_null(self):
+        """Test that generic agent has no isolation by default."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "generic",
+            "mode": "terminal",
+            "provider": "claude",
+            "workflow": "generic",
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("generic")
+
+            assert agent is not None
+            assert agent.isolation is None

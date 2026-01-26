@@ -1,99 +1,162 @@
 # Strangler Fig Decomposition Plan
 
-This document outlines the strategy for decomposing the "God Object" identified in the Gobby codebase using the **Strangler Fig** pattern. This pattern allows us to incrementally migrate functionality from a monolithic system to a modular one without rewriting the entire system at once.
+## Overview
 
-## Core Strategy
+This document outlines the strategy for decomposing "God Objects" in the Gobby codebase using the **Strangler Fig** pattern. This pattern allows incremental migration from a monolithic system to a modular one without rewriting everything at once.
 
-For each candidate, we will follow these steps:
-1.  **Identify Seams**: Find logical groupings of functionality (e.g., by domain, feature, or resource).
-2.  **Create New Structure**: Establish a new package directory to house the decomposed modules.
-3.  **Route/Proxy**: For the first slice, implement it in the new module and update the original file to import and use the new module (aliasing/proxying).
-4.  **Iterate**: Repeat for each subsequent slice.
-5.  **Withering**: Once the original file is empty or purely a re-export layer, **delete it completely**. We prioritize a clean codebase over backward compatibility for these internal modules. This means updating all importers to point to the new locations.
+## Constraints
+
+- No logic changes during structural refactoring
+- Tests must pass before and after each slice
+- Atomic commits per slice (one PR per slice, not one PR for all)
+- Internal modules prioritize clean code over backward compatibility
 
 ---
 
-## 1. Candidate: `src/gobby/servers/routes/mcp/tools.py` (1512 lines)
+## Core Strategy
 
-**Target**: Decompose into domain-specific routers.
+For each candidate, follow these steps:
+
+1. **Identify Seams**: Find logical groupings of functionality (by domain, feature, or resource)
+2. **Create New Structure**: Establish a new package directory or sibling modules
+3. **Route/Proxy**: Implement the first slice in the new module; update the original to import and delegate
+4. **Iterate**: Repeat for each subsequent slice
+5. **Withering**: Once the original is empty or purely re-exports, **delete it completely** and update all importers
+
+---
+
+## Execution Priority
+
+| Priority | Candidate | Rationale |
+|----------|-----------|-----------|
+| 1 | `actions.py` | Already in progress, minimal remaining work (delete wrappers) |
+| 2 | `migrations.py` | High-value cleanup, isolated domain, pending decision on legacy support |
+| 3 | `tools.py` | Largest file, requires careful router mounting |
+| 4 | `codex.py` | Adapter code, can be done whenever |
+
+---
+
+## Phase 1: Actions Withering
+
+**Goal**: Complete the withering phase for `actions.py`
+
+### Candidate: `src/gobby/workflows/actions.py` (1392 lines)
+
+**Status**: In Progress (Partial Decomposition)
+**Target**: < 400 lines (registry + imports only)
+
+**Current State**: Significant logic extracted into sibling modules (`autonomous_actions.py`, `context_actions.py`, `state_actions.py`, etc.). `actions.py` now primarily serves as the `ActionExecutor` registry with `_handle_*` wrapper methods that delegate to new modules.
+
+**Tasks:**
+
+- [ ] Refactor `ActionExecutor.register_defaults` to register external callables directly (category: refactor)
+- [ ] Delete `_handle_*` wrapper methods from `ActionExecutor` (category: refactor)
+- [ ] Verify all action imports work correctly (category: manual)
+
+**Acceptance Criteria:**
+
+- `actions.py` contains only registry logic and imports
+- All existing tests pass
+- No `_handle_*` methods remain in the file
+- Line count < 400
+
+---
+
+## Phase 2: Migration Flattening
+
+**Goal**: Flatten legacy migrations into a single v75 baseline with feature-flagged rollback.
+
+### Candidate: `src/gobby/storage/migrations.py` (1046 lines) & `migrations_legacy.py` (1359 lines)
+
+**Status**: Planned
+**Detailed Plan**: [migration-flattening.md](./migration-flattening.md)
+
+The migration flattening follows its own strangler fig approach with 6 phases:
+1. Schema capture (add BASELINE_SCHEMA_V2 at v75)
+2. Feature flag (`use_flattened_baseline`)
+3. Branching logic in `run_migrations()`
+4. Testing & validation (both paths)
+5. Default to new baseline
+6. Cleanup (remove old path)
+
+See the detailed plan for tasks, acceptance criteria, and rollback procedures at each phase.
+
+---
+
+## Phase 3: Tools Decomposition
+
+**Goal**: Decompose into domain-specific routers
+
+### Candidate: `src/gobby/servers/routes/mcp/tools.py` (1526 lines)
+
+**Status**: Pending
+**Target**: < 100 lines (router aggregation only)
+
+### Current Importers
+
+Before decomposition, identify all modules importing from `tools.py`:
+
+```bash
+# Run to find importers
+rg "from.*routes\.mcp\.tools import|from.*routes\.mcp import.*tools" src/
+```
 
 ### New Structure
+
 ```text
 src/gobby/servers/routes/mcp/
 ├── __init__.py
 ├── tools.py              # (The Monolith - to be strangled)
 └── endpoints/            # [NEW]
     ├── __init__.py
-    ├── discovery.py      # list_tools, search_tools
-    ├── execution.py      # call_tool
-    ├── server.py         # list_servers, add_server, etc.
+    ├── discovery.py      # list_tools, search_tools, recommend_tools
+    ├── execution.py      # call_tool, get_tool_schema
+    ├── server.py         # list_servers, add_server, remove_server
     └── registry.py       # import_server, specialized registry logic
 ```
 
-### Steps
-1.  **Skeleton**: Create `src/gobby/servers/routes/mcp/endpoints/`.
-2.  **Slice 1 (Discovery)**: Move `list_mcp_tools`, `search_mcp_tools`, and `recommend_mcp_tools` to `endpoints/discovery.py`.
-    *   *Strangler*: In `tools.py`, import the router from `discovery.py` and mount it, or re-implement the route functions to call the new logic.
-3.  **Slice 2 (Server Management)**: Move `list_mcp_servers`, `add_mcp_server`, `remove_mcp_server` to `endpoints/server.py`.
-4.  **Slice 3 (Execution)**: Move `call_mcp_tool` and `get_tool_schema` to `endpoints/execution.py`.
-5.  **Finalize**: Update `tools.py` to simply aggregate these routers into the main MCP router.
+### Shared Dependencies
+
+Identify before moving:
+- Auth dependencies (API key validation, session context)
+- Database session injection
+- MCPClientManager instance
+- Response models
+
+**Tasks:**
+
+- [ ] Create `endpoints/` skeleton with `__init__.py` (category: code)
+- [ ] Slice 1: Move discovery endpoints to `endpoints/discovery.py` (category: refactor)
+  - Target: `tools.py` reduced to ~1200 lines
+- [ ] Slice 2: Move server management to `endpoints/server.py` (category: refactor)
+  - Target: `tools.py` reduced to ~900 lines
+- [ ] Slice 3: Move execution to `endpoints/execution.py` (category: refactor)
+  - Target: `tools.py` reduced to ~600 lines
+- [ ] Slice 4: Move registry logic to `endpoints/registry.py` (category: refactor)
+  - Target: `tools.py` reduced to ~100 lines
+- [ ] Finalize: Update `tools.py` to aggregate routers (category: refactor)
+- [ ] Update all importers to use new locations (category: refactor)
+
+**Acceptance Criteria:**
+
+- `tools.py` < 100 lines (router aggregation only)
+- All route tests pass
+- No circular imports
+- All importers updated
 
 ---
 
-## 2. Candidate: `src/gobby/workflows/actions.py` (1385 lines)
+## Phase 4: Codex Decomposition
 
-**Target**: Decompose into a registry of Action Handlers.
+**Goal**: Separate Protocol/Types from Client Logic
 
-### New Structure
-```text
-src/gobby/workflows/
-├── actions.py            # (The Monolith - execution engine)
-└── handlers/             # [NEW]
-    ├── __init__.py
-    ├── base.py           # ActionHandler protocol/interface
-    ├── state.py          # save/load workflow state, set_variable
-    ├── io.py             # inject_message, read_artifact
-    ├── execution.py      # verify_step, mark_loop_complete
-    └── web.py            # webhook related
-```
+### Candidate: `src/gobby/adapters/codex.py` (1332 lines)
 
-### Steps
-1.  **Interface**: Formalize the `ActionHandler` protocol in `handlers/base.py` (extract from `actions.py`).
-2.  **Slice 1 (State Actions)**: Move `_handle_save_workflow_state`, `_handle_load_workflow_state`, and `_handle_set_variable` to `handlers/state.py` as standalone classes/functions calling `db`.
-3.  **Registry Update**: refactor `ActionExecutor` in `actions.py` to register these external handlers instead of having hardcoded `_handle_*` methods.
-4.  **Iterate**: Continue moving IO, Execution, and Webhook actions to their respective modules.
-
----
-
-## 3. Candidate: `src/gobby/mcp_proxy/tools/worktrees.py` (1270 lines)
-
-**Target**: Decompose into granular Worktree toolsets.
+**Status**: Pending
+**Target**: < 200 lines (adapter facade only)
 
 ### New Structure
-```text
-src/gobby/mcp_proxy/tools/
-├── worktrees.py          # (The Monolith - registry entry point)
-└── worktree_funcs/       # [NEW] (name to be decided, e.g. `worktree_impl`)
-    ├── __init__.py
-    ├── lifecycle.py      # create_worktree, delete_worktree
-    ├── ops.py            # claim_worktree, release_worktree
-    ├── git.py            # sync_worktree, reset_worktree
-    └── spawn.py          # spawn_agent_in_worktree
-```
 
-### Steps
-1.  **Slice 1 (Lifecycle)**: Extract `create_worktree` and `delete_worktree` (and their helpers like `_generate_worktree_path`) to `worktree_funcs/lifecycle.py`.
-    *   *Note*: These functions share `WorktreeGitManager`. Ensure this dependency is injected or shared cleanly.
-2.  **Slice 2 (Operations)**: Extract claim/release logic to `ops.py`.
-3.  **Refactor Registry**: Update `create_worktrees_registry` in `worktrees.py` to import these functions. `create_worktrees_registry` becomes a simple configuration function that maps tool names to these imported functions.
-
----
-
-## 4. Candidate: `src/gobby/adapters/codex.py` (1333 lines)
-
-**Target**: Separate Protocol/Types from Client Logic.
-
-### New Structure
 ```text
 src/gobby/adapters/
 ├── codex.py              # (The Monolith - adapter entry point)
@@ -105,16 +168,48 @@ src/gobby/adapters/
     └── adapter.py        # High-level CodexAdapter class
 ```
 
-### Steps
-1.  **Slice 1 (Types)**: Move all dataclasses and Enums (`CodexConnectionState`, etc.) to `codex_impl/types.py`. Update `codex.py` to import them.
-2.  **Slice 2 (Client)**: Move `CodexAppServerClient` to `codex_impl/client.py`. This is the bulk of the logic.
-3.  **Slice 3 (Adapter)**: Keep the `CodexAdapter` integration layer in `codex.py` (or move to `adapter.py` if meaningful), but it should now rely on the clean imports from `codex_impl` rather than defining everything inline.
+**Tasks:**
+
+- [ ] Slice 1: Move dataclasses and Enums to `codex_impl/types.py` (category: refactor)
+  - Target: `codex.py` reduced to ~1100 lines
+- [ ] Slice 2: Move `CodexAppServerClient` to `codex_impl/client.py` (category: refactor)
+  - Target: `codex.py` reduced to ~400 lines
+- [ ] Slice 3: Move adapter to `codex_impl/adapter.py`, keep facade in `codex.py` (category: refactor)
+  - Target: `codex.py` reduced to ~200 lines
+
+**Acceptance Criteria:**
+
+- `codex.py` < 200 lines (re-exports and facade only)
+- All adapter tests pass
+- No circular imports
 
 ---
 
-## General Rules for Decomposition
+## Graduated Candidates
 
-1.  **Tests First**: Ensure existing tests pass before touching any file.
-2.  **Atomic Commits**: Move one slice at a time and commit. Do not try to move everything in one PR.
-3.  **Verify Imports**: Moving code often breaks circular imports. Be prepared to introduce `TYPE_CHECKING` blocks or dependency injection to resolve these.
-4.  **No Logic Changes**: The primary goal is structural refactoring. Avoid changing business logic simultaneously unless absolutely necessary to untangle dependencies.
+### `src/gobby/mcp_proxy/tools/worktrees.py` (926 lines)
+
+**Status**: Optimized / Retained
+**Rationale**:
+- File is now < 1000 lines, graduating from the "God Object" list
+- Worktrees provide efficient isolation for sequential development
+- `clones.py` handles parallel orchestration separately
+- No further decomposition required
+
+---
+
+## General Rules
+
+1. **Tests First**: Ensure existing tests pass before touching any file
+2. **Atomic Commits**: Move one slice at a time and commit
+3. **Verify Imports**: Moving code often breaks circular imports; use `TYPE_CHECKING` blocks or dependency injection
+4. **No Logic Changes**: Structural refactoring only; avoid business logic changes unless required to untangle dependencies
+5. **Track Line Counts**: After each slice, verify line count matches target
+
+---
+
+## Task Mapping
+
+<!-- Updated after task creation -->
+| Plan Item | Task Ref | Status |
+|-----------|----------|--------|

@@ -250,7 +250,7 @@ def install(
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
                 click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
                 )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
@@ -287,7 +287,7 @@ def install(
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
                 click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
                 )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
@@ -334,7 +334,7 @@ def install(
                         click.echo(f"  - {cmd}")
                 if result.get("plugins_installed"):
                     click.echo(
-                        f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                        f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
                     )
                     for plugin in result["plugins_installed"]:
                         click.echo(f"  - {plugin}")
@@ -395,7 +395,7 @@ def install(
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
                 click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
                 )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")

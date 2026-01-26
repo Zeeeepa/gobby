@@ -1,6 +1,7 @@
 ---
 name: committing-changes
 description: Commit message format and task close workflow. Use when ready to commit or closing tasks.
+category: core
 ---
 
 # Committing Changes - Commit and Close Workflow

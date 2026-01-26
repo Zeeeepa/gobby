@@ -1,0 +1,12 @@
+name: generic
+description: |
+  Default generic agent with minimal configuration.
+  Used when no specific agent definition is specified.
+
+mode: terminal
+provider: claude
+isolation: null  # No isolation by default
+base_branch: main
+workflow: generic
+timeout: 120.0
+max_turns: 10
