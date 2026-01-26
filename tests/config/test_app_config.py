@@ -283,10 +283,15 @@ class TestDaemonConfig:
         assert config.daemon_health_check_interval == 10.0
         assert config.database_path == "~/.gobby/gobby-hub.db"
 
-    def test_use_flattened_baseline_default_false(self):
-        """Test use_flattened_baseline field exists and defaults to False."""
+    def test_use_flattened_baseline_default_true(self):
+        """Test use_flattened_baseline field exists and defaults to True."""
         config = DaemonConfig()
         assert hasattr(config, "use_flattened_baseline")
+        assert config.use_flattened_baseline is True
+
+    def test_use_flattened_baseline_can_be_disabled(self):
+        """Test use_flattened_baseline can be explicitly set to False."""
+        config = DaemonConfig(use_flattened_baseline=False)
         assert config.use_flattened_baseline is False
 
     def test_port_validation(self):

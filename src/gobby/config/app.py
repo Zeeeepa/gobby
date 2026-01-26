@@ -244,7 +244,7 @@ class DaemonConfig(BaseModel):
         description="Path to hub database for cross-project queries.",
     )
     use_flattened_baseline: bool = Field(
-        default=False,
+        default=True,
         description="Use flattened V2 baseline schema (v75) for new databases instead of legacy migrations.",
     )
 
