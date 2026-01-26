@@ -119,8 +119,7 @@ class TestPluginsConfig:
         """Test default configuration values."""
         config = PluginsConfig()
         assert config.enabled is False  # Disabled by default for security
-        assert "~/.gobby/plugins" in config.plugin_dirs
-        assert ".gobby/plugins" in config.plugin_dirs
+        assert config.plugin_dirs == [".gobby/plugins"]  # Project-scoped only
         assert config.auto_discover is True
         assert config.plugins == {}
 

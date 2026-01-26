@@ -104,7 +104,6 @@ hook_extensions:
   plugins:
     enabled: false # Set to true to enable plugins (runs with daemon privileges)
     plugin_dirs:
-      - ~/.gobby/plugins
       - .gobby/plugins
     auto_discover: true
     plugins:

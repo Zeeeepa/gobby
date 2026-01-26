@@ -23,8 +23,11 @@ from .models import PromptTemplate
 
 logger = logging.getLogger(__name__)
 
-# Default location for bundled prompts
-DEFAULTS_DIR = Path(__file__).parent / "defaults"
+# Default location for bundled prompts (in install/shared/prompts for installation)
+# Falls back to src location for development if install location doesn't exist
+_INSTALL_PROMPTS_DIR = Path(__file__).parent.parent / "install" / "shared" / "prompts"
+_DEV_PROMPTS_DIR = Path(__file__).parent / "defaults"
+DEFAULTS_DIR = _INSTALL_PROMPTS_DIR if _INSTALL_PROMPTS_DIR.exists() else _DEV_PROMPTS_DIR
 
 
 class PromptLoader:
