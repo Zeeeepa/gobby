@@ -149,9 +149,18 @@ class Skill:
         }
 
     def get_category(self) -> str | None:
-        """Get the skill category from metadata.skillport.category."""
+        """Get the skill category from top-level or metadata.skillport.category.
+
+        Supports both top-level category and nested metadata.skillport.category.
+        Top-level takes precedence.
+        """
         if not self.metadata:
             return None
+        # Check top-level first
+        result = self.metadata.get("category")
+        if result is not None:
+            return str(result)
+        # Fall back to nested skillport.category
         skillport = self.metadata.get("skillport", {})
         result = skillport.get("category")
         return str(result) if result is not None else None
@@ -165,9 +174,18 @@ class Skill:
         return list(tags) if isinstance(tags, list) else []
 
     def is_always_apply(self) -> bool:
-        """Check if this is a core skill that should always be applied."""
+        """Check if this is a core skill that should always be applied.
+
+        Supports both top-level alwaysApply and nested metadata.skillport.alwaysApply.
+        Top-level takes precedence.
+        """
         if not self.metadata:
             return False
+        # Check top-level first
+        top_level = self.metadata.get("alwaysApply")
+        if top_level is not None:
+            return bool(top_level)
+        # Fall back to nested skillport.alwaysApply
         skillport = self.metadata.get("skillport", {})
         return bool(skillport.get("alwaysApply", False))
 
@@ -649,9 +667,13 @@ class LocalSkillManager:
             params.append(enabled)
 
         # Filter by category using JSON extraction in SQL to avoid under-filled results
+        # Check both top-level $.category and nested $.skillport.category
         if category:
-            query += " AND json_extract(metadata, '$.skillport.category') = ?"
-            params.append(category)
+            query += """ AND (
+                json_extract(metadata, '$.category') = ?
+                OR json_extract(metadata, '$.skillport.category') = ?
+            )"""
+            params.extend([category, category])
 
         query += " ORDER BY name ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
