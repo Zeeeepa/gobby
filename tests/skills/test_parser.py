@@ -333,6 +333,95 @@ class TestParsedSkillHelpers:
         assert d["version"] == "1.0.0"
         assert d["license"] == "MIT"
 
+    def test_is_always_apply_top_level(self):
+        """Test is_always_apply with top-level alwaysApply field."""
+        text = """---
+name: core-skill
+description: A core skill
+alwaysApply: true
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.is_always_apply() is True
+
+    def test_is_always_apply_top_level_false(self):
+        """Test is_always_apply with top-level alwaysApply: false."""
+        text = """---
+name: optional-skill
+description: An optional skill
+alwaysApply: false
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.is_always_apply() is False
+
+    def test_is_always_apply_nested_still_works(self):
+        """Test is_always_apply still works with nested metadata.skillport.alwaysApply."""
+        text = """---
+name: nested-skill
+description: A skill with nested alwaysApply
+metadata:
+  skillport:
+    alwaysApply: true
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.is_always_apply() is True
+
+    def test_get_category_top_level(self):
+        """Test get_category with top-level category field."""
+        text = """---
+name: core-skill
+description: A core skill
+category: core
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.get_category() == "core"
+
+    def test_get_category_nested_still_works(self):
+        """Test get_category still works with nested metadata.skillport.category."""
+        text = """---
+name: nested-skill
+description: A skill with nested category
+metadata:
+  skillport:
+    category: git
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        assert skill.get_category() == "git"
+
+    def test_top_level_takes_precedence_over_nested(self):
+        """Test that top-level alwaysApply/category takes precedence over nested."""
+        text = """---
+name: precedence-test
+description: Test precedence
+alwaysApply: true
+category: core
+metadata:
+  skillport:
+    alwaysApply: false
+    category: git
+---
+
+Content
+"""
+        skill = parse_skill_text(text)
+        # Top-level should take precedence
+        assert skill.is_always_apply() is True
+        assert skill.get_category() == "core"
+
 
 class TestParseSkillFile:
     """Tests for parse_skill_file function."""

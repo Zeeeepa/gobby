@@ -82,9 +82,14 @@ class ParsedSkill:
     assets: list[str] | None = None
 
     def get_category(self) -> str | None:
-        """Get category from metadata.skillport.category."""
+        """Get category from top-level or metadata.skillport.category."""
         if not self.metadata:
             return None
+        # Check top-level first (from frontmatter)
+        result = self.metadata.get("category")
+        if result is not None:
+            return str(result)
+        # Fall back to nested skillport.category
         skillport = self.metadata.get("skillport", {})
         result = skillport.get("category")
         return str(result) if result is not None else None
@@ -102,9 +107,18 @@ class ParsedSkill:
         return []
 
     def is_always_apply(self) -> bool:
-        """Check if this is a core skill (alwaysApply=true)."""
+        """Check if this is a core skill (alwaysApply=true).
+
+        Supports both top-level alwaysApply and nested metadata.skillport.alwaysApply.
+        Top-level takes precedence.
+        """
         if not self.metadata:
             return False
+        # Check top-level first (from frontmatter)
+        top_level = self.metadata.get("alwaysApply")
+        if top_level is not None:
+            return bool(top_level)
+        # Fall back to nested skillport.alwaysApply
         skillport = self.metadata.get("skillport", {})
         return bool(skillport.get("alwaysApply", False))
 
@@ -213,6 +227,20 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
 
     # Extract metadata (may contain version, skillport, gobby namespaces)
     metadata = frontmatter.get("metadata")
+
+    # Handle top-level alwaysApply and category by including them in metadata
+    # This allows both top-level and nested formats to work
+    top_level_always_apply = frontmatter.get("alwaysApply")
+    top_level_category = frontmatter.get("category")
+
+    if top_level_always_apply is not None or top_level_category is not None:
+        if metadata is None:
+            metadata = {}
+        # Store at top level of metadata (not nested in skillport)
+        if top_level_always_apply is not None:
+            metadata["alwaysApply"] = top_level_always_apply
+        if top_level_category is not None:
+            metadata["category"] = top_level_category
 
     # Version can be at top level or in metadata
     version = frontmatter.get("version")
