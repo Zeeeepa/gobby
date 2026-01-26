@@ -483,21 +483,32 @@ class LocalSkillManager:
         self,
         name: str,
         project_id: str | None = None,
+        include_global: bool = True,
     ) -> Skill | None:
         """Get a skill by name within a project scope.
 
         Args:
             name: The skill name
             project_id: Project scope (None for global)
+            include_global: Include global skills when project_id is set.
+                           When True and project_id is set, first looks for
+                           project-scoped skill, then falls back to global.
 
         Returns:
             The Skill if found, None otherwise
         """
         if project_id:
+            # First try project-scoped skill
             row = self.db.fetchone(
                 "SELECT * FROM skills WHERE name = ? AND project_id = ?",
                 (name, project_id),
             )
+            # If not found and include_global, try global
+            if row is None and include_global:
+                row = self.db.fetchone(
+                    "SELECT * FROM skills WHERE name = ? AND project_id IS NULL",
+                    (name,),
+                )
         else:
             row = self.db.fetchone(
                 "SELECT * FROM skills WHERE name = ? AND project_id IS NULL",
