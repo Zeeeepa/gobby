@@ -1,6 +1,7 @@
 ---
 name: feat
 description: "Quickly create a feature task. Usage: /feat <title> [description]"
+category: core
 ---
 
 # /feat - Create Feature Task

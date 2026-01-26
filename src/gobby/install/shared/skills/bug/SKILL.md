@@ -1,6 +1,7 @@
 ---
 name: bug
 description: "Quickly create a bug task. Usage: /bug <title> [description]"
+category: core
 ---
 
 # /bug - Create Bug Task

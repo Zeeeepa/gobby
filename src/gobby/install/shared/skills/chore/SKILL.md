@@ -1,6 +1,7 @@
 ---
 name: chore
 description: "Quickly create a chore/maintenance task. Usage: /chore <title> [description]"
+category: core
 ---
 
 # /chore - Create Chore Task

@@ -1,6 +1,7 @@
 ---
 name: ref
 description: "Quickly create a refactoring task. Usage: /ref <title> [description]"
+category: core
 ---
 
 # /ref - Create Refactoring Task
