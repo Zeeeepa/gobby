@@ -254,3 +254,91 @@ class TestAgentDefinitionLoader:
         # Check lifecycle variables
         assert definition.lifecycle_variables.get("validation_model") is None
         assert definition.lifecycle_variables.get("require_task") is False
+
+
+class TestGenericAgentDefinition:
+    """Tests for the generic.yaml agent definition."""
+
+    def test_generic_agent_loads_successfully(self):
+        """Test that the generic agent definition can be loaded."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "generic",
+            "description": "Default generic agent",
+            "mode": "terminal",
+            "provider": "claude",
+            "isolation": None,
+            "base_branch": "main",
+            "workflow": "generic",
+            "timeout": 120.0,
+            "max_turns": 10,
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("generic")
+
+            assert agent is not None
+            assert agent.name == "generic"
+
+    def test_generic_agent_has_expected_defaults(self):
+        """Test that generic agent has correct default values."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "generic",
+            "description": "Default generic agent with minimal configuration.",
+            "mode": "terminal",
+            "provider": "claude",
+            "base_branch": "main",
+            "workflow": "generic",
+            "timeout": 120.0,
+            "max_turns": 10,
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("generic")
+
+            assert agent is not None
+            assert agent.name == "generic"
+            assert agent.mode == "terminal"
+            assert agent.provider == "claude"
+            assert agent.workflow == "generic"
+            assert agent.timeout == 120.0
+            assert agent.max_turns == 10
+            assert agent.base_branch == "main"
+
+    def test_generic_agent_isolation_is_null(self):
+        """Test that generic agent has no isolation by default."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "generic",
+            "mode": "terminal",
+            "provider": "claude",
+            "workflow": "generic",
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("generic")
+
+            assert agent is not None
+            assert agent.isolation is None
