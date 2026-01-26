@@ -32,10 +32,10 @@ Current state is inconsistent:
 
 | File | Change |
 |------|--------|
-| `src/gobby/install/shared/skills/gobby-router/SKILL.md` | **NEW** - Unified router skill |
-| `src/gobby/install/shared/skills/g/SKILL.md` | **NEW** - Alias skill (includes gobby-router) |
+| `src/gobby/install/shared/skills/gobby/SKILL.md` | **NEW** - Unified router skill (invoked as `/gobby`) |
+| `src/gobby/install/shared/skills/g/SKILL.md` | **NEW** - Alias skill (invoked as `/g`) |
 | `src/gobby/adapters/claude_code.py` | Update install to copy router to `.claude/commands/gobby.md` |
-| `src/gobby/adapters/gemini.py` | Update install to copy router to `.gemini/skills/gobby-router/` |
+| `src/gobby/adapters/gemini.py` | Update install to copy router to `.gemini/skills/gobby/` |
 
 ### Phase 2: Delete Duplicates
 
@@ -67,32 +67,32 @@ Current state is inconsistent:
       "category": "code",
       "depends_on": [],
       "priority": 1,
-      "validation": "File exists at src/gobby/install/shared/skills/gobby-router/SKILL.md with routing logic",
-      "description": "Create src/gobby/install/shared/skills/gobby-router/SKILL.md that routes /gobby <skill> to gobby-skills MCP and /gobby mcp <server> to MCP servers. Include help display when no args or 'help' arg. Use standard SKILL.md format (YAML frontmatter + Markdown body)."
+      "validation": "File exists at src/gobby/install/shared/skills/gobby/SKILL.md with routing logic",
+      "description": "Create src/gobby/install/shared/skills/gobby/SKILL.md that routes /gobby <skill> to gobby-skills MCP and /gobby mcp <server> to MCP servers. Include help display when no args or 'help' arg. Use standard SKILL.md format (YAML frontmatter + Markdown body)."
     },
     {
       "title": "Create /g alias skill",
       "category": "code",
       "depends_on": [0],
       "priority": 2,
-      "validation": "File exists at src/gobby/install/shared/skills/g/SKILL.md that references gobby-router",
-      "description": "Create src/gobby/install/shared/skills/g/SKILL.md as shorthand alias for /gobby. Can simply include/reference the gobby-router skill."
+      "validation": "File exists at src/gobby/install/shared/skills/g/SKILL.md with same routing logic as /gobby",
+      "description": "Create src/gobby/install/shared/skills/g/SKILL.md as shorthand alias for /gobby. Same content as gobby skill."
     },
     {
       "title": "Update Claude Code adapter to install router",
       "category": "code",
       "depends_on": [0],
       "priority": 1,
-      "validation": "gobby install copies gobby-router skill to .claude/commands/gobby.md",
-      "description": "Update src/gobby/adapters/claude_code.py install logic to copy the gobby-router SKILL.md to .claude/commands/gobby.md (flattened, not in skills subdirectory since Claude uses commands/ directly)."
+      "validation": "gobby install copies gobby skill to .claude/commands/gobby.md",
+      "description": "Update src/gobby/adapters/claude_code.py install logic to copy the gobby SKILL.md to .claude/commands/gobby.md (flattened, not in skills subdirectory since Claude uses commands/ directly)."
     },
     {
       "title": "Update Gemini adapter to install router",
       "category": "code",
       "depends_on": [0],
       "priority": 1,
-      "validation": "gobby install copies gobby-router skill to .gemini/skills/gobby-router/SKILL.md",
-      "description": "Update src/gobby/adapters/gemini.py install logic to copy the gobby-router skill directory to .gemini/skills/gobby-router/."
+      "validation": "gobby install copies gobby skill to .gemini/skills/gobby/SKILL.md",
+      "description": "Update src/gobby/adapters/gemini.py install logic to copy the gobby skill directory to .gemini/skills/gobby/."
     },
     {
       "title": "Delete duplicate slash commands in gobby/ directory",
