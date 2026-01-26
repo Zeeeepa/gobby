@@ -175,6 +175,19 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get memory stats: {e}")
 
+        # Get skills statistics
+        skills_stats: dict[str, Any] = {"total": 0}
+        if server._internal_manager:
+            try:
+                for registry in server._internal_manager.get_all_registries():
+                    if registry.name == "gobby-skills":
+                        result = await registry.call("list_skills", {"limit": 10000})
+                        if result.get("success"):
+                            skills_stats["total"] = result.get("count", 0)
+                        break
+            except Exception as e:
+                logger.warning(f"Failed to get skills stats: {e}")
+
         # Get plugin status
         plugin_stats: dict[str, Any] = {"enabled": False, "loaded": 0, "handlers": 0}
         if hasattr(server, "_hook_manager") and server._hook_manager is not None:
@@ -218,6 +231,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             "sessions": session_stats,
             "tasks": task_stats,
             "memory": memory_stats,
+            "skills": skills_stats,
             "plugins": plugin_stats,
             "response_time_ms": response_time_ms,
         }

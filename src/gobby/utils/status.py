@@ -79,6 +79,11 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
             status_kwargs["memories_count"] = memory.get("count", 0)
             status_kwargs["memories_avg_importance"] = memory.get("avg_importance", 0.0)
 
+        # Skills
+        skills_data = data.get("skills", {})
+        if skills_data:
+            status_kwargs["skills_total"] = skills_data.get("total", 0)
+
     except (httpx.ConnectError, httpx.TimeoutException):
         # Daemon not responding - return empty
         pass
@@ -117,6 +122,8 @@ def format_status_message(
     # Memory
     memories_count: int | None = None,
     memories_avg_importance: float | None = None,
+    # Skills
+    skills_total: int | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -200,6 +207,12 @@ def format_status_message(
         if mcp_unhealthy:
             unhealthy_str = ", ".join(f"{name} ({status})" for name, status in mcp_unhealthy)
             lines.append(f"  Unhealthy: {unhealthy_str}")
+        lines.append("")
+
+    # Skills section (only show if we have data)
+    if skills_total is not None:
+        lines.append("Skills:")
+        lines.append(f"  Loaded: {skills_total}")
         lines.append("")
 
     # Sessions section (only show if we have data)
