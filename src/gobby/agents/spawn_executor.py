@@ -10,7 +10,13 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from gobby.agents.spawn import TerminalSpawner
+from gobby.agents.spawn import (
+    TerminalSpawner,
+    build_codex_command_with_resume,
+    build_gemini_command_with_resume,
+    prepare_codex_spawn_with_preflight,
+    prepare_gemini_spawn_with_preflight,
+)
 from gobby.agents.spawners.embedded import EmbeddedSpawner
 from gobby.agents.spawners.headless import HeadlessSpawner
 
@@ -38,6 +44,8 @@ class SpawnRequest:
     clone_id: str | None = None
     agent_depth: int = 0
     max_agent_depth: int = 3
+    session_manager: Any | None = None  # Required for Gemini/Codex preflight
+    machine_id: str | None = None
 
 
 @dataclass
@@ -56,6 +64,8 @@ class SpawnResult:
     error: str | None = None
     message: str | None = None
     process: Any | None = None  # subprocess.Popen for headless
+    gemini_session_id: str | None = None  # Gemini external session ID
+    codex_session_id: str | None = None  # Codex external session ID
 
 
 async def execute_spawn(request: SpawnRequest) -> SpawnResult:
@@ -72,6 +82,11 @@ async def execute_spawn(request: SpawnRequest) -> SpawnResult:
         SpawnResult with spawn outcome and metadata
     """
     if request.mode == "terminal":
+        # Special handling for Gemini/Codex: requires preflight session capture
+        if request.provider == "gemini":
+            return await _spawn_gemini_terminal(request)
+        elif request.provider == "codex":
+            return await _spawn_codex_terminal(request)
         return await _spawn_terminal(request)
     elif request.mode == "embedded":
         return await _spawn_embedded(request)
@@ -185,4 +200,156 @@ async def _spawn_headless(request: SpawnRequest) -> SpawnResult:
         pid=result.pid,
         process=result.process,
         message=f"Agent spawned headless (PID: {result.pid})",
+    )
+
+
+async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
+    """
+    Spawn Gemini agent in terminal with preflight session capture.
+
+    Gemini CLI in interactive mode can't introspect its session_id, so we:
+    1. Launch preflight to capture session_id from stream-json output
+    2. Create Gobby session with external_id = gemini's session_id
+    3. Launch interactive with -r {session_id} to resume
+    """
+    try:
+        # Preflight capture: gets Gemini's session_id and creates linked Gobby session
+        spawn_context = await prepare_gemini_spawn_with_preflight(
+            session_manager=request.session_manager,
+            parent_session_id=request.parent_session_id,
+            project_id=request.project_id,
+            machine_id=request.machine_id or "unknown",
+            workflow_name=request.workflow,
+            git_branch=None,  # Will be detected by hook
+        )
+    except FileNotFoundError as e:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Gemini preflight capture failed: {e}", exc_info=True)
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error=f"Gemini preflight capture failed: {e}",
+        )
+
+    # Extract IDs from prepared spawn context
+    gobby_session_id = spawn_context.session_id
+    gemini_session_id = spawn_context.env_vars["GOBBY_GEMINI_EXTERNAL_ID"]
+
+    # Build command with session context injected into prompt
+    cmd = build_gemini_command_with_resume(
+        gemini_external_id=gemini_session_id,
+        prompt=request.prompt,
+        auto_approve=True,  # Subagents need to work autonomously
+        gobby_session_id=gobby_session_id,
+    )
+
+    # Spawn in terminal
+    terminal_spawner = TerminalSpawner()
+    terminal_result = terminal_spawner.spawn(
+        command=cmd,
+        cwd=request.cwd,
+        terminal=request.terminal,
+    )
+
+    if not terminal_result.success:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=gobby_session_id,
+            status="failed",
+            error=terminal_result.error or terminal_result.message,
+        )
+
+    return SpawnResult(
+        success=True,
+        run_id=f"gemini-{gemini_session_id[:8]}",
+        child_session_id=gobby_session_id,
+        status="pending",
+        pid=terminal_result.pid,
+        gemini_session_id=gemini_session_id,
+        message=f"Gemini agent spawned in terminal with session {gobby_session_id}",
+    )
+
+
+async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
+    """
+    Spawn Codex agent in terminal with preflight session capture.
+
+    Codex outputs session_id in startup banner, which we parse from `codex exec "exit"`.
+    """
+    try:
+        # Preflight capture: gets Codex's session_id and creates linked Gobby session
+        spawn_context = await prepare_codex_spawn_with_preflight(
+            session_manager=request.session_manager,
+            parent_session_id=request.parent_session_id,
+            project_id=request.project_id,
+            machine_id=request.machine_id or "unknown",
+            workflow_name=request.workflow,
+            git_branch=None,  # Will be detected by hook
+        )
+    except FileNotFoundError as e:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Codex preflight capture failed: {e}", exc_info=True)
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error=f"Codex preflight capture failed: {e}",
+        )
+
+    # Extract IDs from prepared spawn context
+    gobby_session_id = spawn_context.session_id
+    codex_session_id = spawn_context.env_vars["GOBBY_CODEX_EXTERNAL_ID"]
+
+    # Build command with session context injected into prompt
+    cmd = build_codex_command_with_resume(
+        codex_external_id=codex_session_id,
+        prompt=request.prompt,
+        auto_approve=True,  # --full-auto for sandboxed autonomy
+        gobby_session_id=gobby_session_id,
+        working_directory=request.cwd,
+    )
+
+    # Spawn in terminal
+    terminal_spawner = TerminalSpawner()
+    terminal_result = terminal_spawner.spawn(
+        command=cmd,
+        cwd=request.cwd,
+        terminal=request.terminal,
+    )
+
+    if not terminal_result.success:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=gobby_session_id,
+            status="failed",
+            error=terminal_result.error or terminal_result.message,
+        )
+
+    return SpawnResult(
+        success=True,
+        run_id=f"codex-{codex_session_id[:8]}",
+        child_session_id=gobby_session_id,
+        status="pending",
+        pid=terminal_result.pid,
+        codex_session_id=codex_session_id,
+        message=f"Codex agent spawned in terminal with session {gobby_session_id}",
     )

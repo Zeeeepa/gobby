@@ -278,3 +278,125 @@ class TestExecuteSpawn:
 
             call_kwargs = mock_spawner.spawn_agent.call_args
             assert call_kwargs.kwargs.get("workflow_name") == "auto-task"
+
+    @pytest.mark.asyncio
+    async def test_gemini_terminal_calls_preflight(self):
+        """Test that provider='gemini' with mode='terminal' calls prepare_gemini_spawn_with_preflight."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="gemini",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+        )
+
+        mock_preflight = AsyncMock(
+            return_value=MagicMock(
+                session_id="gobby-sess-123",
+                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-456"},
+            )
+        )
+
+        mock_spawner = MagicMock()
+        mock_spawner.spawn.return_value = MagicMock(
+            success=True,
+            pid=12345,
+        )
+
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
+                mock_preflight,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
+                return_value=["gemini", "--resume"],
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
+        ):
+            result = await execute_spawn(request)
+
+            mock_preflight.assert_called_once()
+            assert result.success is True
+            assert result.gemini_session_id == "gemini-ext-456"
+
+    @pytest.mark.asyncio
+    async def test_codex_terminal_calls_preflight(self):
+        """Test that provider='codex' with mode='terminal' calls prepare_codex_spawn_with_preflight."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="codex",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+        )
+
+        mock_preflight = AsyncMock(
+            return_value=MagicMock(
+                session_id="gobby-sess-123",
+                env_vars={"GOBBY_CODEX_EXTERNAL_ID": "codex-ext-789"},
+            )
+        )
+
+        mock_spawner = MagicMock()
+        mock_spawner.spawn.return_value = MagicMock(
+            success=True,
+            pid=12345,
+        )
+
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_codex_spawn_with_preflight",
+                mock_preflight,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.build_codex_command_with_resume",
+                return_value=["codex", "--resume"],
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
+        ):
+            result = await execute_spawn(request)
+
+            mock_preflight.assert_called_once()
+            assert result.success is True
+            assert result.codex_session_id == "codex-ext-789"
+
+    @pytest.mark.asyncio
+    async def test_gemini_preflight_failure_propagates_error(self):
+        """Test that Gemini preflight failure is properly propagated to SpawnResult."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="gemini",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+        )
+
+        mock_preflight = AsyncMock(side_effect=FileNotFoundError("Gemini CLI not found"))
+
+        with patch(
+            "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
+            mock_preflight,
+        ):
+            result = await execute_spawn(request)
+
+            assert result.success is False
+            assert "Gemini CLI not found" in (result.error or "")
