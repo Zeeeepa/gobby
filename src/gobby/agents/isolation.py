@@ -234,3 +234,116 @@ Commit your changes to the worktree branch when done.
         safe_branch = branch_name.replace("/", "-").replace("\\", "-")
         worktree_dir = tempfile.gettempdir()
         return f"{worktree_dir}/gobby-worktrees/{project_name}/{safe_branch}"
+
+
+class CloneIsolationHandler(IsolationHandler):
+    """
+    Clone isolation - create a shallow clone for full isolation.
+
+    This handler:
+    - Checks for existing clones by branch name
+    - Creates new shallow clones if needed
+    - Adds CRITICAL context warning to prompt
+    """
+
+    def __init__(
+        self,
+        clone_manager: Any,  # CloneGitManager
+        clone_storage: Any,  # LocalCloneManager
+    ) -> None:
+        """
+        Initialize CloneIsolationHandler with dependencies.
+
+        Args:
+            clone_manager: Git manager for clone operations
+            clone_storage: Storage for clone records
+        """
+        self._clone_manager = clone_manager
+        self._clone_storage = clone_storage
+
+    async def prepare_environment(self, config: SpawnConfig) -> IsolationContext:
+        """
+        Prepare clone environment.
+
+        - Generate branch name if not provided
+        - Check for existing clone for the branch
+        - Create new shallow clone if needed
+        - Return IsolationContext with clone info
+        """
+        branch_name = generate_branch_name(config)
+
+        # Check if clone already exists for this branch
+        existing = self._clone_storage.get_by_branch(config.project_id, branch_name)
+        if existing:
+            # Use existing clone
+            return IsolationContext(
+                cwd=existing.clone_path,
+                branch_name=existing.branch_name,
+                clone_id=existing.id,
+                isolation_type="clone",
+                extra={"source_repo": config.project_path},
+            )
+
+        # Generate clone path
+        from pathlib import Path
+
+        project_name = Path(config.project_path).name
+        clone_path = self._generate_clone_path(branch_name, project_name)
+
+        # Create shallow clone
+        result = self._clone_manager.create_clone(
+            clone_path=clone_path,
+            branch_name=branch_name,
+            base_branch=config.base_branch,
+            shallow=True,
+        )
+
+        if not result.success:
+            raise RuntimeError(f"Failed to create clone: {result.error}")
+
+        # Record in storage
+        clone = self._clone_storage.create(
+            project_id=config.project_id,
+            branch_name=branch_name,
+            clone_path=clone_path,
+            base_branch=config.base_branch,
+            task_id=config.task_id,
+        )
+
+        return IsolationContext(
+            cwd=clone.clone_path,
+            branch_name=clone.branch_name,
+            clone_id=clone.id,
+            isolation_type="clone",
+            extra={"source_repo": config.project_path},
+        )
+
+    def build_context_prompt(self, original_prompt: str, ctx: IsolationContext) -> str:
+        """
+        Build prompt with CRITICAL clone context warning.
+
+        Prepends isolation context to help the agent understand it's
+        working in a clone, not the original repository.
+        """
+        warning = f"""CRITICAL: Clone Context
+You are working in a shallow clone, NOT the original repository.
+- Branch: {ctx.branch_name}
+- Clone path: {ctx.cwd}
+- Source repo: {ctx.extra.get("source_repo", "unknown")}
+
+Changes in this clone are fully isolated from the original repository.
+Push your changes when ready to share with the original.
+
+---
+
+"""
+        return warning + original_prompt
+
+    def _generate_clone_path(self, branch_name: str, project_name: str) -> str:
+        """Generate a unique clone path in temp directory."""
+        import tempfile
+
+        # Sanitize branch name for use in path
+        safe_branch = branch_name.replace("/", "-").replace("\\", "-")
+        clone_dir = tempfile.gettempdir()
+        return f"{clone_dir}/gobby-clones/{project_name}/{safe_branch}"

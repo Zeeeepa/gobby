@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.agents.isolation import (
+    CloneIsolationHandler,
     CurrentIsolationHandler,
     IsolationContext,
     IsolationHandler,
@@ -400,3 +401,117 @@ class TestWorktreeIsolationHandler:
     def test_is_isolation_handler_subclass(self):
         """Test WorktreeIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(WorktreeIsolationHandler, IsolationHandler)
+
+
+class TestCloneIsolationHandler:
+    """Tests for CloneIsolationHandler."""
+
+    @pytest.mark.asyncio
+    async def test_prepare_environment_creates_clone(self):
+        """Test prepare_environment creates shallow clone if not exists."""
+        mock_clone_manager = MagicMock()
+        mock_clone_manager.create_clone.return_value = MagicMock(
+            success=True,
+            clone_path="/tmp/clones/my-branch",
+        )
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.get_by_branch.return_value = None  # No existing clone
+        mock_clone_storage.create.return_value = MagicMock(
+            id="clone-123",
+            clone_path="/tmp/clones/my-branch",
+            branch_name="my-branch",
+        )
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="my-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        ctx = await handler.prepare_environment(config)
+
+        assert ctx.isolation_type == "clone"
+        assert ctx.clone_id == "clone-123"
+        assert ctx.branch_name == "my-branch"
+        mock_clone_manager.create_clone.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_prepare_environment_reuses_existing_clone(self):
+        """Test prepare_environment reuses existing clone for same branch."""
+        mock_clone_manager = MagicMock()
+
+        mock_clone_storage = MagicMock()
+        mock_clone_storage.get_by_branch.return_value = MagicMock(
+            id="existing-clone-456",
+            clone_path="/tmp/clones/existing-branch",
+            branch_name="existing-branch",
+        )
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        config = SpawnConfig(
+            prompt="Test",
+            task_id=None,
+            task_title=None,
+            task_seq_num=None,
+            branch_name="existing-branch",
+            branch_prefix=None,
+            base_branch="main",
+            project_id="proj-123",
+            project_path="/path/to/main/repo",
+            provider="claude",
+            parent_session_id="sess-456",
+        )
+
+        ctx = await handler.prepare_environment(config)
+
+        assert ctx.clone_id == "existing-clone-456"
+        assert ctx.cwd == "/tmp/clones/existing-branch"
+        # Should NOT create a new clone
+        mock_clone_manager.create_clone.assert_not_called()
+
+    def test_build_context_prompt_prepends_warning(self):
+        """Test build_context_prompt prepends CRITICAL: Clone Context warning."""
+        mock_clone_manager = MagicMock()
+        mock_clone_storage = MagicMock()
+
+        handler = CloneIsolationHandler(
+            clone_manager=mock_clone_manager,
+            clone_storage=mock_clone_storage,
+        )
+
+        original_prompt = "Please implement the login feature."
+        ctx = IsolationContext(
+            cwd="/tmp/clones/feature-branch",
+            branch_name="feature-branch",
+            clone_id="clone-123",
+            isolation_type="clone",
+            extra={"source_repo": "https://github.com/user/repo.git"},
+        )
+
+        result = handler.build_context_prompt(original_prompt, ctx)
+
+        assert "CRITICAL: Clone Context" in result
+        assert original_prompt in result
+        assert "feature-branch" in result
+
+    def test_is_isolation_handler_subclass(self):
+        """Test CloneIsolationHandler is a subclass of IsolationHandler."""
+        assert issubclass(CloneIsolationHandler, IsolationHandler)
