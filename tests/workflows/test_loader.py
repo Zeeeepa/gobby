@@ -1068,3 +1068,187 @@ class TestDiscoveredWorkflow:
         assert discovered.priority == 50
         assert discovered.is_project is True
         assert discovered.path == Path("/test/path.yaml")
+
+
+class TestGenericWorkflow:
+    """Tests for the generic.yaml workflow definition."""
+
+    def test_generic_workflow_loads_successfully(self, temp_workflow_dir):
+        """Test that the generic workflow can be loaded."""
+        # Copy the generic workflow to the test directory
+        generic_yaml = """
+name: generic
+description: Default workflow for generic agents
+version: "1.0"
+type: step
+
+steps:
+  - name: work
+    description: "Work on the assigned task"
+    allowed_tools:
+      - Read
+      - Write
+      - Edit
+      - Bash
+      - Glob
+      - Grep
+      - WebFetch
+      - WebSearch
+      - NotebookEdit
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - get_task
+      - update_task
+      - close_task
+      - list_tasks
+      - remember
+      - recall
+
+    blocked_tools:
+      - spawn_agent
+      - start_agent
+      - spawn_agent_in_worktree
+      - spawn_agent_in_clone
+
+    transitions:
+      - to: complete
+        when: "task_completed or user_exit"
+
+  - name: complete
+    description: "Work complete"
+
+exit_condition: "current_step == 'complete'"
+"""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        (workflow_dir / "generic.yaml").write_text(generic_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        wf = loader.load_workflow("generic")
+
+        assert wf is not None
+        assert wf.name == "generic"
+        assert wf.type == "step"
+
+    def test_generic_workflow_has_work_and_complete_steps(self, temp_workflow_dir):
+        """Test that generic workflow has work and complete steps."""
+        generic_yaml = """
+name: generic
+description: Default workflow for generic agents
+version: "1.0"
+type: step
+
+steps:
+  - name: work
+    description: "Work on the assigned task"
+    allowed_tools:
+      - Read
+      - Write
+      - Edit
+
+    blocked_tools:
+      - spawn_agent
+
+    transitions:
+      - to: complete
+        when: "task_completed or user_exit"
+
+  - name: complete
+    description: "Work complete"
+
+exit_condition: "current_step == 'complete'"
+"""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        (workflow_dir / "generic.yaml").write_text(generic_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        wf = loader.load_workflow("generic")
+
+        assert wf is not None
+        step_names = [s.name for s in wf.steps]
+        assert "work" in step_names
+        assert "complete" in step_names
+
+    def test_generic_workflow_work_step_has_allowed_tools(self, temp_workflow_dir):
+        """Test that work step allows basic file tools."""
+        generic_yaml = """
+name: generic
+version: "1.0"
+type: step
+
+steps:
+  - name: work
+    allowed_tools:
+      - Read
+      - Write
+      - Edit
+      - Bash
+      - Glob
+      - Grep
+
+    blocked_tools:
+      - spawn_agent
+      - start_agent
+
+    transitions:
+      - to: complete
+        when: "done"
+
+  - name: complete
+    description: "Done"
+"""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        (workflow_dir / "generic.yaml").write_text(generic_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        wf = loader.load_workflow("generic")
+
+        work_step = next(s for s in wf.steps if s.name == "work")
+        # Check allowed tools include essential file operations
+        assert "Read" in work_step.allowed_tools
+        assert "Write" in work_step.allowed_tools
+        assert "Edit" in work_step.allowed_tools
+        assert "Bash" in work_step.allowed_tools
+        assert "Glob" in work_step.allowed_tools
+        assert "Grep" in work_step.allowed_tools
+
+    def test_generic_workflow_blocks_spawn_tools(self, temp_workflow_dir):
+        """Test that work step blocks spawn tools to prevent recursive spawning."""
+        generic_yaml = """
+name: generic
+version: "1.0"
+type: step
+
+steps:
+  - name: work
+    allowed_tools:
+      - Read
+
+    blocked_tools:
+      - spawn_agent
+      - start_agent
+      - spawn_agent_in_worktree
+      - spawn_agent_in_clone
+
+    transitions:
+      - to: complete
+        when: "done"
+
+  - name: complete
+    description: "Done"
+"""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        (workflow_dir / "generic.yaml").write_text(generic_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        wf = loader.load_workflow("generic")
+
+        work_step = next(s for s in wf.steps if s.name == "work")
+        # Check blocked tools prevent recursive spawning
+        assert "spawn_agent" in work_step.blocked_tools
+        assert "start_agent" in work_step.blocked_tools
+        assert "spawn_agent_in_worktree" in work_step.blocked_tools
+        assert "spawn_agent_in_clone" in work_step.blocked_tools
