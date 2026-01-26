@@ -1,62 +1,80 @@
-# Migration Flattening Plan
+# Migration Flattening
 
-This plan outlines the process to flatten the existing `migrations.py` and `migrations_legacy.py` into a single, clean baseline schema. This involves capturing the current database state, updating the code to use it as the new ground truth, and removing legacy migration logic.
+## Overview
 
-## Goal
+Flatten the existing `migrations.py` and `migrations_legacy.py` into a single, clean baseline schema. This involves capturing the current database state, updating the code to use it as the new ground truth, and removing legacy migration logic.
 
-Establish a new `BASELINE_SCHEMA` in `src/gobby/storage/migrations.py` that reflects the current production state (v67+), and delete `src/gobby/storage/migrations_legacy.py`.
+**Goal**: Establish a new `BASELINE_SCHEMA` in `src/gobby/storage/migrations.py` that reflects the current production state (v67+), and delete `src/gobby/storage/migrations_legacy.py`.
 
-## 1. Safety: Backup and Snapshot
+## Constraints
 
-Before any code changes, we must ensure data safety.
+- Must backup existing DB before any code changes to ensure data safety
+- Must support both new installs (create fresh DB) and existing DBs (no re-migration)
+- Schema dump must be reviewed for correctness before integration
+- Version number decision required: keep v67 or reset to v100 for new era
 
-* **Backup Command**:
+## Phase 1: Preparation
 
-    ```bash
-    cp ~/.gobby/gobby-hub.db ~/.gobby/gobby-hub.db.bak.$(date +%s)
-    ```
+**Goal**: Safely backup database and capture current schema state.
 
-## 2. Capture Current Schema
+**Tasks:**
+- [ ] Create timestamped backup of gobby-hub.db (category: manual)
+- [ ] Dump current schema to src/gobby/storage/schema_dump.sql (category: manual)
+- [ ] Review schema_dump.sql for correctness (category: manual)
 
-We need the exact DDL of the current database to replace the hardcoded strings in `migrations.py`.
+**Backup Command:**
+```bash
+cp ~/.gobby/gobby-hub.db ~/.gobby/gobby-hub.db.bak.$(date +%s)
+```
 
-* **Command**: `sqlite3 ~/.gobby/gobby-hub.db .schema > src/gobby/storage/schema_dump.sql`
-* **Action**: Review `src/gobby/storage/schema_dump.sql` to ensure it is clean and correct.
+**Schema Dump Command:**
+```bash
+sqlite3 ~/.gobby/gobby-hub.db .schema > src/gobby/storage/schema_dump.sql
+```
 
-## 3. Code Actions
+## Phase 2: Code Migration
 
-### A. Update `src/gobby/storage/migrations.py`
+**Goal**: Update migrations.py with new baseline and remove legacy code.
 
-1. **Replace `BASELINE_SCHEMA`**: Paste the content of `src/gobby/storage/schema_dump.sql` into the `BASELINE_SCHEMA` constant.
-1. **Reset Versioning**:
+**Tasks:**
+- [ ] Replace BASELINE_SCHEMA constant with dumped schema content (category: code)
+- [ ] Update schema_version table initialization to correct version (category: code)
+- [ ] Remove imports of migrations_legacy from migrations.py (category: code)
+- [ ] Delete src/gobby/storage/migrations_legacy.py (category: code)
 
-    * If we are keeping the current version number (e.g. 67), ensure the new `BASELINE_SCHEMA` creates the `schema_version` table with that version pre-inserted.
-    * *Alternative*: Reset version to "1" of the new era (e.g. v100) to distinguish old vs new.
+**Version Decision:**
+- Option A: Keep current version (e.g., 67) - `schema_version` pre-inserted with that value
+- Option B: Reset to v100 to distinguish old vs new era
 
-1. **Remove Legacy Imports**: Remove imports of `migrations_legacy`.
+## Phase 3: Verification
 
-### B. Delete `src/gobby/storage/migrations_legacy.py`
+**Goal**: Confirm the migration works for both new installs and existing databases.
 
-1. **Delete File**: `rm src/gobby/storage/migrations_legacy.py`.
-1. **Clean Up**: usage in `migrations.py` (already handled in A).
+**Tasks:**
+- [ ] Test new install scenario - move DB, start daemon, verify schema (category: manual)
+- [ ] Test existing DB scenario - restore DB, start daemon, verify no errors (category: manual)
 
-## 4. Verification
+**New Install Test:**
+```bash
+mv ~/.gobby/gobby-hub.db ~/.gobby/gobby-hub.db.old
+gobby start  # Should create new DB with new baseline
+# Verify table structure matches expectation
+```
 
-1. **New Install Test**:
+**Existing DB Test:**
+```bash
+mv ~/.gobby/gobby-hub.db.old ~/.gobby/gobby-hub.db
+gobby start  # Should start without re-applying migrations or failing
+```
 
-    * Move existing DB: `mv ~/.gobby/gobby-hub.db ~/.gobby/gobby-hub.db.old`
-    * Start Daemon: `gobby start` (should create new DB with new baseline)
-    * Verify Schema: Check table structure matches expectation.
+## Phase 4: Automation (Optional)
 
-1. **Existing DB Test**:
+**Goal**: Create helper script to minimize human error during execution.
 
-    * Restore DB: `mv ~/.gobby/gobby-hub.db.old ~/.gobby/gobby-hub.db`
-    * Start Daemon: Ensure it starts without attempting to re-apply migrations or failing on version check.
+**Tasks:**
+- [ ] Create scripts/flatten_migrations.sh with backup and dump logic (category: code)
 
-## 5. Script: `scripts/flatten_migrations.sh`
-
-Create a helper script to automate the backup and schema dump to minimize human error.
-
+**Script Template:**
 ```bash
 #!/bin/bash
 set -e
@@ -71,9 +89,23 @@ echo "Ready to copy schema_dump.sql into migrations.py"
 
 ## Execution Order
 
-1. Run Backup.
-1. Dump Schema.
-1. Update `migrations.py`.
-1. Delete `migrations_legacy.py`.
-1. Verify new install.
-1. Verify existing DB.
+1. Run Phase 1 (Preparation)
+2. Run Phase 2 (Code Migration)
+3. Run Phase 3 (Verification)
+4. Optionally run Phase 4 (Automation) beforehand to streamline
+
+## Task Mapping
+
+<!-- Updated after task creation -->
+| Plan Item | Task Ref | Status |
+|-----------|----------|--------|
+| Create timestamped backup | | |
+| Dump current schema | | |
+| Review schema_dump.sql | | |
+| Replace BASELINE_SCHEMA | | |
+| Update schema_version init | | |
+| Remove legacy imports | | |
+| Delete migrations_legacy.py | | |
+| Test new install | | |
+| Test existing DB | | |
+| Create flatten script | | |
