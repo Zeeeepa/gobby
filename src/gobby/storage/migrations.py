@@ -3,17 +3,27 @@
 This module handles schema migrations for the Gobby database.
 
 For new databases (version == 0):
-    The BASELINE_SCHEMA is applied directly, jumping to version 60.
+    By default (use_flattened_baseline=True), BASELINE_SCHEMA_V2 is applied,
+    jumping directly to version 75 with a clean schema definition.
+
+    To use the legacy path (use_flattened_baseline=False), the old BASELINE_SCHEMA
+    is applied at version 60, followed by incremental migrations.
 
 For existing databases (0 < version < 60):
     Legacy migrations are imported from migrations_legacy.py and run incrementally.
 
-For all databases:
-    Any migrations in MIGRATIONS (v61+) are applied after the baseline/legacy path.
+For existing databases (version >= 60):
+    Any migrations in MIGRATIONS (v61+) are applied incrementally.
+
+Troubleshooting:
+    If you experience issues with new database creation, you can revert to the
+    legacy migration path by setting in your config.yaml:
+        use_flattened_baseline: false
 
 To add a new migration:
-    1. Add it to the MIGRATIONS list below with version = 61, 62, etc.
+    1. Add it to the MIGRATIONS list below with version = 76, 77, etc.
     2. Use SQL strings for schema changes, callables for data migrations.
+    3. Also add the migration to BASELINE_SCHEMA_V2 for future fresh installs.
 """
 
 import logging

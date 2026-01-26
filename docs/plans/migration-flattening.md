@@ -30,40 +30,40 @@ Phase 5: Remove old path (only after confidence period)
 
 **Rollback at any phase:** Flip `use_flattened_baseline: false` in config or revert code.
 
-## Phase 1: Schema Capture
+## Phase 1: Schema Capture ✅
 
 **Goal**: Capture current schema and add new baseline constants (additive only).
 
 **Tasks:**
-- [ ] Create timestamped backup of gobby-hub.db (category: manual)
-- [ ] Dump current schema to src/gobby/storage/schema_dump.sql (category: manual)
-- [ ] Review schema_dump.sql for correctness (category: manual)
-- [ ] Add BASELINE_SCHEMA_V2 constant with v75 schema (category: code)
-- [ ] Add BASELINE_VERSION_V2 = 75 constant (category: code)
+- [x] Create timestamped backup of gobby-hub.db (category: manual) - #6179
+- [x] Dump current schema to src/gobby/storage/schema_dump.sql (category: manual) - #6180
+- [x] Review schema_dump.sql for correctness (category: manual) - #6181
+- [x] Add BASELINE_SCHEMA_V2 constant with v75 schema (category: code) - #6182
+- [x] Add BASELINE_VERSION_V2 = 75 constant (category: code) - #6182
 
 **Rollback:** Delete new constants if issues found.
 
-## Phase 2: Feature Flag
+## Phase 2: Feature Flag ✅
 
 **Goal**: Add config option to control which baseline path is used.
 
 **Tasks:**
-- [ ] Add `use_flattened_baseline: bool` field to DaemonConfig (category: code)
-- [ ] Default to False (old behavior) for safety (category: code)
+- [x] Add `use_flattened_baseline: bool` field to DaemonConfig (category: code) - #6183
+- [x] Default to False (old behavior) for safety (category: code) - #6183
 
 **Config Location:** `~/.gobby/config.yaml` or `src/gobby/config/app.py`
 
 **Rollback:** Set `use_flattened_baseline: false` in config.
 
-## Phase 3: Branching Logic
+## Phase 3: Branching Logic ✅
 
 **Goal**: Modify run_migrations() to use new baseline when flag is enabled.
 
 **Tasks:**
-- [ ] Update run_migrations() to check use_flattened_baseline flag (category: code)
-- [ ] When True: use BASELINE_SCHEMA_V2/VERSION_V2 for new DBs (category: code)
-- [ ] When False: use existing BASELINE_SCHEMA/VERSION + legacy path (category: code)
-- [ ] Add logging to indicate which path was used (category: code)
+- [x] Update run_migrations() to check use_flattened_baseline flag (category: code) - #6184, #6185
+- [x] When True: use BASELINE_SCHEMA_V2/VERSION_V2 for new DBs (category: code) - #6185
+- [x] When False: use existing BASELINE_SCHEMA/VERSION + legacy path (category: code) - #6185
+- [x] Add logging to indicate which path was used (category: code) - #6185
 
 **Logic:**
 ```python
@@ -77,27 +77,27 @@ else:
 
 **Rollback:** Flag controls path, no code changes needed.
 
-## Phase 4: Testing & Validation
+## Phase 4: Testing & Validation ✅
 
 **Goal**: Validate both paths work correctly.
 
 **Tasks:**
-- [ ] Test new install with flag=False (old path) (category: manual)
-- [ ] Test new install with flag=True (new path) (category: manual)
-- [ ] Test existing DB upgrade with flag=False (category: manual)
-- [ ] Test existing DB with flag=True (should be no-op) (category: manual)
-- [ ] Compare schema output between both paths (category: manual)
+- [x] Test new install with flag=False (old path) (category: manual) - #6186
+- [x] Test new install with flag=True (new path) (category: manual) - #6187
+- [x] Test existing DB upgrade with flag=False (category: manual) - verified in #6186
+- [x] Test existing DB with flag=True (should be no-op) (category: manual) - verified in #6187
+- [x] Compare schema output between both paths (category: manual) - #6188
 
 **Rollback:** Set flag=False to use old path.
 
-## Phase 5: Default to New Baseline
+## Phase 5: Default to New Baseline ✅
 
 **Goal**: Flip default to use new baseline, keep old as escape hatch.
 
 **Tasks:**
-- [ ] Change default of use_flattened_baseline to True (category: code)
-- [ ] Update documentation to note the change (category: docs)
-- [ ] Monitor for any issues in production use (category: manual)
+- [x] Change default of use_flattened_baseline to True (category: code) - #6189
+- [x] Update documentation to note the change (category: docs) - #6190
+- [ ] Monitor for any issues in production use (category: manual) - #6191 (ongoing)
 
 **Rollback:** Set `use_flattened_baseline: false` explicitly in config.
 
