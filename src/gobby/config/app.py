@@ -243,6 +243,10 @@ class DaemonConfig(BaseModel):
         default="~/.gobby/gobby-hub.db",
         description="Path to hub database for cross-project queries.",
     )
+    use_flattened_baseline: bool = Field(
+        default=False,
+        description="Use flattened V2 baseline schema (v75) for new databases instead of legacy migrations.",
+    )
 
     # Sub-configs
     websocket: WebSocketSettings = Field(
