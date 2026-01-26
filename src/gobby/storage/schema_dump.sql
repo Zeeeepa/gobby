@@ -72,7 +72,6 @@ CREATE TABLE task_dependencies (
             created_at TEXT NOT NULL,
             UNIQUE(task_id, depends_on, dep_type)
         );
-CREATE TABLE sqlite_sequence(name,seq);
 CREATE INDEX idx_deps_task ON task_dependencies(task_id);
 CREATE INDEX idx_deps_depends_on ON task_dependencies(depends_on);
 CREATE TABLE session_tasks (
@@ -396,13 +395,7 @@ CREATE TABLE session_artifacts (
 CREATE INDEX idx_session_artifacts_session ON session_artifacts(session_id);
 CREATE INDEX idx_session_artifacts_type ON session_artifacts(artifact_type);
 CREATE INDEX idx_session_artifacts_created ON session_artifacts(created_at);
-CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content)
-/* session_artifacts_fts(id,content) */;
-CREATE TABLE IF NOT EXISTS 'session_artifacts_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-CREATE TABLE IF NOT EXISTS 'session_artifacts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS 'session_artifacts_fts_content'(id INTEGER PRIMARY KEY, c0, c1);
-CREATE TABLE IF NOT EXISTS 'session_artifacts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-CREATE TABLE IF NOT EXISTS 'session_artifacts_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE VIRTUAL TABLE session_artifacts_fts USING fts5(id UNINDEXED, content);
 CREATE TABLE merge_resolutions (
             id TEXT PRIMARY KEY,
             worktree_id TEXT NOT NULL REFERENCES worktrees(id) ON DELETE CASCADE,
