@@ -20,6 +20,7 @@ from .shared import (
     backup_gobby_skills,
     configure_mcp_server_json,
     install_cli_content,
+    install_router_skills_as_commands,
     install_shared_content,
     remove_mcp_server_json,
 )
@@ -124,6 +125,11 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
+
+    # Install router skills (gobby, g) as flattened commands
+    commands_dir = claude_path / "commands"
+    router_commands = install_router_skills_as_commands(commands_dir)
+    result["commands_installed"].extend(router_commands)
 
     # Skills are now auto-synced to database on daemon startup (sync_bundled_skills)
     # No longer need to copy to .claude/skills/

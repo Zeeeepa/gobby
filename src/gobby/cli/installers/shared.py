@@ -185,6 +185,45 @@ def install_shared_skills(target_dir: Path) -> list[str]:
     return installed
 
 
+def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
+    """Install router skills (gobby, g) as flattened Claude commands.
+
+    Claude Code uses .claude/commands/name.md format for slash commands.
+    This function copies the gobby router skills from shared/skills/ to
+    commands/ as flattened .md files.
+
+    Args:
+        target_commands_dir: Path to commands directory (e.g., .claude/commands)
+
+    Returns:
+        List of installed command names
+    """
+    shared_skills_dir = get_install_dir() / "shared" / "skills"
+    installed: list[str] = []
+
+    # Router skills to install as commands
+    router_skills = ["gobby", "g"]
+
+    target_commands_dir.mkdir(parents=True, exist_ok=True)
+
+    for skill_name in router_skills:
+        source_skill_md = shared_skills_dir / skill_name / "SKILL.md"
+        if not source_skill_md.exists():
+            logger.warning(f"Router skill not found: {source_skill_md}")
+            continue
+
+        # Flatten: copy SKILL.md to commands/name.md
+        target_cmd = target_commands_dir / f"{skill_name}.md"
+
+        try:
+            copy2(source_skill_md, target_cmd)
+            installed.append(f"{skill_name}.md")
+        except OSError as e:
+            logger.error(f"Failed to copy router skill {skill_name}: {e}")
+
+    return installed
+
+
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
     """Install CLI-specific workflows/commands (layered on top of shared).
 
