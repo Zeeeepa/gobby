@@ -1,13 +1,14 @@
 ---
 name: plan
-description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning and task creation.
+description: This skill should be used when the user asks to "/gobby plan", "create plan", "plan feature", "write specification". Guide users through structured specification planning. Does NOT create tasks - use /g expand for that.
 version: "1.0.0"
 category: core
 ---
 
-# /gobby-plan - Implementation Planning Skill
+# /g plan - Implementation Planning Skill
 
-Guide users through structured requirements gathering, specification writing, and task creation.
+Guide users through structured requirements gathering and specification writing.
+**This skill creates the plan document only.** Use `/g expand <plan-file>` to create tasks.
 
 ## Workflow Overview
 
@@ -15,8 +16,7 @@ Guide users through structured requirements gathering, specification writing, an
 2. **Draft Plan** - Write structured plan document
 3. **Plan Verification** - Check for TDD anti-patterns and dependency issues
 4. **User Approval** - Present plan for review
-5. **Task Creation** - Create tasks from approved plan
-6. **Task Verification** - Update plan with task refs
+5. **Hand off to /g expand** - User runs `/g expand` on the plan file
 
 ## Step 0: **REQUIRED** ENTER PLAN MODE
 
@@ -151,146 +151,34 @@ Plan Verification:
 Plan updated. Ready for user approval.
 ```
 
-## Step 5: User Approval
+## Step 5: User Approval & Handoff
 
 Present the plan to the user:
 - Show the full plan document
 - Show verification results
-- Ask: "Does this plan look correct? Would you like any changes before I create tasks?"
+- Ask: "Does this plan look correct? Would you like any changes?"
 - Make changes if requested
-- Once approved, proceed to task creation
 
-## Step 6: Task Creation
+Once approved, tell the user:
+```
+Plan approved! To create tasks from this plan, run:
 
-**IMPORTANT**: `expand_task` creates FLAT children only - it does not create nested hierarchies.
-To get a proper Epic → Phases → Tasks structure, you must create the hierarchy manually.
+/g expand <plan-file-path>
 
-**Required: session_id** - All `create_task` calls require a `session_id` parameter. Find your session ID in the SessionStart hook context (look for `session_id: <uuid>` in the startup system reminder).
-
-### 6a. Create the Root Epic
-
-```python
-epic = call_tool("gobby-tasks", "create_task", {
-    "title": "{Epic Title}",
-    "task_type": "epic",
-    "description": "See .gobby/plans/{name}.md",
-    "session_id": "<your_session_id>"
-})
-# Returns: {"ref": "#42", ...}
+This will:
+1. Create a root epic from the plan
+2. Analyze the codebase for context
+3. Generate subtasks with TDD instructions and validation criteria
+4. Wire up dependencies
 ```
 
-### 6b. Create Phase Epics Manually
+**This skill ends here.** Task creation is handled by `/g expand`.
 
-For EACH phase in your plan, create a child epic. Include the phase's task list in the description
-so `expand_task` knows what leaf tasks to create:
+---
 
-```python
-# Phase 1
-phase1 = call_tool("gobby-tasks", "create_task", {
-    "title": "Phase 1: {Phase Name}",
-    "task_type": "epic",
-    "parent_task_id": "#42",  # Root epic ref
-    "description": "{Phase goal}\n\nTasks:\n- Task 1 title (category: code)\n- Task 2 title (category: code)\n- Task 3 title (category: config)",
-    "session_id": "<your_session_id>"
-})
-# Returns: {"ref": "#43", ...}
+## Plan Format Reference (for /g expand)
 
-# Phase 2
-phase2 = call_tool("gobby-tasks", "create_task", {
-    "title": "Phase 2: {Phase Name}",
-    "task_type": "epic",
-    "parent_task_id": "#42",
-    "description": "{Phase goal}\n\nTasks:\n- Task 4 title (category: code)\n- Task 5 title (category: docs)",
-    "session_id": "<your_session_id>"
-})
-# ... repeat for each phase in the plan
-```
-
-### 6c. Create Feature Tasks Under Each Phase
-
-For EACH feature task listed in your plan, create it as a child of the appropriate phase epic.
-Include the `category` so TDD knows whether to apply triplets:
-
-```python
-# Feature tasks under Phase 1 (#43)
-call_tool("gobby-tasks", "create_task", {
-    "title": "Create protocol.py with type definitions",
-    "task_type": "task",  # NOT epic
-    "parent_task_id": "#43",  # Phase 1 epic ref
-    "category": "code",  # code/config gets TDD, docs/research/planning don't
-    "description": "Implementation details...",
-    "session_id": "<your_session_id>"
-})
-# Returns: {"ref": "#45", ...}
-
-call_tool("gobby-tasks", "create_task", {
-    "title": "Create backends/__init__.py with factory",
-    "task_type": "task",
-    "parent_task_id": "#43",
-    "category": "code",
-    "description": "Implementation details...",
-    "session_id": "<your_session_id>"
-})
-# Returns: {"ref": "#46", ...}
-
-# ... repeat for all feature tasks in the plan
-```
-
-**IMPORTANT**: Create feature tasks as `task_type: "task"` (not epic). TDD triplets are
-only applied when expanding tasks, NOT epics.
-
-### 6d. Expand Feature Tasks for TDD Triplets
-
-Now expand each **feature task** (NOT the phase epics!) to get TDD triplets:
-
-```python
-# Expand feature task #45 - this creates TDD triplets
-call_tool("gobby-tasks", "expand_task", {
-    "task_id": "#45",  # Feature task, NOT phase epic
-    "session_id": "<your_session_id>"
-})
-
-# Expand feature task #46
-call_tool("gobby-tasks", "expand_task", {
-    "task_id": "#46",
-    "session_id": "<your_session_id>"
-})
-
-# ... repeat for each feature task
-```
-
-**Why expand feature tasks, not phase epics?**
-- TDD is explicitly SKIPPED when `task.task_type == "epic"` (line 496 in task_expansion.py)
-- Expanding a phase epic creates feature tasks BUT without TDD triplets
-- Expanding a feature task creates implementation subtasks WITH TDD triplets
-
-**What expand_task does per feature task:**
-- LLM reads the task title + description
-- Creates implementation subtasks (granular work items)
-- TDD steps embedded in code/config task descriptions
-- Sets `is_expanded=True` on the feature task
-
-### 6e. Update Plan Doc with Task Refs
-
-After all expansions complete:
-
-```python
-# Get the full task tree
-call_tool("gobby-tasks", "list_tasks", {
-    "parent_task_id": "#42",
-    "session_id": "<your_session_id>"
-})
-```
-
-- Fill in Task Mapping table with created task refs
-- Use Edit tool to update `.gobby/plans/{name}.md`
-
-## Step 7: Task Verification
-
-After creating all tasks:
-1. Show the created task tree (call `list_tasks` with `parent_task_id`)
-2. Confirm task count matches plan items
-3. Show the updated plan doc with task refs
+The following sections describe what `/g expand` expects and how it will process your plan.
 
 ## Task Granularity Guidelines
 
@@ -305,7 +193,7 @@ Bad: "Implement enrichment" (too vague)
 
 ## TDD Compatibility (IMPORTANT)
 
-The /gobby-plan skill creates **feature tasks** knowing that `expand_task` will apply TDD triplets to each one.
+When `/g expand` processes your plan, it applies TDD to each code/config task automatically.
 
 ### TDD Triplet Pattern
 
@@ -333,81 +221,58 @@ Valid categories (from `src/gobby/storage/tasks.py`):
 - `planning` - Architecture/design tasks (no TDD)
 - `manual` - Manual functional testing (observe output) (no TDD)
 
-### What You Create vs What expand_task Produces
+### What /g plan Creates vs What /g expand Creates
 
-**DO NOT manually create:**
+**Your plan document should contain:**
+- Feature tasks with implied `category: code` or `category: config`
+- Documentation tasks with implied `category: docs`
+- Clear phase structure and dependencies
+
+**Your plan should NOT contain:**
 - `[TDD]`, `[IMPL]`, `[REF]` prefixed tasks
 - "Write tests for: ..." tasks
 - "Ensure tests pass" tasks
 - Separate test tasks alongside implementation
 
-**DO create:**
-- Feature tasks with `category: "code"` or `category: "config"`
-- Documentation tasks with `category: "docs"`
-
-**Example - Two-step creation process:**
-
-**Step 1: Skill creates Levels 1-3 manually via create_task:**
+**When you run `/g expand <plan-file>`:**
 
 ```
-#100 [epic] Memory V3 Backend                    ← L1: Root Epic
-├── #101 [epic] Phase 1: Backend Setup           ← L2: Phase Epic
-│   ├── #102 [task] Create protocol.py (code)    ← L3: Feature Task
-│   ├── #103 [task] Create backends/__init__.py  ← L3: Feature Task
-│   └── #104 [task] Add config schema (config)   ← L3: Feature Task
-└── #105 [epic] Phase 2: Integration             ← L2: Phase Epic
-    └── ...
+Input: .gobby/plans/memory-v3.md
+
+Output task tree:
+#100 [epic] Memory V3 Backend                      L1 (from plan title)
+├── #101 [task] Create protocol.py                 L2 (from plan content)
+│   └─ validation: Protocol class exists with required methods
+│   └─ description: TDD: 1) Write tests... 2) Run tests...
+├── #102 [task] Create backends/__init__.py        L2
+│   └─ validation: Factory function works
+│   └─ description: TDD: 1) Write tests... 2) Run tests...
+└── #103 [task] Add config schema                  L2
+    └─ validation: Config loads and validates
+    └─ description: TDD: 1) Write tests... 2) Run tests...
 ```
 
-**Step 2: Expand each feature task to get TDD triplets (Level 4):**
-
-```python
-expand_task(task_id="#102")  # Feature task, NOT phase epic
-expand_task(task_id="#103")
-expand_task(task_id="#104")
-```
-
-**Result after expansion:**
-
-```
-#100 [epic] Memory V3 Backend                      L1
-├── #101 [epic] Phase 1: Backend Setup             L2
-│   ├── #102 [task] Create protocol.py             L3 (is_expanded=True)
-│   │   ├── #105 Define MemoryCapability enum      L4
-│   │   ├── #106 Define MemoryQuery dataclass      L4
-│   │   └── #107 Add type exports                  L4
-│   ├── #103 [task] Create backends/__init__.py    L3 (is_expanded=True)
-│   │   ├── #108 Implement get_backend()           L4
-│   │   └── #109 Add backend registry              L4
-│   └── #104 [task] Add config schema              L3 (is_expanded=True)
-│       ├── #110 Add memory.backend option         L4
-│       └── #111 Add validation                    L4
-```
-
-### 3-Level Hierarchy
-
-```
-L1: Root Epic (created manually)
-└── L2: Phase Epic (created manually)
-    └── L3: Feature Task (created manually, category: code/config)
-        └── L4: Implementation subtasks (created by expand_task)
-```
-
-**NOTE**: TDD steps are embedded in task descriptions for code/config category tasks.
-The descriptions include test requirements that agents follow during implementation.
+**NOTE**: `/g expand` adds TDD instructions and validation criteria automatically.
+You just need to write a clear plan with well-defined tasks.
 
 ## Example Usage
 
-User: `/gobby-plan`
+```
+User: /g plan
 Agent: "What feature would you like to plan?"
 User: "Add dark mode support to the app"
 Agent: [Asks clarifying questions]
 Agent: [Writes plan to .gobby/plans/dark-mode.md]
-Agent: [Runs verification - removes any test tasks found]
+Agent: [Runs verification - checks for TDD anti-patterns]
 Agent: "Here's the plan. Does this look correct?"
-User: "Yes, create the tasks"
-Agent: [Creates epic + phases + tasks]
-Agent: "Created 12 tasks under epic #47. The plan has been updated with task refs."
+User: "Yes, looks good"
+Agent: "Plan approved! To create tasks, run:
+        /g expand .gobby/plans/dark-mode.md"
+
+User: /g expand .gobby/plans/dark-mode.md
+Agent: [Creates epic, analyzes codebase, generates subtasks with TDD]
+Agent: "Created 12 tasks under epic #47 with validation criteria."
+```
 
 ## Optional: Workflow-Enforced Planning
 
@@ -462,11 +327,12 @@ call_tool("gobby-workflows", "activate_workflow", {
 
 ### Hybrid Approach
 
-The skill and workflow are complementary:
-- **Skill**: Interactive flexibility for requirements and drafting
+The skills and workflow are complementary:
+- **`/g plan`**: Interactive flexibility for requirements and drafting
+- **`/g expand`**: Creates tasks with TDD and validation
 - **Workflow**: Deterministic expansion with enforced gates
 
 Recommended pattern:
-1. Use this skill for Steps 1-5 (requirements through approval)
-2. Activate `plan-expansion` workflow at Step 6 (task creation)
-3. Workflow handles expansion loop deterministically
+1. Use `/g plan` for Steps 1-5 (requirements through approval)
+2. Use `/g expand <plan-file>` to create tasks
+3. Or activate `plan-expansion` workflow for stricter enforcement
