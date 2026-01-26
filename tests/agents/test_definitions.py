@@ -3,7 +3,7 @@ Tests for Named Agent Definitions.
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,6 +50,76 @@ class TestAgentDefinition:
         # Missing name
         with pytest.raises(ValueError):
             AgentDefinition(name=None, description="test")  # type: ignore
+
+    def test_isolation_fields_defaults(self):
+        """Test that new isolation fields have correct defaults."""
+        data: dict[str, Any] = {
+            "name": "test-agent",
+            "description": "A test agent",
+        }
+        agent = AgentDefinition(**data)
+
+        # New fields with their expected defaults
+        assert agent.isolation is None
+        assert agent.branch_prefix is None
+        assert agent.base_branch == "main"
+        assert agent.provider == "claude"
+
+    def test_isolation_fields_custom_values(self):
+        """Test that new isolation fields accept custom values."""
+        data: dict[str, Any] = {
+            "name": "feature-developer",
+            "description": "Agent for feature development",
+            "isolation": "worktree",
+            "branch_prefix": "feat/",
+            "base_branch": "develop",
+            "provider": "gemini",
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.isolation == "worktree"
+        assert agent.branch_prefix == "feat/"
+        assert agent.base_branch == "develop"
+        assert agent.provider == "gemini"
+
+    def test_isolation_literal_values(self):
+        """Test that isolation accepts all valid literal values."""
+        for isolation_value in ["current", "worktree", "clone"]:
+            data: dict[str, Any] = {
+                "name": "test-agent",
+                "isolation": isolation_value,
+            }
+            agent = AgentDefinition(**data)
+            assert agent.isolation == isolation_value
+
+    def test_yaml_loading_with_isolation_fields(self):
+        """Test that YAML loading works with new isolation fields."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "isolation-test-agent",
+            "description": "Test agent with isolation config",
+            "isolation": "clone",
+            "branch_prefix": "agent/",
+            "base_branch": "main",
+            "provider": "claude",
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/test-agent.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("isolation-test-agent")
+
+            assert agent is not None
+            assert agent.name == "isolation-test-agent"
+            assert agent.isolation == "clone"
+            assert agent.branch_prefix == "agent/"
+            assert agent.base_branch == "main"
+            assert agent.provider == "claude"
 
 
 class TestAgentDefinitionLoader:

@@ -8,7 +8,7 @@ lifecycle behavior, solving recursion loops in delegation.
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -29,6 +29,12 @@ class AgentDefinition(BaseModel):
     # Execution parameters
     model: str | None = None
     mode: str = "headless"  # Default to headless for stability
+    provider: str = "claude"  # Provider: claude, gemini, codex
+
+    # Isolation configuration
+    isolation: Literal["current", "worktree", "clone"] | None = None
+    branch_prefix: str | None = None
+    base_branch: str = "main"
 
     # Workflow configuration
     workflow: str | None = None
