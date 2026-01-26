@@ -23,7 +23,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.search import SearchFilters, SkillSearch
 from gobby.skills.updater import SkillUpdater
-from gobby.storage.skills import LocalSkillManager
+from gobby.storage.skills import ChangeEvent, LocalSkillManager, SkillChangeNotifier
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
@@ -61,8 +61,9 @@ def create_skills_registry(
         description="Skill management - list_skills, get_skill, search_skills, install_skill, update_skill, remove_skill",
     )
 
-    # Initialize storage
-    storage = LocalSkillManager(db)
+    # Initialize change notifier and storage
+    notifier = SkillChangeNotifier()
+    storage = LocalSkillManager(db, notifier=notifier)
 
     # --- list_skills tool ---
 
@@ -224,6 +225,13 @@ def create_skills_registry(
     # Index on registry creation
     _index_skills()
 
+    # Wire up change notifier to re-index on any skill mutation
+    def _on_skill_change(event: ChangeEvent) -> None:
+        """Re-index skills when any skill is created, updated, or deleted."""
+        _index_skills()
+
+    notifier.add_listener(_on_skill_change)
+
     @registry.tool(
         name="search_skills",
         description="Search for skills by query. Returns ranked results with relevance scores. Supports filtering by category and tags.",
@@ -359,16 +367,8 @@ def create_skills_registry(
             # Store the name before deletion
             skill_name = skill.name
 
-            # Delete the skill
+            # Delete the skill (notifier triggers re-indexing automatically)
             storage.delete_skill(skill.id)
-
-            # Re-index skills after deletion
-            skills = storage.list_skills(
-                project_id=project_id,
-                limit=10000,
-                include_global=True,
-            )
-            await search.index_skills_async(skills)
 
             return {
                 "success": True,
@@ -430,16 +430,8 @@ def create_skills_registry(
                 }
 
             # Use SkillUpdater to refresh from source
+            # (notifier triggers re-indexing automatically if updated)
             result = updater.update_skill(skill.id)
-
-            # Re-index skills if updated
-            if result.updated:
-                skills = storage.list_skills(
-                    project_id=project_id,
-                    limit=10000,
-                    include_global=True,
-                )
-                await search.index_skills_async(skills)
 
             return {
                 "success": result.success,
@@ -606,14 +598,7 @@ def create_skills_registry(
                 project_id=skill_project_id,
                 enabled=True,
             )
-
-            # Re-index skills
-            skills = storage.list_skills(
-                project_id=project_id,
-                limit=10000,
-                include_global=True,
-            )
-            await search.index_skills_async(skills)
+            # Notifier triggers re-indexing automatically via create_skill
 
             return {
                 "success": True,
