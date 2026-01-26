@@ -29,10 +29,6 @@ variables:
   spawn_mode: "terminal"      # Mode for spawning subagents
   current_agent_run_id: null  # Track spawned agent
   current_task_id: null       # Currently selected task
-  spawn_retry_count: 0        # Counter for spawn failures
-  max_spawn_retries: 3        # Max spawn attempts before failing
-  wait_attempts: 0            # Counter for wait polling attempts
-  max_wait_attempts: 120      # Max wait attempts (~2 hours at 60s intervals)
 
 steps:
   - name: select_task
@@ -72,7 +68,6 @@ steps:
           Provider: {{ variables.coding_provider }}
           Mode: {{ variables.spawn_mode }}
           Worktree: {{ variables.worktree_path }}
-          Spawn attempt: {{ variables.spawn_retry_count + 1 }} / {{ variables.max_spawn_retries }}
 
           Use start_agent() with:
           - provider: {{ variables.coding_provider }}
@@ -82,7 +77,6 @@ steps:
           - workflow: "worktree-agent"
 
           Store the run_id in current_agent_run_id variable.
-          If start_agent() fails, increment spawn_retry_count.
 
     allowed_tools: all
 
@@ -90,39 +84,7 @@ steps:
       - to: wait
         when: "variables.current_agent_run_id is not None"
       - to: select_task
-        when: "variables.current_agent_run_id is None and variables.spawn_retry_count < variables.max_spawn_retries"
-      - to: handle_spawn_error
-        when: "variables.current_agent_run_id is None and variables.spawn_retry_count >= variables.max_spawn_retries"
-
-  - name: handle_spawn_error
-    description: "Handle repeated spawn failures"
-    on_enter:
-      - action: inject_message
-        content: |
-          SEQUENTIAL ORCHESTRATOR: Spawn failed after {{ variables.spawn_retry_count }} attempts.
-
-          Task: {{ variables.current_task_id }}
-          Provider: {{ variables.coding_provider }}
-
-          The agent failed to spawn after maximum retries.
-
-          Options:
-          1. Check provider availability and configuration
-          2. Review task requirements
-          3. Skip this task and continue with others
-          4. Abort the orchestration
-
-          To skip task: close_task() with reason="spawn_failed" and go to 'loop'
-          To retry: reset spawn_retry_count to 0 and go to 'spawn_agent'
-          To abort: go to 'complete' with error status
-
-    allowed_tools: all
-
-    transitions:
-      - to: loop
-        when: "variables.current_task_id is None"
-      - to: spawn_agent
-        when: "variables.spawn_retry_count == 0 and variables.current_task_id is not None"
+        when: "variables.current_agent_run_id is None"
 
   - name: wait
     description: "Wait for the spawned agent to complete"
@@ -132,58 +94,19 @@ steps:
           SEQUENTIAL ORCHESTRATOR: Waiting for agent.
 
           Agent run_id: {{ variables.current_agent_run_id }}
-          Wait attempt: {{ variables.wait_attempts + 1 }} / {{ variables.max_wait_attempts }}
 
           Poll with get_agent_result(run_id="{{ variables.current_agent_run_id }}")
-
-          Timeout policy: After {{ variables.max_wait_attempts }} poll attempts
-          (~2 hours at 60s intervals), the wait will timeout.
 
           When agent completes (status: success/error/timeout):
           - Note the result
           - Clear current_agent_run_id
-          - Reset wait_attempts to 0
           - Transition to 'review' step
-
-          On each poll iteration, increment wait_attempts.
-          If max_wait_attempts exceeded, transition to 'handle_wait_timeout'.
 
     allowed_tools: all
 
     transitions:
       - to: review
         when: "variables.current_agent_run_id is None"
-      - to: handle_wait_timeout
-        when: "variables.wait_attempts >= variables.max_wait_attempts"
-
-  - name: handle_wait_timeout
-    description: "Handle agent wait timeout"
-    on_enter:
-      - action: inject_message
-        content: |
-          SEQUENTIAL ORCHESTRATOR: Agent wait timed out.
-
-          Agent run_id: {{ variables.current_agent_run_id }}
-          Task: {{ variables.current_task_id }}
-          Wait attempts: {{ variables.wait_attempts }}
-
-          The agent did not complete within the expected time.
-
-          Options:
-          1. Cancel the agent with cancel_agent() and retry
-          2. Skip this task and continue
-          3. Abort the orchestration
-
-          To proceed:
-          - Clear current_agent_run_id
-          - Reset wait_attempts to 0
-          - Transition to 'review' with timeout status
-
-    allowed_tools: all
-
-    transitions:
-      - to: review
-        when: "variables.current_agent_run_id is None and variables.wait_attempts == 0"
 
   - name: review
     description: "Review the completed work"

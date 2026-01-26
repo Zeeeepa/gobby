@@ -147,11 +147,9 @@ Skipping human evaluation: Automated evaluation misses subtle issues.
 def evaluate_agent_response(response, expected):
     rubric = load_rubric()
     scores = {}
-    weights = {}
     for dimension, config in rubric.items():
         scores[dimension] = assess_dimension(response, expected, dimension)
-        weights[dimension] = config.get("weight", 1.0)
-    overall = weighted_average(scores, weights)
+    overall = weighted_average(scores, config["weights"])
     return {"passed": overall >= 0.7, "scores": scores}
 ```
 
