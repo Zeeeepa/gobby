@@ -1,6 +1,8 @@
 ---
 name: claiming-tasks
 description: Quick reference when blocked by "no active task" error. Shows how to create or claim a task before using Edit, Write, or NotebookEdit tools.
+category: core
+alwaysApply: true
 ---
 
 # Claiming Tasks - Resolving Edit Blocks

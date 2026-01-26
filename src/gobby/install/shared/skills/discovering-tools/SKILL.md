@@ -1,6 +1,8 @@
 ---
 name: discovering-tools
 description: Progressive disclosure pattern for MCP tools and skills. Use when tools aren't found or you need to discover available capabilities.
+category: core
+alwaysApply: true
 ---
 
 # Discovering Tools - Progressive Disclosure Pattern
