@@ -17,18 +17,14 @@ import json
 import logging
 import platform
 import tempfile
-import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.spawn_agent import spawn_agent_impl
-from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.project_context import get_project_context
 from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
-    from gobby.agents.runner import AgentRunner
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.worktrees.git import WorktreeGitManager
 
@@ -291,8 +287,6 @@ def create_worktrees_registry(
     worktree_storage: LocalWorktreeManager,
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
-    agent_runner: AgentRunner | None = None,
-    task_manager: LocalTaskManager | None = None,
 ) -> InternalToolRegistry:
     """
     Create a worktree tool registry with all worktree-related tools.
@@ -301,8 +295,6 @@ def create_worktrees_registry(
         worktree_storage: LocalWorktreeManager for database operations.
         git_manager: WorktreeGitManager for git operations.
         project_id: Default project ID for operations.
-        agent_runner: AgentRunner for spawning agents in worktrees.
-        task_manager: LocalTaskManager for resolving task references.
 
     Returns:
         InternalToolRegistry with all worktree tools registered.
@@ -930,94 +922,5 @@ def create_worktrees_registry(
             return {"error": "Failed to link task to worktree"}
 
         return {}
-
-    @registry.tool(
-        name="spawn_agent_in_worktree",
-        description="Create a worktree and spawn an agent in it.",
-    )
-    async def spawn_agent_in_worktree(
-        prompt: str,
-        branch_name: str,
-        base_branch: str = "main",
-        task_id: str | None = None,
-        parent_session_id: str | None = None,
-        mode: str = "terminal",  # Note: in_process mode is not supported
-        terminal: str = "auto",
-        provider: Literal["claude", "gemini", "codex", "antigravity"] = "claude",
-        model: str | None = None,
-        workflow: str | None = None,
-        timeout: float = 120.0,
-        max_turns: int = 10,
-        project_path: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Create a worktree and spawn an agent to work in it.
-
-        This combines worktree creation with agent spawning for isolated development.
-
-        Args:
-            prompt: The task/prompt for the agent.
-            branch_name: Name for the new branch/worktree.
-            base_branch: Branch to base the worktree on (default: main).
-            task_id: Optional task ID to link to this worktree.
-            parent_session_id: Parent session ID for context.
-            mode: Execution mode (terminal, embedded, headless). Note: in_process is not supported.
-            terminal: Terminal for terminal/embedded modes (auto, ghostty, etc.).
-            provider: LLM provider (claude, gemini, etc.).
-            model: Optional model override.
-            workflow: Workflow name to execute.
-            timeout: Execution timeout in seconds (default: 120).
-            max_turns: Maximum turns (default: 10).
-            project_path: Path to project directory (pass cwd from CLI).
-
-        Returns:
-            Dict with worktree_id, run_id, and status.
-
-        .. deprecated::
-            Use spawn_agent() instead with isolation='worktree'.
-        """
-        # Emit deprecation warning
-        deprecation_msg = (
-            "spawn_agent_in_worktree is deprecated. Use spawn_agent() instead with isolation='worktree'. "
-            "spawn_agent_in_worktree will be removed in a future version."
-        )
-        warnings.warn(deprecation_msg, DeprecationWarning, stacklevel=2)
-        logger.warning(deprecation_msg)
-
-        if agent_runner is None:
-            return {
-                "success": False,
-                "error": "Agent runner not configured. Cannot spawn agent.",
-            }
-
-        # Handle mode aliases: "interactive" -> "terminal"
-        effective_mode = mode
-        if effective_mode == "interactive":
-            effective_mode = "terminal"
-
-        # Default to 'worktree-agent' workflow if not specified
-        effective_workflow = workflow if workflow is not None else "worktree-agent"
-
-        # Delegate to spawn_agent_impl with isolation='worktree'
-        return await spawn_agent_impl(
-            prompt=prompt,
-            runner=agent_runner,
-            task_id=task_id,
-            task_manager=task_manager,
-            isolation="worktree",
-            branch_name=branch_name,
-            base_branch=base_branch,
-            worktree_storage=worktree_storage,
-            git_manager=git_manager,
-            workflow=effective_workflow,
-            mode=effective_mode,
-            terminal=terminal,
-            provider=provider,
-            model=model,
-            timeout=timeout,
-            max_turns=max_turns,
-            parent_session_id=parent_session_id,
-            project_path=project_path,
-        )
 
     return registry

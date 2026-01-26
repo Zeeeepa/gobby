@@ -173,7 +173,6 @@ def setup_internal_registries(
 
         agents_registry = create_agents_registry(
             runner=agent_runner,
-            tool_proxy_getter=tool_proxy_getter,
         )
 
         # Add inter-agent messaging tools if message manager is available
@@ -198,7 +197,6 @@ def setup_internal_registries(
             worktree_storage=worktree_storage,
             git_manager=git_manager,
             project_id=project_id,
-            agent_runner=agent_runner,
         )
         manager.add_registry(worktrees_registry)
         logger.debug("Worktrees registry initialized")
@@ -222,7 +220,6 @@ def setup_internal_registries(
                 clone_storage=clone_storage,
                 git_manager=clone_git_manager,
                 project_id=project_id or "",
-                agent_runner=agent_runner,
             )
             manager.add_registry(clones_registry)
             logger.debug("Clones registry initialized")

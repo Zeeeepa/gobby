@@ -13,14 +13,11 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.spawn_agent import spawn_agent_impl
 
 if TYPE_CHECKING:
-    from gobby.agents.runner import AgentRunner
     from gobby.clones.git import CloneGitManager
     from gobby.storage.clones import LocalCloneManager
 
@@ -31,7 +28,6 @@ def create_clones_registry(
     clone_storage: LocalCloneManager,
     git_manager: CloneGitManager,
     project_id: str,
-    agent_runner: AgentRunner | None = None,
 ) -> InternalToolRegistry:
     """
     Create the gobby-clones MCP server registry.
@@ -40,7 +36,6 @@ def create_clones_registry(
         clone_storage: Clone storage manager for CRUD operations
         git_manager: Git manager for clone operations
         project_id: Default project ID for new clones
-        agent_runner: Optional agent runner for spawning agents in clones
 
     Returns:
         InternalToolRegistry with clone management tools
@@ -518,161 +513,6 @@ def create_clones_registry(
             "required": ["clone_id"],
         },
         func=merge_clone_to_target,
-    )
-
-    # ===== spawn_agent_in_clone =====
-    async def spawn_agent_in_clone(
-        prompt: str,
-        branch_name: str,
-        parent_session_id: str | None = None,
-        task_id: str | None = None,
-        base_branch: str = "main",
-        clone_path: str | None = None,
-        mode: str = "terminal",
-        terminal: str = "auto",
-        provider: Literal["claude", "gemini", "codex", "antigravity"] = "claude",
-        model: str | None = None,
-        workflow: str | None = None,
-        timeout: float = 120.0,
-        max_turns: int = 10,
-    ) -> dict[str, Any]:
-        """
-        Create a clone (if needed) and spawn an agent in it.
-
-        This combines clone creation with agent spawning for isolated development.
-        Unlike worktrees, clones are full repository copies that can be worked on
-        independently without affecting the main repository.
-
-        Args:
-            prompt: The task/prompt for the agent.
-            branch_name: Name for the branch in the clone.
-            parent_session_id: Parent session ID for context (required).
-            task_id: Optional task ID to link to this clone.
-            base_branch: Branch to clone from (default: main).
-            clone_path: Optional custom path for the clone.
-            mode: Execution mode (terminal, embedded, headless).
-            terminal: Terminal for terminal/embedded modes (auto, ghostty, etc.).
-            provider: LLM provider (claude, gemini, etc.).
-            model: Optional model override.
-            workflow: Workflow name to execute.
-            timeout: Execution timeout in seconds (default: 120).
-            max_turns: Maximum turns (default: 10).
-
-        Returns:
-            Dict with clone_id, run_id, and status.
-
-        .. deprecated::
-            Use spawn_agent() instead. spawn_agent_in_clone will be removed in a future version.
-        """
-        # Emit deprecation warning
-        deprecation_msg = (
-            "spawn_agent_in_clone is deprecated. Use spawn_agent() instead with isolation='clone'. "
-            "spawn_agent_in_clone will be removed in a future version."
-        )
-        warnings.warn(deprecation_msg, DeprecationWarning, stacklevel=2)
-        logger.warning(deprecation_msg)
-
-        if agent_runner is None:
-            return {
-                "success": False,
-                "error": "Agent runner not configured. Cannot spawn agent.",
-            }
-
-        # Handle mode aliases: "interactive" -> "terminal"
-        effective_mode = mode
-        if effective_mode == "interactive":
-            effective_mode = "terminal"
-
-        # Delegate to spawn_agent_impl with isolation='clone'
-        return await spawn_agent_impl(
-            prompt=prompt,
-            runner=agent_runner,
-            task_id=task_id,
-            isolation="clone",
-            branch_name=branch_name,
-            base_branch=base_branch,
-            clone_storage=clone_storage,
-            clone_manager=git_manager,
-            workflow=workflow,
-            mode=effective_mode,
-            terminal=terminal,
-            provider=provider,
-            model=model,
-            timeout=timeout,
-            max_turns=max_turns,
-            parent_session_id=parent_session_id,
-        )
-
-    registry.register(
-        name="spawn_agent_in_clone",
-        description="Create a clone and spawn an agent to work in it",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "prompt": {
-                    "type": "string",
-                    "description": "The task/prompt for the agent",
-                },
-                "branch_name": {
-                    "type": "string",
-                    "description": "Name for the branch in the clone",
-                },
-                "parent_session_id": {
-                    "type": "string",
-                    "description": "Parent session ID for context (required)",
-                },
-                "task_id": {
-                    "type": "string",
-                    "description": "Optional task ID to link to this clone",
-                },
-                "base_branch": {
-                    "type": "string",
-                    "description": "Branch to clone from",
-                    "default": "main",
-                },
-                "clone_path": {
-                    "type": "string",
-                    "description": "Optional custom path for the clone",
-                },
-                "mode": {
-                    "type": "string",
-                    "description": "Execution mode",
-                    "enum": ["terminal", "embedded", "headless"],
-                    "default": "terminal",
-                },
-                "terminal": {
-                    "type": "string",
-                    "description": "Terminal type for terminal/embedded modes",
-                    "default": "auto",
-                },
-                "provider": {
-                    "type": "string",
-                    "description": "LLM provider",
-                    "enum": ["claude", "gemini", "codex", "antigravity"],
-                    "default": "claude",
-                },
-                "model": {
-                    "type": "string",
-                    "description": "Optional model override",
-                },
-                "workflow": {
-                    "type": "string",
-                    "description": "Workflow name to execute",
-                },
-                "timeout": {
-                    "type": "number",
-                    "description": "Execution timeout in seconds",
-                    "default": 120.0,
-                },
-                "max_turns": {
-                    "type": "integer",
-                    "description": "Maximum turns",
-                    "default": 10,
-                },
-            },
-            "required": ["prompt", "branch_name", "parent_session_id"],
-        },
-        func=spawn_agent_in_clone,
     )
 
     return registry
