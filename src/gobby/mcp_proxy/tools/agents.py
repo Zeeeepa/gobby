@@ -57,6 +57,13 @@ def create_agents_registry(
     running_registry: RunningAgentRegistry | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
     workflow_state_manager: Any | None = None,
+    # spawn_agent dependencies
+    agent_loader: Any | None = None,
+    task_manager: Any | None = None,
+    worktree_storage: Any | None = None,
+    git_manager: Any | None = None,
+    clone_storage: Any | None = None,
+    clone_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -1099,5 +1106,22 @@ def create_agents_registry(
             "by_mode": by_mode,
             "by_parent_count": len(by_parent),
         }
+
+    # Register spawn_agent tool from spawn_agent module
+    from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+    spawn_registry = create_spawn_agent_registry(
+        runner=runner,
+        agent_loader=agent_loader,
+        task_manager=task_manager,
+        worktree_storage=worktree_storage,
+        git_manager=git_manager,
+        clone_storage=clone_storage,
+        clone_manager=clone_manager,
+    )
+
+    # Merge spawn_agent tools into agents registry
+    for tool_name, tool in spawn_registry._tools.items():
+        registry._tools[tool_name] = tool
 
     return registry
