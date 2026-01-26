@@ -194,9 +194,9 @@ def build_cli_command(
         if auto_approve:
             # Skip all permission prompts for autonomous subagent operation
             command.append("--dangerously-skip-permissions")
-        if prompt:
-            # Use -p (print mode) for non-interactive execution.
-            # NOTE: Print mode bypasses hooks - headless spawner manually tracks status.
+        # For headless mode, use -p (print mode) for single-turn execution
+        # For terminal mode, don't use -p to allow multi-turn interaction
+        if prompt and mode != "terminal":
             command.append("-p")
 
     elif cli == "gemini":

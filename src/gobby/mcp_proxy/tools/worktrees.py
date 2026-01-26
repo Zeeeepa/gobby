@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.tasks import LocalTaskManager, TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
@@ -292,6 +294,7 @@ def create_worktrees_registry(
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
     agent_runner: AgentRunner | None = None,
+    task_manager: LocalTaskManager | None = None,
 ) -> InternalToolRegistry:
     """
     Create a worktree tool registry with all worktree-related tools.
@@ -301,6 +304,7 @@ def create_worktrees_registry(
         git_manager: WorktreeGitManager for git operations.
         project_id: Default project ID for operations.
         agent_runner: AgentRunner for spawning agents in worktrees.
+        task_manager: LocalTaskManager for resolving task references.
 
     Returns:
         InternalToolRegistry with all worktree tools registered.
@@ -994,6 +998,21 @@ def create_worktrees_registry(
                 "error": "parent_session_id is required for agent spawning.",
             }
 
+        # Resolve task_id to UUID if provided (supports #N, N, path, or UUID formats)
+        resolved_task_id: str | None = None
+        if task_id:
+            if task_manager is None:
+                return {
+                    "success": False,
+                    "error": "Task manager not configured. Cannot resolve task_id.",
+                }
+            try:
+                resolved_task_id = resolve_task_id_for_mcp(
+                    task_manager, task_id, resolved_project_id
+                )
+            except (TaskNotFoundError, ValueError) as e:
+                return {"success": False, "error": f"Invalid task_id '{task_id}': {e}"}
+
         # Handle mode aliases and validation
         # "interactive" is an alias for "terminal" mode
         if mode == "interactive":
@@ -1062,7 +1081,7 @@ def create_worktrees_registry(
                 branch_name=branch_name,
                 worktree_path=worktree_path,
                 base_branch=base_branch,
-                task_id=task_id,
+                task_id=resolved_task_id,
             )
 
         # Copy project.json and install provider hooks
@@ -1093,7 +1112,7 @@ def create_worktrees_registry(
             machine_id=machine_id,
             source=provider,
             workflow=workflow,
-            task=task_id,
+            task=resolved_task_id,
             session_context="summary_markdown",
             mode=mode,
             terminal=terminal,
