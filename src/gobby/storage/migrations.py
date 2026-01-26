@@ -1590,21 +1590,24 @@ def _run_migration_list(
     return applied
 
 
-def run_migrations(db: LocalDatabase) -> int:
+def run_migrations(db: LocalDatabase, *, use_flattened_baseline: bool = False) -> int:
     """
     Run pending migrations.
 
     For new databases (version == 0):
-        Applies baseline schema directly, jumping to version 60.
+        - If use_flattened_baseline=True: applies V2 baseline schema (v75)
+        - If use_flattened_baseline=False: applies legacy baseline schema (v60)
 
     For existing databases (0 < version < 60):
         Imports and runs legacy migrations incrementally.
 
     For all databases:
-        Runs any new migrations (v61+) after baseline/legacy path.
+        Runs any new migrations after baseline/legacy path.
 
     Args:
         db: LocalDatabase instance
+        use_flattened_baseline: If True, use flattened V2 baseline (v75) for new
+            databases instead of legacy baseline + incremental migrations.
 
     Returns:
         Number of migrations applied
@@ -1613,10 +1616,18 @@ def run_migrations(db: LocalDatabase) -> int:
     total_applied = 0
 
     if current_version == 0:
-        # New database: apply baseline schema directly
-        _apply_baseline(db)
-        total_applied = 1
-        current_version = BASELINE_VERSION
+        if use_flattened_baseline:
+            # New database with flattened baseline: apply V2 schema directly
+            logger.info("Using flattened V2 baseline for new database")
+            _apply_baseline_v2(db)
+            total_applied = 1
+            current_version = BASELINE_VERSION_V2
+        else:
+            # New database with legacy path: apply baseline schema directly
+            logger.info("Using legacy baseline for new database")
+            _apply_baseline(db)
+            total_applied = 1
+            current_version = BASELINE_VERSION
     elif current_version < BASELINE_VERSION:
         # Existing database needing legacy migrations
         # Lazy import to avoid loading legacy code for new databases

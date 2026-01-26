@@ -1972,3 +1972,66 @@ def test_apply_baseline_v2_creates_placeholder_projects(tmp_path):
     )
     assert migrated is not None, "_migrated placeholder project not created"
     assert migrated["name"] == "_migrated"
+
+
+def test_run_migrations_with_flattened_baseline_true(tmp_path):
+    """Test run_migrations() uses V2 baseline when use_flattened_baseline=True.
+
+    When the flag is True and it's a new database (version 0), run_migrations()
+    should call _apply_baseline_v2() instead of the legacy baseline.
+    """
+    db_path = tmp_path / "flattened_baseline.db"
+    db = LocalDatabase(db_path)
+
+    # Initial state
+    assert get_current_version(db) == 0
+
+    # Run migrations with flattened baseline enabled
+    applied = run_migrations(db, use_flattened_baseline=True)
+
+    # Should have applied V2 baseline (1 migration)
+    assert applied >= 1
+
+    # Version should be at V2 baseline (75) or higher
+    current_version = get_current_version(db)
+    assert current_version >= BASELINE_VERSION_V2
+
+
+def test_run_migrations_with_flattened_baseline_false(tmp_path):
+    """Test run_migrations() uses legacy baseline when use_flattened_baseline=False.
+
+    When the flag is False (default), run_migrations() should use the existing
+    baseline schema (v60) plus any incremental migrations.
+    """
+    db_path = tmp_path / "legacy_baseline.db"
+    db = LocalDatabase(db_path)
+
+    # Initial state
+    assert get_current_version(db) == 0
+
+    # Run migrations with flattened baseline disabled (default behavior)
+    applied = run_migrations(db, use_flattened_baseline=False)
+
+    # Should have applied migrations
+    assert applied >= 1
+
+    # Version should reach expected final version
+    current_version = get_current_version(db)
+    assert current_version == EXPECTED_FINAL_VERSION
+
+
+def test_run_migrations_default_uses_legacy_baseline(tmp_path):
+    """Test run_migrations() defaults to legacy baseline when no flag passed.
+
+    For backwards compatibility, run_migrations() without arguments should
+    behave exactly as before (using legacy baseline).
+    """
+    db_path = tmp_path / "default_baseline.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations without the flag (default behavior)
+    applied = run_migrations(db)
+
+    # Should reach expected final version using legacy path
+    current_version = get_current_version(db)
+    assert current_version == EXPECTED_FINAL_VERSION
