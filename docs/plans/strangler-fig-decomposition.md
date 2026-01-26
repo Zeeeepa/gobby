@@ -64,30 +64,22 @@ For each candidate, follow these steps:
 
 ## Phase 2: Migration Flattening
 
-**Goal**: Flatten and archive legacy migrations
+**Goal**: Flatten legacy migrations into a single v75 baseline with feature-flagged rollback.
 
 ### Candidate: `src/gobby/storage/migrations.py` (1046 lines) & `migrations_legacy.py` (1359 lines)
 
-**Status**: Identified
-**Target**: Single `migrations.py` < 300 lines + optional `migrations/` package
+**Status**: Planned
+**Detailed Plan**: [migration-flattening.md](./migration-flattening.md)
 
-**Problem**: `migrations.py` contains the massive `BASELINE_SCHEMA` string and newer migrations, while `migrations_legacy.py` contains the entire history of v1-60 migrations.
+The migration flattening follows its own strangler fig approach with 6 phases:
+1. Schema capture (add BASELINE_SCHEMA_V2 at v75)
+2. Feature flag (`use_flattened_baseline`)
+3. Branching logic in `run_migrations()`
+4. Testing & validation (both paths)
+5. Default to new baseline
+6. Cleanup (remove old path)
 
-**Decision Required**: @josh - Do we drop support for upgrading from < v60? If yes, `migrations_legacy.py` can be deleted entirely.
-
-**Tasks:**
-
-- [ ] Decide: Drop support for < v60 upgrades? (category: planning)
-- [ ] If dropping: Delete `migrations_legacy.py` entirely (category: refactor)
-- [ ] If keeping: Archive to `migrations/legacy.py` with deprecation warning (category: refactor)
-- [ ] Move `MIGRATIONS` list (v61+) to `migrations/` package (category: refactor)
-- [ ] Keep `migrations.py` as entry point with `BASELINE_SCHEMA` only (category: refactor)
-
-**Acceptance Criteria:**
-
-- `migrations.py` < 300 lines
-- All migration tests pass
-- Clear documentation on minimum supported DB version
+See the detailed plan for tasks, acceptance criteria, and rollback procedures at each phase.
 
 ---
 
