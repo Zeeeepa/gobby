@@ -115,6 +115,7 @@ async def _spawn_terminal(request: SpawnRequest) -> SpawnResult:
         max_agent_depth=request.max_agent_depth,
         terminal=request.terminal,
         prompt=request.prompt,
+        sandbox_config=request.sandbox_config,
     )
 
     if not result.success:
@@ -151,6 +152,7 @@ async def _spawn_embedded(request: SpawnRequest) -> SpawnResult:
         agent_depth=request.agent_depth,
         max_agent_depth=request.max_agent_depth,
         prompt=request.prompt,
+        sandbox_config=request.sandbox_config,
     )
 
     if not result.success:
@@ -187,6 +189,7 @@ async def _spawn_headless(request: SpawnRequest) -> SpawnResult:
         agent_depth=request.agent_depth,
         max_agent_depth=request.max_agent_depth,
         prompt=request.prompt,
+        sandbox_config=request.sandbox_config,
     )
 
     if not result.success:
