@@ -283,7 +283,7 @@ class TestCodexAppServerClientStart:
         mock_process.stdout.readline = mock_readline
 
         with patch(
-            "gobby.adapters.codex.subprocess.Popen", return_value=mock_process
+            "gobby.adapters.codex_impl.client.subprocess.Popen", return_value=mock_process
         ) as mock_popen:
             # Create a task that will complete quickly
             async def run_start():
@@ -317,7 +317,7 @@ class TestCodexAppServerClientStart:
         client = CodexAppServerClient()
 
         with patch(
-            "gobby.adapters.codex.subprocess.Popen",
+            "gobby.adapters.codex_impl.client.subprocess.Popen",
             side_effect=OSError("Command not found"),
         ):
             with pytest.raises(RuntimeError, match="Failed to start"):
