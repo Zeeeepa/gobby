@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from gobby.config.app import MemoryConfig
+from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends import get_backend
 from gobby.memory.context import build_memory_context
 from gobby.memory.protocol import MediaAttachment, MemoryBackendProtocol

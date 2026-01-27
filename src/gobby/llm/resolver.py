@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Literal
 from gobby.llm.executor import AgentExecutor
 
 if TYPE_CHECKING:
-    from gobby.config.app import DaemonConfig, LLMProvidersConfig
+    from gobby.config.app import DaemonConfig
+    from gobby.config.llm_providers import LLMProvidersConfig
     from gobby.workflows.definitions import WorkflowDefinition
 
 logger = logging.getLogger(__name__)
@@ -479,7 +480,7 @@ def _create_codex_executor(
 
 # Re-export for TYPE_CHECKING
 if TYPE_CHECKING:
-    from gobby.config.app import LLMProviderConfig
+    from gobby.config.llm_providers import LLMProviderConfig
 
 
 class ExecutorRegistry:

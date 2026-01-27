@@ -204,7 +204,7 @@ class TestLLMProviderConfigFromAppPy:
 
     def test_import_from_app_py(self) -> None:
         """Test importing LLMProviderConfig from app.py works (baseline)."""
-        from gobby.config.app import LLMProviderConfig
+        from gobby.config.llm_providers import LLMProviderConfig
 
         config = LLMProviderConfig(models="gpt-4")
         assert config.auth_mode == "subscription"
@@ -216,7 +216,7 @@ class TestLLMProvidersConfigFromAppPy:
 
     def test_import_from_app_py(self) -> None:
         """Test importing LLMProvidersConfig from app.py works (baseline)."""
-        from gobby.config.app import LLMProviderConfig, LLMProvidersConfig
+        from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 
         config = LLMProvidersConfig(claude=LLMProviderConfig(models="claude-haiku-4-5"))
         assert config.get_enabled_providers() == ["claude"]

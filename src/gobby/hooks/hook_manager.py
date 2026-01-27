@@ -228,7 +228,7 @@ class HookManager:
         )
 
         if not memory_config:
-            from gobby.config.app import MemoryConfig
+            from gobby.config.persistence import MemoryConfig
 
             memory_config = MemoryConfig()
 

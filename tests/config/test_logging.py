@@ -143,7 +143,7 @@ class TestLoggingSettingsFromAppPy:
 
     def test_import_from_app_py(self) -> None:
         """Test importing LoggingSettings from app.py works (baseline)."""
-        from gobby.config.app import LoggingSettings
+        from gobby.config.logging import LoggingSettings
 
         settings = LoggingSettings()
         assert settings.level == "info"
@@ -153,7 +153,7 @@ class TestLoggingSettingsFromAppPy:
 
     def test_validation_via_app_py(self) -> None:
         """Test validation works when imported from app.py."""
-        from gobby.config.app import LoggingSettings
+        from gobby.config.logging import LoggingSettings
 
         with pytest.raises(ValidationError):
             LoggingSettings(max_size_mb=0)

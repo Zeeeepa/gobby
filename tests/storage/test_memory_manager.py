@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from gobby.config.app import MemoryConfig
+from gobby.config.persistence import MemoryConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
