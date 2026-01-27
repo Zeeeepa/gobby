@@ -69,6 +69,9 @@ def build_cli_command(
         if prompt:
             if mode == "terminal":
                 command.extend(["-i", prompt])
+                # Add sandbox args before returning (prompt already added via -i flag)
+                if sandbox_args:
+                    command.extend(sandbox_args)
                 return command  # Don't add prompt again as positional
             # else: fall through to add as positional for headless
 

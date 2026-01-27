@@ -663,27 +663,29 @@ def _migrate_backfill_session_seq_num_per_project(db: LocalDatabase) -> None:
         logger.debug("No sessions to re-number")
         return
 
-    # First, clear all seq_num values to avoid unique constraint violations
-    # when the existing seq_num order doesn't match created_at order
-    db.execute("UPDATE sessions SET seq_num = NULL")
+    # Wrap the entire re-numbering in a transaction for atomicity
+    with db.transaction() as conn:
+        # First, clear all seq_num values to avoid unique constraint violations
+        # when the existing seq_num order doesn't match created_at order
+        conn.execute("UPDATE sessions SET seq_num = NULL")
 
-    # Assign seq_num per project
-    current_project: str | None = None
-    seq_num = 0
-    updated = 0
+        # Assign seq_num per project
+        current_project: str | None = None
+        seq_num = 0
+        updated = 0
 
-    for session in sessions:
-        if session["project_id"] != current_project:
-            current_project = session["project_id"]
-            seq_num = 1
-        else:
-            seq_num += 1
+        for session in sessions:
+            if session["project_id"] != current_project:
+                current_project = session["project_id"]
+                seq_num = 1
+            else:
+                seq_num += 1
 
-        db.execute(
-            "UPDATE sessions SET seq_num = ? WHERE id = ?",
-            (seq_num, session["id"]),
-        )
-        updated += 1
+            conn.execute(
+                "UPDATE sessions SET seq_num = ? WHERE id = ?",
+                (seq_num, session["id"]),
+            )
+            updated += 1
 
     logger.info(f"Re-numbered {updated} sessions with per-project seq_num")
 

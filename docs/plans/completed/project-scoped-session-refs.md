@@ -212,26 +212,26 @@ sessions = [
 
 | Plan Item | Task Ref | Status |
 |-----------|----------|--------|
-| **Epic: Project-Scoped Session Refs** | #6204 | open |
-| **Phase 1: Schema & Storage Foundation** | #6205 | open |
-| Add migration to change seq_num index | #6212 | open |
-| Update seq_num assignment to be per-project | #6213 | open |
-| Update resolve_session_reference() to accept project_id | #6214 | open |
-| Update backfill migration for per-project numbering | #6215 | open |
-| **Phase 2: CLI Integration** | #6206 | open |
-| Add project_id parameter to resolve_session_id() | #6222 | open |
-| Update show_session and delete_session | #6223 | open |
-| Update workflow commands | #6224 | open |
-| Update claim_worktree | #6225 | open |
-| Update agent_stats | #6226 | open |
-| **Phase 3: MCP Tools & Display** | #6207 | open |
-| Update hook context to display #N | #6233 | open |
-| Update MCP instructions to reference #N format | #6234 | open |
-| Update task tool schemas | #6235 | open |
-| Update session tool schemas and resolution | #6237 | open |
-| Update workflow tool schemas and resolution | #6239 | open |
-| Update agent tool schemas and resolution | #6240 | open |
-| Update hub cross-project display | #6241 | open |
-| **Phase 4: Tests** | #6208 | open |
-| Update session resolution tests in test_cli_utils.py | #6242 | open |
-| Add project-scoped seq_num tests in test_sessions.py | #6243 | open |
+| **Epic: Project-Scoped Session Refs** | #6204 | completed |
+| **Phase 1: Schema & Storage Foundation** | #6205 | completed |
+| Add migration to change seq_num index | #6212 | completed |
+| Update seq_num assignment to be per-project | #6213 | completed |
+| Update resolve_session_reference() to accept project_id | #6214 | completed |
+| Update backfill migration for per-project numbering | #6215 | completed |
+| **Phase 2: CLI Integration** | #6206 | completed |
+| Add project_id parameter to resolve_session_id() | #6222 | completed |
+| Update show_session and delete_session | #6223 | completed |
+| Update workflow commands | #6224 | completed |
+| Update claim_worktree | #6225 | completed |
+| Update agent_stats | #6226 | completed |
+| **Phase 3: MCP Tools & Display** | #6207 | completed |
+| Update hook context to display #N | #6233 | completed |
+| Update MCP instructions to reference #N format | #6234 | completed |
+| Update task tool schemas | #6235 | completed |
+| Update session tool schemas and resolution | #6237 | completed |
+| Update workflow tool schemas and resolution | #6239 | completed |
+| Update agent tool schemas and resolution | #6240 | completed |
+| Update hub cross-project display | #6241 | completed |
+| **Phase 4: Tests** | #6208 | completed |
+| Update session resolution tests in test_cli_utils.py | #6242 | completed |
+| Add project-scoped seq_num tests in test_sessions.py | #6243 | completed |

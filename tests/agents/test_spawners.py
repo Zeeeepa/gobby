@@ -1809,6 +1809,7 @@ class TestLinuxIntegration:
 # =============================================================================
 
 
+@pytest.mark.unit
 class TestBuildCliCommandSandboxArgs:
     """Tests for build_cli_command sandbox_args parameter."""
 
@@ -1877,6 +1878,7 @@ class TestBuildCliCommandSandboxArgs:
 # =============================================================================
 
 
+@pytest.mark.unit
 class TestTerminalSpawnerSandbox:
     """Tests for TerminalSpawner.spawn_agent sandbox handling."""
 
@@ -2035,6 +2037,7 @@ class TestTerminalSpawnerSandbox:
 # =============================================================================
 
 
+@pytest.mark.unit
 class TestEmbeddedSpawnerSandbox:
     """Tests for EmbeddedSpawner.spawn_agent sandbox handling."""
 
@@ -2165,6 +2168,7 @@ class TestEmbeddedSpawnerSandbox:
 # =============================================================================
 
 
+@pytest.mark.unit
 class TestHeadlessSpawnerSandbox:
     """Tests for HeadlessSpawner.spawn_agent sandbox handling."""
 

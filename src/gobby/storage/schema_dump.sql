@@ -436,7 +436,7 @@ CREATE INDEX idx_crossrefs_target ON memory_crossrefs(target_id);
 CREATE INDEX idx_crossrefs_similarity ON memory_crossrefs(similarity DESC);
 CREATE UNIQUE INDEX idx_tasks_seq_num ON tasks(project_id, seq_num);
 CREATE INDEX idx_tasks_path_cache ON tasks(path_cache);
-CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(seq_num);
+CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num);
 CREATE UNIQUE INDEX idx_sessions_unique
             ON sessions(external_id, machine_id, source, project_id);
 CREATE TABLE inter_session_messages (

@@ -534,10 +534,15 @@ class CodexAppServerClient:
             self._pending_requests[request_id] = future
 
         try:
-            # Send request
+            # Send request - offload blocking I/O to thread executor
             request_line = json.dumps(request) + "\n"
-            self._process.stdin.write(request_line)
-            self._process.stdin.flush()
+
+            def write_request() -> None:
+                assert self._process and self._process.stdin
+                self._process.stdin.write(request_line)
+                self._process.stdin.flush()
+
+            await loop.run_in_executor(None, write_request)
 
             logger.debug(f"Sent request: {method} (id={request_id})")
 
@@ -560,8 +565,14 @@ class CodexAppServerClient:
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
 
         notification_line = json.dumps(notification) + "\n"
-        self._process.stdin.write(notification_line)
-        self._process.stdin.flush()
+
+        def write_notification() -> None:
+            assert self._process and self._process.stdin
+            self._process.stdin.write(notification_line)
+            self._process.stdin.flush()
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, write_notification)
 
         logger.debug(f"Sent notification: {method}")
 

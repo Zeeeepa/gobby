@@ -1534,7 +1534,7 @@ async def handle_require_task_complete(
     if task_spec and "{{" in str(task_spec) and template_engine:
         task_spec = template_engine.render(
             str(task_spec),
-            {"variables": context.state.variables or {}},
+            {"variables": context.state.variables if context.state else {}},
         )
 
     # Handle different task_spec types:

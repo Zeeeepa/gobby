@@ -489,8 +489,8 @@ class TestWebhookEndpointConfigFromExtensionsModule:
             WebhookEndpointConfig(name="test", url="https://example.com", timeout=0.5)
 
 
-class TestWebhooksConfigFromAppPy:
-    """Verify WebhooksConfig tests pass when importing from app.py."""
+class TestWebhooksConfigFromExtensionsModule:
+    """Verify WebhooksConfig tests pass when importing from extensions module."""
 
     def test_import_from_extensions_module(self) -> None:
         """Test importing WebhooksConfig from extensions module works."""

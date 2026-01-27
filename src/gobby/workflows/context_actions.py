@@ -6,6 +6,7 @@ These functions handle context injection, message injection, and handoff extract
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -449,7 +450,8 @@ if __name__ != "__main__":
 
 async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for inject_context."""
-    return inject_context(
+    return await asyncio.to_thread(
+        inject_context,
         session_manager=context.session_manager,
         session_id=context.session_id,
         state=context.state,
@@ -462,7 +464,8 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
 
 async def handle_inject_message(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for inject_message."""
-    return inject_message(
+    return await asyncio.to_thread(
+        inject_message,
         session_manager=context.session_manager,
         session_id=context.session_id,
         state=context.state,
@@ -476,7 +479,8 @@ async def handle_extract_handoff_context(
     context: ActionContext, **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for extract_handoff_context."""
-    return extract_handoff_context(
+    return await asyncio.to_thread(
+        extract_handoff_context,
         session_manager=context.session_manager,
         session_id=context.session_id,
         config=context.config,

@@ -199,12 +199,16 @@ async def recommend_mcp_tools(
             try:
                 project_id = server._resolve_project_id(None, cwd)
             except ValueError as e:
-                return {
-                    "success": False,
-                    "error": str(e),
-                    "task": task_description,
-                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
-                }
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                raise HTTPException(
+                    status_code=500,
+                    detail={
+                        "success": False,
+                        "error": str(e),
+                        "task": task_description,
+                        "response_time_ms": response_time_ms,
+                    },
+                ) from e
 
         # Use tools handler if available
         if server._tools_handler:
@@ -315,12 +319,16 @@ async def search_mcp_tools(
                 }
             except Exception as e:
                 logger.error(f"Semantic search failed: {e}")
-                return {
-                    "success": False,
-                    "error": str(e),
-                    "query": query,
-                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
-                }
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                raise HTTPException(
+                    status_code=500,
+                    detail={
+                        "success": False,
+                        "error": str(e),
+                        "query": query,
+                        "response_time_ms": response_time_ms,
+                    },
+                ) from e
 
         # Fallback: no semantic search
         return {

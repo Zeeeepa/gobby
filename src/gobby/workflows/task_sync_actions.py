@@ -4,6 +4,7 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle task sync import/export and workflow task operations.
 """
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -40,11 +41,11 @@ async def task_sync_import(
     try:
         # Get project_id from session for project-scoped sync
         project_id = None
-        session = session_manager.get(session_id)
+        session = await asyncio.to_thread(session_manager.get, session_id)
         if session:
             project_id = session.project_id
 
-        task_sync_manager.import_from_jsonl(project_id=project_id)
+        await asyncio.to_thread(task_sync_manager.import_from_jsonl, project_id=project_id)
         logger.info("Task sync import completed")
         return {"imported": True}
     except Exception as e:
@@ -77,11 +78,11 @@ async def task_sync_export(
     try:
         # Get project_id from session for project-scoped sync
         project_id = None
-        session = session_manager.get(session_id)
+        session = await asyncio.to_thread(session_manager.get, session_id)
         if session:
             project_id = session.project_id
 
-        task_sync_manager.export_to_jsonl(project_id=project_id)
+        await asyncio.to_thread(task_sync_manager.export_to_jsonl, project_id=project_id)
         logger.info("Task sync export completed")
         return {"exported": True}
     except Exception as e:
@@ -134,7 +135,7 @@ async def persist_tasks(
     try:
         from gobby.workflows.task_actions import persist_decomposed_tasks
 
-        current_session = session_manager.get(session_id)
+        current_session = await asyncio.to_thread(session_manager.get, session_id)
         project_id = current_session.project_id if current_session else "default"
 
         # Get workflow name from kwargs or state
@@ -142,7 +143,8 @@ async def persist_tasks(
         if not wf_name and state.workflow_name:
             wf_name = state.workflow_name
 
-        id_mapping = persist_decomposed_tasks(
+        id_mapping = await asyncio.to_thread(
+            persist_decomposed_tasks,
             db=db,
             project_id=project_id,
             tasks_data=task_list,
@@ -198,10 +200,11 @@ async def get_workflow_tasks(
     if not wf_name:
         return {"error": "No workflow name specified"}
 
-    current_session = session_manager.get(session_id)
+    current_session = await asyncio.to_thread(session_manager.get, session_id)
     project_id = current_session.project_id if current_session else None
 
-    tasks = _get_workflow_tasks(
+    tasks = await asyncio.to_thread(
+        _get_workflow_tasks,
         db=db,
         workflow_name=wf_name,
         project_id=project_id,
@@ -259,7 +262,8 @@ async def update_workflow_task(
     if not tid:
         return {"error": "No task_id specified"}
 
-    task = update_task_from_workflow(
+    task = await asyncio.to_thread(
+        update_task_from_workflow,
         db=db,
         task_id=tid,
         status=status,
