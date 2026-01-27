@@ -11,18 +11,6 @@ CREATE TABLE projects (
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         , github_repo TEXT, linear_team_id TEXT);
 CREATE INDEX idx_projects_name ON projects(name);
-CREATE TABLE tools (
-            id TEXT PRIMARY KEY,
-            mcp_server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            description TEXT,
-            input_schema TEXT,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-            UNIQUE(mcp_server_id, name)
-        );
-CREATE INDEX idx_tools_server_id ON tools(mcp_server_id);
-CREATE INDEX idx_tools_name ON tools(name);
 CREATE TABLE IF NOT EXISTS "mcp_servers" (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -43,6 +31,18 @@ CREATE INDEX idx_mcp_servers_project_id ON mcp_servers(project_id);
 CREATE INDEX idx_mcp_servers_enabled ON mcp_servers(enabled);
 CREATE UNIQUE INDEX idx_mcp_servers_name_project
             ON mcp_servers(name, project_id);
+CREATE TABLE tools (
+            id TEXT PRIMARY KEY,
+            mcp_server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            input_schema TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(mcp_server_id, name)
+        );
+CREATE INDEX idx_tools_server_id ON tools(mcp_server_id);
+CREATE INDEX idx_tools_name ON tools(name);
 CREATE TABLE IF NOT EXISTS "sessions" (
             id TEXT PRIMARY KEY,
             external_id TEXT NOT NULL,

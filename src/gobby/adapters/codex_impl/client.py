@@ -184,7 +184,7 @@ class CodexAppServerClient:
                 if self._process.stdin:
                     self._process.stdin.close()
                 self._process.terminate()
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 await asyncio.wait_for(loop.run_in_executor(None, self._process.wait), timeout=5.0)
             except Exception as e:
                 logger.warning(f"Error terminating Codex app-server: {e}")
@@ -527,7 +527,7 @@ class CodexAppServerClient:
         }
 
         # Create future for response
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future: asyncio.Future[Any] = loop.create_future()
 
         with self._pending_requests_lock:
@@ -570,7 +570,7 @@ class CodexAppServerClient:
         if not self._process or not self._process.stdout:
             return
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         while not self._shutdown_event.is_set():
             try:

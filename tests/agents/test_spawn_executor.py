@@ -14,6 +14,8 @@ from gobby.agents.spawn_executor import (
     execute_spawn,
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestSpawnRequest:
     """Tests for SpawnRequest dataclass."""
@@ -62,7 +64,7 @@ class TestSpawnRequest:
         assert request.agent_depth == 0
         assert request.max_agent_depth == 3
 
-    def test_spawn_request_sandbox_fields_default_to_none(self):
+    def test_spawn_request_sandbox_fields_default_to_none(self) -> None:
         """Test SpawnRequest sandbox fields default to None."""
         request = SpawnRequest(
             prompt="Test",
@@ -80,7 +82,7 @@ class TestSpawnRequest:
         assert request.sandbox_args is None
         assert request.sandbox_env is None
 
-    def test_spawn_request_accepts_sandbox_fields(self):
+    def test_spawn_request_accepts_sandbox_fields(self) -> None:
         """Test SpawnRequest accepts sandbox configuration."""
         sandbox_config = SandboxConfig(enabled=True, mode="restrictive")
         request = SpawnRequest(
@@ -449,7 +451,7 @@ class TestExecuteSpawnSandbox:
     """Integration tests for sandbox configuration in spawn flow."""
 
     @pytest.mark.asyncio
-    async def test_terminal_spawn_passes_sandbox_config_to_spawner(self):
+    async def test_terminal_spawn_passes_sandbox_config_to_spawner(self) -> None:
         """Test that sandbox_config is passed to TerminalSpawner."""
         sandbox_config = SandboxConfig(enabled=True, mode="permissive")
         request = SpawnRequest(
@@ -487,7 +489,7 @@ class TestExecuteSpawnSandbox:
             assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_terminal_spawn_without_sandbox_passes_none(self):
+    async def test_terminal_spawn_without_sandbox_passes_none(self) -> None:
         """Test that spawn without sandbox passes sandbox_config=None."""
         request = SpawnRequest(
             prompt="Test without sandbox",
@@ -522,7 +524,7 @@ class TestExecuteSpawnSandbox:
             assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_embedded_spawn_passes_sandbox_config(self):
+    async def test_embedded_spawn_passes_sandbox_config(self) -> None:
         """Test that sandbox_config is passed to EmbeddedSpawner."""
         sandbox_config = SandboxConfig(enabled=True, mode="restrictive")
         request = SpawnRequest(
@@ -559,7 +561,7 @@ class TestExecuteSpawnSandbox:
             assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_headless_spawn_passes_sandbox_config(self):
+    async def test_headless_spawn_passes_sandbox_config(self) -> None:
         """Test that sandbox_config is passed to HeadlessSpawner."""
         sandbox_config = SandboxConfig(
             enabled=True,
@@ -600,7 +602,7 @@ class TestExecuteSpawnSandbox:
             assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_sandbox_disabled_explicitly_passed(self):
+    async def test_sandbox_disabled_explicitly_passed(self) -> None:
         """Test that explicitly disabled sandbox is passed correctly."""
         sandbox_config = SandboxConfig(enabled=False)
         request = SpawnRequest(

@@ -496,11 +496,12 @@ class TestMultipleMessages:
         assert call_args[1]["message_index"] == 2  # Index of last message
 
 
+@pytest.mark.unit
 class TestModelExtraction:
     """Tests for extracting and storing model from parsed messages."""
 
     @pytest.mark.asyncio
-    async def test_process_session_captures_model(self, mock_db, tmp_path):
+    async def test_process_session_captures_model(self, mock_db, tmp_path) -> None:
         """Should extract model from parsed messages and update session."""
         mock_session_manager = MagicMock()
         mock_session_manager.update_model = MagicMock()
@@ -544,7 +545,7 @@ class TestModelExtraction:
         )
 
     @pytest.mark.asyncio
-    async def test_process_session_skips_model_update_when_none(self, mock_db, tmp_path):
+    async def test_process_session_skips_model_update_when_none(self, mock_db, tmp_path) -> None:
         """Should not update model when parsed message has no model."""
         mock_session_manager = MagicMock()
         mock_session_manager.update_model = MagicMock()

@@ -385,11 +385,11 @@ class CodexAdapter(BaseAdapter):
             unix_ts: Unix timestamp (seconds).
 
         Returns:
-            datetime object, or now() if parsing fails.
+            Timezone-aware datetime object, or now(UTC) if parsing fails.
         """
         if unix_ts:
             try:
-                return datetime.fromtimestamp(unix_ts)
+                return datetime.fromtimestamp(unix_ts, tz=UTC)
             except (ValueError, OSError):
                 pass
         return datetime.now(UTC)

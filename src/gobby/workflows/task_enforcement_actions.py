@@ -1463,9 +1463,10 @@ async def handle_block_tools(
 
     # Get source from session for is_plan_file checks
     source = None
-    current_session = context.session_manager.get(context.session_id)
-    if current_session:
-        source = current_session.source
+    if context.session_manager and context.session_id:
+        current_session = context.session_manager.get(context.session_id)
+        if current_session:
+            source = current_session.source
 
     return await block_tools(
         rules=kwargs.get("rules"),
@@ -1516,8 +1517,11 @@ async def handle_require_task_complete(
     - List of task IDs: ["#47", "#48"]
     - Wildcard: "*" - work until no ready tasks remain
     """
-    current_session = context.session_manager.get(context.session_id)
-    project_id = current_session.project_id if current_session else None
+    project_id = None
+    if context.session_manager and context.session_id:
+        current_session = context.session_manager.get(context.session_id)
+        if current_session:
+            project_id = current_session.project_id
 
     # Get task_id from kwargs - may be a template that needs resolving
     task_spec = kwargs.get("task_id")
