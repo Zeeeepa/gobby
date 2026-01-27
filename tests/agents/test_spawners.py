@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from gobby.agents.spawn import build_cli_command
 from gobby.agents.spawners.base import (
     EmbeddedPTYResult,
     TerminalType,
@@ -1795,3 +1796,69 @@ class TestLinuxIntegration:
     """Integration tests that only run on Linux."""
 
     pass  # Add Linux-specific integration tests as needed
+
+
+# =============================================================================
+# Tests for build_cli_command with sandbox_args
+# =============================================================================
+
+
+class TestBuildCliCommandSandboxArgs:
+    """Tests for build_cli_command sandbox_args parameter."""
+
+    def test_sandbox_args_none_has_no_effect(self):
+        """Test that sandbox_args=None doesn't add anything."""
+        cmd = build_cli_command(cli="claude", prompt="test")
+        # Should just be basic command without sandbox args
+        assert cmd == ["claude", "test"]
+
+    def test_sandbox_args_empty_list_has_no_effect(self):
+        """Test that empty sandbox_args list doesn't add anything."""
+        cmd = build_cli_command(cli="claude", prompt="test", sandbox_args=[])
+        assert cmd == ["claude", "test"]
+
+    def test_sandbox_args_inserted_for_claude(self):
+        """Test sandbox_args are inserted for Claude CLI."""
+        sandbox_args = ["--settings", '{"sandbox":{"enabled":true}}']
+        cmd = build_cli_command(cli="claude", prompt="test", sandbox_args=sandbox_args)
+        # sandbox_args should be in the command
+        assert "--settings" in cmd
+        assert '{"sandbox":{"enabled":true}}' in cmd
+        # Prompt should still be last
+        assert cmd[-1] == "test"
+
+    def test_sandbox_args_inserted_for_codex(self):
+        """Test sandbox_args are inserted for Codex CLI."""
+        sandbox_args = ["--sandbox", "workspace-write", "--add-dir", "/extra"]
+        cmd = build_cli_command(cli="codex", prompt="test", sandbox_args=sandbox_args)
+        assert "--sandbox" in cmd
+        assert "workspace-write" in cmd
+        assert "--add-dir" in cmd
+        assert "/extra" in cmd
+        # Prompt should still be last
+        assert cmd[-1] == "test"
+
+    def test_sandbox_args_inserted_for_gemini(self):
+        """Test sandbox_args are inserted for Gemini CLI."""
+        sandbox_args = ["-s"]
+        cmd = build_cli_command(cli="gemini", prompt="test", mode="headless", sandbox_args=sandbox_args)
+        assert "-s" in cmd
+        # Prompt should still be last
+        assert cmd[-1] == "test"
+
+    def test_sandbox_args_combined_with_other_flags(self):
+        """Test sandbox_args work alongside other flags."""
+        sandbox_args = ["--settings", '{"sandbox":{"enabled":true}}']
+        cmd = build_cli_command(
+            cli="claude",
+            prompt="test",
+            session_id="sess-123",
+            auto_approve=True,
+            sandbox_args=sandbox_args,
+        )
+        # Should have session_id, auto_approve, sandbox, and prompt
+        assert "--session-id" in cmd
+        assert "sess-123" in cmd
+        assert "--dangerously-skip-permissions" in cmd
+        assert "--settings" in cmd
+        assert cmd[-1] == "test"

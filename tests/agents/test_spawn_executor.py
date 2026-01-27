@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import (
     SpawnRequest,
     SpawnResult,
@@ -60,6 +61,48 @@ class TestSpawnRequest:
         assert request.clone_id is None
         assert request.agent_depth == 0
         assert request.max_agent_depth == 3
+
+    def test_spawn_request_sandbox_fields_default_to_none(self):
+        """Test SpawnRequest sandbox fields default to None."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="claude",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+        )
+
+        assert request.sandbox_config is None
+        assert request.sandbox_args is None
+        assert request.sandbox_env is None
+
+    def test_spawn_request_accepts_sandbox_fields(self):
+        """Test SpawnRequest accepts sandbox configuration."""
+        sandbox_config = SandboxConfig(enabled=True, mode="restrictive")
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="claude",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+            sandbox_config=sandbox_config,
+            sandbox_args=["--settings", '{"sandbox":{"enabled":true}}'],
+            sandbox_env={"SEATBELT_PROFILE": "restrictive-closed"},
+        )
+
+        assert request.sandbox_config is not None
+        assert request.sandbox_config.enabled is True
+        assert request.sandbox_config.mode == "restrictive"
+        assert request.sandbox_args == ["--settings", '{"sandbox":{"enabled":true}}']
+        assert request.sandbox_env == {"SEATBELT_PROFILE": "restrictive-closed"}
 
 
 class TestSpawnResult:

@@ -155,6 +155,7 @@ def build_cli_command(
     auto_approve: bool = False,
     working_directory: str | None = None,
     mode: str = "terminal",
+    sandbox_args: list[str] | None = None,
 ) -> list[str]:
     """
     Build the CLI command with proper prompt passing and permission flags.
@@ -181,6 +182,7 @@ def build_cli_command(
         auto_approve: If True, add flags to auto-approve actions/permissions
         working_directory: Optional working directory (used by Codex -C flag)
         mode: Execution mode - "terminal" (interactive) or "headless" (non-interactive)
+        sandbox_args: Optional list of CLI args for sandbox configuration
 
     Returns:
         Command list for subprocess execution
@@ -218,6 +220,10 @@ def build_cli_command(
             command.append("--full-auto")
         if working_directory:
             command.extend(["-C", working_directory])
+
+    # Add sandbox args before prompt (prompt must be last)
+    if sandbox_args:
+        command.extend(sandbox_args)
 
     # All three CLIs accept prompt as positional argument (must come last)
     # For Gemini terminal mode, this is skipped (handled above with -i flag)

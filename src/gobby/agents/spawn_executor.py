@@ -7,9 +7,10 @@ and headless modes.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn import (
     TerminalSpawner,
     build_codex_command_with_resume,
@@ -46,6 +47,11 @@ class SpawnRequest:
     max_agent_depth: int = 3
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
     machine_id: str | None = None
+
+    # Sandbox configuration
+    sandbox_config: SandboxConfig | None = None
+    sandbox_args: list[str] | None = None
+    sandbox_env: dict[str, str] | None = field(default=None)
 
 
 @dataclass
