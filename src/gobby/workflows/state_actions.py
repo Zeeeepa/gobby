@@ -161,7 +161,10 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
             "variables": context.state.variables or {},
             "state": context.state,
         }
-        value = context.template_engine.render(value, template_context)
+        if context.template_engine:
+            value = context.template_engine.render(value, template_context)
+        else:
+            logger.warning("handle_set_variable: template_engine is None, skipping template render")
 
     return set_variable(context.state, kwargs.get("name"), value)
 

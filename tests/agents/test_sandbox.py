@@ -18,10 +18,11 @@ from gobby.agents.sandbox import (
 )
 
 
+@pytest.mark.unit
 class TestSandboxConfig:
     """Tests for SandboxConfig Pydantic model."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that SandboxConfig has correct default values."""
         config = SandboxConfig()
 
@@ -31,7 +32,7 @@ class TestSandboxConfig:
         assert config.extra_read_paths == []
         assert config.extra_write_paths == []
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test creating SandboxConfig with custom values."""
         config = SandboxConfig(
             enabled=True,
@@ -47,7 +48,7 @@ class TestSandboxConfig:
         assert config.extra_read_paths == ["/usr/share", "/opt/data"]
         assert config.extra_write_paths == ["/tmp/output"]
 
-    def test_mode_literal_validation(self):
+    def test_mode_literal_validation(self) -> None:
         """Test that mode only accepts valid literal values."""
         # Valid modes
         for mode in ["permissive", "restrictive"]:
@@ -58,7 +59,7 @@ class TestSandboxConfig:
         with pytest.raises(ValueError):
             SandboxConfig(mode="invalid_mode")  # type: ignore
 
-    def test_serialization_to_dict(self):
+    def test_serialization_to_dict(self) -> None:
         """Test that SandboxConfig can be serialized to dict."""
         config = SandboxConfig(
             enabled=True,
@@ -77,7 +78,7 @@ class TestSandboxConfig:
         assert data["extra_read_paths"] == ["/path/one"]
         assert data["extra_write_paths"] == ["/path/two"]
 
-    def test_serialization_from_dict(self):
+    def test_serialization_from_dict(self) -> None:
         """Test that SandboxConfig can be created from dict."""
         data: dict[str, Any] = {
             "enabled": True,
@@ -93,7 +94,7 @@ class TestSandboxConfig:
         assert config.mode == "permissive"
         assert config.extra_read_paths == ["/data"]
 
-    def test_json_serialization(self):
+    def test_json_serialization(self) -> None:
         """Test JSON serialization round-trip."""
         config = SandboxConfig(
             enabled=True,
@@ -108,7 +109,7 @@ class TestSandboxConfig:
         assert restored.mode == config.mode
         assert restored.extra_read_paths == config.extra_read_paths
 
-    def test_partial_dict_uses_defaults(self):
+    def test_partial_dict_uses_defaults(self) -> None:
         """Test that partial dict uses defaults for missing fields."""
         data: dict[str, Any] = {
             "enabled": True,
@@ -123,7 +124,7 @@ class TestSandboxConfig:
         assert config.extra_read_paths == []
         assert config.extra_write_paths == []
 
-    def test_enabled_field_accepts_bool(self):
+    def test_enabled_field_accepts_bool(self) -> None:
         """Test that enabled field only accepts boolean values."""
         # True
         config_true = SandboxConfig(enabled=True)
@@ -133,7 +134,7 @@ class TestSandboxConfig:
         config_false = SandboxConfig(enabled=False)
         assert config_false.enabled is False
 
-    def test_allow_network_field_accepts_bool(self):
+    def test_allow_network_field_accepts_bool(self) -> None:
         """Test that allow_network field only accepts boolean values."""
         # True
         config_true = SandboxConfig(allow_network=True)
@@ -143,7 +144,7 @@ class TestSandboxConfig:
         config_false = SandboxConfig(allow_network=False)
         assert config_false.allow_network is False
 
-    def test_empty_path_lists_are_valid(self):
+    def test_empty_path_lists_are_valid(self) -> None:
         """Test that empty path lists are valid configuration."""
         config = SandboxConfig(
             enabled=True,
@@ -154,7 +155,7 @@ class TestSandboxConfig:
         assert config.extra_read_paths == []
         assert config.extra_write_paths == []
 
-    def test_paths_preserve_order(self):
+    def test_paths_preserve_order(self) -> None:
         """Test that path lists preserve insertion order."""
         paths = ["/first", "/second", "/third"]
         config = SandboxConfig(
@@ -165,7 +166,7 @@ class TestSandboxConfig:
         assert config.extra_read_paths == ["/first", "/second", "/third"]
         assert config.extra_write_paths == ["/third", "/second", "/first"]
 
-    def test_model_copy_deep_creates_independent_instance(self):
+    def test_model_copy_deep_creates_independent_instance(self) -> None:
         """Test that model_copy(deep=True) creates an independent copy."""
         original = SandboxConfig(
             enabled=True,
@@ -181,10 +182,11 @@ class TestSandboxConfig:
         assert "/new" in copy.extra_read_paths
 
 
+@pytest.mark.unit
 class TestResolvedSandboxPaths:
     """Tests for ResolvedSandboxPaths Pydantic model."""
 
-    def test_creation_with_required_fields(self):
+    def test_creation_with_required_fields(self) -> None:
         """Test creating ResolvedSandboxPaths with required fields."""
         paths = ResolvedSandboxPaths(
             workspace_path="/home/user/project",
@@ -199,7 +201,7 @@ class TestResolvedSandboxPaths:
         assert paths.write_paths == ["/home/user/project"]
         assert paths.allow_external_network is False
 
-    def test_default_daemon_port(self):
+    def test_default_daemon_port(self) -> None:
         """Test that gobby_daemon_port defaults to 60887."""
         paths = ResolvedSandboxPaths(
             workspace_path="/project",
@@ -210,7 +212,7 @@ class TestResolvedSandboxPaths:
 
         assert paths.gobby_daemon_port == 60887
 
-    def test_custom_daemon_port(self):
+    def test_custom_daemon_port(self) -> None:
         """Test setting custom daemon port."""
         paths = ResolvedSandboxPaths(
             workspace_path="/project",
@@ -222,7 +224,7 @@ class TestResolvedSandboxPaths:
 
         assert paths.gobby_daemon_port == 9999
 
-    def test_path_list_handling(self):
+    def test_path_list_handling(self) -> None:
         """Test that path lists are handled correctly."""
         paths = ResolvedSandboxPaths(
             workspace_path="/workspace",
@@ -236,7 +238,7 @@ class TestResolvedSandboxPaths:
         assert len(paths.write_paths) == 2
         assert "/tmp" in paths.write_paths
 
-    def test_empty_path_lists(self):
+    def test_empty_path_lists(self) -> None:
         """Test with empty path lists."""
         paths = ResolvedSandboxPaths(
             workspace_path="/project",
@@ -248,7 +250,7 @@ class TestResolvedSandboxPaths:
         assert paths.read_paths == []
         assert paths.write_paths == []
 
-    def test_serialization_to_dict(self):
+    def test_serialization_to_dict(self) -> None:
         """Test that ResolvedSandboxPaths can be serialized to dict."""
         paths = ResolvedSandboxPaths(
             workspace_path="/project",
@@ -268,15 +270,16 @@ class TestResolvedSandboxPaths:
         assert data["allow_external_network"] is False
 
 
+@pytest.mark.unit
 class TestSandboxResolver:
     """Tests for SandboxResolver abstract base class."""
 
-    def test_cannot_instantiate_directly(self):
+    def test_cannot_instantiate_directly(self) -> None:
         """Test that SandboxResolver cannot be instantiated directly."""
         with pytest.raises(TypeError):
             SandboxResolver()  # type: ignore
 
-    def test_subclass_must_implement_cli_name(self):
+    def test_subclass_must_implement_cli_name(self) -> None:
         """Test that subclass must implement cli_name property."""
 
         class IncompleteResolver(SandboxResolver):
@@ -288,7 +291,7 @@ class TestSandboxResolver:
         with pytest.raises(TypeError):
             IncompleteResolver()  # type: ignore
 
-    def test_subclass_must_implement_resolve(self):
+    def test_subclass_must_implement_resolve(self) -> None:
         """Test that subclass must implement resolve method."""
 
         class IncompleteResolver(SandboxResolver):
@@ -299,7 +302,7 @@ class TestSandboxResolver:
         with pytest.raises(TypeError):
             IncompleteResolver()  # type: ignore
 
-    def test_complete_subclass_can_be_instantiated(self):
+    def test_complete_subclass_can_be_instantiated(self) -> None:
         """Test that a complete subclass can be instantiated."""
 
         class CompleteResolver(SandboxResolver):
@@ -328,15 +331,16 @@ class TestSandboxResolver:
         assert env == {"TEST_VAR": "value"}
 
 
+@pytest.mark.unit
 class TestClaudeSandboxResolver:
     """Tests for ClaudeSandboxResolver."""
 
-    def test_cli_name(self):
+    def test_cli_name(self) -> None:
         """Test that cli_name returns 'claude'."""
         resolver = ClaudeSandboxResolver()
         assert resolver.cli_name == "claude"
 
-    def test_disabled_returns_empty(self):
+    def test_disabled_returns_empty(self) -> None:
         """Test that disabled sandbox returns empty args and env."""
         resolver = ClaudeSandboxResolver()
         config = SandboxConfig(enabled=False)
@@ -351,7 +355,7 @@ class TestClaudeSandboxResolver:
         assert args == []
         assert env == {}
 
-    def test_enabled_returns_settings_flag(self):
+    def test_enabled_returns_settings_flag(self) -> None:
         """Test that enabled sandbox returns --settings with JSON config."""
         resolver = ClaudeSandboxResolver()
         config = SandboxConfig(enabled=True)
@@ -372,7 +376,7 @@ class TestClaudeSandboxResolver:
         settings = json.loads(args[1])
         assert settings["sandbox"]["enabled"] is True
 
-    def test_settings_json_structure(self):
+    def test_settings_json_structure(self) -> None:
         """Test that JSON settings has correct structure."""
         resolver = ClaudeSandboxResolver()
         config = SandboxConfig(enabled=True, mode="restrictive")
@@ -394,7 +398,7 @@ class TestClaudeSandboxResolver:
         assert "network" in settings["sandbox"]
         assert settings["sandbox"]["network"]["allowLocalBinding"] is True
 
-    def test_returns_empty_env(self):
+    def test_returns_empty_env(self) -> None:
         """Test that Claude resolver always returns empty env dict."""
         resolver = ClaudeSandboxResolver()
         config = SandboxConfig(enabled=True)
@@ -409,15 +413,16 @@ class TestClaudeSandboxResolver:
         assert env == {}
 
 
+@pytest.mark.unit
 class TestCodexSandboxResolver:
     """Tests for CodexSandboxResolver."""
 
-    def test_cli_name(self):
+    def test_cli_name(self) -> None:
         """Test that cli_name returns 'codex'."""
         resolver = CodexSandboxResolver()
         assert resolver.cli_name == "codex"
 
-    def test_disabled_returns_empty(self):
+    def test_disabled_returns_empty(self) -> None:
         """Test that disabled sandbox returns empty args and env."""
         resolver = CodexSandboxResolver()
         config = SandboxConfig(enabled=False)
@@ -432,7 +437,7 @@ class TestCodexSandboxResolver:
         assert args == []
         assert env == {}
 
-    def test_enabled_permissive_mode(self):
+    def test_enabled_permissive_mode(self) -> None:
         """Test permissive mode returns workspace-write."""
         resolver = CodexSandboxResolver()
         config = SandboxConfig(enabled=True, mode="permissive")
@@ -447,7 +452,7 @@ class TestCodexSandboxResolver:
         assert "--sandbox" in args
         assert "workspace-write" in args
 
-    def test_enabled_restrictive_mode(self):
+    def test_enabled_restrictive_mode(self) -> None:
         """Test restrictive mode returns read-only."""
         resolver = CodexSandboxResolver()
         config = SandboxConfig(enabled=True, mode="restrictive")
@@ -462,7 +467,7 @@ class TestCodexSandboxResolver:
         assert "--sandbox" in args
         assert "read-only" in args
 
-    def test_extra_write_paths_added(self):
+    def test_extra_write_paths_added(self) -> None:
         """Test that extra write paths are added via --add-dir."""
         resolver = CodexSandboxResolver()
         config = SandboxConfig(enabled=True)
@@ -479,7 +484,7 @@ class TestCodexSandboxResolver:
         add_dir_idx = args.index("--add-dir")
         assert args[add_dir_idx + 1] == "/extra/path"
 
-    def test_multiple_extra_write_paths(self):
+    def test_multiple_extra_write_paths(self) -> None:
         """Test that multiple extra write paths are all added."""
         resolver = CodexSandboxResolver()
         config = SandboxConfig(enabled=True)
@@ -495,7 +500,7 @@ class TestCodexSandboxResolver:
         add_dir_count = args.count("--add-dir")
         assert add_dir_count == 2
 
-    def test_no_extra_paths_no_add_dir(self):
+    def test_no_extra_paths_no_add_dir(self) -> None:
         """Test that no --add-dir is added when only workspace path exists."""
         resolver = CodexSandboxResolver()
         config = SandboxConfig(enabled=True)
@@ -510,15 +515,16 @@ class TestCodexSandboxResolver:
         assert "--add-dir" not in args
 
 
+@pytest.mark.unit
 class TestGeminiSandboxResolver:
     """Tests for GeminiSandboxResolver."""
 
-    def test_cli_name(self):
+    def test_cli_name(self) -> None:
         """Test that cli_name returns 'gemini'."""
         resolver = GeminiSandboxResolver()
         assert resolver.cli_name == "gemini"
 
-    def test_disabled_returns_empty(self):
+    def test_disabled_returns_empty(self) -> None:
         """Test that disabled sandbox returns empty args and env."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=False)
@@ -533,7 +539,7 @@ class TestGeminiSandboxResolver:
         assert args == []
         assert env == {}
 
-    def test_enabled_returns_sandbox_flag(self):
+    def test_enabled_returns_sandbox_flag(self) -> None:
         """Test that enabled sandbox returns exactly -s flag."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True)
@@ -547,7 +553,7 @@ class TestGeminiSandboxResolver:
         args, env = resolver.resolve(config, paths)
         assert args == ["-s"]
 
-    def test_permissive_sets_exact_seatbelt_profile(self):
+    def test_permissive_sets_exact_seatbelt_profile(self) -> None:
         """Test permissive mode sets SEATBELT_PROFILE to permissive-open."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True, mode="permissive")
@@ -561,7 +567,7 @@ class TestGeminiSandboxResolver:
         args, env = resolver.resolve(config, paths)
         assert env["SEATBELT_PROFILE"] == "permissive-open"
 
-    def test_restrictive_sets_exact_seatbelt_profile(self):
+    def test_restrictive_sets_exact_seatbelt_profile(self) -> None:
         """Test restrictive mode sets SEATBELT_PROFILE to restrictive-closed."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True, mode="restrictive")
@@ -575,7 +581,7 @@ class TestGeminiSandboxResolver:
         args, env = resolver.resolve(config, paths)
         assert env["SEATBELT_PROFILE"] == "restrictive-closed"
 
-    def test_permissive_returns_both_args_and_env(self):
+    def test_permissive_returns_both_args_and_env(self) -> None:
         """Test permissive mode returns both -s flag and SEATBELT_PROFILE."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True, mode="permissive")
@@ -592,34 +598,36 @@ class TestGeminiSandboxResolver:
         assert len(env) == 1  # Only SEATBELT_PROFILE
 
 
+@pytest.mark.unit
 class TestGetSandboxResolver:
     """Tests for get_sandbox_resolver factory function."""
 
-    def test_returns_claude_resolver(self):
+    def test_returns_claude_resolver(self) -> None:
         """Test that 'claude' returns ClaudeSandboxResolver."""
         resolver = get_sandbox_resolver("claude")
         assert isinstance(resolver, ClaudeSandboxResolver)
 
-    def test_returns_codex_resolver(self):
+    def test_returns_codex_resolver(self) -> None:
         """Test that 'codex' returns CodexSandboxResolver."""
         resolver = get_sandbox_resolver("codex")
         assert isinstance(resolver, CodexSandboxResolver)
 
-    def test_returns_gemini_resolver(self):
+    def test_returns_gemini_resolver(self) -> None:
         """Test that 'gemini' returns GeminiSandboxResolver."""
         resolver = get_sandbox_resolver("gemini")
         assert isinstance(resolver, GeminiSandboxResolver)
 
-    def test_unknown_cli_raises_value_error(self):
+    def test_unknown_cli_raises_value_error(self) -> None:
         """Test that unknown CLI raises ValueError."""
         with pytest.raises(ValueError, match="Unknown CLI"):
             get_sandbox_resolver("unknown-cli")
 
 
+@pytest.mark.unit
 class TestComputeSandboxPaths:
     """Tests for compute_sandbox_paths helper function."""
 
-    def test_computes_paths_from_config(self):
+    def test_computes_paths_from_config(self) -> None:
         """Test computing paths from SandboxConfig."""
         config = SandboxConfig(
             enabled=True,
@@ -641,7 +649,7 @@ class TestComputeSandboxPaths:
         assert "/tmp/output" in paths.write_paths
         assert "/opt/data" in paths.read_paths
 
-    def test_workspace_always_in_write_paths(self):
+    def test_workspace_always_in_write_paths(self) -> None:
         """Test that workspace is always included in write_paths."""
         config = SandboxConfig(enabled=True)
 
@@ -652,7 +660,7 @@ class TestComputeSandboxPaths:
 
         assert "/my/workspace" in paths.write_paths
 
-    def test_custom_daemon_port(self):
+    def test_custom_daemon_port(self) -> None:
         """Test custom daemon port is set."""
         config = SandboxConfig(enabled=True)
 

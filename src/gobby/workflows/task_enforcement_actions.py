@@ -1422,9 +1422,10 @@ async def handle_require_task_review_or_close_before_stop(
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for require_task_review_or_close_before_stop."""
     project_id = None
-    session = context.session_manager.get(context.session_id)
-    if session:
-        project_id = session.project_id
+    if context.session_manager:
+        session = context.session_manager.get(context.session_id)
+        if session:
+            project_id = session.project_id
 
     return await require_task_review_or_close_before_stop(
         workflow_state=context.state,

@@ -1672,7 +1672,7 @@ def _run_migration_list(
     return applied
 
 
-def run_migrations(db: LocalDatabase, *, use_flattened_baseline: bool = False) -> int:
+def run_migrations(db: LocalDatabase, *, use_flattened_baseline: bool = True) -> int:
     """
     Run pending migrations.
 
