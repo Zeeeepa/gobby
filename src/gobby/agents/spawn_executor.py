@@ -8,9 +8,12 @@ and headless modes.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.agents.sandbox import SandboxConfig
+
+if TYPE_CHECKING:
+    pass
 from gobby.agents.spawn import (
     TerminalSpawner,
     build_codex_command_with_resume,
