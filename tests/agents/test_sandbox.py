@@ -372,6 +372,42 @@ class TestClaudeSandboxResolver:
         settings = json.loads(args[1])
         assert settings["sandbox"]["enabled"] is True
 
+    def test_settings_json_structure(self):
+        """Test that JSON settings has correct structure."""
+        resolver = ClaudeSandboxResolver()
+        config = SandboxConfig(enabled=True, mode="restrictive")
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        import json
+
+        settings = json.loads(args[1])
+        # Verify full sandbox structure
+        assert "sandbox" in settings
+        assert settings["sandbox"]["enabled"] is True
+        assert settings["sandbox"]["autoAllowBashIfSandboxed"] is True
+        assert "network" in settings["sandbox"]
+        assert settings["sandbox"]["network"]["allowLocalBinding"] is True
+
+    def test_returns_empty_env(self):
+        """Test that Claude resolver always returns empty env dict."""
+        resolver = ClaudeSandboxResolver()
+        config = SandboxConfig(enabled=True)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=False,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert env == {}
+
 
 class TestCodexSandboxResolver:
     """Tests for CodexSandboxResolver."""
@@ -443,6 +479,36 @@ class TestCodexSandboxResolver:
         add_dir_idx = args.index("--add-dir")
         assert args[add_dir_idx + 1] == "/extra/path"
 
+    def test_multiple_extra_write_paths(self):
+        """Test that multiple extra write paths are all added."""
+        resolver = CodexSandboxResolver()
+        config = SandboxConfig(enabled=True)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project", "/path/one", "/path/two"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        # Count --add-dir occurrences (should be 2 for the extra paths)
+        add_dir_count = args.count("--add-dir")
+        assert add_dir_count == 2
+
+    def test_no_extra_paths_no_add_dir(self):
+        """Test that no --add-dir is added when only workspace path exists."""
+        resolver = CodexSandboxResolver()
+        config = SandboxConfig(enabled=True)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],  # Only workspace
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "--add-dir" not in args
+
 
 class TestGeminiSandboxResolver:
     """Tests for GeminiSandboxResolver."""
@@ -468,7 +534,7 @@ class TestGeminiSandboxResolver:
         assert env == {}
 
     def test_enabled_returns_sandbox_flag(self):
-        """Test that enabled sandbox returns -s flag."""
+        """Test that enabled sandbox returns exactly -s flag."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True)
         paths = ResolvedSandboxPaths(
@@ -479,10 +545,10 @@ class TestGeminiSandboxResolver:
         )
 
         args, env = resolver.resolve(config, paths)
-        assert "-s" in args or "--sandbox" in args
+        assert args == ["-s"]
 
-    def test_permissive_sets_seatbelt_profile(self):
-        """Test permissive mode sets SEATBELT_PROFILE env var."""
+    def test_permissive_sets_exact_seatbelt_profile(self):
+        """Test permissive mode sets SEATBELT_PROFILE to permissive-open."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True, mode="permissive")
         paths = ResolvedSandboxPaths(
@@ -493,11 +559,10 @@ class TestGeminiSandboxResolver:
         )
 
         args, env = resolver.resolve(config, paths)
-        assert "SEATBELT_PROFILE" in env
-        assert "permissive" in env["SEATBELT_PROFILE"]
+        assert env["SEATBELT_PROFILE"] == "permissive-open"
 
-    def test_restrictive_sets_seatbelt_profile(self):
-        """Test restrictive mode sets SEATBELT_PROFILE env var."""
+    def test_restrictive_sets_exact_seatbelt_profile(self):
+        """Test restrictive mode sets SEATBELT_PROFILE to restrictive-closed."""
         resolver = GeminiSandboxResolver()
         config = SandboxConfig(enabled=True, mode="restrictive")
         paths = ResolvedSandboxPaths(
@@ -508,8 +573,23 @@ class TestGeminiSandboxResolver:
         )
 
         args, env = resolver.resolve(config, paths)
+        assert env["SEATBELT_PROFILE"] == "restrictive-closed"
+
+    def test_permissive_returns_both_args_and_env(self):
+        """Test permissive mode returns both -s flag and SEATBELT_PROFILE."""
+        resolver = GeminiSandboxResolver()
+        config = SandboxConfig(enabled=True, mode="permissive")
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert args == ["-s"]
         assert "SEATBELT_PROFILE" in env
-        assert "restrictive" in env["SEATBELT_PROFILE"]
+        assert len(env) == 1  # Only SEATBELT_PROFILE
 
 
 class TestGetSandboxResolver:
