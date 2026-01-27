@@ -273,10 +273,17 @@ def create_session_messages_registry(
             Returns:
                 Session ID, compact_markdown, and whether context exists
             """
+            from gobby.utils.project_context import get_project_context
+
             assert session_manager, "Session manager not available"  # nosec B101
+
+            # Get project_id for project-scoped resolution
+            project_ctx = get_project_context()
+            project_id = project_ctx.get("id") if project_ctx else None
+
             # Resolve #N format, UUID, or prefix
             try:
-                resolved_id = session_manager.resolve_session_reference(session_id)
+                resolved_id = session_manager.resolve_session_reference(session_id, project_id)
                 session = session_manager.get(resolved_id)
             except ValueError:
                 session = None
@@ -649,13 +656,19 @@ Args:
             Returns:
                 Session dict with all fields, or error if not found
             """
+            from gobby.utils.project_context import get_project_context
+
             # Support #N format, UUID, and prefix matching
             if session_manager is None:
                 return {"error": "Session manager not available"}
 
+            # Get project_id for project-scoped resolution
+            project_ctx = get_project_context()
+            project_id = project_ctx.get("id") if project_ctx else None
+
             # Try to resolve session reference (#N, UUID, or prefix)
             try:
-                resolved_id = session_manager.resolve_session_reference(session_id)
+                resolved_id = session_manager.resolve_session_reference(session_id, project_id)
                 session = session_manager.get(resolved_id)
             except ValueError:
                 session = None

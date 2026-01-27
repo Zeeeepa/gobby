@@ -5,6 +5,7 @@ Extracted from tools.py as part of Phase 2 Strangler Fig decomposition.
 These endpoints handle tool discovery, search, and recommendations.
 """
 
+import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -179,7 +180,14 @@ async def recommend_mcp_tools(
     _metrics.inc_counter("http_requests_total")
 
     try:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except json.JSONDecodeError as err:
+            raise HTTPException(
+                status_code=400,
+                detail={"success": False, "error": "Malformed JSON", "message": str(err)},
+            ) from err
+
         task_description = body.get("task_description")
         agent_id = body.get("agent_id")
         search_mode = body.get("search_mode", "llm")
@@ -201,7 +209,7 @@ async def recommend_mcp_tools(
             except ValueError as e:
                 response_time_ms = (time.perf_counter() - start_time) * 1000
                 raise HTTPException(
-                    status_code=500,
+                    status_code=400,
                     detail={
                         "success": False,
                         "error": str(e),

@@ -4,6 +4,7 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle file artifact capture and reading.
 """
 
+import asyncio
 import glob
 import logging
 import os
@@ -115,7 +116,8 @@ if __name__ != "__main__":
 
 async def handle_capture_artifact(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for capture_artifact."""
-    return capture_artifact(
+    return await asyncio.to_thread(
+        capture_artifact,
         state=context.state,
         pattern=kwargs.get("pattern"),
         save_as=kwargs.get("as"),
@@ -124,7 +126,8 @@ async def handle_capture_artifact(context: "ActionContext", **kwargs: Any) -> di
 
 async def handle_read_artifact(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for read_artifact."""
-    return read_artifact(
+    return await asyncio.to_thread(
+        read_artifact,
         state=context.state,
         pattern=kwargs.get("pattern"),
         variable_name=kwargs.get("as"),

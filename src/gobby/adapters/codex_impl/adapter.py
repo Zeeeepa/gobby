@@ -15,6 +15,7 @@ import logging
 import os
 import platform
 import uuid
+from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -482,22 +483,58 @@ class CodexNotifyAdapter(BaseAdapter):
 
     source = SessionSource.CODEX
 
-    def __init__(self, hook_manager: HookManager | None = None):
+    # Default max size for seen threads cache
+    DEFAULT_MAX_SEEN_THREADS = 1000
+
+    def __init__(
+        self,
+        hook_manager: HookManager | None = None,
+        max_seen_threads: int | None = None,
+    ):
         """Initialize the adapter.
 
         Args:
             hook_manager: Optional HookManager reference.
+            max_seen_threads: Max threads to track (default 1000). Oldest evicted when full.
         """
         self._hook_manager = hook_manager
         self._machine_id: str | None = None
-        # Track threads we've seen to avoid re-registering
-        self._seen_threads: set[str] = set()
+        # Track threads we've seen using LRU cache to avoid unbounded growth
+        self._max_seen_threads = max_seen_threads or self.DEFAULT_MAX_SEEN_THREADS
+        self._seen_threads: OrderedDict[str, bool] = OrderedDict()
 
     def _get_machine_id(self) -> str:
         """Get or generate a machine identifier."""
         if self._machine_id is None:
             self._machine_id = _get_machine_id()
         return self._machine_id
+
+    def _mark_thread_seen(self, thread_id: str) -> None:
+        """Mark a thread as seen, evicting oldest if cache is full.
+
+        Args:
+            thread_id: The thread ID to mark as seen.
+        """
+        # If already present, move to end (most recent)
+        if thread_id in self._seen_threads:
+            self._seen_threads.move_to_end(thread_id)
+            return
+
+        # Evict oldest entries if at capacity
+        while len(self._seen_threads) >= self._max_seen_threads:
+            self._seen_threads.popitem(last=False)
+
+        self._seen_threads[thread_id] = True
+
+    def clear_seen_threads(self) -> int:
+        """Clear the seen threads cache.
+
+        Returns:
+            Number of entries cleared.
+        """
+        count = len(self._seen_threads)
+        self._seen_threads.clear()
+        return count
 
     def _find_jsonl_path(self, thread_id: str) -> str | None:
         """Find the Codex session JSONL file for a thread.
@@ -580,7 +617,7 @@ class CodexNotifyAdapter(BaseAdapter):
         # Track if this is the first event for this thread (for title synthesis)
         is_first_event = thread_id not in self._seen_threads
         if is_first_event:
-            self._seen_threads.add(thread_id)
+            self._mark_thread_seen(thread_id)
 
         # Get first prompt for title synthesis (only on first event)
         first_prompt = self._get_first_prompt(input_messages) if is_first_event else None

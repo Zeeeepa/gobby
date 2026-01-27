@@ -639,9 +639,11 @@ def _migrate_session_seq_num_project_scoped(db: LocalDatabase) -> None:
         logger.debug("idx_sessions_seq_num is already project-scoped, skipping")
         return
 
-    # Drop the old global index and create new project-scoped index
-    db.execute("DROP INDEX IF EXISTS idx_sessions_seq_num")
-    db.execute("CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num)")
+    # Drop the old global index and create new project-scoped index atomically
+    with db.transaction() as conn:
+        conn.execute("DROP INDEX IF EXISTS idx_sessions_seq_num")
+        conn.execute("CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num)")
+
     logger.info("Changed sessions.seq_num index from global to project-scoped")
 
 

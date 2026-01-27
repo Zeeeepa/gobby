@@ -6,6 +6,7 @@ These functions handle webhook HTTP request execution from workflows.
 
 import logging
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse, urlunparse
 
 if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
@@ -125,14 +126,28 @@ async def execute_webhook(
         if capture.headers_var and result.headers is not None:
             state.variables[capture.headers_var] = result.headers
 
+    # Sanitize URL for logging (remove query params which may contain secrets)
+    def _sanitize_url(url: str | None) -> str:
+        if not url:
+            return "<no-url>"
+        try:
+            parsed = urlparse(url)
+            # Remove query string for logging
+            sanitized = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+            return sanitized or url
+        except Exception:
+            return "<invalid-url>"
+
+    sanitized_url = _sanitize_url(webhook_action.url)
+
     # Log outcome
     if result.success:
         logger.info(
-            f"Webhook {webhook_action.method} {webhook_action.url} succeeded: {result.status_code}"
+            f"Webhook {webhook_action.method} {sanitized_url} succeeded: {result.status_code}"
         )
     else:
         logger.warning(
-            f"Webhook {webhook_action.method} {webhook_action.url} failed: "
+            f"Webhook {webhook_action.method} {sanitized_url} failed: "
             f"{result.error or result.status_code}"
         )
 

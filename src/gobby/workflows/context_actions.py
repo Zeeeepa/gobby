@@ -485,4 +485,5 @@ async def handle_extract_handoff_context(
         session_id=context.session_id,
         config=context.config,
         db=context.db,
+        worktree_manager=kwargs.get("worktree_manager"),
     )
