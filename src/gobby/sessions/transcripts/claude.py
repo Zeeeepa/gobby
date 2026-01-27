@@ -355,6 +355,8 @@ class ClaudeTranscriptParser:
             # Skip unknown message types (e.g., 'progress', 'error' internal events)
             return None
 
+        usage, model = self._extract_usage(data)
+
         return ParsedMessage(
             index=index,
             role=role,
@@ -365,12 +367,20 @@ class ClaudeTranscriptParser:
             tool_result=tool_result,
             timestamp=timestamp,
             raw_json=data,
-            usage=self._extract_usage(data),
+            usage=usage,
             tool_use_id=tool_use_id,
+            model=model,
         )
 
-    def _extract_usage(self, data: dict[str, Any]) -> TokenUsage | None:
-        """Extract token usage from message data."""
+    def _extract_usage(self, data: dict[str, Any]) -> tuple[TokenUsage | None, str | None]:
+        """Extract token usage and model from message data.
+
+        Returns:
+            Tuple of (TokenUsage | None, model string | None)
+        """
+        # Extract model from message object
+        model = data.get("message", {}).get("model")
+
         # Check for top-level usage field (some formats)
         usage_data = data.get("usage")
 
@@ -379,7 +389,7 @@ class ClaudeTranscriptParser:
             usage_data = data.get("message", {}).get("usage")
 
         if not usage_data:
-            return None
+            return None, model
 
         # Use explicit presence checks to handle 0 correctly
         input_tokens = (
@@ -413,7 +423,7 @@ class ClaudeTranscriptParser:
             cache_creation_tokens=cache_creation_tokens,
             cache_read_tokens=cache_read_tokens,
             total_cost_usd=total_cost_usd,
-        )
+        ), model
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:
         """

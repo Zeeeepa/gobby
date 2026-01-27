@@ -56,6 +56,72 @@ class TestClaudeTranscriptParser:
     def parser(self):
         return ClaudeTranscriptParser()
 
+    def test_extract_usage_returns_tuple_with_model(self, parser):
+        """Test that _extract_usage returns tuple of (TokenUsage | None, str | None)."""
+        data = {
+            "type": "agent",
+            "message": {
+                "model": "claude-opus-4-5-20251101",
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                },
+            },
+        }
+        usage, model = parser._extract_usage(data)
+        assert usage is not None
+        assert usage.input_tokens == 100
+        assert usage.output_tokens == 50
+        assert model == "claude-opus-4-5-20251101"
+
+    def test_extract_usage_returns_none_model_when_missing(self, parser):
+        """Test that _extract_usage returns None model when not present."""
+        data = {
+            "type": "agent",
+            "message": {
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                },
+            },
+        }
+        usage, model = parser._extract_usage(data)
+        assert usage is not None
+        assert model is None
+
+    def test_extract_usage_returns_none_tuple_when_no_usage(self, parser):
+        """Test that _extract_usage returns (None, model) when no usage data."""
+        data = {
+            "type": "agent",
+            "message": {
+                "model": "claude-opus-4-5-20251101",
+                "content": "Hello",
+            },
+        }
+        usage, model = parser._extract_usage(data)
+        assert usage is None
+        assert model == "claude-opus-4-5-20251101"
+
+    def test_parse_line_extracts_model(self, parser):
+        """Test that parse_line sets model on ParsedMessage."""
+        line = json.dumps(
+            {
+                "type": "agent",
+                "message": {
+                    "model": "claude-opus-4-5-20251101",
+                    "content": [{"type": "text", "text": "Hello"}],
+                    "usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 50,
+                    },
+                },
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        )
+        msg = parser.parse_line(line, 0)
+        assert msg is not None
+        assert msg.model == "claude-opus-4-5-20251101"
+
     def test_parse_line_user(self, parser):
         line = json.dumps(
             {
@@ -322,7 +388,11 @@ class TestClaudeTranscriptParser:
                 "message": {
                     "role": "user",
                     "content": [
-                        {"type": "tool_result", "tool_use_id": "toolu_orphan", "content": "orphaned"},
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_orphan",
+                            "content": "orphaned",
+                        },
                     ],
                 }
             },
@@ -416,7 +486,11 @@ class TestClaudeTranscriptParser:
                 "message": {
                     "role": "user",
                     "content": [
-                        {"type": "tool_result", "tool_use_id": "toolu_truncated", "content": "late result"},
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_truncated",
+                            "content": "late result",
+                        },
                     ],
                 },
             }
@@ -556,14 +630,16 @@ class TestCodexTranscriptParser:
 
     def test_codex_extract_usage_input_tokens(self, parser):
         """Test _extract_usage with input_tokens format."""
-        line = json.dumps({
-            "role": "assistant",
-            "content": "Response",
-            "input_tokens": 100,
-            "output_tokens": 50,
-            "cached_tokens": 25,
-            "cost": 0.005,
-        })
+        line = json.dumps(
+            {
+                "role": "assistant",
+                "content": "Response",
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cached_tokens": 25,
+                "cost": 0.005,
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.usage is not None
@@ -574,16 +650,18 @@ class TestCodexTranscriptParser:
 
     def test_codex_extract_usage_nested_usage_field(self, parser):
         """Test _extract_usage with nested usage field."""
-        line = json.dumps({
-            "role": "assistant",
-            "content": "Response",
-            "usage": {
-                "inputTokens": 200,
-                "outputTokens": 100,
-                "cachedTokens": 50,
-                "total_cost": 0.01,
-            },
-        })
+        line = json.dumps(
+            {
+                "role": "assistant",
+                "content": "Response",
+                "usage": {
+                    "inputTokens": 200,
+                    "outputTokens": 100,
+                    "cachedTokens": 50,
+                    "total_cost": 0.01,
+                },
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.usage is not None
@@ -602,11 +680,13 @@ class TestCodexTranscriptParser:
     def test_codex_timestamp_parsing(self, parser):
         """Test timestamp parsing from message."""
         # With timestamp
-        line = json.dumps({
-            "role": "user",
-            "content": "Hello",
-            "timestamp": "2024-06-15T10:30:00Z",
-        })
+        line = json.dumps(
+            {
+                "role": "user",
+                "content": "Hello",
+                "timestamp": "2024-06-15T10:30:00Z",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.timestamp.year == 2024
@@ -620,11 +700,13 @@ class TestCodexTranscriptParser:
 
     def test_codex_timestamp_invalid_format(self, parser):
         """Test handling of invalid timestamp format."""
-        line = json.dumps({
-            "role": "user",
-            "content": "Hello",
-            "timestamp": "not-a-date",
-        })
+        line = json.dumps(
+            {
+                "role": "user",
+                "content": "Hello",
+                "timestamp": "not-a-date",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         # Should use default timestamp without crashing
@@ -725,13 +807,15 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_parse_line_function_call(self, parser):
         """Test parsing functionCall in content."""
-        line = json.dumps({
-            "role": "model",
-            "content": [
-                {"text": "Let me call a function"},
-                {"functionCall": {"name": "read_file", "args": {"path": "test.txt"}}},
-            ],
-        })
+        line = json.dumps(
+            {
+                "role": "model",
+                "content": [
+                    {"text": "Let me call a function"},
+                    {"functionCall": {"name": "read_file", "args": {"path": "test.txt"}}},
+                ],
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.content_type == "tool_use"
@@ -812,14 +896,16 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_extract_usage(self, parser):
         """Test _extract_usage with usageMetadata."""
-        line = json.dumps({
-            "role": "model",
-            "content": "Response",
-            "usageMetadata": {
-                "promptTokenCount": 100,
-                "candidatesTokenCount": 50,
-            },
-        })
+        line = json.dumps(
+            {
+                "role": "model",
+                "content": "Response",
+                "usageMetadata": {
+                    "promptTokenCount": 100,
+                    "candidatesTokenCount": 50,
+                },
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.usage is not None
@@ -835,11 +921,13 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_timestamp_invalid_format(self, parser):
         """Test handling of invalid timestamp format."""
-        line = json.dumps({
-            "role": "user",
-            "content": "Hello",
-            "timestamp": "invalid-date",
-        })
+        line = json.dumps(
+            {
+                "role": "user",
+                "content": "Hello",
+                "timestamp": "invalid-date",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         # Should use default timestamp without crashing
