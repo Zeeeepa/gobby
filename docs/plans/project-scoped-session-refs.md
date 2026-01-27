@@ -1,22 +1,35 @@
 # Plan: Project-Scoped Session Refs
 
-## Goal
+## Overview
 
 Make session refs (`#N`) project-scoped like tasks, and display them consistently instead of UUIDs.
 
-## Current State
-
+**Current State:**
 - Sessions have `project_id` (required) but `seq_num` is globally unique
 - Task refs are project-scoped: `#5` in Project A ≠ `#5` in Project B
 - Session refs are global: `#5` is unique across ALL projects
 - Claude sees UUIDs for sessions, `#N` for tasks
 
-## Changes
+## Constraints
 
-### 1. Schema Migration (new migration)
+- Backwards compatibility: global lookup fallback when `project_id` not provided
+- Cross-project display must be unambiguous (e.g., `gobby#1` vs `other-project#1`)
 
-**File:** `src/gobby/storage/migrations.py`
+---
 
+## Phase 1: Schema & Storage Foundation
+
+**Goal**: Update database schema and core storage layer to support project-scoped session refs.
+
+**Tasks:**
+- [ ] Add migration to change seq_num index from global to project-scoped (category: code)
+- [ ] Update seq_num assignment in sessions.py to be per-project (category: code)
+- [ ] Update resolve_session_reference() to accept project_id parameter (category: code)
+- [ ] Update backfill migration for per-project numbering (category: code)
+
+### Implementation Details
+
+**Migration** (`src/gobby/storage/migrations.py`):
 ```sql
 -- Drop global unique index
 DROP INDEX IF EXISTS idx_sessions_seq_num;
@@ -25,29 +38,19 @@ DROP INDEX IF EXISTS idx_sessions_seq_num;
 CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num);
 ```
 
-### 2. Session seq_num Assignment
-
-**File:** `src/gobby/storage/sessions.py` (~line 231-233)
-
-Before:
+**seq_num Assignment** (`src/gobby/storage/sessions.py` ~line 231-233):
 ```python
+# Before
 max_seq_row = self.db.fetchone("SELECT MAX(seq_num) as max_seq FROM sessions")
-```
 
-After:
-```python
+# After
 max_seq_row = self.db.fetchone(
     "SELECT MAX(seq_num) as max_seq FROM sessions WHERE project_id = ?",
     (project_id,)
 )
 ```
 
-### 3. Session Reference Resolution
-
-**File:** `src/gobby/storage/sessions.py` (~line 286-339)
-
-Update `resolve_session_reference()` to accept `project_id`:
-
+**Reference Resolution** (`src/gobby/storage/sessions.py` ~line 286-339):
 ```python
 def resolve_session_reference(self, ref: str, project_id: str | None = None) -> str:
     """Resolve session reference.
@@ -58,7 +61,6 @@ def resolve_session_reference(self, ref: str, project_id: str | None = None) -> 
     - UUID: Full UUID
     - Prefix: UUID prefix (must be unambiguous)
     """
-    # For #N format, require project_id
     if seq_num_ref.isdigit():
         seq_num = int(seq_num_ref)
         if project_id:
@@ -74,79 +76,7 @@ def resolve_session_reference(self, ref: str, project_id: str | None = None) -> 
             )
 ```
 
-### 4. Update Callers to Pass project_id
-
-**File:** `src/gobby/cli/utils.py` (~line 121-152)
-
-```python
-def resolve_session_id(session_ref: str | None, project_id: str | None = None) -> str:
-    """Resolve session reference to UUID."""
-    # Get project_id from context if not provided
-    if not project_id:
-        ctx = get_project_context()
-        project_id = ctx.get("id") if ctx else None
-
-    manager = LocalSessionManager(db)
-    return manager.resolve_session_reference(session_ref, project_id)
-```
-
-### 5. Hook Context Display
-
-**File:** `src/gobby/hooks/event_handlers.py` (~line 346-365)
-
-Before:
-```python
-system_message = f"\nGobby Session ID: {session_id}"
-```
-
-After:
-```python
-session_ref = f"#{session.seq_num}" if session.seq_num else session_id[:8]
-system_message = f"\nGobby Session: {session_ref}"
-```
-
-### 6. MCP Instructions
-
-**File:** `src/gobby/mcp_proxy/instructions.py` (~line 29-31)
-
-Update to reference `#N` format instead of UUID.
-
-### 7. Tool Schemas
-
-**Files:**
-- `src/gobby/mcp_proxy/tools/tasks/_crud.py`
-- `src/gobby/mcp_proxy/tools/tasks/_lifecycle.py`
-- `src/gobby/mcp_proxy/tools/tasks/_session.py`
-
-Update session_id descriptions to document `#N, N, or UUID` format.
-
-### 8. Update Hub Cross-Project Display
-
-**File:** `src/gobby/mcp_proxy/tools/hub.py` (~line 204-257)
-
-Update `list_cross_project_sessions()` to display project-qualified refs:
-
-```python
-# Fetch project name alongside session data
-sessions = [
-    {
-        "ref": f"{project_name}#{session.seq_num}",  # e.g., "gobby#1"
-        "session_id": row["id"],
-        "project": project_name,
-        "source": row["source"],
-        ...
-    }
-]
-```
-
-This requires joining with projects table to get project name.
-
-### 9. Backfill Migration
-
-**File:** `src/gobby/storage/migrations_legacy.py`
-
-Update `_backfill_session_seq_num()` to assign per-project:
-
+**Backfill Migration** (`src/gobby/storage/migrations_legacy.py`):
 ```python
 # Get all sessions grouped by project, ordered by created_at
 sessions = db.fetchall("""
@@ -167,75 +97,104 @@ for session in sessions:
     db.execute("UPDATE sessions SET seq_num = ? WHERE id = ?", (seq_num, session["id"]))
 ```
 
-## Files to Modify
+---
 
-### Core Storage & Migration
-| File | Change |
-|------|--------|
-| `src/gobby/storage/migrations.py` | Add migration to change index |
-| `src/gobby/storage/sessions.py` | Project-scoped seq_num assignment + resolution |
-| `src/gobby/storage/migrations_legacy.py` | Update backfill for per-project numbering |
+## Phase 2: CLI Integration
 
-### Hook & Instructions
-| File | Change |
-|------|--------|
-| `src/gobby/hooks/event_handlers.py` | Display `#N` in system prompt |
-| `src/gobby/mcp_proxy/instructions.py` | Update session ID guidance |
+**Goal**: Update CLI commands to resolve session refs with project context.
 
-### MCP Tools - Task Related
-| File | Change |
-|------|--------|
-| `src/gobby/mcp_proxy/tools/tasks/_crud.py` | Document `#N` in schema |
-| `src/gobby/mcp_proxy/tools/tasks/_lifecycle.py` | Document `#N` in schema |
-| `src/gobby/mcp_proxy/tools/tasks/_session.py` | Document `#N` in schema + pass project_id |
-| `src/gobby/mcp_proxy/tools/tasks/_context.py` | `get_workflow_state()` - resolve with project_id |
+**Tasks:**
+- [ ] Add project_id parameter to resolve_session_id() in cli/utils.py (category: code)
+- [ ] Update show_session and delete_session in cli/sessions.py (category: code)
+- [ ] Update workflow commands in cli/workflows.py (category: code)
+- [ ] Update claim_worktree in cli/worktrees.py (category: code)
+- [ ] Update agent_stats in cli/agents.py (category: code)
 
-### MCP Tools - Workflows
-| File | Change |
-|------|--------|
-| `src/gobby/mcp_proxy/tools/workflows.py` | `get_workflow_status()` - document `#N`, resolve with project_id |
+### Implementation Details
 
-### MCP Tools - Sessions
-| File | Change |
-|------|--------|
-| `src/gobby/mcp_proxy/tools/session_messages.py` | `get_handoff_context()`, `get_session()`, `mark_loop_complete()` - document `#N`, resolve with project_id |
+**CLI Utils** (`src/gobby/cli/utils.py` ~line 121-152):
+```python
+def resolve_session_id(session_ref: str | None, project_id: str | None = None) -> str:
+    """Resolve session reference to UUID."""
+    # Get project_id from context if not provided
+    if not project_id:
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
 
-### MCP Tools - Agents
-| File | Change |
-|------|--------|
-| `src/gobby/mcp_proxy/tools/agents.py` | `can_spawn_agent()` - document `#N`, resolve with project_id |
+    manager = LocalSessionManager(db)
+    return manager.resolve_session_reference(session_ref, project_id)
+```
 
-### MCP Tools - Hub
-| File | Change |
-|------|--------|
-| `src/gobby/mcp_proxy/tools/hub.py` | Update `list_cross_project_sessions()` to show `project#N` format |
+**Affected CLI Commands:**
+- `cli/sessions.py`: `show_session`, `delete_session`
+- `cli/workflows.py`: `workflow_status`, `clear_workflow`, `set_step`, `reset_workflow`, `disable_workflow`, `enable_workflow`
+- `cli/worktrees.py`: `claim_worktree`
+- `cli/agents.py`: `agent_stats`
 
-### CLI Commands - Sessions
-| File | Change |
-|------|--------|
-| `src/gobby/cli/sessions.py` | `show_session`, `delete_session` - resolve with project_id |
-| `src/gobby/cli/utils.py` | `resolve_session_id()` - add project_id parameter |
+---
 
-### CLI Commands - Workflows
-| File | Change |
-|------|--------|
-| `src/gobby/cli/workflows.py` | `workflow_status`, `clear_workflow`, `set_step`, `reset_workflow`, `disable_workflow`, `enable_workflow` - resolve with project_id |
+## Phase 3: MCP Tools & Display
 
-### CLI Commands - Worktrees
-| File | Change |
-|------|--------|
-| `src/gobby/cli/worktrees.py` | `claim_worktree` - resolve with project_id |
+**Goal**: Update MCP tools to document `#N` format and display refs instead of UUIDs.
 
-### CLI Commands - Agents
-| File | Change |
-|------|--------|
-| `src/gobby/cli/agents.py` | `agent_stats` - resolve with project_id |
+**Tasks:**
+- [ ] Update hook context to display #N instead of UUID (category: code)
+- [ ] Update MCP instructions to reference #N format (category: docs)
+- [ ] Update task tool schemas to document #N format (category: docs)
+- [ ] Update session tool schemas and resolution (category: code)
+- [ ] Update workflow tool schemas and resolution (category: code)
+- [ ] Update agent tool schemas and resolution (category: code)
+- [ ] Update hub cross-project display to show project#N format (category: code)
 
-### Tests
-| File | Change |
-|------|--------|
-| `tests/cli/test_cli_utils.py` | Update session resolution tests |
-| `tests/storage/test_sessions.py` | Add project-scoped seq_num tests |
+### Implementation Details
+
+**Hook Context Display** (`src/gobby/hooks/event_handlers.py` ~line 346-365):
+```python
+# Before
+system_message = f"\nGobby Session ID: {session_id}"
+
+# After
+session_ref = f"#{session.seq_num}" if session.seq_num else session_id[:8]
+system_message = f"\nGobby Session: {session_ref}"
+```
+
+**MCP Instructions** (`src/gobby/mcp_proxy/instructions.py` ~line 29-31):
+Update to reference `#N` format instead of UUID.
+
+**Tool Schema Updates:**
+- `tools/tasks/_crud.py` - Document `#N` in session_id description
+- `tools/tasks/_lifecycle.py` - Document `#N` in session_id description
+- `tools/tasks/_session.py` - Document `#N` + pass project_id to resolution
+- `tools/tasks/_context.py` - `get_workflow_state()` resolve with project_id
+- `tools/workflows.py` - `get_workflow_status()` document `#N`, resolve with project_id
+- `tools/session_messages.py` - `get_handoff_context()`, `get_session()`, `mark_loop_complete()`
+- `tools/agents.py` - `can_spawn_agent()` document `#N`, resolve with project_id
+
+**Hub Cross-Project Display** (`src/gobby/mcp_proxy/tools/hub.py` ~line 204-257):
+```python
+# Fetch project name alongside session data (requires JOIN with projects table)
+sessions = [
+    {
+        "ref": f"{project_name}#{session.seq_num}",  # e.g., "gobby#1"
+        "session_id": row["id"],
+        "project": project_name,
+        "source": row["source"],
+        ...
+    }
+]
+```
+
+---
+
+## Phase 4: Tests
+
+**Goal**: Update and add tests for project-scoped session refs.
+
+**Tasks:**
+- [ ] Update session resolution tests in test_cli_utils.py (category: test)
+- [ ] Add project-scoped seq_num tests in test_sessions.py (category: test)
+
+---
 
 ## Verification
 
@@ -245,3 +204,33 @@ for session in sessions:
 4. Verify different projects can both have `#1` sessions
 5. Test `list_cross_project_sessions()` shows `gobby#42` format
 6. Run existing session tests
+
+---
+
+## Task Mapping
+
+| Plan Item | Task Ref | Status |
+|-----------|----------|--------|
+| **Epic: Project-Scoped Session Refs** | #6204 | open |
+| **Phase 1: Schema & Storage Foundation** | #6205 | open |
+| Add migration to change seq_num index | #6212 | open |
+| Update seq_num assignment to be per-project | #6213 | open |
+| Update resolve_session_reference() to accept project_id | #6214 | open |
+| Update backfill migration for per-project numbering | #6215 | open |
+| **Phase 2: CLI Integration** | #6206 | open |
+| Add project_id parameter to resolve_session_id() | #6222 | open |
+| Update show_session and delete_session | #6223 | open |
+| Update workflow commands | #6224 | open |
+| Update claim_worktree | #6225 | open |
+| Update agent_stats | #6226 | open |
+| **Phase 3: MCP Tools & Display** | #6207 | open |
+| Update hook context to display #N | #6233 | open |
+| Update MCP instructions to reference #N format | #6234 | open |
+| Update task tool schemas | #6235 | open |
+| Update session tool schemas and resolution | #6237 | open |
+| Update workflow tool schemas and resolution | #6239 | open |
+| Update agent tool schemas and resolution | #6240 | open |
+| Update hub cross-project display | #6241 | open |
+| **Phase 4: Tests** | #6208 | open |
+| Update session resolution tests in test_cli_utils.py | #6242 | open |
+| Add project-scoped seq_num tests in test_sessions.py | #6243 | open |
