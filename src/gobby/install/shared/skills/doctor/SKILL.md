@@ -440,9 +440,10 @@ At the end, report:
 Phase 1 (Prerequisites):  X/3 PASS
 Phase 2 (Read-Only):      X/Y PASS
 Phase 3 (Write+Cleanup):  X/3 PASS
-Phase 4 (Resource-Heavy): X/3 PASS (or "Skipped - use --full")
+Phase 4 (Resource-Heavy): X/3 PASS (or "Skipped - use --all")
+Phase 5 (Security Audit): X/8 PASS, Y WARN (or "Skipped - use --security or --all")
 
-Overall: X/Y tests passed
+Overall: X/Y tests passed, Z warnings
 Cleanup: All __diag__ artifacts removed
 ```
 
