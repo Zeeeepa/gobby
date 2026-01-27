@@ -1463,7 +1463,7 @@ async def handle_block_tools(
 
     # Get source from session for is_plan_file checks
     source = None
-    if context.session_manager and context.session_id:
+    if context.session_manager:
         current_session = context.session_manager.get(context.session_id)
         if current_session:
             source = current_session.source
@@ -1489,8 +1489,12 @@ async def handle_require_active_task(
     Kept for backward compatibility with existing workflows.
     """
     # Get project_id from session for project-scoped task filtering
-    current_session = context.session_manager.get(context.session_id)
-    project_id = current_session.project_id if current_session else None
+    current_session = None
+    project_id = None
+    if context.session_manager:
+        current_session = context.session_manager.get(context.session_id)
+        if current_session:
+            project_id = current_session.project_id
 
     return await require_active_task(
         task_manager=task_manager,
@@ -1519,9 +1523,9 @@ async def handle_require_task_complete(
     """
     project_id = None
     if context.session_manager and context.session_id:
-        current_session = context.session_manager.get(context.session_id)
-        if current_session:
-            project_id = current_session.project_id
+        session = context.session_manager.get(context.session_id)
+        if session:
+            project_id = session.project_id
 
     # Get task_id from kwargs - may be a template that needs resolving
     task_spec = kwargs.get("task_id")

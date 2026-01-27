@@ -33,6 +33,13 @@ from gobby.storage.database import LocalDatabase
 
 logger = logging.getLogger(__name__)
 
+
+class MigrationUnsupportedError(Exception):
+    """Raised when database version is too old to migrate."""
+
+    pass
+
+
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
 
@@ -795,11 +802,12 @@ def run_migrations(db: LocalDatabase) -> int:
     elif current_version < BASELINE_VERSION:
         # Unsupported: Pre-v75 database without local migrations
         # Since we removed legacy migrations, we can't upgrade.
-        logger.warning(
+        msg = (
             f"Database version {current_version} is older than baseline "
             f"{BASELINE_VERSION}. Upgrade not supported without legacy migrations."
         )
-        return 0
+        logger.error(msg)
+        raise MigrationUnsupportedError(msg)
 
     # Run any new migrations (v76+)
     if MIGRATIONS:

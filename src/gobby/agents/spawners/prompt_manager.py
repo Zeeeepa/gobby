@@ -9,7 +9,10 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import re
 import tempfile
+import threading
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -22,6 +25,7 @@ MAX_ENV_PROMPT_LENGTH = 4096
 # This avoids registering a new atexit handler for each prompt file
 _prompt_files_to_cleanup: set[Path] = set()
 _atexit_registered = False
+_atexit_lock = threading.Lock()
 
 
 def cleanup_all_prompt_files() -> None:
@@ -55,8 +59,14 @@ def create_prompt_file(prompt: str, session_id: str) -> str:
     temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
     temp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
+    # Sanitize session_id to prevent path traversal attacks
+    # Strip path separators and limit to alphanumeric, hyphens, underscores
+    safe_session_id = re.sub(r"[^a-zA-Z0-9_-]", "", session_id)
+    if not safe_session_id or len(safe_session_id) > 128:
+        safe_session_id = str(uuid.uuid4())
+
     # Create the prompt file path
-    prompt_path = temp_dir / f"prompt-{session_id}.txt"
+    prompt_path = temp_dir / f"prompt-{safe_session_id}.txt"
 
     # Write with secure permissions atomically - create with mode 0o600 from the start
     # This avoids the TOCTOU window between write_text and chmod
@@ -77,10 +87,11 @@ def create_prompt_file(prompt: str, session_id: str) -> str:
     # Track for cleanup
     _prompt_files_to_cleanup.add(prompt_path)
 
-    # Register cleanup handler once
-    if not _atexit_registered:
-        atexit.register(cleanup_all_prompt_files)
-        _atexit_registered = True
+    # Register cleanup handler once (thread-safe)
+    with _atexit_lock:
+        if not _atexit_registered:
+            atexit.register(cleanup_all_prompt_files)
+            _atexit_registered = True
 
     logger.debug(f"Created secure prompt file: {prompt_path}")
     return str(prompt_path)

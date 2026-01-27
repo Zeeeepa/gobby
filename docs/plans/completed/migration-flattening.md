@@ -16,7 +16,7 @@ Flatten the existing `migrations.py` and `migrations_legacy.py` into a single, c
 
 ## Strangler Fig Strategy
 
-```
+```text
 Phase 1: Add new baseline alongside old (additive, no removal)
     ↓
 Phase 2: Add feature flag to select baseline path
@@ -35,6 +35,7 @@ Phase 5: Remove old path (only after confidence period)
 **Goal**: Capture current schema and add new baseline constants (additive only).
 
 **Tasks:**
+
 - [x] Create timestamped backup of gobby-hub.db (category: manual) - #6179
 - [x] Dump current schema to src/gobby/storage/schema_dump.sql (category: manual) - #6180
 - [x] Review schema_dump.sql for correctness (category: manual) - #6181
@@ -48,6 +49,7 @@ Phase 5: Remove old path (only after confidence period)
 **Goal**: Add config option to control which baseline path is used.
 
 **Tasks:**
+
 - [x] Add `use_flattened_baseline: bool` field to DaemonConfig (category: code) - #6183
 - [x] Default to False (old behavior) for safety (category: code) - #6183
 
@@ -60,12 +62,14 @@ Phase 5: Remove old path (only after confidence period)
 **Goal**: Modify run_migrations() to use new baseline when flag is enabled.
 
 **Tasks:**
+
 - [x] Update run_migrations() to check use_flattened_baseline flag (category: code) - #6184, #6185
 - [x] When True: use BASELINE_SCHEMA_V2/VERSION_V2 for new DBs (category: code) - #6185
 - [x] When False: use existing BASELINE_SCHEMA/VERSION + legacy path (category: code) - #6185
 - [x] Add logging to indicate which path was used (category: code) - #6185
 
 **Logic:**
+
 ```python
 if config.use_flattened_baseline:
     # New path: apply V2 baseline directly
@@ -82,6 +86,7 @@ else:
 **Goal**: Validate both paths work correctly.
 
 **Tasks:**
+
 - [x] Test new install with flag=False (old path) (category: manual) - #6186
 - [x] Test new install with flag=True (new path) (category: manual) - #6187
 - [x] Test existing DB upgrade with flag=False (category: manual) - verified in #6186
@@ -95,6 +100,7 @@ else:
 **Goal**: Flip default to use new baseline, keep old as escape hatch.
 
 **Tasks:**
+
 - [x] Change default of use_flattened_baseline to True (category: code) - #6189
 - [x] Update documentation to note the change (category: docs) - #6190
 - [ ] Monitor for any issues in production use (category: manual) - #6191 (ongoing)
@@ -106,6 +112,7 @@ else:
 **Goal**: Remove old migration path once confident (after monitoring period).
 
 **Tasks:**
+
 - [ ] Remove BASELINE_SCHEMA (old v60 baseline) (category: code)
 - [ ] Remove BASELINE_VERSION constant (category: code)
 - [ ] Remove use_flattened_baseline flag and branching logic (category: code)
@@ -115,34 +122,3 @@ else:
 - [ ] Clear MIGRATIONS list (all in baseline now) (category: code)
 
 **Rollback:** Git revert entire cleanup commit.
-
-## Task Mapping
-
-<!-- Updated after task creation -->
-| Plan Item | Task Ref | Status |
-|-----------|----------|--------|
-| Create backup | | |
-| Dump schema | | |
-| Review schema | | |
-| Add BASELINE_SCHEMA_V2 | | |
-| Add BASELINE_VERSION_V2 | | |
-| Add config flag | | |
-| Set default False | | |
-| Update run_migrations() | | |
-| Branch on flag | | |
-| Add logging | | |
-| Test old path new install | | |
-| Test new path new install | | |
-| Test old path existing DB | | |
-| Test new path existing DB | | |
-| Compare schemas | | |
-| Flip default to True | | |
-| Update docs | | |
-| Monitor production | | |
-| Remove old baseline | | |
-| Remove old version | | |
-| Remove flag | | |
-| Rename V2 to primary | | |
-| Remove legacy import | | |
-| Delete migrations_legacy.py | | |
-| Clear MIGRATIONS | | |
