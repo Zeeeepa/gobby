@@ -4,22 +4,22 @@ description: This skill should be used when the user asks to "/gobby doctor", "r
 category: core
 ---
 
-# /gobby-diagnostic - System Diagnostics Skill
+# /gobby doctor - System Health and Security Skill
 
-This skill runs a comprehensive systems check to verify Gobby's CLI commands and MCP tools are functioning correctly. All tests use the `__diag__` prefix for automatic cleanup.
+This skill runs a comprehensive systems check and security audit to verify Gobby's CLI commands and MCP tools are functioning correctly. All tests use the `__diag__` prefix for automatic cleanup.
 
 ## Subcommands
 
-### `/gobby-diagnostic` - Standard check (phases 1-3)
+### `/gobby doctor` - Standard check (phases 1-3)
 Run prerequisite checks, read-only tests, and write+cleanup tests.
 
-### `/gobby-diagnostic --quick` - Quick check (phases 1-2 only)
+### `/gobby doctor --quick` - Quick check (phases 1-2 only)
 Run prerequisite checks and read-only tests only. No resources created.
 
-### `/gobby-diagnostic --full` - Full check (all phases)
+### `/gobby doctor --full` - Full check (all phases)
 Include resource-heavy tests (worktrees, clones). Takes longer but tests everything.
 
-### `/gobby-diagnostic --cleanup` - Cleanup only
+### `/gobby doctor --cleanup` - Cleanup only
 Scan for and remove stale `__diag__` artifacts from previous failed runs.
 
 ## Execution Protocol
@@ -297,7 +297,7 @@ Before running tests, check for orphaned `__diag__` artifacts:
 If any found, report:
 ```
 WARNING: Found X stale diagnostic artifacts from previous run.
-Run `/gobby-diagnostic --cleanup` to remove them, or they will be cleaned after this run.
+Run `/gobby doctor --cleanup` to remove them, or they will be cleaned after this run.
 ```
 
 ---
@@ -315,7 +315,7 @@ For each test, report:
 ### Summary
 At the end, report:
 ```
-=== Diagnostic Summary ===
+=== Doctor Summary ===
 Phase 1 (Prerequisites):  X/3 PASS
 Phase 2 (Read-Only):      X/Y PASS
 Phase 3 (Write+Cleanup):  X/3 PASS
@@ -359,17 +359,17 @@ If a timeout occurs, log the failure and continue to the next test.
 ## Examples
 
 ### Quick health check
-User: `/gobby-diagnostic --quick`
+User: `/gobby doctor --quick`
 Run phases 1-2 only, report results
 
 ### Standard diagnostic
-User: `/gobby-diagnostic`
+User: `/gobby doctor`
 Run phases 1-3, create/delete test resources
 
 ### Full system test
-User: `/gobby-diagnostic --full`
+User: `/gobby doctor --full`
 Run all phases including worktree/clone tests
 
 ### Cleanup stale artifacts
-User: `/gobby-diagnostic --cleanup`
+User: `/gobby doctor --cleanup`
 Only run cleanup protocol, report what was removed
