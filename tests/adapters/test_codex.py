@@ -142,7 +142,7 @@ class TestGetMachineId:
         assert isinstance(machine_id, str)
         assert len(machine_id) > 0
 
-    @patch("gobby.adapters.codex.platform.node")
+    @patch("gobby.adapters.codex_impl.adapter.platform.node")
     def test_uses_hostname(self, mock_node):
         """Uses hostname for stable ID when available."""
         mock_node.return_value = "test-hostname"
@@ -153,7 +153,7 @@ class TestGetMachineId:
         # Same hostname should produce same ID
         assert id1 == id2
 
-    @patch("gobby.adapters.codex.platform.node")
+    @patch("gobby.adapters.codex_impl.adapter.platform.node")
     def test_fallback_when_no_hostname(self, mock_node):
         """Falls back to random UUID when hostname unavailable."""
         mock_node.return_value = ""
@@ -1292,7 +1292,7 @@ class TestCodexNotifyAdapterFindJsonlPath:
                 patch.object(Path, "exists", return_value=True),
                 patch("gobby.adapters.codex.CODEX_SESSIONS_DIR", Path(tmpdir)),
                 patch(
-                    "gobby.adapters.codex.glob_module.glob",
+                    "gobby.adapters.codex_impl.adapter.glob_module.glob",
                     return_value=[str(session_file)],
                 ),
             ):
