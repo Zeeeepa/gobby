@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.servers.websocket import WebSocketServer
+    from gobby.storage.sessions import LocalSessionManager
 
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
@@ -36,11 +37,13 @@ class SessionMessageProcessor:
         db: DatabaseProtocol,
         poll_interval: float = 2.0,
         websocket_server: "WebSocketServer | None" = None,
+        session_manager: "LocalSessionManager | None" = None,
     ):
         self.db = db
         self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
         self.websocket_server: WebSocketServer | None = websocket_server
+        self.session_manager: LocalSessionManager | None = session_manager
 
         # Track active sessions: session_id -> transcript_path
         self._active_sessions: dict[str, str] = {}
@@ -195,6 +198,13 @@ class SessionMessageProcessor:
 
         # Store messages
         await self.message_manager.store_messages(session_id, parsed_messages)
+
+        # Extract and store model from parsed messages (if present)
+        if self.session_manager:
+            for msg in parsed_messages:
+                if msg.model:
+                    self.session_manager.update_model(session_id, msg.model)
+                    break  # Only need the first model found
 
         # Broadcast new messages
         if self.websocket_server:

@@ -248,6 +248,26 @@ class TestLocalSessionManager:
         assert updated is not None
         assert updated.title == "New Title"
 
+    def test_update_model(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test updating session model."""
+        session = session_manager.register(
+            external_id="model-test",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        # Initially model should be None
+        assert session.model is None
+
+        updated = session_manager.update_model(session.id, "claude-opus-4-5-20251101")
+        assert updated is not None
+        assert updated.model == "claude-opus-4-5-20251101"
+
     def test_update_summary(
         self,
         session_manager: LocalSessionManager,
