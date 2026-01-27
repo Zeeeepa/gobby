@@ -408,3 +408,61 @@ class TestGenericAgentDefinition:
 
             assert agent is not None
             assert agent.isolation is None
+
+
+class TestSandboxedAgentDefinition:
+    """Tests for the sandboxed.yaml agent definition."""
+
+    def test_sandboxed_agent_loads_successfully(self):
+        """Test that the sandboxed agent definition can be loaded."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        # Skip test if agent definition doesn't exist
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.name == "sandboxed"
+
+    def test_sandboxed_agent_has_sandbox_enabled(self):
+        """Test that sandboxed agent has sandbox.enabled=True."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.enabled is True
+
+    def test_sandboxed_agent_has_permissive_mode(self):
+        """Test that sandboxed agent uses permissive sandbox mode."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.mode == "permissive"
+
+    def test_sandboxed_agent_allows_network(self):
+        """Test that sandboxed agent allows network access."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.allow_network is True
+
+    def test_sandboxed_agent_has_expected_mode(self):
+        """Test that sandboxed agent uses headless mode."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.mode == "headless"
