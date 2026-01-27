@@ -84,6 +84,7 @@ __all__ = [
     "build_cli_command",
     "build_gemini_command_with_resume",
     "build_codex_command_with_resume",
+    "create_prompt_file",
     "MAX_ENV_PROMPT_LENGTH",
 ]
 

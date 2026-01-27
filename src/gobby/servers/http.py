@@ -25,9 +25,6 @@ from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 from gobby.memory.manager import MemoryManager
-
-# Re-export for backward compatibility
-from gobby.servers.models import SessionRegisterRequest  # noqa: F401
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager

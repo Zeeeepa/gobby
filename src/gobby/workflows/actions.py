@@ -6,7 +6,6 @@ from typing import Any, Protocol
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.tasks import LocalTaskManager  # noqa: F401
 from gobby.workflows.artifact_actions import (
     handle_capture_artifact,
     handle_read_artifact,
@@ -259,28 +258,30 @@ class ActionExecutor:
         tm = self.task_manager
         te = self.template_engine
 
-        async def block_tools(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_block_tools(ctx, task_manager=tm, **kw)
+        async def block_tools(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_block_tools(context, task_manager=tm, **kw)
 
-        async def require_active(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_require_active_task(ctx, task_manager=tm, **kw)
+        async def require_active(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_require_active_task(context, task_manager=tm, **kw)
 
-        async def require_complete(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
+        async def require_complete(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_require_task_complete(
-                ctx, task_manager=tm, template_engine=te, **kw
+                context, task_manager=tm, template_engine=te, **kw
             )
 
-        async def require_commit(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_require_commit_before_stop(ctx, task_manager=tm, **kw)
+        async def require_commit(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_require_commit_before_stop(context, task_manager=tm, **kw)
 
-        async def require_review(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_require_task_review_or_close_before_stop(ctx, task_manager=tm, **kw)
+        async def require_review(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_require_task_review_or_close_before_stop(
+                context, task_manager=tm, **kw
+            )
 
-        async def validate_scope(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_validate_session_task_scope(ctx, task_manager=tm, **kw)
+        async def validate_scope(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_validate_session_task_scope(context, task_manager=tm, **kw)
 
-        async def capture_baseline(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_capture_baseline_dirty_files(ctx, task_manager=tm, **kw)
+        async def capture_baseline(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_capture_baseline_dirty_files(context, task_manager=tm, **kw)
 
         self.register("block_tools", block_tools)
         self.register("require_active_task", require_active)
@@ -294,8 +295,8 @@ class ActionExecutor:
         """Register webhook action with config closure."""
         cfg = self.config
 
-        async def webhook(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return await handle_webhook(ctx, config=cfg, **kw)
+        async def webhook(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_webhook(context, config=cfg, **kw)
 
         self.register("webhook", webhook)
 
@@ -303,21 +304,26 @@ class ActionExecutor:
         """Register stop signal actions accessing self at call time."""
         executor = self
 
-        async def check_stop(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
+        async def check_stop(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return check_stop_signal(
-                executor.stop_registry, ctx.session_id, ctx.state, kw.get("acknowledge", False)
+                executor.stop_registry,
+                context.session_id,
+                context.state,
+                kw.get("acknowledge", False),
             )
 
-        async def req_stop(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
+        async def req_stop(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return request_stop(
                 executor.stop_registry,
-                ctx.session_id,
+                context.session_id,
                 kw.get("source", "workflow"),
                 kw.get("reason"),
             )
 
-        async def clear_stop(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return clear_stop_signal(executor.stop_registry, kw.get("session_id") or ctx.session_id)
+        async def clear_stop(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return clear_stop_signal(
+                executor.stop_registry, kw.get("session_id") or context.session_id
+            )
 
         self.register("check_stop_signal", check_stop)
         self.register("request_stop", req_stop)
@@ -327,36 +333,44 @@ class ActionExecutor:
         """Register autonomous actions accessing self at call time."""
         executor = self
 
-        async def start_tracking(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return start_progress_tracking(executor.progress_tracker, ctx.session_id, ctx.state)
-
-        async def stop_tracking(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return stop_progress_tracking(
-                executor.progress_tracker, ctx.session_id, ctx.state, kw.get("keep_data", False)
+        async def start_tracking(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return start_progress_tracking(
+                executor.progress_tracker, context.session_id, context.state
             )
 
-        async def record_prog(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
+        async def stop_tracking(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return stop_progress_tracking(
+                executor.progress_tracker,
+                context.session_id,
+                context.state,
+                kw.get("keep_data", False),
+            )
+
+        async def record_prog(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return record_progress(
                 executor.progress_tracker,
-                ctx.session_id,
+                context.session_id,
                 kw.get("progress_type", "tool_call"),
                 kw.get("tool_name"),
                 kw.get("details"),
             )
 
-        async def detect_loop(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return detect_task_loop(executor.stuck_detector, ctx.session_id, ctx.state)
+        async def detect_loop(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return detect_task_loop(executor.stuck_detector, context.session_id, context.state)
 
-        async def detect_stk(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return detect_stuck(executor.stuck_detector, ctx.session_id, ctx.state)
+        async def detect_stk(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return detect_stuck(executor.stuck_detector, context.session_id, context.state)
 
-        async def record_sel(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
+        async def record_sel(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return record_task_selection(
-                executor.stuck_detector, ctx.session_id, kw.get("task_id", ""), kw.get("context")
+                executor.stuck_detector,
+                context.session_id,
+                kw.get("task_id", ""),
+                kw.get("context"),
             )
 
-        async def get_summary(ctx: ActionContext, **kw: Any) -> dict[str, Any] | None:
-            return get_progress_summary(executor.progress_tracker, ctx.session_id)
+        async def get_summary(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return get_progress_summary(executor.progress_tracker, context.session_id)
 
         self.register("start_progress_tracking", start_tracking)
         self.register("stop_progress_tracking", stop_tracking)
