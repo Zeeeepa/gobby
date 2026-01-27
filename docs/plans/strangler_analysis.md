@@ -10,7 +10,7 @@ This document outlines the strategy for decomposing three logic-heavy files in t
 | `memory/manager.py` | 1,010 | 2nd | Medium |
 | `workflows/task_enforcement_actions.py` | 1,572 | 3rd | Medium |
 
-**Pattern**: Extract cohesive modules, maintain backward compatibility via re-exports from original locations.
+**Pattern**: Extract to new modules, update all imports, delete original files. No backward compatibility shims.
 
 ---
 
@@ -24,7 +24,7 @@ This document outlines the strategy for decomposing three logic-heavy files in t
 
 ```
 src/gobby/mcp_proxy/tools/sessions/
-├── __init__.py        # Re-exports for backward compat
+├── __init__.py        # Exports create_session_messages_registry
 ├── _messages.py       # get_session_messages, search_messages
 ├── _handoff.py        # create_handoff, get_handoff_context, pickup, helpers
 ├── _crud.py           # get_session, get_current, list_sessions, session_stats
@@ -41,7 +41,9 @@ src/gobby/mcp_proxy/tools/sessions/
 - [ ] Extract CRUD tools to _crud.py (category: refactor)
 - [ ] Extract commits tools to _commits.py (category: refactor)
 - [ ] Create factory in _factory.py (category: refactor)
-- [ ] Update session_messages.py as re-export shim (category: refactor)
+- [ ] Update imports in registries.py to use sessions package (category: refactor)
+- [ ] Update test imports to use sessions package (category: refactor)
+- [ ] Delete session_messages.py (category: refactor)
 
 ### Verification
 
@@ -121,7 +123,7 @@ src/gobby/workflows/
 ├── safe_evaluator.py     # SafeExpressionEvaluator, _LazyBool, helpers
 ├── git_utils.py          # (extend existing) + get_dirty_files
 └── enforcement/
-    ├── __init__.py       # Re-exports all handlers
+    ├── __init__.py       # Exports all handlers
     ├── blocking.py       # block_tools + handler
     ├── commit_policy.py  # capture_baseline, require_commit + handlers
     └── task_policy.py    # require_task_*, validate_scope + handlers
@@ -135,7 +137,9 @@ src/gobby/workflows/
 - [ ] Extract blocking action to enforcement/blocking.py (category: refactor)
 - [ ] Extract commit policy to enforcement/commit_policy.py (category: refactor)
 - [ ] Extract task policy to enforcement/task_policy.py (category: refactor)
-- [ ] Update task_enforcement_actions.py as re-export shim (category: refactor)
+- [ ] Update imports in actions.py to use enforcement package (category: refactor)
+- [ ] Update test imports to use new modules (category: refactor)
+- [ ] Delete task_enforcement_actions.py (category: refactor)
 
 ### Component Details
 
@@ -172,7 +176,7 @@ uv run pytest tests/workflows/test_task_enforcement.py -v
 
 | Risk | Mitigation |
 |------|------------|
-| Test breakage from imports | Re-export ALL symbols from original locations |
+| Test breakage from imports | Update all imports before deleting original files |
 | Circular imports | Use TYPE_CHECKING imports; utilities have no deps |
 | Runtime behavior change | No logic changes during extraction |
 | Naming conflicts | `safe_evaluator.py` (new), extend `git_utils.py` |
