@@ -240,6 +240,59 @@ class TestResolveSessionId:
                 result = resolve_session_id(session.id)
                 assert result == session.id
 
+    def test_resolves_seq_num_with_project_context(self, temp_db):
+        """Test resolving #N format using project context."""
+        from gobby.storage.projects import LocalProjectManager
+        from gobby.storage.sessions import LocalSessionManager
+
+        proj_manager = LocalProjectManager(temp_db)
+        project = proj_manager.create(name="test", repo_path="/tmp/test")
+
+        session_manager = LocalSessionManager(temp_db)
+        session = session_manager.register(
+            source="test",
+            external_id="ext-1",
+            machine_id="m-1",
+            project_id=project.id,
+        )
+
+        # Mock project context to return the project ID
+        with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
+            with patch.object(temp_db, "close"):
+                with patch("gobby.cli.utils.get_project_context") as mock_ctx:
+                    mock_ctx.return_value = {"id": project.id}
+                    # Session should have seq_num=1 (first in project)
+                    result = resolve_session_id("#1")
+                    assert result == session.id
+
+    def test_resolves_seq_num_with_explicit_project_id(self, temp_db):
+        """Test resolving #N format with explicit project_id parameter."""
+        from gobby.storage.projects import LocalProjectManager
+        from gobby.storage.sessions import LocalSessionManager
+
+        proj_manager = LocalProjectManager(temp_db)
+        project1 = proj_manager.create(name="project1", repo_path="/tmp/p1")
+        project2 = proj_manager.create(name="project2", repo_path="/tmp/p2")
+
+        session_manager = LocalSessionManager(temp_db)
+        session1 = session_manager.register(
+            source="test", external_id="ext-1", machine_id="m-1", project_id=project1.id
+        )
+        session2 = session_manager.register(
+            source="test", external_id="ext-2", machine_id="m-1", project_id=project2.id
+        )
+
+        # Both sessions are #1 in their respective projects
+        with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
+            with patch.object(temp_db, "close"):
+                # Resolve #1 in project1
+                result1 = resolve_session_id("#1", project_id=project1.id)
+                assert result1 == session1.id
+
+                # Resolve #1 in project2
+                result2 = resolve_session_id("#1", project_id=project2.id)
+                assert result2 == session2.id
+
 
 # ==============================================================================
 # Tests for list_project_names()

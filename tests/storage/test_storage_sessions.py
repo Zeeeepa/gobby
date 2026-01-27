@@ -1593,3 +1593,112 @@ class TestSessionEdgeCases:
         assert updated is not None
         assert updated.original_prompt == "Implement feature X"
         assert updated.workflow_name is None
+
+
+class TestProjectScopedSeqNum:
+    """Tests for project-scoped session seq_num feature."""
+
+    def test_seq_num_per_project(
+        self,
+        session_manager: LocalSessionManager,
+        temp_db,
+    ):
+        """Test that seq_num is assigned per project, not globally."""
+        from gobby.storage.projects import LocalProjectManager
+
+        proj_manager = LocalProjectManager(temp_db)
+        project1 = proj_manager.create(name="project1", repo_path="/tmp/p1")
+        project2 = proj_manager.create(name="project2", repo_path="/tmp/p2")
+
+        # Create sessions in project1
+        s1_p1 = session_manager.register(
+            external_id="s1-p1", machine_id="m1", source="claude", project_id=project1.id
+        )
+        s2_p1 = session_manager.register(
+            external_id="s2-p1", machine_id="m1", source="claude", project_id=project1.id
+        )
+
+        # Create sessions in project2
+        s1_p2 = session_manager.register(
+            external_id="s1-p2", machine_id="m1", source="claude", project_id=project2.id
+        )
+
+        # Project1 sessions should have seq_num 1 and 2
+        assert s1_p1.seq_num == 1
+        assert s2_p1.seq_num == 2
+
+        # Project2 session should have seq_num 1 (independent from project1)
+        assert s1_p2.seq_num == 1
+
+    def test_resolve_session_reference_with_project_id(
+        self,
+        session_manager: LocalSessionManager,
+        temp_db,
+    ):
+        """Test resolving #N format with project_id parameter."""
+        from gobby.storage.projects import LocalProjectManager
+
+        proj_manager = LocalProjectManager(temp_db)
+        project1 = proj_manager.create(name="proj1", repo_path="/tmp/proj1")
+        project2 = proj_manager.create(name="proj2", repo_path="/tmp/proj2")
+
+        # Create #1 in each project
+        s1 = session_manager.register(
+            external_id="s1", machine_id="m1", source="claude", project_id=project1.id
+        )
+        s2 = session_manager.register(
+            external_id="s2", machine_id="m1", source="claude", project_id=project2.id
+        )
+
+        # Resolve #1 with project1 context
+        resolved1 = session_manager.resolve_session_reference("#1", project_id=project1.id)
+        assert resolved1 == s1.id
+
+        # Resolve #1 with project2 context
+        resolved2 = session_manager.resolve_session_reference("#1", project_id=project2.id)
+        assert resolved2 == s2.id
+
+    def test_resolve_session_reference_fallback_without_project_id(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test that resolve_session_reference falls back to global lookup without project_id."""
+        session = session_manager.register(
+            external_id="global-test",
+            machine_id="m1",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        # Without project_id, should still resolve (fallback to global)
+        resolved = session_manager.resolve_session_reference(f"#{session.seq_num}")
+        assert resolved == session.id
+
+    def test_resolve_session_reference_uuid_format(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test that UUID format still works with project-scoped resolution."""
+        session = session_manager.register(
+            external_id="uuid-test",
+            machine_id="m1",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        # UUID should resolve regardless of project_id
+        resolved = session_manager.resolve_session_reference(session.id)
+        assert resolved == session.id
+
+    def test_resolve_session_reference_not_found(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test ValueError raised when session not found."""
+        import pytest
+
+        with pytest.raises(ValueError, match="not found"):
+            session_manager.resolve_session_reference("#999", project_id=sample_project["id"])
