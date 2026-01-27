@@ -251,7 +251,12 @@ class TestEmbeddedSpawnerSpawnAgent:
         mock_pty.openpty.return_value = (10, 11)
 
         def mock_build_cli_command(
-            cli, prompt=None, session_id=None, auto_approve=False, working_directory=None
+            cli,
+            prompt=None,
+            session_id=None,
+            auto_approve=False,
+            working_directory=None,
+            sandbox_args=None,
         ):
             cmd = [cli]
             if session_id:

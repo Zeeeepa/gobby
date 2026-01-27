@@ -14,7 +14,8 @@ from __future__ import annotations
 import logging
 import socket
 import uuid
-from typing import TYPE_CHECKING, Any, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
 from gobby.agents.isolation import (
@@ -114,9 +115,9 @@ async def spawn_agent_impl(
         effective_provider = agent_def.provider
     effective_provider = effective_provider or "claude"
 
-    effective_mode = mode
+    effective_mode: Literal["terminal", "embedded", "headless"] | None = mode
     if effective_mode is None and agent_def:
-        effective_mode = agent_def.mode
+        effective_mode = cast(Literal["terminal", "embedded", "headless"], agent_def.mode)
     effective_mode = effective_mode or "terminal"
 
     effective_workflow = workflow
@@ -175,12 +176,17 @@ async def spawn_agent_impl(
         effective_sandbox_config = SandboxConfig(enabled=False)
 
     # 2. Resolve project context
-    ctx = get_project_context(project_path)
+    ctx = get_project_context(Path(project_path) if project_path else None)
     if ctx is None:
         return {"success": False, "error": "Could not resolve project context"}
 
     project_id = ctx.get("id") or ctx.get("project_id")
     resolved_project_path = ctx.get("project_path")
+
+    if not project_id or not isinstance(project_id, str):
+        return {"success": False, "error": "Could not resolve project_id from context"}
+    if not resolved_project_path or not isinstance(resolved_project_path, str):
+        return {"success": False, "error": "Could not resolve project_path from context"}
 
     # 3. Validate parent_session_id and spawn depth
     if parent_session_id is None:

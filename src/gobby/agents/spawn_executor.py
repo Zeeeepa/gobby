@@ -8,12 +8,12 @@ and headless modes.
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.agents.sandbox import SandboxConfig
 
 if TYPE_CHECKING:
-    pass
+    from gobby.agents.session import ChildSessionManager
 from gobby.agents.spawn import (
     TerminalSpawner,
     build_codex_command_with_resume,
@@ -224,10 +224,19 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     2. Create Gobby session with external_id = gemini's session_id
     3. Launch interactive with -r {session_id} to resume
     """
+    if request.session_manager is None:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error="session_manager is required for Gemini preflight",
+        )
+
     try:
         # Preflight capture: gets Gemini's session_id and creates linked Gobby session
         spawn_context = await prepare_gemini_spawn_with_preflight(
-            session_manager=request.session_manager,
+            session_manager=cast("ChildSessionManager", request.session_manager),
             parent_session_id=request.parent_session_id,
             project_id=request.project_id,
             machine_id=request.machine_id or "unknown",
@@ -298,10 +307,19 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
 
     Codex outputs session_id in startup banner, which we parse from `codex exec "exit"`.
     """
+    if request.session_manager is None:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error="session_manager is required for Codex preflight",
+        )
+
     try:
         # Preflight capture: gets Codex's session_id and creates linked Gobby session
         spawn_context = await prepare_codex_spawn_with_preflight(
-            session_manager=request.session_manager,
+            session_manager=cast("ChildSessionManager", request.session_manager),
             parent_session_id=request.parent_session_id,
             project_id=request.project_id,
             machine_id=request.machine_id or "unknown",
