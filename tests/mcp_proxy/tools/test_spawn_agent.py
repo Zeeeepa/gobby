@@ -617,3 +617,279 @@ class TestSpawnAgentBranchGeneration:
             assert spawn_config.task_title == "Implement Login Feature"
             assert result["success"] is True
             assert result["branch_name"] == "task-6100-implement-login-feature"
+
+
+class TestSpawnAgentSandbox:
+    """Tests for spawn_agent sandbox parameters."""
+
+    @pytest.fixture
+    def mock_runner(self):
+        """Create a mock runner with common setup."""
+        runner = MagicMock()
+        runner.can_spawn.return_value = (True, "Can spawn", 0)
+        runner._child_session_manager = MagicMock()
+        return runner
+
+    @pytest.fixture
+    def mock_agent_def(self):
+        """Create a mock agent definition without sandbox."""
+        agent_def = MagicMock()
+        agent_def.isolation = None
+        agent_def.provider = "claude"
+        agent_def.mode = "terminal"
+        agent_def.workflow = "generic"
+        agent_def.base_branch = "main"
+        agent_def.branch_prefix = None
+        agent_def.timeout = 120.0
+        agent_def.max_turns = 10
+        agent_def.sandbox = None  # No sandbox config
+        return agent_def
+
+    @pytest.mark.asyncio
+    async def test_sandbox_params_create_sandbox_config(self, mock_runner, mock_agent_def):
+        """Test sandbox params create SandboxConfig and pass to SpawnRequest."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        mock_loader = MagicMock()
+        mock_loader.load.return_value = mock_agent_def
+
+        registry = create_spawn_agent_registry(
+            mock_runner,
+            agent_loader=mock_loader,
+        )
+
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
+            patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
+        ):
+            mock_ctx.return_value = MagicMock(
+                project_id="proj-123",
+                project_path="/path/to/project",
+            )
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(
+                return_value=IsolationContext(cwd="/path/to/project")
+            )
+            mock_handler.build_context_prompt.return_value = "Test prompt"
+            mock_get_handler.return_value = mock_handler
+
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            result = await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test prompt",
+                    "parent_session_id": "parent-789",
+                    "sandbox": True,
+                    "sandbox_mode": "restrictive",
+                    "sandbox_allow_network": False,
+                },
+            )
+
+            assert result["success"] is True
+            # Verify SpawnRequest received sandbox_config
+            spawn_request = mock_execute.call_args[0][0]
+            assert spawn_request.sandbox_config is not None
+            assert spawn_request.sandbox_config.enabled is True
+            assert spawn_request.sandbox_config.mode == "restrictive"
+            assert spawn_request.sandbox_config.allow_network is False
+
+    @pytest.mark.asyncio
+    async def test_sandbox_params_override_agent_def_sandbox(self, mock_runner):
+        """Test that tool sandbox params override agent_def.sandbox."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        # Agent definition has sandbox enabled with permissive mode
+        mock_agent_def = MagicMock()
+        mock_agent_def.isolation = None
+        mock_agent_def.provider = "claude"
+        mock_agent_def.mode = "terminal"
+        mock_agent_def.workflow = "generic"
+        mock_agent_def.base_branch = "main"
+        mock_agent_def.branch_prefix = None
+        mock_agent_def.timeout = 120.0
+        mock_agent_def.max_turns = 10
+        mock_agent_def.sandbox = SandboxConfig(
+            enabled=True,
+            mode="permissive",
+            allow_network=True,
+            extra_read_paths=["/opt/data"],
+        )
+
+        mock_loader = MagicMock()
+        mock_loader.load.return_value = mock_agent_def
+
+        registry = create_spawn_agent_registry(
+            mock_runner,
+            agent_loader=mock_loader,
+        )
+
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
+            patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
+        ):
+            mock_ctx.return_value = MagicMock(
+                project_id="proj-123",
+                project_path="/path/to/project",
+            )
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(
+                return_value=IsolationContext(cwd="/path/to/project")
+            )
+            mock_handler.build_context_prompt.return_value = "Test prompt"
+            mock_get_handler.return_value = mock_handler
+
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            # Override sandbox_mode to restrictive via tool param
+            result = await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test prompt",
+                    "parent_session_id": "parent-789",
+                    "sandbox_mode": "restrictive",  # Override permissive
+                    "sandbox_allow_network": False,  # Override True
+                },
+            )
+
+            assert result["success"] is True
+            spawn_request = mock_execute.call_args[0][0]
+            # Should be enabled (from agent_def) with overrides applied
+            assert spawn_request.sandbox_config is not None
+            assert spawn_request.sandbox_config.enabled is True
+            assert spawn_request.sandbox_config.mode == "restrictive"  # Overridden
+            assert spawn_request.sandbox_config.allow_network is False  # Overridden
+            # Should keep extra_read_paths from agent_def
+            assert spawn_request.sandbox_config.extra_read_paths == ["/opt/data"]
+
+    @pytest.mark.asyncio
+    async def test_sandbox_extra_paths_passed_to_config(self, mock_runner, mock_agent_def):
+        """Test sandbox_extra_paths are passed to SandboxConfig."""
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        mock_loader = MagicMock()
+        mock_loader.load.return_value = mock_agent_def
+
+        registry = create_spawn_agent_registry(
+            mock_runner,
+            agent_loader=mock_loader,
+        )
+
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
+            patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
+        ):
+            mock_ctx.return_value = MagicMock(
+                project_id="proj-123",
+                project_path="/path/to/project",
+            )
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(
+                return_value=IsolationContext(cwd="/path/to/project")
+            )
+            mock_handler.build_context_prompt.return_value = "Test prompt"
+            mock_get_handler.return_value = mock_handler
+
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            result = await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test prompt",
+                    "parent_session_id": "parent-789",
+                    "sandbox": True,
+                    "sandbox_extra_paths": ["/tmp/data", "/opt/tools"],
+                },
+            )
+
+            assert result["success"] is True
+            spawn_request = mock_execute.call_args[0][0]
+            assert spawn_request.sandbox_config is not None
+            # Extra paths should be set as extra_write_paths
+            assert "/tmp/data" in spawn_request.sandbox_config.extra_write_paths
+            assert "/opt/tools" in spawn_request.sandbox_config.extra_write_paths
+
+    @pytest.mark.asyncio
+    async def test_sandbox_disabled_when_param_false(self, mock_runner):
+        """Test sandbox is disabled when sandbox=False even if agent_def has it enabled."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
+
+        # Agent definition has sandbox enabled
+        mock_agent_def = MagicMock()
+        mock_agent_def.isolation = None
+        mock_agent_def.provider = "claude"
+        mock_agent_def.mode = "terminal"
+        mock_agent_def.workflow = "generic"
+        mock_agent_def.base_branch = "main"
+        mock_agent_def.branch_prefix = None
+        mock_agent_def.timeout = 120.0
+        mock_agent_def.max_turns = 10
+        mock_agent_def.sandbox = SandboxConfig(enabled=True, mode="permissive")
+
+        mock_loader = MagicMock()
+        mock_loader.load.return_value = mock_agent_def
+
+        registry = create_spawn_agent_registry(
+            mock_runner,
+            agent_loader=mock_loader,
+        )
+
+        with (
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
+            patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
+        ):
+            mock_ctx.return_value = MagicMock(
+                project_id="proj-123",
+                project_path="/path/to/project",
+            )
+            mock_handler = MagicMock()
+            mock_handler.prepare_environment = AsyncMock(
+                return_value=IsolationContext(cwd="/path/to/project")
+            )
+            mock_handler.build_context_prompt.return_value = "Test prompt"
+            mock_get_handler.return_value = mock_handler
+
+            mock_execute.return_value = MagicMock(
+                success=True,
+                run_id="run-123",
+                child_session_id="child-456",
+                status="pending",
+            )
+
+            # Explicitly disable sandbox via param
+            result = await registry.call(
+                "spawn_agent",
+                {
+                    "prompt": "Test prompt",
+                    "parent_session_id": "parent-789",
+                    "sandbox": False,  # Explicitly disable
+                },
+            )
+
+            assert result["success"] is True
+            spawn_request = mock_execute.call_args[0][0]
+            # sandbox_config should be None or have enabled=False
+            if spawn_request.sandbox_config is not None:
+                assert spawn_request.sandbox_config.enabled is False
