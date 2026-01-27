@@ -228,8 +228,11 @@ class LocalSessionManager:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                # Get next seq_num (global)
-                max_seq_row = self.db.fetchone("SELECT MAX(seq_num) as max_seq FROM sessions")
+                # Get next seq_num (per-project)
+                max_seq_row = self.db.fetchone(
+                    "SELECT MAX(seq_num) as max_seq FROM sessions WHERE project_id = ?",
+                    (project_id,),
+                )
                 next_seq_num = ((max_seq_row["max_seq"] if max_seq_row else None) or 0) + 1
 
                 self.db.execute(
@@ -283,18 +286,20 @@ class LocalSessionManager:
         row = self.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return Session.from_row(row) if row else None
 
-    def resolve_session_reference(self, ref: str) -> str:
+    def resolve_session_reference(self, ref: str, project_id: str | None = None) -> str:
         """
         Resolve a session reference to a UUID.
 
         Supports:
-        - #N: Global Sequence Number (e.g., #1)
+        - #N: Project-scoped Sequence Number (e.g., #1) - requires project_id
         - N: Integer string treated as #N (e.g., "1")
         - UUID: Full UUID
         - Prefix: UUID prefix (must be unambiguous)
 
         Args:
             ref: Session reference string
+            project_id: Project ID for project-scoped #N lookup.
+                If not provided, falls back to global lookup for backwards compat.
 
         Returns:
             Resolved Session UUID
@@ -312,7 +317,15 @@ class LocalSessionManager:
 
         if seq_num_ref.isdigit():
             seq_num = int(seq_num_ref)
-            row = self.db.fetchone("SELECT id FROM sessions WHERE seq_num = ?", (seq_num,))
+            if project_id:
+                # Project-scoped lookup
+                row = self.db.fetchone(
+                    "SELECT id FROM sessions WHERE project_id = ? AND seq_num = ?",
+                    (project_id, seq_num),
+                )
+            else:
+                # Fallback to global lookup for backwards compat
+                row = self.db.fetchone("SELECT id FROM sessions WHERE seq_num = ?", (seq_num,))
             if not row:
                 raise ValueError(f"Session #{seq_num} not found")
             return str(row["id"])
