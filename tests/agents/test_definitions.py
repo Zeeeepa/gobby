@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
+from gobby.agents.sandbox import SandboxConfig
 
 
 class TestAgentDefinition:
@@ -120,6 +121,71 @@ class TestAgentDefinition:
             assert agent.branch_prefix == "agent/"
             assert agent.base_branch == "main"
             assert agent.provider == "claude"
+
+    def test_sandbox_field_defaults_to_none(self):
+        """Test that sandbox field defaults to None."""
+        data: dict[str, Any] = {
+            "name": "test-agent",
+            "description": "A test agent",
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.sandbox is None
+
+    def test_sandbox_field_accepts_sandbox_config(self):
+        """Test that sandbox field accepts SandboxConfig."""
+        sandbox = SandboxConfig(
+            enabled=True,
+            mode="restrictive",
+            allow_network=False,
+            extra_read_paths=["/opt"],
+            extra_write_paths=["/tmp"],
+        )
+        data: dict[str, Any] = {
+            "name": "sandboxed-agent",
+            "description": "Agent with sandbox config",
+            "sandbox": sandbox,
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.enabled is True
+        assert agent.sandbox.mode == "restrictive"
+        assert agent.sandbox.allow_network is False
+        assert agent.sandbox.extra_read_paths == ["/opt"]
+        assert agent.sandbox.extra_write_paths == ["/tmp"]
+
+    def test_yaml_loading_with_sandbox_config(self):
+        """Test that YAML loading works with sandbox config."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "sandboxed-agent",
+            "description": "Agent with sandbox from YAML",
+            "sandbox": {
+                "enabled": True,
+                "mode": "permissive",
+                "allow_network": True,
+                "extra_read_paths": ["/data"],
+                "extra_write_paths": [],
+            },
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/sandboxed-agent.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("sandboxed-agent")
+
+            assert agent is not None
+            assert agent.name == "sandboxed-agent"
+            assert agent.sandbox is not None
+            assert agent.sandbox.enabled is True
+            assert agent.sandbox.mode == "permissive"
+            assert agent.sandbox.extra_read_paths == ["/data"]
 
 
 class TestAgentDefinitionLoader:

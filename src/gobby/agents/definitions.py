@@ -13,6 +13,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, Field
 
+from gobby.agents.sandbox import SandboxConfig
 from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,9 @@ class AgentDefinition(BaseModel):
     isolation: Literal["current", "worktree", "clone"] | None = None
     branch_prefix: str | None = None
     base_branch: str = "main"
+
+    # Sandbox configuration
+    sandbox: SandboxConfig | None = None
 
     # Workflow configuration
     workflow: str | None = None
