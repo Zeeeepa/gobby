@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from gobby.config.app import SessionLifecycleConfig
+from gobby.config.sessions import SessionLifecycleConfig
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations

@@ -38,11 +38,11 @@ def _get_spawn_utils() -> tuple[
         MAX_ENV_PROMPT_LENGTH as _MAX_ENV_PROMPT_LENGTH,
     )
     from gobby.agents.spawn import (
-        _create_prompt_file,
         build_cli_command,
+        create_prompt_file,
     )
 
-    return build_cli_command, _create_prompt_file, _MAX_ENV_PROMPT_LENGTH
+    return build_cli_command, create_prompt_file, _MAX_ENV_PROMPT_LENGTH
 
 
 class EmbeddedSpawner:

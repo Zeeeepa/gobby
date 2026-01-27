@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.config.app import MemorySyncConfig
+from gobby.config.persistence import MemorySyncConfig
 from gobby.storage.memories import Memory
 from gobby.sync.memories import MemorySyncManager
 
@@ -193,6 +193,7 @@ async def test_shutdown_no_task(sync_manager):
 @pytest.mark.asyncio
 async def test_shutdown_with_cancelled_task(sync_manager):
     """Test shutdown handles cancelled task."""
+
     # Create a task that will be cancelled
     async def slow_export():
         await asyncio.sleep(10)
@@ -302,11 +303,13 @@ async def test_import_skips_empty_lines(sync_manager, tmp_path):
 
     # File with empty lines
     mem_file.write_text(
-        '\n'
-        + json.dumps({"content": "memory1", "type": "fact"}) + "\n"
-        + '\n'
-        + '   \n'
-        + json.dumps({"content": "memory2", "type": "fact"}) + "\n"
+        "\n"
+        + json.dumps({"content": "memory1", "type": "fact"})
+        + "\n"
+        + "\n"
+        + "   \n"
+        + json.dumps({"content": "memory2", "type": "fact"})
+        + "\n"
     )
 
     count = await sync_manager.import_from_files()
@@ -324,8 +327,10 @@ async def test_import_skips_duplicates(sync_manager, tmp_path):
     sync_manager.memory_manager.content_exists.side_effect = [True, False]
 
     mem_file.write_text(
-        json.dumps({"content": "duplicate", "type": "fact"}) + "\n"
-        + json.dumps({"content": "new", "type": "fact"}) + "\n"
+        json.dumps({"content": "duplicate", "type": "fact"})
+        + "\n"
+        + json.dumps({"content": "new", "type": "fact"})
+        + "\n"
     )
 
     count = await sync_manager.import_from_files()
@@ -342,8 +347,7 @@ async def test_import_handles_invalid_json(sync_manager, tmp_path, caplog):
     sync_manager.export_path = mem_file
 
     mem_file.write_text(
-        "not valid json\n"
-        + json.dumps({"content": "valid", "type": "fact"}) + "\n"
+        "not valid json\n" + json.dumps({"content": "valid", "type": "fact"}) + "\n"
     )
 
     count = await sync_manager.import_from_files()
@@ -364,8 +368,10 @@ async def test_import_handles_create_error(sync_manager, tmp_path, caplog):
     ]
 
     mem_file.write_text(
-        json.dumps({"content": "memory1", "type": "fact"}) + "\n"
-        + json.dumps({"content": "memory2", "type": "fact"}) + "\n"
+        json.dumps({"content": "memory1", "type": "fact"})
+        + "\n"
+        + json.dumps({"content": "memory2", "type": "fact"})
+        + "\n"
     )
 
     count = await sync_manager.import_from_files()

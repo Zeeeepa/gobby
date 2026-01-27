@@ -11,7 +11,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.config.app import ToolSummarizerConfig
+    from gobby.config.features import ToolSummarizerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def _get_config() -> ToolSummarizerConfig:
     if _config is not None:
         return _config
     # Import here to avoid circular imports
-    from gobby.config.app import ToolSummarizerConfig
+    from gobby.config.features import ToolSummarizerConfig
 
     return ToolSummarizerConfig()
 

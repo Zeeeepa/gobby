@@ -12,8 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.config.app import TaskValidationConfig
-from gobby.config.tasks import PatternCriteriaConfig
+from gobby.config.tasks import PatternCriteriaConfig, TaskValidationConfig
 from gobby.tasks.validation import TaskValidator
 
 

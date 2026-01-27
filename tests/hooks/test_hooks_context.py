@@ -33,7 +33,8 @@ def mock_hook_manager(temp_dir: Path):
     gobby_dir.mkdir(exist_ok=True)
     (gobby_dir / "project.json").write_text(f'{{"id": "{project.id}", "name": "test-project"}}')
 
-    from gobby.config.app import DaemonConfig, HookExtensionsConfig, PluginsConfig, WebhooksConfig
+    from gobby.config.app import DaemonConfig
+    from gobby.config.extensions import HookExtensionsConfig, PluginsConfig, WebhooksConfig
 
     # Create config with temp DB and disabled external services
     test_config = DaemonConfig(

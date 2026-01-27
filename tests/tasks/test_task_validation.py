@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.config.app import TaskValidationConfig
+from gobby.config.tasks import TaskValidationConfig
 from gobby.llm import LLMProvider, LLMService
 from gobby.tasks.validation import (
     TaskValidator,

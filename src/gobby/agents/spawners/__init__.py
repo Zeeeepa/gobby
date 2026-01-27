@@ -14,6 +14,12 @@ Usage:
         ITermSpawner,
         # etc.
     )
+
+    # Command building
+    from gobby.agents.spawners import build_cli_command
+
+    # Prompt file management
+    from gobby.agents.spawners import create_prompt_file, read_prompt_from_env
 """
 
 from gobby.agents.spawners.base import (
@@ -23,6 +29,11 @@ from gobby.agents.spawners.base import (
     SpawnResult,
     TerminalSpawnerBase,
     TerminalType,
+)
+from gobby.agents.spawners.command_builder import (
+    build_cli_command,
+    build_codex_command_with_resume,
+    build_gemini_command_with_resume,
 )
 from gobby.agents.spawners.cross_platform import (
     AlacrittySpawner,
@@ -39,6 +50,11 @@ from gobby.agents.spawners.macos import (
     GhosttySpawner,
     ITermSpawner,
     TerminalAppSpawner,
+)
+from gobby.agents.spawners.prompt_manager import (
+    MAX_ENV_PROMPT_LENGTH,
+    create_prompt_file,
+    read_prompt_from_env,
 )
 from gobby.agents.spawners.windows import (
     CmdSpawner,
@@ -74,4 +90,12 @@ __all__ = [
     # Embedded/Headless spawners
     "EmbeddedSpawner",
     "HeadlessSpawner",
+    # Command building
+    "build_cli_command",
+    "build_gemini_command_with_resume",
+    "build_codex_command_with_resume",
+    # Prompt management
+    "MAX_ENV_PROMPT_LENGTH",
+    "create_prompt_file",
+    "read_prompt_from_env",
 ]

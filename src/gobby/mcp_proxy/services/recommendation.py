@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from gobby.config.app import RecommendToolsConfig
+    from gobby.config.features import RecommendToolsConfig
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -36,7 +36,7 @@ class RecommendationService:
         """Get config with fallback to defaults."""
         if self._config is not None:
             return self._config
-        from gobby.config.app import RecommendToolsConfig
+        from gobby.config.features import RecommendToolsConfig
 
         return RecommendToolsConfig()
 

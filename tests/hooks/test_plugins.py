@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gobby.config.app import PluginItemConfig, PluginsConfig
+from gobby.config.extensions import PluginItemConfig, PluginsConfig
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.plugins import (
     HookPlugin,

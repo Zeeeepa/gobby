@@ -1,11 +1,17 @@
-"""Terminal spawning for agent execution."""
+"""Terminal spawning for agent execution.
+
+This module provides the TerminalSpawner orchestrator and PreparedSpawn helpers
+for spawning CLI agents in terminal windows.
+
+Implementation is split across submodules:
+- spawners/prompt_manager.py: Prompt file creation and cleanup
+- spawners/command_builder.py: CLI command construction
+- spawners/: Platform-specific terminal spawners
+"""
 
 from __future__ import annotations
 
-import atexit
 import logging
-import os
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +19,7 @@ from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.agents.spawners import (
+    MAX_ENV_PROMPT_LENGTH,
     AlacrittySpawner,
     CmdSpawner,
     EmbeddedSpawner,
@@ -31,6 +38,11 @@ from gobby.agents.spawners import (
     TmuxSpawner,
     WindowsTerminalSpawner,
     WSLSpawner,
+    build_cli_command,
+    build_codex_command_with_resume,
+    build_gemini_command_with_resume,
+    create_prompt_file,
+    read_prompt_from_env,
 )
 from gobby.agents.spawners.base import EmbeddedPTYResult, HeadlessResult
 from gobby.agents.tty_config import get_tty_config
@@ -75,163 +87,7 @@ __all__ = [
     "MAX_ENV_PROMPT_LENGTH",
 ]
 
-# Maximum prompt length to pass via environment variable
-# Longer prompts will be written to a temp file
-MAX_ENV_PROMPT_LENGTH = 4096
-
 logger = logging.getLogger(__name__)
-
-# Module-level set for tracking prompt files to clean up on exit
-# This avoids registering a new atexit handler for each prompt file
-_prompt_files_to_cleanup: set[Path] = set()
-_atexit_registered = False
-
-
-def _cleanup_all_prompt_files() -> None:
-    """Clean up all tracked prompt files on process exit."""
-    for prompt_path in list(_prompt_files_to_cleanup):
-        try:
-            if prompt_path.exists():
-                prompt_path.unlink()
-        except OSError:
-            pass
-    _prompt_files_to_cleanup.clear()
-
-
-def _create_prompt_file(prompt: str, session_id: str) -> str:
-    """
-    Create a prompt file with secure permissions.
-
-    The file is created in the system temp directory with restrictive
-    permissions (owner read/write only) and tracked for cleanup on exit.
-
-    Args:
-        prompt: The prompt content to write
-        session_id: Session ID for naming the file
-
-    Returns:
-        Path to the created temp file
-    """
-    global _atexit_registered
-
-    # Create temp directory with restrictive permissions
-    temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
-    temp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-
-    # Create the prompt file path
-    prompt_path = temp_dir / f"prompt-{session_id}.txt"
-
-    # Write with secure permissions atomically - create with mode 0o600 from the start
-    # This avoids the TOCTOU window between write_text and chmod
-    fd = os.open(str(prompt_path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(prompt)
-            f.flush()
-            os.fsync(f.fileno())
-    except Exception:
-        # fd is closed by fdopen, but if fdopen fails we need to close it
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        raise
-
-    # Track for cleanup
-    _prompt_files_to_cleanup.add(prompt_path)
-
-    # Register cleanup handler once
-    if not _atexit_registered:
-        atexit.register(_cleanup_all_prompt_files)
-        _atexit_registered = True
-
-    logger.debug(f"Created secure prompt file: {prompt_path}")
-    return str(prompt_path)
-
-
-def build_cli_command(
-    cli: str,
-    prompt: str | None = None,
-    session_id: str | None = None,
-    auto_approve: bool = False,
-    working_directory: str | None = None,
-    mode: str = "terminal",
-    sandbox_args: list[str] | None = None,
-) -> list[str]:
-    """
-    Build the CLI command with proper prompt passing and permission flags.
-
-    Each CLI has different syntax for passing prompts and handling permissions:
-
-    Claude Code:
-    - claude --session-id <uuid> --dangerously-skip-permissions [prompt]
-    - Use --dangerously-skip-permissions for autonomous subagent operation
-
-    Gemini CLI:
-    - gemini -i "prompt" (interactive mode with initial prompt)
-    - gemini --approval-mode yolo -i "prompt" (YOLO + interactive)
-    - gemini "prompt" (one-shot non-interactive for headless)
-
-    Codex CLI:
-    - codex --full-auto -C <dir> [PROMPT]
-    - Or: codex -c 'sandbox_permissions=["disk-full-read-access"]' -a never [PROMPT]
-
-    Args:
-        cli: CLI name (claude, gemini, codex)
-        prompt: Optional prompt to pass
-        session_id: Optional session ID (used by Claude CLI)
-        auto_approve: If True, add flags to auto-approve actions/permissions
-        working_directory: Optional working directory (used by Codex -C flag)
-        mode: Execution mode - "terminal" (interactive) or "headless" (non-interactive)
-        sandbox_args: Optional list of CLI args for sandbox configuration
-
-    Returns:
-        Command list for subprocess execution
-    """
-    command = [cli]
-
-    if cli == "claude":
-        # Claude CLI flags
-        if session_id:
-            command.extend(["--session-id", session_id])
-        if auto_approve:
-            # Skip all permission prompts for autonomous subagent operation
-            command.append("--dangerously-skip-permissions")
-        # For headless mode, use -p (print mode) for single-turn execution
-        # For terminal mode, don't use -p to allow multi-turn interaction
-        if prompt and mode != "terminal":
-            command.append("-p")
-
-    elif cli == "gemini":
-        # Gemini CLI flags
-        if auto_approve:
-            command.extend(["--approval-mode", "yolo"])
-        # For terminal mode, use -i (prompt-interactive) to execute prompt and stay interactive
-        # For headless mode, use positional prompt for one-shot execution
-        if prompt:
-            if mode == "terminal":
-                command.extend(["-i", prompt])
-                return command  # Don't add prompt again as positional
-            # else: fall through to add as positional for headless
-
-    elif cli == "codex":
-        # Codex CLI flags
-        if auto_approve:
-            # --full-auto: low-friction sandboxed automatic execution
-            command.append("--full-auto")
-        if working_directory:
-            command.extend(["-C", working_directory])
-
-    # Add sandbox args before prompt (prompt must be last)
-    if sandbox_args:
-        command.extend(sandbox_args)
-
-    # All three CLIs accept prompt as positional argument (must come last)
-    # For Gemini terminal mode, this is skipped (handled above with -i flag)
-    if prompt:
-        command.append(prompt)
-
-    return command
 
 
 class TerminalSpawner:
@@ -462,8 +318,8 @@ class TerminalSpawner:
         """
         Write prompt to a temp file for passing to spawned agent.
 
-        Delegates to the module-level _create_prompt_file helper which
-        handles secure permissions and cleanup tracking.
+        Delegates to the create_prompt_file helper which handles
+        secure permissions and cleanup tracking.
 
         Args:
             prompt: The prompt content
@@ -472,7 +328,7 @@ class TerminalSpawner:
         Returns:
             Path to the created temp file
         """
-        return _create_prompt_file(prompt, session_id)
+        return create_prompt_file(prompt, session_id)
 
 
 @dataclass
@@ -570,7 +426,7 @@ def prepare_terminal_spawn(
             prompt_env = prompt
         else:
             # Write to temp file with secure permissions
-            prompt_file = _create_prompt_file(prompt, child_session.id)
+            prompt_file = create_prompt_file(prompt, child_session.id)
 
     # Build environment variables
     env_vars = get_terminal_env_vars(
@@ -594,34 +450,6 @@ def prepare_terminal_spawn(
         agent_depth=child_session.agent_depth,
         env_vars=env_vars,
     )
-
-
-def read_prompt_from_env() -> str | None:
-    """
-    Read initial prompt from environment variables.
-
-    Checks GOBBY_PROMPT_FILE first (for long prompts),
-    then falls back to GOBBY_PROMPT (for short prompts).
-
-    Returns:
-        Prompt string or None if not set
-    """
-    from gobby.agents.constants import GOBBY_PROMPT, GOBBY_PROMPT_FILE
-
-    # Check for prompt file first
-    prompt_file = os.environ.get(GOBBY_PROMPT_FILE)
-    if prompt_file:
-        try:
-            prompt_path = Path(prompt_file)
-            if prompt_path.exists():
-                return prompt_path.read_text(encoding="utf-8")
-            else:
-                logger.warning(f"Prompt file not found: {prompt_file}")
-        except Exception as e:
-            logger.error(f"Error reading prompt file: {e}")
-
-    # Fall back to inline prompt
-    return os.environ.get(GOBBY_PROMPT)
 
 
 async def prepare_gemini_spawn_with_preflight(
@@ -702,7 +530,7 @@ async def prepare_gemini_spawn_with_preflight(
         if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
             prompt_env = prompt
         else:
-            prompt_file = _create_prompt_file(prompt, child_session.id)
+            prompt_file = create_prompt_file(prompt, child_session.id)
 
     # Build environment variables
     env_vars = get_terminal_env_vars(
@@ -731,57 +559,6 @@ async def prepare_gemini_spawn_with_preflight(
         agent_depth=child_session.agent_depth,
         env_vars=env_vars,
     )
-
-
-def build_gemini_command_with_resume(
-    gemini_external_id: str,
-    prompt: str | None = None,
-    auto_approve: bool = False,
-    gobby_session_id: str | None = None,
-) -> list[str]:
-    """
-    Build Gemini CLI command with session resume.
-
-    Uses -r flag to resume a preflight-captured session, with session context
-    injected into the initial prompt.
-
-    Args:
-        gemini_external_id: Gemini's session_id from preflight capture
-        prompt: Optional user prompt
-        auto_approve: If True, add --approval-mode yolo
-        gobby_session_id: Gobby session ID to inject into context
-
-    Returns:
-        Command list for subprocess execution
-    """
-    command = ["gemini"]
-
-    # Resume the preflight session
-    command.extend(["-r", gemini_external_id])
-
-    if auto_approve:
-        command.extend(["--approval-mode", "yolo"])
-
-    # Build prompt with session context
-    if gobby_session_id:
-        context_prefix = (
-            f"Your Gobby session_id is: {gobby_session_id}\n"
-            f"Use this when calling Gobby MCP tools.\n\n"
-        )
-        full_prompt = context_prefix + (prompt or "")
-    else:
-        full_prompt = prompt or ""
-
-    # Use -i for interactive mode with initial prompt
-    if full_prompt:
-        command.extend(["-i", full_prompt])
-
-    return command
-
-
-# =============================================================================
-# Codex Preflight Capture
-# =============================================================================
 
 
 async def prepare_codex_spawn_with_preflight(
@@ -862,7 +639,7 @@ async def prepare_codex_spawn_with_preflight(
         if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
             prompt_env = prompt
         else:
-            prompt_file = _create_prompt_file(prompt, child_session.id)
+            prompt_file = create_prompt_file(prompt, child_session.id)
 
     # Build environment variables
     env_vars = get_terminal_env_vars(
@@ -891,51 +668,3 @@ async def prepare_codex_spawn_with_preflight(
         agent_depth=child_session.agent_depth,
         env_vars=env_vars,
     )
-
-
-def build_codex_command_with_resume(
-    codex_external_id: str,
-    prompt: str | None = None,
-    auto_approve: bool = False,
-    gobby_session_id: str | None = None,
-    working_directory: str | None = None,
-) -> list[str]:
-    """
-    Build Codex CLI command with session resume.
-
-    Uses `codex resume {session_id}` to resume a preflight-captured session,
-    with session context injected into the prompt.
-
-    Args:
-        codex_external_id: Codex's session_id from preflight capture
-        prompt: Optional user prompt
-        auto_approve: If True, add --full-auto flag
-        gobby_session_id: Gobby session ID to inject into context
-        working_directory: Optional working directory override
-
-    Returns:
-        Command list for subprocess execution
-    """
-    command = ["codex", "resume", codex_external_id]
-
-    if auto_approve:
-        command.append("--full-auto")
-
-    if working_directory:
-        command.extend(["-C", working_directory])
-
-    # Build prompt with session context
-    if gobby_session_id:
-        context_prefix = (
-            f"Your Gobby session_id is: {gobby_session_id}\n"
-            f"Use this when calling Gobby MCP tools.\n\n"
-        )
-        full_prompt = context_prefix + (prompt or "")
-    else:
-        full_prompt = prompt or ""
-
-    # Prompt is a positional argument after session_id
-    if full_prompt:
-        command.append(full_prompt)
-
-    return command

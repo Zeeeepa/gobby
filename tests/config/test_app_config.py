@@ -10,40 +10,45 @@ import yaml
 from pydantic import ValidationError
 
 from gobby.config.app import (
-    CompactHandoffConfig,
-    ContextInjectionConfig,
     DaemonConfig,
-    GobbyTasksConfig,
-    HookExtensionsConfig,
-    ImportMCPServerConfig,
-    LLMProviderConfig,
-    LLMProvidersConfig,
-    LoggingSettings,
-    MCPClientProxyConfig,
-    MemoryConfig,
-    MemorySyncConfig,
-    MessageTrackingConfig,
-    MetricsConfig,
-    PluginItemConfig,
-    PluginsConfig,
-    RecommendToolsConfig,
-    SessionLifecycleConfig,
-    SessionSummaryConfig,
-    TaskExpansionConfig,
-    TaskValidationConfig,
-    TitleSynthesisConfig,
-    ToolSummarizerConfig,
-    WebhookEndpointConfig,
-    WebhooksConfig,
-    WebSocketBroadcastConfig,
-    WebSocketSettings,
-    WorkflowConfig,
     apply_cli_overrides,
     expand_env_vars,
     generate_default_config,
     load_config,
     load_yaml,
     save_config,
+)
+from gobby.config.extensions import (
+    HookExtensionsConfig,
+    PluginItemConfig,
+    PluginsConfig,
+    WebhookEndpointConfig,
+    WebhooksConfig,
+    WebSocketBroadcastConfig,
+)
+from gobby.config.features import (
+    ImportMCPServerConfig,
+    MetricsConfig,
+    RecommendToolsConfig,
+    ToolSummarizerConfig,
+)
+from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
+from gobby.config.logging import LoggingSettings
+from gobby.config.persistence import MemoryConfig, MemorySyncConfig
+from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
+from gobby.config.sessions import (
+    ContextInjectionConfig,
+    MessageTrackingConfig,
+    SessionLifecycleConfig,
+    SessionSummaryConfig,
+    TitleSynthesisConfig,
+)
+from gobby.config.tasks import (
+    CompactHandoffConfig,
+    GobbyTasksConfig,
+    TaskExpansionConfig,
+    TaskValidationConfig,
+    WorkflowConfig,
 )
 
 
@@ -893,8 +898,7 @@ class TestPluginsConfig:
         """Test default plugins config."""
         config = PluginsConfig()
         assert config.enabled is False  # Disabled by default for security
-        assert "~/.gobby/plugins" in config.plugin_dirs
-        assert ".gobby/plugins" in config.plugin_dirs
+        assert ".gobby/plugins" in config.plugin_dirs  # Project-scoped plugins
         assert config.auto_discover is True
         assert config.plugins == {}
 

@@ -14,116 +14,31 @@ Module structure:
 - extensions.py: Hook extension configs (webhooks, plugins)
 - sessions.py: Session lifecycle and tracking configs
 - features.py: MCP proxy feature configs (code execution, tool recommendation)
+
+Import from submodules directly for specific configs:
+    from gobby.config.tasks import TaskValidationConfig
+    from gobby.config.extensions import WebhooksConfig
+
+Import from this package for app-level items:
+    from gobby.config import DaemonConfig, load_config
 """
 
 # Core configuration and utilities from app.py
 from gobby.config.app import (
     DaemonConfig,
     expand_env_vars,
+    generate_default_config,
     load_config,
+    load_yaml,
     save_config,
 )
 
-# Extension configs
-from gobby.config.extensions import (
-    HookExtensionsConfig,
-    PluginItemConfig,
-    PluginsConfig,
-    WebhookEndpointConfig,
-    WebhooksConfig,
-    WebSocketBroadcastConfig,
-)
-
-# Feature configs
-from gobby.config.features import (
-    ImportMCPServerConfig,
-    MetricsConfig,
-    ProjectVerificationConfig,
-    RecommendToolsConfig,
-    ToolSummarizerConfig,
-)
-
-# LLM provider configs
-from gobby.config.llm_providers import (
-    LLMProviderConfig,
-    LLMProvidersConfig,
-)
-
-# Logging configs
-from gobby.config.logging import LoggingSettings
-
-# Persistence configs
-from gobby.config.persistence import (
-    MemoryConfig,
-    MemorySyncConfig,
-)
-
-# Server configs
-from gobby.config.servers import (
-    MCPClientProxyConfig,
-    WebSocketSettings,
-)
-
-# Session configs
-from gobby.config.sessions import (
-    ContextInjectionConfig,
-    MessageTrackingConfig,
-    SessionLifecycleConfig,
-    SessionSummaryConfig,
-    TitleSynthesisConfig,
-)
-
-# Task configs
-from gobby.config.tasks import (
-    CompactHandoffConfig,
-    GobbyTasksConfig,
-    PatternCriteriaConfig,
-    TaskExpansionConfig,
-    TaskValidationConfig,
-    WorkflowConfig,
-)
-
 __all__ = [
-    # Core
+    # Core app-level exports only
     "DaemonConfig",
     "expand_env_vars",
+    "generate_default_config",
     "load_config",
+    "load_yaml",
     "save_config",
-    # Extension configs
-    "HookExtensionsConfig",
-    "PluginItemConfig",
-    "PluginsConfig",
-    "WebhookEndpointConfig",
-    "WebhooksConfig",
-    "WebSocketBroadcastConfig",
-    # Feature configs
-    "ImportMCPServerConfig",
-    "MetricsConfig",
-    "ProjectVerificationConfig",
-    "RecommendToolsConfig",
-    "ToolSummarizerConfig",
-    # LLM provider configs
-    "LLMProviderConfig",
-    "LLMProvidersConfig",
-    # Logging configs
-    "LoggingSettings",
-    # Persistence configs
-    "MemoryConfig",
-    "MemorySyncConfig",
-    # Server configs
-    "MCPClientProxyConfig",
-    "WebSocketSettings",
-    # Session configs
-    "ContextInjectionConfig",
-    "MessageTrackingConfig",
-    "SessionLifecycleConfig",
-    "SessionSummaryConfig",
-    "TitleSynthesisConfig",
-    # Task configs
-    "CompactHandoffConfig",
-    "GobbyTasksConfig",
-    "PatternCriteriaConfig",
-    "TaskExpansionConfig",
-    "TaskValidationConfig",
-    "WorkflowConfig",
 ]

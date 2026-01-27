@@ -39,7 +39,8 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
     gobby_dir.mkdir()
     (gobby_dir / "project.json").write_text(f'{{"id": "{project.id}", "name": "test-project"}}')
 
-    from gobby.config.app import DaemonConfig, HookExtensionsConfig, PluginsConfig, WebhooksConfig
+    from gobby.config.app import DaemonConfig
+    from gobby.config.extensions import HookExtensionsConfig, PluginsConfig, WebhooksConfig
 
     # Create config with temp DB and disabled webhooks
     test_config = DaemonConfig(

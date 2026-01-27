@@ -15,14 +15,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-from gobby.config.extensions import (
-    HookExtensionsConfig,
-    PluginItemConfig,
-    PluginsConfig,
-    WebhookEndpointConfig,
-    WebhooksConfig,
-    WebSocketBroadcastConfig,
-)
+# Internal imports for DaemonConfig fields - NOT re-exported
+from gobby.config.extensions import HookExtensionsConfig
 from gobby.config.features import (
     ImportMCPServerConfig,
     MetricsConfig,
@@ -31,14 +25,9 @@ from gobby.config.features import (
     TaskDescriptionConfig,
     ToolSummarizerConfig,
 )
-
-# Re-export from extracted modules (Strangler Fig pattern for backwards compatibility)
-from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
+from gobby.config.llm_providers import LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
-from gobby.config.persistence import (
-    MemoryConfig,
-    MemorySyncConfig,
-)
+from gobby.config.persistence import MemoryConfig, MemorySyncConfig
 from gobby.config.search import SearchConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
@@ -50,61 +39,10 @@ from gobby.config.sessions import (
     TitleSynthesisConfig,
 )
 from gobby.config.skills import SkillsConfig
-from gobby.config.tasks import (
-    CompactHandoffConfig,
-    GobbyTasksConfig,
-    PatternCriteriaConfig,
-    TaskExpansionConfig,
-    TaskValidationConfig,
-    WorkflowConfig,
-)
+from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
 
-# Explicit exports for mypy (re-exported symbols from submodules)
 __all__ = [
-    # From gobby.config.extensions
-    "HookExtensionsConfig",
-    "PluginItemConfig",
-    "PluginsConfig",
-    "WebhookEndpointConfig",
-    "WebhooksConfig",
-    "WebSocketBroadcastConfig",
-    # From gobby.config.features
-    "ImportMCPServerConfig",
-    "MetricsConfig",
-    "ProjectVerificationConfig",
-    "RecommendToolsConfig",
-    "TaskDescriptionConfig",
-    "ToolSummarizerConfig",
-    # From gobby.config.llm_providers
-    "LLMProviderConfig",
-    "LLMProvidersConfig",
-    # From gobby.config.logging
-    "LoggingSettings",
-    # From gobby.config.persistence
-    "MemoryConfig",
-    "MemorySyncConfig",
-    # From gobby.config.search
-    "SearchConfig",
-    # From gobby.config.servers
-    "MCPClientProxyConfig",
-    "WebSocketSettings",
-    # From gobby.config.skills
-    "SkillsConfig",
-    # From gobby.config.sessions
-    "ArtifactHandoffConfig",
-    "ContextInjectionConfig",
-    "MessageTrackingConfig",
-    "SessionLifecycleConfig",
-    "SessionSummaryConfig",
-    "TitleSynthesisConfig",
-    # From gobby.config.tasks
-    "CompactHandoffConfig",
-    "GobbyTasksConfig",
-    "PatternCriteriaConfig",
-    "TaskExpansionConfig",
-    "TaskValidationConfig",
-    "WorkflowConfig",
-    # Local definitions
+    # Local definitions only - no re-exports
     "ConductorConfig",
     "DaemonConfig",
     "expand_env_vars",
@@ -182,32 +120,6 @@ def expand_env_vars(content: str) -> str:
             return match.group(0)
 
     return ENV_VAR_PATTERN.sub(replace_match, content)
-
-
-# WebSocketSettings moved to gobby.config.servers (re-exported above)
-# LoggingSettings moved to gobby.config.logging (re-exported above)
-# CompactHandoffConfig moved to gobby.config.tasks (re-exported above)
-
-# ContextInjectionConfig, SessionSummaryConfig, TitleSynthesisConfig,
-# MessageTrackingConfig, SessionLifecycleConfig
-# moved to gobby.config.sessions (re-exported above)
-
-# ToolSummarizerConfig, RecommendToolsConfig, ImportMCPServerConfig,
-# MetricsConfig, ProjectVerificationConfig
-# moved to gobby.config.features (re-exported above)
-
-# WebSocketBroadcastConfig, WebhookEndpointConfig, WebhooksConfig,
-# PluginItemConfig, PluginsConfig, HookExtensionsConfig
-# moved to gobby.config.extensions (re-exported above)
-
-# PatternCriteriaConfig, TaskExpansionConfig, TaskValidationConfig, WorkflowConfig,
-# GobbyTasksConfig, CompactHandoffConfig
-# moved to gobby.config.tasks (re-exported above)
-
-# MCPClientProxyConfig moved to gobby.config.servers (re-exported above)
-# LLMProviderConfig and LLMProvidersConfig moved to gobby.config.llm_providers (re-exported above)
-# MemoryConfig, MemorySyncConfig
-# moved to gobby.config.persistence (re-exported above)
 
 
 class DaemonConfig(BaseModel):

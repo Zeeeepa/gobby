@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 if TYPE_CHECKING:
-    from gobby.config.app import WebhookEndpointConfig, WebhooksConfig
+    from gobby.config.extensions import WebhookEndpointConfig, WebhooksConfig
     from gobby.hooks.events import HookEvent
 
 logger = logging.getLogger(__name__)

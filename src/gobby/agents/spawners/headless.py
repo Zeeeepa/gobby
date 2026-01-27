@@ -27,11 +27,11 @@ def _get_spawn_utils() -> tuple[
     """Lazy import to avoid circular dependencies."""
     from gobby.agents.spawn import (
         MAX_ENV_PROMPT_LENGTH,
-        _create_prompt_file,
         build_cli_command,
+        create_prompt_file,
     )
 
-    return build_cli_command, _create_prompt_file, MAX_ENV_PROMPT_LENGTH
+    return build_cli_command, create_prompt_file, MAX_ENV_PROMPT_LENGTH
 
 
 class HeadlessSpawner:

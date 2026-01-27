@@ -10,8 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from gobby.config.app import ProjectVerificationConfig
-    from gobby.config.features import HooksConfig
+    from gobby.config.features import HooksConfig, ProjectVerificationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +137,7 @@ def get_verification_config(cwd: Path | None = None) -> ProjectVerificationConfi
     Returns:
         ProjectVerificationConfig if verification section exists, None otherwise.
     """
-    from gobby.config.app import ProjectVerificationConfig
+    from gobby.config.features import ProjectVerificationConfig
 
     context = get_project_context(cwd)
     if not context:

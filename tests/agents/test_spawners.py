@@ -777,7 +777,13 @@ class TestEmbeddedSpawner:
         mock_pty.openpty.return_value = (10, 11)
 
         def mock_build_cli_command(
-            cli, prompt=None, session_id=None, auto_approve=False, working_directory=None
+            cli,
+            prompt=None,
+            session_id=None,
+            auto_approve=False,
+            working_directory=None,
+            mode=None,
+            sandbox_args=None,
         ):
             cmd = [cli]
             if session_id:
@@ -1841,7 +1847,9 @@ class TestBuildCliCommandSandboxArgs:
     def test_sandbox_args_inserted_for_gemini(self):
         """Test sandbox_args are inserted for Gemini CLI."""
         sandbox_args = ["-s"]
-        cmd = build_cli_command(cli="gemini", prompt="test", mode="headless", sandbox_args=sandbox_args)
+        cmd = build_cli_command(
+            cli="gemini", prompt="test", mode="headless", sandbox_args=sandbox_args
+        )
         assert "-s" in cmd
         # Prompt should still be last
         assert cmd[-1] == "test"
