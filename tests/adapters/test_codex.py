@@ -19,15 +19,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.adapters.codex import (
+from gobby.adapters.codex_impl.adapter import (
     CodexAdapter,
-    CodexAppServerClient,
+    CodexNotifyAdapter,
+    _get_machine_id,
+)
+from gobby.adapters.codex_impl.client import CodexAppServerClient
+from gobby.adapters.codex_impl.types import (
     CodexConnectionState,
     CodexItem,
-    CodexNotifyAdapter,
     CodexThread,
     CodexTurn,
-    _get_machine_id,
 )
 from gobby.hooks.events import HookEventType, HookResponse, SessionSource
 
@@ -1290,7 +1292,7 @@ class TestCodexNotifyAdapterFindJsonlPath:
 
             with (
                 patch.object(Path, "exists", return_value=True),
-                patch("gobby.adapters.codex.CODEX_SESSIONS_DIR", Path(tmpdir)),
+                patch("gobby.adapters.codex_impl.client.CODEX_SESSIONS_DIR", Path(tmpdir)),
                 patch(
                     "gobby.adapters.codex_impl.adapter.glob_module.glob",
                     return_value=[str(session_file)],

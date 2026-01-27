@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from gobby.adapters.codex import CodexAdapter
+from gobby.adapters.codex_impl.adapter import CodexAdapter
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service

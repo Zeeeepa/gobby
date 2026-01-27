@@ -743,7 +743,7 @@ if __name__ == "__main__":
 Codex uses WebSocket events via `CodexAppServerClient`. No hook dispatcher needed.
 
 ```python
-from gobby.adapters.codex import CodexAdapter, CodexAppServerClient
+from gobby.adapters import CodexAdapter, CodexAppServerClient
 
 # Create client and adapter
 client = CodexAppServerClient()

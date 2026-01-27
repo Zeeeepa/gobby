@@ -2054,7 +2054,7 @@ class TestHooksEndpoints:
 
         with (
             TestClient(server.app) as client,
-            patch("gobby.adapters.codex.CodexNotifyAdapter") as MockAdapter,
+            patch("gobby.adapters.codex_impl.adapter.CodexNotifyAdapter") as MockAdapter,
         ):
             mock_adapter = MagicMock()
             mock_adapter.handle_native.return_value = {"continue": True}
