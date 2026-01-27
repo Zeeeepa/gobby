@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gobby.agents.constants import get_terminal_env_vars
+from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.agents.spawners import (
     AlacrittySpawner,
@@ -375,6 +376,7 @@ class TerminalSpawner:
         max_agent_depth: int = 3,
         terminal: TerminalType | str = TerminalType.AUTO,
         prompt: str | None = None,
+        sandbox_config: SandboxConfig | None = None,
     ) -> SpawnResult:
         """
         Spawn a CLI agent in a new terminal with Gobby environment variables.
@@ -391,10 +393,22 @@ class TerminalSpawner:
             max_agent_depth: Maximum allowed depth
             terminal: Terminal type or "auto"
             prompt: Optional initial prompt
+            sandbox_config: Optional sandbox configuration
 
         Returns:
             SpawnResult with success status
         """
+        # Resolve sandbox configuration if enabled
+        sandbox_args: list[str] | None = None
+        sandbox_env: dict[str, str] = {}
+
+        if sandbox_config and sandbox_config.enabled:
+            # Compute sandbox paths based on cwd (workspace)
+            resolved_paths = compute_sandbox_paths(sandbox_config, str(cwd))
+            # Get CLI-specific resolver and generate args/env
+            resolver = get_sandbox_resolver(cli)
+            sandbox_args, sandbox_env = resolver.resolve(sandbox_config, resolved_paths)
+
         # Build command with prompt as CLI argument and auto-approve for autonomous work
         command = build_cli_command(
             cli,
@@ -403,6 +417,7 @@ class TerminalSpawner:
             auto_approve=True,  # Subagents need to work autonomously
             working_directory=str(cwd) if cli == "codex" else None,
             mode="terminal",  # Interactive terminal mode
+            sandbox_args=sandbox_args,
         )
 
         # Handle prompt for environment variables (backup for hooks/context)
@@ -427,6 +442,10 @@ class TerminalSpawner:
             prompt=prompt_env,
             prompt_file=prompt_file,
         )
+
+        # Merge sandbox environment variables if present
+        if sandbox_env:
+            env.update(sandbox_env)
 
         # Set title (avoid colons/parentheses which Ghostty interprets as config syntax)
         title = f"gobby-{cli}-d{agent_depth}"

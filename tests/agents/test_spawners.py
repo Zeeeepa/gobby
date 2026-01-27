@@ -1862,3 +1862,161 @@ class TestBuildCliCommandSandboxArgs:
         assert "--dangerously-skip-permissions" in cmd
         assert "--settings" in cmd
         assert cmd[-1] == "test"
+
+
+# =============================================================================
+# Tests for TerminalSpawner.spawn_agent with sandbox_config
+# =============================================================================
+
+
+class TestTerminalSpawnerSandbox:
+    """Tests for TerminalSpawner.spawn_agent sandbox handling."""
+
+    @patch("gobby.agents.spawn.TerminalSpawner.spawn")
+    @patch("gobby.agents.spawn.build_cli_command")
+    def test_sandbox_config_none_has_no_effect(self, mock_build_cmd, mock_spawn):
+        """Test that sandbox_config=None doesn't add sandbox args."""
+        from gobby.agents.spawn import TerminalSpawner
+
+        mock_build_cmd.return_value = ["claude", "test"]
+        mock_spawn.return_value = MagicMock(success=True, pid=1234)
+
+        spawner = TerminalSpawner()
+        result = spawner.spawn_agent(
+            cli="claude",
+            cwd="/project",
+            session_id="sess-123",
+            parent_session_id="parent-456",
+            agent_run_id="run-789",
+            project_id="proj-abc",
+            prompt="test prompt",
+            sandbox_config=None,
+        )
+
+        # build_cli_command should be called without sandbox_args
+        mock_build_cmd.assert_called_once()
+        call_kwargs = mock_build_cmd.call_args[1]
+        assert call_kwargs.get("sandbox_args") is None
+        assert result.success is True
+
+    @patch("gobby.agents.spawn.TerminalSpawner.spawn")
+    @patch("gobby.agents.spawn.build_cli_command")
+    def test_sandbox_config_disabled_has_no_effect(self, mock_build_cmd, mock_spawn):
+        """Test that sandbox_config with enabled=False doesn't add sandbox args."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.agents.spawn import TerminalSpawner
+
+        mock_build_cmd.return_value = ["claude", "test"]
+        mock_spawn.return_value = MagicMock(success=True, pid=1234)
+
+        spawner = TerminalSpawner()
+        sandbox_config = SandboxConfig(enabled=False)
+        result = spawner.spawn_agent(
+            cli="claude",
+            cwd="/project",
+            session_id="sess-123",
+            parent_session_id="parent-456",
+            agent_run_id="run-789",
+            project_id="proj-abc",
+            prompt="test prompt",
+            sandbox_config=sandbox_config,
+        )
+
+        # build_cli_command should be called without sandbox_args
+        mock_build_cmd.assert_called_once()
+        call_kwargs = mock_build_cmd.call_args[1]
+        assert call_kwargs.get("sandbox_args") is None
+        assert result.success is True
+
+    @patch("gobby.agents.spawn.TerminalSpawner.spawn")
+    @patch("gobby.agents.spawn.build_cli_command")
+    def test_sandbox_config_enabled_adds_sandbox_args_for_claude(self, mock_build_cmd, mock_spawn):
+        """Test that enabled sandbox_config adds sandbox args for Claude CLI."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.agents.spawn import TerminalSpawner
+
+        mock_build_cmd.return_value = ["claude", "--settings", "{}", "test"]
+        mock_spawn.return_value = MagicMock(success=True, pid=1234)
+
+        spawner = TerminalSpawner()
+        sandbox_config = SandboxConfig(enabled=True, mode="permissive")
+        result = spawner.spawn_agent(
+            cli="claude",
+            cwd="/project",
+            session_id="sess-123",
+            parent_session_id="parent-456",
+            agent_run_id="run-789",
+            project_id="proj-abc",
+            prompt="test prompt",
+            sandbox_config=sandbox_config,
+        )
+
+        # build_cli_command should be called with sandbox_args
+        mock_build_cmd.assert_called_once()
+        call_kwargs = mock_build_cmd.call_args[1]
+        assert call_kwargs.get("sandbox_args") is not None
+        sandbox_args = call_kwargs["sandbox_args"]
+        assert "--settings" in sandbox_args
+        assert result.success is True
+
+    @patch("gobby.agents.spawn.TerminalSpawner.spawn")
+    @patch("gobby.agents.spawn.build_cli_command")
+    def test_sandbox_config_enabled_adds_env_for_gemini(self, mock_build_cmd, mock_spawn):
+        """Test that enabled sandbox_config adds env vars for Gemini CLI."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.agents.spawn import TerminalSpawner
+
+        mock_build_cmd.return_value = ["gemini", "-s", "test"]
+        mock_spawn.return_value = MagicMock(success=True, pid=1234)
+
+        spawner = TerminalSpawner()
+        sandbox_config = SandboxConfig(enabled=True, mode="restrictive")
+        result = spawner.spawn_agent(
+            cli="gemini",
+            cwd="/project",
+            session_id="sess-123",
+            parent_session_id="parent-456",
+            agent_run_id="run-789",
+            project_id="proj-abc",
+            prompt="test prompt",
+            sandbox_config=sandbox_config,
+        )
+
+        # spawn should be called with env containing SEATBELT_PROFILE
+        mock_spawn.assert_called_once()
+        call_kwargs = mock_spawn.call_args[1]
+        env = call_kwargs.get("env", {})
+        assert "SEATBELT_PROFILE" in env
+        assert "restrictive" in env["SEATBELT_PROFILE"]
+        assert result.success is True
+
+    @patch("gobby.agents.spawn.TerminalSpawner.spawn")
+    @patch("gobby.agents.spawn.build_cli_command")
+    def test_sandbox_config_enabled_adds_args_for_codex(self, mock_build_cmd, mock_spawn):
+        """Test that enabled sandbox_config adds sandbox args for Codex CLI."""
+        from gobby.agents.sandbox import SandboxConfig
+        from gobby.agents.spawn import TerminalSpawner
+
+        mock_build_cmd.return_value = ["codex", "--sandbox", "workspace-write", "test"]
+        mock_spawn.return_value = MagicMock(success=True, pid=1234)
+
+        spawner = TerminalSpawner()
+        sandbox_config = SandboxConfig(enabled=True, mode="permissive")
+        result = spawner.spawn_agent(
+            cli="codex",
+            cwd="/project",
+            session_id="sess-123",
+            parent_session_id="parent-456",
+            agent_run_id="run-789",
+            project_id="proj-abc",
+            prompt="test prompt",
+            sandbox_config=sandbox_config,
+        )
+
+        # build_cli_command should be called with sandbox_args
+        mock_build_cmd.assert_called_once()
+        call_kwargs = mock_build_cmd.call_args[1]
+        assert call_kwargs.get("sandbox_args") is not None
+        sandbox_args = call_kwargs["sandbox_args"]
+        assert "--sandbox" in sandbox_args
+        assert result.success is True
