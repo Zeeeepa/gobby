@@ -5,13 +5,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from gobby.config.app import (
-    DaemonConfig,
-    LLMProviderConfig,
-    LLMProvidersConfig,
-    SessionSummaryConfig,
-    TitleSynthesisConfig,
-)
+from gobby.config.app import DaemonConfig
+from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
+from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 from gobby.llm.claude import ClaudeLLMProvider
 
 # --- Mocks for claude_agent_sdk ---

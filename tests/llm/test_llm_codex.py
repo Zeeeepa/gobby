@@ -6,13 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gobby.config.app import (
-    DaemonConfig,
-    LLMProviderConfig,
-    LLMProvidersConfig,
-    SessionSummaryConfig,
-    TitleSynthesisConfig,
-)
+from gobby.config.app import DaemonConfig
+from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
+from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 
 
 @pytest.fixture

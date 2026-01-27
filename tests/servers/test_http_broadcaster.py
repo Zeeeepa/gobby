@@ -4,11 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from gobby.config.app import (
-    DaemonConfig,
-    HookExtensionsConfig,
-    WebSocketBroadcastConfig,
-)
+from gobby.config.app import DaemonConfig
+from gobby.config.extensions import HookExtensionsConfig, WebSocketBroadcastConfig
 from gobby.servers.http import HTTPServer
 
 
