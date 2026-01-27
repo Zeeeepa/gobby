@@ -1,6 +1,6 @@
 ---
-name: diagnostic
-description: This skill should be used when the user asks to "/gobby diagnostic", "systems check", "health check", "run diagnostics". Run comprehensive systems check verifying CLI and MCP tools work correctly with self-cleaning test data.
+name: doctor
+description: This skill should be used when the user asks to "/gobby doctor", "run doctor", "security audit", "health check", "systems check", "run diagnostics". Run comprehensive systems check verifying CLI and MCP tools work correctly with self-cleaning test data.
 category: core
 ---
 
