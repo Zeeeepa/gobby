@@ -123,6 +123,63 @@ class TestSandboxConfig:
         assert config.extra_read_paths == []
         assert config.extra_write_paths == []
 
+    def test_enabled_field_accepts_bool(self):
+        """Test that enabled field only accepts boolean values."""
+        # True
+        config_true = SandboxConfig(enabled=True)
+        assert config_true.enabled is True
+
+        # False
+        config_false = SandboxConfig(enabled=False)
+        assert config_false.enabled is False
+
+    def test_allow_network_field_accepts_bool(self):
+        """Test that allow_network field only accepts boolean values."""
+        # True
+        config_true = SandboxConfig(allow_network=True)
+        assert config_true.allow_network is True
+
+        # False
+        config_false = SandboxConfig(allow_network=False)
+        assert config_false.allow_network is False
+
+    def test_empty_path_lists_are_valid(self):
+        """Test that empty path lists are valid configuration."""
+        config = SandboxConfig(
+            enabled=True,
+            extra_read_paths=[],
+            extra_write_paths=[],
+        )
+
+        assert config.extra_read_paths == []
+        assert config.extra_write_paths == []
+
+    def test_paths_preserve_order(self):
+        """Test that path lists preserve insertion order."""
+        paths = ["/first", "/second", "/third"]
+        config = SandboxConfig(
+            extra_read_paths=paths,
+            extra_write_paths=list(reversed(paths)),
+        )
+
+        assert config.extra_read_paths == ["/first", "/second", "/third"]
+        assert config.extra_write_paths == ["/third", "/second", "/first"]
+
+    def test_model_copy_deep_creates_independent_instance(self):
+        """Test that model_copy(deep=True) creates an independent copy."""
+        original = SandboxConfig(
+            enabled=True,
+            mode="restrictive",
+            extra_read_paths=["/data"],
+        )
+
+        copy = original.model_copy(deep=True)
+        copy.extra_read_paths.append("/new")
+
+        # Original should be unchanged (deep copy)
+        assert "/new" not in original.extra_read_paths
+        assert "/new" in copy.extra_read_paths
+
 
 class TestResolvedSandboxPaths:
     """Tests for ResolvedSandboxPaths Pydantic model."""
