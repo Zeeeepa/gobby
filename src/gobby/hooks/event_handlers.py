@@ -235,8 +235,8 @@ class EventHandlers:
                     session_ref = (
                         f"#{existing_session.seq_num}" if existing_session.seq_num else session_id
                     )
-                    system_message = f"\nGobby Session ID: {session_id}"
-                    system_message += f"\nSession Ref: {session_ref}"
+                    system_message = f"\nGobby Session Ref: {session_ref}"
+                    system_message += f"\nGobby Session ID: {session_id}"
                     system_message += f"\nExternal ID: {external_id}"
                     if parent_session_id:
                         context_parts.append(f"Parent session: {parent_session_id}")
@@ -354,8 +354,8 @@ class EventHandlers:
             session_obj = self._session_storage.get(session_id)
             if session_obj and session_obj.seq_num:
                 session_ref = f"#{session_obj.seq_num}"
-        system_message = f"\nGobby Session ID: {session_id}"
-        system_message += f"\nSession Ref: {session_ref}"
+        system_message = f"\nGobby Session Ref: {session_ref}"
+        system_message += f"\nGobby Session ID: {session_id}"
         system_message += f"\nExternal ID: {external_id}"
 
         # Add active lifecycle workflows
