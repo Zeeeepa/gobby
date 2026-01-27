@@ -56,9 +56,7 @@ class TestCloneGitManagerShallowClone:
 
     def test_shallow_clone_success(self, manager, mock_run, tmp_path: Path):
         """Shallow clone creates clone with depth 1."""
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Cloning into 'clone'...", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="Cloning into 'clone'...", stderr="")
         clone_path = tmp_path / "test_clone"
 
         result = manager.shallow_clone(
@@ -78,9 +76,7 @@ class TestCloneGitManagerShallowClone:
 
     def test_shallow_clone_with_custom_depth(self, manager, mock_run, tmp_path: Path):
         """Shallow clone respects custom depth parameter."""
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Cloning into 'clone'...", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="Cloning into 'clone'...", stderr="")
         clone_path = tmp_path / "test_clone"
 
         manager.shallow_clone(
@@ -117,9 +113,7 @@ class TestCloneGitManagerShallowClone:
             branch_idx = cmd.index("--branch")
         assert cmd[branch_idx + 1] == "develop"
 
-    def test_shallow_clone_fails_when_path_exists(
-        self, manager, mock_run, tmp_path: Path
-    ):
+    def test_shallow_clone_fails_when_path_exists(self, manager, mock_run, tmp_path: Path):
         """Shallow clone fails if target path already exists."""
         clone_path = tmp_path / "existing"
         clone_path.mkdir()
@@ -199,9 +193,7 @@ class TestCloneGitManagerSyncClone:
         """Sync clone pulls changes successfully."""
         clone_path = tmp_path / "clone"
         clone_path.mkdir()
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Already up to date.", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="Already up to date.", stderr="")
 
         result = manager.sync_clone(clone_path, direction="pull")
 
@@ -214,9 +206,7 @@ class TestCloneGitManagerSyncClone:
         """Sync clone pushes changes successfully."""
         clone_path = tmp_path / "clone"
         clone_path.mkdir()
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Everything up-to-date", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="Everything up-to-date", stderr="")
 
         result = manager.sync_clone(clone_path, direction="push")
 

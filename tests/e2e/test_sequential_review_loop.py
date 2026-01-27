@@ -118,7 +118,9 @@ class TestSequentialReviewLoopE2E:
             },
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is not False, f"Update subtask 1 to in_progress failed: {result}"
+        assert result.get("success") is not False, (
+            f"Update subtask 1 to in_progress failed: {result}"
+        )
 
         # 3b: Verify first subtask is in_progress
         raw_result = mcp_client.call_tool(
@@ -162,7 +164,9 @@ class TestSequentialReviewLoopE2E:
             },
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is not False, f"Update subtask 2 to in_progress failed: {result}"
+        assert result.get("success") is not False, (
+            f"Update subtask 2 to in_progress failed: {result}"
+        )
 
         # 4b: Close second subtask
         raw_result = mcp_client.call_tool(
@@ -311,7 +315,9 @@ class TestSequentialReviewLoopE2E:
         result = unwrap_result(raw_result)
         blocked_by = result.get("dependencies", {}).get("blocked_by", [])
         blocked_by_ids = [dep.get("depends_on") for dep in blocked_by]
-        assert subtask1_id in blocked_by_ids, f"Subtask 2 should be blocked by Subtask 1. Blocked by: {blocked_by_ids}"
+        assert subtask1_id in blocked_by_ids, (
+            f"Subtask 2 should be blocked by Subtask 1. Blocked by: {blocked_by_ids}"
+        )
 
         # Verify subtask 1 has no blocking dependencies (should be ready)
         raw_result = mcp_client.call_tool(
@@ -321,7 +327,9 @@ class TestSequentialReviewLoopE2E:
         )
         result = unwrap_result(raw_result)
         subtask1_blocked_by = result.get("dependencies", {}).get("blocked_by", [])
-        assert len(subtask1_blocked_by) == 0, f"Subtask 1 should have no blockers: {subtask1_blocked_by}"
+        assert len(subtask1_blocked_by) == 0, (
+            f"Subtask 1 should have no blockers: {subtask1_blocked_by}"
+        )
 
         # Complete subtask 1 (goes to review first, then close)
         mcp_client.call_tool(
@@ -345,7 +353,9 @@ class TestSequentialReviewLoopE2E:
             arguments={"task_id": subtask1_id},
         )
         result = unwrap_result(raw_result)
-        assert result.get("status") == "closed", f"Subtask 1 should be closed: {result.get('status')}"
+        assert result.get("status") == "closed", (
+            f"Subtask 1 should be closed: {result.get('status')}"
+        )
 
         # Verify subtask 2's blocking dependency is now resolved (subtask 1 in review/closed)
         # Since subtask 1 is in review/closed, subtask 2 should now be unblocked
@@ -356,7 +366,9 @@ class TestSequentialReviewLoopE2E:
         )
         result = unwrap_result(raw_result)
         blocked_task_ids = [t["id"] for t in result.get("tasks", [])]
-        assert subtask2_id not in blocked_task_ids, f"Subtask 2 should be unblocked after Subtask 1 review. Blocked: {blocked_task_ids}"
+        assert subtask2_id not in blocked_task_ids, (
+            f"Subtask 2 should be unblocked after Subtask 1 review. Blocked: {blocked_task_ids}"
+        )
 
     def test_orchestration_status_tracking(
         self,

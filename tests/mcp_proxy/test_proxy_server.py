@@ -272,7 +272,11 @@ async def test_call_tool_returns_mcp_error_on_validation_failure(daemon_tools):
             "success": False,
             "error": "Invalid arguments: ['Missing required parameter foo']",
             "hint": "Review the schema below and retry with correct parameters",
-            "schema": {"type": "object", "required": ["foo"], "properties": {"foo": {"type": "string"}}},
+            "schema": {
+                "type": "object",
+                "required": ["foo"],
+                "properties": {"foo": {"type": "string"}},
+            },
         }
     )
 

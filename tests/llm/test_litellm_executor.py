@@ -26,8 +26,13 @@ class TestGetLitellmModel:
         """Test Claude provider gets anthropic prefix."""
         from gobby.llm.litellm_executor import get_litellm_model
 
-        assert get_litellm_model("claude-sonnet-4-5", provider="claude") == "anthropic/claude-sonnet-4-5"
-        assert get_litellm_model("claude-haiku-4-5", provider="claude") == "anthropic/claude-haiku-4-5"
+        assert (
+            get_litellm_model("claude-sonnet-4-5", provider="claude")
+            == "anthropic/claude-sonnet-4-5"
+        )
+        assert (
+            get_litellm_model("claude-haiku-4-5", provider="claude") == "anthropic/claude-haiku-4-5"
+        )
 
     def test_gemini_api_key_mode(self, mock_litellm_module):
         """Test Gemini with api_key gets gemini prefix."""
@@ -76,6 +81,7 @@ class TestSetupProviderEnv:
             setup_provider_env("gemini", "adc")
 
             import os
+
             assert os.environ.get("VERTEXAI_PROJECT") == "my-project"
             assert "VERTEXAI_LOCATION" in os.environ
 
@@ -87,6 +93,7 @@ class TestSetupProviderEnv:
             setup_provider_env("claude", "api_key")
 
             import os
+
             assert "VERTEXAI_PROJECT" not in os.environ
 
 

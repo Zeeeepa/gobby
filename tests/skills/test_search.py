@@ -240,9 +240,7 @@ class TestSkillSearch:
 
         assert not search.needs_reindex()
 
-        new_skill = Skill(
-            id="skl-1", name="skill-1", description="Desc", content="C"
-        )
+        new_skill = Skill(id="skl-1", name="skill-1", description="Desc", content="C")
         search.add_skill(new_skill)
         assert not search.needs_reindex()
 

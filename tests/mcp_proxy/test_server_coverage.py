@@ -45,7 +45,9 @@ class TestGetToolAlternatives:
     """Tests for get_tool_alternatives method (lines 202-233)."""
 
     @pytest.mark.asyncio
-    async def test_get_tool_alternatives_no_project_id(self, mock_mcp_manager, mock_internal_manager):
+    async def test_get_tool_alternatives_no_project_id(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
         """Test error when no project_id is available."""
         mock_mcp_manager.project_id = None
 
@@ -191,9 +193,7 @@ class TestSearchToolsExceptionHandling:
     ):
         """Test that exceptions in semantic search are caught and returned."""
         mock_semantic = AsyncMock()
-        mock_semantic.search_tools = AsyncMock(
-            side_effect=RuntimeError("Embedding model failed")
-        )
+        mock_semantic.search_tools = AsyncMock(side_effect=RuntimeError("Embedding model failed"))
 
         handler = GobbyDaemonTools(
             mcp_manager=mock_mcp_manager,
@@ -289,11 +289,13 @@ class TestListHookHandlers:
         mock_handler.priority = 10
 
         mock_registry = MagicMock()
+
         # Return handler for SESSION_START, empty for others
         def get_handlers_for_type(event_type):
             if event_type == HookEventType.SESSION_START:
                 return [mock_handler]
             return []
+
         mock_registry.get_handlers.side_effect = get_handlers_for_type
 
         mock_plugin_loader = MagicMock()
@@ -393,9 +395,7 @@ class TestTestHookEvent:
         assert "not available" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_test_hook_event_no_hook_manager(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_test_hook_event_no_hook_manager(self, mock_mcp_manager, mock_internal_manager):
         """Test error when hook manager is not available."""
         mock_internal_manager._hook_manager = None
 
@@ -524,9 +524,7 @@ class TestTestHookEvent:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_test_hook_event_process_exception(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_test_hook_event_process_exception(self, mock_mcp_manager, mock_internal_manager):
         """Test exception handling during event processing."""
         mock_hook_manager = MagicMock()
         mock_hook_manager.process_event.side_effect = RuntimeError("Plugin crashed")
@@ -549,9 +547,7 @@ class TestTestHookEvent:
         assert "Plugin crashed" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_test_hook_event_blocked_response(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_test_hook_event_blocked_response(self, mock_mcp_manager, mock_internal_manager):
         """Test hook event that returns blocked response."""
         mock_hook_manager = MagicMock()
         mock_hook_manager.process_event.return_value = {

@@ -69,9 +69,7 @@ class TestCostPersistence:
     """Tests for persisting CostInfo to session storage."""
 
     @pytest.mark.asyncio
-    async def test_execute_run_persists_cost_info(
-        self, runner_with_cost, mock_session_storage
-    ):
+    async def test_execute_run_persists_cost_info(self, runner_with_cost, mock_session_storage):
         """execute_run persists cost_info to session storage after completion."""
         mock_session = MagicMock()
         mock_session.id = "sess-child"
@@ -88,14 +86,10 @@ class TestCostPersistence:
         assert result.cost_info.total_cost == 0.05
 
         # Verify add_cost was called with the child session's cost
-        mock_session_storage.add_cost.assert_called_once_with(
-            "sess-child", 0.05
-        )
+        mock_session_storage.add_cost.assert_called_once_with("sess-child", 0.05)
 
     @pytest.mark.asyncio
-    async def test_execute_run_no_cost_when_none(
-        self, mock_db, mock_session_storage
-    ):
+    async def test_execute_run_no_cost_when_none(self, mock_db, mock_session_storage):
         """execute_run does not call add_cost when cost_info is None."""
         # Create executor that returns no cost info
         executor = MagicMock()
@@ -131,9 +125,7 @@ class TestCostPersistence:
         mock_session_storage.add_cost.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_execute_run_persists_cost_on_error(
-        self, mock_db, mock_session_storage
-    ):
+    async def test_execute_run_persists_cost_on_error(self, mock_db, mock_session_storage):
         """execute_run persists cost even when result status is error."""
         # Create executor that returns error with cost info
         executor = MagicMock()
@@ -172,14 +164,10 @@ class TestCostPersistence:
 
         assert result.status == "error"
         # Cost should still be persisted even on error
-        mock_session_storage.add_cost.assert_called_once_with(
-            "sess-child", 0.02
-        )
+        mock_session_storage.add_cost.assert_called_once_with("sess-child", 0.02)
 
     @pytest.mark.asyncio
-    async def test_execute_run_persists_cost_on_timeout(
-        self, mock_db, mock_session_storage
-    ):
+    async def test_execute_run_persists_cost_on_timeout(self, mock_db, mock_session_storage):
         """execute_run persists cost when result status is timeout."""
         # Create executor that returns timeout with cost info
         executor = MagicMock()
@@ -217,14 +205,10 @@ class TestCostPersistence:
 
         assert result.status == "timeout"
         # Cost should still be persisted on timeout
-        mock_session_storage.add_cost.assert_called_once_with(
-            "sess-child", 0.10
-        )
+        mock_session_storage.add_cost.assert_called_once_with("sess-child", 0.10)
 
     @pytest.mark.asyncio
-    async def test_execute_run_zero_cost_not_persisted(
-        self, mock_db, mock_session_storage
-    ):
+    async def test_execute_run_zero_cost_not_persisted(self, mock_db, mock_session_storage):
         """execute_run does not call add_cost when total_cost is zero."""
         # Create executor that returns cost_info with zero cost
         executor = MagicMock()

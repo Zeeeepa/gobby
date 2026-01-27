@@ -1945,9 +1945,7 @@ def test_apply_baseline_v2_creates_all_tables(tmp_path):
         "workflow_audit_log",
     ]
     for table in expected_tables:
-        row = db.fetchone(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
-        )
+        row = db.fetchone("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
         assert row is not None, f"Table {table} not created by _apply_baseline_v2"
 
 

@@ -75,9 +75,7 @@ class TestWaitForTask:
     """Tests for wait_for_task tool."""
 
     @pytest.mark.asyncio
-    async def test_wait_for_task_already_complete(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_task_already_complete(self, wait_registry, mock_task_manager):
         """Test waiting for task that's already closed."""
         mock_task_manager.get_task.return_value = MockTask(
             id="task-1",
@@ -95,9 +93,7 @@ class TestWaitForTask:
         assert result["task"]["status"] == "closed"
 
     @pytest.mark.asyncio
-    async def test_wait_for_task_becomes_complete(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_task_becomes_complete(self, wait_registry, mock_task_manager):
         """Test waiting for task that completes during wait."""
         # Task starts open, then becomes closed
         call_count = 0
@@ -111,7 +107,9 @@ class TestWaitForTask:
 
         mock_task_manager.get_task.side_effect = get_task_side_effect
 
-        with patch("gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock
+        ):
             result = await wait_registry.call(
                 "wait_for_task",
                 {"task_id": "task-1", "poll_interval": 0.1},
@@ -122,9 +120,7 @@ class TestWaitForTask:
         assert call_count >= 3
 
     @pytest.mark.asyncio
-    async def test_wait_for_task_timeout(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_task_timeout(self, wait_registry, mock_task_manager):
         """Test timeout when task doesn't complete."""
         mock_task_manager.get_task.return_value = MockTask(
             id="task-1",
@@ -141,9 +137,7 @@ class TestWaitForTask:
         assert result["timed_out"] is True
 
     @pytest.mark.asyncio
-    async def test_wait_for_task_not_found(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_task_not_found(self, wait_registry, mock_task_manager):
         """Test waiting for non-existent task."""
         mock_task_manager.get_task.return_value = None
 
@@ -156,9 +150,7 @@ class TestWaitForTask:
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_wait_for_task_accepts_seq_num_format(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_task_accepts_seq_num_format(self, wait_registry, mock_task_manager):
         """Test wait_for_task accepts #N format."""
         mock_task_manager.get_task.return_value = MockTask(
             id="task-uuid",
@@ -178,9 +170,7 @@ class TestWaitForAnyTask:
     """Tests for wait_for_any_task tool."""
 
     @pytest.mark.asyncio
-    async def test_wait_for_any_one_already_complete(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_any_one_already_complete(self, wait_registry, mock_task_manager):
         """Test with one task already complete."""
 
         def get_task_side_effect(task_id):
@@ -199,9 +189,7 @@ class TestWaitForAnyTask:
         assert result["completed_task_id"] == "task-2"
 
     @pytest.mark.asyncio
-    async def test_wait_for_any_first_to_complete(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_any_first_to_complete(self, wait_registry, mock_task_manager):
         """Test waiting until first task completes."""
         call_count = 0
 
@@ -215,7 +203,9 @@ class TestWaitForAnyTask:
 
         mock_task_manager.get_task.side_effect = get_task_side_effect
 
-        with patch("gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock
+        ):
             result = await wait_registry.call(
                 "wait_for_any_task",
                 {"task_ids": ["task-1", "task-2", "task-3"], "poll_interval": 0.01},
@@ -225,9 +215,7 @@ class TestWaitForAnyTask:
         assert result["completed_task_id"] == "task-3"
 
     @pytest.mark.asyncio
-    async def test_wait_for_any_timeout(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_any_timeout(self, wait_registry, mock_task_manager):
         """Test timeout when no tasks complete."""
         mock_task_manager.get_task.return_value = MockTask(status="open")
 
@@ -241,9 +229,7 @@ class TestWaitForAnyTask:
         assert result["timed_out"] is True
 
     @pytest.mark.asyncio
-    async def test_wait_for_any_empty_list(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_any_empty_list(self, wait_registry, mock_task_manager):
         """Test with empty task list."""
         result = await wait_registry.call(
             "wait_for_any_task",
@@ -258,9 +244,7 @@ class TestWaitForAllTasks:
     """Tests for wait_for_all_tasks tool."""
 
     @pytest.mark.asyncio
-    async def test_wait_for_all_already_complete(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_all_already_complete(self, wait_registry, mock_task_manager):
         """Test with all tasks already complete."""
         mock_task_manager.get_task.return_value = MockTask(status="closed")
 
@@ -274,9 +258,7 @@ class TestWaitForAllTasks:
         assert result["completed_count"] == 3
 
     @pytest.mark.asyncio
-    async def test_wait_for_all_becomes_complete(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_all_becomes_complete(self, wait_registry, mock_task_manager):
         """Test waiting for all tasks to complete."""
         completed = set()
         call_count = 0
@@ -298,7 +280,9 @@ class TestWaitForAllTasks:
 
         mock_task_manager.get_task.side_effect = get_task_side_effect
 
-        with patch("gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock
+        ):
             result = await wait_registry.call(
                 "wait_for_all_tasks",
                 {"task_ids": ["task-1", "task-2", "task-3"], "poll_interval": 0.01},
@@ -309,9 +293,7 @@ class TestWaitForAllTasks:
         assert result["completed_count"] == 3
 
     @pytest.mark.asyncio
-    async def test_wait_for_all_partial_completion(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_all_partial_completion(self, wait_registry, mock_task_manager):
         """Test timeout with partial completion."""
 
         def get_task_side_effect(task_id):
@@ -333,9 +315,7 @@ class TestWaitForAllTasks:
         assert result["timed_out"] is True
 
     @pytest.mark.asyncio
-    async def test_wait_for_all_empty_list(
-        self, wait_registry, mock_task_manager
-    ):
+    async def test_wait_for_all_empty_list(self, wait_registry, mock_task_manager):
         """Test with empty task list."""
         result = await wait_registry.call(
             "wait_for_all_tasks",
@@ -381,7 +361,9 @@ class TestWaitToolParameters:
 
         mock_task_manager.get_task.side_effect = get_task_side_effect
 
-        with patch("gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "gobby.mcp_proxy.tools.orchestration.wait.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             result = await wait_registry.call(
                 "wait_for_task",
                 {"task_id": "task-1", "poll_interval": 10},  # 10 second interval

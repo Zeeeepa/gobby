@@ -668,6 +668,7 @@ class TestCheckPrematureStop:
         # Configure template_engine.render to actually render like a real Jinja template
         def render_template(template, context):
             from jinja2 import Template
+
             return Template(template).render(**context)
 
         mock_action_executor.template_engine.render.side_effect = render_template

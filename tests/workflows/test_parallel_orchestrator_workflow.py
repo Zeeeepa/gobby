@@ -19,7 +19,9 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def workflow_loader_with_install_dir():
     """Create a WorkflowLoader that includes the install/shared/workflows directory."""
-    install_dir = Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "workflows"
+    install_dir = (
+        Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "workflows"
+    )
     return WorkflowLoader(workflow_dirs=[install_dir])
 
 

@@ -104,9 +104,7 @@ class TestLocalTaskManager:
 
         # Mock to always return existing ID
         # Patch where it's used (_crud.py), not where it's re-exported
-        with patch(
-            "gobby.storage.tasks._crud.generate_task_id", return_value=existing_task.id
-        ):
+        with patch("gobby.storage.tasks._crud.generate_task_id", return_value=existing_task.id):
             with pytest.raises(TaskIDCollisionError):
                 task_manager.create_task(project_id=project_id, title="Doom")
 
@@ -154,9 +152,7 @@ class TestLocalTaskManager:
         with pytest.raises(ValueError):
             task_manager.get_task(dependent.id)
 
-    def test_delete_with_dependents_unlink_preserves(
-        self, task_manager, dep_manager, project_id
-    ):
+    def test_delete_with_dependents_unlink_preserves(self, task_manager, dep_manager, project_id):
         """Test that unlink=True deletes task but preserves dependents."""
         blocker = task_manager.create_task(project_id=project_id, title="Blocker")
         dependent = task_manager.create_task(project_id=project_id, title="Dependent")

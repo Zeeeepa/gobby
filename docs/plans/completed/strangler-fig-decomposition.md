@@ -30,9 +30,8 @@ For each candidate, follow these steps:
 | Priority | Candidate | Rationale |
 |----------|-----------|-----------|
 | 1 | `actions.py` | Already in progress, minimal remaining work (delete wrappers) |
-| 2 | `migrations.py` | High-value cleanup, isolated domain, pending decision on legacy support |
-| 3 | `tools.py` | Largest file, requires careful router mounting |
-| 4 | `codex.py` | Adapter code, can be done whenever |
+| 2 | `tools.py` | Largest file, requires careful router mounting |
+| 3 | `codex.py` | Adapter code, can be done whenever |
 
 ---
 
@@ -49,9 +48,9 @@ For each candidate, follow these steps:
 
 **Tasks:**
 
-- [ ] Refactor `ActionExecutor.register_defaults` to register external callables directly (category: refactor)
-- [ ] Delete `_handle_*` wrapper methods from `ActionExecutor` (category: refactor)
-- [ ] Verify all action imports work correctly (category: manual)
+- [ ] P1-1: Refactor `ActionExecutor.register_defaults` to register external callables directly (category: refactor)
+- [ ] P1-2: Delete `_handle_*` wrapper methods from `ActionExecutor` (category: refactor, depends: P1-1)
+- [ ] P1-3: Verify all action imports work correctly (category: manual, depends: P1-2)
 
 **Acceptance Criteria:**
 
@@ -62,28 +61,7 @@ For each candidate, follow these steps:
 
 ---
 
-## Phase 2: Migration Flattening
-
-**Goal**: Flatten legacy migrations into a single v75 baseline with feature-flagged rollback.
-
-### Candidate: `src/gobby/storage/migrations.py` (1046 lines) & `migrations_legacy.py` (1359 lines)
-
-**Status**: Planned
-**Detailed Plan**: [migration-flattening.md](./migration-flattening.md)
-
-The migration flattening follows its own strangler fig approach with 6 phases:
-1. Schema capture (add BASELINE_SCHEMA_V2 at v75)
-2. Feature flag (`use_flattened_baseline`)
-3. Branching logic in `run_migrations()`
-4. Testing & validation (both paths)
-5. Default to new baseline
-6. Cleanup (remove old path)
-
-See the detailed plan for tasks, acceptance criteria, and rollback procedures at each phase.
-
----
-
-## Phase 3: Tools Decomposition
+## Phase 2: Tools Decomposition
 
 **Goal**: Decompose into domain-specific routers
 
@@ -94,12 +72,8 @@ See the detailed plan for tasks, acceptance criteria, and rollback procedures at
 
 ### Current Importers
 
-Before decomposition, identify all modules importing from `tools.py`:
-
-```bash
-# Run to find importers
-rg "from.*routes\.mcp\.tools import|from.*routes\.mcp import.*tools" src/
-```
+Run during P2-1 to identify all modules importing from `tools.py`:
+- Pattern: `from.*routes\.mcp\.tools import|from.*routes\.mcp import.*tools`
 
 ### New Structure
 
@@ -125,17 +99,21 @@ Identify before moving:
 
 **Tasks:**
 
-- [ ] Create `endpoints/` skeleton with `__init__.py` (category: code)
-- [ ] Slice 1: Move discovery endpoints to `endpoints/discovery.py` (category: refactor)
+- [ ] P2-1: Create `endpoints/` skeleton with `__init__.py` (category: code)
+- [ ] P2-2: Move discovery endpoints to `endpoints/discovery.py` (category: refactor, depends: P2-1)
+  - Move: `list_tools`, `search_tools`, `recommend_tools`
   - Target: `tools.py` reduced to ~1200 lines
-- [ ] Slice 2: Move server management to `endpoints/server.py` (category: refactor)
+- [ ] P2-3: Move server management to `endpoints/server.py` (category: refactor, depends: P2-2)
+  - Move: `list_servers`, `add_server`, `remove_server`
   - Target: `tools.py` reduced to ~900 lines
-- [ ] Slice 3: Move execution to `endpoints/execution.py` (category: refactor)
+- [ ] P2-4: Move execution to `endpoints/execution.py` (category: refactor, depends: P2-3)
+  - Move: `call_tool`, `get_tool_schema`
   - Target: `tools.py` reduced to ~600 lines
-- [ ] Slice 4: Move registry logic to `endpoints/registry.py` (category: refactor)
+- [ ] P2-5: Move registry logic to `endpoints/registry.py` (category: refactor, depends: P2-4)
+  - Move: `import_server`, specialized registry logic
   - Target: `tools.py` reduced to ~100 lines
-- [ ] Finalize: Update `tools.py` to aggregate routers (category: refactor)
-- [ ] Update all importers to use new locations (category: refactor)
+- [ ] P2-6: Update `tools.py` to aggregate routers only (category: refactor, depends: P2-5)
+- [ ] P2-7: Update all importers to use new locations (category: refactor, depends: P2-6)
 
 **Acceptance Criteria:**
 
@@ -146,7 +124,7 @@ Identify before moving:
 
 ---
 
-## Phase 4: Codex Decomposition
+## Phase 3: Codex Decomposition
 
 **Goal**: Separate Protocol/Types from Client Logic
 
@@ -154,6 +132,11 @@ Identify before moving:
 
 **Status**: Pending
 **Target**: < 200 lines (adapter facade only)
+
+### Current Importers
+
+Run during P3-1 to identify all modules importing from `codex.py`:
+- Pattern: `from.*adapters\.codex import|from.*adapters import.*codex`
 
 ### New Structure
 
@@ -170,18 +153,22 @@ src/gobby/adapters/
 
 **Tasks:**
 
-- [ ] Slice 1: Move dataclasses and Enums to `codex_impl/types.py` (category: refactor)
+- [ ] P3-1: Create `codex_impl/` skeleton with `__init__.py` (category: code)
+- [ ] P3-2: Move dataclasses and Enums to `codex_impl/types.py` (category: refactor, depends: P3-1)
+  - Move: `CodexConnectionState`, `CodexThread`, `CodexTurn`, `CodexItem`
   - Target: `codex.py` reduced to ~1100 lines
-- [ ] Slice 2: Move `CodexAppServerClient` to `codex_impl/client.py` (category: refactor)
+- [ ] P3-3: Move `CodexAppServerClient` to `codex_impl/client.py` (category: refactor, depends: P3-2)
   - Target: `codex.py` reduced to ~400 lines
-- [ ] Slice 3: Move adapter to `codex_impl/adapter.py`, keep facade in `codex.py` (category: refactor)
+- [ ] P3-4: Move adapter to `codex_impl/adapter.py`, keep facade in `codex.py` (category: refactor, depends: P3-3)
   - Target: `codex.py` reduced to ~200 lines
+- [ ] P3-5: Update all importers to use new locations (category: refactor, depends: P3-4)
 
 **Acceptance Criteria:**
 
 - `codex.py` < 200 lines (re-exports and facade only)
 - All adapter tests pass
 - No circular imports
+- All importers updated
 
 ---
 

@@ -111,9 +111,9 @@ class TestDescribeImageAbstractMethod:
             "LLMProvider should have describe_image method"
         )
         # Check it's marked as abstract
-        assert getattr(
-            LLMProvider.describe_image, "__isabstractmethod__", False
-        ), "describe_image should be an abstract method"
+        assert getattr(LLMProvider.describe_image, "__isabstractmethod__", False), (
+            "describe_image should be an abstract method"
+        )
 
     def test_cannot_instantiate_without_describe_image(self):
         """Test that LLMProvider subclass must implement describe_image."""
@@ -135,8 +135,7 @@ class TestDescribeImageAbstractMethod:
         """Test describe_image can be called with optional context."""
         provider = ConcreteProvider()
         result = await provider.describe_image(
-            "/path/to/image.png",
-            context="This is a screenshot of the application settings page"
+            "/path/to/image.png", context="This is a screenshot of the application settings page"
         )
         assert isinstance(result, str)
         assert len(result) > 0

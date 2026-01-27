@@ -379,9 +379,7 @@ class TestMemUBackendSearch:
         with patch("memu.app.service.MemoryService") as MockService:
             mock_service = MagicMock()
             mock_service.retrieve.return_value = {
-                "items": [
-                    {"id": f"mem-{i}", "memory_content": f"Result {i}"} for i in range(10)
-                ]
+                "items": [{"id": f"mem-{i}", "memory_content": f"Result {i}"} for i in range(10)]
             }
             MockService.return_value = mock_service
 

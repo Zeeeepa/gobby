@@ -550,9 +550,6 @@ def test_format_turns_for_llm():
     assert "[Turn 2 - assistant]: hi [Tool: test_tool]" in result
 
 
-
-
-
 @pytest.mark.integration
 def test_create_handoff_full_success(mock_session_manager, mock_resolve_session):
     session = Session(
@@ -575,17 +572,18 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
     mock_session_manager.get.return_value = session
 
     # Setup Mocks
-    with patch("builtins.open") as mock_open, \
-         patch("pathlib.Path.exists", return_value=True) as mock_exists, \
-         patch("gobby.sessions.analyzer.TranscriptAnalyzer") as mock_analyzer, \
-         patch("subprocess.run") as mock_subprocess, \
-         patch("gobby.sessions.transcripts.claude.ClaudeTranscriptParser") as mock_parser_cls, \
-         patch("gobby.llm.claude.ClaudeLLMProvider") as mock_provider_cls, \
-         patch("gobby.config.app.load_config") as mock_load_config, \
-         patch("gobby.cli.sessions.LocalDatabase") as mock_db, \
-         patch("gobby.storage.projects.LocalProjectManager") as mock_project_manager, \
-         patch("anyio.run", return_value="Full Summary Content"):
-
+    with (
+        patch("builtins.open") as mock_open,
+        patch("pathlib.Path.exists", return_value=True) as mock_exists,
+        patch("gobby.sessions.analyzer.TranscriptAnalyzer") as mock_analyzer,
+        patch("subprocess.run") as mock_subprocess,
+        patch("gobby.sessions.transcripts.claude.ClaudeTranscriptParser") as mock_parser_cls,
+        patch("gobby.llm.claude.ClaudeLLMProvider") as mock_provider_cls,
+        patch("gobby.config.app.load_config") as mock_load_config,
+        patch("gobby.cli.sessions.LocalDatabase") as mock_db,
+        patch("gobby.storage.projects.LocalProjectManager") as mock_project_manager,
+        patch("anyio.run", return_value="Full Summary Content"),
+    ):
         # Mock file reading
         mock_file = MagicMock()
         mock_file.__enter__.return_value = ['{"role": "user", "content": "hello"}']
@@ -598,14 +596,18 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
 
         # Mock Provider
         mock_provider = MagicMock()
+
         async def mock_generate(*args, **kwargs):
             return "Full Summary Content"
+
         mock_provider.generate_summary = mock_generate
         mock_provider_cls.return_value = mock_provider
 
         # Mock Parser
         mock_parser = MagicMock()
-        mock_parser.extract_turns_since_clear.return_value = [{"message": {"role": "user", "content": "foo"}}]
+        mock_parser.extract_turns_since_clear.return_value = [
+            {"message": {"role": "user", "content": "foo"}}
+        ]
         mock_parser.extract_last_messages.return_value = "last messages"
         mock_parser_cls.return_value = mock_parser
 

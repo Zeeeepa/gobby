@@ -393,12 +393,15 @@ class TestExpansionWithSeqNum:
         )
 
         # Mock project context so #N resolution works (patch both modules)
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._expansion.get_project_context",
-            return_value={"id": test_project},
-        ), patch(
-            "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
-            return_value={"id": test_project},
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._expansion.get_project_context",
+                return_value={"id": test_project},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.tasks._resolution.get_project_context",
+                return_value={"id": test_project},
+            ),
         ):
             # Use #N reference
             spec = {"subtasks": [{"title": "Subtask"}]}

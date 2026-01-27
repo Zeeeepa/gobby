@@ -107,9 +107,7 @@ class TestAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/test-agent.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/test-agent.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -342,9 +340,7 @@ class TestGenericAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -369,9 +365,7 @@ class TestGenericAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -398,9 +392,7 @@ class TestGenericAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):

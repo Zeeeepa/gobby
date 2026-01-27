@@ -75,7 +75,9 @@ class TestClaimTaskTool:
     @pytest.mark.asyncio
     async def test_claim_task_success(self, mock_task_manager, mock_sync_manager, sample_task):
         """Test successfully claiming an unclaimed task."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -128,7 +130,10 @@ class TestClaimTaskTool:
 
         # Should fail with error about existing claim
         assert "error" in result
-        assert "already claimed" in result["error"].lower() or "claimed by" in result.get("message", "").lower()
+        assert (
+            "already claimed" in result["error"].lower()
+            or "claimed by" in result.get("message", "").lower()
+        )
         # Should include info about who claimed it
         assert result.get("claimed_by") == "other-session-id" or "other-session-id" in str(result)
 
@@ -137,7 +142,9 @@ class TestClaimTaskTool:
         self, mock_task_manager, mock_sync_manager, claimed_task
     ):
         """Test claiming a task with force=True overrides existing claim."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -184,7 +191,9 @@ class TestClaimTaskTool:
             assignee="my-session-id",  # Same session
         )
 
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -227,7 +236,9 @@ class TestClaimTaskTool:
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
         """Test claim_task resolves #N format task references."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -238,9 +249,7 @@ class TestClaimTaskTool:
             mock_task_manager.update_task.return_value = sample_task
 
             # Mock the task resolution to return a UUID from #42 format
-            with patch(
-                "gobby.mcp_proxy.tools.tasks._crud.resolve_task_id_for_mcp"
-            ) as mock_resolve:
+            with patch("gobby.mcp_proxy.tools.tasks._crud.resolve_task_id_for_mcp") as mock_resolve:
                 mock_resolve.return_value = sample_task.id
 
                 result = await registry.call(
@@ -279,7 +288,9 @@ class TestClaimTaskTool:
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
         """Test that session link failure doesn't fail the overall claim (best-effort linking)."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             # Session linking fails
             mock_st_instance.link_task.side_effect = Exception("Session link failed")
@@ -359,7 +370,9 @@ class TestClaimTaskVsUpdateTask:
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
         """Test that claim_task atomically sets assignee and status together."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 

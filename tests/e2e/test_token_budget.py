@@ -299,7 +299,9 @@ class TestBudgetThrottling:
 
         # Verify usage reflects what we set (may be cumulative with other tests)
         assert usage.get("total_cost_usd", 0) >= 0.25, f"Cost should include our session: {usage}"
-        assert usage.get("total_input_tokens", 0) >= 5000, f"Input tokens should include our session: {usage}"
+        assert usage.get("total_input_tokens", 0) >= 5000, (
+            f"Input tokens should include our session: {usage}"
+        )
 
 
 class TestAgentSpawnThrottling:

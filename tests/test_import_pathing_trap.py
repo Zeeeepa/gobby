@@ -1,8 +1,3 @@
-import sys
-from unittest.mock import MagicMock
-
-import pytest
-
 import gobby.mcp_proxy.stdio
 
 # Force import of modules that use load_config to ensure they are in sys.modules

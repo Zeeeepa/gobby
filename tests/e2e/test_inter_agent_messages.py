@@ -125,9 +125,13 @@ class TestInterAgentMessagingE2E:
 
         # Find the message from parent by filtering on content and from_session
         received_msg = next(
-            (m for m in messages if m["from_session"] == parent_session_id
-             and m["content"] == "Hello child, please process this task!"),
-            None
+            (
+                m
+                for m in messages
+                if m["from_session"] == parent_session_id
+                and m["content"] == "Hello child, please process this task!"
+            ),
+            None,
         )
         assert received_msg is not None, f"Expected message from parent not found in: {messages}"
 
@@ -168,11 +172,17 @@ class TestInterAgentMessagingE2E:
 
         # Find the response message from child by filtering on content and from_session
         response_msg = next(
-            (m for m in parent_messages if m["from_session"] == child_session_id
-             and m["content"] == "Task completed successfully, parent!"),
-            None
+            (
+                m
+                for m in parent_messages
+                if m["from_session"] == child_session_id
+                and m["content"] == "Task completed successfully, parent!"
+            ),
+            None,
         )
-        assert response_msg is not None, f"Expected response from child not found in: {parent_messages}"
+        assert response_msg is not None, (
+            f"Expected response from child not found in: {parent_messages}"
+        )
 
         # Cleanup: Unregister the test agent
         cli_events.unregister_test_agent(run_id)

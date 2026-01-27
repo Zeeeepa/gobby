@@ -241,9 +241,7 @@ class TestSessionEndpoints:
         data = response.json()
         assert data["session"]["id"] == session.id
 
-    def test_find_current_session_not_found(
-        self, client: TestClient, test_project: dict
-    ) -> None:
+    def test_find_current_session_not_found(self, client: TestClient, test_project: dict) -> None:
         """Test finding nonexistent current session."""
         response = client.post(
             "/sessions/find_current",

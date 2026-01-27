@@ -185,9 +185,9 @@ class TestMergeConflictsSchema:
         sql_lower = row["sql"].lower()
 
         # Check for foreign key reference to merge_resolutions
-        assert (
-            "references merge_resolutions" in sql_lower or "foreign key" in sql_lower
-        ), "merge_conflicts missing foreign key to merge_resolutions"
+        assert "references merge_resolutions" in sql_lower or "foreign key" in sql_lower, (
+            "merge_conflicts missing foreign key to merge_resolutions"
+        )
 
 
 # =============================================================================

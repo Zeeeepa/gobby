@@ -185,14 +185,16 @@ class TestCreateTaskTool:
         }
         # Mock create_task_with_decomposition to return non-decomposed result
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call("create_task", {"title": "New Task", "session_id": "test-session"})
+            result = await registry.call(
+                "create_task", {"title": "New Task", "session_id": "test-session"}
+            )
 
             assert result == {
                 "id": "550e8400-e29b-41d4-a716-446655440001",
@@ -214,7 +216,7 @@ class TestCreateTaskTool:
             mock_task.id = "550e8400-e29b-41d4-a716-446655440002"
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440002"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -260,7 +262,7 @@ class TestCreateTaskTool:
             mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -310,7 +312,7 @@ class TestCreateTaskTool:
             mock_task.seq_num = 1
             mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440011"}
             mock_task_manager.create_task_with_decomposition.return_value = {
-                                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440011"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -353,7 +355,7 @@ class TestCreateTaskTool:
             "labels": ["urgent", "bug"],
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -361,7 +363,12 @@ class TestCreateTaskTool:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call(
-                "create_task", {"title": "Labeled Task", "session_id": "test-session", "labels": ["urgent", "bug"]}
+                "create_task",
+                {
+                    "title": "Labeled Task",
+                    "session_id": "test-session",
+                    "labels": ["urgent", "bug"],
+                },
             )
 
             mock_task_manager.create_task_with_decomposition.assert_called_once()
@@ -377,14 +384,17 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440006"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440006"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            await registry.call("create_task", {"title": "Verify that the feature works correctly", "session_id": "test-session"})
+            await registry.call(
+                "create_task",
+                {"title": "Verify that the feature works correctly", "session_id": "test-session"},
+            )
 
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["category"] == "manual"
@@ -400,7 +410,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440007"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440007"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -410,7 +420,11 @@ class TestCreateTaskTool:
             # Title would infer "manual", but explicit value overrides
             await registry.call(
                 "create_task",
-                {"title": "Verify that tests pass", "session_id": "test-session", "category": "automated"},
+                {
+                    "title": "Verify that tests pass",
+                    "session_id": "test-session",
+                    "category": "automated",
+                },
             )
 
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
@@ -425,7 +439,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -467,7 +481,7 @@ class TestCreateTaskTool:
         mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -503,7 +517,7 @@ class TestCreateTaskTool:
             "status": "open",
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {
+            "task": {
                 "id": "550e8400-e29b-41d4-a716-446655440011",
                 "title": "Full Task",
                 "status": "open",
@@ -514,7 +528,9 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call("create_task", {"title": "Full Task", "session_id": "test-session"})
+            result = await registry.call(
+                "create_task", {"title": "Full Task", "session_id": "test-session"}
+            )
 
             # Should return full task dict, not minimal
             assert result == {
@@ -542,14 +558,16 @@ class TestCreateTaskTool:
         mock_task.task_type = "task"  # Not epic
         mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440012"}
         mock_task_manager.create_task_with_decomposition.return_value = {
-                        "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
+            result = await registry.call(
+                "create_task", {"title": "Task", "session_id": "test-session"}
+            )
 
             # Without claim=True, update_task should NOT be called (no auto-claim)
             mock_task_manager.update_task.assert_not_called()
@@ -558,7 +576,9 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_default_no_claim(self, mock_task_manager, mock_sync_manager):
         """Test create_task without claim parameter does NOT auto-claim."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -575,7 +595,7 @@ class TestCreateTaskTool:
                 "assignee": None,
             }
             mock_task_manager.create_task_with_decomposition.return_value = {
-                                "task": {"id": "550e8400-e29b-41d4-a716-446655440020"},
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440020"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -601,7 +621,9 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_claim_true(self, mock_task_manager, mock_sync_manager):
         """Test create_task with claim=True auto-claims the task."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -618,7 +640,7 @@ class TestCreateTaskTool:
                 "assignee": "test-session",
             }
             mock_task_manager.create_task_with_decomposition.return_value = {
-                                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440021"},
             }
             mock_task_manager.get_task.return_value = mock_task
             mock_task_manager.update_task.return_value = mock_task
@@ -649,6 +671,7 @@ class TestCreateTaskTool:
                 mock_st_instance.link_task.assert_any_call(
                     "test-session", "550e8400-e29b-41d4-a716-446655440021", "claimed"
                 )
+
 
 # =============================================================================
 # get_task Tool Tests
@@ -1199,7 +1222,9 @@ class TestReopenTaskTool:
     @pytest.mark.asyncio
     async def test_reopen_task_reactivates_worktree(self, mock_task_manager, mock_sync_manager):
         """Test reopen_task reactivates associated worktrees."""
-        with patch("gobby.mcp_proxy.tools.tasks._lifecycle.LocalWorktreeManager") as MockWorktreeManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._lifecycle.LocalWorktreeManager"
+        ) as MockWorktreeManager:
             mock_wt_instance = MagicMock()
             mock_worktree = MagicMock()
             mock_worktree.id = "wt-123"
@@ -1414,7 +1439,9 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_success(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session creates a link."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -1450,7 +1477,9 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_error(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session handles errors."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.link_task.side_effect = ValueError("Invalid task")
             MockSessionTaskManager.return_value = mock_st_instance
@@ -1467,7 +1496,9 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_session_tasks(self, mock_task_manager, mock_sync_manager):
         """Test get_session_tasks returns tasks for a session."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.get_session_tasks.return_value = [
                 {"task_id": "t1", "action": "worked_on"}
@@ -1484,7 +1515,9 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_task_sessions(self, mock_task_manager, mock_sync_manager):
         """Test get_task_sessions returns sessions for a task."""
-        with patch("gobby.mcp_proxy.tools.tasks._context.SessionTaskManager") as MockSessionTaskManager:
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+        ) as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.get_task_sessions.return_value = [
                 {"session_id": "sess-1", "action": "created"}

@@ -107,9 +107,12 @@ class TestCreateMemory:
     @pytest.mark.asyncio
     async def test_create_memory_success(self, memory_registry, mock_memory_manager):
         """Test successful memory creation."""
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call(
-                "create_memory", {"content": "Test content", "memory_type": "fact", "importance": 0.8}
+                "create_memory",
+                {"content": "Test content", "memory_type": "fact", "importance": 0.8},
             )
 
         assert result["success"] is True
@@ -120,7 +123,9 @@ class TestCreateMemory:
     @pytest.mark.asyncio
     async def test_create_memory_with_tags(self, memory_registry, mock_memory_manager):
         """Test memory creation with tags."""
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call(
                 "create_memory", {"content": "Test", "tags": ["tag1", "tag2"]}
             )
@@ -152,7 +157,9 @@ class TestSearchMemories:
             MockMemory(id="m2", content="Memory 2", similarity=0.85),
         ]
 
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call(
                 "search_memories", {"query": "test query", "limit": 5}
             )
@@ -164,7 +171,9 @@ class TestSearchMemories:
     @pytest.mark.asyncio
     async def test_search_memories_with_filters(self, memory_registry, mock_memory_manager):
         """Test search with tag filters."""
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call(
                 "search_memories",
                 {
@@ -239,7 +248,9 @@ class TestListMemories:
             MockMemory(id="m3"),
         ]
 
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call("list_memories", {})
 
         assert result["success"] is True
@@ -249,7 +260,9 @@ class TestListMemories:
     @pytest.mark.asyncio
     async def test_list_memories_with_filters(self, memory_registry, mock_memory_manager):
         """Test listing with filters."""
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call(
                 "list_memories",
                 {
@@ -461,7 +474,9 @@ class TestMemoryStats:
             "by_type": {"fact": 60, "preference": 40},
         }
 
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call("memory_stats", {})
 
         assert "stats" in result
@@ -511,7 +526,9 @@ class TestExportMemoryGraph:
         """Test export when no memories exist."""
         mock_memory_manager.list_memories.return_value = []
 
-        with patch("gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
             result = await memory_registry.call("export_memory_graph", {})
 
         assert result["success"] is False
@@ -535,7 +552,9 @@ class TestExportMemoryGraph:
             mock_export.return_value = "<html>Graph</html>"
             mock_local_manager.return_value.get_all_crossrefs.return_value = []
 
-            result = await memory_registry.call("export_memory_graph", {})  # No output_path specified
+            result = await memory_registry.call(
+                "export_memory_graph", {}
+            )  # No output_path specified
 
         assert result["success"] is True
         assert (tmp_path / "memory_graph.html").exists()
@@ -611,4 +630,3 @@ class TestSearchMemoriesToolRegistration:
         tools = memory_registry.list_tools()
         tool_names = [t["name"] if isinstance(t, dict) else t.name for t in tools]
         assert "search_memories" in tool_names
-

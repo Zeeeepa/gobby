@@ -430,7 +430,10 @@ class TestSpawnAgentInClone:
         result = unwrap_result(raw_result)
 
         assert result.get("success") is False
-        assert "invalid" in result.get("error", "").lower() or "mode" in result.get("error", "").lower()
+        assert (
+            "invalid" in result.get("error", "").lower()
+            or "mode" in result.get("error", "").lower()
+        )
 
 
 class TestParallelTaskProcessing:
@@ -598,4 +601,6 @@ class TestWorkflowActivation:
         result = unwrap_result(raw_result)
 
         # Either has_workflow is False or workflow_name is None
-        assert result.get("has_workflow") is False or result.get("workflow_name") is None, f"Unexpected workflow status: {result}"
+        assert result.get("has_workflow") is False or result.get("workflow_name") is None, (
+            f"Unexpected workflow status: {result}"
+        )

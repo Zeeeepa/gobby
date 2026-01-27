@@ -18,7 +18,9 @@ class TestStartingSessionsSkill:
     @pytest.fixture
     def skills_dir(self) -> Path:
         """Path to bundled skills directory."""
-        return Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        return (
+            Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        )
 
     def test_starting_sessions_skill_exists(self, skills_dir: Path) -> None:
         """Verify starting-sessions skill directory exists."""
@@ -74,7 +76,9 @@ class TestClaimingTasksSkill:
     @pytest.fixture
     def skills_dir(self) -> Path:
         """Path to bundled skills directory."""
-        return Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        return (
+            Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        )
 
     def test_claiming_tasks_skill_exists(self, skills_dir: Path) -> None:
         """Verify claiming-tasks skill directory exists."""
@@ -104,7 +108,9 @@ class TestDiscoveringToolsSkill:
     @pytest.fixture
     def skills_dir(self) -> Path:
         """Path to bundled skills directory."""
-        return Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        return (
+            Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        )
 
     def test_discovering_tools_skill_exists(self, skills_dir: Path) -> None:
         """Verify discovering-tools skill directory exists."""
@@ -135,7 +141,9 @@ class TestCommittingChangesSkill:
     @pytest.fixture
     def skills_dir(self) -> Path:
         """Path to bundled skills directory."""
-        return Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        return (
+            Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "skills"
+        )
 
     def test_committing_changes_skill_exists(self, skills_dir: Path) -> None:
         """Verify committing-changes skill directory exists."""

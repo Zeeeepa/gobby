@@ -143,9 +143,7 @@ class TestRecordCall:
         assert result["summary"]["total_success"] == 0
         assert result["summary"]["total_failure"] == 1
 
-    def test_record_multiple_calls_increments(
-        self, metrics_manager: ToolMetricsManager
-    ):
+    def test_record_multiple_calls_increments(self, metrics_manager: ToolMetricsManager):
         """Test multiple calls increment counters correctly."""
         # Record 3 successes and 2 failures
         for _ in range(3):
@@ -253,9 +251,7 @@ class TestGetTopTools:
         result = metrics_manager.get_top_tools(limit=3)
         assert len(result) == 3
 
-    def test_get_top_tools_invalid_order_falls_back(
-        self, metrics_manager: ToolMetricsManager
-    ):
+    def test_get_top_tools_invalid_order_falls_back(self, metrics_manager: ToolMetricsManager):
         """Test invalid order_by falls back to call_count."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
 
@@ -263,9 +259,7 @@ class TestGetTopTools:
         result = metrics_manager.get_top_tools(order_by="invalid_column")
         assert len(result) == 1
 
-    def test_get_top_tools_filter_by_project(
-        self, metrics_manager: ToolMetricsManager
-    ):
+    def test_get_top_tools_filter_by_project(self, metrics_manager: ToolMetricsManager):
         """Test filtering by project_id."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server1", "tool2", "proj-2", 100.0, True)
@@ -335,9 +329,7 @@ class TestGetFailingTools:
         result = metrics_manager.get_failing_tools()
         assert result == []
 
-    def test_get_failing_tools_above_threshold(
-        self, metrics_manager: ToolMetricsManager
-    ):
+    def test_get_failing_tools_above_threshold(self, metrics_manager: ToolMetricsManager):
         """Test get_failing_tools filters by threshold."""
         # Tool with 60% failure rate (above default 50% threshold)
         for _ in range(4):
@@ -356,9 +348,7 @@ class TestGetFailingTools:
         assert result[0]["tool_name"] == "failing_tool"
         assert result[0]["failure_rate"] == pytest.approx(0.4, rel=0.01)
 
-    def test_get_failing_tools_filter_by_project(
-        self, metrics_manager: ToolMetricsManager
-    ):
+    def test_get_failing_tools_filter_by_project(self, metrics_manager: ToolMetricsManager):
         """Test filtering failing tools by project."""
         for _ in range(5):
             metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, False)
@@ -369,15 +359,11 @@ class TestGetFailingTools:
         assert len(result) == 1
         assert result[0]["project_id"] == "proj-1"
 
-    def test_get_failing_tools_respects_limit(
-        self, metrics_manager: ToolMetricsManager
-    ):
+    def test_get_failing_tools_respects_limit(self, metrics_manager: ToolMetricsManager):
         """Test limit parameter works correctly."""
         for i in range(5):
             for _ in range(5):
-                metrics_manager.record_call(
-                    "server1", f"failing_tool{i}", "proj-1", 100.0, False
-                )
+                metrics_manager.record_call("server1", f"failing_tool{i}", "proj-1", 100.0, False)
 
         result = metrics_manager.get_failing_tools(threshold=0.5, limit=3)
         assert len(result) == 3
@@ -534,8 +520,6 @@ class TestGetDailyMetrics:
         assert result["daily"][0]["project_id"] == "proj-1"
 
         # Filter by date range
-        result = metrics_manager.get_daily_metrics(
-            start_date="2024-01-01", end_date="2024-01-01"
-        )
+        result = metrics_manager.get_daily_metrics(start_date="2024-01-01", end_date="2024-01-01")
         assert len(result["daily"]) == 1
         assert result["daily"][0]["date"] == "2024-01-01"

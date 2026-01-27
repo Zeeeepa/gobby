@@ -139,9 +139,7 @@ Extra content here.
                 project_prompts.mkdir(parents=True)
                 (project_prompts / "test.md").write_text("Project version")
 
-                loader = PromptLoader(
-                    project_dir=Path(project_dir), global_dir=Path(global_dir)
-                )
+                loader = PromptLoader(project_dir=Path(project_dir), global_dir=Path(global_dir))
                 template = loader.load("test")
 
                 assert template.content == "Project version"

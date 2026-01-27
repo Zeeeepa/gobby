@@ -6,7 +6,6 @@ Tests cover:
 - InterSessionMessageManager CRUD operations
 """
 
-
 from gobby.storage.database import LocalDatabase
 
 
@@ -79,9 +78,7 @@ class TestInterSessionMessageDataclass:
         )
 
         # Fetch and convert
-        row = temp_db.fetchone(
-            "SELECT * FROM inter_session_messages WHERE id = ?", (msg_id,)
-        )
+        row = temp_db.fetchone("SELECT * FROM inter_session_messages WHERE id = ?", (msg_id,))
         assert row is not None
 
         msg = InterSessionMessage.from_row(row)
@@ -197,9 +194,7 @@ class TestInterSessionMessageManagerCreateMessage:
         )
 
         # Verify in database
-        row = temp_db.fetchone(
-            "SELECT * FROM inter_session_messages WHERE id = ?", (msg.id,)
-        )
+        row = temp_db.fetchone("SELECT * FROM inter_session_messages WHERE id = ?", (msg.id,))
         assert row is not None
         assert row["content"] == "Persistent message"
 
@@ -287,12 +282,8 @@ class TestInterSessionMessageManagerGetMessages:
         )
 
         manager = InterSessionMessageManager(temp_db)
-        manager.create_message(
-            from_session=parent.id, to_session=child1.id, content="For child 1"
-        )
-        manager.create_message(
-            from_session=parent.id, to_session=child2.id, content="For child 2"
-        )
+        manager.create_message(from_session=parent.id, to_session=child1.id, content="For child 1")
+        manager.create_message(from_session=parent.id, to_session=child2.id, content="For child 2")
 
         messages = manager.get_messages(to_session=child1.id)
         assert len(messages) == 1
@@ -316,9 +307,7 @@ class TestInterSessionMessageManagerGetMessages:
         )
 
         manager = InterSessionMessageManager(temp_db)
-        msg1 = manager.create_message(
-            from_session=parent.id, to_session=child.id, content="Unread"
-        )
+        msg1 = manager.create_message(from_session=parent.id, to_session=child.id, content="Unread")
         msg2 = manager.create_message(
             from_session=parent.id, to_session=child.id, content="Will be read"
         )
@@ -361,9 +350,7 @@ class TestInterSessionMessageManagerMarkRead:
         manager.mark_read(msg.id)
 
         # Verify in database
-        row = temp_db.fetchone(
-            "SELECT read_at FROM inter_session_messages WHERE id = ?", (msg.id,)
-        )
+        row = temp_db.fetchone("SELECT read_at FROM inter_session_messages WHERE id = ?", (msg.id,))
         assert row["read_at"] is not None
 
     def test_mark_read_returns_updated_message(self, temp_db: LocalDatabase):
@@ -387,9 +374,7 @@ class TestInterSessionMessageManagerMarkRead:
         )
 
         manager = InterSessionMessageManager(temp_db)
-        msg = manager.create_message(
-            from_session=parent.id, to_session=child.id, content="Test"
-        )
+        msg = manager.create_message(from_session=parent.id, to_session=child.id, content="Test")
 
         updated = manager.mark_read(msg.id)
         assert isinstance(updated, InterSessionMessage)

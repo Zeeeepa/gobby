@@ -70,6 +70,7 @@ def test_show_workflow(cli_runner, mock_loader):
 
 def test_status_no_session(cli_runner, mock_state_manager):
     import click
+
     with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
         # Mock resolve_session_id to raise no active session error
         # The CLI catches this and does SystemExit(1) without message
@@ -162,7 +163,9 @@ def test_list_workflows_with_all_flag(cli_runner, mock_loader, tmp_path):
     with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
         with patch("gobby.cli.workflows.get_project_path", return_value=tmp_path):
             wf_file = tmp_path / "lifecycle_wf.yaml"
-            wf_file.write_text("name: Lifecycle\ntype: lifecycle\ndescription: A lifecycle workflow")
+            wf_file.write_text(
+                "name: Lifecycle\ntype: lifecycle\ndescription: A lifecycle workflow"
+            )
             mock_loader.global_dirs = [tmp_path]
 
             result = cli_runner.invoke(workflows, ["list", "--all", "--global"])
@@ -309,7 +312,9 @@ def test_set_workflow_lifecycle_rejected(cli_runner, mock_loader, mock_state_man
                     defi = WorkflowDefinition(name="lifecycle_wf", type="lifecycle")
                     mock_loader.load_workflow.return_value = defi
 
-                    result = cli_runner.invoke(workflows, ["set", "lifecycle_wf", "--session", "sess1"])
+                    result = cli_runner.invoke(
+                        workflows, ["set", "lifecycle_wf", "--session", "sess1"]
+                    )
 
                     assert result.exit_code == 1
                     assert "lifecycle workflow" in result.output
@@ -352,7 +357,8 @@ def test_set_workflow_with_initial_step(cli_runner, mock_loader, mock_state_mana
                     mock_state_manager.get_state.return_value = None
 
                     result = cli_runner.invoke(
-                        workflows, ["set", "multi_step", "--session", "sess1", "--step", "implement"]
+                        workflows,
+                        ["set", "multi_step", "--session", "sess1", "--step", "implement"],
                     )
 
                     assert result.exit_code == 0
