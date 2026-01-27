@@ -284,3 +284,13 @@ def get_progress_summary(
         "last_event_at": (summary.last_event_at.isoformat() if summary.last_event_at else None),
         "events_by_type": {k.value: v for k, v in summary.events_by_type.items()},
     }
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+# Note: These handlers require executor access for progress_tracker and stuck_detector,
+# so they will use closures in register_defaults rather than direct registration.
+
+# The wrapper functions are defined here for documentation purposes, but the actual
+# registration happens via closures in ActionExecutor._register_defaults() that
+# capture the executor's self.progress_tracker and self.stuck_detector references.

@@ -121,3 +121,60 @@ def mark_loop_complete(state: Any) -> dict[str, Any]:
         state.variables = {}
     state.variables["stop_reason"] = "completed"
     return {"loop_marked_complete": True}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    # Import TYPE_CHECKING to avoid circular imports at runtime
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_load_workflow_state(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for load_workflow_state."""
+    return load_workflow_state(context.db, context.session_id, context.state)
+
+
+async def handle_save_workflow_state(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for save_workflow_state."""
+    return save_workflow_state(context.db, context.state)
+
+
+async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for set_variable.
+
+    Values containing Jinja2 templates ({{ ... }}) are rendered before setting.
+    """
+    value = kwargs.get("value")
+
+    # Render template if value contains Jinja2 syntax
+    if isinstance(value, str) and "{{" in value:
+        template_context = {
+            "variables": context.state.variables or {},
+            "state": context.state,
+        }
+        value = context.template_engine.render(value, template_context)
+
+    return set_variable(context.state, kwargs.get("name"), value)
+
+
+async def handle_increment_variable(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for increment_variable."""
+    return increment_variable(context.state, kwargs.get("name"), kwargs.get("amount", 1))
+
+
+async def handle_mark_loop_complete(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for mark_loop_complete."""
+    return mark_loop_complete(context.state)

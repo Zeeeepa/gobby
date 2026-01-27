@@ -1342,3 +1342,107 @@ async def validate_session_task_scope(
             f"{suggestion}"
         ),
     }
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+# Note: Some handlers require executor access (task_manager) which must be passed
+# via closures in register_defaults.
+
+from typing import Any  # noqa: E402
+
+
+async def handle_capture_baseline_dirty_files(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for capture_baseline_dirty_files.
+
+    Note: project_path comes from session's project lookup or event_data.cwd.
+    """
+    from gobby.storage.projects import LocalProjectManager
+
+    # Get project path - prioritize session lookup over hook payload
+    project_path = None
+
+    # 1. Get from session's project (most reliable - session exists by now)
+    if context.session_id and context.session_manager:
+        session = context.session_manager.get(context.session_id)
+        if session and session.project_id:
+            project_mgr = LocalProjectManager(context.db)
+            project = project_mgr.get(session.project_id)
+            if project and project.repo_path:
+                project_path = project.repo_path
+
+    # 2. Fallback to event_data.cwd (from hook payload)
+    if not project_path and context.event_data:
+        project_path = context.event_data.get("cwd")
+
+    return await capture_baseline_dirty_files(
+        workflow_state=context.state,
+        project_path=project_path,
+    )
+
+
+async def handle_require_commit_before_stop(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for require_commit_before_stop.
+
+    Note: task_manager must be passed via closure from executor.
+    """
+    from gobby.storage.projects import LocalProjectManager
+
+    # Get project path
+    project_path = None
+
+    if context.session_id and context.session_manager:
+        session = context.session_manager.get(context.session_id)
+        if session and session.project_id:
+            project_mgr = LocalProjectManager(context.db)
+            project = project_mgr.get(session.project_id)
+            if project and project.repo_path:
+                project_path = project.repo_path
+
+    if not project_path and context.event_data:
+        project_path = context.event_data.get("cwd")
+
+    return await require_commit_before_stop(
+        workflow_state=context.state,
+        project_path=project_path,
+        task_manager=task_manager,
+    )
+
+
+async def handle_require_task_review_or_close_before_stop(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for require_task_review_or_close_before_stop."""
+    project_id = None
+    session = context.session_manager.get(context.session_id)
+    if session:
+        project_id = session.project_id
+
+    return await require_task_review_or_close_before_stop(
+        workflow_state=context.state,
+        task_manager=task_manager,
+        project_id=project_id,
+    )
+
+
+async def handle_validate_session_task_scope(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for validate_session_task_scope."""
+    return await validate_session_task_scope(
+        task_manager=task_manager,
+        workflow_state=context.state,
+        event_data=context.event_data,
+    )

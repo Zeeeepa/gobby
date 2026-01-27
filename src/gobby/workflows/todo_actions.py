@@ -82,3 +82,32 @@ def mark_todo_complete(
     except Exception as e:
         logger.error(f"mark_todo_complete: Failed: {e}")
         return {"error": str(e)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_write_todos(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for write_todos."""
+    return write_todos(
+        todos=kwargs.get("todos", []),
+        filename=kwargs.get("filename", "TODO.md"),
+        mode=kwargs.get("mode", "w"),
+    )
+
+
+async def handle_mark_todo_complete(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for mark_todo_complete."""
+    return mark_todo_complete(
+        todo_text=kwargs.get("todo_text", ""),
+        filename=kwargs.get("filename", "TODO.md"),
+    )

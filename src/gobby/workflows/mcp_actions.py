@@ -58,3 +58,25 @@ async def call_mcp_tool(
     except Exception as e:
         logger.error(f"call_mcp_tool: Failed: {e}")
         return {"error": str(e)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for call_mcp_tool."""
+    return await call_mcp_tool(
+        mcp_manager=context.mcp_manager,
+        state=context.state,
+        server_name=kwargs.get("server_name"),
+        tool_name=kwargs.get("tool_name"),
+        arguments=kwargs.get("arguments"),
+        output_as=kwargs.get("as"),
+    )

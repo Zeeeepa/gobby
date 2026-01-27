@@ -7,7 +7,10 @@ from typing import Any, Protocol
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager  # noqa: F401
-from gobby.workflows.artifact_actions import capture_artifact, read_artifact
+from gobby.workflows.artifact_actions import (
+    capture_artifact,
+    read_artifact,
+)
 from gobby.workflows.autonomous_actions import (
     detect_stuck,
     detect_task_loop,
@@ -68,7 +71,10 @@ from gobby.workflows.task_enforcement_actions import (
     validate_session_task_scope,
 )
 from gobby.workflows.templates import TemplateEngine
-from gobby.workflows.todo_actions import mark_todo_complete, write_todos
+from gobby.workflows.todo_actions import (
+    mark_todo_complete,
+    write_todos,
+)
 from gobby.workflows.webhook import WebhookAction
 from gobby.workflows.webhook_executor import WebhookExecutor
 

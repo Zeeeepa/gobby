@@ -4,12 +4,49 @@ Consolidated from individual files.
 """
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
+from gobby.sessions.transcripts.base import ParsedMessage
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
+
+
+class TestParsedMessage:
+    """Tests for ParsedMessage dataclass."""
+
+    def test_model_field_defaults_to_none(self):
+        """Test that ParsedMessage model field defaults to None."""
+        msg = ParsedMessage(
+            index=0,
+            role="assistant",
+            content="Hello",
+            content_type="text",
+            tool_name=None,
+            tool_input=None,
+            tool_result=None,
+            timestamp=datetime.now(UTC),
+            raw_json={},
+        )
+        assert msg.model is None
+
+    def test_model_field_accepts_value(self):
+        """Test that ParsedMessage model field can be set."""
+        msg = ParsedMessage(
+            index=0,
+            role="assistant",
+            content="Hello",
+            content_type="text",
+            tool_name=None,
+            tool_input=None,
+            tool_result=None,
+            timestamp=datetime.now(UTC),
+            raw_json={},
+            model="claude-opus-4-5-20251101",
+        )
+        assert msg.model == "claude-opus-4-5-20251101"
 
 
 class TestClaudeTranscriptParser:

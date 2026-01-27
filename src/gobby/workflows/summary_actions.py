@@ -359,3 +359,97 @@ async def generate_handoff(
         return {"error": "Failed to generate summary"}
 
     return {"handoff_created": True, "summary_length": summary_result.get("summary_length", 0)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_synthesize_title(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for synthesize_title."""
+    # Extract prompt from event data (UserPromptSubmit hook)
+    prompt = None
+    if context.event_data:
+        prompt = context.event_data.get("prompt")
+
+    return await synthesize_title(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        llm_service=context.llm_service,
+        transcript_processor=context.transcript_processor,
+        template_engine=context.template_engine,
+        template=kwargs.get("template"),
+        prompt=prompt,
+    )
+
+
+async def handle_generate_summary(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for generate_summary."""
+    return await generate_summary(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        llm_service=context.llm_service,
+        transcript_processor=context.transcript_processor,
+        template=kwargs.get("template"),
+    )
+
+
+async def handle_generate_handoff(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for generate_handoff.
+
+    Handles mode detection from event_data and previous summary fetching for compact mode.
+    Also supports loading templates from prompts collection via 'prompt' parameter.
+    """
+    # Detect mode from kwargs or event data
+    mode = kwargs.get("mode", "clear")
+
+    # Check if this is a compact event based on event_data
+    COMPACT_EVENT_TYPES = {"pre_compact", "compact"}
+    if context.event_data:
+        raw_event_type = context.event_data.get("event_type") or ""
+        normalized_event_type = str(raw_event_type).strip().lower()
+        if normalized_event_type in COMPACT_EVENT_TYPES:
+            mode = "compact"
+
+    # For compact mode, fetch previous summary for cumulative compression
+    previous_summary = None
+    if mode == "compact":
+        current_session = context.session_manager.get(context.session_id)
+        if current_session:
+            previous_summary = getattr(current_session, "summary_markdown", None)
+            if previous_summary:
+                logger.debug(
+                    f"Compact mode: using previous summary ({len(previous_summary)} chars) "
+                    f"for cumulative compression"
+                )
+
+    # Load template from prompts collection if 'prompt' parameter provided
+    template = kwargs.get("template")
+    prompt_path = kwargs.get("prompt")
+    if prompt_path and not template:
+        try:
+            from gobby.prompts.loader import PromptLoader
+
+            loader = PromptLoader()
+            prompt_template = loader.load(prompt_path)
+            template = prompt_template.content
+            logger.debug(f"Loaded prompt template from: {prompt_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load prompt from {prompt_path}: {e}")
+            # Fall back to inline template or default
+
+    return await generate_handoff(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        llm_service=context.llm_service,
+        transcript_processor=context.transcript_processor,
+        template=template,
+        previous_summary=previous_summary,
+        mode=mode,
+    )

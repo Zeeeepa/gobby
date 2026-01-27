@@ -435,3 +435,50 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
         sections.append("\n".join(lines))
 
     return "\n\n".join(sections)
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for inject_context."""
+    return inject_context(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        state=context.state,
+        template_engine=context.template_engine,
+        source=kwargs.get("source"),
+        template=kwargs.get("template"),
+        require=kwargs.get("require", False),
+    )
+
+
+async def handle_inject_message(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for inject_message."""
+    return inject_message(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        state=context.state,
+        template_engine=context.template_engine,
+        content=kwargs.get("content"),
+        **{k: v for k, v in kwargs.items() if k != "content"},
+    )
+
+
+async def handle_extract_handoff_context(
+    context: ActionContext, **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for extract_handoff_context."""
+    return extract_handoff_context(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        config=context.config,
+        db=context.db,
+    )

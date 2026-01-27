@@ -101,3 +101,31 @@ def read_artifact(
     except Exception as e:
         logger.error(f"read_artifact: Failed to read {filepath}: {e}")
         return None
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_capture_artifact(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for capture_artifact."""
+    return capture_artifact(
+        state=context.state,
+        pattern=kwargs.get("pattern"),
+        save_as=kwargs.get("as"),
+    )
+
+
+async def handle_read_artifact(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for read_artifact."""
+    return read_artifact(
+        state=context.state,
+        pattern=kwargs.get("pattern"),
+        variable_name=kwargs.get("as"),
+    )

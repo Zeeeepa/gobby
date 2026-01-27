@@ -68,3 +68,26 @@ async def call_llm(
     except Exception as e:
         logger.error(f"call_llm: Failed: {e}")
         return {"error": str(e)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_call_llm(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for call_llm."""
+    return await call_llm(
+        llm_service=context.llm_service,
+        template_engine=context.template_engine,
+        state=context.state,
+        session=context.session_manager.get(context.session_id),
+        prompt=kwargs.get("prompt"),
+        output_as=kwargs.get("output_as"),
+        **{k: v for k, v in kwargs.items() if k not in ("prompt", "output_as")},
+    )
