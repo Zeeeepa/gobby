@@ -1518,6 +1518,10 @@ def _migrate_backfill_session_seq_num_per_project(db: LocalDatabase) -> None:
         logger.debug("No sessions to re-number")
         return
 
+    # First, clear all seq_num values to avoid unique constraint violations
+    # when the existing seq_num order doesn't match created_at order
+    db.execute("UPDATE sessions SET seq_num = NULL")
+
     # Assign seq_num per project
     current_project: str | None = None
     seq_num = 0
