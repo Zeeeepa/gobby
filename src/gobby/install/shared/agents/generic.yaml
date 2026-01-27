@@ -6,6 +6,7 @@ description: |
 mode: terminal
 provider: claude
 isolation: null  # No isolation by default
+sandbox: null  # No sandbox by default
 base_branch: main
 workflow: generic
 timeout: 120.0
