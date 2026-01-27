@@ -6,7 +6,16 @@ from typing import Any
 
 import pytest
 
-from gobby.agents.sandbox import ResolvedSandboxPaths, SandboxConfig
+from gobby.agents.sandbox import (
+    ClaudeSandboxResolver,
+    CodexSandboxResolver,
+    GeminiSandboxResolver,
+    ResolvedSandboxPaths,
+    SandboxConfig,
+    SandboxResolver,
+    compute_sandbox_paths,
+    get_sandbox_resolver,
+)
 
 
 class TestSandboxConfig:
@@ -200,3 +209,320 @@ class TestResolvedSandboxPaths:
         assert data["read_paths"] == ["/data"]
         assert data["write_paths"] == ["/project"]
         assert data["allow_external_network"] is False
+
+
+class TestSandboxResolver:
+    """Tests for SandboxResolver abstract base class."""
+
+    def test_cannot_instantiate_directly(self):
+        """Test that SandboxResolver cannot be instantiated directly."""
+        with pytest.raises(TypeError):
+            SandboxResolver()  # type: ignore
+
+    def test_subclass_must_implement_cli_name(self):
+        """Test that subclass must implement cli_name property."""
+
+        class IncompleteResolver(SandboxResolver):
+            def resolve(
+                self, config: SandboxConfig, paths: ResolvedSandboxPaths
+            ) -> tuple[list[str], dict[str, str]]:
+                return ([], {})
+
+        with pytest.raises(TypeError):
+            IncompleteResolver()  # type: ignore
+
+    def test_subclass_must_implement_resolve(self):
+        """Test that subclass must implement resolve method."""
+
+        class IncompleteResolver(SandboxResolver):
+            @property
+            def cli_name(self) -> str:
+                return "test"
+
+        with pytest.raises(TypeError):
+            IncompleteResolver()  # type: ignore
+
+    def test_complete_subclass_can_be_instantiated(self):
+        """Test that a complete subclass can be instantiated."""
+
+        class CompleteResolver(SandboxResolver):
+            @property
+            def cli_name(self) -> str:
+                return "test-cli"
+
+            def resolve(
+                self, config: SandboxConfig, paths: ResolvedSandboxPaths
+            ) -> tuple[list[str], dict[str, str]]:
+                return (["--sandbox"], {"TEST_VAR": "value"})
+
+        resolver = CompleteResolver()
+        assert resolver.cli_name == "test-cli"
+
+        config = SandboxConfig(enabled=True)
+        resolved_paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=False,
+        )
+
+        args, env = resolver.resolve(config, resolved_paths)
+        assert args == ["--sandbox"]
+        assert env == {"TEST_VAR": "value"}
+
+
+class TestClaudeSandboxResolver:
+    """Tests for ClaudeSandboxResolver."""
+
+    def test_cli_name(self):
+        """Test that cli_name returns 'claude'."""
+        resolver = ClaudeSandboxResolver()
+        assert resolver.cli_name == "claude"
+
+    def test_disabled_returns_empty(self):
+        """Test that disabled sandbox returns empty args and env."""
+        resolver = ClaudeSandboxResolver()
+        config = SandboxConfig(enabled=False)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert args == []
+        assert env == {}
+
+    def test_enabled_returns_settings_flag(self):
+        """Test that enabled sandbox returns --settings with JSON config."""
+        resolver = ClaudeSandboxResolver()
+        config = SandboxConfig(enabled=True)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        # Claude Code uses --settings with JSON
+        assert len(args) == 2
+        assert args[0] == "--settings"
+        # Second arg should be valid JSON containing sandbox.enabled: true
+        import json
+
+        settings = json.loads(args[1])
+        assert settings["sandbox"]["enabled"] is True
+
+
+class TestCodexSandboxResolver:
+    """Tests for CodexSandboxResolver."""
+
+    def test_cli_name(self):
+        """Test that cli_name returns 'codex'."""
+        resolver = CodexSandboxResolver()
+        assert resolver.cli_name == "codex"
+
+    def test_disabled_returns_empty(self):
+        """Test that disabled sandbox returns empty args and env."""
+        resolver = CodexSandboxResolver()
+        config = SandboxConfig(enabled=False)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert args == []
+        assert env == {}
+
+    def test_enabled_permissive_mode(self):
+        """Test permissive mode returns workspace-write."""
+        resolver = CodexSandboxResolver()
+        config = SandboxConfig(enabled=True, mode="permissive")
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "--sandbox" in args
+        assert "workspace-write" in args
+
+    def test_enabled_restrictive_mode(self):
+        """Test restrictive mode returns read-only."""
+        resolver = CodexSandboxResolver()
+        config = SandboxConfig(enabled=True, mode="restrictive")
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "--sandbox" in args
+        assert "read-only" in args
+
+    def test_extra_write_paths_added(self):
+        """Test that extra write paths are added via --add-dir."""
+        resolver = CodexSandboxResolver()
+        config = SandboxConfig(enabled=True)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project", "/extra/path"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "--add-dir" in args
+        # Extra path should be added (workspace is implicit)
+        add_dir_idx = args.index("--add-dir")
+        assert args[add_dir_idx + 1] == "/extra/path"
+
+
+class TestGeminiSandboxResolver:
+    """Tests for GeminiSandboxResolver."""
+
+    def test_cli_name(self):
+        """Test that cli_name returns 'gemini'."""
+        resolver = GeminiSandboxResolver()
+        assert resolver.cli_name == "gemini"
+
+    def test_disabled_returns_empty(self):
+        """Test that disabled sandbox returns empty args and env."""
+        resolver = GeminiSandboxResolver()
+        config = SandboxConfig(enabled=False)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert args == []
+        assert env == {}
+
+    def test_enabled_returns_sandbox_flag(self):
+        """Test that enabled sandbox returns -s flag."""
+        resolver = GeminiSandboxResolver()
+        config = SandboxConfig(enabled=True)
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "-s" in args or "--sandbox" in args
+
+    def test_permissive_sets_seatbelt_profile(self):
+        """Test permissive mode sets SEATBELT_PROFILE env var."""
+        resolver = GeminiSandboxResolver()
+        config = SandboxConfig(enabled=True, mode="permissive")
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "SEATBELT_PROFILE" in env
+        assert "permissive" in env["SEATBELT_PROFILE"]
+
+    def test_restrictive_sets_seatbelt_profile(self):
+        """Test restrictive mode sets SEATBELT_PROFILE env var."""
+        resolver = GeminiSandboxResolver()
+        config = SandboxConfig(enabled=True, mode="restrictive")
+        paths = ResolvedSandboxPaths(
+            workspace_path="/project",
+            read_paths=[],
+            write_paths=["/project"],
+            allow_external_network=True,
+        )
+
+        args, env = resolver.resolve(config, paths)
+        assert "SEATBELT_PROFILE" in env
+        assert "restrictive" in env["SEATBELT_PROFILE"]
+
+
+class TestGetSandboxResolver:
+    """Tests for get_sandbox_resolver factory function."""
+
+    def test_returns_claude_resolver(self):
+        """Test that 'claude' returns ClaudeSandboxResolver."""
+        resolver = get_sandbox_resolver("claude")
+        assert isinstance(resolver, ClaudeSandboxResolver)
+
+    def test_returns_codex_resolver(self):
+        """Test that 'codex' returns CodexSandboxResolver."""
+        resolver = get_sandbox_resolver("codex")
+        assert isinstance(resolver, CodexSandboxResolver)
+
+    def test_returns_gemini_resolver(self):
+        """Test that 'gemini' returns GeminiSandboxResolver."""
+        resolver = get_sandbox_resolver("gemini")
+        assert isinstance(resolver, GeminiSandboxResolver)
+
+    def test_unknown_cli_raises_value_error(self):
+        """Test that unknown CLI raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown CLI"):
+            get_sandbox_resolver("unknown-cli")
+
+
+class TestComputeSandboxPaths:
+    """Tests for compute_sandbox_paths helper function."""
+
+    def test_computes_paths_from_config(self):
+        """Test computing paths from SandboxConfig."""
+        config = SandboxConfig(
+            enabled=True,
+            allow_network=False,
+            extra_read_paths=["/opt/data"],
+            extra_write_paths=["/tmp/output"],
+        )
+
+        paths = compute_sandbox_paths(
+            config=config,
+            workspace_path="/project",
+            gobby_daemon_port=60887,
+        )
+
+        assert paths.workspace_path == "/project"
+        assert paths.gobby_daemon_port == 60887
+        assert paths.allow_external_network is False
+        assert "/project" in paths.write_paths
+        assert "/tmp/output" in paths.write_paths
+        assert "/opt/data" in paths.read_paths
+
+    def test_workspace_always_in_write_paths(self):
+        """Test that workspace is always included in write_paths."""
+        config = SandboxConfig(enabled=True)
+
+        paths = compute_sandbox_paths(
+            config=config,
+            workspace_path="/my/workspace",
+        )
+
+        assert "/my/workspace" in paths.write_paths
+
+    def test_custom_daemon_port(self):
+        """Test custom daemon port is set."""
+        config = SandboxConfig(enabled=True)
+
+        paths = compute_sandbox_paths(
+            config=config,
+            workspace_path="/project",
+            gobby_daemon_port=9999,
+        )
+
+        assert paths.gobby_daemon_port == 9999
