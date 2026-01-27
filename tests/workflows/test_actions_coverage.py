@@ -1289,7 +1289,10 @@ class TestHandleRequireCommitBeforeStop:
         """Test require_commit_before_stop extracts cwd from event_data."""
         action_context.event_data = {"cwd": "/path/to/project"}
 
-        with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
+        # Patch at source module since handler calls task_enforcement_actions.require_commit_before_stop
+        with patch(
+            "gobby.workflows.task_enforcement_actions.require_commit_before_stop"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -1306,7 +1309,10 @@ class TestHandleRequireCommitBeforeStop:
         """Test require_commit_before_stop handles missing event_data."""
         action_context.event_data = None
 
-        with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
+        # Patch at source module since handler calls task_enforcement_actions.require_commit_before_stop
+        with patch(
+            "gobby.workflows.task_enforcement_actions.require_commit_before_stop"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -1330,7 +1336,10 @@ class TestHandleValidateSessionTaskScope:
     @pytest.mark.asyncio
     async def test_validate_session_task_scope_delegated(self, action_executor, action_context):
         """Test validate_session_task_scope delegates correctly."""
-        with patch("gobby.workflows.actions.validate_session_task_scope") as mock_validate:
+        # Patch at source module since handler calls task_enforcement_actions.validate_session_task_scope
+        with patch(
+            "gobby.workflows.task_enforcement_actions.validate_session_task_scope"
+        ) as mock_validate:
             mock_validate.return_value = None
 
             await action_executor.execute(
@@ -1436,7 +1445,8 @@ class TestHandleMarkLoopComplete:
     @pytest.mark.asyncio
     async def test_mark_loop_complete(self, action_executor, action_context):
         """Test mark_loop_complete delegates to mark_loop_complete function."""
-        with patch("gobby.workflows.actions.mark_loop_complete") as mock_mark:
+        # Patch at source module since handler calls state_actions.mark_loop_complete
+        with patch("gobby.workflows.state_actions.mark_loop_complete") as mock_mark:
             mock_mark.return_value = {"_loop_complete": True, "stop_reason": "completed"}
 
             result = await action_executor.execute(
@@ -1459,7 +1469,8 @@ class TestHandleExtractHandoffContext:
     @pytest.mark.asyncio
     async def test_extract_handoff_context_delegated(self, action_executor, action_context):
         """Test extract_handoff_context delegates correctly."""
-        with patch("gobby.workflows.actions.extract_handoff_context") as mock_extract:
+        # Patch at source module since handler calls context_actions.extract_handoff_context
+        with patch("gobby.workflows.context_actions.extract_handoff_context") as mock_extract:
             mock_extract.return_value = {"extracted": True}
 
             await action_executor.execute(
@@ -1522,7 +1533,8 @@ class TestGenerateHandoffCompactMode:
         action_context.transcript_processor = mock_services["transcript_processor"]
         action_context.template_engine = mock_services["template_engine"]
 
-        with patch("gobby.workflows.actions.generate_handoff") as mock_handoff:
+        # Patch at source module since handler calls summary_actions.generate_handoff
+        with patch("gobby.workflows.summary_actions.generate_handoff") as mock_handoff:
             mock_handoff.return_value = {"handoff_created": True}
 
             await action_executor.execute(

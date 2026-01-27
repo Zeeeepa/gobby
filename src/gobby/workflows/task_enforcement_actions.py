@@ -1349,8 +1349,6 @@ async def validate_session_task_scope(
 # Note: Some handlers require executor access (task_manager) which must be passed
 # via closures in register_defaults.
 
-from typing import Any  # noqa: E402
-
 
 async def handle_capture_baseline_dirty_files(
     context: "Any",

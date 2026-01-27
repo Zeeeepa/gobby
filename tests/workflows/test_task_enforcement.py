@@ -618,9 +618,12 @@ class TestRequireTaskReviewOrCloseBeforeStop:
 
     async def test_task_in_progress_blocks(self, workflow_state, mock_task_manager):
         """When task is in_progress, block stop."""
-        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        task_id = "01234567-89ab-cdef-0123-456789abcdef"
+        workflow_state.variables["claimed_task_id"] = task_id
 
         mock_task = MagicMock()
+        mock_task.id = task_id
+        mock_task.seq_num = 42
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
@@ -631,10 +634,10 @@ class TestRequireTaskReviewOrCloseBeforeStop:
 
         assert result is not None
         assert result["decision"] == "block"
-        assert "gt-abc123" in result["reason"]
+        assert "#42" in result["reason"]
         assert "still in_progress" in result["reason"]
         assert "close_task()" in result["reason"]
-        assert result["task_id"] == "gt-abc123"
+        assert result["task_id"] == task_id
         assert result["task_status"] == "in_progress"
 
     async def test_exception_allows(self, workflow_state, mock_task_manager):
@@ -676,11 +679,13 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         self, workflow_state, mock_task_manager
     ):
         """When session_task is set (string) and task is in_progress, block stop."""
-        workflow_state.variables["session_task"] = "gt-session-task"
+        task_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        workflow_state.variables["session_task"] = task_id
         # No claimed_task_id set
 
         mock_task = MagicMock()
-        mock_task.id = "gt-session-task"
+        mock_task.id = task_id
+        mock_task.seq_num = 101
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.list_tasks.return_value = []
@@ -692,22 +697,26 @@ class TestRequireTaskReviewOrCloseBeforeStop:
 
         assert result is not None
         assert result["decision"] == "block"
-        assert "gt-session-task" in result["reason"]
+        assert "#101" in result["reason"]
         assert "still in_progress" in result["reason"]
 
     async def test_session_task_list_blocks_when_any_in_progress(
         self, workflow_state, mock_task_manager
     ):
         """When session_task is a list and any task is in_progress, block stop."""
-        workflow_state.variables["session_task"] = ["gt-task1", "gt-task2"]
+        task1_id = "11111111-1111-1111-1111-111111111111"
+        task2_id = "22222222-2222-2222-2222-222222222222"
+        workflow_state.variables["session_task"] = [task1_id, task2_id]
         # No claimed_task_id set
 
         mock_task1 = MagicMock()
-        mock_task1.id = "gt-task1"
+        mock_task1.id = task1_id
+        mock_task1.seq_num = 1
         mock_task1.status = "closed"
 
         mock_task2 = MagicMock()
-        mock_task2.id = "gt-task2"
+        mock_task2.id = task2_id
+        mock_task2.seq_num = 2
         mock_task2.status = "in_progress"
 
         # Return different tasks for each get_task call
@@ -721,11 +730,9 @@ class TestRequireTaskReviewOrCloseBeforeStop:
 
         assert result is not None
         assert result["decision"] == "block"
-        assert "gt-task2" in result["reason"]
+        assert "#2" in result["reason"]
 
-    async def test_session_task_allows_when_all_closed(
-        self, workflow_state, mock_task_manager
-    ):
+    async def test_session_task_allows_when_all_closed(self, workflow_state, mock_task_manager):
         """When session_task is set but all tasks are closed, allow stop."""
         workflow_state.variables["session_task"] = "gt-closed-task"
         # No claimed_task_id set
@@ -744,19 +751,21 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         # Should allow since no in_progress task found
         assert result is None
 
-    async def test_session_task_subtask_in_progress_blocks(
-        self, workflow_state, mock_task_manager
-    ):
+    async def test_session_task_subtask_in_progress_blocks(self, workflow_state, mock_task_manager):
         """When session_task has subtask in_progress, block stop."""
-        workflow_state.variables["session_task"] = "gt-parent"
+        parent_id = "33333333-3333-3333-3333-333333333333"
+        subtask_id = "44444444-4444-4444-4444-444444444444"
+        workflow_state.variables["session_task"] = parent_id
         # No claimed_task_id set
 
         mock_parent = MagicMock()
-        mock_parent.id = "gt-parent"
+        mock_parent.id = parent_id
+        mock_parent.seq_num = 10
         mock_parent.status = "open"  # Parent is open, not in_progress
 
         mock_subtask = MagicMock()
-        mock_subtask.id = "gt-subtask"
+        mock_subtask.id = subtask_id
+        mock_subtask.seq_num = 11
         mock_subtask.status = "in_progress"
 
         # First call for parent, second call for subtask verification
@@ -770,7 +779,7 @@ class TestRequireTaskReviewOrCloseBeforeStop:
 
         assert result is not None
         assert result["decision"] == "block"
-        assert "gt-subtask" in result["reason"]
+        assert "#11" in result["reason"]
 
     async def test_session_task_wildcard_allows(self, workflow_state, mock_task_manager):
         """When session_task='*', don't check tasks (wildcard means all)."""
@@ -802,11 +811,14 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         self, workflow_state, mock_task_manager
     ):
         """claimed_task_id is checked first, session_task is fallback."""
-        workflow_state.variables["claimed_task_id"] = "gt-claimed"
-        workflow_state.variables["session_task"] = "gt-session"
+        claimed_id = "55555555-5555-5555-5555-555555555555"
+        session_id = "66666666-6666-6666-6666-666666666666"
+        workflow_state.variables["claimed_task_id"] = claimed_id
+        workflow_state.variables["session_task"] = session_id
 
         mock_claimed_task = MagicMock()
-        mock_claimed_task.id = "gt-claimed"
+        mock_claimed_task.id = claimed_id
+        mock_claimed_task.seq_num = 99
         mock_claimed_task.status = "in_progress"
 
         # Only return the claimed task
@@ -820,7 +832,7 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         assert result is not None
         assert result["decision"] == "block"
         # Should block on claimed_task, not session_task
-        assert "gt-claimed" in result["reason"]
+        assert "#99" in result["reason"]
 
 
 # =============================================================================
@@ -2604,14 +2616,10 @@ class TestEvaluateBlockCondition:
         from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
 
         workflow_state.variables["custom_var"] = True
-        assert (
-            _evaluate_block_condition("variables.get('custom_var')", workflow_state) is True
-        )
+        assert _evaluate_block_condition("variables.get('custom_var')", workflow_state) is True
 
         workflow_state.variables["custom_var"] = False
-        assert (
-            _evaluate_block_condition("variables.get('custom_var')", workflow_state) is False
-        )
+        assert _evaluate_block_condition("variables.get('custom_var')", workflow_state) is False
 
     def test_combined_conditions(self, workflow_state):
         """Combined conditions work."""
@@ -2620,12 +2628,10 @@ class TestEvaluateBlockCondition:
         workflow_state.variables["task_claimed"] = False
         workflow_state.variables["plan_mode"] = False
         assert (
-            _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state)
-            is True
+            _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is True
         )
 
         workflow_state.variables["plan_mode"] = True
         assert (
-            _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state)
-            is False
+            _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is False
         )

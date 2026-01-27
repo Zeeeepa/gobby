@@ -9,6 +9,8 @@ from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager  # noqa: F401
 from gobby.workflows.artifact_actions import (
     capture_artifact,
+    handle_capture_artifact,
+    handle_read_artifact,
     read_artifact,
 )
 from gobby.workflows.autonomous_actions import (
@@ -23,14 +25,23 @@ from gobby.workflows.autonomous_actions import (
 from gobby.workflows.context_actions import (
     extract_handoff_context,
     format_handoff_as_markdown,
+    handle_extract_handoff_context,
+    handle_inject_context,
+    handle_inject_message,
     inject_context,
     inject_message,
 )
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.git_utils import get_file_changes, get_git_status, get_recent_git_commits
-from gobby.workflows.llm_actions import call_llm
-from gobby.workflows.mcp_actions import call_mcp_tool
+from gobby.workflows.llm_actions import call_llm, handle_call_llm
+from gobby.workflows.mcp_actions import call_mcp_tool, handle_call_mcp_tool
 from gobby.workflows.memory_actions import (
+    handle_memory_extract,
+    handle_memory_recall_relevant,
+    handle_memory_save,
+    handle_memory_sync_export,
+    handle_memory_sync_import,
+    handle_reset_memory_injection_tracking,
     memory_extract,
     memory_recall_relevant,
     memory_save,
@@ -39,11 +50,19 @@ from gobby.workflows.memory_actions import (
     reset_memory_injection_tracking,
 )
 from gobby.workflows.session_actions import (
+    handle_mark_session_status,
+    handle_start_new_session,
+    handle_switch_mode,
     mark_session_status,
     start_new_session,
     switch_mode,
 )
 from gobby.workflows.state_actions import (
+    handle_increment_variable,
+    handle_load_workflow_state,
+    handle_mark_loop_complete,
+    handle_save_workflow_state,
+    handle_set_variable,
     increment_variable,
     load_workflow_state,
     mark_loop_complete,
@@ -59,11 +78,18 @@ from gobby.workflows.summary_actions import (
     format_turns_for_llm,
     generate_handoff,
     generate_summary,
+    handle_generate_handoff,
+    handle_generate_summary,
+    handle_synthesize_title,
     synthesize_title,
 )
 from gobby.workflows.task_enforcement_actions import (
     block_tools,
     capture_baseline_dirty_files,
+    handle_capture_baseline_dirty_files,
+    handle_require_commit_before_stop,
+    handle_require_task_review_or_close_before_stop,
+    handle_validate_session_task_scope,
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
@@ -72,6 +98,8 @@ from gobby.workflows.task_enforcement_actions import (
 )
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import (
+    handle_mark_todo_complete,
+    handle_write_todos,
     mark_todo_complete,
     write_todos,
 )
@@ -208,67 +236,198 @@ class ActionExecutor:
         return validating_handler
 
     def _register_defaults(self) -> None:
-        """Register built-in actions."""
-        self.register("inject_context", self._handle_inject_context)
-        self.register("inject_message", self._handle_inject_message)
-        self.register("capture_artifact", self._handle_capture_artifact)
-        self.register("generate_handoff", self._handle_generate_handoff)
-        self.register("generate_summary", self._handle_generate_summary)
-        self.register("mark_session_status", self._handle_mark_session_status)
-        self.register("switch_mode", self._handle_switch_mode)
-        self.register("read_artifact", self._handle_read_artifact)
-        self.register("load_workflow_state", self._handle_load_workflow_state)
-        self.register("save_workflow_state", self._handle_save_workflow_state)
-        self.register("set_variable", self._handle_set_variable)
-        self.register("increment_variable", self._handle_increment_variable)
-        self.register("call_llm", self._handle_call_llm)
-        self.register("synthesize_title", self._handle_synthesize_title)
-        self.register("write_todos", self._handle_write_todos)
-        self.register("mark_todo_complete", self._handle_mark_todo_complete)
+        """Register built-in actions.
+
+        Actions are registered using external handler functions from sibling modules
+        where possible. Actions requiring executor state (task_manager, stop_registry,
+        progress_tracker, stuck_detector) use closures to capture self.
+        """
+        # --- Context/injection actions (external handlers) ---
+        self.register("inject_context", handle_inject_context)
+        self.register("inject_message", handle_inject_message)
+        self.register("extract_handoff_context", handle_extract_handoff_context)
+
+        # --- Artifact actions (external handlers) ---
+        self.register("capture_artifact", handle_capture_artifact)
+        self.register("read_artifact", handle_read_artifact)
+
+        # --- State actions (external handlers) ---
+        self.register("load_workflow_state", handle_load_workflow_state)
+        self.register("save_workflow_state", handle_save_workflow_state)
+        self.register("set_variable", handle_set_variable)
+        self.register("increment_variable", handle_increment_variable)
+        self.register("mark_loop_complete", handle_mark_loop_complete)
+
+        # --- Session actions (external handlers) ---
+        self.register("start_new_session", handle_start_new_session)
+        self.register("mark_session_status", handle_mark_session_status)
+        self.register("switch_mode", handle_switch_mode)
+
+        # --- Todo actions (external handlers) ---
+        self.register("write_todos", handle_write_todos)
+        self.register("mark_todo_complete", handle_mark_todo_complete)
+
+        # --- LLM actions (external handlers) ---
+        self.register("call_llm", handle_call_llm)
+
+        # --- MCP actions (external handlers) ---
+        self.register("call_mcp_tool", handle_call_mcp_tool)
+
+        # --- Summary actions (external handlers) ---
+        self.register("synthesize_title", handle_synthesize_title)
+        self.register("generate_summary", handle_generate_summary)
+        self.register("generate_handoff", handle_generate_handoff)
+
+        # --- Memory actions (external handlers) ---
+        self.register("memory_save", handle_memory_save)
+        self.register("memory_recall_relevant", handle_memory_recall_relevant)
+        self.register("memory_sync_import", handle_memory_sync_import)
+        self.register("memory_sync_export", handle_memory_sync_export)
+        self.register("memory_extract", handle_memory_extract)
+        self.register("reset_memory_injection_tracking", handle_reset_memory_injection_tracking)
+
+        # --- Task sync actions (still using self._handle_* - not yet extracted) ---
+        self.register("task_sync_import", self._handle_task_sync_import)
+        self.register("task_sync_export", self._handle_task_sync_export)
         self.register("persist_tasks", self._handle_persist_tasks)
         self.register("get_workflow_tasks", self._handle_get_workflow_tasks)
         self.register("update_workflow_task", self._handle_update_workflow_task)
-        self.register("call_mcp_tool", self._handle_call_mcp_tool)
-        # Memory actions - underscore pattern (memory_*)
-        self.register("memory_save", self._handle_save_memory)
-        self.register("memory_recall_relevant", self._handle_memory_recall_relevant)
-        self.register("memory_sync_import", self._handle_memory_sync_import)
-        self.register("memory_sync_export", self._handle_memory_sync_export)
-        self.register("memory_extract", self._handle_memory_extract)
-        self.register(
-            "reset_memory_injection_tracking", self._handle_reset_memory_injection_tracking
-        )
-        # Task sync actions
-        self.register("task_sync_import", self._handle_task_sync_import)
-        self.register("task_sync_export", self._handle_task_sync_export)
-        self.register("extract_handoff_context", self._handle_extract_handoff_context)
-        self.register("start_new_session", self._handle_start_new_session)
-        self.register("mark_loop_complete", self._handle_mark_loop_complete)
-        # Task enforcement
+
+        # --- Task enforcement actions (closures for task_manager access) ---
         self.register("block_tools", self._handle_block_tools)
         self.register("require_active_task", self._handle_require_active_task)
-        self.register("require_commit_before_stop", self._handle_require_commit_before_stop)
-        self.register(
-            "require_task_review_or_close_before_stop",
-            self._handle_require_task_review_or_close_before_stop,
-        )
         self.register("require_task_complete", self._handle_require_task_complete)
-        self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
-        self.register("capture_baseline_dirty_files", self._handle_capture_baseline_dirty_files)
-        # Webhook
+
+        # Task enforcement with closures to capture task_manager
+        async def _require_commit_before_stop(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return await handle_require_commit_before_stop(
+                context, task_manager=self.task_manager, **kwargs
+            )
+
+        self.register("require_commit_before_stop", _require_commit_before_stop)
+
+        async def _require_task_review_or_close(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return await handle_require_task_review_or_close_before_stop(
+                context, task_manager=self.task_manager, **kwargs
+            )
+
+        self.register("require_task_review_or_close_before_stop", _require_task_review_or_close)
+
+        async def _validate_session_task_scope(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return await handle_validate_session_task_scope(
+                context, task_manager=self.task_manager, **kwargs
+            )
+
+        self.register("validate_session_task_scope", _validate_session_task_scope)
+
+        async def _capture_baseline_dirty_files(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return await handle_capture_baseline_dirty_files(
+                context, task_manager=self.task_manager, **kwargs
+            )
+
+        self.register("capture_baseline_dirty_files", _capture_baseline_dirty_files)
+
+        # --- Webhook (still using self._handle_* - requires WebhookExecutor) ---
         self.register("webhook", self._handle_webhook)
-        # Stop signal actions
-        self.register("check_stop_signal", self._handle_check_stop_signal)
-        self.register("request_stop", self._handle_request_stop)
-        self.register("clear_stop_signal", self._handle_clear_stop_signal)
-        # Autonomous execution actions
-        self.register("start_progress_tracking", self._handle_start_progress_tracking)
-        self.register("stop_progress_tracking", self._handle_stop_progress_tracking)
-        self.register("record_progress", self._handle_record_progress)
-        self.register("detect_task_loop", self._handle_detect_task_loop)
-        self.register("detect_stuck", self._handle_detect_stuck)
-        self.register("record_task_selection", self._handle_record_task_selection)
-        self.register("get_progress_summary", self._handle_get_progress_summary)
+
+        # --- Stop signal actions (closures for stop_registry access) ---
+        async def _check_stop_signal(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return check_stop_signal(
+                self.stop_registry,
+                context.session_id,
+                context.state,
+                kwargs.get("acknowledge", False),
+            )
+
+        self.register("check_stop_signal", _check_stop_signal)
+
+        async def _request_stop(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+            return request_stop(
+                self.stop_registry,
+                context.session_id,
+                kwargs.get("source", "workflow"),
+                kwargs.get("reason"),
+            )
+
+        self.register("request_stop", _request_stop)
+
+        async def _clear_stop_signal(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            target_session = kwargs.get("session_id") or context.session_id
+            return clear_stop_signal(self.stop_registry, target_session)
+
+        self.register("clear_stop_signal", _clear_stop_signal)
+
+        # --- Autonomous execution actions (closures for progress_tracker/stuck_detector) ---
+        async def _start_progress_tracking(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return start_progress_tracking(self.progress_tracker, context.session_id, context.state)
+
+        self.register("start_progress_tracking", _start_progress_tracking)
+
+        async def _stop_progress_tracking(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return stop_progress_tracking(
+                self.progress_tracker,
+                context.session_id,
+                context.state,
+                kwargs.get("keep_data", False),
+            )
+
+        self.register("stop_progress_tracking", _stop_progress_tracking)
+
+        async def _record_progress(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+            return record_progress(
+                self.progress_tracker,
+                context.session_id,
+                kwargs.get("progress_type", "tool_call"),
+                kwargs.get("tool_name"),
+                kwargs.get("details"),
+            )
+
+        self.register("record_progress", _record_progress)
+
+        async def _detect_task_loop(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+            return detect_task_loop(self.stuck_detector, context.session_id, context.state)
+
+        self.register("detect_task_loop", _detect_task_loop)
+
+        async def _detect_stuck(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+            return detect_stuck(self.stuck_detector, context.session_id, context.state)
+
+        self.register("detect_stuck", _detect_stuck)
+
+        async def _record_task_selection(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return record_task_selection(
+                self.stuck_detector,
+                context.session_id,
+                kwargs.get("task_id", ""),
+                kwargs.get("context"),
+            )
+
+        self.register("record_task_selection", _record_task_selection)
+
+        async def _get_progress_summary(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            return get_progress_summary(self.progress_tracker, context.session_id)
+
+        self.register("get_progress_summary", _get_progress_summary)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any

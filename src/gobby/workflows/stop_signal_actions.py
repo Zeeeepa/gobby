@@ -167,8 +167,6 @@ def clear_stop_signal(
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 # Note: ActionExecutor passes self.stop_registry, so we need to access it from executor
 
-from typing import Any  # noqa: E402
-
 
 async def handle_check_stop_signal(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for check_stop_signal.
