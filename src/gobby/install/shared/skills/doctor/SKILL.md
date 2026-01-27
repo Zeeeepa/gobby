@@ -242,6 +242,124 @@ Report summary: "Resource-Heavy: X/3 PASS"
 
 ---
 
+## Phase 5: Security Audit
+
+Read-only security checks that scan configuration and runtime state for potential security issues. These checks are non-destructive and only report findings.
+
+### 5.1 File Permissions
+
+Check that sensitive files have restrictive permissions (0o600 or stricter):
+
+| File | Location | Expected |
+|------|----------|----------|
+| `config.yaml` | `~/.gobby/config.yaml` | 0o600 |
+| `.mcp.json` | `~/.mcp.json` | 0o600 |
+| `gobby-hub.db` | `~/.gobby/gobby-hub.db` | 0o600 |
+
+Report: WARN if permissions are more permissive than expected.
+
+### 5.2 Plaintext Secrets Scan
+
+Scan configuration files for potential plaintext secrets:
+
+```bash
+# Check for API keys, tokens, passwords in config files
+grep -iE "(api_key|api-key|apikey|secret|token|password|auth)" ~/.gobby/config.yaml
+```
+
+Patterns to flag:
+- `api_key: sk-...`
+- `password: ...` (if not using env var reference)
+- Any value that looks like a token (long alphanumeric strings)
+
+Report: WARN if potential plaintext secrets found. Recommend using environment variables.
+
+### 5.3 HTTP Binding Check
+
+Check if the daemon is bound to a non-localhost address:
+
+```python
+# In config.yaml, check server binding
+server:
+  host: "127.0.0.1"  # OK
+  host: "0.0.0.0"    # WARN - exposed to network
+```
+
+Report: WARN if server is bound to `0.0.0.0` or a public IP address.
+
+### 5.4 Webhook HTTPS Validation
+
+Check that any configured webhooks use HTTPS:
+
+```python
+# In config.yaml
+webhooks:
+  - url: "https://example.com/hook"  # OK
+  - url: "http://example.com/hook"   # WARN - unencrypted
+```
+
+Report: WARN for each webhook using HTTP instead of HTTPS.
+
+### 5.5 Debug Log Level Warning
+
+Check if debug logging is enabled in production:
+
+```python
+# In config.yaml
+logging:
+  level: "DEBUG"  # WARN in production
+  level: "INFO"   # OK
+```
+
+Report: WARN if log level is DEBUG (may expose sensitive information).
+
+### 5.6 Plugin Security Warning
+
+List any third-party or non-bundled skills/plugins:
+
+```python
+# Check for skills not in the bundled skills directory
+gobby-skills.list_skills()
+```
+
+Report: INFO listing non-bundled skills. Note: These have access to MCP tools and should be reviewed.
+
+### 5.7 MCP Server URL Validation
+
+Check that MCP server URLs are valid and use HTTPS where appropriate:
+
+```python
+gobby.list_mcp_servers()
+```
+
+For each server:
+- HTTP servers: WARN if not localhost
+- Stdio servers: OK (local process)
+- WebSocket servers: WARN if not using wss://
+
+Report: WARN for any MCP server communicating over unencrypted channels to non-localhost.
+
+### 5.8 Permissive Skills Listing
+
+Check for skills with overly permissive tool access:
+
+```python
+# Check skills that allow all tools or sensitive tool categories
+gobby-skills.list_skills()
+```
+
+Flag skills where:
+- `allowed_tools` is empty/null (allows all tools)
+- `allowed_tools` includes sensitive tools (file write, shell execute)
+
+Report: INFO listing skills with broad tool access.
+
+---
+
+Report summary: "Security Audit: X/8 PASS, Y WARN"
+
+---
+
 ## Cleanup Protocol
 
 Run cleanup in this order (reverse dependency):
