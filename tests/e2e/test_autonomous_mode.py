@@ -83,15 +83,11 @@ class TestAutonomousModeToolsAvailability:
         mcp_client: MCPTestClient,
     ):
         """Verify agent spawning tools are available."""
-        # Check gobby-agents tools
+        # Check gobby-agents tools - spawn_agent is the unified tool that replaces
+        # start_agent and spawn_agent_in_clone
         agent_tools = mcp_client.list_tools(server="gobby-agents")
         agent_tool_names = [t["name"] for t in agent_tools]
-        assert "start_agent" in agent_tool_names, "Missing start_agent tool"
-
-        # Check gobby-clones tools for spawning
-        clone_tools = mcp_client.list_tools(server="gobby-clones")
-        clone_tool_names = [t["name"] for t in clone_tools]
-        assert "spawn_agent_in_clone" in clone_tool_names, "Missing spawn_agent_in_clone tool"
+        assert "spawn_agent" in agent_tool_names, "Missing spawn_agent tool"
 
 
 class TestConductorLifecycle:

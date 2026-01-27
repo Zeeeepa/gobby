@@ -2,7 +2,6 @@
 Tests for SpawnExecutor unified spawn dispatch.
 """
 
-from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -327,6 +326,7 @@ class TestExecuteSpawn:
     @pytest.mark.asyncio
     async def test_gemini_terminal_calls_preflight(self):
         """Test that provider='gemini' with mode='terminal' calls prepare_gemini_spawn_with_preflight."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -337,6 +337,7 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
         )
 
         mock_preflight = AsyncMock(
@@ -375,6 +376,7 @@ class TestExecuteSpawn:
     @pytest.mark.asyncio
     async def test_codex_terminal_calls_preflight(self):
         """Test that provider='codex' with mode='terminal' calls prepare_codex_spawn_with_preflight."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -385,6 +387,7 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
         )
 
         mock_preflight = AsyncMock(
@@ -423,6 +426,7 @@ class TestExecuteSpawn:
     @pytest.mark.asyncio
     async def test_gemini_preflight_failure_propagates_error(self):
         """Test that Gemini preflight failure is properly propagated to SpawnResult."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -433,6 +437,7 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
         )
 
         mock_preflight = AsyncMock(side_effect=FileNotFoundError("Gemini CLI not found"))

@@ -1,5 +1,5 @@
 ---
-name: workflows
+name: gobby-workflows
 description: This skill should be used when the user asks to "/gobby workflows", "activate workflow", "workflow status". Manage step-based workflows - activate, deactivate, check status, and list available workflows.
 category: core
 ---

@@ -313,15 +313,11 @@ class TestAgentSpawnThrottling:
         mcp_client: MCPTestClient,
     ):
         """Verify agent spawning tools are available."""
-        # Check gobby-clones tools (spawn_agent_in_clone)
-        clone_tools = mcp_client.list_tools(server="gobby-clones")
-        clone_tool_names = [t["name"] for t in clone_tools]
-        assert "spawn_agent_in_clone" in clone_tool_names, "Missing spawn_agent_in_clone tool"
-
-        # Check gobby-agents tools (start_agent)
+        # Check gobby-agents tools - spawn_agent is the unified tool that replaces
+        # start_agent and spawn_agent_in_clone (use isolation param for clone/worktree)
         agent_tools = mcp_client.list_tools(server="gobby-agents")
         agent_tool_names = [t["name"] for t in agent_tools]
-        assert "start_agent" in agent_tool_names, "Missing start_agent tool"
+        assert "spawn_agent" in agent_tool_names, "Missing spawn_agent tool"
 
     def test_spawn_agent_over_budget_fails(
         self,
@@ -376,12 +372,12 @@ class TestAgentSpawnThrottling:
         # Note: May fail for other reasons (no remote URL in test env) but we check
         # that if budget is mentioned in the error, the budget check is working
         raw_result = mcp_client.call_tool(
-            server_name="gobby-clones",
-            tool_name="spawn_agent_in_clone",
+            server_name="gobby-agents",
+            tool_name="spawn_agent",
             arguments={
                 "prompt": "Test task",
-                "branch_name": "test-spawn-over-budget",
                 "parent_session_id": session_id,
+                "isolation": "clone",
             },
         )
         result = unwrap_result(raw_result)
@@ -395,7 +391,16 @@ class TestAgentSpawnThrottling:
             term in error_msg for term in ["budget", "exceeded", "over budget", "daily budget"]
         )
         is_valid_other_error = any(
-            term in error_msg for term in ["remote", "url", "spawn", "depth", "runner"]
+            term in error_msg
+            for term in [
+                "remote",
+                "url",
+                "spawn",
+                "depth",
+                "runner",
+                "clone_manager",  # Clone infrastructure not wired in e2e test
+                "clone_storage",  # Clone infrastructure not wired in e2e test
+            ]
         )
         assert is_budget_error or is_valid_other_error, (
             f"Expected budget-related or valid infrastructure error, got: {result.get('error')}"

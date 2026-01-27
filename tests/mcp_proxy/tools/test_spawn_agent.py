@@ -77,10 +77,10 @@ class TestSpawnAgentDefaults:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_project_context") as mock_ctx,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_execute.return_value = MagicMock(
                 success=True,
                 run_id="run-123",
@@ -144,10 +144,10 @@ class TestSpawnAgentIsolation:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(cwd="/path/to/project")
@@ -199,10 +199,10 @@ class TestSpawnAgentIsolation:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(
@@ -260,10 +260,10 @@ class TestSpawnAgentIsolation:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(
@@ -339,10 +339,10 @@ class TestSpawnAgentParamOverrides:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(cwd="/path/to/project")
@@ -425,10 +425,10 @@ class TestSpawnAgentTaskResolution:
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
             patch("gobby.mcp_proxy.tools.spawn_agent.resolve_task_id_for_mcp") as mock_resolve,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_resolve.return_value = "uuid-123"
 
             mock_handler = MagicMock()
@@ -484,10 +484,10 @@ class TestSpawnAgentTaskResolution:
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
             patch("gobby.mcp_proxy.tools.spawn_agent.resolve_task_id_for_mcp") as mock_resolve,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_resolve.return_value = "uuid-123"
 
             mock_handler = MagicMock()
@@ -574,10 +574,10 @@ class TestSpawnAgentBranchGeneration:
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
             patch("gobby.mcp_proxy.tools.spawn_agent.resolve_task_id_for_mcp") as mock_resolve,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_resolve.return_value = "uuid-123"
 
             mock_handler = MagicMock()
@@ -648,7 +648,6 @@ class TestSpawnAgentSandbox:
     @pytest.mark.asyncio
     async def test_sandbox_params_create_sandbox_config(self, mock_runner, mock_agent_def):
         """Test sandbox params create SandboxConfig and pass to SpawnRequest."""
-        from gobby.agents.sandbox import SandboxConfig
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         mock_loader = MagicMock()
@@ -664,10 +663,10 @@ class TestSpawnAgentSandbox:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(cwd="/path/to/project")
@@ -737,10 +736,10 @@ class TestSpawnAgentSandbox:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(cwd="/path/to/project")
@@ -794,10 +793,10 @@ class TestSpawnAgentSandbox:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(cwd="/path/to/project")
@@ -860,10 +859,10 @@ class TestSpawnAgentSandbox:
             patch("gobby.mcp_proxy.tools.spawn_agent.get_isolation_handler") as mock_get_handler,
             patch("gobby.mcp_proxy.tools.spawn_agent.execute_spawn") as mock_execute,
         ):
-            mock_ctx.return_value = MagicMock(
-                project_id="proj-123",
-                project_path="/path/to/project",
-            )
+            mock_ctx.return_value = {
+                "id": "proj-123",
+                "project_path": "/path/to/project",
+            }
             mock_handler = MagicMock()
             mock_handler.prepare_environment = AsyncMock(
                 return_value=IsolationContext(cwd="/path/to/project")
