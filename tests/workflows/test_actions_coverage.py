@@ -329,7 +329,9 @@ class TestHandleRequireTaskComplete:
         mock_task.id = "gt-ready-123"
         mock_services["task_manager"].list_ready_tasks.return_value = [mock_task]
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.task_enforcement_actions.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
             await action_executor.execute(
@@ -358,7 +360,9 @@ class TestHandleRequireTaskComplete:
 
         task_ids = ["gt-task1", "gt-task2", "gt-task3"]
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.task_enforcement_actions.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -384,7 +388,9 @@ class TestHandleRequireTaskComplete:
         )
         action_context.session_id = session.id
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.task_enforcement_actions.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -414,7 +420,9 @@ class TestHandleRequireTaskComplete:
         # Mock template engine to resolve the variable
         mock_services["template_engine"].render.return_value = "gt-resolved-task"
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.task_enforcement_actions.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -899,44 +907,6 @@ class TestPluginActionValidationWrapper:
 
 
 # =============================================================================
-# Test Broadcast Autonomous Event
-# =============================================================================
-
-
-class TestBroadcastAutonomousEvent:
-    """Tests for _broadcast_autonomous_event helper."""
-
-    @pytest.mark.asyncio
-    async def test_broadcast_autonomous_event_success(self, action_executor, mock_services):
-        """Test successful broadcast of autonomous event."""
-        mock_services["websocket_server"].broadcast_autonomous_event = AsyncMock()
-
-        await action_executor._broadcast_autonomous_event(
-            event="task_started",
-            session_id="test-session",
-            task_id="gt-123",
-        )
-
-        # Give the async task time to execute
-        import asyncio
-
-        await asyncio.sleep(0.01)
-
-        # The broadcast should have been scheduled
-
-    @pytest.mark.asyncio
-    async def test_broadcast_autonomous_event_no_server(self, action_executor):
-        """Test broadcast when websocket_server is None."""
-        action_executor.websocket_server = None
-
-        # Should not raise
-        await action_executor._broadcast_autonomous_event(
-            event="task_started",
-            session_id="test-session",
-        )
-
-
-# =============================================================================
 # Test Register Plugin Actions
 # =============================================================================
 
@@ -1263,7 +1233,7 @@ class TestHandleRequireActiveTask:
         )
         action_context.session_id = session.id
 
-        with patch("gobby.workflows.actions.require_active_task") as mock_require:
+        with patch("gobby.workflows.task_enforcement_actions.require_active_task") as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -1391,7 +1361,7 @@ class TestHandleWebhook:
         from gobby.workflows.webhook_executor import WebhookResult
 
         # Mock the executor
-        with patch("gobby.workflows.actions.WebhookExecutor") as mock_executor_class:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as mock_executor_class:
             mock_executor = MagicMock()
             mock_result = WebhookResult(
                 success=True,

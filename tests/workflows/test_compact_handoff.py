@@ -144,7 +144,7 @@ async def test_extract_handoff_context_saves_to_session(
     )
 
     # Mock git status
-    with patch.object(action_executor, "_get_git_status", return_value="M src/auth/login.py"):
+    with patch("gobby.workflows.git_utils.get_git_status", return_value="M src/auth/login.py"):
         result = await action_executor.execute("extract_handoff_context", context)
 
     # Verify extraction succeeded
@@ -254,7 +254,7 @@ async def test_full_compact_handoff_flow(
         config=mock_config,
     )
 
-    with patch.object(action_executor, "_get_git_status", return_value="M src/auth/login.py"):
+    with patch("gobby.workflows.git_utils.get_git_status", return_value="M src/auth/login.py"):
         extract_result = await action_executor.execute("extract_handoff_context", extract_context)
 
     assert extract_result.get("handoff_context_extracted") is True

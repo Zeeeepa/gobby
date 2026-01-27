@@ -712,11 +712,14 @@ async def test_error_cases(action_executor, action_context, mock_services, sessi
 
 
 @pytest.mark.asyncio
-async def test_git_helpers(action_executor):
-    with patch("subprocess.run") as mock_run:
+async def test_git_helpers():
+    """Test git utility functions from git_utils module."""
+    from gobby.workflows.git_utils import get_file_changes, get_git_status, get_recent_git_commits
+
+    with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
         # 1. git status
         mock_run.return_value.stdout = "M file.py"
-        status = action_executor._get_git_status()
+        status = get_git_status()
         assert status == "M file.py"
         mock_run.assert_called_with(
             ["git", "status", "--short"], capture_output=True, text=True, timeout=5
@@ -725,7 +728,7 @@ async def test_git_helpers(action_executor):
         # 2. git commits
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = "hash1|msg1\nhash2|msg2"
-        commits = action_executor._get_recent_git_commits()
+        commits = get_recent_git_commits()
         assert len(commits) == 2
         assert commits[0]["hash"] == "hash1"
 
@@ -736,14 +739,17 @@ async def test_git_helpers(action_executor):
         res2 = MagicMock(stdout="untracked.py")
         mock_run.side_effect = [res1, res2]
 
-        changes = action_executor._get_file_changes()
+        changes = get_file_changes()
         assert "Modified/Deleted:" in changes
         assert "file.py" in changes
         assert "Untracked:" in changes
         assert "untracked.py" in changes
 
 
-def test_format_turns(action_executor):
+def test_format_turns():
+    """Test format_turns_for_llm from summary_actions module."""
+    from gobby.workflows.summary_actions import format_turns_for_llm
+
     turns = [
         {"message": {"role": "user", "content": "hello"}},
         {
@@ -757,7 +763,7 @@ def test_format_turns(action_executor):
             }
         },
     ]
-    formatted = action_executor._format_turns_for_llm(turns)
+    formatted = format_turns_for_llm(turns)
     assert "[Turn 2 - assistant]: hi [Thinking: hmmm] [Tool: tool1]" in formatted
 
 
@@ -1066,7 +1072,7 @@ class TestWebhookAction:
     @pytest.mark.asyncio
     async def test_webhook_action_basic_url(self, action_executor, action_context):
         """Test basic webhook execution with URL."""
-        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as MockExecutor:
             # Mock successful response
             mock_result = MagicMock()
             mock_result.success = True
@@ -1128,7 +1134,7 @@ class TestWebhookAction:
     @pytest.mark.asyncio
     async def test_webhook_action_capture_response(self, action_executor, action_context):
         """Test webhook action captures response into workflow variables."""
-        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as MockExecutor:
             mock_result = MagicMock()
             mock_result.success = True
             mock_result.status_code = 201
@@ -1162,7 +1168,7 @@ class TestWebhookAction:
     @pytest.mark.asyncio
     async def test_webhook_action_failure(self, action_executor, action_context):
         """Test webhook action handles failure gracefully."""
-        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as MockExecutor:
             mock_result = MagicMock()
             mock_result.success = False
             mock_result.status_code = 500
@@ -1187,7 +1193,7 @@ class TestWebhookAction:
     @pytest.mark.asyncio
     async def test_webhook_action_with_retry_config(self, action_executor, action_context):
         """Test webhook action passes retry configuration to executor."""
-        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as MockExecutor:
             mock_result = MagicMock()
             mock_result.success = True
             mock_result.status_code = 200
@@ -1236,7 +1242,7 @@ class TestWebhookAction:
         action_context.state.variables = {"task_id": "123", "status": "completed"}
         action_context.state.artifacts = {"plan": "/path/to/plan.md"}
 
-        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as MockExecutor:
             mock_result = MagicMock()
             mock_result.success = True
             mock_result.status_code = 200

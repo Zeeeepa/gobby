@@ -1444,3 +1444,120 @@ async def handle_validate_session_task_scope(
         workflow_state=context.state,
         event_data=context.event_data,
     )
+
+
+async def handle_block_tools(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for block_tools.
+
+    Passes task_manager via closure from register_defaults.
+    """
+    # Get project_path for git dirty file checks
+    project_path = kwargs.get("project_path")
+    if not project_path and context.event_data:
+        project_path = context.event_data.get("cwd")
+
+    # Get source from session for is_plan_file checks
+    source = None
+    current_session = context.session_manager.get(context.session_id)
+    if current_session:
+        source = current_session.source
+
+    return await block_tools(
+        rules=kwargs.get("rules"),
+        event_data=context.event_data,
+        workflow_state=context.state,
+        project_path=project_path,
+        task_manager=task_manager,
+        source=source,
+    )
+
+
+async def handle_require_active_task(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for require_active_task.
+
+    DEPRECATED: Use block_tools action with rules instead.
+    Kept for backward compatibility with existing workflows.
+    """
+    # Get project_id from session for project-scoped task filtering
+    current_session = context.session_manager.get(context.session_id)
+    project_id = current_session.project_id if current_session else None
+
+    return await require_active_task(
+        task_manager=task_manager,
+        session_id=context.session_id,
+        config=context.config,
+        event_data=context.event_data,
+        project_id=project_id,
+        workflow_state=context.state,
+        session_manager=context.session_manager,
+        session_task_manager=context.session_task_manager,
+    )
+
+
+async def handle_require_task_complete(
+    context: "Any",
+    task_manager: "LocalTaskManager | None" = None,
+    template_engine: "Any | None" = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for require_task_complete.
+
+    Supports:
+    - Single task ID: "#47"
+    - List of task IDs: ["#47", "#48"]
+    - Wildcard: "*" - work until no ready tasks remain
+    """
+    current_session = context.session_manager.get(context.session_id)
+    project_id = current_session.project_id if current_session else None
+
+    # Get task_id from kwargs - may be a template that needs resolving
+    task_spec = kwargs.get("task_id")
+
+    # If it's a template reference like "{{ variables.session_task }}", resolve it
+    if task_spec and "{{" in str(task_spec) and template_engine:
+        task_spec = template_engine.render(
+            str(task_spec),
+            {"variables": context.state.variables or {}},
+        )
+
+    # Handle different task_spec types:
+    # - None/empty: no enforcement
+    # - "*": wildcard - fetch ready tasks
+    # - list: multiple specific tasks
+    # - string: single task ID
+    task_ids: list[str] | None = None
+
+    if not task_spec:
+        return None
+    elif task_spec == "*":
+        # Wildcard: get all ready tasks for this project
+        if task_manager:
+            ready_tasks = task_manager.list_ready_tasks(
+                project_id=project_id,
+                limit=100,
+            )
+            task_ids = [t.id for t in ready_tasks]
+            if not task_ids:
+                # No ready tasks - allow stop
+                return None
+    elif isinstance(task_spec, list):
+        task_ids = task_spec
+    else:
+        task_ids = [str(task_spec)]
+
+    return await require_task_complete(
+        task_manager=task_manager,
+        session_id=context.session_id,
+        task_ids=task_ids,
+        event_data=context.event_data,
+        project_id=project_id,
+        workflow_state=context.state,
+    )
