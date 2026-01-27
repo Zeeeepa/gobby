@@ -10,14 +10,17 @@ This skill runs a comprehensive systems check and security audit to verify Gobby
 
 ## Subcommands
 
-### `/gobby doctor` - Standard check (phases 1-3)
-Run prerequisite checks, read-only tests, and write+cleanup tests.
+### `/gobby doctor` - Show help
+Display available options and a brief description of each check type.
 
-### `/gobby doctor --quick` - Quick check (phases 1-2 only)
-Run prerequisite checks and read-only tests only. No resources created.
+### `/gobby doctor --functional` - Functional tests (phases 1-3)
+Run prerequisite checks, read-only tests, and write+cleanup tests. Does not include worktree/clone tests or security audit.
 
-### `/gobby doctor --full` - Full check (all phases)
-Include resource-heavy tests (worktrees, clones). Takes longer but tests everything.
+### `/gobby doctor --security` - Security audit (phase 5 only)
+Run security-focused checks: file permissions, plaintext secrets scan, HTTP binding check, webhook HTTPS validation, debug log level warning, plugin security, MCP server URLs, and permissive skills.
+
+### `/gobby doctor --all` - Full check (all phases)
+Run everything: functional tests (phases 1-4 including worktree/clone) plus security audit (phase 5).
 
 ### `/gobby doctor --cleanup` - Cleanup only
 Scan for and remove stale `__diag__` artifacts from previous failed runs.
@@ -358,18 +361,22 @@ If a timeout occurs, log the failure and continue to the next test.
 
 ## Examples
 
-### Quick health check
-User: `/gobby doctor --quick`
-Run phases 1-2 only, report results
-
-### Standard diagnostic
+### Show help
 User: `/gobby doctor`
-Run phases 1-3, create/delete test resources
+Display available options and descriptions.
+
+### Functional health check
+User: `/gobby doctor --functional`
+Run phases 1-3 (prerequisites, read-only, write+cleanup tests).
+
+### Security audit
+User: `/gobby doctor --security`
+Run phase 5 security checks only.
 
 ### Full system test
-User: `/gobby doctor --full`
-Run all phases including worktree/clone tests
+User: `/gobby doctor --all`
+Run all phases including worktree/clone tests and security audit.
 
 ### Cleanup stale artifacts
 User: `/gobby doctor --cleanup`
-Only run cleanup protocol, report what was removed
+Only run cleanup protocol, report what was removed.
