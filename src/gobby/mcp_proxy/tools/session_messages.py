@@ -261,25 +261,31 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="get_handoff_context",
-            description="Get the handoff context (compact_markdown) for a session.",
+            description="Get the handoff context (compact_markdown) for a session. Accepts #N, UUID, or prefix.",
         )
         def get_handoff_context(session_id: str) -> dict[str, Any]:
             """
             Retrieve stored handoff context.
 
             Args:
-                session_id: Session ID
+                session_id: Session reference - supports #N (project-scoped), UUID, or prefix
 
             Returns:
                 Session ID, compact_markdown, and whether context exists
             """
             assert session_manager, "Session manager not available"  # nosec B101
-            session = session_manager.get(session_id)
+            # Resolve #N format, UUID, or prefix
+            try:
+                resolved_id = session_manager.resolve_session_reference(session_id)
+                session = session_manager.get(resolved_id)
+            except ValueError:
+                session = None
             if not session:
                 return {"error": f"Session {session_id} not found", "found": False}
 
             return {
-                "session_id": session_id,
+                "session_id": session.id,
+                "ref": f"#{session.seq_num}" if session.seq_num else session.id[:8],
                 "compact_markdown": session.compact_markdown,
                 "has_context": bool(session.compact_markdown),
             }
@@ -628,39 +634,34 @@ Args:
 
         @registry.tool(
             name="get_session",
-            description="Get session details by ID. Use the session_id from your injected context (look for 'session_id: xxx' in system reminders).",
+            description="Get session details by ID. Accepts #N (project-scoped ref), UUID, or prefix. Use the session_id from your injected context.",
         )
         def get_session(session_id: str) -> dict[str, Any]:
             """
-            Get session details by internal session ID.
+            Get session details by session reference.
 
             Your session_id is injected into your context at session start.
-            Look for 'session_id: xxx' in your system reminders.
+            Look for 'Session Ref: #N' or 'session_id: xxx' in your system reminders.
 
             Args:
-                session_id: Internal session ID (supports prefix matching)
+                session_id: Session reference - supports #N (project-scoped), UUID, or prefix
 
             Returns:
                 Session dict with all fields, or error if not found
             """
-            # Support prefix matching like CLI does
+            # Support #N format, UUID, and prefix matching
             if session_manager is None:
                 return {"error": "Session manager not available"}
 
-            session = session_manager.get(session_id)
+            # Try to resolve session reference (#N, UUID, or prefix)
+            try:
+                resolved_id = session_manager.resolve_session_reference(session_id)
+                session = session_manager.get(resolved_id)
+            except ValueError:
+                session = None
+
             if not session:
-                # Try prefix match
-                sessions = session_manager.list(limit=100)
-                matches = [s for s in sessions if s.id.startswith(session_id)]
-                if len(matches) == 1:
-                    session = matches[0]
-                elif len(matches) > 1:
-                    return {
-                        "error": f"Ambiguous session ID prefix '{session_id}' matches {len(matches)} sessions",
-                        "matches": [s.id for s in matches[:5]],
-                    }
-                else:
-                    return {"error": f"Session {session_id} not found", "found": False}
+                return {"error": f"Session {session_id} not found", "found": False}
 
             return {
                 "found": True,
