@@ -94,14 +94,18 @@ async def _summarize_description_with_claude(description: str) -> str:
             if _loader is None:
                 raise RuntimeError("Summarizer not initialized")
             prompt = _loader.render(prompt_path, {"description": description})
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
+            logger.debug(f"Failed to load prompt from {prompt_path}: {e}, using default")
             prompt = DEFAULT_SUMMARY_PROMPT.format(description=description)
 
         # Get system prompt
         sys_prompt_path = config.system_prompt_path or "features/tool_summary_system"
         try:
+            if _loader is None:
+                raise RuntimeError("Summarizer not initialized")
             system_prompt = _loader.render(sys_prompt_path, {})
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
+            logger.debug(f"Failed to load system prompt from {sys_prompt_path}: {e}, using default")
             system_prompt = DEFAULT_SUMMARY_SYSTEM_PROMPT
 
         # Configure for single-turn completion
@@ -195,8 +199,13 @@ async def generate_server_description(
         try:
             if _loader is None:
                 _get_config()  # force init
-            prompt = _loader.render(prompt_path, context)  # type: ignore
-        except Exception:
+            if _loader is None:
+                # Still None after _get_config, use default
+                prompt = DEFAULT_SERVER_DESC_PROMPT.format(**context)
+            else:
+                prompt = _loader.render(prompt_path, context)
+        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
+            logger.debug(f"Failed to load prompt from {prompt_path}: {e}, using default")
             prompt = DEFAULT_SERVER_DESC_PROMPT.format(**context)
 
         # Get system prompt
@@ -204,8 +213,12 @@ async def generate_server_description(
             config.server_description_system_prompt_path or "features/server_description_system"
         )
         try:
-            system_prompt = _loader.render(sys_prompt_path, {})  # type: ignore
-        except Exception:
+            if _loader is None:
+                system_prompt = DEFAULT_SERVER_DESC_SYSTEM_PROMPT
+            else:
+                system_prompt = _loader.render(sys_prompt_path, {})
+        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
+            logger.debug(f"Failed to load system prompt from {sys_prompt_path}: {e}, using default")
             system_prompt = DEFAULT_SERVER_DESC_SYSTEM_PROMPT
 
         # Configure for single-turn completion

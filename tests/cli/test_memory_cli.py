@@ -203,6 +203,7 @@ class TestMemoryRecallCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @pytest.mark.unit
     @patch("gobby.cli.memory.get_memory_manager")
     def test_recall_no_results(self, mock_get_manager: MagicMock, runner: CliRunner):
         """Test recall with no results."""
@@ -273,6 +274,7 @@ class TestMemoryListCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @pytest.mark.unit
     @patch("gobby.cli.memory.get_memory_manager")
     def test_list_no_results(self, mock_get_manager: MagicMock, runner: CliRunner):
         """Test list with no results."""
@@ -361,6 +363,7 @@ class TestMemoryStatsCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @pytest.mark.unit
     @patch("gobby.cli.memory.get_memory_manager")
     def test_stats_output(self, mock_get_manager: MagicMock, runner: CliRunner):
         """Test stats command output formatting."""

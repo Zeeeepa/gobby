@@ -601,11 +601,19 @@ class CodexAppServerClient:
 
         while not self._shutdown_event.is_set():
             try:
+                # Capture local references to avoid race with stop()
+                proc = self._process
+                if proc is None:
+                    break
+                stdout = proc.stdout
+                if stdout is None:
+                    break
+
                 # Read line in thread pool to avoid blocking
-                line = await loop.run_in_executor(None, self._process.stdout.readline)
+                line = await loop.run_in_executor(None, stdout.readline)
 
                 if not line:
-                    if self._process.poll() is not None:
+                    if proc.poll() is not None:
                         logger.warning("Codex app-server process terminated")
                         self._state = CodexConnectionState.ERROR
                         break

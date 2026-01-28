@@ -237,6 +237,7 @@ async def import_mcp_server(
         )
 
         # Execute import based on source
+        # Note: validation above ensures at least one of these is truthy
         if from_project:
             result = await importer.import_from_project(
                 source_project=from_project,
@@ -244,10 +245,9 @@ async def import_mcp_server(
             )
         elif github_url:
             result = await importer.import_from_github(github_url)
-        elif query:
-            result = await importer.import_from_query(query)
         else:
-            result = {"success": False, "error": "No import source specified"}
+            # query must be truthy due to earlier validation
+            result = await importer.import_from_query(query)
 
         return result
 

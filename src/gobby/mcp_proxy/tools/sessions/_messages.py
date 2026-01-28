@@ -46,7 +46,8 @@ def register_message_tools(
             full_content: If True, returns full content. If False (default), truncates large content.
         """
         try:
-            assert message_manager, "Message manager not available"  # nosec B101
+            if not message_manager:
+                raise RuntimeError("Message manager not available")
             messages = await message_manager.get_messages(
                 session_id=session_id,
                 limit=limit,
@@ -112,7 +113,8 @@ def register_message_tools(
             full_content: If True, returns full content. If False (default), truncates large content.
         """
         try:
-            assert message_manager, "Message manager not available"  # nosec B101
+            if not message_manager:
+                raise RuntimeError("Message manager not available")
             results = await message_manager.search_messages(
                 query_text=query,
                 session_id=session_id,

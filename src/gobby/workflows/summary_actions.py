@@ -9,9 +9,12 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.workflows.git_utils import get_file_changes, get_git_status
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -364,12 +367,6 @@ async def generate_handoff(
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
-if __name__ != "__main__":
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
-
 
 async def handle_synthesize_title(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for synthesize_title."""
@@ -397,6 +394,8 @@ async def handle_generate_summary(context: ActionContext, **kwargs: Any) -> dict
         llm_service=context.llm_service,
         transcript_processor=context.transcript_processor,
         template=kwargs.get("template"),
+        mode=kwargs.get("mode", "clear"),
+        previous_summary=kwargs.get("previous_summary"),
     )
 
 

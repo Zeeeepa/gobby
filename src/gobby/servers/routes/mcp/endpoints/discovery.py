@@ -5,6 +5,7 @@ Extracted from tools.py as part of Phase 2 Strangler Fig decomposition.
 These endpoints handle tool discovery, search, and recommendations.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 # Module-level metrics collector (shared across all requests)
 _metrics = get_metrics_collector()
+
+# Set to keep background tasks alive (prevent garbage collection)
+_background_tasks: set[asyncio.Task[Any]] = set()
 
 
 async def list_all_mcp_tools(
@@ -319,14 +323,25 @@ async def search_mcp_tools(
                     logger.info(
                         f"No embeddings for project {project_id}, triggering background generation..."
                     )
+
+                    # Wrapper to log exceptions from background embedding generation
+                    async def _embed_with_error_handling(proj_id: str) -> None:
+                        try:
+                            await semantic_search.embed_all_tools(
+                                project_id=proj_id,
+                                mcp_manager=server._mcp_db_manager,
+                                force=False,
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Background embedding generation failed for project {proj_id}: {e}",
+                                exc_info=True,
+                            )
+
                     # Trigger embedding generation as background task (non-blocking)
-                    asyncio.create_task(
-                        semantic_search.embed_all_tools(
-                            project_id=project_id,
-                            mcp_manager=server._mcp_db_manager,
-                            force=False,
-                        )
-                    )
+                    task = asyncio.create_task(_embed_with_error_handling(project_id))
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_tasks.discard)
                     # Return early indicating embeddings are being generated
                     response_time_ms = (time.perf_counter() - start_time) * 1000
                     return {

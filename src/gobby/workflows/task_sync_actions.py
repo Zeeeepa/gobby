@@ -164,7 +164,7 @@ async def persist_tasks(
             "id_mapping": id_mapping,
         }
     except Exception as e:
-        logger.error(f"persist_tasks: Failed: {e}")
+        logger.error(f"persist_tasks: Failed: {e}", exc_info=True)
         return {"error": str(e)}
 
 

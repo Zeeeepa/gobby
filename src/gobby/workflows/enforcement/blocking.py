@@ -107,8 +107,13 @@ def _evaluate_block_condition(
         evaluator = SafeExpressionEvaluator(context, allowed_funcs)
         return evaluator.evaluate(condition)
     except Exception as e:
-        logger.warning(f"block_tools condition evaluation failed: '{condition}'. Error: {e}")
-        return False
+        # Fail-closed: block the tool if condition evaluation fails to prevent bypass
+        logger.error(
+            f"block_tools condition evaluation failed (blocking tool): condition='{condition}', "
+            f"variables={variables}, error={e}",
+            exc_info=True,
+        )
+        return True
 
 
 async def block_tools(

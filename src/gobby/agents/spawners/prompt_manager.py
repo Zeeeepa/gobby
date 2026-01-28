@@ -30,13 +30,15 @@ _atexit_lock = threading.Lock()
 
 def cleanup_all_prompt_files() -> None:
     """Clean up all tracked prompt files on process exit."""
-    for prompt_path in list(_prompt_files_to_cleanup):
-        try:
-            if prompt_path.exists():
-                prompt_path.unlink()
-        except OSError:
-            pass
-    _prompt_files_to_cleanup.clear()
+    with _atexit_lock:
+        files_to_cleanup = list(_prompt_files_to_cleanup)
+        _prompt_files_to_cleanup.clear()
+        for prompt_path in files_to_cleanup:
+            try:
+                if prompt_path.exists():
+                    prompt_path.unlink()
+            except OSError:
+                pass
 
 
 def create_prompt_file(prompt: str, session_id: str) -> str:
@@ -84,11 +86,9 @@ def create_prompt_file(prompt: str, session_id: str) -> str:
             pass
         raise
 
-    # Track for cleanup
-    _prompt_files_to_cleanup.add(prompt_path)
-
-    # Register cleanup handler once (thread-safe)
+    # Track for cleanup and register handler (thread-safe)
     with _atexit_lock:
+        _prompt_files_to_cleanup.add(prompt_path)
         if not _atexit_registered:
             atexit.register(cleanup_all_prompt_files)
             _atexit_registered = True

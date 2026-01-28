@@ -83,7 +83,8 @@ class SearchCoordinator:
             return
 
         # Fit the backend with all memories
-        memories = self._storage.list_memories(limit=10000)
+        max_memories = getattr(self._config, "max_index_memories", 10000)
+        memories = self._storage.list_memories(limit=max_memories)
         memory_tuples = [(m.id, m.content) for m in memories]
 
         try:
@@ -189,11 +190,14 @@ class SearchCoordinator:
             for mid in memory_ids:
                 memory = self._storage.get_memory(mid)
                 if memory:
-                    # Apply filters
-                    if project_id and memory.project_id != project_id:
-                        if memory.project_id is not None:  # Allow global memories
-                            continue
-                    if min_importance and memory.importance < min_importance:
+                    # Apply filters - allow global memories (project_id is None) to pass through
+                    if (
+                        project_id
+                        and memory.project_id is not None
+                        and memory.project_id != project_id
+                    ):
+                        continue
+                    if min_importance is not None and memory.importance < min_importance:
                         continue
                     # Apply tag filters
                     if not self._passes_tag_filter(memory, tags_all, tags_any, tags_none):
