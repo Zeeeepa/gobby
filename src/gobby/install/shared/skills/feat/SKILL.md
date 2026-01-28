@@ -24,7 +24,8 @@ Create a new feature task with the provided title and optional description.
 
 ## Action
 
-Call `gobby-tasks.create_task` with:
+Create a feature task with the following parameters:
+
 - `title`: The feature title from user input
 - `task_type`: "feature"
 - `priority`: 2 (medium - standard priority for new features)

@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "/gobby clones", "c
 category: core
 ---
 
-# /gobby-clones - Clone Management Skill
+# /gobby clones - Clone Management Skill
 
 This skill manages git clones via the gobby-clones MCP server. Clones are full repository copies that can be worked on independently without affecting the main repository.
 
@@ -39,8 +39,8 @@ session_id: fd59c8fc-...
 
 ## Subcommands
 
-### `/gobby-clones create <branch-name> <clone-path>` - Create a new clone
-Call `gobby-clones.create_clone` with:
+### `/gobby clones create <branch-name> <clone-path>` - Create a new clone
+Call `create_clone` with:
 - `branch_name`: (required) Branch to clone
 - `clone_path`: (required) Path where clone will be created
 - `remote_url`: Remote URL (defaults to origin of parent repo)
@@ -50,29 +50,29 @@ Call `gobby-clones.create_clone` with:
 
 Creates an isolated git clone for development.
 
-Example: `/gobby-clones create feature/auth /tmp/gobby-clones/auth`
--> `create_clone(branch_name="feature/auth", clone_path="/tmp/gobby-clones/auth")`
+Example: `/gobby clones create feature/auth /tmp/gobby clones/auth`
+-> `create_clone(branch_name="feature/auth", clone_path="/tmp/gobby clones/auth")`
 
-### `/gobby-clones show <clone-id>` - Show clone details
-Call `gobby-clones.get_clone` with:
+### `/gobby clones show <clone-id>` - Show clone details
+Call `get_clone` with:
 - `clone_id`: (required) Clone ID
 
 Returns clone details including path, branch, status, and linked task.
 
-Example: `/gobby-clones show clone-abc123` -> `get_clone(clone_id="clone-abc123")`
+Example: `/gobby clones show clone-abc123` -> `get_clone(clone_id="clone-abc123")`
 
-### `/gobby-clones list` - List all clones
-Call `gobby-clones.list_clones` with:
+### `/gobby clones list` - List all clones
+Call `list_clones` with:
 - `status`: Filter by status (active, syncing, stale, cleanup)
 - `limit`: Max results (default: 50)
 
 Returns clones with path, branch, status, and associated task.
 
-Example: `/gobby-clones list` -> `list_clones()`
-Example: `/gobby-clones list active` -> `list_clones(status="active")`
+Example: `/gobby clones list` -> `list_clones()`
+Example: `/gobby clones list active` -> `list_clones(status="active")`
 
-### `/gobby-clones spawn <branch-name> <prompt>` - Spawn agent in new clone
-Call `gobby-clones.spawn_agent_in_clone` with:
+### `/gobby clones spawn <branch-name> <prompt>` - Spawn agent in new clone
+Call `spawn_agent_in_clone` with:
 - `prompt`: (required) Task description for the agent
 - `branch_name`: (required) Name for the branch in the clone
 - `parent_session_id`: (required) Parent session ID for context
@@ -92,24 +92,24 @@ Creates clone + spawns agent in one call. The agent receives clone context inclu
 - Clone path and branch name
 - Rules to stay within the clone directory
 
-Example: `/gobby-clones spawn feature/auth Implement OAuth login`
+Example: `/gobby clones spawn feature/auth Implement OAuth login`
 -> `spawn_agent_in_clone(branch_name="feature/auth", prompt="Implement OAuth login", parent_session_id="<session_id>")`
 
-Example: `/gobby-clones spawn feature/auth --headless Fix all type errors`
+Example: `/gobby clones spawn feature/auth --headless Fix all type errors`
 -> `spawn_agent_in_clone(branch_name="feature/auth", prompt="Fix all type errors", mode="headless", parent_session_id="<session_id>")`
 
-### `/gobby-clones sync <clone-id>` - Sync with remote
-Call `gobby-clones.sync_clone` with:
+### `/gobby clones sync <clone-id>` - Sync with remote
+Call `sync_clone` with:
 - `clone_id`: (required) Clone ID to sync
 - `direction`: Sync direction (pull, push, both) - required
 
 Syncs the clone with its remote repository.
 
-Example: `/gobby-clones sync clone-abc123 pull` -> `sync_clone(clone_id="clone-abc123", direction="pull")`
-Example: `/gobby-clones sync clone-abc123 push` -> `sync_clone(clone_id="clone-abc123", direction="push")`
+Example: `/gobby clones sync clone-abc123 pull` -> `sync_clone(clone_id="clone-abc123", direction="pull")`
+Example: `/gobby clones sync clone-abc123 push` -> `sync_clone(clone_id="clone-abc123", direction="push")`
 
-### `/gobby-clones merge <clone-id>` - Merge clone to target branch
-Call `gobby-clones.merge_clone_to_target` with:
+### `/gobby clones merge <clone-id>` - Merge clone to target branch
+Call `merge_clone_to_target` with:
 - `clone_id`: (required) Clone ID to merge
 - `target_branch`: Target branch to merge into (default: main)
 
@@ -120,18 +120,18 @@ Performs:
 
 On success, sets cleanup_after to 7 days. If conflicts occur, use gobby-merge tools to resolve.
 
-Example: `/gobby-clones merge clone-abc123` -> `merge_clone_to_target(clone_id="clone-abc123")`
-Example: `/gobby-clones merge clone-abc123 develop` -> `merge_clone_to_target(clone_id="clone-abc123", target_branch="develop")`
+Example: `/gobby clones merge clone-abc123` -> `merge_clone_to_target(clone_id="clone-abc123")`
+Example: `/gobby clones merge clone-abc123 develop` -> `merge_clone_to_target(clone_id="clone-abc123", target_branch="develop")`
 
-### `/gobby-clones delete <clone-id>` - Delete a clone
-Call `gobby-clones.delete_clone` with:
+### `/gobby clones delete <clone-id>` - Delete a clone
+Call `delete_clone` with:
 - `clone_id`: (required) Clone ID to delete
 - `force`: Force deletion even with uncommitted changes (default: false)
 
 Removes the clone directory and database record.
 
-Example: `/gobby-clones delete clone-abc123` -> `delete_clone(clone_id="clone-abc123")`
-Example: `/gobby-clones delete clone-abc123 --force` -> `delete_clone(clone_id="clone-abc123", force=true)`
+Example: `/gobby clones delete clone-abc123` -> `delete_clone(clone_id="clone-abc123")`
+Example: `/gobby clones delete clone-abc123 --force` -> `delete_clone(clone_id="clone-abc123", force=true)`
 
 ## Response Format
 
@@ -160,22 +160,22 @@ A typical parallel workflow using clones:
    gobby tasks expand #parent --parallel
 
 2. Spawn agents in separate clones
-   /gobby-clones spawn feature/auth "Implement OAuth" --task #1
-   /gobby-clones spawn feature/api "Add API endpoints" --task #2
-   /gobby-clones spawn feature/tests "Write integration tests" --task #3
+   /gobby clones spawn feature/auth "Implement OAuth" --task #1
+   /gobby clones spawn feature/api "Add API endpoints" --task #2
+   /gobby clones spawn feature/tests "Write integration tests" --task #3
 
 3. Each agent works in complete isolation
 
 4. When agent completes, merge back to main
-   /gobby-clones merge clone-auth
-   /gobby-clones merge clone-api
-   /gobby-clones merge clone-tests
+   /gobby clones merge clone-auth
+   /gobby clones merge clone-api
+   /gobby clones merge clone-tests
 
 5. Handle any merge conflicts
-   /gobby-merge start wt-main feature/auth
+   /gobby merge start wt-main feature/auth
 
 6. Clean up merged clones
-   /gobby-clones delete clone-auth
+   /gobby clones delete clone-auth
 ```
 
 ## Error Handling

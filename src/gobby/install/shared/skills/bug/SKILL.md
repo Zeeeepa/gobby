@@ -24,7 +24,7 @@ Create a bug/defect task with the provided title and optional description.
 
 ## Action
 
-Call `gobby-tasks.create_task` with:
+Create a bug task with the following parameters:
 
 - `title`: The bug title from user input
 - `task_type`: "bug"

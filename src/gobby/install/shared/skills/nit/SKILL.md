@@ -25,7 +25,8 @@ Create a minor cleanup or nitpick task with the provided title and optional desc
 
 ## Action
 
-Call `gobby-tasks.create_task` with:
+Create a nitpick task with the following parameters:
+
 - `title`: The nitpick title from user input
 - `task_type`: "chore"
 - `labels`: ["nitpick"]

@@ -4,14 +4,14 @@ description: This skill should be used when the user asks to "/gobby metrics", "
 category: core
 ---
 
-# /gobby-metrics - Metrics and Statistics Skill
+# /gobby metrics - Metrics and Statistics Skill
 
 This skill retrieves usage metrics via the gobby-metrics MCP server. Parse the user's input to determine which subcommand to execute.
 
 ## Subcommands
 
-### `/gobby-metrics tools` - Tool usage statistics
-Call `gobby-metrics.get_tool_metrics` with:
+### `/gobby metrics tools` - Tool usage statistics
+Call `get_tool_metrics` with:
 - `server_name`: Optional filter by server name
 - `tool_name`: Optional filter by tool name
 - `project_id`: Optional project scope
@@ -22,62 +22,62 @@ Returns per-tool statistics:
 - Average latency
 - Last used
 
-Example: `/gobby-metrics tools` → `get_tool_metrics()`
-Example: `/gobby-metrics tools gobby-tasks` → `get_tool_metrics(server_name="gobby-tasks")`
-Example: `/gobby-metrics tools gobby-tasks create_task` → `get_tool_metrics(server_name="gobby-tasks", tool_name="create_task")`
+Example: `/gobby metrics tools` → `get_tool_metrics()`
+Example: `/gobby metrics tools gobby-tasks` → `get_tool_metrics(server_name="gobby-tasks")`
+Example: `/gobby metrics tools gobby-tasks create_task` → `get_tool_metrics(server_name="gobby-tasks", tool_name="create_task")`
 
-### `/gobby-metrics top` - Get top tools by usage
-Call `gobby-metrics.get_top_tools` with:
+### `/gobby metrics top` - Get top tools by usage
+Call `get_top_tools` with:
 - `limit`: Max tools to show (default 10)
 - `order_by`: Sort by "usage" (default), "success_rate", or "latency"
 - `project_id`: Optional project scope
 
 Returns tools ranked by the specified metric.
 
-Example: `/gobby-metrics top` → `get_top_tools()`
-Example: `/gobby-metrics top 20 by latency` → `get_top_tools(limit=20, order_by="latency")`
+Example: `/gobby metrics top` → `get_top_tools()`
+Example: `/gobby metrics top 20 by latency` → `get_top_tools(limit=20, order_by="latency")`
 
-### `/gobby-metrics failing` - Get failing tools
-Call `gobby-metrics.get_failing_tools` with:
+### `/gobby metrics failing` - Get failing tools
+Call `get_failing_tools` with:
 - `threshold`: Failure rate threshold (default 0.1 = 10%)
 - `limit`: Max results
 - `project_id`: Optional project scope
 
 Returns tools with failure rates above the threshold.
 
-Example: `/gobby-metrics failing` → `get_failing_tools()`
-Example: `/gobby-metrics failing 0.05` → `get_failing_tools(threshold="0.05")`
+Example: `/gobby metrics failing` → `get_failing_tools()`
+Example: `/gobby metrics failing 0.05` → `get_failing_tools(threshold="0.05")`
 
-### `/gobby-metrics success <server> <tool>` - Get tool success rate
-Call `gobby-metrics.get_tool_success_rate` with:
+### `/gobby metrics success <server> <tool>` - Get tool success rate
+Call `get_tool_success_rate` with:
 - `server_name`: (required) Server name
 - `tool_name`: (required) Tool name
 - `project_id`: (required) Project ID
 
 Returns detailed success rate for a specific tool.
 
-Example: `/gobby-metrics success gobby-tasks create_task` → `get_tool_success_rate(server_name="gobby-tasks", tool_name="create_task", project_id="<project_id>")`
+Example: `/gobby metrics success gobby-tasks create_task` → `get_tool_success_rate(server_name="gobby-tasks", tool_name="create_task", project_id="<project_id>")`
 
-### `/gobby-metrics reset` - Reset metrics
-Call `gobby-metrics.reset_metrics` with:
+### `/gobby metrics reset` - Reset metrics
+Call `reset_metrics` with:
 - `project_id`: Optional - reset for specific project
 - `server_name`: Optional - reset for specific server
 - `tool_name`: Optional - reset for specific tool
 
 Clears metrics data. Can scope to project, server, or specific tool.
 
-Example: `/gobby-metrics reset` → `reset_metrics()`
-Example: `/gobby-metrics reset gobby-tasks` → `reset_metrics(server_name="gobby-tasks")`
+Example: `/gobby metrics reset` → `reset_metrics()`
+Example: `/gobby metrics reset gobby-tasks` → `reset_metrics(server_name="gobby-tasks")`
 
-### `/gobby-metrics cleanup` - Clean up old metrics
-Call `gobby-metrics.cleanup_old_metrics` to delete metrics older than retention period (default 7 days).
+### `/gobby metrics cleanup` - Clean up old metrics
+Call `cleanup_old_metrics` to delete metrics older than retention period (default 7 days).
 
-Example: `/gobby-metrics cleanup` → `cleanup_old_metrics()`
+Example: `/gobby metrics cleanup` → `cleanup_old_metrics()`
 
-### `/gobby-metrics retention` - Get retention statistics
-Call `gobby-metrics.get_retention_stats` to see metrics age distribution and storage info.
+### `/gobby metrics retention` - Get retention statistics
+Call `get_retention_stats` to see metrics age distribution and storage info.
 
-Example: `/gobby-metrics retention` → `get_retention_stats()`
+Example: `/gobby metrics retention` → `get_retention_stats()`
 
 ## Response Format
 

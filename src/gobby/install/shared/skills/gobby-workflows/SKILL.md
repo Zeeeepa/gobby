@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "/gobby workflows",
 category: core
 ---
 
-# /gobby-workflows - Workflow Management Skill
+# /gobby workflows - Workflow Management Skill
 
 This skill manages step-based workflows via the gobby-workflows MCP server. Parse the user's input to determine which subcommand to execute.
 
@@ -19,8 +19,8 @@ Do NOT call `list_sessions` to look it up - you already have it.
 
 ## Subcommands
 
-### `/gobby-workflows activate <workflow-name>` - Activate a workflow
-Call `gobby-workflows.activate_workflow` with:
+### `/gobby workflows activate <workflow-name>` - Activate a workflow
+Call `activate_workflow` with:
 - `session_id`: **Required** - from your SessionStart context
 - `name`: The workflow name to activate
 - `variables`: Optional initial variables (e.g., `session_task` for auto-task)
@@ -33,21 +33,21 @@ Available workflows:
 - `plan-act-reflect` - Structured development cycle
 - `react` - Reason-Act continuous loop
 
-Example: `/gobby-workflows activate plan-execute`
+Example: `/gobby workflows activate plan-execute`
 → `activate_workflow(session_id="<from context>", name="plan-execute")`
 
-Example: `/gobby-workflows activate auto-task session_task=gt-abc123`
+Example: `/gobby workflows activate auto-task session_task=gt-abc123`
 → `activate_workflow(session_id="<from context>", name="auto-task", variables={"session_task": "gt-abc123"})`
 
-### `/gobby-workflows deactivate` - Deactivate current workflow
-Call `gobby-workflows.end_workflow` with:
+### `/gobby workflows deactivate` - Deactivate current workflow
+Call `end_workflow` with:
 - `session_id`: **Required** - from your SessionStart context
 
-Example: `/gobby-workflows deactivate`
+Example: `/gobby workflows deactivate`
 → `end_workflow(session_id="<from context>")`
 
-### `/gobby-workflows status` - Show current workflow status
-Call `gobby-workflows.get_workflow_status` with:
+### `/gobby workflows status` - Show current workflow status
+Call `get_workflow_status` with:
 - `session_id`: **Required** - from your SessionStart context
 
 Returns:
@@ -56,16 +56,16 @@ Returns:
 - Available transitions
 - Session variables
 
-Example: `/gobby-workflows status`
+Example: `/gobby workflows status`
 → `get_workflow_status(session_id="<from context>")`
 
-### `/gobby-workflows list` - List available workflows
-Call `gobby-workflows.list_workflows` to see all available workflows:
+### `/gobby workflows list` - List available workflows
+Call `list_workflows` to see all available workflows:
 - Built-in workflows (global)
 - Project-specific workflows (.gobby/workflows/)
 - Workflow descriptions and step counts
 
-Example: `/gobby-workflows list` → `list_workflows()`
+Example: `/gobby workflows list` → `list_workflows()`
 
 ## Response Format
 

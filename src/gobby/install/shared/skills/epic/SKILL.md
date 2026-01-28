@@ -25,7 +25,8 @@ Create an epic task - a parent container for a large feature or initiative that 
 
 ## Action
 
-Call `gobby-tasks.create_task` with:
+Create an epic task with the following parameters:
+
 - `title`: The epic title from user input
 - `task_type`: "epic"
 - `priority`: 2 (medium - epics are tracked but individual subtasks drive priority)

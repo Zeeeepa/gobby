@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "/gobby sessions", 
 category: core
 ---
 
-# /gobby-sessions - Session Management Skill
+# /gobby sessions - Session Management Skill
 
 This skill manages agent sessions via the gobby-sessions MCP server. Parse the user's input to determine which subcommand to execute.
 
@@ -19,8 +19,8 @@ This is the **internal Gobby session ID** - use it for task creation, parent_ses
 
 ## Subcommands
 
-### `/gobby-sessions get-current` - Look up your session ID
-Call `gobby-sessions.get_current` with:
+### `/gobby sessions get-current` - Look up your session ID
+Call `get_current` with:
 - `external_id`: (required) Your CLI's session ID
 - `source`: (required) CLI source - "claude", "antigravity", "gemini", or "codex"
 
@@ -42,11 +42,11 @@ Returns your internal Gobby session_id from the external CLI session ID.
 
 **Note:** If you already have `session_id` in your context (from SessionStart hook), you don't need this tool.
 
-Example: `/gobby-sessions get-current ea13ad4f-ca32-48e6-9000-e5e6af35a397 claude`
+Example: `/gobby sessions get-current ea13ad4f-ca32-48e6-9000-e5e6af35a397 claude`
 → `get_current(external_id="ea13ad4f-ca32-48e6-9000-e5e6af35a397", source="claude")`
 
-### `/gobby-sessions list` - List all sessions
-Call `gobby-sessions.list_sessions` with:
+### `/gobby sessions list` - List all sessions
+Call `list_sessions` with:
 - `limit`: Max results (default 20)
 - `status`: Filter by status (active, ended)
 - `source`: Filter by source (claude, gemini, codex)
@@ -54,12 +54,12 @@ Call `gobby-sessions.list_sessions` with:
 
 Returns recent sessions with ID, source, start time, and status.
 
-Example: `/gobby-sessions list` → `list_sessions(limit="20")`
-Example: `/gobby-sessions list active` → `list_sessions(status="active")`
-Example: `/gobby-sessions list claude` → `list_sessions(source="claude")`
+Example: `/gobby sessions list` → `list_sessions(limit="20")`
+Example: `/gobby sessions list active` → `list_sessions(status="active")`
+Example: `/gobby sessions list claude` → `list_sessions(source="claude")`
 
-### `/gobby-sessions show <session-id>` - Show session details
-Call `gobby-sessions.get_session` with:
+### `/gobby sessions show <session-id>` - Show session details
+Call `get_session` with:
 - `session_id`: (required) The session ID to retrieve
 
 Returns full session details including:
@@ -68,11 +68,11 @@ Returns full session details including:
 - Tasks worked on
 - Summary if available
 
-Example: `/gobby-sessions show` → `get_session(session_id="<current session_id>")`
-Example: `/gobby-sessions show sess-abc123` → `get_session(session_id="sess-abc123")`
+Example: `/gobby sessions show` → `get_session(session_id="<current session_id>")`
+Example: `/gobby sessions show sess-abc123` → `get_session(session_id="sess-abc123")`
 
-### `/gobby-sessions messages <session-id>` - Get session messages
-Call `gobby-sessions.get_session_messages` with:
+### `/gobby sessions messages <session-id>` - Get session messages
+Call `get_session_messages` with:
 - `session_id`: (required) Session ID
 - `limit`: Max messages to return
 - `offset`: Skip first N messages
@@ -80,10 +80,10 @@ Call `gobby-sessions.get_session_messages` with:
 
 Returns conversation messages from a session.
 
-Example: `/gobby-sessions messages` → `get_session_messages(session_id="<current session_id>")`
+Example: `/gobby sessions messages` → `get_session_messages(session_id="<current session_id>")`
 
-### `/gobby-sessions search <query>` - Search messages
-Call `gobby-sessions.search_messages` with:
+### `/gobby sessions search <query>` - Search messages
+Call `search_messages` with:
 - `query`: (required) Search query (uses FTS)
 - `session_id`: Optional - scope to specific session
 - `limit`: Max results
@@ -91,11 +91,11 @@ Call `gobby-sessions.search_messages` with:
 
 Searches message content using Full Text Search.
 
-Example: `/gobby-sessions search authentication bug` → `search_messages(query="authentication bug")`
-Example: `/gobby-sessions search error --session=sess-abc123` → `search_messages(query="error", session_id="sess-abc123")`
+Example: `/gobby sessions search authentication bug` → `search_messages(query="authentication bug")`
+Example: `/gobby sessions search error --session=sess-abc123` → `search_messages(query="error", session_id="sess-abc123")`
 
-### `/gobby-sessions handoff` - Create session handoff
-Call `gobby-sessions.create_handoff` with:
+### `/gobby sessions handoff` - Create session handoff
+Call `create_handoff` with:
 - `session_id`: (REQUIRED) Your session ID - from injected context or `get_current()`
 - `notes`: Optional notes to include
 - `compact`: Generate compact markdown
@@ -105,19 +105,19 @@ Call `gobby-sessions.create_handoff` with:
 
 Creates handoff context by extracting structured data from the session transcript.
 
-Example: `/gobby-sessions handoff` → `create_handoff(session_id="<your session_id>")`
-Example: `/gobby-sessions handoff --notes="Continue with auth feature"` → `create_handoff(session_id="...", notes="Continue with auth feature")`
+Example: `/gobby sessions handoff` → `create_handoff(session_id="<your session_id>")`
+Example: `/gobby sessions handoff --notes="Continue with auth feature"` → `create_handoff(session_id="...", notes="Continue with auth feature")`
 
-### `/gobby-sessions get-handoff <session-id>` - Get existing handoff
-Call `gobby-sessions.get_handoff_context` with:
+### `/gobby sessions get-handoff <session-id>` - Get existing handoff
+Call `get_handoff_context` with:
 - `session_id`: (required) Session ID
 
 Retrieves the handoff context (compact_markdown) for a session.
 
-Example: `/gobby-sessions get-handoff sess-abc123` → `get_handoff_context(session_id="sess-abc123")`
+Example: `/gobby sessions get-handoff sess-abc123` → `get_handoff_context(session_id="sess-abc123")`
 
-### `/gobby-sessions pickup [session-id]` - Resume a previous session
-Call `gobby-sessions.pickup` with:
+### `/gobby sessions pickup [session-id]` - Resume a previous session
+Call `pickup` with:
 - `session_id`: Optional specific session ID (defaults to most recent)
 - `source`: Filter by source (claude, gemini, codex)
 - `project_id`: Optional project scope
@@ -125,33 +125,33 @@ Call `gobby-sessions.pickup` with:
 
 Retrieves and injects handoff context from a previous session.
 
-Example: `/gobby-sessions pickup` → `pickup()` (resumes most recent)
-Example: `/gobby-sessions pickup sess-abc123` → `pickup(session_id="sess-abc123")`
+Example: `/gobby sessions pickup` → `pickup()` (resumes most recent)
+Example: `/gobby sessions pickup sess-abc123` → `pickup(session_id="sess-abc123")`
 
-### `/gobby-sessions commits <session-id>` - Get session commits
-Call `gobby-sessions.get_session_commits` with:
+### `/gobby sessions commits <session-id>` - Get session commits
+Call `get_session_commits` with:
 - `session_id`: (required) Session ID
 - `max_commits`: Max commits to return
 
 Returns git commits made during the session timeframe.
 
-Example: `/gobby-sessions commits` → `get_session_commits(session_id="<current session_id>")`
+Example: `/gobby sessions commits` → `get_session_commits(session_id="<current session_id>")`
 
-### `/gobby-sessions stats` - Get session statistics
-Call `gobby-sessions.session_stats` with:
+### `/gobby sessions stats` - Get session statistics
+Call `session_stats` with:
 - `project_id`: Optional project scope
 
 Returns session statistics for the project.
 
-Example: `/gobby-sessions stats` → `session_stats()`
+Example: `/gobby sessions stats` → `session_stats()`
 
-### `/gobby-sessions mark-complete` - Mark loop complete
-Call `gobby-sessions.mark_loop_complete` with:
+### `/gobby sessions mark-complete` - Mark loop complete
+Call `mark_loop_complete` with:
 - `session_id`: (REQUIRED) Your session ID - from injected context or `get_current()`
 
 Marks the autonomous loop as complete, preventing session chaining.
 
-Example: `/gobby-sessions mark-complete` → `mark_loop_complete(session_id="<your session_id>")`
+Example: `/gobby sessions mark-complete` → `mark_loop_complete(session_id="<your session_id>")`
 
 ## Response Format
 

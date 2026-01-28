@@ -4,14 +4,14 @@ description: This skill should be used when the user asks to "/gobby worktrees",
 category: core
 ---
 
-# /gobby-worktrees - Worktree Management Skill
+# /gobby worktrees - Worktree Management Skill
 
 This skill manages git worktrees via the gobby-worktrees MCP server. Parse the user's input to determine which subcommand to execute.
 
 ## Subcommands
 
-### `/gobby-worktrees create <branch-name>` - Create a new worktree
-Call `gobby-worktrees.create_worktree` with:
+### `/gobby worktrees create <branch-name>` - Create a new worktree
+Call `create_worktree` with:
 - `branch_name`: (required) Name for the new branch
 - `base_branch`: Base branch (default: current)
 - `task_id`: Optional task ID to associate
@@ -22,33 +22,33 @@ Call `gobby-worktrees.create_worktree` with:
 
 Creates an isolated git worktree for parallel development.
 
-Example: `/gobby-worktrees create feature/auth`
+Example: `/gobby worktrees create feature/auth`
 → `create_worktree(branch_name="feature/auth")`
 
-Example: `/gobby-worktrees create feature/auth --task #1`
+Example: `/gobby worktrees create feature/auth --task #1`
 → `create_worktree(branch_name="feature/auth", task_id="#1")`
 
-### `/gobby-worktrees show <worktree-id>` - Show worktree details
-Call `gobby-worktrees.get_worktree` with:
+### `/gobby worktrees show <worktree-id>` - Show worktree details
+Call `get_worktree` with:
 - `worktree_id`: (required) Worktree ID
 
 Returns worktree details including path, branch, status, and linked task.
 
-Example: `/gobby-worktrees show wt-abc123` → `get_worktree(worktree_id="wt-abc123")`
+Example: `/gobby worktrees show wt-abc123` → `get_worktree(worktree_id="wt-abc123")`
 
-### `/gobby-worktrees list` - List all worktrees
-Call `gobby-worktrees.list_worktrees` with:
+### `/gobby worktrees list` - List all worktrees
+Call `list_worktrees` with:
 - `status`: Filter by status (active, stale, merged, abandoned)
 - `agent_session_id`: Filter by agent session
 - `limit`: Max results
 
 Returns worktrees with path, branch, status, and associated task.
 
-Example: `/gobby-worktrees list` → `list_worktrees()`
-Example: `/gobby-worktrees list active` → `list_worktrees(status="active")`
+Example: `/gobby worktrees list` → `list_worktrees()`
+Example: `/gobby worktrees list active` → `list_worktrees(status="active")`
 
-### `/gobby-worktrees spawn <branch-name> <prompt>` - Spawn agent in new worktree
-Call `gobby-worktrees.spawn_agent_in_worktree` with:
+### `/gobby worktrees spawn <branch-name> <prompt>` - Spawn agent in new worktree
+Call `spawn_agent_in_worktree` with:
 - `prompt`: (required) Task description for the agent
 - `branch_name`: (required) Name for the new branch
 - `base_branch`: Base branch
@@ -65,11 +65,11 @@ Call `gobby-worktrees.spawn_agent_in_worktree` with:
 
 Creates worktree + spawns agent in one call.
 
-Example: `/gobby-worktrees spawn feature/auth Implement OAuth login`
+Example: `/gobby worktrees spawn feature/auth Implement OAuth login`
 → `spawn_agent_in_worktree(branch_name="feature/auth", prompt="Implement OAuth login")`
 
-### `/gobby-worktrees delete <worktree-id>` - Delete a worktree
-Call `gobby-worktrees.delete_worktree` with:
+### `/gobby worktrees delete <worktree-id>` - Delete a worktree
+Call `delete_worktree` with:
 - `worktree_id`: (required) Worktree ID
 - `force`: Force deletion even with uncommitted changes
 
@@ -81,32 +81,32 @@ Call `gobby-worktrees.delete_worktree` with:
 
 Do NOT manually run `git worktree remove` - use this tool instead.
 
-Example: `/gobby-worktrees delete wt-abc123` → `delete_worktree(worktree_id="wt-abc123")`
-Example: `/gobby-worktrees delete wt-abc123 --force` → `delete_worktree(worktree_id="wt-abc123", force=true)`
+Example: `/gobby worktrees delete wt-abc123` → `delete_worktree(worktree_id="wt-abc123")`
+Example: `/gobby worktrees delete wt-abc123 --force` → `delete_worktree(worktree_id="wt-abc123", force=true)`
 
-### `/gobby-worktrees sync <worktree-id>` - Sync with main branch
-Call `gobby-worktrees.sync_worktree` with:
+### `/gobby worktrees sync <worktree-id>` - Sync with main branch
+Call `sync_worktree` with:
 - `worktree_id`: (required) Worktree ID
 - `strategy`: Sync strategy (merge, rebase)
 
 Syncs the worktree with the main branch.
 
-Example: `/gobby-worktrees sync wt-abc123` → `sync_worktree(worktree_id="wt-abc123")`
+Example: `/gobby worktrees sync wt-abc123` → `sync_worktree(worktree_id="wt-abc123")`
 
-### `/gobby-worktrees claim <worktree-id>` - Claim worktree ownership
-Call `gobby-worktrees.claim_worktree` to claim a worktree for an agent session.
+### `/gobby worktrees claim <worktree-id>` - Claim worktree ownership
+Call `claim_worktree` to claim a worktree for an agent session.
 
-### `/gobby-worktrees release <worktree-id>` - Release worktree ownership
-Call `gobby-worktrees.release_worktree` to release ownership.
+### `/gobby worktrees release <worktree-id>` - Release worktree ownership
+Call `release_worktree` to release ownership.
 
-### `/gobby-worktrees mark-merged <worktree-id>` - Mark as merged
-Call `gobby-worktrees.mark_worktree_merged` to mark a worktree as merged (ready for cleanup).
+### `/gobby worktrees mark-merged <worktree-id>` - Mark as merged
+Call `mark_worktree_merged` to mark a worktree as merged (ready for cleanup).
 
-### `/gobby-worktrees detect-stale` - Find stale worktrees
-Call `gobby-worktrees.detect_stale_worktrees` to find worktrees with no recent activity.
+### `/gobby worktrees detect-stale` - Find stale worktrees
+Call `detect_stale_worktrees` to find worktrees with no recent activity.
 
-### `/gobby-worktrees cleanup` - Clean up stale worktrees
-Call `gobby-worktrees.cleanup_stale_worktrees` with:
+### `/gobby worktrees cleanup` - Clean up stale worktrees
+Call `cleanup_stale_worktrees` with:
 - `hours`: Hours of inactivity (default varies)
 - `dry_run`: Preview without deleting
 - `delete_git`: Also delete git worktree
@@ -114,24 +114,24 @@ Call `gobby-worktrees.cleanup_stale_worktrees` with:
 
 Marks and optionally deletes stale worktrees.
 
-Example: `/gobby-worktrees cleanup` → `cleanup_stale_worktrees()`
-Example: `/gobby-worktrees cleanup --dry-run` → `cleanup_stale_worktrees(dry_run="true")`
+Example: `/gobby worktrees cleanup` → `cleanup_stale_worktrees()`
+Example: `/gobby worktrees cleanup --dry-run` → `cleanup_stale_worktrees(dry_run="true")`
 
-### `/gobby-worktrees stats` - Get worktree statistics
-Call `gobby-worktrees.get_worktree_stats` for project worktree statistics.
+### `/gobby worktrees stats` - Get worktree statistics
+Call `get_worktree_stats` for project worktree statistics.
 
-Example: `/gobby-worktrees stats` → `get_worktree_stats()`
+Example: `/gobby worktrees stats` → `get_worktree_stats()`
 
-### `/gobby-worktrees by-task <task-id>` - Get worktree for task
-Call `gobby-worktrees.get_worktree_by_task` with:
+### `/gobby worktrees by-task <task-id>` - Get worktree for task
+Call `get_worktree_by_task` with:
 - Task ID
 
 Finds the worktree linked to a specific task.
 
-Example: `/gobby-worktrees by-task #1` → `get_worktree_by_task(...)`
+Example: `/gobby worktrees by-task #1` → `get_worktree_by_task(...)`
 
-### `/gobby-worktrees link <worktree-id> <task-id>` - Link task to worktree
-Call `gobby-worktrees.link_task_to_worktree` to link a task to an existing worktree.
+### `/gobby worktrees link <worktree-id> <task-id>` - Link task to worktree
+Call `link_task_to_worktree` to link a task to an existing worktree.
 
 ## Response Format
 
