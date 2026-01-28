@@ -114,7 +114,7 @@ def setup_internal_registries(
     # Initialize sessions registry (messages + session CRUD)
     # Register if either message_manager or local_session_manager is available
     if message_manager is not None or local_session_manager is not None:
-        from gobby.mcp_proxy.tools.session_messages import create_session_messages_registry
+        from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 
         session_messages_registry = create_session_messages_registry(
             message_manager=message_manager,

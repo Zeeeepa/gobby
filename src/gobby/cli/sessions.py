@@ -387,7 +387,7 @@ def create_handoff(
     import time
     from pathlib import Path
 
-    from gobby.mcp_proxy.tools.session_messages import _format_handoff_markdown
+    from gobby.mcp_proxy.tools.sessions._handoff import _format_handoff_markdown
     from gobby.sessions.analyzer import TranscriptAnalyzer
 
     manager = get_session_manager()
