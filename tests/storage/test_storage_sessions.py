@@ -1718,7 +1718,5 @@ class TestProjectScopedSeqNum:
         sample_project: dict,
     ):
         """Test ValueError raised when session not found."""
-        import pytest
-
         with pytest.raises(ValueError, match="not found"):
             session_manager.resolve_session_reference("#999", project_id=sample_project["id"])

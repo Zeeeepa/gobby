@@ -41,11 +41,45 @@ logger = logging.getLogger(__name__)
 
 
 def _get_machine_id() -> str:
-    """Get or generate a stable machine identifier based on hostname."""
+    """Get or generate a stable machine identifier.
+
+    Priority:
+    1. Hostname (if available)
+    2. MAC address (if real, not random)
+    3. Persisted UUID file (created on first run)
+    """
+    from pathlib import Path
+
+    # Try hostname first
     node = platform.node()
     if node:
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, node))
-    return str(uuid.uuid4())
+
+    # Try MAC address - getnode() returns random value with multicast bit set if unavailable
+    mac = uuid.getnode()
+    # Check if MAC is real (multicast bit / bit 0 of first octet is 0)
+    if not (mac >> 40) & 1:
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, str(mac)))
+
+    # Fall back to persisted ID file for stability across restarts
+    machine_id_file = Path.home() / ".gobby" / ".machine_id"
+    try:
+        if machine_id_file.exists():
+            stored_id = machine_id_file.read_text().strip()
+            if stored_id:
+                return stored_id
+    except OSError:
+        pass  # Fall through to generate new ID
+
+    # Generate and persist a new ID
+    new_id = str(uuid.uuid4())
+    try:
+        machine_id_file.parent.mkdir(parents=True, exist_ok=True)
+        machine_id_file.write_text(new_id)
+    except OSError:
+        pass  # Use the generated ID even if we can't persist it
+
+    return new_id
 
 
 # =============================================================================

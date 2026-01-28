@@ -100,6 +100,59 @@ def _process_tool_proxy_result(
     }
 
 
+async def _call_internal_tool(
+    registry: Any,
+    server_name: str,
+    tool_name: str,
+    arguments: dict[str, Any] | None,
+    start_time: float,
+) -> dict[str, Any]:
+    """Shared helper for calling internal registry tools.
+
+    Args:
+        registry: The internal tool registry
+        server_name: Name of the MCP server
+        tool_name: Name of the tool to call
+        arguments: Arguments to pass to the tool
+        start_time: Request start time for response_time_ms calculation
+
+    Returns:
+        Tool execution result dict
+
+    Raises:
+        HTTPException: 404 if tool not found, 500 on execution error
+    """
+    # Check if tool exists before calling - return helpful 404 if not
+    if not registry.get_schema(tool_name):
+        available = [t["name"] for t in registry.list_tools()]
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "success": False,
+                "error": f"Tool '{tool_name}' not found on '{server_name}'. "
+                f"Available: {', '.join(available)}. "
+                f"Use list_tools(server='{server_name}') to see all tools, "
+                f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+            },
+        )
+    try:
+        result = await registry.call(tool_name, arguments or {})
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+        _metrics.inc_counter("mcp_tool_calls_succeeded_total")
+        return {
+            "success": True,
+            "result": result,
+            "response_time_ms": response_time_ms,
+        }
+    except Exception as e:
+        _metrics.inc_counter("mcp_tool_calls_failed_total")
+        error_msg = str(e) or f"{type(e).__name__}: (no message)"
+        raise HTTPException(
+            status_code=500,
+            detail={"success": False, "error": error_msg},
+        ) from e
+
+
 async def list_mcp_tools(
     server_name: str,
     internal_manager: "InternalToolRegistryManager | None" = Depends(get_internal_manager),
@@ -360,35 +413,9 @@ async def call_mcp_tool(
         if server._internal_manager and server._internal_manager.is_internal(server_name):
             registry = server._internal_manager.get_registry(server_name)
             if registry:
-                # Check if tool exists before calling - return helpful 404 if not
-                if not registry.get_schema(tool_name):
-                    available = [t["name"] for t in registry.list_tools()]
-                    raise HTTPException(
-                        status_code=404,
-                        detail={
-                            "success": False,
-                            "error": f"Tool '{tool_name}' not found on '{server_name}'. "
-                            f"Available: {', '.join(available)}. "
-                            f"Use list_tools(server='{server_name}') to see all tools, "
-                            f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
-                        },
-                    )
-                try:
-                    result = await registry.call(tool_name, arguments or {})
-                    response_time_ms = (time.perf_counter() - start_time) * 1000
-                    _metrics.inc_counter("mcp_tool_calls_succeeded_total")
-                    return {
-                        "success": True,
-                        "result": result,
-                        "response_time_ms": response_time_ms,
-                    }
-                except Exception as e:
-                    _metrics.inc_counter("mcp_tool_calls_failed_total")
-                    error_msg = str(e) or f"{type(e).__name__}: (no message)"
-                    raise HTTPException(
-                        status_code=500,
-                        detail={"success": False, "error": error_msg},
-                    ) from e
+                return await _call_internal_tool(
+                    registry, server_name, tool_name, arguments, start_time
+                )
 
         if server.mcp_manager is None:
             raise HTTPException(
@@ -466,34 +493,7 @@ async def mcp_proxy(
         if server._internal_manager and server._internal_manager.is_internal(server_name):
             registry = server._internal_manager.get_registry(server_name)
             if registry:
-                # Check if tool exists before calling - return helpful 404 if not
-                if not registry.get_schema(tool_name):
-                    available = [t["name"] for t in registry.list_tools()]
-                    raise HTTPException(
-                        status_code=404,
-                        detail={
-                            "success": False,
-                            "error": f"Tool '{tool_name}' not found on '{server_name}'. "
-                            f"Available: {', '.join(available)}. "
-                            f"Use list_tools(server='{server_name}') to see all tools, "
-                            f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
-                        },
-                    )
-                try:
-                    result = await registry.call(tool_name, args or {})
-                    response_time_ms = (time.perf_counter() - start_time) * 1000
-                    _metrics.inc_counter("mcp_tool_calls_succeeded_total")
-                    return {
-                        "success": True,
-                        "result": result,
-                        "response_time_ms": response_time_ms,
-                    }
-                except Exception as e:
-                    _metrics.inc_counter("mcp_tool_calls_failed_total")
-                    error_msg = str(e) or f"{type(e).__name__}: (no message)"
-                    raise HTTPException(
-                        status_code=500, detail={"success": False, "error": error_msg}
-                    ) from e
+                return await _call_internal_tool(registry, server_name, tool_name, args, start_time)
             raise HTTPException(
                 status_code=404,
                 detail={

@@ -82,6 +82,9 @@ if __name__ != "__main__":
 
 async def handle_call_llm(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for call_llm."""
+    if context.session_manager is None:
+        return {"error": "Session manager not available"}
+
     session = context.session_manager.get(context.session_id)
     if session is None:
         return {"error": f"Session not found: {context.session_id}"}

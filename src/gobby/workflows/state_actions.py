@@ -4,8 +4,12 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle workflow state persistence and variable management.
 """
 
+import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -126,26 +130,21 @@ def mark_loop_complete(state: Any) -> dict[str, Any]:
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
-if __name__ != "__main__":
-    # Import TYPE_CHECKING to avoid circular imports at runtime
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
-
 
 async def handle_load_workflow_state(
     context: "ActionContext", **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for load_workflow_state."""
-    return load_workflow_state(context.db, context.session_id, context.state)
+    return await asyncio.to_thread(
+        load_workflow_state, context.db, context.session_id, context.state
+    )
 
 
 async def handle_save_workflow_state(
     context: "ActionContext", **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for save_workflow_state."""
-    return save_workflow_state(context.db, context.state)
+    return await asyncio.to_thread(save_workflow_state, context.db, context.state)
 
 
 async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:

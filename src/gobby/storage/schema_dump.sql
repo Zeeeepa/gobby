@@ -1,3 +1,6 @@
+-- Disable foreign key checks during schema creation to handle forward references
+PRAGMA foreign_keys=OFF;
+
 CREATE TABLE schema_version (
             version INTEGER PRIMARY KEY,
             applied_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -48,14 +51,14 @@ CREATE TABLE IF NOT EXISTS "sessions" (
             external_id TEXT NOT NULL,
             machine_id TEXT NOT NULL,
             source TEXT NOT NULL,
-            project_id TEXT NOT NULL REFERENCES projects(id),
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
             title TEXT,
             status TEXT DEFAULT 'active',
             jsonl_path TEXT,
             summary_path TEXT,
             summary_markdown TEXT,
             git_branch TEXT,
-            parent_session_id TEXT REFERENCES sessions(id),
+            parent_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         , transcript_processed BOOLEAN DEFAULT FALSE, compact_markdown TEXT, agent_depth INTEGER DEFAULT 0, spawned_by_agent_id TEXT, workflow_name TEXT, agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL, context_injected INTEGER DEFAULT 0, original_prompt TEXT, usage_input_tokens INTEGER DEFAULT 0, usage_output_tokens INTEGER DEFAULT 0, usage_cache_creation_tokens INTEGER DEFAULT 0, usage_cache_read_tokens INTEGER DEFAULT 0, usage_total_cost_usd REAL DEFAULT 0.0, terminal_context TEXT, seq_num INTEGER, model TEXT, had_edits BOOLEAN DEFAULT 0);
@@ -116,11 +119,11 @@ CREATE INDEX idx_sessions_pending_transcript
             WHERE status = 'expired' AND transcript_processed = FALSE;
 CREATE TABLE memories (
             id TEXT PRIMARY KEY,
-            project_id TEXT REFERENCES projects(id),
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
             memory_type TEXT NOT NULL,
             content TEXT NOT NULL,
             source_type TEXT,
-            source_session_id TEXT REFERENCES sessions(id),
+            source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
             importance REAL DEFAULT 0.5,
             access_count INTEGER DEFAULT 0,
             last_accessed_at TEXT,
@@ -160,10 +163,10 @@ CREATE INDEX idx_tool_embeddings_project ON tool_embeddings(project_id);
 CREATE INDEX idx_tool_embeddings_hash ON tool_embeddings(text_hash);
 CREATE TABLE IF NOT EXISTS "tasks" (
             id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL REFERENCES projects(id),
-            parent_task_id TEXT REFERENCES tasks(id),
-            created_in_session_id TEXT REFERENCES sessions(id),
-            closed_in_session_id TEXT REFERENCES sessions(id),
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+            created_in_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+            closed_in_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
             closed_commit_sha TEXT,
             closed_at TEXT,
             title TEXT NOT NULL,
@@ -231,7 +234,7 @@ CREATE TABLE IF NOT EXISTS "workflow_audit_log" (
             result TEXT NOT NULL,
             reason TEXT,
             context TEXT,
-            FOREIGN KEY (session_id) REFERENCES sessions(id)
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         );
 CREATE INDEX idx_audit_session ON workflow_audit_log(session_id);
 CREATE INDEX idx_audit_timestamp ON workflow_audit_log(timestamp);
@@ -305,8 +308,8 @@ CREATE INDEX idx_sessions_agent_depth ON sessions(agent_depth);
 CREATE INDEX idx_sessions_spawned_by ON sessions(spawned_by_agent_id);
 CREATE TABLE agent_runs (
             id TEXT PRIMARY KEY,
-            parent_session_id TEXT NOT NULL REFERENCES sessions(id),
-            child_session_id TEXT REFERENCES sessions(id),
+            parent_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            child_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
             workflow_name TEXT,
             provider TEXT NOT NULL,
             model TEXT,
@@ -373,7 +376,7 @@ CREATE INDEX idx_loop_progress_high_value
 CREATE TABLE task_selection_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-            task_id TEXT NOT NULL,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
             selected_at TEXT NOT NULL,
             context TEXT
         );
@@ -494,3 +497,6 @@ CREATE INDEX idx_clones_status ON clones(status);
 CREATE INDEX idx_clones_task ON clones(task_id);
 CREATE INDEX idx_clones_session ON clones(agent_session_id);
 CREATE UNIQUE INDEX idx_clones_path ON clones(clone_path);
+
+-- Re-enable foreign key checks after schema creation
+PRAGMA foreign_keys=ON;

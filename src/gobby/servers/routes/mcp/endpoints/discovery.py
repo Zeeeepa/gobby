@@ -309,17 +309,35 @@ async def search_mcp_tools(
         # Use semantic search directly if available
         if server._tools_handler and server._tools_handler._semantic_search:
             try:
+                import asyncio
+
                 semantic_search = server._tools_handler._semantic_search
 
-                # Auto-generate embeddings if none exist
+                # Check if embeddings exist - if not, trigger background generation
                 existing = semantic_search.get_embeddings_for_project(project_id)
                 if not existing and server._mcp_db_manager:
-                    logger.info(f"No embeddings for project {project_id}, generating...")
-                    await semantic_search.embed_all_tools(
-                        project_id=project_id,
-                        mcp_manager=server._mcp_db_manager,
-                        force=False,
+                    logger.info(
+                        f"No embeddings for project {project_id}, triggering background generation..."
                     )
+                    # Trigger embedding generation as background task (non-blocking)
+                    asyncio.create_task(
+                        semantic_search.embed_all_tools(
+                            project_id=project_id,
+                            mcp_manager=server._mcp_db_manager,
+                            force=False,
+                        )
+                    )
+                    # Return early indicating embeddings are being generated
+                    response_time_ms = (time.perf_counter() - start_time) * 1000
+                    return {
+                        "success": True,
+                        "embeddings_generating": True,
+                        "query": query,
+                        "results": [],
+                        "total_results": 0,
+                        "message": "Embeddings are being generated. Please retry in a few seconds.",
+                        "response_time_ms": response_time_ms,
+                    }
 
                 results = await semantic_search.search_tools(
                     query=query,

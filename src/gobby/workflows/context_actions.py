@@ -10,7 +10,10 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 from gobby.workflows.git_utils import get_git_status, get_recent_git_commits
 
@@ -440,12 +443,6 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
 
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
-
-if __name__ != "__main__":
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
 
 
 async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
