@@ -10,6 +10,7 @@ Documentation guides for using Gobby's features.
 | [sessions.md](sessions.md) | Session lifecycle, handoffs, and context management |
 | [memory.md](memory.md) | Persistent knowledge across sessions |
 | [workflows.md](workflows.md) | Step-based workflow engine and enforcement |
+| [search.md](search.md) | Unified search with TF-IDF, embeddings, and hybrid modes |
 
 ## Parallel Development
 
@@ -24,6 +25,7 @@ Documentation guides for using Gobby's features.
 |-------|-------------|
 | [mcp-tools.md](mcp-tools.md) | Complete MCP tool reference (145+ tools) |
 | [cli-commands.md](cli-commands.md) | Full CLI command reference |
+| [configuration.md](configuration.md) | Full configuration reference (config.yaml, project.json) |
 | [artifacts.md](artifacts.md) | Session artifacts (code, diffs, errors) |
 
 ## Integrations
