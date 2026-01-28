@@ -8,11 +8,28 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from gobby.config.features import RecommendToolsConfig
+from gobby.prompts import PromptLoader
 
 logger = logging.getLogger("gobby.mcp.server")
 
 # Search mode type
 SearchMode = Literal["llm", "semantic", "hybrid"]
+
+DEFAULT_HYBRID_RERANK_PROMPT = """Re-rank the following tools for the task: "{task_description}"
+
+Candidates:
+{candidate_list}
+
+Select the best {top_k} tools. Return JSON:
+{{"recommendations": [{{"server": "...", "tool": "...", "reason": "..."}}]}}"""
+
+DEFAULT_LLM_PROMPT = """Recommend tools for the task: "{task_description}"
+
+Available Servers:
+{available_servers}
+
+Return JSON:
+{{"recommendations": [{{"server": "...", "tool": "...", "reason": "..."}}]}}"""
 
 
 class RecommendationService:
@@ -31,6 +48,11 @@ class RecommendationService:
         self._semantic_search = semantic_search
         self._project_id = project_id
         self._config = config
+        self._loader = PromptLoader()
+        self._loader.register_fallback(
+            "features/recommend_hybrid", lambda: DEFAULT_HYBRID_RERANK_PROMPT
+        )
+        self._loader.register_fallback("features/recommend_llm", lambda: DEFAULT_LLM_PROMPT)
 
     def _get_config(self) -> RecommendToolsConfig:
         """Get config with fallback to defaults."""
@@ -153,11 +175,16 @@ class RecommendationService:
                 for c in candidates
             )
 
-            prompt = config.hybrid_rerank_prompt.format(
-                task_description=task_description,
-                candidate_list=candidate_list,
-                top_k=top_k,
-            )
+            prompt_path = config.hybrid_rerank_prompt_path or "features/recommend_hybrid"
+            context = {
+                "task_description": task_description,
+                "candidate_list": candidate_list,
+                "top_k": top_k,
+            }
+            try:
+                prompt = self._loader.render(prompt_path, context)
+            except Exception:
+                prompt = DEFAULT_HYBRID_RERANK_PROMPT.format(**context)
 
             provider = self._llm_service.get_default_provider()
             response = await provider.generate_text(prompt)
@@ -191,10 +218,15 @@ class RecommendationService:
             config = self._get_config()
             available_servers = self._mcp_manager.get_available_servers()
 
-            prompt = config.llm_prompt.format(
-                task_description=task_description,
-                available_servers=", ".join(available_servers),
-            )
+            prompt_path = config.llm_prompt_path or "features/recommend_llm"
+            context = {
+                "task_description": task_description,
+                "available_servers": ", ".join(available_servers),
+            }
+            try:
+                prompt = self._loader.render(prompt_path, context)
+            except Exception:
+                prompt = DEFAULT_LLM_PROMPT.format(**context)
 
             provider = self._llm_service.get_default_provider()
             response = await provider.generate_text(prompt)

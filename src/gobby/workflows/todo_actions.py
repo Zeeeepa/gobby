@@ -7,7 +7,10 @@ These functions handle TODO.md file operations.
 import asyncio
 import logging
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +91,6 @@ def mark_todo_complete(
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
-if __name__ != "__main__":
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
-
 
 async def handle_write_todos(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for write_todos."""
@@ -115,6 +112,6 @@ async def handle_mark_todo_complete(
 
     return await asyncio.to_thread(
         mark_todo_complete,
-        todo_text=todo_text,
-        filename=kwargs.get("filename", "TODO.md"),
+        todo_text,
+        kwargs.get("filename", "TODO.md"),
     )
