@@ -675,27 +675,6 @@ class TestTaskValidatorEdgeCases:
         assert result.status == "valid"
 
     @pytest.mark.asyncio
-    async def test_generate_criteria_with_custom_prompt(self, mock_llm):
-        """Test criteria generation with custom prompt from config."""
-        custom_prompt = "Custom prompt for {title}: {description}"
-        config = TaskValidationConfig(
-            enabled=True,
-            provider="claude",
-            model="test-model",
-            criteria_prompt=custom_prompt,
-        )
-        validator = TaskValidator(config, mock_llm)
-        mock_provider = mock_llm.get_provider.return_value
-        mock_provider.generate_text.return_value = "Custom criteria result"
-
-        result = await validator.generate_criteria("My Task", "Task description")
-
-        assert result == "Custom criteria result"
-        call_args = mock_provider.generate_text.call_args
-        prompt = call_args.kwargs["prompt"]
-        assert "Custom prompt for My Task" in prompt
-
-    @pytest.mark.asyncio
     async def test_generate_criteria_no_description(self, config, mock_llm):
         """Test criteria generation with no description."""
         validator = TaskValidator(config, mock_llm)

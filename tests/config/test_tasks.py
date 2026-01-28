@@ -89,7 +89,6 @@ class TestCompactHandoffConfigDefaults:
 
         config = CompactHandoffConfig()
         assert config.enabled is True
-        assert config.prompt is None
 
     def test_disabled_handoff(self) -> None:
         """Test CompactHandoffConfig with disabled handoff."""
@@ -175,7 +174,7 @@ class TestTaskExpansionConfigDefaults:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-opus-4-5"
-        assert config.prompt is None
+        assert config.prompt_path is None
         assert config.codebase_research_enabled is True
         assert config.research_model is None
         assert config.research_max_steps == 10
@@ -261,7 +260,7 @@ class TestTaskValidationConfigDefaults:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-opus-4-5"
-        assert config.prompt is None
+        assert config.prompt_path is None
         assert config.max_iterations == 10
         assert config.max_consecutive_errors == 3
         assert config.recurring_issue_threshold == 3

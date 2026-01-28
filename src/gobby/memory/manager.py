@@ -161,7 +161,7 @@ class MemoryManager:
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
             try:
-                self._crossref_service.create_crossrefs(memory)
+                await self._crossref_service.create_crossrefs(memory)
             except Exception as e:
                 # Don't fail the remember if crossref fails
                 logger.warning(f"Auto-crossref failed for {memory.id}: {e}")
@@ -289,7 +289,7 @@ class MemoryManager:
             max_links=max_links,
         )
 
-    def get_related(
+    async def get_related(
         self,
         memory_id: str,
         limit: int = 5,
@@ -306,7 +306,7 @@ class MemoryManager:
         Returns:
             List of related Memory objects, sorted by similarity
         """
-        return self._crossref_service.get_related(
+        return await self._crossref_service.get_related(
             memory_id=memory_id,
             limit=limit,
             min_similarity=min_similarity,

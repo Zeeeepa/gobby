@@ -2528,14 +2528,14 @@ class TestBlockTools:
 
     @pytest.mark.asyncio
     async def test_block_tools_invalid_condition(self, workflow_state):
-        """Invalid condition returns False (allows tool)."""
+        """Invalid condition blocks tool (fail-closed security behavior)."""
         from gobby.workflows.enforcement import block_tools
 
         rules = [
             {
                 "tools": ["Edit"],
                 "when": "invalid_syntax[[[",
-                "reason": "Should not see this.",
+                "reason": "Block on invalid condition.",
             }
         ]
 
@@ -2545,8 +2545,9 @@ class TestBlockTools:
             workflow_state=workflow_state,
         )
 
-        # Invalid condition should return False, so tool is allowed
-        assert result is None
+        # Invalid condition triggers fail-closed: block the tool to prevent bypass
+        assert result is not None
+        assert result["decision"] == "block"
 
     @pytest.mark.asyncio
     async def test_block_tools_no_workflow_state(self):

@@ -330,7 +330,7 @@ class TestHandleRequireTaskComplete:
         mock_services["task_manager"].list_ready_tasks.return_value = [mock_task]
 
         with patch(
-            "gobby.workflows.task_enforcement_actions.require_task_complete"
+            "gobby.workflows.enforcement.handlers.require_task_complete"
         ) as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
@@ -361,7 +361,7 @@ class TestHandleRequireTaskComplete:
         task_ids = ["gt-task1", "gt-task2", "gt-task3"]
 
         with patch(
-            "gobby.workflows.task_enforcement_actions.require_task_complete"
+            "gobby.workflows.enforcement.handlers.require_task_complete"
         ) as mock_require:
             mock_require.return_value = None  # Allow
 
@@ -389,7 +389,7 @@ class TestHandleRequireTaskComplete:
         action_context.session_id = session.id
 
         with patch(
-            "gobby.workflows.task_enforcement_actions.require_task_complete"
+            "gobby.workflows.enforcement.handlers.require_task_complete"
         ) as mock_require:
             mock_require.return_value = None
 
@@ -421,7 +421,7 @@ class TestHandleRequireTaskComplete:
         mock_services["template_engine"].render.return_value = "gt-resolved-task"
 
         with patch(
-            "gobby.workflows.task_enforcement_actions.require_task_complete"
+            "gobby.workflows.enforcement.handlers.require_task_complete"
         ) as mock_require:
             mock_require.return_value = None
 
@@ -1233,7 +1233,7 @@ class TestHandleRequireActiveTask:
         )
         action_context.session_id = session.id
 
-        with patch("gobby.workflows.task_enforcement_actions.require_active_task") as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_active_task") as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -1259,9 +1259,9 @@ class TestHandleRequireCommitBeforeStop:
         """Test require_commit_before_stop extracts cwd from event_data."""
         action_context.event_data = {"cwd": "/path/to/project"}
 
-        # Patch at source module since handler calls task_enforcement_actions.require_commit_before_stop
+        # Patch in handlers module where the function is imported and used
         with patch(
-            "gobby.workflows.task_enforcement_actions.require_commit_before_stop"
+            "gobby.workflows.enforcement.handlers.require_commit_before_stop"
         ) as mock_require:
             mock_require.return_value = None
 
@@ -1279,9 +1279,9 @@ class TestHandleRequireCommitBeforeStop:
         """Test require_commit_before_stop handles missing event_data."""
         action_context.event_data = None
 
-        # Patch at source module since handler calls task_enforcement_actions.require_commit_before_stop
+        # Patch in handlers module where the function is imported and used
         with patch(
-            "gobby.workflows.task_enforcement_actions.require_commit_before_stop"
+            "gobby.workflows.enforcement.handlers.require_commit_before_stop"
         ) as mock_require:
             mock_require.return_value = None
 
@@ -1306,9 +1306,9 @@ class TestHandleValidateSessionTaskScope:
     @pytest.mark.asyncio
     async def test_validate_session_task_scope_delegated(self, action_executor, action_context):
         """Test validate_session_task_scope delegates correctly."""
-        # Patch at source module since handler calls task_enforcement_actions.validate_session_task_scope
+        # Patch in handlers module where the function is imported and used
         with patch(
-            "gobby.workflows.task_enforcement_actions.validate_session_task_scope"
+            "gobby.workflows.enforcement.handlers.validate_session_task_scope"
         ) as mock_validate:
             mock_validate.return_value = None
 

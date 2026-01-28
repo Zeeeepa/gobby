@@ -816,7 +816,16 @@ async def test_variable_actions(action_executor, action_context):
 
 
 @pytest.mark.asyncio
-async def test_call_llm(action_executor, action_context, mock_services):
+async def test_call_llm(action_executor, action_context, mock_services, session_manager, sample_project):
+    # Create a session so handle_call_llm can find it
+    session = session_manager.register(
+        external_id="call-llm-test",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    action_context.session_id = session.id
+
     mock_provider = AsyncMock()
     mock_provider.generate_text.return_value = "LLM Response"
 

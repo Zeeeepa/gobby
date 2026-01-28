@@ -1346,10 +1346,10 @@ class TestSearchMCPTools:
                 json={"query": "create file"},
             )
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.json()
-        assert data["success"] is False
-        assert "No project" in data["error"]
+        assert data["detail"]["success"] is False
+        assert "No project" in data["detail"]["error"]
 
     def test_search_tools_no_semantic_search(self, session_storage: LocalSessionManager) -> None:
         """Test searching tools when semantic search not configured."""
