@@ -38,11 +38,12 @@ steps:
     on_enter:
       - action: inject_message
         content: |
-          Step 1: Acquire your session ID.
+          Step 1: Confirm your session ID.
 
-          Call: mcp__gobby__call_tool(server_name="gobby-sessions", tool_name="get_current_session", arguments={})
+          Your session_id was injected at startup. Verify it by calling:
+          mcp__gobby__call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={})
 
-          Do not proceed until you have your session_id.
+          Then proceed immediately to the next step.
 
     allowed_tools:
       - mcp__gobby__call_tool
