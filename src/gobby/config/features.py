@@ -42,45 +42,22 @@ class ToolSummarizerConfig(BaseModel):
         default="claude-haiku-4-5",
         description="Model to use for summarization (fast/cheap recommended)",
     )
-    prompt: str = Field(
-        default="""Summarize this MCP tool description in 180 characters or less.
-Keep it to three sentences or less. Be concise and preserve the key functionality.
-Do not add quotes, extra formatting, or code examples.
 
-Description: {description}
-
-Summary:""",
-        description="DEPRECATED: Use prompt_path instead. Prompt template for tool description summarization",
-    )
     prompt_path: str | None = Field(
         default=None,
         description="Path to custom tool summary prompt template (e.g., 'features/tool_summary')",
     )
-    system_prompt: str = Field(
-        default="You are a technical summarizer. Create concise tool descriptions.",
-        description="DEPRECATED: Use system_prompt_path instead. System prompt for tool description summarization",
-    )
+
     system_prompt_path: str | None = Field(
         default=None,
         description="Path to custom tool summary system prompt (e.g., 'features/tool_summary_system')",
     )
-    server_description_prompt: str = Field(
-        default="""Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
 
-Tools:
-{tools_list}
-
-Description (1 sentence, try to keep under 100 characters):""",
-        description="DEPRECATED: Use server_description_prompt_path instead. Prompt template for server description generation",
-    )
     server_description_prompt_path: str | None = Field(
         default=None,
         description="Path to custom server description prompt (e.g., 'features/server_description')",
     )
-    server_description_system_prompt: str = Field(
-        default="You write concise technical descriptions.",
-        description="DEPRECATED: Use server_description_system_prompt_path instead. System prompt for server description generation",
-    )
+
     server_description_system_prompt_path: str | None = Field(
         default=None,
         description="Path to custom server description system prompt (e.g., 'features/server_description_system')",
@@ -110,26 +87,12 @@ class TaskDescriptionConfig(BaseModel):
         default=50,
         description="Minimum length of structured extraction before LLM fallback triggers",
     )
-    prompt: str = Field(
-        default="""Generate a concise task description for this task from a spec document.
 
-Task title: {task_title}
-Section: {section_title}
-Section content: {section_content}
-Existing context: {existing_context}
-
-Write a 1-2 sentence description focusing on the goal and deliverable.
-Do not add quotes, extra formatting, or implementation details.""",
-        description="DEPRECATED: Use prompt_path instead. Prompt template for task description generation",
-    )
     prompt_path: str | None = Field(
         default=None,
         description="Path to custom task description prompt (e.g., 'features/task_description')",
     )
-    system_prompt: str = Field(
-        default="You are a technical writer creating concise task descriptions for developers.",
-        description="DEPRECATED: Use system_prompt_path instead. System prompt for task description generation",
-    )
+
     system_prompt_path: str | None = Field(
         default=None,
         description="Path to custom task description system prompt (e.g., 'features/task_description_system')",
@@ -159,83 +122,17 @@ class RecommendToolsConfig(BaseModel):
         default="claude-sonnet-4-5",
         description="Model to use for tool recommendations",
     )
-    prompt: str = Field(
-        default="""You are a tool recommendation assistant for Claude Code with access to MCP servers.
 
-CRITICAL PRIORITIZATION RULES:
-1. Analyze the task type (code navigation, docs lookup, database query, planning, data processing, etc.)
-2. Check available MCP server DESCRIPTIONS for capability matches
-3. If ANY MCP server's description matches the task type -> recommend those tools FIRST
-4. Only recommend built-in Claude Code tools (Grep, Read, Bash, WebSearch) if NO suitable MCP server exists
-
-TASK TYPE MATCHING GUIDELINES:
-- Task needs library/framework documentation -> Look for MCP servers describing "documentation", "library docs", "API reference"
-- Task needs code navigation/architecture understanding -> Look for MCP servers describing "code analysis", "symbols", "semantic search"
-- Task needs database operations -> Look for MCP servers describing "database", "PostgreSQL", "SQL"
-- Task needs complex reasoning/planning -> Look for MCP servers describing "problem-solving", "thinking", "reasoning"
-- Task needs data processing/large datasets -> Look for MCP servers describing "code execution", "data processing", "token optimization"
-
-ANTI-PATTERNS (What NOT to recommend):
-- Don't recommend WebSearch when an MCP server provides library/framework documentation
-- Don't recommend Grep/Read for code architecture questions when an MCP server does semantic code analysis
-- Don't recommend Bash for database queries when an MCP server provides database tools
-- Don't recommend direct implementation when an MCP server provides structured reasoning
-
-OUTPUT FORMAT:
-Be concise and specific. Recommend 1-3 tools maximum with:
-1. Which MCP server and tools to use (if applicable)
-2. Brief rationale based on server description matching task type
-3. Suggested workflow (e.g., "First call X, then use result with Y")
-4. Only mention built-in tools if no MCP server is suitable""",
-        description="DEPRECATED: Use prompt_path instead. System prompt for recommend_tools() MCP tool.",
-    )
     prompt_path: str | None = Field(
         default=None,
         description="Path to custom recommend tools system prompt (e.g., 'features/recommend_tools')",
     )
-    hybrid_rerank_prompt: str = Field(
-        default="""You are an expert at selecting tools for tasks.
-Task: {task_description}
 
-Candidate tools (ranked by semantic similarity):
-{candidate_list}
-
-Re-rank these tools by relevance to the task and provide reasoning.
-Return the top {top_k} most relevant as JSON:
-{{
-  "recommendations": [
-    {{
-      "server": "server_name",
-      "tool": "tool_name",
-      "reason": "Why this tool is the best choice"
-    }}
-  ]
-}}""",
-        description="DEPRECATED: Use hybrid_rerank_prompt_path instead. Prompt template for hybrid mode re-ranking",
-    )
     hybrid_rerank_prompt_path: str | None = Field(
         default=None,
         description="Path to custom hybrid re-rank prompt (e.g., 'features/recommend_tools_hybrid')",
     )
-    llm_prompt: str = Field(
-        default="""You are an expert at selecting the right tools for a given task.
-Task: {task_description}
 
-Available Servers: {available_servers}
-
-Please recommend which tools from these servers would be most useful for this task.
-Return a JSON object with this structure:
-{{
-  "recommendations": [
-    {{
-      "server": "server_name",
-      "tool": "tool_name",
-      "reason": "Why this tool is useful"
-    }}
-  ]
-}}""",
-        description="DEPRECATED: Use llm_prompt_path instead. Prompt template for LLM mode recommendations",
-    )
     llm_prompt_path: str | None = Field(
         default=None,
         description="Path to custom LLM recommendation prompt (e.g., 'features/recommend_tools_llm')",
@@ -276,37 +173,17 @@ class ImportMCPServerConfig(BaseModel):
         default="claude-haiku-4-5",
         description="Model to use for config extraction",
     )
-    prompt: str = Field(
-        default=DEFAULT_IMPORT_MCP_SERVER_PROMPT,
-        description="DEPRECATED: Use prompt_path instead. System prompt for MCP server config extraction",
-    )
+
     prompt_path: str | None = Field(
         default=None,
         description="Path to custom import MCP system prompt (e.g., 'features/import_mcp')",
     )
-    github_fetch_prompt: str = Field(
-        default="""Fetch the README from this GitHub repository and extract MCP server configuration:
 
-{github_url}
-
-If the URL doesn't point directly to a README, try to find and fetch the README.md file.
-
-After reading the documentation, extract the MCP server configuration as a JSON object.""",
-        description="DEPRECATED: Use github_fetch_prompt_path instead. User prompt template for GitHub import",
-    )
     github_fetch_prompt_path: str | None = Field(
         default=None,
         description="Path to custom GitHub fetch prompt (e.g., 'features/import_mcp_github')",
     )
-    search_fetch_prompt: str = Field(
-        default="""Search for MCP server: {search_query}
 
-Find the official documentation or GitHub repository for this MCP server.
-Then fetch and read the README or installation docs.
-
-After reading the documentation, extract the MCP server configuration as a JSON object.""",
-        description="DEPRECATED: Use search_fetch_prompt_path instead. User prompt template for search-based import",
-    )
     search_fetch_prompt_path: str | None = Field(
         default=None,
         description="Path to custom search fetch prompt (e.g., 'features/import_mcp_search')",

@@ -589,14 +589,8 @@ class TaskValidator:
                 category_section += "\n"
 
         # Build prompt using PromptLoader or legacy config
-        if self.config.prompt:
-            # Legacy inline config (deprecated)
-            prompt = self.config.prompt
-            if file_context:
-                prompt += f"\nFile Context:\n{file_context[:50000]}\n"
-        else:
-            # Use PromptLoader
-            prompt_path = self.config.prompt_path or "validation/validate"
+        if self.config.prompt_path:
+            prompt_path = self.config.prompt_path
             template_context = {
                 "title": title,
                 "category_section": category_section,
@@ -611,6 +605,18 @@ class TaskValidator:
                 prompt = DEFAULT_VALIDATE_PROMPT.format(**template_context)
                 if file_context:
                     prompt += f"\nFile Context:\n{file_context[:50000]}\n"
+        else:
+            # Default behavior
+            template_context = {
+                "title": title,
+                "category_section": category_section,
+                "criteria_text": criteria_text,
+                "changes_section": changes_section,
+                "file_context": file_context[:50000] if file_context else "",
+            }
+            prompt = DEFAULT_VALIDATE_PROMPT.format(**template_context)
+            if file_context:
+                prompt += f"\nFile Context:\n{file_context[:50000]}\n"
 
         try:
             provider = self.llm_service.get_provider(self.config.provider)
@@ -670,17 +676,13 @@ class TaskValidator:
             "description": description or "(no description)",
         }
 
-        if self.config.criteria_prompt:
-            # Legacy inline config (deprecated)
-            prompt = self.config.criteria_prompt.format(**template_context)
-        else:
-            # Use PromptLoader
-            prompt_path = self.config.criteria_prompt_path or "validation/criteria"
-            try:
-                prompt = self._loader.render(prompt_path, template_context)
-            except FileNotFoundError:
-                logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
-                prompt = DEFAULT_CRITERIA_PROMPT.format(**template_context)
+        # Use PromptLoader
+        prompt_path = self.config.criteria_prompt_path or "validation/criteria"
+        try:
+            prompt = self._loader.render(prompt_path, template_context)
+        except FileNotFoundError:
+            logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
+            prompt = DEFAULT_CRITERIA_PROMPT.format(**template_context)
 
         try:
             provider = self.llm_service.get_provider(self.config.provider)

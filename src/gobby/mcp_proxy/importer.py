@@ -5,6 +5,8 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import DaemonConfig
+from gobby.config.features import DEFAULT_IMPORT_MCP_SERVER_PROMPT
+from gobby.prompts import PromptLoader
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.projects import LocalProjectManager
@@ -17,6 +19,21 @@ logger = logging.getLogger(__name__)
 
 # Pattern to detect placeholder secrets like <YOUR_API_KEY>
 SECRET_PLACEHOLDER_PATTERN = re.compile(r"<YOUR_[A-Z0-9_]+>")
+
+DEFAULT_GITHUB_FETCH_PROMPT = """Fetch the README from this GitHub repository and extract MCP server configuration:
+
+{github_url}
+
+If the URL doesn't point directly to a README, try to find and fetch the README.md file.
+
+After reading the documentation, extract the MCP server configuration as a JSON object."""
+
+DEFAULT_SEARCH_FETCH_PROMPT = """Search for MCP server: {search_query}
+
+Find the official documentation or GitHub repository for this MCP server.
+Then fetch and read the README or installation docs.
+
+After reading the documentation, extract the MCP server configuration as a JSON object."""
 
 
 class MCPServerImporter:
@@ -45,6 +62,19 @@ class MCPServerImporter:
         self.project_manager = LocalProjectManager(db)
         self.mcp_client_manager = mcp_client_manager
         self.import_config = config.get_import_mcp_server_config()
+
+        # Initialize prompt loader
+        project_path = None
+        if current_project_id:
+            if project := self.project_manager.get(current_project_id):
+                project_path = project.repo_path
+
+        self._loader = PromptLoader(project_dir=project_path)
+
+        # Register fallbacks
+        self._loader.register_fallback("import/github_fetch", lambda: DEFAULT_GITHUB_FETCH_PROMPT)
+        self._loader.register_fallback("import/search_fetch", lambda: DEFAULT_SEARCH_FETCH_PROMPT)
+        self._loader.register_fallback("import/system", lambda: DEFAULT_IMPORT_MCP_SERVER_PROMPT)
 
     async def import_from_project(
         self,
@@ -171,10 +201,23 @@ class MCPServerImporter:
             from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
             # Build prompt to fetch and extract config
-            prompt = self.import_config.github_fetch_prompt.format(github_url=github_url)
+            prompt_path = self.import_config.github_fetch_prompt_path or "import/github_fetch"
+            try:
+                prompt = self._loader.render(prompt_path, {"github_url": github_url})
+            except Exception as e:
+                logger.warning(f"Failed to load Github fetch prompt: {e}")
+                prompt = DEFAULT_GITHUB_FETCH_PROMPT.format(github_url=github_url)
+
+            # Get system prompt
+            sys_prompt_path = self.import_config.prompt_path or "import/system"
+            try:
+                system_prompt = self._loader.render(sys_prompt_path, {})
+            except Exception as e:
+                logger.warning(f"Failed to load import system prompt: {e}")
+                system_prompt = DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
             options = ClaudeAgentOptions(
-                system_prompt=self.import_config.prompt,
+                system_prompt=system_prompt,
                 max_turns=3,
                 model=self.import_config.model,
                 allowed_tools=["WebFetch"],
@@ -222,10 +265,23 @@ class MCPServerImporter:
             from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
             # Build prompt to search and extract config
-            prompt = self.import_config.search_fetch_prompt.format(search_query=search_query)
+            prompt_path = self.import_config.search_fetch_prompt_path or "import/search_fetch"
+            try:
+                prompt = self._loader.render(prompt_path, {"search_query": search_query})
+            except Exception as e:
+                logger.warning(f"Failed to load search fetch prompt: {e}")
+                prompt = DEFAULT_SEARCH_FETCH_PROMPT.format(search_query=search_query)
+
+            # Get system prompt
+            sys_prompt_path = self.import_config.prompt_path or "import/system"
+            try:
+                system_prompt = self._loader.render(sys_prompt_path, {})
+            except Exception as e:
+                logger.warning(f"Failed to load import system prompt: {e}")
+                system_prompt = DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
             options = ClaudeAgentOptions(
-                system_prompt=self.import_config.prompt,
+                system_prompt=system_prompt,
                 max_turns=5,  # More turns for search + fetch
                 model=self.import_config.model,
                 allowed_tools=["WebSearch", "WebFetch"],
