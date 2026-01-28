@@ -28,7 +28,7 @@ At the start of EVERY session:
 2. `list_skills()` — Discover available skills
 3. Session ID: Look for `session_id: <uuid>` in your context.
    If missing, call:
-   `call_tool("gobby-sessions", "get_current", {"external_id": "<your-session-id>", "source": "claude"})`
+   `call_tool("gobby-sessions", "get_current", {"external_id": "<your-session-id>", "source": "<cli-name>"})`
 
 Session and task references use `#N` format (e.g., `#1`, `#42`) which is project-scoped.
 </startup>
