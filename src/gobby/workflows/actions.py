@@ -25,6 +25,15 @@ from gobby.workflows.context_actions import (
     handle_inject_message,
 )
 from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.enforcement import (
+    handle_block_tools,
+    handle_capture_baseline_dirty_files,
+    handle_require_active_task,
+    handle_require_commit_before_stop,
+    handle_require_task_complete,
+    handle_require_task_review_or_close_before_stop,
+    handle_validate_session_task_scope,
+)
 from gobby.workflows.llm_actions import handle_call_llm
 from gobby.workflows.mcp_actions import handle_call_mcp_tool
 from gobby.workflows.memory_actions import (
@@ -56,15 +65,6 @@ from gobby.workflows.summary_actions import (
     handle_generate_handoff,
     handle_generate_summary,
     handle_synthesize_title,
-)
-from gobby.workflows.task_enforcement_actions import (
-    handle_block_tools,
-    handle_capture_baseline_dirty_files,
-    handle_require_active_task,
-    handle_require_commit_before_stop,
-    handle_require_task_complete,
-    handle_require_task_review_or_close_before_stop,
-    handle_validate_session_task_scope,
 )
 from gobby.workflows.task_sync_actions import (
     handle_get_workflow_tasks,

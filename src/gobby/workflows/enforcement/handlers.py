@@ -1,60 +1,32 @@
-"""
-Task enforcement actions for workflow engine.
+"""ActionHandler wrappers for enforcement actions.
 
-Provides actions that enforce task tracking before allowing certain tools,
-and enforce task completion before allowing agent to stop.
-
-This module is a facade that re-exports from the enforcement package.
-The core logic has been decomposed into:
-- enforcement/blocking.py: Tool blocking rules
-- enforcement/commit_policy.py: Commit enforcement before stop
-- enforcement/task_policy.py: Task tracking requirements
+These handlers match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+They bridge the workflow engine to the core enforcement functions.
 """
+
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
 
-# Re-export from enforcement package for backward compatibility
-from gobby.workflows.enforcement import (
-    block_tools,
+from gobby.workflows.enforcement.blocking import block_tools
+from gobby.workflows.enforcement.commit_policy import (
     capture_baseline_dirty_files,
-    require_active_task,
     require_commit_before_stop,
-    require_task_complete,
     require_task_review_or_close_before_stop,
+)
+from gobby.workflows.enforcement.task_policy import (
+    require_active_task,
+    require_task_complete,
     validate_session_task_scope,
 )
-
-# Re-export from git_utils for backward compatibility
-from gobby.workflows.git_utils import get_dirty_files, get_task_session_liveness
-
-# Re-export from safe_evaluator for backward compatibility
-from gobby.workflows.safe_evaluator import LazyBool, SafeExpressionEvaluator
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
 
-# Backward compatibility aliases
-_LazyBool = LazyBool
-_get_task_session_liveness = get_task_session_liveness
-
 __all__ = [
-    # Core enforcement functions
-    "block_tools",
-    "capture_baseline_dirty_files",
-    "require_active_task",
-    "require_commit_before_stop",
-    "require_task_complete",
-    "require_task_review_or_close_before_stop",
-    "validate_session_task_scope",
-    # Utilities (for backward compatibility)
-    "LazyBool",
-    "SafeExpressionEvaluator",
-    "get_dirty_files",
-    "get_task_session_liveness",
-    # Handler wrappers
     "handle_block_tools",
     "handle_capture_baseline_dirty_files",
     "handle_require_active_task",
@@ -65,15 +37,9 @@ __all__ = [
 ]
 
 
-# --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
-# Note: Some handlers require executor access (task_manager) which must be passed
-# via closures in register_defaults.
-
-
 async def handle_capture_baseline_dirty_files(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for capture_baseline_dirty_files.
@@ -105,8 +71,8 @@ async def handle_capture_baseline_dirty_files(
 
 
 async def handle_require_commit_before_stop(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for require_commit_before_stop.
@@ -137,8 +103,8 @@ async def handle_require_commit_before_stop(
 
 
 async def handle_require_task_review_or_close_before_stop(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for require_task_review_or_close_before_stop."""
@@ -156,8 +122,8 @@ async def handle_require_task_review_or_close_before_stop(
 
 
 async def handle_validate_session_task_scope(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for validate_session_task_scope."""
@@ -169,8 +135,8 @@ async def handle_validate_session_task_scope(
 
 
 async def handle_block_tools(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for block_tools.
@@ -200,8 +166,8 @@ async def handle_block_tools(
 
 
 async def handle_require_active_task(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for require_active_task.
@@ -230,9 +196,9 @@ async def handle_require_active_task(
 
 
 async def handle_require_task_complete(
-    context: "Any",
-    task_manager: "LocalTaskManager | None" = None,
-    template_engine: "Any | None" = None,
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
+    template_engine: Any | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for require_task_complete.
