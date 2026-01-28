@@ -12,7 +12,6 @@ One tool: spawn_agent(prompt, agent="generic", isolation="current"|"worktree"|"c
 from __future__ import annotations
 
 import logging
-import socket
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -26,6 +25,7 @@ from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+from gobby.utils.machine_id import get_machine_id
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
@@ -264,7 +264,7 @@ async def spawn_agent_impl(
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
         session_manager=runner._child_session_manager,
-        machine_id=socket.gethostname(),
+        machine_id=get_machine_id() or "unknown",
         sandbox_config=effective_sandbox_config,
     )
 

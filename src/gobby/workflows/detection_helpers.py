@@ -7,7 +7,7 @@ and update workflow state variables accordingly.
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEvent
@@ -254,6 +254,10 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
     This enables workflow conditions like:
         when: "mcp_called('gobby-memory', 'recall')"
 
+    Supports both:
+    - Claude Code format: tool_name="call_tool", tool_input={server_name, tool_name}
+    - Gemini CLI format: mcp_context={server_name, tool_name} for any MCP tool
+
     Args:
         event: The AFTER_TOOL hook event
         state: Current workflow state (modified in place)
@@ -263,10 +267,24 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
 
     tool_name = event.data.get("tool_name", "")
     tool_input = event.data.get("tool_input", {}) or {}
-    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
-    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
+    # Claude Code sends "tool_result", Gemini sends "tool_response"
+    tool_output = (
+        event.data.get("tool_result")
+        or event.data.get("tool_response")
+        or event.data.get("tool_output")
+        or {}
+    )
 
-    # Check for MCP proxy call
+    # Gemini CLI format: mcp_context contains server info for MCP tools
+    mcp_context = event.data.get("mcp_context")
+    if mcp_context and isinstance(mcp_context, dict):
+        server_name = mcp_context.get("server_name", "")
+        inner_tool = mcp_context.get("tool_name", "")
+        if server_name and inner_tool:
+            _track_mcp_call(state, server_name, inner_tool, tool_output)
+        return
+
+    # Claude Code format: tool_name is "call_tool" and server/tool in input
     if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
         return
 
@@ -276,6 +294,23 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
     if not server_name or not inner_tool:
         return
 
+    _track_mcp_call(state, server_name, inner_tool, tool_output)
+
+
+def _track_mcp_call(
+    state: "WorkflowState",
+    server_name: str,
+    inner_tool: str,
+    tool_output: dict[str, Any] | Any,
+) -> None:
+    """Track a successful MCP call in workflow state.
+
+    Args:
+        state: Current workflow state (modified in place)
+        server_name: MCP server name (e.g., "gobby-sessions")
+        inner_tool: Tool name on the server (e.g., "get_current")
+        tool_output: Tool output to check for errors
+    """
     # Check if call succeeded (skip tracking failed calls)
     if isinstance(tool_output, dict):
         if tool_output.get("error") or tool_output.get("status") == "error":
