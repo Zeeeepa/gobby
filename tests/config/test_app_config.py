@@ -600,7 +600,7 @@ class TestRecommendToolsConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-sonnet-4-5"
-        assert "CRITICAL PRIORITIZATION RULES" in config.prompt
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestImportMCPServerConfig:
@@ -612,7 +612,7 @@ class TestImportMCPServerConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-haiku-4-5"
-        assert "transport" in config.prompt
+        assert config.prompt_path is None  # Uses DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
 
 class TestTitleSynthesisConfig:
@@ -656,7 +656,7 @@ class TestTaskExpansionConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-opus-4-5"  # Uses opus for complex task expansion
-        assert config.prompt is None
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestTaskValidationConfig:
@@ -668,7 +668,7 @@ class TestTaskValidationConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-opus-4-5"
-        assert config.prompt is None
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestWorkflowConfig:
@@ -756,7 +756,6 @@ class TestCompactHandoffConfig:
         """Test default compact handoff config."""
         config = CompactHandoffConfig()
         assert config.enabled is True
-        assert config.prompt is None  # Deprecated
 
     def test_custom_values(self):
         """Test custom compact handoff config."""
@@ -795,7 +794,7 @@ class TestToolSummarizerConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-haiku-4-5"
-        assert "180 characters" in config.prompt
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestGobbyTasksConfig:
