@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -45,7 +46,7 @@ class CrossrefService:
         self._get_search_backend = search_backend_getter
         self._ensure_fitted = ensure_fitted
 
-    def create_crossrefs(
+    async def create_crossrefs(
         self,
         memory: Memory,
         threshold: float | None = None,
@@ -75,12 +76,12 @@ class CrossrefService:
             if max_links is None:
                 max_links = 5
 
-        # Ensure search backend is fitted
+        # Ensure search backend is fitted (sync check is fine - just checks a flag)
         self._ensure_fitted()
 
-        # Search for similar memories
+        # Search for similar memories (wrap sync I/O in to_thread)
         search_backend = self._get_search_backend()
-        similar = search_backend.search(memory.content, top_k=max_links + 1)
+        similar = await asyncio.to_thread(search_backend.search, memory.content, max_links + 1)
 
         # Create cross-references
         created = 0
@@ -93,8 +94,8 @@ class CrossrefService:
             if score < threshold:
                 continue
 
-            # Create the crossref
-            self._storage.create_crossref(memory.id, other_id, score)
+            # Create the crossref (wrap sync I/O in to_thread)
+            await asyncio.to_thread(self._storage.create_crossref, memory.id, other_id, score)
             created += 1
 
             if created >= max_links:
@@ -105,7 +106,7 @@ class CrossrefService:
 
         return created
 
-    def get_related(
+    async def get_related(
         self,
         memory_id: str,
         limit: int = 5,
@@ -122,8 +123,11 @@ class CrossrefService:
         Returns:
             List of related Memory objects, sorted by similarity
         """
-        crossrefs = self._storage.get_crossrefs(
-            memory_id, limit=limit, min_similarity=min_similarity
+        crossrefs = await asyncio.to_thread(
+            self._storage.get_crossrefs,
+            memory_id,
+            limit=limit,
+            min_similarity=min_similarity,
         )
 
         # Get the actual Memory objects
@@ -131,7 +135,7 @@ class CrossrefService:
         for ref in crossrefs:
             # Get the "other" memory in the relationship
             other_id = ref.target_id if ref.source_id == memory_id else ref.source_id
-            memory = self._storage.get_memory(other_id)
+            memory = await asyncio.to_thread(self._storage.get_memory, other_id)
             if memory:
                 memories.append(memory)
 

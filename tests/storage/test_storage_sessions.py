@@ -248,11 +248,12 @@ class TestLocalSessionManager:
         assert updated is not None
         assert updated.title == "New Title"
 
+    @pytest.mark.unit
     def test_update_model(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating session model."""
         session = session_manager.register(
             external_id="model-test",
@@ -1615,6 +1616,7 @@ class TestSessionEdgeCases:
         assert updated.workflow_name is None
 
 
+@pytest.mark.unit
 class TestProjectScopedSeqNum:
     """Tests for project-scoped session seq_num feature."""
 
@@ -1622,7 +1624,7 @@ class TestProjectScopedSeqNum:
         self,
         session_manager: LocalSessionManager,
         temp_db,
-    ):
+    ) -> None:
         """Test that seq_num is assigned per project, not globally."""
         from gobby.storage.projects import LocalProjectManager
 
@@ -1654,7 +1656,7 @@ class TestProjectScopedSeqNum:
         self,
         session_manager: LocalSessionManager,
         temp_db,
-    ):
+    ) -> None:
         """Test resolving #N format with project_id parameter."""
         from gobby.storage.projects import LocalProjectManager
 
@@ -1682,7 +1684,7 @@ class TestProjectScopedSeqNum:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that resolve_session_reference falls back to global lookup without project_id."""
         session = session_manager.register(
             external_id="global-test",
@@ -1699,7 +1701,7 @@ class TestProjectScopedSeqNum:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that UUID format still works with project-scoped resolution."""
         session = session_manager.register(
             external_id="uuid-test",
@@ -1716,7 +1718,7 @@ class TestProjectScopedSeqNum:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test ValueError raised when session not found."""
         with pytest.raises(ValueError, match="not found"):
             session_manager.resolve_session_reference("#999", project_id=sample_project["id"])

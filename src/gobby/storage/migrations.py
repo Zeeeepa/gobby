@@ -9,11 +9,11 @@ For new databases (version == 0):
     To use the legacy path (use_flattened_baseline=False), the old BASELINE_SCHEMA
     is applied at version 60, followed by incremental migrations.
 
-For existing databases (0 < version < 60):
-    Legacy migrations are imported from migrations_legacy.py and run incrementally.
+For existing databases (0 < version < 75):
+    Upgrade is not supported without legacy migrations (removed).
 
-For existing databases (version >= 60):
-    Any migrations in MIGRATIONS (v61+) are applied incrementally.
+For existing databases (version >= 75):
+    Any migrations in MIGRATIONS (v76+) are applied incrementally.
 
 Troubleshooting:
     If you experience issues with new database creation, ensure you are starting
@@ -635,7 +635,7 @@ def _migrate_session_seq_num_project_scoped(db: LocalDatabase) -> None:
         return
 
     # Check if it's already project-scoped (contains 'project_id')
-    if "project_id" in row["sql"].lower():
+    if "project_id" in (row["sql"] or "").lower():
         logger.debug("idx_sessions_seq_num is already project-scoped, skipping")
         return
 

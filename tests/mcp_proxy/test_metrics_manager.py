@@ -359,6 +359,7 @@ class TestGetFailingTools:
         assert len(result) == 1
         assert result[0]["project_id"] == "proj-1"
 
+    @pytest.mark.integration
     def test_get_failing_tools_respects_limit(self, metrics_manager: ToolMetricsManager):
         """Test limit parameter works correctly."""
         for i in range(5):

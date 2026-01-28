@@ -140,7 +140,8 @@ def register_handoff_tools(
         """
         from gobby.utils.project_context import get_project_context
 
-        assert session_manager, "Session manager not available"  # nosec B101
+        if not session_manager:
+            raise RuntimeError("Session manager not available")
 
         # Get project_id for project-scoped resolution
         project_ctx = get_project_context()
@@ -242,7 +243,7 @@ Args:
 
         # Read and parse transcript
         turns = []
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     turns.append(json.loads(line))

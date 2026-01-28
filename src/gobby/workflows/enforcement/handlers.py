@@ -143,6 +143,8 @@ async def handle_block_tools(
 
     Passes task_manager via closure from register_defaults.
     """
+    from gobby.storage.projects import LocalProjectManager
+
     # Get project_path for git dirty file checks
     project_path = kwargs.get("project_path")
     if not project_path and context.event_data:
@@ -150,10 +152,18 @@ async def handle_block_tools(
 
     # Get source from session for is_plan_file checks
     source = None
+    current_session = None
     if context.session_manager:
         current_session = context.session_manager.get(context.session_id)
         if current_session:
             source = current_session.source
+
+    # Fallback to session's project path
+    if not project_path and current_session and context.db:
+        project_mgr = LocalProjectManager(context.db)
+        project = project_mgr.get(current_session.project_id)
+        if project and project.repo_path:
+            project_path = project.repo_path
 
     return await block_tools(
         rules=kwargs.get("rules"),

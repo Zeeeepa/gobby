@@ -189,7 +189,8 @@ Args:
         Returns:
             Success status and session details
         """
-        assert session_manager, "Session manager not available"  # nosec B101
+        if not session_manager:
+            raise RuntimeError("Session manager not available")
 
         # Find session - session_id is now required
         session = session_manager.get(session_id)

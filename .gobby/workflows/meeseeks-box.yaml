@@ -55,7 +55,7 @@ steps:
                  "task_id": "<subtask_uuid>",
                  "terminal": "ghostty",
                  "provider": "gemini",
-                 "model": "gemini-3-pro",
+                 "model": "gemini-3-pro-preview",
                  "sandbox": "true",
                  "sandbox_mode": "permissive",
                  "sandbox_allow_network": "true"

@@ -464,10 +464,11 @@ class LocalSessionManager:
     def update_model(self, session_id: str, model: str) -> Session | None:
         """Update session model (LLM model used)."""
         now = datetime.now(UTC).isoformat()
-        self.db.execute(
-            "UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?",
-            (model, now, session_id),
-        )
+        with self.db.transaction():
+            self.db.execute(
+                "UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?",
+                (model, now, session_id),
+            )
         return self.get(session_id)
 
     def update_summary(

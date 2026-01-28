@@ -153,7 +153,10 @@ async def handle_start_new_session(
     context: "ActionContext", **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for start_new_session."""
-    return start_new_session(
+    import asyncio
+
+    return await asyncio.to_thread(
+        start_new_session,
         session_manager=context.session_manager,
         session_id=context.session_id,
         command=kwargs.get("command"),
