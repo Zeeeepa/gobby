@@ -1303,10 +1303,10 @@ class TestRecommendMCPTools:
                 },
             )
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.json()
-        assert data["success"] is False
-        assert "No project found" in data["error"]
+        assert data["detail"]["success"] is False
+        assert "No project found" in data["detail"]["error"]
 
 
 # ============================================================================

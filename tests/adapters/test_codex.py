@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1257,7 +1258,7 @@ class TestCodexNotifyAdapterInit:
 
         assert adapter._hook_manager is None
         assert adapter._machine_id is None
-        assert adapter._seen_threads == set()
+        assert adapter._seen_threads == OrderedDict()
         assert adapter.source == SessionSource.CODEX
 
     def test_with_hook_manager(self):

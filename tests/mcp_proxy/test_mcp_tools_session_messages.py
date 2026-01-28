@@ -1,5 +1,5 @@
 from datetime import UTC
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
@@ -182,7 +182,7 @@ async def test_get_session(mock_session_manager, full_sessions_registry):
 
     result = await full_sessions_registry.call("get_session", {"session_id": "sess-abc"})
 
-    mock_session_manager.resolve_session_reference.assert_called_with("sess-abc")
+    mock_session_manager.resolve_session_reference.assert_called_with("sess-abc", ANY)
     mock_session_manager.get.assert_called_with("sess-abc")
     assert result["found"] is True
     assert result["id"] == "sess-abc"
@@ -283,7 +283,7 @@ async def test_get_handoff_context(mock_session_manager, full_sessions_registry)
 
     result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})
 
-    mock_session_manager.resolve_session_reference.assert_called_with("sess-abc")
+    mock_session_manager.resolve_session_reference.assert_called_with("sess-abc", ANY)
     mock_session_manager.get.assert_called_with("sess-abc")
     assert result["session_id"] == "sess-abc"
     assert result["has_context"] is True
