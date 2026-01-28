@@ -263,7 +263,7 @@ class MemoryManager:
         self.mark_search_refit_needed()
         return memory
 
-    def _create_crossrefs(
+    async def _create_crossrefs(
         self,
         memory: Memory,
         threshold: float | None = None,
@@ -283,7 +283,7 @@ class MemoryManager:
         Returns:
             Number of cross-references created
         """
-        return self._crossref_service.create_crossrefs(
+        return await self._crossref_service.create_crossrefs(
             memory=memory,
             threshold=threshold,
             max_links=max_links,

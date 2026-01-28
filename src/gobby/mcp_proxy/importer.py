@@ -69,7 +69,9 @@ class MCPServerImporter:
             if project := self.project_manager.get(current_project_id):
                 project_path = project.repo_path
 
-        self._loader = PromptLoader(project_dir=project_path)
+        from pathlib import Path
+
+        self._loader = PromptLoader(project_dir=Path(project_path) if project_path else None)
 
         # Register fallbacks
         self._loader.register_fallback("import/github_fetch", lambda: DEFAULT_GITHUB_FETCH_PROMPT)

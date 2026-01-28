@@ -45,9 +45,11 @@ DEFAULT_SERVER_DESC_SYSTEM_PROMPT = "You write concise technical descriptions."
 
 def init_summarizer_config(config: ToolSummarizerConfig, project_dir: str | None = None) -> None:
     """Initialize the summarizer with configuration."""
+    from pathlib import Path
+
     global _config, _loader
     _config = config
-    _loader = PromptLoader(project_dir=project_dir)
+    _loader = PromptLoader(project_dir=Path(project_dir) if project_dir else None)
     # Register fallbacks
     _loader.register_fallback("features/tool_summary", lambda: DEFAULT_SUMMARY_PROMPT)
     _loader.register_fallback("features/tool_summary_system", lambda: DEFAULT_SUMMARY_SYSTEM_PROMPT)
