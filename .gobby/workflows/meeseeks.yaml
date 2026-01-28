@@ -59,7 +59,7 @@ steps:
 
     transitions:
       - to: claim_task
-        when: "mcp_called('gobby-sessions', 'get_current_session')"
+        when: "mcp_called('gobby-sessions', 'get_current')"
 
   # ─────────────────────────────────────────────────────────────
   # Step 2: Claim Task
