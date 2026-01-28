@@ -6,7 +6,7 @@ when blocking actions (e.g., 'See skill: claiming-tasks' when edit blocked).
 
 import pytest
 
-from gobby.workflows.task_enforcement_actions import require_active_task
+from gobby.workflows.enforcement import require_active_task
 
 pytestmark = pytest.mark.unit
 
