@@ -4,7 +4,7 @@ from unittest.mock import ANY, MagicMock
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.session_messages import create_session_messages_registry
+from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager, Session
 

@@ -20,10 +20,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.session_messages import (
+from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
+from gobby.mcp_proxy.tools.sessions._handoff import (
     _format_handoff_markdown,
     _format_turns_for_llm,
-    create_session_messages_registry,
 )
 from gobby.sessions.analyzer import HandoffContext
 
