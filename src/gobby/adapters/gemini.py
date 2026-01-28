@@ -135,6 +135,55 @@ class GeminiAdapter(BaseAdapter):
         """
         return self.TOOL_MAP.get(gemini_tool_name, gemini_tool_name)
 
+    def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Normalize Gemini event data for CLI-agnostic processing.
+
+        This method enriches the input_data with normalized fields so downstream
+        code doesn't need to handle Gemini-specific formats.
+
+        Normalizations performed:
+        1. mcp_context.server_name/tool_name → mcp_server/mcp_tool (top-level)
+        2. tool_response → tool_output
+        3. function_name → tool_name (if not already present)
+        4. parameters/args → tool_input (if not already present)
+
+        Args:
+            input_data: Raw input data from Gemini CLI
+
+        Returns:
+            Enriched data dict with normalized fields added
+        """
+        # Start with a copy to avoid mutating original
+        data = dict(input_data)
+
+        # 1. Flatten mcp_context to top-level mcp_server/mcp_tool
+        mcp_context = data.get("mcp_context")
+        if mcp_context and isinstance(mcp_context, dict):
+            if "mcp_server" not in data:
+                data["mcp_server"] = mcp_context.get("server_name")
+            if "mcp_tool" not in data:
+                data["mcp_tool"] = mcp_context.get("tool_name")
+
+        # 2. Normalize tool_response → tool_output
+        if "tool_response" in data and "tool_output" not in data:
+            data["tool_output"] = data["tool_response"]
+
+        # 3. Normalize function_name → tool_name
+        if "function_name" in data and "tool_name" not in data:
+            data["tool_name"] = self.normalize_tool_name(data["function_name"])
+        elif "tool_name" in data:
+            # Normalize existing tool_name
+            data["tool_name"] = self.normalize_tool_name(data["tool_name"])
+
+        # 4. Normalize parameters/args → tool_input
+        if "tool_input" not in data:
+            if "parameters" in data:
+                data["tool_input"] = data["parameters"]
+            elif "args" in data:
+                data["tool_input"] = data["args"]
+
+        return data
+
     def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent:
         """Convert Gemini CLI native event to unified HookEvent.
 
@@ -202,6 +251,10 @@ class GeminiAdapter(BaseAdapter):
         else:
             metadata = {}
 
+        # Normalize event data for CLI-agnostic processing
+        # This allows downstream code to use consistent field names
+        normalized_data = self._normalize_event_data(input_data)
+
         return HookEvent(
             event_type=event_type,
             session_id=session_id,
@@ -209,7 +262,7 @@ class GeminiAdapter(BaseAdapter):
             timestamp=timestamp,
             machine_id=machine_id,
             cwd=input_data.get("cwd"),
-            data=input_data,
+            data=normalized_data,
             metadata=metadata,
         )
 

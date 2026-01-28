@@ -104,6 +104,10 @@ class ClaudeCodeAdapter(BaseAdapter):
         is_failure = hook_type == "post-tool-use-failure"
         metadata = {"is_failure": is_failure} if is_failure else {}
 
+        # Normalize event data for CLI-agnostic processing
+        # This allows downstream code to use consistent field names
+        normalized_data = self._normalize_event_data(input_data)
+
         return HookEvent(
             event_type=event_type,
             session_id=session_id,
@@ -111,9 +115,45 @@ class ClaudeCodeAdapter(BaseAdapter):
             timestamp=datetime.now(UTC),
             machine_id=input_data.get("machine_id"),
             cwd=input_data.get("cwd"),
-            data=input_data,
+            data=normalized_data,
             metadata=metadata,
         )
+
+    def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Normalize Claude Code event data for CLI-agnostic processing.
+
+        This method enriches the input_data with normalized fields so downstream
+        code doesn't need to handle Claude-specific formats.
+
+        Normalizations performed:
+        1. tool_input.server_name/tool_name → mcp_server/mcp_tool (for MCP calls)
+        2. tool_result → tool_output
+
+        Args:
+            input_data: Raw input data from Claude Code
+
+        Returns:
+            Enriched data dict with normalized fields added
+        """
+        # Start with a copy to avoid mutating original
+        data = dict(input_data)
+
+        # Get tool info
+        tool_name = data.get("tool_name", "")
+        tool_input = data.get("tool_input", {}) or {}
+
+        # 1. Extract MCP info from nested tool_input for call_tool calls
+        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+            if "mcp_server" not in data:
+                data["mcp_server"] = tool_input.get("server_name")
+            if "mcp_tool" not in data:
+                data["mcp_tool"] = tool_input.get("tool_name")
+
+        # 2. Normalize tool_result → tool_output
+        if "tool_result" in data and "tool_output" not in data:
+            data["tool_output"] = data["tool_result"]
+
+        return data
 
     # Map Claude Code hook types to hookEventName for hookSpecificOutput
     HOOK_EVENT_NAME_MAP: dict[str, str] = {

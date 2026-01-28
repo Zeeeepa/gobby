@@ -27,19 +27,32 @@ def workflow_state():
 
 @pytest.fixture
 def make_after_tool_event():
-    """Factory for creating AFTER_TOOL events."""
+    """Factory for creating AFTER_TOOL events.
+
+    Includes normalized fields that adapters would add:
+    - mcp_server/mcp_tool: Extracted from tool_input.server_name/tool_name for MCP calls
+    - tool_output: Normalized from tool_result/tool_response
+    """
 
     def _make(tool_name: str, tool_input: dict | None = None, tool_output: dict | None = None):
+        data = {
+            "tool_name": tool_name,
+            "tool_input": tool_input or {},
+            "tool_output": tool_output or {},
+        }
+
+        # Simulate adapter normalization for MCP calls
+        # Adapters extract these from CLI-specific formats
+        if tool_name in ("call_tool", "mcp__gobby__call_tool") and tool_input:
+            data["mcp_server"] = tool_input.get("server_name")
+            data["mcp_tool"] = tool_input.get("tool_name")
+
         return HookEvent(
             event_type=HookEventType.AFTER_TOOL,
             source=SessionSource.CLAUDE,
             session_id="test-session-ext",
             timestamp=datetime.now(UTC),
-            data={
-                "tool_name": tool_name,
-                "tool_input": tool_input or {},
-                "tool_output": tool_output or {},
-            },
+            data=data,
             metadata={"_platform_session_id": "test-session"},
         )
 
