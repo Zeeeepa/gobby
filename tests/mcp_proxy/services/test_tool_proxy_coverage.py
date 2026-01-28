@@ -152,9 +152,7 @@ class TestListToolsExternalServer:
         return manager
 
     @pytest.mark.asyncio
-    async def test_list_tools_external_object_tools(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_list_tools_external_object_tools(self, mock_mcp_manager, mock_internal_manager):
         """Test listing tools when tools are objects not dicts."""
         mock_mcp_manager.has_server.return_value = True
 
@@ -184,9 +182,7 @@ class TestListToolsExternalServer:
         assert result["tools"][1]["name"] == "another_tool"
 
     @pytest.mark.asyncio
-    async def test_list_tools_external_with_filter(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_list_tools_external_with_filter(self, mock_mcp_manager, mock_internal_manager):
         """Test external tools with workflow phase filtering."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.list_tools = AsyncMock(
@@ -216,9 +212,7 @@ class TestListToolsExternalServer:
         mock_filter.filter_tools.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_list_tools_server_not_found(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_list_tools_server_not_found(self, mock_mcp_manager, mock_internal_manager):
         """Test listing tools from non-existent server."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -249,9 +243,7 @@ class TestCallToolInternal:
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_call_tool_internal_not_found(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_call_tool_internal_not_found(self, mock_mcp_manager, mock_internal_manager):
         """Test calling tool on non-existent internal server raises MCPError."""
         mock_internal_manager.is_internal.return_value = True
         mock_internal_manager.get_registry.return_value = None
@@ -286,9 +278,7 @@ class TestCallToolFallback:
         return manager
 
     @pytest.mark.asyncio
-    async def test_call_tool_exception_with_fallback(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_call_tool_exception_with_fallback(self, mock_mcp_manager, mock_internal_manager):
         """Test that fallback suggestions are included on error."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Tool failed"))
@@ -322,9 +312,7 @@ class TestCallToolFallback:
         )
 
     @pytest.mark.asyncio
-    async def test_call_tool_exception_no_project_id(
-        self, mock_internal_manager
-    ):
+    async def test_call_tool_exception_no_project_id(self, mock_internal_manager):
         """Test fallback when project_id is not available."""
         mock_mcp_manager = MagicMock()
         mock_mcp_manager.project_id = None
@@ -348,9 +336,7 @@ class TestCallToolFallback:
         mock_fallback.find_alternatives_for_error.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_call_tool_fallback_fails(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_call_tool_fallback_fails(self, mock_mcp_manager, mock_internal_manager):
         """Test when fallback resolver itself fails."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Tool failed"))
@@ -374,9 +360,7 @@ class TestCallToolFallback:
         assert result["fallback_suggestions"] == []
 
     @pytest.mark.asyncio
-    async def test_call_tool_no_fallback_resolver(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_call_tool_no_fallback_resolver(self, mock_mcp_manager, mock_internal_manager):
         """Test error response without fallback resolver."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Tool failed"))
@@ -410,9 +394,7 @@ class TestFindToolServer:
         """Create a mock internal registry manager."""
         return MagicMock()
 
-    def test_find_tool_server_internal(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    def test_find_tool_server_internal(self, mock_mcp_manager, mock_internal_manager):
         """Test finding tool in internal registry."""
         mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
 
@@ -426,9 +408,7 @@ class TestFindToolServer:
         assert result == "gobby-tasks"
         mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
 
-    def test_find_tool_server_external_dict_tools(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    def test_find_tool_server_external_dict_tools(self, mock_mcp_manager, mock_internal_manager):
         """Test finding tool in external server configs with dict tools."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -448,9 +428,7 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_external_object_tools(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    def test_find_tool_server_external_object_tools(self, mock_mcp_manager, mock_internal_manager):
         """Test finding tool in external server configs with object tools."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -470,9 +448,7 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_not_found(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    def test_find_tool_server_not_found(self, mock_mcp_manager, mock_internal_manager):
         """Test when tool is not found anywhere."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -504,9 +480,7 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_empty_configs(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    def test_find_tool_server_empty_configs(self, mock_mcp_manager, mock_internal_manager):
         """Test finding tool with no external server configs."""
         mock_internal_manager.find_tool_server.return_value = None
         mock_mcp_manager._configs = {}
@@ -634,9 +608,7 @@ class TestReadResource:
         """Test that read_resource delegates to MCP manager."""
         mock_mcp_manager = MagicMock()
         mock_mcp_manager.project_id = "test-project"
-        mock_mcp_manager.read_resource = AsyncMock(
-            return_value={"content": "resource data"}
-        )
+        mock_mcp_manager.read_resource = AsyncMock(return_value={"content": "resource data"})
 
         proxy = ToolProxyService(mcp_manager=mock_mcp_manager)
 
@@ -664,9 +636,7 @@ class TestGetToolSchema:
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_get_tool_schema_internal_success(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_get_tool_schema_internal_success(self, mock_mcp_manager, mock_internal_manager):
         """Test getting schema from internal server."""
         mock_internal_manager.is_internal.return_value = True
         mock_registry = MagicMock()
@@ -833,9 +803,7 @@ class TestCallToolByName:
         )
 
     @pytest.mark.asyncio
-    async def test_call_tool_by_name_not_found(
-        self, mock_mcp_manager, mock_internal_manager
-    ):
+    async def test_call_tool_by_name_not_found(self, mock_mcp_manager, mock_internal_manager):
         """Test error when tool is not found on any server."""
         mock_internal_manager.find_tool_server.return_value = None
         mock_mcp_manager._configs = {}

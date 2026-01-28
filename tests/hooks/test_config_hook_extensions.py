@@ -1,6 +1,7 @@
 """Tests for HookExtensionsConfig."""
 
-from gobby.config.app import DaemonConfig, HookExtensionsConfig, WebSocketBroadcastConfig
+from gobby.config.app import DaemonConfig
+from gobby.config.extensions import HookExtensionsConfig, WebSocketBroadcastConfig
 
 
 def test_hook_extensions_defaults():

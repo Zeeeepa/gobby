@@ -4,8 +4,12 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle workflow state persistence and variable management.
 """
 
+import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -121,3 +125,58 @@ def mark_loop_complete(state: Any) -> dict[str, Any]:
         state.variables = {}
     state.variables["stop_reason"] = "completed"
     return {"loop_marked_complete": True}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+
+async def handle_load_workflow_state(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for load_workflow_state."""
+    return await asyncio.to_thread(
+        load_workflow_state, context.db, context.session_id, context.state
+    )
+
+
+async def handle_save_workflow_state(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for save_workflow_state."""
+    return await asyncio.to_thread(save_workflow_state, context.db, context.state)
+
+
+async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for set_variable.
+
+    Values containing Jinja2 templates ({{ ... }}) are rendered before setting.
+    """
+    value = kwargs.get("value")
+
+    # Render template if value contains Jinja2 syntax
+    if isinstance(value, str) and "{{" in value:
+        template_context = {
+            "variables": context.state.variables or {},
+            "state": context.state,
+        }
+        if context.template_engine:
+            value = context.template_engine.render(value, template_context)
+        else:
+            logger.warning("handle_set_variable: template_engine is None, skipping template render")
+
+    return set_variable(context.state, kwargs.get("name"), value)
+
+
+async def handle_increment_variable(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for increment_variable."""
+    return increment_variable(context.state, kwargs.get("name"), kwargs.get("amount", 1))
+
+
+async def handle_mark_loop_complete(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for mark_loop_complete."""
+    return mark_loop_complete(context.state)

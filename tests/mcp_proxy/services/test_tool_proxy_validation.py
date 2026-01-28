@@ -475,9 +475,7 @@ class TestExecutionErrorSchemaEnrichment:
     """Tests for schema enrichment on execution errors."""
 
     @pytest.mark.asyncio
-    async def test_schema_included_for_missing_parameter_error(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_schema_included_for_missing_parameter_error(self, tool_proxy, mock_mcp_manager):
         """Verify schema is included when execution fails with missing parameter error."""
         # Setup: MCP manager raises exception with argument-related message
         mock_mcp_manager.call_tool = AsyncMock(
@@ -515,9 +513,7 @@ class TestExecutionErrorSchemaEnrichment:
         assert "session_id" in result["schema"]["required"]
 
     @pytest.mark.asyncio
-    async def test_schema_included_for_invalid_argument_error(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_schema_included_for_invalid_argument_error(self, tool_proxy, mock_mcp_manager):
         """Verify schema is included when execution fails with invalid argument error."""
         mock_mcp_manager.call_tool = AsyncMock(
             side_effect=Exception("Invalid argument: 'count' must be an integer")
@@ -550,9 +546,7 @@ class TestExecutionErrorSchemaEnrichment:
         assert result["schema"]["properties"]["count"]["type"] == "integer"
 
     @pytest.mark.asyncio
-    async def test_schema_not_included_for_connection_error(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_schema_not_included_for_connection_error(self, tool_proxy, mock_mcp_manager):
         """Verify schema is NOT included for connection/timeout errors."""
         mock_mcp_manager.call_tool = AsyncMock(
             side_effect=Exception("Connection timed out after 30s")
@@ -585,9 +579,7 @@ class TestExecutionErrorSchemaEnrichment:
         assert "hint" not in result
 
     @pytest.mark.asyncio
-    async def test_schema_not_included_for_server_not_found(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_schema_not_included_for_server_not_found(self, tool_proxy, mock_mcp_manager):
         """Verify schema is NOT included for server not found errors."""
         mock_mcp_manager.call_tool = AsyncMock(
             side_effect=Exception("Server 'foo' is not connected")
@@ -618,9 +610,7 @@ class TestExecutionErrorSchemaEnrichment:
         assert "schema" not in result
 
     @pytest.mark.asyncio
-    async def test_graceful_handling_when_schema_fetch_fails(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_graceful_handling_when_schema_fetch_fails(self, tool_proxy, mock_mcp_manager):
         """Verify error enrichment handles schema fetch failure gracefully."""
         mock_mcp_manager.call_tool = AsyncMock(
             side_effect=Exception("Missing required parameter 'name'")
@@ -647,9 +637,7 @@ class TestExecutionErrorSchemaEnrichment:
         self, tool_proxy, mock_mcp_manager
     ):
         """Verify schema is not included when get_tool_schema returns unsuccessful."""
-        mock_mcp_manager.call_tool = AsyncMock(
-            side_effect=Exception("Invalid argument 'foo'")
-        )
+        mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Invalid argument 'foo'"))
 
         async def mock_get_schema_not_found(server, tool):
             return {"success": False, "error": "Tool not found"}

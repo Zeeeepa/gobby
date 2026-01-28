@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
+from gobby.agents.sandbox import SandboxConfig
 
 
 class TestAgentDefinition:
@@ -106,9 +107,7 @@ class TestAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/test-agent.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/test-agent.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -120,6 +119,71 @@ class TestAgentDefinition:
             assert agent.branch_prefix == "agent/"
             assert agent.base_branch == "main"
             assert agent.provider == "claude"
+
+    def test_sandbox_field_defaults_to_none(self):
+        """Test that sandbox field defaults to None."""
+        data: dict[str, Any] = {
+            "name": "test-agent",
+            "description": "A test agent",
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.sandbox is None
+
+    def test_sandbox_field_accepts_sandbox_config(self):
+        """Test that sandbox field accepts SandboxConfig."""
+        sandbox = SandboxConfig(
+            enabled=True,
+            mode="restrictive",
+            allow_network=False,
+            extra_read_paths=["/opt"],
+            extra_write_paths=["/tmp"],
+        )
+        data: dict[str, Any] = {
+            "name": "sandboxed-agent",
+            "description": "Agent with sandbox config",
+            "sandbox": sandbox,
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.enabled is True
+        assert agent.sandbox.mode == "restrictive"
+        assert agent.sandbox.allow_network is False
+        assert agent.sandbox.extra_read_paths == ["/opt"]
+        assert agent.sandbox.extra_write_paths == ["/tmp"]
+
+    def test_yaml_loading_with_sandbox_config(self):
+        """Test that YAML loading works with sandbox config."""
+        loader = AgentDefinitionLoader()
+
+        yaml_data: dict[str, Any] = {
+            "name": "sandboxed-agent",
+            "description": "Agent with sandbox from YAML",
+            "sandbox": {
+                "enabled": True,
+                "mode": "permissive",
+                "allow_network": True,
+                "extra_read_paths": ["/data"],
+                "extra_write_paths": [],
+            },
+        }
+
+        with (
+            patch.object(
+                loader, "_find_agent_file", return_value=Path("/tmp/sandboxed-agent.yaml")
+            ),
+            patch("builtins.open"),
+            patch("yaml.safe_load", return_value=yaml_data),
+        ):
+            agent = loader.load("sandboxed-agent")
+
+            assert agent is not None
+            assert agent.name == "sandboxed-agent"
+            assert agent.sandbox is not None
+            assert agent.sandbox.enabled is True
+            assert agent.sandbox.mode == "permissive"
+            assert agent.sandbox.extra_read_paths == ["/data"]
 
 
 class TestAgentDefinitionLoader:
@@ -276,9 +340,7 @@ class TestGenericAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -303,9 +365,7 @@ class TestGenericAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -332,9 +392,7 @@ class TestGenericAgentDefinition:
         }
 
         with (
-            patch.object(
-                loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")
-            ),
+            patch.object(loader, "_find_agent_file", return_value=Path("/tmp/generic.yaml")),
             patch("builtins.open"),
             patch("yaml.safe_load", return_value=yaml_data),
         ):
@@ -342,3 +400,61 @@ class TestGenericAgentDefinition:
 
             assert agent is not None
             assert agent.isolation is None
+
+
+class TestSandboxedAgentDefinition:
+    """Tests for the sandboxed.yaml agent definition."""
+
+    def test_sandboxed_agent_loads_successfully(self):
+        """Test that the sandboxed agent definition can be loaded."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        # Skip test if agent definition doesn't exist
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.name == "sandboxed"
+
+    def test_sandboxed_agent_has_sandbox_enabled(self):
+        """Test that sandboxed agent has sandbox.enabled=True."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.enabled is True
+
+    def test_sandboxed_agent_has_permissive_mode(self):
+        """Test that sandboxed agent uses permissive sandbox mode."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.mode == "permissive"
+
+    def test_sandboxed_agent_allows_network(self):
+        """Test that sandboxed agent allows network access."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.sandbox is not None
+        assert agent.sandbox.allow_network is True
+
+    def test_sandboxed_agent_has_expected_mode(self):
+        """Test that sandboxed agent uses headless mode."""
+        loader = AgentDefinitionLoader()
+        agent = loader.load("sandboxed")
+
+        if agent is None:
+            pytest.skip("sandboxed agent definition not installed")
+
+        assert agent.mode == "headless"

@@ -26,13 +26,21 @@ class TestConductorLoopTick:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -56,13 +64,21 @@ class TestConductorLoopTick:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -90,13 +106,21 @@ class TestConductorLoopAlerts:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [{"task_id": "task-1", "title": "Stale Task"}],
             "blocked_chains": [],
-            "summary": {"stale_count": 1, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 1,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -124,13 +148,21 @@ class TestConductorLoopAlerts:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [{"run_id": "run-1", "session_id": "sess-1", "minutes_running": 20}],
-            "summary": {"stuck_count": 1, "total_running": 1, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 1,
+                "total_running": 1,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -158,13 +190,21 @@ class TestConductorLoopAlerts:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -217,13 +257,21 @@ class TestConductorLoopBudget:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -255,13 +303,21 @@ class TestConductorLoopAutonomousMode:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -289,13 +345,21 @@ class TestConductorLoopAutonomousMode:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()
@@ -326,13 +390,21 @@ class TestConductorLoopSummary:
         mock_task_monitor.check.return_value = {
             "stale_tasks": [],
             "blocked_chains": [],
-            "summary": {"stale_count": 0, "blocked_count": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stale_count": 0,
+                "blocked_count": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_agent_watcher = MagicMock()
         mock_agent_watcher.check.return_value = {
             "stuck_agents": [],
-            "summary": {"stuck_count": 0, "total_running": 0, "checked_at": datetime.now(UTC).isoformat()},
+            "summary": {
+                "stuck_count": 0,
+                "total_running": 0,
+                "checked_at": datetime.now(UTC).isoformat(),
+            },
         }
 
         mock_alert_dispatcher = MagicMock()

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.mcp_proxy.tools.memory import create_memory_registry
-from gobby.mcp_proxy.tools.session_messages import create_session_messages_registry
+from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.mcp_proxy.tools.worktrees import create_worktrees_registry
 

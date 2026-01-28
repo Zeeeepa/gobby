@@ -183,8 +183,7 @@ class ExampleNotifyPlugin(HookPlugin):
         # For this example, we simulate success:
 
         self.logger.info(
-            f"[SIMULATED] HTTP {method} to {url} | "
-            f"channel={effective_channel} | payload={payload}"
+            f"[SIMULATED] HTTP {method} to {url} | channel={effective_channel} | payload={payload}"
         )
 
         self._notifications_sent += 1

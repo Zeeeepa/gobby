@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from gobby.config.app import WebhookEndpointConfig, WebhooksConfig
+from gobby.config.extensions import WebhookEndpointConfig, WebhooksConfig
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.hooks.webhooks import WebhookDispatcher, WebhookResult
 

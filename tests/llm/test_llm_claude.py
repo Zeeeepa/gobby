@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from gobby.config.app import DaemonConfig, LLMProviderConfig, LLMProvidersConfig
+from gobby.config.app import DaemonConfig
+from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 
 
 # Define mock classes for claude_agent_sdk

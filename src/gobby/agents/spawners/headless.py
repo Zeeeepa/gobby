@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from gobby.agents.constants import get_terminal_env_vars
+from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
 from gobby.agents.spawners.base import HeadlessResult
 
 if TYPE_CHECKING:
@@ -26,11 +27,11 @@ def _get_spawn_utils() -> tuple[
     """Lazy import to avoid circular dependencies."""
     from gobby.agents.spawn import (
         MAX_ENV_PROMPT_LENGTH,
-        _create_prompt_file,
         build_cli_command,
+        create_prompt_file,
     )
 
-    return build_cli_command, _create_prompt_file, MAX_ENV_PROMPT_LENGTH
+    return build_cli_command, create_prompt_file, MAX_ENV_PROMPT_LENGTH
 
 
 class HeadlessSpawner:
@@ -169,6 +170,7 @@ class HeadlessSpawner:
         agent_depth: int = 1,
         max_agent_depth: int = 3,
         prompt: str | None = None,
+        sandbox_config: SandboxConfig | None = None,
     ) -> HeadlessResult:
         """
         Spawn a CLI agent in headless mode.
@@ -184,11 +186,23 @@ class HeadlessSpawner:
             agent_depth: Current nesting depth
             max_agent_depth: Maximum allowed depth
             prompt: Optional initial prompt
+            sandbox_config: Optional sandbox configuration
 
         Returns:
             HeadlessResult with process handle
         """
         build_cli_command, _create_prompt_file, max_env_prompt_length = _get_spawn_utils()
+
+        # Resolve sandbox configuration if enabled
+        sandbox_args: list[str] | None = None
+        sandbox_env: dict[str, str] = {}
+
+        if sandbox_config and sandbox_config.enabled:
+            # Compute sandbox paths based on cwd (workspace)
+            resolved_paths = compute_sandbox_paths(sandbox_config, str(cwd))
+            # Get CLI-specific resolver and generate args/env
+            resolver = get_sandbox_resolver(cli)
+            sandbox_args, sandbox_env = resolver.resolve(sandbox_config, resolved_paths)
 
         # Build command with prompt as CLI argument and auto-approve for autonomous work
         command = build_cli_command(
@@ -198,6 +212,7 @@ class HeadlessSpawner:
             auto_approve=True,  # Subagents need to work autonomously
             working_directory=str(cwd) if cli == "codex" else None,
             mode="headless",  # Non-interactive headless mode
+            sandbox_args=sandbox_args,
         )
 
         # Handle prompt for environment variables (backup for hooks/context)
@@ -222,5 +237,9 @@ class HeadlessSpawner:
             prompt=prompt_env,
             prompt_file=prompt_file,
         )
+
+        # Merge sandbox environment variables if present
+        if sandbox_env:
+            env.update(sandbox_env)
 
         return self.spawn(command, cwd, env)

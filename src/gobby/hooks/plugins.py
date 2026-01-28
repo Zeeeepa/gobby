@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
-    from gobby.config.app import PluginsConfig
+    from gobby.config.extensions import PluginsConfig
 
 logger = logging.getLogger(__name__)
 

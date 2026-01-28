@@ -10,40 +10,45 @@ import yaml
 from pydantic import ValidationError
 
 from gobby.config.app import (
-    CompactHandoffConfig,
-    ContextInjectionConfig,
     DaemonConfig,
-    GobbyTasksConfig,
-    HookExtensionsConfig,
-    ImportMCPServerConfig,
-    LLMProviderConfig,
-    LLMProvidersConfig,
-    LoggingSettings,
-    MCPClientProxyConfig,
-    MemoryConfig,
-    MemorySyncConfig,
-    MessageTrackingConfig,
-    MetricsConfig,
-    PluginItemConfig,
-    PluginsConfig,
-    RecommendToolsConfig,
-    SessionLifecycleConfig,
-    SessionSummaryConfig,
-    TaskExpansionConfig,
-    TaskValidationConfig,
-    TitleSynthesisConfig,
-    ToolSummarizerConfig,
-    WebhookEndpointConfig,
-    WebhooksConfig,
-    WebSocketBroadcastConfig,
-    WebSocketSettings,
-    WorkflowConfig,
     apply_cli_overrides,
     expand_env_vars,
     generate_default_config,
     load_config,
     load_yaml,
     save_config,
+)
+from gobby.config.extensions import (
+    HookExtensionsConfig,
+    PluginItemConfig,
+    PluginsConfig,
+    WebhookEndpointConfig,
+    WebhooksConfig,
+    WebSocketBroadcastConfig,
+)
+from gobby.config.features import (
+    ImportMCPServerConfig,
+    MetricsConfig,
+    RecommendToolsConfig,
+    ToolSummarizerConfig,
+)
+from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
+from gobby.config.logging import LoggingSettings
+from gobby.config.persistence import MemoryConfig, MemorySyncConfig
+from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
+from gobby.config.sessions import (
+    ContextInjectionConfig,
+    MessageTrackingConfig,
+    SessionLifecycleConfig,
+    SessionSummaryConfig,
+    TitleSynthesisConfig,
+)
+from gobby.config.tasks import (
+    CompactHandoffConfig,
+    GobbyTasksConfig,
+    TaskExpansionConfig,
+    TaskValidationConfig,
+    WorkflowConfig,
 )
 
 
@@ -282,6 +287,17 @@ class TestDaemonConfig:
         assert config.daemon_port == 60887
         assert config.daemon_health_check_interval == 10.0
         assert config.database_path == "~/.gobby/gobby-hub.db"
+
+    def test_use_flattened_baseline_default_true(self):
+        """Test use_flattened_baseline field exists and defaults to True."""
+        config = DaemonConfig()
+        assert hasattr(config, "use_flattened_baseline")
+        assert config.use_flattened_baseline is True
+
+    def test_use_flattened_baseline_can_be_disabled(self):
+        """Test use_flattened_baseline can be explicitly set to False."""
+        config = DaemonConfig(use_flattened_baseline=False)
+        assert config.use_flattened_baseline is False
 
     def test_port_validation(self):
         """Test daemon port validation."""
@@ -584,7 +600,7 @@ class TestRecommendToolsConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-sonnet-4-5"
-        assert "CRITICAL PRIORITIZATION RULES" in config.prompt
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestImportMCPServerConfig:
@@ -596,7 +612,7 @@ class TestImportMCPServerConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-haiku-4-5"
-        assert "transport" in config.prompt
+        assert config.prompt_path is None  # Uses DEFAULT_IMPORT_MCP_SERVER_PROMPT
 
 
 class TestTitleSynthesisConfig:
@@ -640,7 +656,7 @@ class TestTaskExpansionConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-opus-4-5"  # Uses opus for complex task expansion
-        assert config.prompt is None
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestTaskValidationConfig:
@@ -652,7 +668,7 @@ class TestTaskValidationConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-opus-4-5"
-        assert config.prompt is None
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestWorkflowConfig:
@@ -740,7 +756,6 @@ class TestCompactHandoffConfig:
         """Test default compact handoff config."""
         config = CompactHandoffConfig()
         assert config.enabled is True
-        assert config.prompt is None  # Deprecated
 
     def test_custom_values(self):
         """Test custom compact handoff config."""
@@ -779,7 +794,7 @@ class TestToolSummarizerConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-haiku-4-5"
-        assert "180 characters" in config.prompt
+        assert config.prompt_path is None  # Uses default prompt from prompts/
 
 
 class TestGobbyTasksConfig:
@@ -882,8 +897,7 @@ class TestPluginsConfig:
         """Test default plugins config."""
         config = PluginsConfig()
         assert config.enabled is False  # Disabled by default for security
-        assert "~/.gobby/plugins" in config.plugin_dirs
-        assert ".gobby/plugins" in config.plugin_dirs
+        assert ".gobby/plugins" in config.plugin_dirs  # Project-scoped plugins
         assert config.auto_discover is True
         assert config.plugins == {}
 

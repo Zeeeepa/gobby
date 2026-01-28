@@ -158,104 +158,81 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 | `related` | Soft link - informational only |
 | `discovered-from` | Task found while working on another |
 
-## Task Decomposition Workflow
+## Task Expansion Workflow
 
-Gobby provides a streamlined approach to breaking down complex work:
+Gobby provides a two-phase approach to breaking down complex work:
 
 ```text
-create_task → expand_task
-     ↓            ↓
-  (task)   (research + subtasks + TDD)
+save_expansion_spec → execute_expansion
+        ↓                    ↓
+  (plan subtasks)    (create atomically)
 ```
 
-### Expanding Tasks
+### Phase 1: Save Expansion Spec
 
-Break down complex tasks into smaller subtasks. The expand command:
-- Researches the codebase for relevant context
-- Generates subtasks with proper dependencies
-- Automatically applies TDD transformation to code tasks
-
-```bash
-# CLI: Expand a task
-gobby tasks expand #42
-
-# Expand multiple tasks
-gobby tasks expand #42,#43,#44
-
-# Expand with cascade (include all descendants)
-gobby tasks expand #42 --cascade
-```
+First, plan your subtasks by saving an expansion specification:
 
 ```python
-# MCP: Expand task into subtasks
-call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={
+# MCP: Save expansion spec for review/later execution
+call_tool(server_name="gobby-tasks", tool_name="save_expansion_spec", arguments={
     "task_id": "gt-abc123",
-    "enable_code_context": True,
-    "enable_web_research": False
+    "spec": {
+        "subtasks": [
+            {"title": "Design auth API", "description": "..."},
+            {"title": "Implement login endpoint", "depends_on": [0]},
+            {"title": "Add session management", "depends_on": [1]}
+        ]
+    }
 })
 ```
 
-### Apply TDD (Test/Implementation Pairs)
+### Phase 2: Execute Expansion
 
-Transform tasks into test-driven development triplets.
-Note: This is called automatically by `expand_task` for code tasks.
-
-```bash
-# CLI: Apply TDD to a task
-gobby tasks apply-tdd #42
-
-# Apply TDD to multiple tasks
-gobby tasks apply-tdd #42,#43
-
-# Apply TDD to task tree
-gobby tasks apply-tdd #42 --cascade
-```
+Then atomically create all subtasks with dependencies:
 
 ```python
-# MCP: Create TDD triplet
-call_tool(server_name="gobby-tasks", tool_name="apply_tdd", arguments={
+# MCP: Execute the saved expansion spec
+call_tool(server_name="gobby-tasks", tool_name="execute_expansion", arguments={
     "task_id": "gt-abc123"
 })
 ```
 
-TDD creates three subtasks for each task:
-1. **[TEST]** Write tests for: *original title*
-2. **[IMPL]** Implement: *original title* (blocked by TEST)
-3. **[REFACTOR]** Refactor: *original title* (blocked by IMPL)
+### Check for Pending Expansion
 
-### Complete Workflow Example
-
-```bash
-# 1. Create a task for your feature
-gobby tasks create "Implement user authentication"
-
-# 2. Expand into subtasks (includes research and auto-TDD)
-gobby tasks expand #42 --cascade
-
-# 3. View the task tree
-gobby tasks show #42 --tree
-```
-
-For structured planning, use the `/gobby-plan` skill.
-
-## LLM-Powered Expansion
-
-Break down complex tasks into subtasks using AI:
+After session compaction, check if expansion was interrupted:
 
 ```python
-# Expand a task into subtasks
-call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={
-    "task_id": "gt-abc123",
-    "enable_code_context": True
-})
-
-# Get complexity analysis
-call_tool(server_name="gobby-tasks", tool_name="analyze_complexity", arguments={
+# MCP: Check for pending expansion spec
+call_tool(server_name="gobby-tasks", tool_name="get_expansion_spec", arguments={
     "task_id": "gt-abc123"
 })
+```
 
+For structured planning, use the `/gobby-expand` skill which guides you through this process.
+
+## AI-Powered Task Features
+
+### Suggest Next Task
+
+Get AI-powered suggestion for the best task to work on:
+
+```python
 # Get AI suggestion for next task
-call_tool(server_name="gobby-tasks", tool_name="suggest_next_task", arguments={"session_id": "<your_session_id>"})
+call_tool(server_name="gobby-tasks", tool_name="suggest_next_task", arguments={
+    "session_id": "<your_session_id>"
+})
+```
+
+### Complexity Analysis (CLI)
+
+Analyze task complexity from the CLI:
+
+```bash
+# Analyze single task
+gobby tasks complexity #42
+
+# Analyze all open tasks
+gobby tasks complexity --all
 ```
 
 ## Task Validation
@@ -483,23 +460,29 @@ task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"ta
 | `sync_tasks` | Trigger import/export |
 | `get_sync_status` | Get sync status |
 
-### Task Decomposition
+### Task Expansion
 
 | Tool | Description |
 |------|-------------|
-| `expand_task` | Research, break into subtasks, auto-apply TDD |
-| `apply_tdd` | Create test/implement/refactor triplet |
-| `analyze_complexity` | Get complexity score |
+| `save_expansion_spec` | Save expansion spec for later execution |
+| `execute_expansion` | Execute saved expansion atomically |
+| `get_expansion_spec` | Check for pending expansion (resume after compaction) |
 | `suggest_next_task` | AI suggests next task to work on |
 
 ### Validation
 
 | Tool | Description |
 |------|-------------|
-| `validate_task` | Validate task completion (uses git diff automatically) |
+| `validate_task` | Validate task completion (auto-gathers git context) |
 | `get_validation_status` | Get validation details |
 | `reset_validation_count` | Reset failure count for retry |
+| `get_validation_history` | Full validation history with iterations |
+| `get_recurring_issues` | Analyze recurring validation issues |
+| `clear_validation_history` | Clear all validation history |
+| `de_escalate_task` | Return escalated task to open status |
 | `generate_validation_criteria` | Generate validation criteria using LLM |
+| `run_fix_attempt` | Spawn fix agent for validation issues |
+| `validate_and_fix` | Run validation loop with auto-fix |
 
 ### Search
 
@@ -517,6 +500,7 @@ gobby tasks show TASK_ID
 gobby tasks create "Title" [-d DESC] [-p PRIORITY] [-t TYPE]
 gobby tasks update TASK_ID [--status S] [--priority P]
 gobby tasks close TASK_ID --reason "Done"
+gobby tasks reopen TASK_ID
 gobby tasks delete TASK_ID [--cascade]
 
 # Dependencies
@@ -529,31 +513,40 @@ gobby tasks dep cycles
 gobby tasks label add TASK LABEL
 gobby tasks label remove TASK LABEL
 
+# Commit linking
+gobby tasks commit link TASK SHA
+gobby tasks commit unlink TASK SHA
+gobby tasks commit auto
+gobby tasks diff TASK_ID
+
 # Ready work
 gobby tasks ready [--limit N]
 gobby tasks blocked
+gobby tasks suggest
 
 # Sync
 gobby tasks sync [--import] [--export]
 
 # Search
-gobby tasks search <QUERY> [--status S] [--type T] [--priority P] [--limit N] [--min-score F] [--all-projects] [--json]
+gobby tasks search <QUERY> [--status S] [--type T] [--limit N] [--all-projects] [--json]
 gobby tasks reindex [--all-projects]
 
-# Task Decomposition
-gobby tasks expand TASKS... [--cascade] [--force]
-gobby tasks apply-tdd TASKS... [--cascade] [--force]
+# Complexity
 gobby tasks complexity TASK_ID [--all]
-gobby tasks suggest
 
 # Validation
 gobby tasks generate-criteria TASK_ID   # Generate criteria for one task
 gobby tasks generate-criteria --all     # Generate for all open tasks
 gobby tasks validate TASK_ID            # Run validation
-gobby tasks reset-validation TASK_ID    # Reset failure count
+gobby tasks validation-history TASK_ID  # View validation history
+gobby tasks validation-history TASK_ID --clear  # Clear history
+gobby tasks de-escalate TASK_ID         # Return escalated task to open
 
-# Stats
+# Maintenance
 gobby tasks stats
+gobby tasks doctor                      # Validate data integrity
+gobby tasks clean                       # Fix data issues
+gobby tasks compact                     # Compaction commands
 ```
 
 ## Data Storage

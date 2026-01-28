@@ -53,7 +53,7 @@ def validate_commit_requirements(
             can_close=False,
             error_type="no_commits_linked",
             message=(
-                "A commit is required before closing this task.\n\n"
+                "\nA commit is required before closing this task.\n\n"
                 "**Normal flow:**\n"
                 '1. Commit your changes: git commit -m "[#N] description"\n'
                 '2. Close with commit_sha: close_task(task_id="#N", commit_sha="<sha>")\n\n'

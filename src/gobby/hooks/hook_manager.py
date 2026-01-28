@@ -228,7 +228,7 @@ class HookManager:
         )
 
         if not memory_config:
-            from gobby.config.app import MemoryConfig
+            from gobby.config.persistence import MemoryConfig
 
             memory_config = MemoryConfig()
 
@@ -316,7 +316,7 @@ class HookManager:
         if self._config and hasattr(self._config, "hook_extensions"):
             webhooks_config = self._config.hook_extensions.webhooks
         if not webhooks_config:
-            from gobby.config.app import WebhooksConfig
+            from gobby.config.extensions import WebhooksConfig
 
             webhooks_config = WebhooksConfig()
         self._webhook_dispatcher = WebhookDispatcher(webhooks_config)

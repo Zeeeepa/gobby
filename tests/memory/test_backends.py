@@ -372,18 +372,14 @@ class TestSQLiteBackendMediaSupport:
         results = await backend.list_memories()
 
         # Find the memory with media
-        with_media = next(
-            (r for r in results if r.content == "Performance metrics"), None
-        )
+        with_media = next((r for r in results if r.content == "Performance metrics"), None)
         assert with_media is not None
         assert with_media.media is not None
         assert len(with_media.media) == 1
         assert with_media.media[0].content_path == "/charts/performance.png"
 
         # Find the memory without media
-        without_media = next(
-            (r for r in results if r.content == "Simple text memory"), None
-        )
+        without_media = next((r for r in results if r.content == "Simple text memory"), None)
         assert without_media is not None
         assert without_media.media == []
 
@@ -410,18 +406,14 @@ class TestSQLiteBackendMediaSupport:
         results = await backend.search(query)
 
         assert len(results) >= 1
-        auth_memory = next(
-            (r for r in results if "Authentication" in r.content), None
-        )
+        auth_memory = next((r for r in results if "Authentication" in r.content), None)
         assert auth_memory is not None
         assert auth_memory.media is not None
         assert len(auth_memory.media) == 1
         assert auth_memory.media[0].description == "Authentication error"
 
     @pytest.mark.asyncio
-    async def test_create_without_media_returns_empty_list(
-        self, temp_db: LocalDatabase
-    ):
+    async def test_create_without_media_returns_empty_list(self, temp_db: LocalDatabase):
         """Test that creating without media returns empty media list."""
         backend = get_backend("sqlite", database=temp_db)
 

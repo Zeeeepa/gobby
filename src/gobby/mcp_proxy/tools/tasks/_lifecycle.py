@@ -119,7 +119,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     }
             except Exception:
                 # Don't block close on internal error
-                pass
+                pass  # nosec B110 - best-effort session edit check
 
         if not should_skip:
             # Check if task has children (is a parent task)

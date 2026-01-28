@@ -255,7 +255,7 @@ def create_memory_registry(
         name="get_related_memories",
         description="Get memories related to a specific memory via cross-references.",
     )
-    def get_related_memories(
+    async def get_related_memories(
         memory_id: str,
         limit: int = 5,
         min_similarity: float = 0.0,
@@ -272,7 +272,7 @@ def create_memory_registry(
             min_similarity: Minimum similarity threshold (0.0-1.0)
         """
         try:
-            memories = memory_manager.get_related(
+            memories = await memory_manager.get_related(
                 memory_id=memory_id,
                 limit=limit,
                 min_similarity=min_similarity,

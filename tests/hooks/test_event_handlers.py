@@ -1862,9 +1862,7 @@ class TestSkillInjection:
         if response.context:
             assert "## Available Skills" not in response.context
 
-    def test_session_start_works_without_skill_manager(
-        self, event_handlers: EventHandlers
-    ) -> None:
+    def test_session_start_works_without_skill_manager(self, event_handlers: EventHandlers) -> None:
         """Test that session-start works without skill_manager (backwards compatible)."""
         event = make_event(HookEventType.SESSION_START, session_id="ext-123")
         response = event_handlers.handle_session_start(event)
@@ -1891,9 +1889,7 @@ class TestSkillInjection:
 
         assert response.decision == "allow"
 
-    def test_session_start_injection_format_none(
-        self, mock_dependencies: dict[str, Any]
-    ) -> None:
+    def test_session_start_injection_format_none(self, mock_dependencies: dict[str, Any]) -> None:
         """Test that 'none' format skips skill injection."""
         from gobby.config.skills import SkillsConfig
         from gobby.hooks.skill_manager import HookSkillManager
@@ -1929,8 +1925,7 @@ class TestSkillInjection:
         parent_session = MagicMock()
         parent_session.id = "parent-123"
         parent_session.compact_markdown = (
-            "### Active Skills\n"
-            "Skills available: gobby-tasks, gobby-sessions, custom-skill"
+            "### Active Skills\nSkills available: gobby-tasks, gobby-sessions, custom-skill"
         )
 
         # Setup session_storage to return parent session

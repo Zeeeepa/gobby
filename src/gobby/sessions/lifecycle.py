@@ -11,7 +11,7 @@ import logging
 import os
 from typing import Any
 
-from gobby.config.app import SessionLifecycleConfig
+from gobby.config.sessions import SessionLifecycleConfig
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser

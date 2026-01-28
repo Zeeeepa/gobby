@@ -7,9 +7,13 @@ and headless modes.
 """
 
 import logging
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Literal, cast
 
+from gobby.agents.sandbox import SandboxConfig
+
+if TYPE_CHECKING:
+    from gobby.agents.session import ChildSessionManager
 from gobby.agents.spawn import (
     TerminalSpawner,
     build_codex_command_with_resume,
@@ -46,6 +50,11 @@ class SpawnRequest:
     max_agent_depth: int = 3
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
     machine_id: str | None = None
+
+    # Sandbox configuration
+    sandbox_config: SandboxConfig | None = None
+    sandbox_args: list[str] | None = None
+    sandbox_env: dict[str, str] | None = field(default=None)
 
 
 @dataclass
@@ -109,6 +118,7 @@ async def _spawn_terminal(request: SpawnRequest) -> SpawnResult:
         max_agent_depth=request.max_agent_depth,
         terminal=request.terminal,
         prompt=request.prompt,
+        sandbox_config=request.sandbox_config,
     )
 
     if not result.success:
@@ -145,6 +155,7 @@ async def _spawn_embedded(request: SpawnRequest) -> SpawnResult:
         agent_depth=request.agent_depth,
         max_agent_depth=request.max_agent_depth,
         prompt=request.prompt,
+        sandbox_config=request.sandbox_config,
     )
 
     if not result.success:
@@ -181,6 +192,7 @@ async def _spawn_headless(request: SpawnRequest) -> SpawnResult:
         agent_depth=request.agent_depth,
         max_agent_depth=request.max_agent_depth,
         prompt=request.prompt,
+        sandbox_config=request.sandbox_config,
     )
 
     if not result.success:
@@ -212,10 +224,19 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     2. Create Gobby session with external_id = gemini's session_id
     3. Launch interactive with -r {session_id} to resume
     """
+    if request.session_manager is None:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error="session_manager is required for Gemini preflight",
+        )
+
     try:
         # Preflight capture: gets Gemini's session_id and creates linked Gobby session
         spawn_context = await prepare_gemini_spawn_with_preflight(
-            session_manager=request.session_manager,
+            session_manager=cast("ChildSessionManager", request.session_manager),
             parent_session_id=request.parent_session_id,
             project_id=request.project_id,
             machine_id=request.machine_id or "unknown",
@@ -286,10 +307,19 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
 
     Codex outputs session_id in startup banner, which we parse from `codex exec "exit"`.
     """
+    if request.session_manager is None:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=request.session_id,
+            status="failed",
+            error="session_manager is required for Codex preflight",
+        )
+
     try:
         # Preflight capture: gets Codex's session_id and creates linked Gobby session
         spawn_context = await prepare_codex_spawn_with_preflight(
-            session_manager=request.session_manager,
+            session_manager=cast("ChildSessionManager", request.session_manager),
             parent_session_id=request.parent_session_id,
             project_id=request.project_id,
             machine_id=request.machine_id or "unknown",

@@ -20,10 +20,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.session_messages import (
+from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
+from gobby.mcp_proxy.tools.sessions._handoff import (
     _format_handoff_markdown,
     _format_turns_for_llm,
-    create_session_messages_registry,
 )
 from gobby.sessions.analyzer import HandoffContext
 
@@ -541,7 +541,10 @@ class TestGetHandoffContext:
         """Test successful handoff context retrieval."""
         session_manager = MagicMock()
         mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        mock_session.seq_num = None
         mock_session.compact_markdown = "## Context\nSome handoff data"
+        session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
@@ -556,6 +559,7 @@ class TestGetHandoffContext:
     def test_get_handoff_context_no_session(self):
         """Test when session not found."""
         session_manager = MagicMock()
+        session_manager.resolve_session_reference.side_effect = ValueError("Not found")
         session_manager.get.return_value = None
 
         registry = create_test_registry(session_manager=session_manager)
@@ -570,7 +574,10 @@ class TestGetHandoffContext:
         """Test when session has no compact_markdown."""
         session_manager = MagicMock()
         mock_session = MagicMock()
+        mock_session.id = "sess-123"
+        mock_session.seq_num = None
         mock_session.compact_markdown = None
+        session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
@@ -769,6 +776,7 @@ class TestGetSession:
             "title": "Test Session",
             "status": "active",
         }
+        session_manager.resolve_session_reference.return_value = "sess-123"
         session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
@@ -781,15 +789,16 @@ class TestGetSession:
         assert result["title"] == "Test Session"
 
     def test_get_session_by_prefix(self):
-        """Test session retrieval by prefix."""
+        """Test session retrieval by prefix via resolve_session_reference."""
         session_manager = MagicMock()
-        session_manager.get.return_value = None
 
         mock_session = MagicMock()
         mock_session.id = "sess-123-full"
         mock_session.to_dict.return_value = {"id": "sess-123-full"}
 
-        session_manager.list.return_value = [mock_session]
+        # resolve_session_reference handles prefix matching internally
+        session_manager.resolve_session_reference.return_value = "sess-123-full"
+        session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
         get_session = registry.get_tool("get_session")
@@ -800,32 +809,28 @@ class TestGetSession:
         assert result["id"] == "sess-123-full"
 
     def test_get_session_ambiguous_prefix(self):
-        """Test session retrieval with ambiguous prefix."""
+        """Test session retrieval with ambiguous prefix raises ValueError."""
         session_manager = MagicMock()
+        # resolve_session_reference raises ValueError for ambiguous prefix
+        session_manager.resolve_session_reference.side_effect = ValueError(
+            "Ambiguous session reference 'sess-abc' matches 3 sessions"
+        )
         session_manager.get.return_value = None
-
-        mock_session1 = MagicMock()
-        mock_session1.id = "sess-abc-1"
-        mock_session2 = MagicMock()
-        mock_session2.id = "sess-abc-2"
-        mock_session3 = MagicMock()
-        mock_session3.id = "sess-abc-3"
-
-        session_manager.list.return_value = [mock_session1, mock_session2, mock_session3]
 
         registry = create_test_registry(session_manager=session_manager)
         get_session = registry.get_tool("get_session")
 
         result = get_session(session_id="sess-abc")
 
-        assert "error" in result
-        assert "matches 3 sessions" in result["error"]
+        # When resolve raises ValueError, code catches it and session is None
+        assert result["found"] is False
+        assert "not found" in result["error"]
 
     def test_get_session_not_found(self):
         """Test when session not found."""
         session_manager = MagicMock()
+        session_manager.resolve_session_reference.side_effect = ValueError("Not found")
         session_manager.get.return_value = None
-        session_manager.list.return_value = []
 
         registry = create_test_registry(session_manager=session_manager)
         get_session = registry.get_tool("get_session")

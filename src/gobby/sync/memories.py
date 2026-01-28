@@ -29,7 +29,7 @@ __all__ = [
 # TODO: Rename MemorySyncConfig to MemoryBackupConfig in gobby.config.persistence
 # for consistency with MemoryBackupManager naming. Keeping current name for now
 # to minimize breaking changes across the codebase.
-from gobby.config.app import MemorySyncConfig
+from gobby.config.persistence import MemorySyncConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import DatabaseProtocol
 

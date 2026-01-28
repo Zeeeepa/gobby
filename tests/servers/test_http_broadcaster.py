@@ -1,19 +1,17 @@
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime
+from unittest.mock import AsyncMock
 
 import pytest
-from fastapi.testclient import TestClient
 
-from gobby.config.app import (
-    DaemonConfig,
-    HookExtensionsConfig,
-    WebSocketBroadcastConfig,
-)
-from gobby.servers.http import HTTPServer
+from gobby.config.app import DaemonConfig
+from gobby.config.extensions import HookExtensionsConfig, WebSocketBroadcastConfig
+from gobby.hooks.broadcaster import HookEventBroadcaster
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
 
 @pytest.mark.asyncio
-async def test_execute_hook_broadcasts_event_client():
+async def test_broadcaster_broadcasts_session_start_event():
+    """Test that HookEventBroadcaster correctly broadcasts session-start events."""
     # Setup config with broadcasting enabled
     config = DaemonConfig()
     config.hook_extensions = HookExtensionsConfig(
@@ -27,46 +25,89 @@ async def test_execute_hook_broadcasts_event_client():
     # Setup mocked websocket server
     mock_ws = AsyncMock()
 
-    # Setup server with real components
-    server = HTTPServer(websocket_server=mock_ws, config=config, test_mode=True)
+    # Create broadcaster directly (this is what we're actually testing)
+    broadcaster = HookEventBroadcaster(websocket_server=mock_ws, config=config)
 
-    # We need to manually trigger lifespan to create HookManager
-    # OR rely on TestClient context manager.
-    # TestClient(app) runs lifespan automatically.
+    # Create a session-start event
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(),
+        data={
+            "project_path": "/tmp/test",
+            "resume": False,
+            "transcript_path": "/tmp/transcript.jsonl",
+        },
+    )
 
-    with TestClient(server.app) as client:
-        # Patch HookManager to believe daemon is ready
-        # HookManager is created in lifespan startup, which runs when we enter the context
-        hook_manager = server.app.state.hook_manager
-        hook_manager._get_cached_daemon_status = MagicMock(return_value=(True, {}, "running", None))
+    # Directly call broadcast_event (no timing issues since we await it)
+    await broadcaster.broadcast_event(event)
 
-        payload = {
-            "hook_type": "session-start",
-            "input_data": {
-                "session_id": "test-session",
-                "project_path": "/tmp/test",
-                "resume": False,
-                "transcript_path": "/tmp/transcript.jsonl",
-            },
-            "source": "claude",
-        }
+    # Verify websocket broadcast was called
+    mock_ws.broadcast.assert_called_once()
 
-        # Execute request
-        response = client.post("/hooks/execute", json=payload)
+    # Verify payload content
+    call_args = mock_ws.broadcast.call_args
+    broadcast_payload = call_args[0][0]
 
-        assert response.status_code == 200, f"Request failed: {response.text}"
+    assert broadcast_payload["type"] == "hook_event"
+    assert broadcast_payload["event_type"] == "session-start"
+    assert broadcast_payload.get("session_id") == "test-session"
+    assert "data" in broadcast_payload
 
-        # Allow async broadcast task to run
-        await asyncio.sleep(0.1)
 
-        # Verify websocket broadcast was called
-        mock_ws.broadcast.assert_called_once()
+@pytest.mark.asyncio
+async def test_broadcaster_skips_disabled_events():
+    """Test that HookEventBroadcaster skips events not in broadcast_events list."""
+    config = DaemonConfig()
+    config.hook_extensions = HookExtensionsConfig(
+        websocket=WebSocketBroadcastConfig(
+            enabled=True,
+            broadcast_events=["pre-tool-use"],  # Only pre-tool-use enabled
+            include_payload=True,
+        )
+    )
 
-        # Verify payload content
-        call_args = mock_ws.broadcast.call_args
-        broadcast_payload = call_args[0][0]
+    mock_ws = AsyncMock()
+    broadcaster = HookEventBroadcaster(websocket_server=mock_ws, config=config)
 
-        assert broadcast_payload["type"] == "hook_event"
-        assert broadcast_payload["event_type"] == "session-start"
-        assert broadcast_payload.get("session_id") == "test-session"
-        assert "data" in broadcast_payload
+    # Create a session-start event (not in broadcast_events list)
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(),
+        data={},
+    )
+
+    await broadcaster.broadcast_event(event)
+
+    # Should NOT have been called since session-start is not enabled
+    mock_ws.broadcast.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_broadcaster_handles_no_websocket_server():
+    """Test that HookEventBroadcaster gracefully handles missing websocket server."""
+    config = DaemonConfig()
+    config.hook_extensions = HookExtensionsConfig(
+        websocket=WebSocketBroadcastConfig(
+            enabled=True,
+            broadcast_events=["session-start"],
+        )
+    )
+
+    # No websocket server
+    broadcaster = HookEventBroadcaster(websocket_server=None, config=config)
+
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id="test-session",
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(),
+        data={},
+    )
+
+    # Should not raise
+    await broadcaster.broadcast_event(event)

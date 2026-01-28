@@ -231,7 +231,12 @@ class EventHandlers:
                             self.logger.warning(f"Workflow error: {e}")
 
                     # Build system message (terminal display only)
-                    system_message = f"\nGobby Session ID: {session_id}"
+                    # Display #N format if seq_num available, fallback to UUID
+                    session_ref = (
+                        f"#{existing_session.seq_num}" if existing_session.seq_num else session_id
+                    )
+                    system_message = f"\nGobby Session Ref: {session_ref}"
+                    system_message += f"\nGobby Session ID: {session_id}"
                     system_message += f"\nExternal ID: {external_id}"
                     if parent_session_id:
                         context_parts.append(f"Parent session: {parent_session_id}")
@@ -343,7 +348,14 @@ class EventHandlers:
             context_parts.append(f"Parent session: {parent_session_id}")
 
         # Build system message (terminal display only)
-        system_message = f"\nGobby Session ID: {session_id}"
+        # Fetch session to get seq_num for #N display
+        session_ref = session_id  # fallback
+        if session_id and self._session_storage:
+            session_obj = self._session_storage.get(session_id)
+            if session_obj and session_obj.seq_num:
+                session_ref = f"#{session_obj.seq_num}"
+        system_message = f"\nGobby Session Ref: {session_ref}"
+        system_message += f"\nGobby Session ID: {session_id}"
         system_message += f"\nExternal ID: {external_id}"
 
         # Add active lifecycle workflows

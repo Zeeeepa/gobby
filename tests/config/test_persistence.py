@@ -545,7 +545,7 @@ class TestMemoryConfigFromAppPy:
 
     def test_import_from_app_py(self) -> None:
         """Test importing MemoryConfig from app.py works (baseline)."""
-        from gobby.config.app import MemoryConfig
+        from gobby.config.persistence import MemoryConfig
 
         config = MemoryConfig()
         assert config.enabled is True
@@ -554,9 +554,9 @@ class TestMemoryConfigFromAppPy:
 class TestMemorySyncConfigFromAppPy:
     """Verify MemorySyncConfig tests pass when importing from app.py."""
 
-    def test_import_from_app_py(self) -> None:
-        """Test importing MemorySyncConfig from app.py works (baseline)."""
-        from gobby.config.app import MemorySyncConfig
+    def test_import_from_persistence_module(self) -> None:
+        """Test importing MemorySyncConfig from persistence module works."""
+        from gobby.config.persistence import MemorySyncConfig
 
         config = MemorySyncConfig()
         assert config.enabled is True

@@ -70,30 +70,35 @@ This is **opt-in** - no sandbox by default (preserves current behavior).
 
 ## Task Mapping
 
-<!-- Updated after task creation -->
 | Plan Item | Task Ref | Status |
 |-----------|----------|--------|
-| Create SandboxConfig model | | |
-| Create ResolvedSandboxPaths model | | |
-| Add sandbox field to AgentDefinition | | |
-| Create SandboxResolver base class | | |
-| Implement ClaudeSandboxResolver | | |
-| Implement CodexSandboxResolver | | |
-| Implement GeminiSandboxResolver | | |
-| Create get_sandbox_resolver factory | | |
-| Create compute_sandbox_paths helper | | |
-| Add sandbox_args to build_cli_command | | |
-| Add sandbox fields to SpawnRequest | | |
-| Add sandbox params to spawn_agent MCP | | |
-| Update TerminalSpawner | | |
-| Update EmbeddedSpawner | | |
-| Update HeadlessSpawner | | |
-| Update generic.yaml | | |
-| Create sandboxed.yaml | | |
-| Unit tests for SandboxConfig | | |
-| Unit tests for sandbox resolvers | | |
-| Integration tests for spawn | | |
-| Update docs/guides | | |
+| **Root Epic** | #6198 | open |
+| **Phase 1: Data Models** | #6199 | open |
+| Create SandboxConfig model | #6209 | open |
+| Create ResolvedSandboxPaths model | #6210 | open |
+| Add sandbox field to AgentDefinition | #6211 | open |
+| **Phase 2: CLI-Specific Resolvers** | #6200 | open |
+| Create SandboxResolver base class | #6216 | open |
+| Implement ClaudeSandboxResolver | #6217 | open |
+| Implement CodexSandboxResolver | #6218 | open |
+| Implement GeminiSandboxResolver | #6219 | open |
+| Create get_sandbox_resolver factory | #6220 | open |
+| Create compute_sandbox_paths helper | #6221 | open |
+| **Phase 3: Spawn Integration** | #6201 | open |
+| Add sandbox_args to build_cli_command | #6227 | open |
+| Add sandbox fields to SpawnRequest | #6228 | open |
+| Add sandbox params to spawn_agent MCP | #6229 | open |
+| Update TerminalSpawner | #6230 | open |
+| Update EmbeddedSpawner | #6231 | open |
+| Update HeadlessSpawner | #6232 | open |
+| **Phase 4: Agent Definition Support** | #6202 | open |
+| Update generic.yaml | #6236 | open |
+| Create sandboxed.yaml | #6238 | open |
+| **Phase 5: Documentation & Testing** | #6203 | open |
+| Unit tests for SandboxConfig | #6244 | open |
+| Unit tests for sandbox resolvers | #6245 | open |
+| Integration tests for spawn | #6246 | open |
+| Update docs/guides | #6247 | open |
 
 ## Sources
 

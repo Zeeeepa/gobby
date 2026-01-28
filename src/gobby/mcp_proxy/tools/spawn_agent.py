@@ -14,13 +14,15 @@ from __future__ import annotations
 import logging
 import socket
 import uuid
-from typing import TYPE_CHECKING, Any, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
 from gobby.agents.isolation import (
     SpawnConfig,
     get_isolation_handler,
 )
+from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
@@ -57,6 +59,11 @@ async def spawn_agent_impl(
     # Limits
     timeout: float | None = None,
     max_turns: int | None = None,
+    # Sandbox
+    sandbox: bool | None = None,
+    sandbox_mode: Literal["permissive", "restrictive"] | None = None,
+    sandbox_allow_network: bool | None = None,
+    sandbox_extra_paths: list[str] | None = None,
     # Context
     parent_session_id: str | None = None,
     project_path: str | None = None,
@@ -87,6 +94,10 @@ async def spawn_agent_impl(
         model: Model to use
         timeout: Timeout in seconds
         max_turns: Maximum conversation turns
+        sandbox: Enable sandbox (True/False/None). None inherits from agent_def.
+        sandbox_mode: Sandbox mode (permissive/restrictive). Overrides agent_def.
+        sandbox_allow_network: Allow network access. Overrides agent_def.
+        sandbox_extra_paths: Extra paths for sandbox write access.
         parent_session_id: Parent session ID
         project_path: Project path override
 
@@ -104,9 +115,9 @@ async def spawn_agent_impl(
         effective_provider = agent_def.provider
     effective_provider = effective_provider or "claude"
 
-    effective_mode = mode
+    effective_mode: Literal["terminal", "embedded", "headless"] | None = mode
     if effective_mode is None and agent_def:
-        effective_mode = agent_def.mode
+        effective_mode = cast(Literal["terminal", "embedded", "headless"], agent_def.mode)
     effective_mode = effective_mode or "terminal"
 
     effective_workflow = workflow
@@ -122,13 +133,60 @@ async def spawn_agent_impl(
     if agent_def:
         effective_branch_prefix = agent_def.branch_prefix
 
+    # Build effective sandbox config (merge agent_def.sandbox with params)
+    effective_sandbox_config: SandboxConfig | None = None
+
+    # Start with agent_def.sandbox if present
+    base_sandbox = agent_def.sandbox if agent_def and hasattr(agent_def, "sandbox") else None
+
+    # Determine if sandbox should be enabled
+    sandbox_enabled = sandbox  # Explicit param takes precedence
+    if sandbox_enabled is None and base_sandbox is not None:
+        sandbox_enabled = base_sandbox.enabled
+
+    # Build sandbox config if enabled or if we have params to apply
+    if sandbox_enabled is True or (
+        sandbox_enabled is None
+        and (sandbox_mode is not None or sandbox_allow_network is not None or sandbox_extra_paths)
+    ):
+        # Start from base or create new
+        if base_sandbox is not None:
+            effective_sandbox_config = SandboxConfig(
+                enabled=True if sandbox_enabled is None else sandbox_enabled,
+                mode=sandbox_mode if sandbox_mode is not None else base_sandbox.mode,
+                allow_network=(
+                    sandbox_allow_network
+                    if sandbox_allow_network is not None
+                    else base_sandbox.allow_network
+                ),
+                extra_read_paths=base_sandbox.extra_read_paths,
+                extra_write_paths=(
+                    list(base_sandbox.extra_write_paths) + (sandbox_extra_paths or [])
+                ),
+            )
+        else:
+            effective_sandbox_config = SandboxConfig(
+                enabled=True,
+                mode=sandbox_mode or "permissive",
+                allow_network=sandbox_allow_network if sandbox_allow_network is not None else True,
+                extra_write_paths=sandbox_extra_paths or [],
+            )
+    elif sandbox_enabled is False:
+        # Explicitly disabled - set config with enabled=False
+        effective_sandbox_config = SandboxConfig(enabled=False)
+
     # 2. Resolve project context
-    ctx = get_project_context(project_path)
+    ctx = get_project_context(Path(project_path) if project_path else None)
     if ctx is None:
         return {"success": False, "error": "Could not resolve project context"}
 
     project_id = ctx.get("id") or ctx.get("project_id")
     resolved_project_path = ctx.get("project_path")
+
+    if not project_id or not isinstance(project_id, str):
+        return {"success": False, "error": "Could not resolve project_id from context"}
+    if not resolved_project_path or not isinstance(resolved_project_path, str):
+        return {"success": False, "error": "Could not resolve project_path from context"}
 
     # 3. Validate parent_session_id and spawn depth
     if parent_session_id is None:
@@ -207,6 +265,7 @@ async def spawn_agent_impl(
         clone_id=isolation_ctx.clone_id,
         session_manager=runner._child_session_manager,
         machine_id=socket.gethostname(),
+        sandbox_config=effective_sandbox_config,
     )
 
     spawn_result = await execute_spawn(spawn_request)
@@ -285,6 +344,11 @@ def create_spawn_agent_registry(
         # Limits
         timeout: float | None = None,
         max_turns: int | None = None,
+        # Sandbox
+        sandbox: bool | None = None,
+        sandbox_mode: Literal["permissive", "restrictive"] | None = None,
+        sandbox_allow_network: bool | None = None,
+        sandbox_extra_paths: list[str] | None = None,
         # Context
         parent_session_id: str | None = None,
         project_path: str | None = None,
@@ -306,6 +370,10 @@ def create_spawn_agent_registry(
             model: Model to use
             timeout: Timeout in seconds
             max_turns: Maximum conversation turns
+            sandbox: Enable sandbox (True/False/None). None inherits from agent_def.
+            sandbox_mode: Sandbox mode (permissive/restrictive). Overrides agent_def.
+            sandbox_allow_network: Allow network access. Overrides agent_def.
+            sandbox_extra_paths: Extra paths for sandbox write access.
             parent_session_id: Parent session ID
             project_path: Project path override
 
@@ -338,6 +406,10 @@ def create_spawn_agent_registry(
             model=model,
             timeout=timeout,
             max_turns=max_turns,
+            sandbox=sandbox,
+            sandbox_mode=sandbox_mode,
+            sandbox_allow_network=sandbox_allow_network,
+            sandbox_extra_paths=sandbox_extra_paths,
             parent_session_id=parent_session_id,
             project_path=project_path,
         )

@@ -77,9 +77,9 @@ class TestFullWorkflowIntegration:
             )
 
         try:
-            assert wait_for_daemon_health(
-                http_port, timeout=20.0
-            ), "Phase 1 FAILED: Daemon should start"
+            assert wait_for_daemon_health(http_port, timeout=20.0), (
+                "Phase 1 FAILED: Daemon should start"
+            )
 
             # Create client and simulator
             client = httpx.Client(base_url=f"http://localhost:{http_port}", timeout=10.0)
@@ -94,20 +94,20 @@ class TestFullWorkflowIntegration:
                     machine_id="test-machine",
                     source="claude",
                 )
-                assert (
-                    "continue" in result or "decision" in result
-                ), "Phase 2 FAILED: Session start hook should execute"
+                assert "continue" in result or "decision" in result, (
+                    "Phase 2 FAILED: Session start hook should execute"
+                )
 
                 # ===== PHASE 3: MCP proxy discovers and invokes tools =====
                 # 3a. Discover MCP servers
                 servers_response = client.get("/mcp/servers")
-                assert (
-                    servers_response.status_code == 200
-                ), "Phase 3a FAILED: Should list MCP servers"
+                assert servers_response.status_code == 200, (
+                    "Phase 3a FAILED: Should list MCP servers"
+                )
                 servers_data = servers_response.json()
-                assert (
-                    "servers" in servers_data
-                ), "Phase 3a FAILED: Response should have servers key"
+                assert "servers" in servers_data, (
+                    "Phase 3a FAILED: Response should have servers key"
+                )
 
                 # 3b. Discover tools
                 tools_response = client.get("/mcp/tools")
@@ -124,23 +124,23 @@ class TestFullWorkflowIntegration:
                         "arguments": {},
                     },
                 )
-                assert (
-                    tool_call_response.status_code == 200
-                ), "Phase 3c FAILED: Tool call should succeed"
+                assert tool_call_response.status_code == 200, (
+                    "Phase 3c FAILED: Tool call should succeed"
+                )
                 tool_result = tool_call_response.json()
-                assert (
-                    tool_result.get("success") is True
-                ), "Phase 3c FAILED: Tool call should return success"
+                assert tool_result.get("success") is True, (
+                    "Phase 3c FAILED: Tool call should return success"
+                )
 
                 # ===== PHASE 4: Session state is tracked =====
                 sessions_response = client.get("/sessions")
-                assert (
-                    sessions_response.status_code == 200
-                ), "Phase 4 FAILED: Sessions endpoint should work"
+                assert sessions_response.status_code == 200, (
+                    "Phase 4 FAILED: Sessions endpoint should work"
+                )
                 sessions_data = sessions_response.json()
-                assert (
-                    "sessions" in sessions_data
-                ), "Phase 4 FAILED: Response should have sessions key"
+                assert "sessions" in sessions_data, (
+                    "Phase 4 FAILED: Response should have sessions key"
+                )
                 assert "count" in sessions_data, "Phase 4 FAILED: Response should have count key"
                 _sessions_count_before = sessions_data["count"]
 
@@ -175,9 +175,9 @@ class TestFullWorkflowIntegration:
                 )
 
             try:
-                assert wait_for_daemon_health(
-                    http_port, timeout=20.0
-                ), "Phase 5 FAILED: Daemon should restart"
+                assert wait_for_daemon_health(http_port, timeout=20.0), (
+                    "Phase 5 FAILED: Daemon should restart"
+                )
 
                 # ===== PHASE 6: Session state is recovered =====
                 client2 = httpx.Client(base_url=f"http://localhost:{http_port}", timeout=10.0)
@@ -185,20 +185,20 @@ class TestFullWorkflowIntegration:
 
                 try:
                     sessions_response2 = client2.get("/sessions")
-                    assert (
-                        sessions_response2.status_code == 200
-                    ), "Phase 6 FAILED: Sessions endpoint should work after restart"
+                    assert sessions_response2.status_code == 200, (
+                        "Phase 6 FAILED: Sessions endpoint should work after restart"
+                    )
                     sessions_data2 = sessions_response2.json()
-                    assert (
-                        "sessions" in sessions_data2
-                    ), "Phase 6 FAILED: Sessions should be present after restart"
+                    assert "sessions" in sessions_data2, (
+                        "Phase 6 FAILED: Sessions should be present after restart"
+                    )
 
                     # ===== PHASE 7: Workflow continues successfully =====
                     # 7a. MCP proxy still works
                     servers_response2 = client2.get("/mcp/servers")
-                    assert (
-                        servers_response2.status_code == 200
-                    ), "Phase 7a FAILED: MCP servers should work after restart"
+                    assert servers_response2.status_code == 200, (
+                        "Phase 7a FAILED: MCP servers should work after restart"
+                    )
 
                     # 7b. Tool invocation still works
                     tool_call_response2 = client2.post(
@@ -209,9 +209,9 @@ class TestFullWorkflowIntegration:
                             "arguments": {},
                         },
                     )
-                    assert (
-                        tool_call_response2.status_code == 200
-                    ), "Phase 7b FAILED: Tool calls should work after restart"
+                    assert tool_call_response2.status_code == 200, (
+                        "Phase 7b FAILED: Tool calls should work after restart"
+                    )
 
                     # 7c. New hooks still execute
                     new_session_id = f"post-restart-{uuid.uuid4().hex[:8]}"
@@ -220,19 +220,19 @@ class TestFullWorkflowIntegration:
                         machine_id="test-machine",
                         source="claude",
                     )
-                    assert (
-                        "continue" in result or "decision" in result
-                    ), "Phase 7c FAILED: Hooks should work after restart"
+                    assert "continue" in result or "decision" in result, (
+                        "Phase 7c FAILED: Hooks should work after restart"
+                    )
 
                     # 7d. Health endpoint confirms system is healthy
                     health_response = client2.get("/admin/status")
-                    assert (
-                        health_response.status_code == 200
-                    ), "Phase 7d FAILED: Health endpoint should work"
+                    assert health_response.status_code == 200, (
+                        "Phase 7d FAILED: Health endpoint should work"
+                    )
                     health_data = health_response.json()
-                    assert (
-                        health_data.get("status") == "healthy"
-                    ), "Phase 7d FAILED: System should be healthy"
+                    assert health_data.get("status") == "healthy", (
+                        "Phase 7d FAILED: System should be healthy"
+                    )
 
                 finally:
                     cli_events2.close()

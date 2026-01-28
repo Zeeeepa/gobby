@@ -91,7 +91,7 @@ class CodeGuardianPlugin(HookPlugin):
     def on_unload(self) -> None:
         """Cleanup on plugin unload."""
         self.logger.info(
-            f"Code Guardian stats: checked={self._files_checked}, " f"blocked={self._files_blocked}"
+            f"Code Guardian stats: checked={self._files_checked}, blocked={self._files_blocked}"
         )
 
     # =========================================================================

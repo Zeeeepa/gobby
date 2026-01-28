@@ -13,21 +13,24 @@ import asyncio
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.adapters.codex import (
+from gobby.adapters.codex_impl.adapter import (
     CodexAdapter,
-    CodexAppServerClient,
+    CodexNotifyAdapter,
+    _get_machine_id,
+)
+from gobby.adapters.codex_impl.client import CodexAppServerClient
+from gobby.adapters.codex_impl.types import (
     CodexConnectionState,
     CodexItem,
-    CodexNotifyAdapter,
     CodexThread,
     CodexTurn,
-    _get_machine_id,
 )
 from gobby.hooks.events import HookEventType, HookResponse, SessionSource
 
@@ -142,7 +145,7 @@ class TestGetMachineId:
         assert isinstance(machine_id, str)
         assert len(machine_id) > 0
 
-    @patch("gobby.adapters.codex.platform.node")
+    @patch("gobby.adapters.codex_impl.adapter.platform.node")
     def test_uses_hostname(self, mock_node):
         """Uses hostname for stable ID when available."""
         mock_node.return_value = "test-hostname"
@@ -153,7 +156,7 @@ class TestGetMachineId:
         # Same hostname should produce same ID
         assert id1 == id2
 
-    @patch("gobby.adapters.codex.platform.node")
+    @patch("gobby.adapters.codex_impl.adapter.platform.node")
     def test_fallback_when_no_hostname(self, mock_node):
         """Falls back to random UUID when hostname unavailable."""
         mock_node.return_value = ""
@@ -283,7 +286,7 @@ class TestCodexAppServerClientStart:
         mock_process.stdout.readline = mock_readline
 
         with patch(
-            "gobby.adapters.codex.subprocess.Popen", return_value=mock_process
+            "gobby.adapters.codex_impl.client.subprocess.Popen", return_value=mock_process
         ) as mock_popen:
             # Create a task that will complete quickly
             async def run_start():
@@ -317,7 +320,7 @@ class TestCodexAppServerClientStart:
         client = CodexAppServerClient()
 
         with patch(
-            "gobby.adapters.codex.subprocess.Popen",
+            "gobby.adapters.codex_impl.client.subprocess.Popen",
             side_effect=OSError("Command not found"),
         ):
             with pytest.raises(RuntimeError, match="Failed to start"):
@@ -1255,7 +1258,7 @@ class TestCodexNotifyAdapterInit:
 
         assert adapter._hook_manager is None
         assert adapter._machine_id is None
-        assert adapter._seen_threads == set()
+        assert adapter._seen_threads == OrderedDict()
         assert adapter.source == SessionSource.CODEX
 
     def test_with_hook_manager(self):
@@ -1290,9 +1293,9 @@ class TestCodexNotifyAdapterFindJsonlPath:
 
             with (
                 patch.object(Path, "exists", return_value=True),
-                patch("gobby.adapters.codex.CODEX_SESSIONS_DIR", Path(tmpdir)),
+                patch("gobby.adapters.codex_impl.client.CODEX_SESSIONS_DIR", Path(tmpdir)),
                 patch(
-                    "gobby.adapters.codex.glob_module.glob",
+                    "gobby.adapters.codex_impl.adapter.glob_module.glob",
                     return_value=[str(session_file)],
                 ),
             ):

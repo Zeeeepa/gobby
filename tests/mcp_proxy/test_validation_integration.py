@@ -884,9 +884,7 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_close_task_skip_reason_bypasses_commit_check(
-    mock_task_manager, mock_task_validator
-):
+async def test_close_task_skip_reason_bypasses_commit_check(mock_task_manager, mock_task_validator):
     """Test that close_task with skip reason (obsolete) bypasses commit check.
 
     When using a skip reason like 'obsolete', 'duplicate', 'already_implemented',

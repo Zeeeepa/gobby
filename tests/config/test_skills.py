@@ -7,7 +7,6 @@ TDD RED PHASE: Tests for SkillsConfig class.
 import pytest
 from pydantic import ValidationError
 
-
 # =============================================================================
 # Import Tests
 # =============================================================================

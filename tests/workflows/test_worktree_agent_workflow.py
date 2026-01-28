@@ -17,7 +17,9 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def workflow_loader_with_install_dir():
     """Create a WorkflowLoader that includes the install/shared/workflows directory."""
-    install_dir = Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "workflows"
+    install_dir = (
+        Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared" / "workflows"
+    )
     return WorkflowLoader(workflow_dirs=[install_dir])
 
 
@@ -140,7 +142,9 @@ class TestWorktreeAgentBlockedTools:
         # Should block agent spawning tools
         agent_tools = ["start_agent", "cancel_agent", "list_agents"]
         for tool in agent_tools:
-            assert tool in blocked or any(tool in t for t in blocked), f"Expected {tool} to be blocked"
+            assert tool in blocked or any(tool in t for t in blocked), (
+                f"Expected {tool} to be blocked"
+            )
 
     def test_blocks_gobby_worktrees_tools(self, workflow_loader_with_install_dir):
         """Test that gobby-worktrees tools are blocked."""
@@ -154,7 +158,9 @@ class TestWorktreeAgentBlockedTools:
         # Should block worktree tools
         worktree_tools = ["create_worktree", "spawn_agent_in_worktree", "list_worktrees"]
         for tool in worktree_tools:
-            assert tool in blocked or any(tool in t for t in blocked), f"Expected {tool} to be blocked"
+            assert tool in blocked or any(tool in t for t in blocked), (
+                f"Expected {tool} to be blocked"
+            )
 
 
 class TestWorktreeAgentWorkflowSettings:

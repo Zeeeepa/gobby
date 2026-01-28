@@ -48,14 +48,17 @@ steps:
           1. **Spawn a child agent** with activation prompt:
              mcp__gobby__call_tool(
                server_name="gobby-agents",
-               tool_name="start_agent",
+               tool_name="spawn_agent",
                arguments={
                  "prompt": "FIRST: Get your session ID, then activate the meeseeks workflow:\n\n1. mcp__gobby__call_tool(server_name='gobby-sessions', tool_name='get_current_session', arguments={})\n\n2. mcp__gobby__call_tool(server_name='gobby-workflows', tool_name='activate_workflow', arguments={'name': 'meeseeks', 'session_id': '<your_session_id>', 'variables': {'assigned_task_id': '<TASK_ID>'}})\n\nThen follow the workflow steps that will be injected.\n\nTask: <task_title>",
                  "workflow": "meeseeks",
-                 "task": "<subtask_uuid>",
+                 "task_id": "<subtask_uuid>",
                  "terminal": "ghostty",
                  "provider": "gemini",
-                 "model": "gemini-3-pro"
+                 "model": "gemini-3-pro-preview",
+                 "sandbox": "true",
+                 "sandbox_mode": "permissive",
+                 "sandbox_allow_network": "true"
                }
              )
 

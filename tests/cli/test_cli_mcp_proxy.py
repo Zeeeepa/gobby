@@ -188,7 +188,16 @@ def test_add_server_stdio(cli_runner, mock_daemon_client, mock_config):
 
         result = cli_runner.invoke(
             mcp_proxy,
-            ["add-server", "my-stdio-server", "-t", "stdio", "-c", "npx", "--args", '["mcp-server"]'],
+            [
+                "add-server",
+                "my-stdio-server",
+                "-t",
+                "stdio",
+                "-c",
+                "npx",
+                "--args",
+                '["mcp-server"]',
+            ],
             obj={"config": mock_config},
         )
 
@@ -329,8 +338,16 @@ def test_recommend_tools_success(cli_runner, mock_daemon_client, mock_config):
         mock_daemon_client.call_http_api.return_value.status_code = 200
         mock_daemon_client.call_http_api.return_value.json.return_value = {
             "recommendations": [
-                {"server": "supabase", "tool": "list_tables", "reason": "Best for database queries"},
-                {"server": "context7", "tool": "get-library-docs", "reason": "Good for documentation"},
+                {
+                    "server": "supabase",
+                    "tool": "list_tables",
+                    "reason": "Best for database queries",
+                },
+                {
+                    "server": "context7",
+                    "tool": "get-library-docs",
+                    "reason": "Good for documentation",
+                },
             ]
         }
 
@@ -365,7 +382,9 @@ def test_recommend_tools_no_results(cli_runner, mock_daemon_client, mock_config)
 def test_recommend_tools_json_format(cli_runner, mock_daemon_client, mock_config):
     """Test recommend-tools with JSON output."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
-        mock_response = {"recommendations": [{"server": "test", "tool": "test_tool", "reason": "test"}]}
+        mock_response = {
+            "recommendations": [{"server": "test", "tool": "test_tool", "reason": "test"}]
+        }
         mock_daemon_client.call_http_api.return_value.status_code = 200
         mock_daemon_client.call_http_api.return_value.json.return_value = mock_response
 
@@ -454,7 +473,16 @@ def test_search_tools_with_options(cli_runner, mock_daemon_client, mock_config):
 
         result = cli_runner.invoke(
             mcp_proxy,
-            ["search-tools", "query", "--top-k", "5", "--min-similarity", "0.5", "--server", "supabase"],
+            [
+                "search-tools",
+                "query",
+                "--top-k",
+                "5",
+                "--min-similarity",
+                "0.5",
+                "--server",
+                "supabase",
+            ],
             obj={"config": mock_config},
         )
 

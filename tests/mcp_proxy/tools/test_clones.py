@@ -96,9 +96,7 @@ class TestCreateClone:
     @pytest.mark.asyncio
     async def test_create_clone_git_failure(self, registry, mock_clone_storage, mock_git_manager):
         """Create clone fails when git operation fails."""
-        mock_git_manager.shallow_clone.return_value = MagicMock(
-            success=False, error="Clone failed"
-        )
+        mock_git_manager.shallow_clone.return_value = MagicMock(success=False, error="Clone failed")
         mock_git_manager.get_remote_url.return_value = "https://github.com/user/repo.git"
 
         result = await registry.call(
@@ -310,9 +308,7 @@ class TestDeleteClone:
         mock_git_manager.delete_clone.return_value = MagicMock(success=True)
         mock_clone_storage.delete.return_value = True
 
-        result = await registry.call(
-            "delete_clone", {"clone_id": "clone-123", "force": True}
-        )
+        result = await registry.call("delete_clone", {"clone_id": "clone-123", "force": True})
 
         assert result["success"] is True
         call_kwargs = mock_git_manager.delete_clone.call_args.kwargs
@@ -342,9 +338,7 @@ class TestSyncClone:
         )
         mock_git_manager.sync_clone.return_value = MagicMock(success=True)
 
-        result = await registry.call(
-            "sync_clone", {"clone_id": "clone-123", "direction": "pull"}
-        )
+        result = await registry.call("sync_clone", {"clone_id": "clone-123", "direction": "pull"})
 
         assert result["success"] is True
         mock_git_manager.sync_clone.assert_called_once()
@@ -369,9 +363,7 @@ class TestSyncClone:
         )
         mock_git_manager.sync_clone.return_value = MagicMock(success=True)
 
-        result = await registry.call(
-            "sync_clone", {"clone_id": "clone-123", "direction": "push"}
-        )
+        result = await registry.call("sync_clone", {"clone_id": "clone-123", "direction": "push"})
 
         assert result["success"] is True
 
@@ -380,9 +372,7 @@ class TestSyncClone:
         """Sync clone returns error for nonexistent clone."""
         mock_clone_storage.get.return_value = None
 
-        result = await registry.call(
-            "sync_clone", {"clone_id": "nonexistent", "direction": "pull"}
-        )
+        result = await registry.call("sync_clone", {"clone_id": "nonexistent", "direction": "pull"})
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
@@ -405,13 +395,9 @@ class TestSyncClone:
             created_at="now",
             updated_at="now",
         )
-        mock_git_manager.sync_clone.return_value = MagicMock(
-            success=False, error="Network error"
-        )
+        mock_git_manager.sync_clone.return_value = MagicMock(success=False, error="Network error")
 
-        result = await registry.call(
-            "sync_clone", {"clone_id": "clone-123", "direction": "pull"}
-        )
+        result = await registry.call("sync_clone", {"clone_id": "clone-123", "direction": "pull"})
 
         assert result["success"] is False
 
@@ -585,8 +571,5 @@ class TestMergeCloneToTarget:
         # Verify update was called with cleanup_after set
         update_calls = mock_clone_storage.update.call_args_list
         # Check if any call has cleanup_after
-        has_cleanup = any(
-            "cleanup_after" in (call.kwargs or {})
-            for call in update_calls
-        )
+        has_cleanup = any("cleanup_after" in (call.kwargs or {}) for call in update_calls)
         assert has_cleanup or result.get("cleanup_after") is not None

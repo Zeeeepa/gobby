@@ -248,7 +248,7 @@ class TestCrossReferences:
         )
 
         # Get related memories for mem2
-        related = manager.get_related(mem2.id, limit=5)
+        related = await manager.get_related(mem2.id, limit=5)
 
         # Should find mem1 as related (both about React/JavaScript)
         _related_ids = [m.id for m in related]
@@ -269,7 +269,7 @@ class TestCrossReferences:
         manager = MemoryManager(db=db, config=config)
 
         mem = await manager.remember(content="Isolated memory", importance=0.5)
-        related = manager.get_related(mem.id, limit=5)
+        related = await manager.get_related(mem.id, limit=5)
 
         assert related == []
 

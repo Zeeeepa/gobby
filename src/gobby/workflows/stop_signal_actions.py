@@ -161,3 +161,58 @@ def clear_stop_signal(
 
     cleared = stop_registry.clear(session_id)
     return {"success": True, "cleared": cleared}
+
+
+# --- ActionHandler factory functions ---
+# These create ActionHandler-compatible wrappers that close over the stop_registry.
+# The ActionExecutor calls these factories in _register_defaults() to create handlers
+# that have access to the executor's stop_registry instance.
+
+
+def make_handle_check_stop_signal(
+    stop_registry: "StopRegistry | None",
+) -> Any:
+    """Factory that creates a check_stop_signal handler with access to stop_registry."""
+
+    async def handler(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
+        """ActionHandler for check_stop_signal."""
+        return check_stop_signal(
+            stop_registry=stop_registry,
+            session_id=context.session_id,
+            state=context.state,
+            acknowledge=kwargs.get("acknowledge", False),
+        )
+
+    return handler
+
+
+def make_handle_request_stop(
+    stop_registry: "StopRegistry | None",
+) -> Any:
+    """Factory that creates a request_stop handler with access to stop_registry."""
+
+    async def handler(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
+        """ActionHandler for request_stop."""
+        return request_stop(
+            stop_registry=stop_registry,
+            session_id=kwargs.get("session_id", context.session_id),
+            source=kwargs.get("source", "workflow"),
+            reason=kwargs.get("reason"),
+        )
+
+    return handler
+
+
+def make_handle_clear_stop_signal(
+    stop_registry: "StopRegistry | None",
+) -> Any:
+    """Factory that creates a clear_stop_signal handler with access to stop_registry."""
+
+    async def handler(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
+        """ActionHandler for clear_stop_signal."""
+        return clear_stop_signal(
+            stop_registry=stop_registry,
+            session_id=kwargs.get("session_id", context.session_id),
+        )
+
+    return handler

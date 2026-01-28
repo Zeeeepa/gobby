@@ -496,6 +496,97 @@ class TestMultipleMessages:
         assert call_args[1]["message_index"] == 2  # Index of last message
 
 
+@pytest.mark.unit
+class TestModelExtraction:
+    """Tests for extracting and storing model from parsed messages."""
+
+    @pytest.mark.asyncio
+    async def test_process_session_captures_model(self, mock_db, tmp_path) -> None:
+        """Should extract model from parsed messages and update session."""
+        mock_session_manager = MagicMock()
+        mock_session_manager.update_model = MagicMock()
+
+        processor = SessionMessageProcessor(mock_db, session_manager=mock_session_manager)
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text(
+            '{"type": "agent", "message": {"model": "claude-opus-4-5-20251101", "content": [{"type": "text", "text": "hello"}]}, "timestamp": "2024-01-01T10:00:00Z"}\n'
+        )
+
+        processor.register_session("session-1", str(transcript))
+
+        # Mock message manager
+        processor.message_manager = AsyncMock()
+        processor.message_manager.get_state = AsyncMock(return_value=None)
+        processor.message_manager.store_messages = AsyncMock()
+        processor.message_manager.update_state = AsyncMock()
+
+        # Create a parsed message with model
+        parsed_msg = ParsedMessage(
+            index=0,
+            role="assistant",
+            content="hello",
+            content_type="text",
+            tool_name=None,
+            tool_input=None,
+            tool_result=None,
+            timestamp=datetime.now(),
+            raw_json={},
+            model="claude-opus-4-5-20251101",
+        )
+        mock_parser = MagicMock()
+        mock_parser.parse_lines = MagicMock(return_value=[parsed_msg])
+        processor._parsers["session-1"] = mock_parser
+
+        await processor._process_session("session-1", str(transcript))
+
+        # Verify session model was updated
+        mock_session_manager.update_model.assert_called_once_with(
+            "session-1", "claude-opus-4-5-20251101"
+        )
+
+    @pytest.mark.asyncio
+    async def test_process_session_skips_model_update_when_none(self, mock_db, tmp_path) -> None:
+        """Should not update model when parsed message has no model."""
+        mock_session_manager = MagicMock()
+        mock_session_manager.update_model = MagicMock()
+
+        processor = SessionMessageProcessor(mock_db, session_manager=mock_session_manager)
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text(
+            '{"type": "user", "message": {"content": "hello"}, "timestamp": "2024-01-01T10:00:00Z"}\n'
+        )
+
+        processor.register_session("session-1", str(transcript))
+
+        # Mock message manager
+        processor.message_manager = AsyncMock()
+        processor.message_manager.get_state = AsyncMock(return_value=None)
+        processor.message_manager.store_messages = AsyncMock()
+        processor.message_manager.update_state = AsyncMock()
+
+        # Create a parsed message without model
+        parsed_msg = ParsedMessage(
+            index=0,
+            role="user",
+            content="hello",
+            content_type="text",
+            tool_name=None,
+            tool_input=None,
+            tool_result=None,
+            timestamp=datetime.now(),
+            raw_json={},
+            model=None,
+        )
+        mock_parser = MagicMock()
+        mock_parser.parse_lines = MagicMock(return_value=[parsed_msg])
+        processor._parsers["session-1"] = mock_parser
+
+        await processor._process_session("session-1", str(transcript))
+
+        # Verify session model was NOT updated
+        mock_session_manager.update_model.assert_not_called()
+
+
 class TestInitialization:
     """Tests for processor initialization."""
 

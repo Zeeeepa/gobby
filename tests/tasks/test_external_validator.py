@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.config.app import TaskValidationConfig
+from gobby.config.tasks import TaskValidationConfig
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 

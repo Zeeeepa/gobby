@@ -457,7 +457,9 @@ class TestWorktreeMergeIntegration:
 
         # Task should exist and could be linked to a worktree
         # (Actual worktree creation requires git repo setup beyond E2E scope)
-        assert result.get("id") == task_id or result.get("ref") is not None, f"Task not found: {result}"
+        assert result.get("id") == task_id or result.get("ref") is not None, (
+            f"Task not found: {result}"
+        )
 
 
 class TestMergeResolutionStrategies:

@@ -77,9 +77,7 @@ class TestParseGithubUrl:
         """Test parsing full GitHub URL with explicit branch."""
         from gobby.skills.loader import parse_github_url
 
-        result = parse_github_url(
-            "https://github.com/anthropics/claude-code/tree/develop"
-        )
+        result = parse_github_url("https://github.com/anthropics/claude-code/tree/develop")
 
         assert result.owner == "anthropics"
         assert result.repo == "claude-code"
@@ -374,9 +372,7 @@ Content
         with patch("gobby.skills.loader.clone_skill_repo") as mock_clone:
             mock_clone.return_value = repo_dir
             with patch("gobby.skills.loader.DEFAULT_CACHE_DIR", cache_dir):
-                skills = loader.load_from_github(
-                    "owner/skills-collection", load_all=True
-                )
+                skills = loader.load_from_github("owner/skills-collection", load_all=True)
 
         assert len(skills) == 3
         names = {s.name for s in skills}

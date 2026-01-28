@@ -38,14 +38,6 @@ class CompactHandoffConfig(BaseModel):
         default=True,
         description="Enable compact handoff context extraction and injection",
     )
-    # DEPRECATED: prompt field is no longer used.
-    # Template is now defined in session-handoff.yaml workflow file.
-    # Kept for backwards compatibility but will be removed in a future version.
-    prompt: str | None = Field(
-        default=None,
-        description="DEPRECATED: Template moved to session-handoff.yaml workflow. "
-        "This field is ignored.",
-    )
 
 
 class PatternCriteriaConfig(BaseModel):
@@ -147,10 +139,7 @@ class TaskExpansionConfig(BaseModel):
         default="claude-opus-4-5",
         description="Model to use for expansion",
     )
-    prompt: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use prompt_path instead. Custom prompt template for task expansion",
-    )
+
     prompt_path: str | None = Field(
         default=None,
         description="Path to custom user prompt template (e.g., 'expansion/user')",
@@ -175,14 +164,7 @@ class TaskExpansionConfig(BaseModel):
         default="You are a senior developer researching a codebase. Use tools to find relevant code.",
         description="System prompt for the research agent",
     )
-    system_prompt: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use system_prompt_path instead. Custom system prompt for task expansion",
-    )
-    tdd_prompt: str | None = Field(
-        default=None,
-        description="DEPRECATED: TDD instructions are now embedded in task descriptions for code/config categories",
-    )
+
     web_research_enabled: bool = Field(
         default=True,
         description="Enable web research for task expansion using MCP tools",
@@ -228,10 +210,7 @@ class TaskValidationConfig(BaseModel):
         default="You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object.",
         description="System prompt for task validation",
     )
-    prompt: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use prompt_path instead. Custom prompt template for task validation",
-    )
+
     prompt_path: str | None = Field(
         default=None,
         description="Path to custom validation prompt template (e.g., 'validation/validate')",
@@ -260,10 +239,7 @@ class TaskValidationConfig(BaseModel):
         default="You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that aren't mentioned. Vague tasks get vague criteria. Use markdown checkboxes.",
         description="System prompt for generating validation criteria",
     )
-    criteria_prompt: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use criteria_prompt_path instead. Custom prompt template for generating validation criteria",
-    )
+
     # Validation loop control
     max_iterations: int = Field(
         default=10,

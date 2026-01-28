@@ -29,6 +29,8 @@ At the start of EVERY session:
 3. Session ID: Look for `session_id: <uuid>` in your context.
    If missing, call:
    `call_tool("gobby-sessions", "get_current", {"external_id": "<your-session-id>", "source": "claude"})`
+
+Session and task references use `#N` format (e.g., `#1`, `#42`) which is project-scoped.
 </startup>
 
 <tool_discovery>

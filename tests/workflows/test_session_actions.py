@@ -696,8 +696,12 @@ class TestActionExecutorIntegration:
             mock_proc.pid = 12345
             mock_popen.return_value = mock_proc
 
-            result = await executor._handle_start_new_session(
-                mock_context, command="claude", args=["-vv"], prompt="Hello world"
+            result = await executor.execute(
+                "start_new_session",
+                mock_context,
+                command="claude",
+                args=["-vv"],
+                prompt="Hello world",
             )
 
             assert result is not None
@@ -713,8 +717,11 @@ class TestActionExecutorIntegration:
             template_engine=MagicMock(),
         )
 
-        result = await executor._handle_mark_session_status(
-            mock_context, status="active", target="current_session"
+        result = await executor.execute(
+            "mark_session_status",
+            mock_context,
+            status="active",
+            target="current_session",
         )
 
         assert result is not None
@@ -730,7 +737,7 @@ class TestActionExecutorIntegration:
             template_engine=MagicMock(),
         )
 
-        result = await executor._handle_switch_mode(mock_context, mode="PLAN")
+        result = await executor.execute("switch_mode", mock_context, mode="PLAN")
 
         assert result is not None
         assert result["mode_switch"] == "PLAN"
@@ -746,11 +753,11 @@ class TestActionExecutorIntegration:
         )
 
         # Missing status
-        result = await executor._handle_mark_session_status(mock_context)
+        result = await executor.execute("mark_session_status", mock_context)
         assert result == {"error": "Missing status"}
 
         # Missing mode
-        result = await executor._handle_switch_mode(mock_context)
+        result = await executor.execute("switch_mode", mock_context)
         assert result == {"error": "Missing mode"}
 
     @pytest.mark.asyncio
@@ -768,7 +775,7 @@ class TestActionExecutorIntegration:
             mock_proc.pid = 11111
             mock_popen.return_value = mock_proc
 
-            result = await executor._handle_start_new_session(mock_context)
+            result = await executor.execute("start_new_session", mock_context)
 
             assert result["started_new_session"] is True
             args, _ = mock_popen.call_args
@@ -781,7 +788,7 @@ class TestActionExecutorIntegration:
             mock_proc.pid = 22222
             mock_popen.return_value = mock_proc
 
-            result = await executor._handle_start_new_session(mock_context)
+            result = await executor.execute("start_new_session", mock_context)
 
             assert result["started_new_session"] is True
             args, _ = mock_popen.call_args
@@ -801,7 +808,7 @@ class TestActionExecutorIntegration:
             mock_proc.pid = 12345
             mock_popen.return_value = mock_proc
 
-            result = await executor._handle_start_new_session(mock_context, cwd="/custom/path")
+            result = await executor.execute("start_new_session", mock_context, cwd="/custom/path")
 
             assert result["started_new_session"] is True
             _, kwargs = mock_popen.call_args
@@ -816,7 +823,7 @@ class TestActionExecutorIntegration:
             template_engine=MagicMock(),
         )
 
-        result = await executor._handle_mark_loop_complete(mock_context)
+        result = await executor.execute("mark_loop_complete", mock_context)
 
         assert result["loop_marked_complete"] is True
         assert mock_context.state.variables["stop_reason"] == "completed"

@@ -104,9 +104,7 @@ class TestLocalTaskManager:
 
         # Mock to always return existing ID
         # Patch where it's used (_crud.py), not where it's re-exported
-        with patch(
-            "gobby.storage.tasks._crud.generate_task_id", return_value=existing_task.id
-        ):
+        with patch("gobby.storage.tasks._crud.generate_task_id", return_value=existing_task.id):
             with pytest.raises(TaskIDCollisionError):
                 task_manager.create_task(project_id=project_id, title="Doom")
 
@@ -154,9 +152,44 @@ class TestLocalTaskManager:
         with pytest.raises(ValueError):
             task_manager.get_task(dependent.id)
 
-    def test_delete_with_dependents_unlink_preserves(
+    def test_delete_cascade_with_circular_parent_child_dependency(
         self, task_manager, dep_manager, project_id
     ):
+        """Test that cascade delete handles parent depending on children without infinite recursion.
+
+        This tests the scenario where:
+        - Parent has children (parent_task_id relationship)
+        - Parent also depends on children (blocked_by dependency)
+
+        This could cause infinite recursion if not handled properly:
+        1. Delete parent -> deletes child (parent_task_id)
+        2. Child has dependent (parent) -> tries to delete parent
+        3. Infinite loop
+        """
+        parent = task_manager.create_task(project_id=project_id, title="Parent Epic")
+        child1 = task_manager.create_task(
+            project_id=project_id, title="Child 1", parent_task_id=parent.id
+        )
+        child2 = task_manager.create_task(
+            project_id=project_id, title="Child 2", parent_task_id=parent.id
+        )
+
+        # Parent depends on (is blocked by) its children - common pattern for epics
+        dep_manager.add_dependency(parent.id, child1.id, "blocks")
+        dep_manager.add_dependency(parent.id, child2.id, "blocks")
+
+        # This should NOT cause infinite recursion
+        task_manager.delete_task(parent.id, cascade=True)
+
+        # All tasks should be deleted
+        with pytest.raises(ValueError):
+            task_manager.get_task(parent.id)
+        with pytest.raises(ValueError):
+            task_manager.get_task(child1.id)
+        with pytest.raises(ValueError):
+            task_manager.get_task(child2.id)
+
+    def test_delete_with_dependents_unlink_preserves(self, task_manager, dep_manager, project_id):
         """Test that unlink=True deletes task but preserves dependents."""
         blocker = task_manager.create_task(project_id=project_id, title="Blocker")
         dependent = task_manager.create_task(project_id=project_id, title="Dependent")

@@ -4,9 +4,13 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle TODO.md file operations.
 """
 
+import asyncio
 import logging
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -82,3 +86,32 @@ def mark_todo_complete(
     except Exception as e:
         logger.error(f"mark_todo_complete: Failed: {e}")
         return {"error": str(e)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+
+async def handle_write_todos(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for write_todos."""
+    return await asyncio.to_thread(
+        write_todos,
+        todos=kwargs.get("todos", []),
+        filename=kwargs.get("filename", "TODO.md"),
+        mode=kwargs.get("mode", "w"),
+    )
+
+
+async def handle_mark_todo_complete(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for mark_todo_complete."""
+    todo_text = kwargs.get("todo_text")
+    if not todo_text:
+        return {"error": "Missing required parameter: todo_text"}
+
+    return await asyncio.to_thread(
+        mark_todo_complete,
+        todo_text,
+        kwargs.get("filename", "TODO.md"),
+    )

@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import logging
-import mimetypes
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from gobby.config.app import MemoryConfig
+from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends import get_backend
 from gobby.memory.context import build_memory_context
-from gobby.memory.protocol import MediaAttachment, MemoryBackendProtocol
+from gobby.memory.ingestion import MultimodalIngestor
+from gobby.memory.protocol import MemoryBackendProtocol
+from gobby.memory.search.coordinator import SearchCoordinator
+from gobby.memory.services.crossref import CrossrefService
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
-    from gobby.memory.search import SearchBackend
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,25 @@ class MemoryManager:
         # The SQLiteBackend uses LocalMemoryManager internally
         self.storage = LocalMemoryManager(db)
 
-        self._search_backend: SearchBackend | None = None
-        self._search_backend_fitted = False
+        # Initialize extracted components
+        self._search_coordinator = SearchCoordinator(
+            storage=self.storage,
+            config=config,
+            db=db,
+        )
+
+        self._crossref_service = CrossrefService(
+            storage=self.storage,
+            config=config,
+            search_backend_getter=lambda: self._search_coordinator.search_backend,
+            ensure_fitted=self._search_coordinator.ensure_fitted,
+        )
+
+        self._multimodal_ingestor = MultimodalIngestor(
+            storage=self.storage,
+            backend=self._backend,
+            llm_service=llm_service,
+        )
 
     @property
     def llm_service(self) -> LLMService | None:
@@ -57,9 +74,11 @@ class MemoryManager:
     def llm_service(self, service: LLMService | None) -> None:
         """Set the LLM service for image description."""
         self._llm_service = service
+        # Keep multimodal ingestor in sync
+        self._multimodal_ingestor.llm_service = service
 
     @property
-    def search_backend(self) -> SearchBackend:
+    def search_backend(self) -> Any:
         """
         Lazy-init search backend based on configuration.
 
@@ -67,50 +86,15 @@ class MemoryManager:
         - "tfidf" (default): Zero-dependency TF-IDF search
         - "text": Simple text substring matching
         """
-        if self._search_backend is None:
-            from gobby.memory.search import get_search_backend
-
-            backend_type = getattr(self.config, "search_backend", "tfidf")
-            logger.debug(f"Initializing search backend: {backend_type}")
-
-            try:
-                self._search_backend = get_search_backend(
-                    backend_type=backend_type,
-                    db=self.db,
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to initialize {backend_type} backend: {e}. Falling back to tfidf"
-                )
-                self._search_backend = get_search_backend("tfidf")
-
-        return self._search_backend
+        return self._search_coordinator.search_backend
 
     def _ensure_search_backend_fitted(self) -> None:
         """Ensure the search backend is fitted with current memories."""
-        if self._search_backend_fitted:
-            return
-
-        backend = self.search_backend
-        if not backend.needs_refit():
-            self._search_backend_fitted = True
-            return
-
-        # Fit the backend with all memories
-        memories = self.storage.list_memories(limit=10000)
-        memory_tuples = [(m.id, m.content) for m in memories]
-
-        try:
-            backend.fit(memory_tuples)
-            self._search_backend_fitted = True
-            logger.info(f"Search backend fitted with {len(memory_tuples)} memories")
-        except Exception as e:
-            logger.error(f"Failed to fit search backend: {e}")
-            raise
+        self._search_coordinator.ensure_fitted()
 
     def mark_search_refit_needed(self) -> None:
         """Mark that the search backend needs to be refitted."""
-        self._search_backend_fitted = False
+        self._search_coordinator.mark_refit_needed()
 
     def reindex_search(self) -> dict[str, Any]:
         """
@@ -125,36 +109,7 @@ class MemoryManager:
         Returns:
             Dict with index statistics including memory_count, backend_type, etc.
         """
-        # Get all memories
-        memories = self.storage.list_memories(limit=10000)
-        memory_tuples = [(m.id, m.content) for m in memories]
-
-        # Force refit the backend
-        backend = self.search_backend
-        backend_type = getattr(self.config, "search_backend", "tfidf")
-
-        try:
-            backend.fit(memory_tuples)
-            self._search_backend_fitted = True
-
-            # Get backend stats
-            stats = backend.get_stats() if hasattr(backend, "get_stats") else {}
-
-            return {
-                "success": True,
-                "memory_count": len(memory_tuples),
-                "backend_type": backend_type,
-                "fitted": True,
-                **stats,
-            }
-        except Exception as e:
-            logger.error(f"Failed to reindex search backend: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "memory_count": len(memory_tuples),
-                "backend_type": backend_type,
-            }
+        return self._search_coordinator.reindex()
 
     async def remember(
         self,
@@ -206,7 +161,7 @@ class MemoryManager:
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
             try:
-                self._create_crossrefs(memory)
+                await self._crossref_service.create_crossrefs(memory)
             except Exception as e:
                 # Don't fail the remember if crossref fails
                 logger.warning(f"Auto-crossref failed for {memory.id}: {e}")
@@ -247,73 +202,19 @@ class MemoryManager:
         Raises:
             ValueError: If LLM service is not configured or image not found
         """
-        path = Path(image_path)
-        if not path.exists():
-            raise ValueError(f"Image not found: {image_path}")
-
-        # Get LLM provider for image description
-        if not self._llm_service:
-            raise ValueError(
-                "LLM service not configured. Pass llm_service to MemoryManager "
-                "to enable remember_with_image."
-            )
-
-        provider = self._llm_service.get_default_provider()
-
-        # Generate image description
-        description = await provider.describe_image(image_path, context=context)
-
-        # Determine MIME type
-        mime_type, _ = mimetypes.guess_type(str(path))
-        if not mime_type:
-            mime_type = "application/octet-stream"
-
-        # Create media attachment
-        media = MediaAttachment(
-            media_type="image",
-            content_path=str(path.absolute()),
-            mime_type=mime_type,
-            description=description,
-            description_model=provider.provider_name,
-        )
-
-        # Store memory with media attachment via backend
-        record = await self._backend.create(
-            content=description,
+        memory = await self._multimodal_ingestor.remember_with_image(
+            image_path=image_path,
+            context=context,
             memory_type=memory_type,
             importance=importance,
             project_id=project_id,
             source_type=source_type,
             source_session_id=source_session_id,
             tags=tags,
-            media=[media],
         )
-
         # Mark search index for refit
         self.mark_search_refit_needed()
-
-        # Return as Memory object for backward compatibility
-        # Note: The backend returns MemoryRecord, but we need Memory
-        memory = self.storage.get_memory(record.id)
-        if memory is not None:
-            return memory
-
-        # Fallback: construct Memory from MemoryRecord if storage lookup fails
-        # This can happen with synthetic records from failed backend calls
-        return Memory(
-            id=record.id,
-            content=record.content,
-            memory_type=record.memory_type,
-            created_at=record.created_at.isoformat(),
-            updated_at=record.updated_at.isoformat()
-            if record.updated_at
-            else record.created_at.isoformat(),
-            project_id=record.project_id,
-            source_type=record.source_type,
-            source_session_id=record.source_session_id,
-            importance=record.importance,
-            tags=record.tags,
-        )
+        return memory
 
     async def remember_screenshot(
         self,
@@ -348,31 +249,8 @@ class MemoryManager:
         Raises:
             ValueError: If LLM service is not configured or screenshot bytes are empty
         """
-        if not screenshot_bytes:
-            raise ValueError("Screenshot bytes cannot be empty")
-
-        # Determine resources directory using centralized utility
-        from datetime import datetime as dt
-
-        from gobby.cli.utils import get_resources_dir
-        from gobby.utils.project_context import get_project_context
-
-        ctx = get_project_context()
-        project_path = ctx.get("path") if ctx else None
-        resources_dir = get_resources_dir(project_path)
-
-        # Generate timestamp-based filename
-        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
-        filename = f"screenshot_{timestamp}.png"
-        filepath = resources_dir / filename
-
-        # Write screenshot to file
-        filepath.write_bytes(screenshot_bytes)
-        logger.debug(f"Saved screenshot to {filepath}")
-
-        # Delegate to remember_with_image
-        return await self.remember_with_image(
-            image_path=str(filepath),
+        memory = await self._multimodal_ingestor.remember_screenshot(
+            screenshot_bytes=screenshot_bytes,
             context=context,
             memory_type=memory_type,
             importance=importance,
@@ -381,8 +259,11 @@ class MemoryManager:
             source_session_id=source_session_id,
             tags=tags,
         )
+        # Mark search index for refit
+        self.mark_search_refit_needed()
+        return memory
 
-    def _create_crossrefs(
+    async def _create_crossrefs(
         self,
         memory: Memory,
         threshold: float | None = None,
@@ -402,46 +283,13 @@ class MemoryManager:
         Returns:
             Number of cross-references created
         """
-        # Get thresholds from config or use defaults
-        if threshold is None:
-            threshold = getattr(self.config, "crossref_threshold", None)
-            if threshold is None:
-                threshold = 0.3
-        if max_links is None:
-            max_links = getattr(self.config, "crossref_max_links", None)
-            if max_links is None:
-                max_links = 5
+        return await self._crossref_service.create_crossrefs(
+            memory=memory,
+            threshold=threshold,
+            max_links=max_links,
+        )
 
-        # Ensure search backend is fitted
-        self._ensure_search_backend_fitted()
-
-        # Search for similar memories
-        similar = self.search_backend.search(memory.content, top_k=max_links + 1)
-
-        # Create cross-references
-        created = 0
-        for other_id, score in similar:
-            # Skip self-reference
-            if other_id == memory.id:
-                continue
-
-            # Skip below threshold
-            if score < threshold:
-                continue
-
-            # Create the crossref
-            self.storage.create_crossref(memory.id, other_id, score)
-            created += 1
-
-            if created >= max_links:
-                break
-
-        if created > 0:
-            logger.debug(f"Created {created} crossrefs for memory {memory.id}")
-
-        return created
-
-    def get_related(
+    async def get_related(
         self,
         memory_id: str,
         limit: int = 5,
@@ -458,20 +306,11 @@ class MemoryManager:
         Returns:
             List of related Memory objects, sorted by similarity
         """
-        crossrefs = self.storage.get_crossrefs(
-            memory_id, limit=limit, min_similarity=min_similarity
+        return await self._crossref_service.get_related(
+            memory_id=memory_id,
+            limit=limit,
+            min_similarity=min_similarity,
         )
-
-        # Get the actual Memory objects
-        memories = []
-        for ref in crossrefs:
-            # Get the "other" memory in the relationship
-            other_id = ref.target_id if ref.source_id == memory_id else ref.source_id
-            memory = self.get_memory(other_id)
-            if memory:
-                memories.append(memory)
-
-        return memories
 
     def recall(
         self,
@@ -555,80 +394,20 @@ class MemoryManager:
         Uses the new search backend by default (TF-IDF),
         falling back to legacy semantic search if configured.
         """
-        # Determine search mode from config or parameters
-        if search_mode is None:
-            search_mode = getattr(self.config, "search_backend", "tfidf")
-
         # Legacy compatibility: use_semantic is deprecated
         if use_semantic is not None:
             logger.warning("use_semantic argument is deprecated and ignored")
 
-        # Use the search backend
-        try:
-            self._ensure_search_backend_fitted()
-            # Fetch more results to allow for filtering
-            fetch_multiplier = 3 if (tags_all or tags_any or tags_none) else 2
-            results = self.search_backend.search(query, top_k=limit * fetch_multiplier)
-
-            # Get the actual Memory objects
-            memory_ids = [mid for mid, _ in results]
-            memories = []
-            for mid in memory_ids:
-                memory = self.get_memory(mid)
-                if memory:
-                    # Apply filters
-                    if project_id and memory.project_id != project_id:
-                        if memory.project_id is not None:  # Allow global memories
-                            continue
-                    if min_importance and memory.importance < min_importance:
-                        continue
-                    # Apply tag filters
-                    if not self._passes_tag_filter(memory, tags_all, tags_any, tags_none):
-                        continue
-                    memories.append(memory)
-                    if len(memories) >= limit:
-                        break
-
-            return memories
-
-        except Exception as e:
-            logger.warning(f"Search backend failed, falling back to text search: {e}")
-            # Fall back to text search with tag filtering
-            memories = self.storage.search_memories(
-                query_text=query,
-                project_id=project_id,
-                limit=limit * 2,
-                tags_all=tags_all,
-                tags_any=tags_any,
-                tags_none=tags_none,
-            )
-            if min_importance:
-                memories = [m for m in memories if m.importance >= min_importance]
-            return memories[:limit]
-
-    def _passes_tag_filter(
-        self,
-        memory: Memory,
-        tags_all: list[str] | None = None,
-        tags_any: list[str] | None = None,
-        tags_none: list[str] | None = None,
-    ) -> bool:
-        """Check if a memory passes the tag filter criteria."""
-        memory_tags = set(memory.tags) if memory.tags else set()
-
-        # Check tags_all: memory must have ALL specified tags
-        if tags_all and not set(tags_all).issubset(memory_tags):
-            return False
-
-        # Check tags_any: memory must have at least ONE specified tag
-        if tags_any and not memory_tags.intersection(tags_any):
-            return False
-
-        # Check tags_none: memory must have NONE of the specified tags
-        if tags_none and memory_tags.intersection(tags_none):
-            return False
-
-        return True
+        return self._search_coordinator.search(
+            query=query,
+            project_id=project_id,
+            limit=limit,
+            min_importance=min_importance,
+            search_mode=search_mode,
+            tags_all=tags_all,
+            tags_any=tags_any,
+            tags_none=tags_none,
+        )
 
     def recall_as_context(
         self,

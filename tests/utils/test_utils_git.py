@@ -688,9 +688,7 @@ class TestLogging:
 
         assert "Not a git repository" in caplog.text
 
-    def test_get_git_metadata_logs_nonexistent_path(
-        self, caplog, enable_log_propagation
-    ) -> None:
+    def test_get_git_metadata_logs_nonexistent_path(self, caplog, enable_log_propagation) -> None:
         """Test warning logging for nonexistent path."""
         with caplog.at_level(logging.DEBUG, logger="gobby.utils.git"):
             get_git_metadata(Path("/nonexistent/path"))

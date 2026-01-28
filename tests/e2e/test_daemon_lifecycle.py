@@ -204,9 +204,9 @@ class TestDaemonRestart:
 
             try:
                 # Wait for second daemon to be healthy
-                assert wait_for_daemon_health(
-                    http_port, timeout=20.0
-                ), "Second daemon should start after restart"
+                assert wait_for_daemon_health(http_port, timeout=20.0), (
+                    "Second daemon should start after restart"
+                )
 
                 # Verify it's a different process
                 assert process2.pid != process1.pid, "Restarted daemon should have different PID"

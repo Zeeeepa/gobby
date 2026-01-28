@@ -329,7 +329,9 @@ class TestHandleRequireTaskComplete:
         mock_task.id = "gt-ready-123"
         mock_services["task_manager"].list_ready_tasks.return_value = [mock_task]
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.enforcement.handlers.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
             await action_executor.execute(
@@ -358,7 +360,9 @@ class TestHandleRequireTaskComplete:
 
         task_ids = ["gt-task1", "gt-task2", "gt-task3"]
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.enforcement.handlers.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -384,7 +388,9 @@ class TestHandleRequireTaskComplete:
         )
         action_context.session_id = session.id
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.enforcement.handlers.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -414,7 +420,9 @@ class TestHandleRequireTaskComplete:
         # Mock template engine to resolve the variable
         mock_services["template_engine"].render.return_value = "gt-resolved-task"
 
-        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
+        with patch(
+            "gobby.workflows.enforcement.handlers.require_task_complete"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -899,44 +907,6 @@ class TestPluginActionValidationWrapper:
 
 
 # =============================================================================
-# Test Broadcast Autonomous Event
-# =============================================================================
-
-
-class TestBroadcastAutonomousEvent:
-    """Tests for _broadcast_autonomous_event helper."""
-
-    @pytest.mark.asyncio
-    async def test_broadcast_autonomous_event_success(self, action_executor, mock_services):
-        """Test successful broadcast of autonomous event."""
-        mock_services["websocket_server"].broadcast_autonomous_event = AsyncMock()
-
-        await action_executor._broadcast_autonomous_event(
-            event="task_started",
-            session_id="test-session",
-            task_id="gt-123",
-        )
-
-        # Give the async task time to execute
-        import asyncio
-
-        await asyncio.sleep(0.01)
-
-        # The broadcast should have been scheduled
-
-    @pytest.mark.asyncio
-    async def test_broadcast_autonomous_event_no_server(self, action_executor):
-        """Test broadcast when websocket_server is None."""
-        action_executor.websocket_server = None
-
-        # Should not raise
-        await action_executor._broadcast_autonomous_event(
-            event="task_started",
-            session_id="test-session",
-        )
-
-
-# =============================================================================
 # Test Register Plugin Actions
 # =============================================================================
 
@@ -1263,7 +1233,7 @@ class TestHandleRequireActiveTask:
         )
         action_context.session_id = session.id
 
-        with patch("gobby.workflows.actions.require_active_task") as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_active_task") as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -1289,7 +1259,10 @@ class TestHandleRequireCommitBeforeStop:
         """Test require_commit_before_stop extracts cwd from event_data."""
         action_context.event_data = {"cwd": "/path/to/project"}
 
-        with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
+        # Patch in handlers module where the function is imported and used
+        with patch(
+            "gobby.workflows.enforcement.handlers.require_commit_before_stop"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -1306,7 +1279,10 @@ class TestHandleRequireCommitBeforeStop:
         """Test require_commit_before_stop handles missing event_data."""
         action_context.event_data = None
 
-        with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
+        # Patch in handlers module where the function is imported and used
+        with patch(
+            "gobby.workflows.enforcement.handlers.require_commit_before_stop"
+        ) as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -1330,7 +1306,10 @@ class TestHandleValidateSessionTaskScope:
     @pytest.mark.asyncio
     async def test_validate_session_task_scope_delegated(self, action_executor, action_context):
         """Test validate_session_task_scope delegates correctly."""
-        with patch("gobby.workflows.actions.validate_session_task_scope") as mock_validate:
+        # Patch in handlers module where the function is imported and used
+        with patch(
+            "gobby.workflows.enforcement.handlers.validate_session_task_scope"
+        ) as mock_validate:
             mock_validate.return_value = None
 
             await action_executor.execute(
@@ -1382,7 +1361,7 @@ class TestHandleWebhook:
         from gobby.workflows.webhook_executor import WebhookResult
 
         # Mock the executor
-        with patch("gobby.workflows.actions.WebhookExecutor") as mock_executor_class:
+        with patch("gobby.workflows.webhook_executor.WebhookExecutor") as mock_executor_class:
             mock_executor = MagicMock()
             mock_result = WebhookResult(
                 success=True,
@@ -1436,7 +1415,8 @@ class TestHandleMarkLoopComplete:
     @pytest.mark.asyncio
     async def test_mark_loop_complete(self, action_executor, action_context):
         """Test mark_loop_complete delegates to mark_loop_complete function."""
-        with patch("gobby.workflows.actions.mark_loop_complete") as mock_mark:
+        # Patch at source module since handler calls state_actions.mark_loop_complete
+        with patch("gobby.workflows.state_actions.mark_loop_complete") as mock_mark:
             mock_mark.return_value = {"_loop_complete": True, "stop_reason": "completed"}
 
             result = await action_executor.execute(
@@ -1459,7 +1439,8 @@ class TestHandleExtractHandoffContext:
     @pytest.mark.asyncio
     async def test_extract_handoff_context_delegated(self, action_executor, action_context):
         """Test extract_handoff_context delegates correctly."""
-        with patch("gobby.workflows.actions.extract_handoff_context") as mock_extract:
+        # Patch at source module since handler calls context_actions.extract_handoff_context
+        with patch("gobby.workflows.context_actions.extract_handoff_context") as mock_extract:
             mock_extract.return_value = {"extracted": True}
 
             await action_executor.execute(
@@ -1522,7 +1503,8 @@ class TestGenerateHandoffCompactMode:
         action_context.transcript_processor = mock_services["transcript_processor"]
         action_context.template_engine = mock_services["template_engine"]
 
-        with patch("gobby.workflows.actions.generate_handoff") as mock_handoff:
+        # Patch at source module since handler calls summary_actions.generate_handoff
+        with patch("gobby.workflows.summary_actions.generate_handoff") as mock_handoff:
             mock_handoff.return_value = {"handoff_created": True}
 
             await action_executor.execute(

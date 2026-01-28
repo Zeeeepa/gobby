@@ -17,7 +17,8 @@ Adapters:
 
 from gobby.adapters.base import BaseAdapter
 from gobby.adapters.claude_code import ClaudeCodeAdapter
-from gobby.adapters.codex import CodexAdapter, CodexAppServerClient, CodexNotifyAdapter
+from gobby.adapters.codex_impl.adapter import CodexAdapter, CodexNotifyAdapter
+from gobby.adapters.codex_impl.client import CodexAppServerClient
 from gobby.adapters.gemini import GeminiAdapter
 
 __all__ = [

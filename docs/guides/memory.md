@@ -6,16 +6,16 @@ Gobby's memory system enables AI agents to maintain persistent knowledge across 
 
 ```bash
 # Store a memory via CLI
-gobby memory add "This project uses pytest fixtures in conftest.py" --type fact
+gobby memory create "This project uses pytest fixtures in conftest.py" --type fact
 
 # Recall memories
-gobby memory search "testing"
+gobby memory recall "testing"
 
 # List all memories
 gobby memory list
 
 # Via MCP tools (in AI session)
-call_tool(server_name="gobby-memory", tool_name="remember", arguments={
+call_tool(server_name="gobby-memory", tool_name="create_memory", arguments={
     "content": "User prefers tabs over spaces",
     "memory_type": "preference",
     "importance": 0.9
@@ -57,17 +57,16 @@ Use `--global` flag in CLI or omit `project_id` in MCP tools for global memories
 
 ```bash
 # Basic memory
-gobby memory add "Content here"
+gobby memory create "Content here"
 
 # With type and importance
-gobby memory add "API uses JWT auth" --type fact --importance 0.8
+gobby memory create "API uses JWT auth" --type fact --importance 0.8
 
 # Global memory (available in all projects)
-gobby memory add "Always use conventional commits" --type preference --global
-
+gobby memory create "Always use conventional commits" --type preference --global
 
 # With tags
-gobby memory add "Use pnpm, not npm" --type preference --tags "tooling,package-manager"
+gobby memory create "Use pnpm, not npm" --type preference --tags "tooling,package-manager"
 ```
 
 ### Searching and Listing
@@ -122,6 +121,18 @@ gobby memory list --type fact --tags-any "database,storage"
 ### Managing Memories
 
 ```bash
+# Show details of a specific memory
+gobby memory show MEMORY_ID
+
+# Update an existing memory
+gobby memory update MEMORY_ID --importance 0.9 --tags "updated,important"
+
+# Delete a memory
+gobby memory delete MEMORY_ID
+
+# Export memories as markdown
+gobby memory export [--output FILE]
+
 # Get statistics
 gobby memory stats
 ```
@@ -143,12 +154,12 @@ gobby memory sync
 
 Access via `call_tool(server_name="gobby-memory", ...)`:
 
-### remember
+### create_memory
 
 Store a new memory:
 
 ```python
-call_tool(server_name="gobby-memory", tool_name="remember", arguments={
+call_tool(server_name="gobby-memory", tool_name="create_memory", arguments={
     "content": "This project uses ESLint with Prettier",
     "memory_type": "fact",
     "importance": 0.7,
@@ -156,7 +167,7 @@ call_tool(server_name="gobby-memory", tool_name="remember", arguments={
 })
 ```
 
-### recall
+### search_memories
 
 Retrieve memories with optional filtering:
 
@@ -221,12 +232,12 @@ call_tool(server_name="gobby-memory", tool_name="update_memory", arguments={
 })
 ```
 
-### forget
+### delete_memory
 
 Delete a memory:
 
 ```python
-call_tool(server_name="gobby-memory", tool_name="forget", arguments={
+call_tool(server_name="gobby-memory", tool_name="delete_memory", arguments={
     "memory_id": "mm-abc123"
 })
 ```
@@ -238,6 +249,49 @@ Get memory statistics:
 ```python
 call_tool(server_name="gobby-memory", tool_name="memory_stats", arguments={})
 # Returns: count by type, average importance, total count
+```
+
+### get_related_memories
+
+Get memories related via cross-references:
+
+```python
+call_tool(server_name="gobby-memory", tool_name="get_related_memories", arguments={
+    "memory_id": "mm-abc123"
+})
+```
+
+### remember_with_image
+
+Create a memory from an image (uses LLM to describe):
+
+```python
+call_tool(server_name="gobby-memory", tool_name="remember_with_image", arguments={
+    "image_path": "/path/to/screenshot.png",
+    "memory_type": "context",
+    "importance": 0.7
+})
+```
+
+### remember_screenshot
+
+Create a memory from raw screenshot bytes (base64 encoded):
+
+```python
+call_tool(server_name="gobby-memory", tool_name="remember_screenshot", arguments={
+    "image_data": "<base64_encoded_bytes>",
+    "memory_type": "context"
+})
+```
+
+### export_memory_graph
+
+Export memories as an interactive HTML knowledge graph:
+
+```python
+call_tool(server_name="gobby-memory", tool_name="export_memory_graph", arguments={
+    "output_path": "/path/to/graph.html"
+})
 ```
 
 ## Automatic Memory Injection

@@ -367,8 +367,7 @@ class TestPluginsConfigDefaults:
 
         config = PluginsConfig()
         assert config.enabled is False  # Disabled by default for security
-        assert "~/.gobby/plugins" in config.plugin_dirs
-        assert ".gobby/plugins" in config.plugin_dirs
+        assert ".gobby/plugins" in config.plugin_dirs  # Project-scoped plugins
         assert config.auto_discover is True
         assert config.plugins == {}
 
@@ -461,52 +460,52 @@ class TestHookExtensionsConfigCustom:
 # =============================================================================
 
 
-class TestWebSocketBroadcastConfigFromAppPy:
-    """Verify that tests pass when importing from app.py (reference implementation)."""
+class TestWebSocketBroadcastConfigFromExtensionsModule:
+    """Verify that tests pass when importing from extensions module."""
 
-    def test_import_from_app_py(self) -> None:
-        """Test importing WebSocketBroadcastConfig from app.py works (baseline)."""
-        from gobby.config.app import WebSocketBroadcastConfig
+    def test_import_from_extensions_module(self) -> None:
+        """Test importing WebSocketBroadcastConfig from extensions module works."""
+        from gobby.config.extensions import WebSocketBroadcastConfig
 
         config = WebSocketBroadcastConfig()
         assert config.enabled is True
 
 
-class TestWebhookEndpointConfigFromAppPy:
-    """Verify WebhookEndpointConfig tests pass when importing from app.py."""
+class TestWebhookEndpointConfigFromExtensionsModule:
+    """Verify WebhookEndpointConfig tests pass when importing from extensions module."""
 
-    def test_import_from_app_py(self) -> None:
-        """Test importing WebhookEndpointConfig from app.py works (baseline)."""
-        from gobby.config.app import WebhookEndpointConfig
+    def test_import_from_extensions_module(self) -> None:
+        """Test importing WebhookEndpointConfig from extensions module works."""
+        from gobby.config.extensions import WebhookEndpointConfig
 
         config = WebhookEndpointConfig(name="test", url="https://example.com")
         assert config.timeout == 10.0
 
-    def test_validation_via_app_py(self) -> None:
-        """Test validation works when imported from app.py."""
-        from gobby.config.app import WebhookEndpointConfig
+    def test_validation_via_extensions_module(self) -> None:
+        """Test validation works when imported from extensions module."""
+        from gobby.config.extensions import WebhookEndpointConfig
 
         with pytest.raises(ValidationError):
             WebhookEndpointConfig(name="test", url="https://example.com", timeout=0.5)
 
 
-class TestWebhooksConfigFromAppPy:
-    """Verify WebhooksConfig tests pass when importing from app.py."""
+class TestWebhooksConfigFromExtensionsModule:
+    """Verify WebhooksConfig tests pass when importing from extensions module."""
 
-    def test_import_from_app_py(self) -> None:
-        """Test importing WebhooksConfig from app.py works (baseline)."""
-        from gobby.config.app import WebhooksConfig
+    def test_import_from_extensions_module(self) -> None:
+        """Test importing WebhooksConfig from extensions module works."""
+        from gobby.config.extensions import WebhooksConfig
 
         config = WebhooksConfig()
         assert config.enabled is True
 
 
-class TestPluginsConfigFromAppPy:
-    """Verify PluginsConfig tests pass when importing from app.py."""
+class TestPluginsConfigFromExtensionsModule:
+    """Verify PluginsConfig tests pass when importing from extensions module."""
 
-    def test_import_from_app_py(self) -> None:
-        """Test importing PluginsConfig from app.py works (baseline)."""
-        from gobby.config.app import PluginsConfig
+    def test_import_from_extensions_module(self) -> None:
+        """Test importing PluginsConfig from extensions module works."""
+        from gobby.config.extensions import PluginsConfig
 
         config = PluginsConfig()
         assert config.enabled is False

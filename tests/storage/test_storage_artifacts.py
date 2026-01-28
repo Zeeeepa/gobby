@@ -318,9 +318,9 @@ class TestSessionArtifactsMigration:
         sql_lower = row["sql"].lower()
 
         # Check for foreign key reference to sessions
-        assert (
-            "references sessions" in sql_lower or "foreign key" in sql_lower
-        ), "session_artifacts missing foreign key to sessions"
+        assert "references sessions" in sql_lower or "foreign key" in sql_lower, (
+            "session_artifacts missing foreign key to sessions"
+        )
 
     def test_cascade_delete_on_session(self, tmp_path):
         """Test that deleting a session cascades to artifacts."""

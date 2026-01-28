@@ -433,7 +433,9 @@ class TestGetWorktreeBaseDir:
         """Test Windows path generation uses tempdir."""
         with (
             patch("gobby.mcp_proxy.tools.worktrees.platform.system", return_value="Windows"),
-            patch("gobby.mcp_proxy.tools.worktrees.tempfile.gettempdir", return_value=str(tmp_path)),
+            patch(
+                "gobby.mcp_proxy.tools.worktrees.tempfile.gettempdir", return_value=str(tmp_path)
+            ),
         ):
             path = _get_worktree_base_dir()
             assert "gobby-worktrees" in str(path)
@@ -445,18 +447,14 @@ class TestGenerateWorktreePath:
 
     def test_with_project_name(self, tmp_path):
         """Test path generation with project name."""
-        with patch(
-            "gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path
-        ):
+        with patch("gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path):
             path = _generate_worktree_path("feature/test", project_name="myproject")
             assert "myproject" in path
             assert "feature-test" in path
 
     def test_without_project_name(self, tmp_path):
         """Test path generation without project name."""
-        with patch(
-            "gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path
-        ):
+        with patch("gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path):
             path = _generate_worktree_path("feature/test")
             # No project subdirectory
             assert path == str(tmp_path / "feature-test")
@@ -479,9 +477,7 @@ class TestResolveProjectContext:
 
     def test_project_path_no_gobby(self, tmp_path):
         """Test with path that has no .gobby/project.json."""
-        with patch(
-            "gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None
-        ):
+        with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
             git_manager, project_id, error = _resolve_project_context(
                 project_path=str(tmp_path),
                 default_git_manager=None,

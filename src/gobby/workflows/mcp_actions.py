@@ -5,7 +5,10 @@ These functions handle MCP tool calls from workflows.
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -58,3 +61,19 @@ async def call_mcp_tool(
     except Exception as e:
         logger.error(f"call_mcp_tool: Failed: {e}")
         return {"error": str(e)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+
+async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for call_mcp_tool."""
+    return await call_mcp_tool(
+        mcp_manager=context.mcp_manager,
+        state=context.state,
+        server_name=kwargs.get("server_name"),
+        tool_name=kwargs.get("tool_name"),
+        arguments=kwargs.get("arguments"),
+        output_as=kwargs.get("as"),
+    )

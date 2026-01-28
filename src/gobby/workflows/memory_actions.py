@@ -344,3 +344,83 @@ async def memory_extract(
     except Exception as e:
         logger.error(f"memory_extract: Failed: {e}", exc_info=True)
         return {"error": str(e)}
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+if __name__ != "__main__":
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from gobby.workflows.actions import ActionContext
+
+
+async def handle_memory_sync_import(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_sync_import."""
+    return await memory_sync_import(context.memory_sync_manager)
+
+
+async def handle_memory_sync_export(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_sync_export."""
+    return await memory_sync_export(context.memory_sync_manager)
+
+
+async def handle_memory_save(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_save."""
+    return await memory_save(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        content=kwargs.get("content"),
+        memory_type=kwargs.get("memory_type", "fact"),
+        importance=kwargs.get("importance", 0.5),
+        tags=kwargs.get("tags"),
+        project_id=kwargs.get("project_id"),
+    )
+
+
+async def handle_memory_recall_relevant(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_recall_relevant."""
+    prompt_text = None
+    if context.event_data:
+        # Check both "prompt" (from hook event) and "prompt_text" (legacy/alternative)
+        prompt_text = context.event_data.get("prompt") or context.event_data.get("prompt_text")
+
+    return await memory_recall_relevant(
+        memory_manager=context.memory_manager,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        prompt_text=prompt_text,
+        project_id=kwargs.get("project_id"),
+        limit=kwargs.get("limit", 5),
+        min_importance=kwargs.get("min_importance", 0.3),
+        state=context.state,
+    )
+
+
+async def handle_reset_memory_injection_tracking(
+    context: "ActionContext", **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for reset_memory_injection_tracking."""
+    return reset_memory_injection_tracking(state=context.state)
+
+
+async def handle_memory_extract(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for memory_extract."""
+    return await memory_extract(
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        llm_service=context.llm_service,
+        memory_manager=context.memory_manager,
+        transcript_processor=context.transcript_processor,
+        min_importance=kwargs.get("min_importance", 0.7),
+        max_memories=kwargs.get("max_memories", 5),
+        dry_run=kwargs.get("dry_run", False),
+    )

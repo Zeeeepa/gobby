@@ -136,9 +136,7 @@ class TestSendToParent:
         )
 
     @pytest.mark.asyncio
-    async def test_send_to_parent_no_running_agent(
-        self, messaging_registry, mock_agent_registry
-    ):
+    async def test_send_to_parent_no_running_agent(self, messaging_registry, mock_agent_registry):
         """Test send_to_parent when session is not in running registry."""
         result = await messaging_registry.call(
             "send_to_parent",
@@ -197,9 +195,7 @@ class TestSendToChild:
         )
 
     @pytest.mark.asyncio
-    async def test_send_to_child_not_running(
-        self, messaging_registry, mock_agent_registry
-    ):
+    async def test_send_to_child_not_running(self, messaging_registry, mock_agent_registry):
         """Test send_to_child when child is not running."""
         result = await messaging_registry.call(
             "send_to_child",
@@ -214,9 +210,7 @@ class TestSendToChild:
         assert "not found" in result["error"].lower() or "not running" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_send_to_child_wrong_parent(
-        self, messaging_registry, mock_agent_registry
-    ):
+    async def test_send_to_child_wrong_parent(self, messaging_registry, mock_agent_registry):
         """Test send_to_child when parent doesn't match."""
         child_agent = RunningAgent(
             run_id="run-789",
@@ -243,9 +237,7 @@ class TestPollMessages:
     """Tests for poll_messages tool."""
 
     @pytest.mark.asyncio
-    async def test_poll_messages_success(
-        self, messaging_registry, mock_message_manager
-    ):
+    async def test_poll_messages_success(self, messaging_registry, mock_message_manager):
         """Test successful message polling."""
         mock_message_manager.get_messages.return_value = [
             MockInterSessionMessage(id="msg-1", content="Message 1"),
@@ -268,9 +260,7 @@ class TestPollMessages:
         )
 
     @pytest.mark.asyncio
-    async def test_poll_messages_all(
-        self, messaging_registry, mock_message_manager
-    ):
+    async def test_poll_messages_all(self, messaging_registry, mock_message_manager):
         """Test polling all messages (not just unread)."""
         result = await messaging_registry.call(
             "poll_messages",
@@ -287,9 +277,7 @@ class TestPollMessages:
         )
 
     @pytest.mark.asyncio
-    async def test_poll_messages_empty(
-        self, messaging_registry, mock_message_manager
-    ):
+    async def test_poll_messages_empty(self, messaging_registry, mock_message_manager):
         """Test polling when no messages exist."""
         mock_message_manager.get_messages.return_value = []
 
@@ -309,9 +297,7 @@ class TestMarkMessageRead:
     """Tests for mark_message_read tool."""
 
     @pytest.mark.asyncio
-    async def test_mark_message_read_success(
-        self, messaging_registry, mock_message_manager
-    ):
+    async def test_mark_message_read_success(self, messaging_registry, mock_message_manager):
         """Test successful message mark as read."""
         mock_message_manager.mark_read.return_value = MockInterSessionMessage(
             id="msg-123",
@@ -330,9 +316,7 @@ class TestMarkMessageRead:
         mock_message_manager.mark_read.assert_called_once_with("msg-123")
 
     @pytest.mark.asyncio
-    async def test_mark_message_read_not_found(
-        self, messaging_registry, mock_message_manager
-    ):
+    async def test_mark_message_read_not_found(self, messaging_registry, mock_message_manager):
         """Test marking non-existent message as read."""
         mock_message_manager.mark_read.side_effect = ValueError("Message not found")
 
@@ -378,9 +362,7 @@ class TestBroadcastToChildren:
         assert mock_message_manager.create_message.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_broadcast_to_children_no_children(
-        self, messaging_registry, mock_agent_registry
-    ):
+    async def test_broadcast_to_children_no_children(self, messaging_registry, mock_agent_registry):
         """Test broadcasting when no children exist."""
         result = await messaging_registry.call(
             "broadcast_to_children",

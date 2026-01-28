@@ -65,14 +65,6 @@ from gobby.hooks.plugins import (
 from gobby.hooks.session_coordinator import SessionCoordinator
 from gobby.hooks.webhooks import WebhookDispatcher
 
-# Legacy imports for backward compatibility
-from gobby.sessions.manager import SessionManager
-from gobby.sessions.summary import SummaryFileGenerator
-from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-
-# Backward-compatible alias
-TranscriptProcessor = ClaudeTranscriptParser
-
 __all__ = [
     # Core coordinator
     "HookManager",
@@ -96,9 +88,4 @@ __all__ = [
     "RegisteredHandler",
     "hook_handler",
     "run_plugin_handlers",
-    # Legacy exports (backward compatibility)
-    "SessionManager",
-    "SummaryFileGenerator",
-    "TranscriptProcessor",
-    "ClaudeTranscriptParser",
 ]

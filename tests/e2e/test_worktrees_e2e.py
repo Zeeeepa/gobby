@@ -24,7 +24,9 @@ from tests.e2e.conftest import DaemonInstance, MCPTestClient
 # TODO: Fix by adding project existence verification or using daemon HTTP API
 pytestmark = [
     pytest.mark.e2e,
-    pytest.mark.skip(reason="E2E worktree tests have race condition - daemon/fixture db sync issue"),
+    pytest.mark.skip(
+        reason="E2E worktree tests have race condition - daemon/fixture db sync issue"
+    ),
 ]
 
 

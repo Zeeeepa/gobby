@@ -234,7 +234,11 @@ class TestStatusCommand:
     @patch("gobby.cli.load_config")
     @patch("gobby.cli.daemon.get_gobby_home")
     def test_status_no_pid_file(
-        self, mock_get_home: MagicMock, mock_load_config: MagicMock, runner: CliRunner, temp_dir: Path
+        self,
+        mock_get_home: MagicMock,
+        mock_load_config: MagicMock,
+        runner: CliRunner,
+        temp_dir: Path,
     ):
         """Test status when no PID file exists."""
         mock_config = MagicMock()

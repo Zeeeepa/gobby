@@ -30,8 +30,18 @@ __all__ = [
     "SearchBackend",
     "SearchResult",
     "TFIDFSearcher",
+    "SearchCoordinator",
     "get_search_backend",
 ]
+
+
+# Lazy import for SearchCoordinator to avoid circular imports
+def __getattr__(name: str) -> Any:
+    if name == "SearchCoordinator":
+        from gobby.memory.search.coordinator import SearchCoordinator
+
+        return SearchCoordinator
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def get_search_backend(

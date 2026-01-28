@@ -85,21 +85,15 @@ class TestSearchArtifacts:
 class TestGetArtifact:
     """Tests for get_artifact tool."""
 
-    def test_nonexistent_artifact_returns_error(
-        self, artifacts_registry, mock_artifact_manager
-    ):
+    def test_nonexistent_artifact_returns_error(self, artifacts_registry, mock_artifact_manager):
         """Test that non-existent artifact returns error."""
         mock_artifact_manager.get_artifact.return_value = None
-        result = call_tool(
-            artifacts_registry, "get_artifact", artifact_id="nonexistent-id"
-        )
+        result = call_tool(artifacts_registry, "get_artifact", artifact_id="nonexistent-id")
         assert result["success"] is False
         assert "not found" in result["error"]
         assert result["artifact"] is None
 
-    def test_existing_artifact_returns_data(
-        self, artifacts_registry, mock_artifact_manager
-    ):
+    def test_existing_artifact_returns_data(self, artifacts_registry, mock_artifact_manager):
         """Test that existing artifact is returned."""
         mock_artifact = MagicMock()
         mock_artifact.to_dict.return_value = {"id": "art-123", "content": "test"}
@@ -109,9 +103,7 @@ class TestGetArtifact:
         assert result["success"] is True
         assert result["artifact"]["id"] == "art-123"
 
-    def test_get_artifact_exception_handling(
-        self, artifacts_registry, mock_artifact_manager
-    ):
+    def test_get_artifact_exception_handling(self, artifacts_registry, mock_artifact_manager):
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.get_artifact.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="test-id")
@@ -135,29 +127,21 @@ class TestGetTimeline:
         assert result["success"] is False
         assert "session_id is required" in result["error"]
 
-    def test_valid_session_returns_timeline(
-        self, artifacts_registry, mock_artifact_manager
-    ):
+    def test_valid_session_returns_timeline(self, artifacts_registry, mock_artifact_manager):
         """Test that valid session_id returns timeline."""
         mock_artifact = MagicMock()
         mock_artifact.to_dict.return_value = {"id": "art-1", "created_at": "2024-01-01"}
         mock_artifact_manager.list_artifacts.return_value = [mock_artifact]
 
-        result = call_tool(
-            artifacts_registry, "get_timeline", session_id="sess-123"
-        )
+        result = call_tool(artifacts_registry, "get_timeline", session_id="sess-123")
         assert result["success"] is True
         assert result["count"] == 1
         mock_artifact_manager.list_artifacts.assert_called_once()
 
-    def test_timeline_exception_handling(
-        self, artifacts_registry, mock_artifact_manager
-    ):
+    def test_timeline_exception_handling(self, artifacts_registry, mock_artifact_manager):
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.list_artifacts.side_effect = Exception("DB error")
-        result = call_tool(
-            artifacts_registry, "get_timeline", session_id="sess-123"
-        )
+        result = call_tool(artifacts_registry, "get_timeline", session_id="sess-123")
         assert result["success"] is False
         assert "DB error" in result["error"]
 

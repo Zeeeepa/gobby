@@ -1,10 +1,10 @@
 from datetime import UTC
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.session_messages import create_session_messages_registry
+from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager, Session
 
@@ -177,10 +177,12 @@ def _make_mock_session(session_id: str = "sess-123", **kwargs) -> MagicMock:
 async def test_get_session(mock_session_manager, full_sessions_registry):
     """Test get_session tool execution."""
     mock_session = _make_mock_session("sess-abc")
+    mock_session_manager.resolve_session_reference.return_value = "sess-abc"
     mock_session_manager.get.return_value = mock_session
 
     result = await full_sessions_registry.call("get_session", {"session_id": "sess-abc"})
 
+    mock_session_manager.resolve_session_reference.assert_called_with("sess-abc", ANY)
     mock_session_manager.get.assert_called_with("sess-abc")
     assert result["found"] is True
     assert result["id"] == "sess-abc"
@@ -189,6 +191,7 @@ async def test_get_session(mock_session_manager, full_sessions_registry):
 @pytest.mark.asyncio
 async def test_get_session_not_found(mock_session_manager, full_sessions_registry):
     """Test get_session returns error when not found."""
+    mock_session_manager.resolve_session_reference.side_effect = ValueError("Not found")
     mock_session_manager.get.return_value = None
     mock_session_manager.list.return_value = []
 
@@ -202,8 +205,9 @@ async def test_get_session_not_found(mock_session_manager, full_sessions_registr
 async def test_get_session_prefix_match(mock_session_manager, full_sessions_registry):
     """Test get_session supports prefix matching."""
     mock_session = _make_mock_session("sess-abc123")
-    mock_session_manager.get.return_value = None  # Direct lookup fails
-    mock_session_manager.list.return_value = [mock_session]  # But prefix match works
+    # resolve_session_reference handles prefix matching and returns the full ID
+    mock_session_manager.resolve_session_reference.return_value = "sess-abc123"
+    mock_session_manager.get.return_value = mock_session
 
     result = await full_sessions_registry.call("get_session", {"session_id": "sess-abc"})
 
@@ -273,10 +277,13 @@ async def test_get_handoff_context(mock_session_manager, full_sessions_registry)
     """Test get_handoff_context tool execution."""
     mock_session = _make_mock_session("sess-abc")
     mock_session.compact_markdown = "## Continuation Context\n\nTest handoff content"
+    mock_session.seq_num = None
+    mock_session_manager.resolve_session_reference.return_value = "sess-abc"
     mock_session_manager.get.return_value = mock_session
 
     result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})
 
+    mock_session_manager.resolve_session_reference.assert_called_with("sess-abc", ANY)
     mock_session_manager.get.assert_called_with("sess-abc")
     assert result["session_id"] == "sess-abc"
     assert result["has_context"] is True
@@ -286,6 +293,7 @@ async def test_get_handoff_context(mock_session_manager, full_sessions_registry)
 @pytest.mark.asyncio
 async def test_get_handoff_context_not_found(mock_session_manager, full_sessions_registry):
     """Test get_handoff_context when session not found."""
+    mock_session_manager.resolve_session_reference.side_effect = ValueError("Not found")
     mock_session_manager.get.return_value = None
 
     result = await full_sessions_registry.call("get_handoff_context", {"session_id": "nonexistent"})
@@ -299,6 +307,8 @@ async def test_get_handoff_context_no_context(mock_session_manager, full_session
     """Test get_handoff_context when session has no handoff context."""
     mock_session = _make_mock_session("sess-abc")
     mock_session.compact_markdown = None
+    mock_session.seq_num = None
+    mock_session_manager.resolve_session_reference.return_value = "sess-abc"
     mock_session_manager.get.return_value = mock_session
 
     result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})

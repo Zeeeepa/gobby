@@ -5,6 +5,106 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2025-01-28
+
+### Major Features
+
+#### Unified Spawn Agent API
+- New unified `spawn_agent` MCP tool replacing legacy spawn tools
+- `IsolationHandler` abstraction with `CurrentIsolationHandler`, `WorktreeIsolationHandler`, and `CloneIsolationHandler`
+- `SpawnExecutor` for unified spawn dispatch across all isolation modes
+- `generic.yaml` agent and workflow definitions as reference implementations
+- Deprecation warnings added to `spawn_agent_in_worktree`, `spawn_agent_in_clone`, and `start_agent`
+
+#### Agent Sandboxing
+- `SandboxConfig` models for agent spawning with network and filesystem controls
+- Sandbox resolvers for CLI-specific configuration (Claude, Gemini, Codex)
+- Sandbox params in `spawn_agent` MCP tool and `build_cli_command`
+- `sandboxed.yaml` example agent demonstrating sandbox configuration
+- Integration and unit tests for sandbox functionality
+
+#### Project-Scoped Session References
+- Database schema for project-scoped session sequential numbers
+- CLI integration for displaying `#N` style session refs
+- MCP tools and display updates for session refs
+- Migration 77 for session seq_num backfill
+
+#### Database Migration V2 Baseline
+- Flattened baseline schema (BASELINE_SCHEMA_V2) for fresh installs
+- `use_flattened_baseline` config option (defaults to True)
+- `schema_dump.sql` for schema documentation
+- Migration documentation updates
+
+### Architecture Refactoring
+
+#### Memory Module Decomposition
+- New `ingestion/` package for memory ingestion pipeline
+- New `services/` package with `CrossrefService`
+- New `search/` package with `SearchCoordinator`
+- `MemoryManager` updated as facade for extracted components
+
+#### Session Tools Decomposition
+- New `sessions/` package under `mcp_proxy/tools/`
+- Extracted `_messages.py`, `_handoff.py`, `_crud.py`, `_commits.py` modules
+- Created `_factory.py` for tool registry construction
+- Deleted monolithic `session_messages.py`
+
+#### Task Enforcement Decomposition
+- New `enforcement/` package under `workflows/`
+- Extracted `blocking.py`, `commit_policy.py`, `task_policy.py`, `handlers.py`
+- Removed facade pattern in favor of direct imports
+
+#### Codex Adapter Decomposition
+- New `codex_impl/` package under `adapters/`
+- Extracted `adapter.py`, `client.py`, `types.py`, `protocol.py`
+- Removed `codex.py` facade
+
+#### Other Refactoring
+- Endpoints decomposition for `tools.py` (discovery, server, execution, registry)
+- `ActionExecutor.register_defaults` refactored to use external handlers
+- `safe_evaluator.py` module for workflow evaluation
+- Extended `git_utils.py` with additional helpers
+- Config module cleanup: removed deprecated prompt fields, added prompt_path pattern
+
+### Bug Fixes
+
+- Fixed `delete_task` recursion bug when parent task depends on children (#6366)
+- Fixed config tests for `prompt_path` refactor (#6367)
+- Fixed `mock_memory_manager.get_related` to use `AsyncMock` (#6368)
+- Fixed mypy type errors in 4 files (#6365)
+- Fixed pytest failures from config refactor and async/sync mismatches (#6362)
+- Fixed task lifecycle tools returning `success: true` on errors (#6197)
+- Fixed stop hook to use task ref and single newline (#6165)
+- Fixed race conditions, error handling in various modules (#6326)
+- Fixed import errors after enforcement refactor (#6347)
+
+### Documentation
+
+- Added `search.md` guide for unified search functionality (#6364)
+- Added `configuration.md` guide for daemon configuration (#6363)
+- Comprehensive documentation guide updates (#6350-#6361)
+- Updated doctor skill with Phase 5 Security Audit section
+- Created `usage` skill for token and cost reporting
+- Added unified `spawn_agent` API design document
+- Added sandboxing documentation
+- Added migration documentation updates
+
+### Improvements
+
+- `/gobby` router skill and `/g` alias for quick skill access
+- Skill category support (`core`, etc.) with `alwaysApply` frontmatter
+- Model extraction from Claude and Gemini transcript messages
+- Session message format updated to show Ref before ID
+- Meeseeks-box spawn instructions include workflow activation prompt
+
+### Internal
+
+- Multiple code quality fixes across 50+ files
+- Removed backward compatibility shims from config and spawn modules
+- Cleaned up unused re-exports and deprecated parameters
+- Added nosec B110 annotations for intentional exception silencing
+- Reorganized plans directory and cleaned deprecated files
+
 ## [0.2.6] - 2025-01-26
 
 ### Major Features

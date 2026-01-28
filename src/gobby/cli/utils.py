@@ -118,7 +118,7 @@ def get_active_session_id(db: LocalDatabase | None = None) -> str | None:
             db.close()
 
 
-def resolve_session_id(session_ref: str | None) -> str:
+def resolve_session_id(session_ref: str | None, project_id: str | None = None) -> str:
     """
     Resolve session reference to UUID.
 
@@ -126,6 +126,8 @@ def resolve_session_id(session_ref: str | None) -> str:
 
     Args:
         session_ref: User input string (UUID, #N, N, prefix) or None
+        project_id: Project ID for project-scoped #N lookup.
+            If not provided, auto-detected from current project context.
 
     Returns:
         Resolved UUID string
@@ -142,10 +144,15 @@ def resolve_session_id(session_ref: str | None) -> str:
                 raise click.ClickException("No active session found. Specify --session.")
             return active_id
 
+        # Get project_id from context if not provided
+        if not project_id:
+            ctx = get_project_context()
+            project_id = ctx.get("id") if ctx else None
+
         # Use SessionManager for resolution logic
         manager = LocalSessionManager(db)
         try:
-            return manager.resolve_session_reference(session_ref)
+            return manager.resolve_session_reference(session_ref, project_id)
         except ValueError as e:
             raise click.ClickException(str(e)) from None
     finally:

@@ -58,15 +58,15 @@ class TestHookSkillManager:
         skill_names = [s.name for s in skills]
         assert "claiming-tasks" in skill_names
 
-    def test_discover_core_skills_finds_gobby_sessions_skill(self):
-        """Test that discover_core_skills finds the gobby-sessions skill."""
+    def test_discover_core_skills_finds_sessions_skill(self):
+        """Test that discover_core_skills finds the sessions skill."""
         from gobby.hooks.skill_manager import HookSkillManager
 
         manager = HookSkillManager()
         skills = manager.discover_core_skills()
 
         skill_names = [s.name for s in skills]
-        assert "gobby-sessions" in skill_names
+        assert "sessions" in skill_names
 
     def test_discovered_skills_have_name_and_content(self):
         """Test that discovered skills have name and content attributes."""

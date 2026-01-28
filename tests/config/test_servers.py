@@ -275,7 +275,7 @@ class TestWebSocketSettingsFromAppPy:
 
     def test_import_from_app_py(self) -> None:
         """Test importing WebSocketSettings from app.py works (baseline)."""
-        from gobby.config.app import WebSocketSettings
+        from gobby.config.servers import WebSocketSettings
 
         settings = WebSocketSettings()
         assert settings.enabled is True
@@ -283,7 +283,7 @@ class TestWebSocketSettingsFromAppPy:
 
     def test_validation_via_app_py(self) -> None:
         """Test validation works when imported from app.py."""
-        from gobby.config.app import WebSocketSettings
+        from gobby.config.servers import WebSocketSettings
 
         with pytest.raises(ValidationError):
             WebSocketSettings(port=100)  # Below valid range

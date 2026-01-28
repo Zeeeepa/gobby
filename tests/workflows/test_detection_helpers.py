@@ -222,9 +222,7 @@ class TestDetectTaskClaimCloseTaskBehavior:
     - Failed close_task leaves task_claimed unchanged
     """
 
-    def test_successful_close_task_clears_task_claimed(
-        self, workflow_state, make_after_tool_event
-    ):
+    def test_successful_close_task_clears_task_claimed(self, workflow_state, make_after_tool_event):
         """Successful close_task should clear task_claimed for CLIs that send tool_result."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
@@ -350,9 +348,7 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in workflow_state.variables
 
-    def test_does_not_set_task_claimed_on_claim_error(
-        self, workflow_state, make_after_tool_event
-    ):
+    def test_does_not_set_task_claimed_on_claim_error(self, workflow_state, make_after_tool_event):
         """claim_task with error response does NOT set task_claimed."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",

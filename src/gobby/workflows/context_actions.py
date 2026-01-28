@@ -6,10 +6,14 @@ These functions handle context injection, message injection, and handoff extract
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 from gobby.workflows.git_utils import get_git_status, get_recent_git_commits
 
@@ -435,3 +439,48 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
         sections.append("\n".join(lines))
 
     return "\n\n".join(sections)
+
+
+# --- ActionHandler-compatible wrappers ---
+# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
+
+
+async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for inject_context."""
+    return await asyncio.to_thread(
+        inject_context,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        state=context.state,
+        template_engine=context.template_engine,
+        source=kwargs.get("source"),
+        template=kwargs.get("template"),
+        require=kwargs.get("require", False),
+    )
+
+
+async def handle_inject_message(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """ActionHandler wrapper for inject_message."""
+    return await asyncio.to_thread(
+        inject_message,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        state=context.state,
+        template_engine=context.template_engine,
+        content=kwargs.get("content"),
+        **{k: v for k, v in kwargs.items() if k != "content"},
+    )
+
+
+async def handle_extract_handoff_context(
+    context: ActionContext, **kwargs: Any
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for extract_handoff_context."""
+    return await asyncio.to_thread(
+        extract_handoff_context,
+        session_manager=context.session_manager,
+        session_id=context.session_id,
+        config=context.config,
+        db=context.db,
+        worktree_manager=kwargs.get("worktree_manager"),
+    )

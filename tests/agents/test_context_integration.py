@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.agents.context import ContextResolver, format_injected_prompt
-from gobby.config.app import ContextInjectionConfig
 from gobby.mcp_proxy.tools.agents import create_agents_registry
 
 
@@ -52,16 +51,6 @@ def temp_project():
         context_file = Path(tmpdir) / "context.md"
         context_file.write_text("# File Context\n\nContent from file.")
         yield Path(tmpdir)
-
-
-@pytest.fixture
-def context_config():
-    """Create a context injection config."""
-    return ContextInjectionConfig(
-        enabled=True,
-        default_source="summary_markdown",
-        max_content_size=1000,
-    )
 
 
 @pytest.mark.integration
@@ -156,49 +145,17 @@ class TestFormatInjectedPromptIntegration:
 
 @pytest.mark.integration
 class TestAgentsRegistryContextIntegration:
-    """Integration tests for context injection in agents registry."""
+    """Integration tests for agents registry creation."""
 
-    def test_registry_with_context_config(
-        self, mock_runner, mock_session_manager, mock_message_manager, context_config
-    ):
-        """Registry is created with context configuration."""
-        registry = create_agents_registry(
-            runner=mock_runner,
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            context_config=context_config,
-        )
+    def test_registry_creates_with_runner(self, mock_runner):
+        """Registry is created with just a runner."""
+        registry = create_agents_registry(runner=mock_runner)
 
         assert registry.name == "gobby-agents"
-        # Registry should have start_agent tool
+        # Registry should have spawn_agent tool (unified tool)
         tools = registry.list_tools()
         tool_names = [t["name"] for t in tools]
-        assert "start_agent" in tool_names
-
-    def test_registry_without_managers_no_resolver(self, mock_runner):
-        """Registry without managers has no context resolution."""
-        registry = create_agents_registry(
-            runner=mock_runner,
-            session_manager=None,
-            message_manager=None,
-        )
-
-        assert registry.name == "gobby-agents"
-
-    def test_registry_respects_disabled_config(
-        self, mock_runner, mock_session_manager, mock_message_manager
-    ):
-        """Registry respects disabled context injection config."""
-        config = ContextInjectionConfig(enabled=False)
-        registry = create_agents_registry(
-            runner=mock_runner,
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            context_config=config,
-        )
-
-        # Registry should still be created
-        assert registry.name == "gobby-agents"
+        assert "spawn_agent" in tool_names
 
 
 @pytest.mark.integration
