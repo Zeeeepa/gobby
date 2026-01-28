@@ -163,39 +163,56 @@ def clear_stop_signal(
     return {"success": True, "cleared": cleared}
 
 
-# --- ActionHandler-compatible wrappers ---
-# These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
-# Note: ActionExecutor passes self.stop_registry, so we need to access it from executor
+# --- ActionHandler factory functions ---
+# These create ActionHandler-compatible wrappers that close over the stop_registry.
+# The ActionExecutor calls these factories in _register_defaults() to create handlers
+# that have access to the executor's stop_registry instance.
 
 
-async def handle_check_stop_signal(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for check_stop_signal.
+def make_handle_check_stop_signal(
+    stop_registry: "StopRegistry | None",
+) -> Any:
+    """Factory that creates a check_stop_signal handler with access to stop_registry."""
 
-    Note: stop_registry is accessed from the ActionExecutor instance, not context.
-    This handler must be called with the executor's stop_registry.
-    """
-    # This is a special case - stop_registry comes from the executor, not context
-    # The handler will be registered with a closure or partial in actions.py
-    raise NotImplementedError(
-        "handle_check_stop_signal requires executor access - use closure in register_defaults"
-    )
+    async def handler(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
+        """ActionHandler for check_stop_signal."""
+        return check_stop_signal(
+            stop_registry=stop_registry,
+            session_id=context.session_id,
+            state=context.state,
+            acknowledge=kwargs.get("acknowledge", False),
+        )
 
-
-async def handle_request_stop(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for request_stop.
-
-    Note: stop_registry is accessed from the ActionExecutor instance, not context.
-    """
-    raise NotImplementedError(
-        "handle_request_stop requires executor access - use closure in register_defaults"
-    )
+    return handler
 
 
-async def handle_clear_stop_signal(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for clear_stop_signal.
+def make_handle_request_stop(
+    stop_registry: "StopRegistry | None",
+) -> Any:
+    """Factory that creates a request_stop handler with access to stop_registry."""
 
-    Note: stop_registry is accessed from the ActionExecutor instance, not context.
-    """
-    raise NotImplementedError(
-        "handle_clear_stop_signal requires executor access - use closure in register_defaults"
-    )
+    async def handler(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
+        """ActionHandler for request_stop."""
+        return request_stop(
+            stop_registry=stop_registry,
+            session_id=kwargs.get("session_id", context.session_id),
+            source=kwargs.get("source", "workflow"),
+            reason=kwargs.get("reason"),
+        )
+
+    return handler
+
+
+def make_handle_clear_stop_signal(
+    stop_registry: "StopRegistry | None",
+) -> Any:
+    """Factory that creates a clear_stop_signal handler with access to stop_registry."""
+
+    async def handler(context: "Any", **kwargs: Any) -> dict[str, Any] | None:
+        """ActionHandler for clear_stop_signal."""
+        return clear_stop_signal(
+            stop_registry=stop_registry,
+            session_id=kwargs.get("session_id", context.session_id),
+        )
+
+    return handler

@@ -82,11 +82,15 @@ if __name__ != "__main__":
 
 async def handle_call_llm(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for call_llm."""
+    session = context.session_manager.get(context.session_id)
+    if session is None:
+        return {"error": f"Session not found: {context.session_id}"}
+
     return await call_llm(
         llm_service=context.llm_service,
         template_engine=context.template_engine,
         state=context.state,
-        session=context.session_manager.get(context.session_id),
+        session=session,
         prompt=kwargs.get("prompt"),
         output_as=kwargs.get("output_as"),
         **{k: v for k, v in kwargs.items() if k not in ("prompt", "output_as")},

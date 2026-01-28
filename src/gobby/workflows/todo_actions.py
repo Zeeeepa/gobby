@@ -4,6 +4,7 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle TODO.md file operations.
 """
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -96,7 +97,8 @@ if __name__ != "__main__":
 
 async def handle_write_todos(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for write_todos."""
-    return write_todos(
+    return await asyncio.to_thread(
+        write_todos,
         todos=kwargs.get("todos", []),
         filename=kwargs.get("filename", "TODO.md"),
         mode=kwargs.get("mode", "w"),
@@ -107,7 +109,12 @@ async def handle_mark_todo_complete(
     context: "ActionContext", **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for mark_todo_complete."""
-    return mark_todo_complete(
-        todo_text=kwargs.get("todo_text", ""),
+    todo_text = kwargs.get("todo_text")
+    if not todo_text:
+        return {"error": "Missing required parameter: todo_text"}
+
+    return await asyncio.to_thread(
+        mark_todo_complete,
+        todo_text=todo_text,
         filename=kwargs.get("filename", "TODO.md"),
     )

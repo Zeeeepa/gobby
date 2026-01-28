@@ -200,30 +200,34 @@ async def get_workflow_tasks(
     if not wf_name:
         return {"error": "No workflow name specified"}
 
-    current_session = await asyncio.to_thread(session_manager.get, session_id)
-    project_id = current_session.project_id if current_session else None
+    try:
+        current_session = await asyncio.to_thread(session_manager.get, session_id)
+        project_id = current_session.project_id if current_session else None
 
-    tasks = await asyncio.to_thread(
-        _get_workflow_tasks,
-        db=db,
-        workflow_name=wf_name,
-        project_id=project_id,
-        include_closed=include_closed,
-    )
+        tasks = await asyncio.to_thread(
+            _get_workflow_tasks,
+            db=db,
+            workflow_name=wf_name,
+            project_id=project_id,
+            include_closed=include_closed,
+        )
 
-    # Convert to dicts for YAML/JSON serialization
-    tasks_data = [t.to_dict() for t in tasks]
+        # Convert to dicts for YAML/JSON serialization
+        tasks_data = [t.to_dict() for t in tasks]
 
-    # Store in variable if requested
-    if output_as:
-        if not state.variables:
-            state.variables = {}
-        state.variables[output_as] = tasks_data
+        # Store in variable if requested
+        if output_as:
+            if not state.variables:
+                state.variables = {}
+            state.variables[output_as] = tasks_data
 
-    # Also update task_list in state for workflow engine use
-    state.task_list = [{"id": t.id, "title": t.title, "status": t.status} for t in tasks]
+        # Also update task_list in state for workflow engine use
+        state.task_list = [{"id": t.id, "title": t.title, "status": t.status} for t in tasks]
 
-    return {"tasks": tasks_data, "count": len(tasks)}
+        return {"tasks": tasks_data, "count": len(tasks)}
+    except Exception as e:
+        logger.error(f"get_workflow_tasks: Failed: {e}", exc_info=True)
+        return {"error": str(e)}
 
 
 async def update_workflow_task(
@@ -262,19 +266,23 @@ async def update_workflow_task(
     if not tid:
         return {"error": "No task_id specified"}
 
-    task = await asyncio.to_thread(
-        update_task_from_workflow,
-        db=db,
-        task_id=tid,
-        status=status,
-        verification=verification,
-        validation_status=validation_status,
-        validation_feedback=validation_feedback,
-    )
+    try:
+        task = await asyncio.to_thread(
+            update_task_from_workflow,
+            db=db,
+            task_id=tid,
+            status=status,
+            verification=verification,
+            validation_status=validation_status,
+            validation_feedback=validation_feedback,
+        )
 
-    if task:
-        return {"updated": True, "task": task.to_dict()}
-    return {"updated": False, "error": "Task not found"}
+        if task:
+            return {"updated": True, "task": task.to_dict()}
+        return {"updated": False, "error": "Task not found"}
+    except Exception as e:
+        logger.error(f"update_workflow_task: Failed for task {tid}: {e}", exc_info=True)
+        return {"updated": False, "error": str(e)}
 
 
 # --- ActionHandler-compatible wrappers ---

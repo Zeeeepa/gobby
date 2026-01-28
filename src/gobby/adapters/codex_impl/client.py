@@ -537,10 +537,18 @@ class CodexAppServerClient:
             # Send request - offload blocking I/O to thread executor
             request_line = json.dumps(request) + "\n"
 
+            # Capture local references to avoid race with stop()
+            process = self._process
+            stdin = process.stdin if process is not None else None
+
             def write_request() -> None:
-                assert self._process and self._process.stdin
-                self._process.stdin.write(request_line)
-                self._process.stdin.flush()
+                if stdin is None:
+                    return
+                stdin.write(request_line)
+                stdin.flush()
+
+            if stdin is None:
+                raise RuntimeError("Not connected to Codex app-server")
 
             await loop.run_in_executor(None, write_request)
 
@@ -566,10 +574,18 @@ class CodexAppServerClient:
 
         notification_line = json.dumps(notification) + "\n"
 
+        # Capture local references to avoid race with stop()
+        process = self._process
+        stdin = process.stdin if process is not None else None
+
         def write_notification() -> None:
-            assert self._process and self._process.stdin
-            self._process.stdin.write(notification_line)
-            self._process.stdin.flush()
+            if stdin is None:
+                return
+            stdin.write(notification_line)
+            stdin.flush()
+
+        if stdin is None:
+            raise RuntimeError("Not connected to Codex app-server")
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, write_notification)

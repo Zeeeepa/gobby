@@ -289,8 +289,9 @@ def get_progress_summary(
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 # Note: These handlers require executor access for progress_tracker and stuck_detector,
-# so they will use closures in register_defaults rather than direct registration.
+# so they are created as closures inside ActionExecutor._register_defaults().
 
-# The wrapper functions are defined here for documentation purposes, but the actual
-# registration happens via closures in ActionExecutor._register_defaults() that
-# capture the executor's self.progress_tracker and self.stuck_detector references.
+# No wrapper functions are defined in this file. The actual handler implementations
+# are closures created in ActionExecutor._register_defaults() which capture the
+# executor's self.progress_tracker and self.stuck_detector references. See that
+# method for the actual implementations and where these components are hooked up.

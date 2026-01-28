@@ -271,7 +271,14 @@ async def search_mcp_tools(
     _metrics.inc_counter("http_requests_total")
 
     try:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except json.JSONDecodeError as err:
+            raise HTTPException(
+                status_code=400,
+                detail={"success": False, "error": "Malformed JSON", "message": str(err)},
+            ) from err
+
         query = body.get("query")
         top_k = body.get("top_k", 10)
         min_similarity = body.get("min_similarity", 0.0)
@@ -288,12 +295,16 @@ async def search_mcp_tools(
         try:
             project_id = server._resolve_project_id(None, cwd)
         except ValueError as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "query": query,
-                "response_time_ms": (time.perf_counter() - start_time) * 1000,
-            }
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error": str(e),
+                    "query": query,
+                    "response_time_ms": response_time_ms,
+                },
+            ) from e
 
         # Use semantic search directly if available
         if server._tools_handler and server._tools_handler._semantic_search:

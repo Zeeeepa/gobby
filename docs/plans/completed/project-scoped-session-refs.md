@@ -77,7 +77,12 @@ def resolve_session_reference(self, ref: str, project_id: str | None = None) -> 
             )
 ```
 
-**Backfill Migration** (`src/gobby/storage/migrations_legacy.py`):
+**Backfill Migration** (`src/gobby/storage/migrations.py` - `_migrate_backfill_session_seq_num_per_project`):
+
+> **Note**: The snippet below was the pre-consolidation plan. The actual backfill now lives in
+> `_migrate_backfill_session_seq_num_per_project()` in the migrations module, which handles
+> per-project seq_num assignment during schema migration.
+
 ```python
 # Get all sessions grouped by project, ordered by created_at
 sessions = db.fetchall("""
