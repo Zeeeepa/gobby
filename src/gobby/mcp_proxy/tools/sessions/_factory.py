@@ -2,18 +2,19 @@
 
 Orchestrates the creation of all session tool sub-registries and merges them
 into a unified registry.
-
-Note: This is a transitional module. During the Strangler Fig migration,
-it re-exports from the original session_messages.py. Once all tools are
-extracted to their own modules, this will become the canonical factory.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.sessions._commits import register_commits_tools
+from gobby.mcp_proxy.tools.sessions._crud import register_crud_tools
+from gobby.mcp_proxy.tools.sessions._handoff import register_handoff_tools
+from gobby.mcp_proxy.tools.sessions._messages import register_message_tools
+
 if TYPE_CHECKING:
-    from gobby.mcp_proxy.tools.internal import InternalToolRegistry
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
@@ -27,9 +28,6 @@ def create_session_messages_registry(
     """
     Create a sessions tool registry with session and message tools.
 
-    This is a transitional wrapper that delegates to the original module.
-    Once the full extraction is complete, this will become the canonical factory.
-
     Args:
         message_manager: LocalSessionMessageManager instance for message operations
         session_manager: LocalSessionManager instance for session CRUD
@@ -37,9 +35,29 @@ def create_session_messages_registry(
     Returns:
         InternalToolRegistry with all session tools registered
     """
-    # Lazy import to avoid circular dependency
-    from gobby.mcp_proxy.tools.session_messages import (
-        create_session_messages_registry as _create_registry,
+    registry = InternalToolRegistry(
+        name="gobby-sessions",
+        description="Session management and message querying - CRUD, retrieval, search",
     )
 
-    return _create_registry(message_manager, session_manager)
+    # --- Message Tools ---
+    # Only register if message_manager is available
+    if message_manager is not None:
+        register_message_tools(registry, message_manager)
+
+    # --- Handoff Tools ---
+    # Only register if session_manager is available
+    if session_manager is not None:
+        register_handoff_tools(registry, session_manager)
+
+    # --- Session CRUD Tools ---
+    # Only register if session_manager is available
+    if session_manager is not None:
+        register_crud_tools(registry, session_manager)
+
+    # --- Commits Tools ---
+    # Only register if session_manager is available
+    if session_manager is not None:
+        register_commits_tools(registry, session_manager)
+
+    return registry
