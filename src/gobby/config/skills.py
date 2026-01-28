@@ -11,6 +11,37 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
+class HubConfig(BaseModel):
+    """
+    Configuration for a skill hub or collection.
+    """
+
+    type: Literal["clawdhub", "skillhub", "github-collection"] = Field(
+        ...,
+        description="Type of the hub: 'clawdhub', 'skillhub', or 'github-collection'",
+    )
+
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for the hub",
+    )
+
+    repo: str | None = Field(
+        default=None,
+        description="GitHub repository (e.g. 'owner/repo')",
+    )
+
+    branch: str | None = Field(
+        default=None,
+        description="Git branch to use",
+    )
+
+    auth_key_name: str | None = Field(
+        default=None,
+        description="Environment variable name for auth key",
+    )
+
+
 class SkillsConfig(BaseModel):
     """
     Configuration for skill injection and discovery.
