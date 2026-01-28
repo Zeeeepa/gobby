@@ -4,8 +4,15 @@ Extracted from actions.py as part of strangler fig decomposition.
 These are pure utility functions with no ActionContext dependency.
 """
 
+from __future__ import annotations
+
 import logging
 import subprocess  # nosec B404 - subprocess needed for git commands
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gobby.storage.session_tasks import SessionTaskManager
+    from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -94,3 +101,102 @@ def get_file_changes() -> str:
 
     except Exception:
         return "Unable to determine file changes"
+
+
+def get_dirty_files(project_path: str | None = None) -> set[str]:
+    """
+    Get the set of dirty files from git status --porcelain.
+
+    Excludes .gobby/ files from the result.
+
+    Args:
+        project_path: Path to the project directory
+
+    Returns:
+        Set of dirty file paths (relative to repo root)
+    """
+    if project_path is None:
+        logger.warning(
+            "get_dirty_files: project_path is None, git status will use daemon's cwd "
+            "which may not be the project directory"
+        )
+
+    try:
+        result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+            ["git", "status", "--porcelain"],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            logger.warning(f"get_dirty_files: git status failed: {result.stderr}")
+            return set()
+
+        dirty_files = set()
+        # Split by newline first, don't strip() the whole string as it removes
+        # the leading space from git status format (e.g., " M file.py")
+        for line in result.stdout.split("\n"):
+            line = line.rstrip()  # Remove trailing whitespace only
+            if not line:
+                continue
+            # Format is "XY filename" or "XY filename -> newname" for renames
+            # Skip the status prefix (first 3 chars: 2 status chars + space)
+            filepath = line[3:].split(" -> ")[0]  # Handle renames
+            # Exclude .gobby/ files
+            if not filepath.startswith(".gobby/"):
+                dirty_files.add(filepath)
+
+        return dirty_files
+
+    except subprocess.TimeoutExpired:
+        logger.warning("get_dirty_files: git status timed out")
+        return set()
+    except FileNotFoundError:
+        logger.warning("get_dirty_files: git not found")
+        return set()
+    except Exception as e:
+        logger.error(f"get_dirty_files: Error running git status: {e}")
+        return set()
+
+
+def get_task_session_liveness(
+    task_id: str,
+    session_task_manager: SessionTaskManager | None,
+    session_manager: LocalSessionManager | None,
+    exclude_session_id: str | None = None,
+) -> bool:
+    """
+    Check if a task is currently being worked on by an active session.
+
+    Args:
+        task_id: The task ID to check
+        session_task_manager: Manager to look up session-task links
+        session_manager: Manager to check session status
+        exclude_session_id: ID of session to exclude from check (e.g. current one)
+
+    Returns:
+        True if an active session (status='active') is linked to this task.
+    """
+    if not session_task_manager or not session_manager:
+        return False
+
+    try:
+        # Get all sessions linked to this task
+        linked_sessions = session_task_manager.get_task_sessions(task_id)
+
+        for link in linked_sessions:
+            session_id = link.get("session_id")
+            if not session_id or session_id == exclude_session_id:
+                continue
+
+            # Check if session is truly active
+            session = session_manager.get(session_id)
+            if session and session.status == "active":
+                return True
+
+        return False
+    except Exception as e:
+        logger.warning(f"get_task_session_liveness: Error checking liveness for {task_id}: {e}")
+        return False
