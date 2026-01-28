@@ -52,6 +52,11 @@ class Skill:
         - source_type: 'local', 'github', 'url', 'zip', 'filesystem'
         - source_ref: Git ref for updates (branch/tag/commit)
 
+    Hub Tracking:
+        - hub_name: Name of the hub the skill originated from
+        - hub_slug: Slug of the hub the skill originated from
+        - hub_version: Version of the skill as reported by the hub
+
     Gobby-specific:
         - enabled: Toggle skill on/off without removing
         - project_id: NULL for global, else project-scoped
@@ -78,6 +83,11 @@ class Skill:
     source_path: str | None = None
     source_type: SkillSourceType | None = None
     source_ref: str | None = None
+
+    # Hub Tracking
+    hub_name: str | None = None
+    hub_slug: str | None = None
+    hub_version: str | None = None
 
     # Gobby-specific
     enabled: bool = True
@@ -117,6 +127,9 @@ class Skill:
             source_path=row["source_path"],
             source_type=row["source_type"],
             source_ref=row["source_ref"],
+            hub_name=row["hub_name"] if "hub_name" in row.keys() else None,
+            hub_slug=row["hub_slug"] if "hub_slug" in row.keys() else None,
+            hub_version=row["hub_version"] if "hub_version" in row.keys() else None,
             enabled=bool(row["enabled"]),
             project_id=row["project_id"],
             created_at=row["created_at"],
@@ -142,6 +155,9 @@ class Skill:
             "source_path": self.source_path,
             "source_type": self.source_type,
             "source_ref": self.source_ref,
+            "hub_name": self.hub_name,
+            "hub_slug": self.hub_slug,
+            "hub_version": self.hub_version,
             "enabled": self.enabled,
             "project_id": self.project_id,
             "created_at": self.created_at,
@@ -387,6 +403,9 @@ class LocalSkillManager:
         source_path: str | None = None,
         source_type: SkillSourceType | None = None,
         source_ref: str | None = None,
+        hub_name: str | None = None,
+        hub_slug: str | None = None,
+        hub_version: str | None = None,
         enabled: bool = True,
         project_id: str | None = None,
     ) -> Skill:
@@ -404,6 +423,9 @@ class LocalSkillManager:
             source_path: Original file path or URL
             source_type: Source type ('local', 'github', 'url', 'zip', 'filesystem')
             source_ref: Git ref for updates
+            hub_name: Optional hub name
+            hub_slug: Optional hub slug
+            hub_version: Optional hub version
             enabled: Whether skill is active
             project_id: Project scope (None for global)
 
@@ -434,9 +456,9 @@ class LocalSkillManager:
                 INSERT INTO skills (
                     id, name, description, content, version, license,
                     compatibility, allowed_tools, metadata, source_path,
-                    source_type, source_ref, enabled, project_id,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_type, source_ref, hub_name, hub_slug, hub_version,
+                    enabled, project_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     skill_id,
@@ -451,6 +473,9 @@ class LocalSkillManager:
                     source_path,
                     source_type,
                     source_ref,
+                    hub_name,
+                    hub_slug,
+                    hub_version,
                     enabled,
                     project_id,
                     now,
@@ -530,6 +555,9 @@ class LocalSkillManager:
         source_path: str | None = _UNSET,
         source_type: SkillSourceType | None = _UNSET,
         source_ref: str | None = _UNSET,
+        hub_name: str | None = _UNSET,
+        hub_slug: str | None = _UNSET,
+        hub_version: str | None = _UNSET,
         enabled: bool | None = None,
     ) -> Skill:
         """Update an existing skill.
@@ -547,6 +575,9 @@ class LocalSkillManager:
             source_path: New source path (use _UNSET to leave unchanged, None to clear)
             source_type: New source type (use _UNSET to leave unchanged, None to clear)
             source_ref: New source ref (use _UNSET to leave unchanged, None to clear)
+            hub_name: New hub name (use _UNSET to leave unchanged, None to clear)
+            hub_slug: New hub slug (use _UNSET to leave unchanged, None to clear)
+            hub_version: New hub version (use _UNSET to leave unchanged, None to clear)
             enabled: New enabled state (optional)
 
         Returns:
