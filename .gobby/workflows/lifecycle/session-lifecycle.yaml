@@ -125,6 +125,7 @@ triggers:
         - mcp_tools: ["gobby-tasks:close_task"]
           when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix']"
           reason: |
+
             A commit is required before closing this task.
 
             **Normal flow:**
