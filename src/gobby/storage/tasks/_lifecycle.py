@@ -275,7 +275,11 @@ def unlink_commit(
 
 
 def delete_task(
-    db: DatabaseProtocol, task_id: str, cascade: bool = False, unlink: bool = False
+    db: DatabaseProtocol,
+    task_id: str,
+    cascade: bool = False,
+    unlink: bool = False,
+    _visited: set[str] | None = None,
 ) -> bool:
     """Delete a task.
 
@@ -285,6 +289,8 @@ def delete_task(
         cascade: If True, delete children AND dependent tasks recursively
         unlink: If True, remove dependency links but preserve dependent tasks
                 (ignored if cascade=True)
+        _visited: Internal parameter to track visited tasks and prevent infinite recursion
+                  when a parent task depends on its children (circular dependency)
 
     Returns:
         True if task was deleted, False if task not found.
@@ -292,6 +298,15 @@ def delete_task(
     Raises:
         ValueError: If task has children or dependents and neither cascade nor unlink is True.
     """
+    # Initialize visited set on first call to prevent infinite recursion
+    if _visited is None:
+        _visited = set()
+
+    # Skip if already being deleted (prevents cycles when parent depends on children)
+    if task_id in _visited:
+        return True
+    _visited.add(task_id)
+
     # Check if task exists first
     existing = db.fetchone("SELECT 1 FROM tasks WHERE id = ?", (task_id,))
     if not existing:
@@ -326,7 +341,7 @@ def delete_task(
         # Recursive delete children
         children = db.fetchall("SELECT id FROM tasks WHERE parent_task_id = ?", (task_id,))
         for child in children:
-            delete_task(db, child["id"], cascade=True)
+            delete_task(db, child["id"], cascade=True, _visited=_visited)
 
         # Delete tasks that depend on this task (only 'blocks' dependencies)
         dependents = db.fetchall(
@@ -336,7 +351,7 @@ def delete_task(
             (task_id,),
         )
         for dep in dependents:
-            delete_task(db, dep["id"], cascade=True)
+            delete_task(db, dep["id"], cascade=True, _visited=_visited)
 
     # Note: if unlink=True, dependency links are removed by ON DELETE CASCADE
     # when the task is deleted - no explicit action needed
