@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.task_enforcement_actions import (
+from gobby.workflows.enforcement import (
     capture_baseline_dirty_files,
     require_active_task,
     require_commit_before_stop,
@@ -15,6 +15,7 @@ from gobby.workflows.task_enforcement_actions import (
     require_task_review_or_close_before_stop,
     validate_session_task_scope,
 )
+from gobby.workflows.git_utils import get_dirty_files
 
 
 @pytest.fixture
@@ -50,35 +51,34 @@ def workflow_state():
 
 
 class TestGetDirtyFiles:
-    """Tests for _get_dirty_files helper function."""
+    """Tests for get_dirty_files helper function."""
 
     def test_parses_git_status_output(self, monkeypatch):
         """Parse git status --porcelain output correctly."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         mock_result = MagicMock(
             returncode=0,
             stdout=" M src/file.py\n?? new_file.py\nA  staged.py",
             stderr="",
         )
-        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
+        monkeypatch.setattr(git_utils.subprocess, "run", lambda *a, **k: mock_result)
 
-        # Use tea._get_dirty_files to ensure we're using the patched subprocess
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         assert result == {"src/file.py", "new_file.py", "staged.py"}
 
     def test_excludes_gobby_directory(self, monkeypatch):
         """Files in .gobby/ are excluded from dirty files."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         mock_result = MagicMock(
             returncode=0,
             stdout=" M src/file.py\n M .gobby/tasks.jsonl\n?? .gobby/new.json",
             stderr="",
         )
-        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
+        monkeypatch.setattr(git_utils.subprocess, "run", lambda *a, **k: mock_result)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
 
         assert result == {"src/file.py"}
         assert ".gobby/tasks.jsonl" not in result
@@ -86,73 +86,73 @@ class TestGetDirtyFiles:
 
     def test_handles_renames(self, monkeypatch):
         """Parse rename format correctly (old -> new)."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         mock_result = MagicMock(
             returncode=0,
             stdout="R  old_name.py -> new_name.py",
             stderr="",
         )
-        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
+        monkeypatch.setattr(git_utils.subprocess, "run", lambda *a, **k: mock_result)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         # Should capture the old name (source of rename)
         assert result == {"old_name.py"}
 
     def test_returns_empty_set_on_no_changes(self, monkeypatch):
         """Empty output returns empty set."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         mock_result = MagicMock(returncode=0, stdout="", stderr="")
-        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
+        monkeypatch.setattr(git_utils.subprocess, "run", lambda *a, **k: mock_result)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         assert result == set()
 
     def test_returns_empty_set_on_git_failure(self, monkeypatch):
         """Git failure returns empty set."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         mock_result = MagicMock(returncode=128, stdout="", stderr="fatal: not a git repository")
-        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
+        monkeypatch.setattr(git_utils.subprocess, "run", lambda *a, **k: mock_result)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         assert result == set()
 
     def test_returns_empty_set_on_timeout(self, monkeypatch):
         """Timeout returns empty set."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         def raise_timeout(*a, **k):
             raise subprocess.TimeoutExpired(cmd="git", timeout=10)
 
-        monkeypatch.setattr(tea.subprocess, "run", raise_timeout)
+        monkeypatch.setattr(git_utils.subprocess, "run", raise_timeout)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         assert result == set()
 
     def test_returns_empty_set_on_file_not_found(self, monkeypatch):
         """Git not found returns empty set."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         def raise_fnf(*a, **k):
             raise FileNotFoundError("git not found")
 
-        monkeypatch.setattr(tea.subprocess, "run", raise_fnf)
+        monkeypatch.setattr(git_utils.subprocess, "run", raise_fnf)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         assert result == set()
 
     def test_returns_empty_set_on_generic_error(self, monkeypatch):
         """Generic error returns empty set."""
-        import gobby.workflows.task_enforcement_actions as tea
+        import gobby.workflows.git_utils as git_utils
 
         def raise_oserror(*a, **k):
             raise OSError("Unexpected error")
 
-        monkeypatch.setattr(tea.subprocess, "run", raise_oserror)
+        monkeypatch.setattr(git_utils.subprocess, "run", raise_oserror)
 
-        result = tea._get_dirty_files("/test/path")
+        result = get_dirty_files("/test/path")
         assert result == set()
 
 
@@ -174,7 +174,7 @@ class TestCaptureBaselineDirtyFiles:
 
     async def test_captures_dirty_files_as_baseline(self, workflow_state):
         """Captures current dirty files and stores in workflow_state."""
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file1.py", "src/file2.py"}
 
             result = await capture_baseline_dirty_files(
@@ -194,7 +194,7 @@ class TestCaptureBaselineDirtyFiles:
 
     async def test_captures_empty_baseline(self, workflow_state):
         """Captures empty baseline when no dirty files."""
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = set()
 
             result = await capture_baseline_dirty_files(
@@ -281,7 +281,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = set()
 
             result = await require_commit_before_stop(
@@ -301,7 +301,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file.py", "new_file.py"}
 
             result = await require_commit_before_stop(
@@ -329,7 +329,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             # Same files as baseline - no NEW changes
             mock_get_dirty.return_value = {"src/preexisting.py", "config.yaml"}
 
@@ -351,7 +351,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             # New files added during session
             mock_get_dirty.return_value = {
                 "src/preexisting.py",  # In baseline
@@ -378,7 +378,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file.py"}
 
             result = await require_commit_before_stop(
@@ -399,7 +399,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/a.py", "src/b.py", "src/c.py"}
 
             result = await require_commit_before_stop(
@@ -423,7 +423,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             # 15 files
             mock_get_dirty.return_value = {f"src/file{i}.py" for i in range(15)}
 
@@ -446,7 +446,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file.py"}
 
             result = await require_commit_before_stop(
@@ -466,7 +466,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file.py"}
 
             # First block
@@ -494,7 +494,7 @@ class TestRequireCommitBeforeStop:
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
         workflow_state.variables["baseline_dirty_files"] = []
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file.py"}
 
             result = await require_commit_before_stop(
@@ -516,7 +516,7 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+        with patch("gobby.workflows.enforcement.commit_policy.get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"file.txt"}
 
             result = await require_commit_before_stop(
@@ -1722,7 +1722,7 @@ class TestValidateSessionTaskScope:
         }
 
         # Mock is_descendant_of to return True
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = True
 
             result = await validate_session_task_scope(
@@ -1744,7 +1744,7 @@ class TestValidateSessionTaskScope:
         }
 
         # Mock is_descendant_of to return False
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False
 
             # Mock get_task for error message
@@ -1865,7 +1865,7 @@ class TestValidateSessionTaskScope:
         }
 
         # Mock is_descendant_of: False for epic-1, True for epic-2
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.side_effect = [False, True]  # Not under epic-1, but under epic-2
 
             result = await validate_session_task_scope(
@@ -1891,7 +1891,7 @@ class TestValidateSessionTaskScope:
             "tool_input": {"arguments": {"task_id": "unrelated-task", "status": "in_progress"}},
         }
 
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False  # Not under any
 
             result = await validate_session_task_scope(
@@ -2040,7 +2040,7 @@ class TestValidateSessionTaskScope:
             "tool_input": {"arguments": {"task_id": "wrong-task", "status": "in_progress"}},
         }
 
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False
 
             mock_session_task = MagicMock()
@@ -2072,7 +2072,7 @@ class TestValidateSessionTaskScope:
             "tool_input": {"arguments": {"task_id": "wrong-task", "status": "in_progress"}},
         }
 
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False
 
             result = await validate_session_task_scope(
@@ -2099,7 +2099,7 @@ class TestValidateSessionTaskScope:
             "tool_input": {"arguments": {"task_id": "wrong-task", "status": "in_progress"}},
         }
 
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False
 
             mock_task_manager.get_task.return_value = None  # Task not found
@@ -2180,7 +2180,7 @@ class TestValidateSessionTaskScopeEdgeCases:
             "tool_input": {"arguments": {"task_id": "child-task", "status": "in_progress"}},
         }
 
-        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
+        with patch("gobby.workflows.enforcement.task_policy.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = True
 
             result = await validate_session_task_scope(
@@ -2351,7 +2351,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_no_rules(self, workflow_state):
         """Returns None when no rules are provided."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         result = await block_tools(
             rules=None,
@@ -2363,7 +2363,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_no_event_data(self, workflow_state):
         """Returns None when no event_data is provided."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         result = await block_tools(
             rules=[{"tools": ["Edit"], "reason": "Blocked"}],
@@ -2375,7 +2375,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_blocks_matching_tool(self, workflow_state):
         """Blocks tool when it matches a rule."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         rules = [
             {
@@ -2397,7 +2397,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_allows_non_matching_tool(self, workflow_state):
         """Allows tool when it doesn't match any rule."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         rules = [
             {
@@ -2417,7 +2417,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_with_condition_true(self, workflow_state):
         """Blocks tool when condition evaluates to true."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
         workflow_state.variables["plan_mode"] = False
@@ -2443,7 +2443,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_with_condition_false(self, workflow_state):
         """Allows tool when condition evaluates to false."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["plan_mode"] = False
@@ -2467,7 +2467,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_plan_mode_allows_edit(self, workflow_state):
         """Allows edit tools when in plan mode."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
         workflow_state.variables["plan_mode"] = True
@@ -2491,7 +2491,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_multiple_rules(self, workflow_state):
         """First matching rule blocks the tool."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         workflow_state.variables["task_claimed"] = False
         workflow_state.variables["plan_mode"] = False
@@ -2529,7 +2529,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_invalid_condition(self, workflow_state):
         """Invalid condition returns False (allows tool)."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         rules = [
             {
@@ -2551,7 +2551,7 @@ class TestBlockTools:
     @pytest.mark.asyncio
     async def test_block_tools_no_workflow_state(self):
         """Works without workflow state (condition always matches if no condition)."""
-        from gobby.workflows.task_enforcement_actions import block_tools
+        from gobby.workflows.enforcement import block_tools
 
         rules = [
             {
@@ -2586,14 +2586,14 @@ class TestEvaluateBlockCondition:
 
     def test_empty_condition_returns_true(self, workflow_state):
         """Empty condition means always match (block)."""
-        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+        from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         assert _evaluate_block_condition("", workflow_state) is True
         assert _evaluate_block_condition(None, workflow_state) is True
 
     def test_task_claimed_shorthand(self, workflow_state):
         """task_claimed shorthand works."""
-        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+        from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         workflow_state.variables["task_claimed"] = True
         assert _evaluate_block_condition("task_claimed", workflow_state) is True
@@ -2603,7 +2603,7 @@ class TestEvaluateBlockCondition:
 
     def test_not_operator(self, workflow_state):
         """not operator works."""
-        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+        from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         workflow_state.variables["task_claimed"] = False
         assert _evaluate_block_condition("not task_claimed", workflow_state) is True
@@ -2613,7 +2613,7 @@ class TestEvaluateBlockCondition:
 
     def test_variables_get_access(self, workflow_state):
         """variables.get() works."""
-        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+        from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         workflow_state.variables["custom_var"] = True
         assert _evaluate_block_condition("variables.get('custom_var')", workflow_state) is True
@@ -2623,7 +2623,7 @@ class TestEvaluateBlockCondition:
 
     def test_combined_conditions(self, workflow_state):
         """Combined conditions work."""
-        from gobby.workflows.task_enforcement_actions import _evaluate_block_condition
+        from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         workflow_state.variables["task_claimed"] = False
         workflow_state.variables["plan_mode"] = False
