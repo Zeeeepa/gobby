@@ -1,0 +1,88 @@
+# Gobby Guides
+
+Documentation guides for using Gobby's features.
+
+## Core Features
+
+| Guide | Description |
+|-------|-------------|
+| [tasks.md](tasks.md) | Task management with dependencies, validation, and git sync |
+| [sessions.md](sessions.md) | Session lifecycle, handoffs, and context management |
+| [memory.md](memory.md) | Persistent knowledge across sessions |
+| [workflows.md](workflows.md) | Step-based workflow engine and enforcement |
+
+## Parallel Development
+
+| Guide | Description |
+|-------|-------------|
+| [agents.md](agents.md) | Subagent spawning and management |
+| [worktrees.md](worktrees.md) | Git worktrees, clones, and merge operations |
+
+## Reference
+
+| Guide | Description |
+|-------|-------------|
+| [mcp-tools.md](mcp-tools.md) | Complete MCP tool reference (145+ tools) |
+| [cli-commands.md](cli-commands.md) | Full CLI command reference |
+| [artifacts.md](artifacts.md) | Session artifacts (code, diffs, errors) |
+
+## Integrations
+
+| Guide | Description |
+|-------|-------------|
+| [integrations.md](integrations.md) | GitHub and Linear integration |
+
+## Extensibility
+
+| Guide | Description |
+|-------|-------------|
+| [skills.md](skills.md) | Skill discovery and management |
+| [hook-schemas.md](hook-schemas.md) | Hook event system |
+| [webhooks-and-plugins.md](webhooks-and-plugins.md) | Webhook and plugin development |
+| [workflow-actions.md](workflow-actions.md) | Workflow action reference |
+
+## API & Architecture
+
+| Guide | Description |
+|-------|-------------|
+| [http-endpoints.md](http-endpoints.md) | HTTP API reference |
+| [webhook-action-schema.md](webhook-action-schema.md) | Webhook action schemas |
+| [sandboxing.md](sandboxing.md) | Code execution sandboxing |
+
+## Writing Specifications
+
+| Guide | Description |
+|-------|-------------|
+| [spec-writing.md](spec-writing.md) | Writing task specifications |
+
+---
+
+## Learning Paths
+
+### Getting Started
+
+1. Read [tasks.md](tasks.md) - Understand task management
+2. Read [sessions.md](sessions.md) - Understand session lifecycle
+3. Read [cli-commands.md](cli-commands.md) - Learn CLI basics
+
+### Advanced Usage
+
+1. Read [agents.md](agents.md) - Spawn subagents
+2. Read [worktrees.md](worktrees.md) - Parallel development
+3. Read [workflows.md](workflows.md) - Enforce processes
+
+### Building Integrations
+
+1. Read [mcp-tools.md](mcp-tools.md) - Understand MCP tools
+2. Read [webhooks-and-plugins.md](webhooks-and-plugins.md) - Create plugins
+3. Read [hook-schemas.md](hook-schemas.md) - Hook into events
+
+---
+
+## Quick Links
+
+- **Create a task**: `gobby tasks create "Title"` or `create_task` MCP tool
+- **List ready work**: `gobby tasks ready` or `list_ready_tasks` MCP tool
+- **Start an agent**: `gobby agents start "Prompt"` or `spawn_agent` MCP tool
+- **Create memory**: `gobby memory create "Content"` or `create_memory` MCP tool
+- **Session handoff**: `gobby sessions create-handoff` or `create_handoff` MCP tool
