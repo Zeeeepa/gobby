@@ -11,7 +11,7 @@ import threading
 import weakref
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
@@ -21,6 +21,9 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 def _adapt_datetime(val: datetime) -> str:
     """Adapt datetime to ISO format string for SQLite storage."""
+    # If naive datetime, assume UTC and add timezone info for RFC3339 compliance
+    if val.tzinfo is None:
+        val = val.replace(tzinfo=UTC)
     return val.isoformat()
 
 
@@ -31,7 +34,11 @@ def _adapt_date(val: date) -> str:
 
 def _convert_datetime(val: bytes) -> datetime:
     """Convert SQLite datetime string back to datetime object."""
-    return datetime.fromisoformat(val.decode())
+    dt = datetime.fromisoformat(val.decode())
+    # Ensure timezone-aware (treat naive as UTC) for consistency
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt
 
 
 def _convert_date(val: bytes) -> date:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from gobby.sessions.transcripts.base import TranscriptParser
@@ -207,7 +207,7 @@ class TranscriptAnalyzer:
                 context.git_commits.append(
                     {
                         "command": command,
-                        "timestamp": datetime.now().isoformat(),  # Approx time
+                        "timestamp": datetime.now(UTC).isoformat(),  # Approx time
                     }
                 )
 
