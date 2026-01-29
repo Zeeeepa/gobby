@@ -695,17 +695,27 @@ def _migrate_backfill_session_seq_num_per_project(db: LocalDatabase) -> None:
     logger.info(f"Re-numbered {updated} sessions with per-project seq_num")
 
 
+def _migrate_add_hub_tracking_to_skills(db: LocalDatabase) -> None:
+    """Add hub tracking fields to skills table.
+
+    Adds hub_name, hub_slug, and hub_version columns to track which hub
+    a skill was installed from.
+    """
+    with db.transaction() as conn:
+        conn.execute("ALTER TABLE skills ADD COLUMN hub_name TEXT")
+        conn.execute("ALTER TABLE skills ADD COLUMN hub_slug TEXT")
+        conn.execute("ALTER TABLE skills ADD COLUMN hub_version TEXT")
+
+    logger.info("Added hub tracking fields to skills table")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
     # Project-scoped session refs: Re-backfill seq_num per project
     (77, "Backfill sessions.seq_num per project", _migrate_backfill_session_seq_num_per_project),
     # Hub tracking: Add hub_name, hub_slug, hub_version to skills table
-    (
-        78,
-        "Add hub tracking fields to skills",
-        "ALTER TABLE skills ADD COLUMN hub_name TEXT; ALTER TABLE skills ADD COLUMN hub_slug TEXT; ALTER TABLE skills ADD COLUMN hub_version TEXT;",
-    ),
+    (78, "Add hub tracking fields to skills", _migrate_add_hub_tracking_to_skills),
 ]
 
 

@@ -27,10 +27,12 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 > **Warning**: These endpoints are **speculative** and undocumented. The implementation approach below should be followed.
 
 **Recommended Implementation Approach:**
+
 1. **Primary**: Use the official `npx clawdhub` CLI tool for all operations (search, install, publish)
 2. **Fallback**: If CLI integration is insufficient, contact ClawdHub maintainers for official API documentation
 
 **Speculative Endpoints (DO NOT implement without verification):**
+
 - **Base**: `https://clawdhub.com`
 - **Discovery**: `GET /.well-known/clawdhub.json` → `{apiBase, authBase}` (speculative)
 - **Search**: `GET /api/v1/search?q=<query>&limit=<n>` → `{results: [{slug, displayName, version, score}]}` (speculative)
@@ -39,6 +41,7 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 - **Auth**: Bearer token (speculative)
 
 **Risks & Assumptions:**
+
 - All endpoint paths, request/response formats, and auth mechanisms are unverified guesses
 - ClawdHub may not expose a public REST API at all
 - Endpoints may require authentication even for read operations
@@ -153,7 +156,7 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 
 - Implement search (`POST /skills/search`)
 - Implement catalog listing (`GET /skills/catalog`)
-- Handle API key authentication (`x-api-key` header)
+- Handle API key authentication (`Authorization: Bearer` header)
 
 ### Phase 5: GitHub Collection Provider
 

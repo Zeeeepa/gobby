@@ -231,6 +231,89 @@ class CloneGitManager:
                 error=str(e),
             )
 
+    def full_clone(
+        self,
+        remote_url: str,
+        clone_path: str | Path,
+        branch: str = "main",
+    ) -> GitOperationResult:
+        """
+        Create a full (non-shallow) clone of a repository.
+
+        Args:
+            remote_url: URL of the remote repository (HTTPS or SSH)
+            clone_path: Path where clone will be created
+            branch: Branch to clone
+
+        Returns:
+            GitOperationResult with success status and message
+        """
+        clone_path = Path(clone_path)
+
+        # Check if path already exists
+        if clone_path.exists():
+            return GitOperationResult(
+                success=False,
+                message=f"Path already exists: {clone_path}",
+            )
+
+        # Ensure parent directory exists
+        clone_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Build clone command without --depth (full clone)
+            cmd = [
+                "git",
+                "clone",
+                "-b",
+                branch,
+                remote_url,
+                str(clone_path),
+            ]
+
+            # Sanitize URL in command before logging to avoid exposing credentials
+            safe_cmd = cmd.copy()
+            safe_cmd[safe_cmd.index(remote_url)] = _sanitize_url(remote_url)
+            logger.debug(f"Running: {' '.join(safe_cmd)}")
+
+            result = subprocess.run(  # nosec B603 B607 - cmd built from hardcoded git arguments
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600,  # 10 minutes for full clone
+            )
+
+            if result.returncode == 0:
+                return GitOperationResult(
+                    success=True,
+                    message=f"Successfully cloned to {clone_path}",
+                    output=result.stdout,
+                )
+            else:
+                return GitOperationResult(
+                    success=False,
+                    message=f"Clone failed: {result.stderr}",
+                    error=result.stderr,
+                )
+
+        except subprocess.TimeoutExpired:
+            # Clean up partial clone
+            if clone_path.exists():
+                shutil.rmtree(clone_path, ignore_errors=True)
+            return GitOperationResult(
+                success=False,
+                message="Git clone timed out",
+            )
+        except Exception as e:
+            # Clean up partial clone
+            if clone_path.exists():
+                shutil.rmtree(clone_path, ignore_errors=True)
+            return GitOperationResult(
+                success=False,
+                message=f"Error cloning repository: {e}",
+                error=str(e),
+            )
+
     def sync_clone(
         self,
         clone_path: str | Path,
@@ -434,7 +517,7 @@ class CloneGitManager:
 
         This is the high-level API used by CloneIsolationHandler.
         It gets the remote URL from the current repository and creates
-        a shallow clone at the specified path.
+        either a shallow or full clone at the specified path.
 
         Args:
             clone_path: Path where clone will be created
@@ -454,14 +537,20 @@ class CloneGitManager:
                 error="no_remote_url",
             )
 
-        # Create shallow clone
-        depth = 1 if shallow else 0
-        result = self.shallow_clone(
-            remote_url=remote_url,
-            clone_path=clone_path,
-            branch=base_branch,
-            depth=depth if depth > 0 else 1,  # shallow_clone requires depth >= 1
-        )
+        # Create clone (shallow or full based on parameter)
+        if shallow:
+            result = self.shallow_clone(
+                remote_url=remote_url,
+                clone_path=clone_path,
+                branch=base_branch,
+                depth=1,
+            )
+        else:
+            result = self.full_clone(
+                remote_url=remote_url,
+                clone_path=clone_path,
+                branch=base_branch,
+            )
 
         if not result.success:
             return result
