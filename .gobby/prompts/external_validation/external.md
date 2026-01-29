@@ -29,7 +29,9 @@ You are reviewing code changes for the following task.
 ## Task
 Title: {{ task_title }}
 
-{{ criteria_section }}{{ priority_section }}{{ symbol_section }}
+{{ criteria_section }}
+{{ priority_section }}
+{{ symbol_section }}
 
 ## Code Changes to Validate
 {{ summarized_changes }}

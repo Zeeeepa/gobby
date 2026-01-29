@@ -104,7 +104,7 @@ If you need to force a transition, use `request_step_transition`:
 ```python
 call_tool("gobby-workflows", "request_step_transition", {
     "session_id": "<from context>",
-    "target_step": "work",
+    "to_step": "work",
     "reason": "Research complete, ready to implement"
 })
 ```

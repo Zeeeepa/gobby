@@ -565,12 +565,28 @@ class CloneGitManager:
                     timeout=30,
                 )
                 if create_result.returncode != 0:
+                    # Clean up the clone on branch creation failure
+                    try:
+                        if Path(clone_path).exists():
+                            shutil.rmtree(clone_path)
+                    except Exception as cleanup_err:
+                        logger.warning(
+                            f"Failed to clean up clone after branch creation failure: {cleanup_err}"
+                        )
                     return GitOperationResult(
                         success=False,
                         message=f"Failed to create branch {branch_name}: {create_result.stderr}",
                         error=create_result.stderr,
                     )
             except Exception as e:
+                # Clean up the clone on exception
+                try:
+                    if Path(clone_path).exists():
+                        shutil.rmtree(clone_path)
+                except Exception as cleanup_err:
+                    logger.warning(
+                        f"Failed to clean up clone after branch creation error: {cleanup_err}"
+                    )
                 return GitOperationResult(
                     success=False,
                     message=f"Error creating branch: {e}",

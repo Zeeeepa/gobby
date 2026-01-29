@@ -24,7 +24,7 @@ Gobby Session Ref: #5
 Gobby Session ID: <uuid>
 ```
 
-**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats. Prefix formats are accepted for convenience when they uniquely identify a session; if multiple sessions share the same prefix, the system will require a longer prefix or full UUID to resolve ambiguity.
 
 ## Workflow
 

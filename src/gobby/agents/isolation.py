@@ -289,8 +289,16 @@ Commit your changes to the worktree branch when done.
             # Copy entire CLI hooks directory (non-blocking)
             await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
             logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
-        except Exception as e:
-            logger.warning(f"Failed to copy CLI hooks: {e}")
+        except shutil.Error:
+            logger.warning(
+                f"Failed to copy CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
+                exc_info=True,
+            )
+        except OSError:
+            logger.warning(
+                f"Filesystem error copying CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
+                exc_info=True,
+            )
 
 
 class CloneIsolationHandler(IsolationHandler):
@@ -459,8 +467,16 @@ Push your changes when ready to share with the original.
             # Copy entire CLI hooks directory (non-blocking)
             await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
             logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
-        except Exception as e:
-            logger.warning(f"Failed to copy CLI hooks: {e}")
+        except shutil.Error:
+            logger.warning(
+                f"Failed to copy CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
+                exc_info=True,
+            )
+        except OSError:
+            logger.warning(
+                f"Filesystem error copying CLI hooks: provider={provider}, src={src_path}, dst={dst_path}",
+                exc_info=True,
+            )
 
 
 def get_isolation_handler(

@@ -38,6 +38,8 @@ Use "refactor" for tasks that update existing test files to work with new code.
 
 ## Example Output
 
+**Note**: The example below uses placeholders like `{unit_tests}` which will be replaced with actual project commands from context (see "Validation Criteria Rules" section).
+
 ```json
 {
   "subtasks": [
@@ -46,7 +48,7 @@ Use "refactor" for tasks that update existing test files to work with new code.
       "description": "Define tables for users, sessions, and permissions",
       "priority": 1,
       "category": "code",
-      "validation": "Run migrations and verify tables exist with `{unit_tests}`"
+      "validation": "Run migrations and verify tables exist with `pytest tests/unit/`"
     },
     {
       "title": "Implement data access layer",
