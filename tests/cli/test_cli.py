@@ -357,15 +357,19 @@ class TestUninstallCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @patch("gobby.cli.install.Path.home")
     @patch("gobby.cli.load_config")
     def test_uninstall_no_hooks_found(
         self,
         mock_load_config: MagicMock,
+        mock_path_home: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
     ) -> None:
         """Test uninstall when no hooks are found."""
         mock_load_config.return_value = MagicMock()
+        # Mock home directory to prevent finding actual hooks on dev machine
+        mock_path_home.return_value = temp_dir
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             # Confirm the uninstall
