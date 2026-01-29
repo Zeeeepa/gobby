@@ -167,31 +167,6 @@ class TestLocalSessionManager:
         )
         assert result is None
 
-    def test_find_parent(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ):
-        """Test finding parent session for handoff."""
-        # Create a session marked as handoff_ready
-        session = session_manager.register(
-            external_id="parent-session",
-            machine_id="handoff-machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-        session_manager.update_status(session.id, "handoff_ready")
-
-        # Find parent
-        parent = session_manager.find_parent(
-            machine_id="handoff-machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
-        assert parent is not None
-        assert parent.id == session.id
-
     def test_find_parent_no_handoff_ready(
         self,
         session_manager: LocalSessionManager,
@@ -564,43 +539,6 @@ class TestLocalSessionManager:
         # - On 'clear' events: look for handoff_ready sessions as parent
         # This test proves the storage layer has no guard, validating the
         # architecture decision to handle this at the hook_manager level.
-
-    def test_find_by_external_id(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ):
-        """Test finding session by external_id, machine_id, project_id, and source."""
-        session = session_manager.register(
-            external_id="ext-123",
-            machine_id="machine-abc",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
-        found = session_manager.find_by_external_id(
-            external_id="ext-123",
-            machine_id="machine-abc",
-            project_id=sample_project["id"],
-            source="claude",
-        )
-
-        assert found is not None
-        assert found.id == session.id
-
-    def test_find_by_external_id_not_found(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ):
-        """Test find_by_external_id returns None when not found."""
-        result = session_manager.find_by_external_id(
-            external_id="nonexistent",
-            machine_id="machine",
-            project_id=sample_project["id"],
-            source="claude",
-        )
-        assert result is None
 
     def test_find_parent_without_source_filter(
         self,

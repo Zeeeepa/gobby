@@ -816,7 +816,9 @@ async def test_variable_actions(action_executor, action_context):
 
 
 @pytest.mark.asyncio
-async def test_call_llm(action_executor, action_context, mock_services, session_manager, sample_project):
+async def test_call_llm(
+    action_executor, action_context, mock_services, session_manager, sample_project
+):
     # Create a session so handle_call_llm can find it
     session = session_manager.register(
         external_id="call-llm-test",

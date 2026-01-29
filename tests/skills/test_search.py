@@ -491,5 +491,5 @@ class TestSkillSearchFiltering:
 
         # Should return same results
         assert len(no_filter_results) == len(empty_filter_results)
-        for r1, r2 in zip(no_filter_results, empty_filter_results):
+        for r1, r2 in zip(no_filter_results, empty_filter_results, strict=False):
             assert r1.skill_id == r2.skill_id

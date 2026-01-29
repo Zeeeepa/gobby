@@ -48,7 +48,7 @@ class TestCascadeProgress:
 
         # Just verify it runs without error for now
         with cascade_progress(tasks, label="Expanding") as progress:
-            for task, update in progress:
+            for _task, update in progress:
                 update()
 
     def test_cascade_progress_truncates_long_titles(self):
@@ -59,7 +59,7 @@ class TestCascadeProgress:
         tasks = [MagicMock(id="t1", seq_num=1, title=long_title)]
 
         with cascade_progress(tasks, label="Testing") as progress:
-            for task, update in progress:
+            for _task, update in progress:
                 update()
 
     def test_cascade_progress_handles_empty_list(self):

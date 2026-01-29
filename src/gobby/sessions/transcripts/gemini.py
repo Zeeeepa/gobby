@@ -143,6 +143,11 @@ class GeminiTranscriptParser:
             role = data.get("role")
             content = data.get("content", "")
 
+        elif event_type in ("user", "model"):
+            # Role specified directly in type field
+            role = event_type
+            content = data.get("content", "")
+
         elif event_type == "tool_use":
             # Tool invocation event
             role = "assistant"

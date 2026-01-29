@@ -574,14 +574,14 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
     # Setup Mocks
     with (
         patch("builtins.open") as mock_open,
-        patch("pathlib.Path.exists", return_value=True) as mock_exists,
+        patch("pathlib.Path.exists", return_value=True),
         patch("gobby.sessions.analyzer.TranscriptAnalyzer") as mock_analyzer,
-        patch("subprocess.run") as mock_subprocess,
+        patch("subprocess.run"),
         patch("gobby.sessions.transcripts.claude.ClaudeTranscriptParser") as mock_parser_cls,
         patch("gobby.llm.claude.ClaudeLLMProvider") as mock_provider_cls,
         patch("gobby.config.app.load_config") as mock_load_config,
-        patch("gobby.cli.sessions.LocalDatabase") as mock_db,
-        patch("gobby.storage.projects.LocalProjectManager") as mock_project_manager,
+        patch("gobby.cli.sessions.LocalDatabase"),
+        patch("gobby.storage.projects.LocalProjectManager"),
         patch("anyio.run", return_value="Full Summary Content"),
     ):
         # Mock file reading

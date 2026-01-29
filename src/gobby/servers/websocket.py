@@ -10,6 +10,7 @@ Local-first version: Authentication is optional (defaults to always-allow).
 import asyncio
 import json
 import logging
+import os
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ from websockets.datastructures import Headers
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 from websockets.http11 import Response
 
+from gobby.agents.registry import get_running_agent_registry
 from gobby.mcp_proxy.manager import MCPClientManager
 
 logger = logging.getLogger(__name__)
@@ -255,6 +257,9 @@ class WebSocketServer:
 
         elif msg_type == "stop_request":
             await self._handle_stop_request(websocket, data)
+
+        elif msg_type == "terminal_input":
+            await self._handle_terminal_input(websocket, data)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -496,10 +501,57 @@ class WebSocketServer:
             )
 
             logger.info(f"Stop requested for session {session_id} via WebSocket")
-
         except Exception as e:
             logger.error(f"Error handling stop request: {e}")
             await self._send_error(websocket, f"Failed to signal stop: {str(e)}")
+
+    async def _handle_terminal_input(self, websocket: Any, data: dict[str, Any]) -> None:
+        """
+        Handle terminal input for a running agent.
+
+        Message format:
+        {
+            "type": "terminal_input",
+            "run_id": "uuid",
+            "data": "raw input string"
+        }
+
+        Args:
+            websocket: Client WebSocket connection
+            data: Parsed terminal input message
+        """
+        run_id = data.get("run_id")
+        input_data = data.get("data")
+
+        if not run_id or input_data is None:
+            # Don't send error for every keystroke if malformed, just log debug
+            logger.debug(
+                f"Invalid terminal_input: run_id={run_id}, data_len={len(str(input_data))}"
+            )
+            return
+
+        registry = get_running_agent_registry()
+        # Look up by run_id
+        agent = registry.get(run_id)
+
+        if not agent:
+            # Be silent on missing agent to avoid spamming errors if frontend is out of sync
+            # or if agent just died.
+            return
+
+        if not agent.master_fd:
+            logger.warning(f" Agent {run_id} has no PTY master_fd")
+            return
+
+        try:
+            # Write key/input to PTY
+            encoded_data = input_data.encode("utf-8")
+            os.write(agent.master_fd, encoded_data)
+        except OSError as e:
+            logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
+            # If EIO, agent might be dead
+        except Exception as e:
+            logger.error(f"Unexpected error writing to PTY for {run_id}: {e}")
 
     async def broadcast(self, message: dict[str, Any]) -> None:
         """

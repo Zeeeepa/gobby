@@ -1,8 +1,7 @@
 """Tests for skill hub tracking fields."""
 
-import pytest
-import sqlite3
 from gobby.storage.skills import Skill
+
 
 class TestSkillHubFields:
     """Tests for hub tracking fields in the Skill dataclass."""
@@ -15,7 +14,7 @@ class TestSkillHubFields:
             description="A test skill",
             content="# Test Skill",
         )
-        
+
         # These should exist and be None
         assert skill.hub_name is None
         assert skill.hub_slug is None
@@ -30,11 +29,11 @@ class TestSkillHubFields:
             content="# Test Skill",
             hub_name="Gobby Hub",
             hub_slug="gobby-hub",
-            hub_version="1.2.3"
+            hub_version="1.2.3",
         )
-        
+
         d = skill.to_dict()
-        
+
         assert d["hub_name"] == "Gobby Hub"
         assert d["hub_slug"] == "gobby-hub"
         assert d["hub_version"] == "1.2.3"
@@ -46,13 +45,17 @@ class TestSkillHubFields:
         # for testing from_row
         pass
 
+
 class MockRow:
     def __init__(self, data):
         self.data = data
+
     def __getitem__(self, key):
         return self.data[key]
+
     def keys(self):
         return list(self.data.keys())
+
 
 def test_skill_from_row_with_hub_fields():
     """Test from_row with hub fields using a MockRow."""
@@ -75,12 +78,12 @@ def test_skill_from_row_with_hub_fields():
         "updated_at": "2024-01-01",
         "hub_name": "Gobby Hub",
         "hub_slug": "gobby-hub",
-        "hub_version": "1.2.3"
+        "hub_version": "1.2.3",
     }
     row = MockRow(row_data)
-    
-    skill = Skill.from_row(row) # type: ignore
-    
+
+    skill = Skill.from_row(row)  # type: ignore
+
     assert skill.hub_name == "Gobby Hub"
     assert skill.hub_slug == "gobby-hub"
     assert skill.hub_version == "1.2.3"

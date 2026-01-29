@@ -38,12 +38,11 @@ steps:
     on_enter:
       - action: inject_message
         content: |
-          Step 1: Confirm your session ID.
+          Step 1: Acquire your session ID.
 
-          Your session_id was injected at startup. Verify it by calling:
-          mcp__gobby__call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={})
+          Call: mcp__gobby__call_tool(server_name="gobby-sessions", tool_name="get_current_session", arguments={})
 
-          Then proceed immediately to the next step.
+          Do not proceed until you have your session_id.
 
     allowed_tools:
       - mcp__gobby__call_tool
@@ -59,7 +58,7 @@ steps:
 
     transitions:
       - to: claim_task
-        when: "mcp_called('gobby-sessions', 'get_current')"
+        when: "mcp_called('gobby-sessions', 'get_current_session')"
 
   # ─────────────────────────────────────────────────────────────
   # Step 2: Claim Task

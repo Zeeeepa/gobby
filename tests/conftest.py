@@ -237,7 +237,7 @@ def protect_production_resources(
         if _real_load_config:
             import sys
 
-            for mod_name, mod in list(sys.modules.items()):
+            for _mod_name, mod in list(sys.modules.items()):
                 # Skip our own test modules or things that might be weird
                 if not mod or not hasattr(mod, "__dict__"):
                     continue

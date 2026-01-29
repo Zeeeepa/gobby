@@ -84,7 +84,7 @@ class TestSequentialReviewLoopE2E:
         result = unwrap_result(raw_result)
         assert result.get("id") is not None, f"Epic creation failed: {result}"
         epic_id = result["id"]
-        epic_ref = result.get("ref", f"#{result.get('seq_num', '')}")
+        result.get("ref", f"#{result.get('seq_num', '')}")
 
         # Step 2: Create 2 subtasks under the epic
         subtask_ids = []
@@ -501,7 +501,7 @@ class TestSequentialReviewLoopE2E:
             },
         )
         task2_result = unwrap_result(raw_result)
-        task2_id = task2_result["id"]
+        task2_result["id"]
 
         # suggest_next_task should return higher priority task first
         raw_result = mcp_client.call_tool(

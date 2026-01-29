@@ -441,6 +441,8 @@ class TestDetectTaskClaim:
             timestamp=datetime.now(UTC),
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "create_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "create_task",

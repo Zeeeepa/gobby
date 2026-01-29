@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -144,7 +144,7 @@ Same content.
 
     def test_update_local_skill_source_not_found(self, storage, tmp_path):
         """Test updating a skill when source is missing."""
-        from gobby.skills.updater import SkillUpdateError, SkillUpdater
+        from gobby.skills.updater import SkillUpdater
 
         skill = storage.create_skill(
             name="missing-source",

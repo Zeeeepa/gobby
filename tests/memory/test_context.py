@@ -229,5 +229,5 @@ class TestBuildMemoryContext:
         assert result.count("- Valid content") == 1
         # Should not have empty bullet lines
         lines = result.split("\n")
-        bullet_lines = [l for l in lines if l.strip() == "-"]
+        bullet_lines = [line for line in lines if line.strip() == "-"]
         assert len(bullet_lines) == 0

@@ -512,7 +512,7 @@ class TestSkillProjectScope:
         manager = LocalSkillManager(db)
 
         # Global skill
-        global_skill = manager.create_skill(
+        manager.create_skill(
             name="global-skill",
             description="Global",
             content="Content",
@@ -520,7 +520,7 @@ class TestSkillProjectScope:
         )
 
         # Project skill
-        project_skill = manager.create_skill(
+        manager.create_skill(
             name="project-skill",
             description="Project",
             content="Content",

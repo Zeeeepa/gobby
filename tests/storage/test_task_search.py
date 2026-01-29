@@ -132,7 +132,7 @@ class TestTaskSearch:
         )
 
         assert len(results) > 0
-        for task, score in results:
+        for task, _score in results:
             assert task.task_type == "bug"
 
     def test_search_with_priority_filter(self, db_with_tasks):
@@ -145,7 +145,7 @@ class TestTaskSearch:
             priority=2,
         )
 
-        for task, score in results:
+        for task, _score in results:
             assert task.priority == 2
 
     def test_search_with_min_score(self, db_with_tasks):
@@ -170,7 +170,7 @@ class TestTaskSearch:
         assert len(filtered_results) <= len(all_results)
 
         # All filtered results should have score >= 0.1
-        for task, score in filtered_results:
+        for _task, score in filtered_results:
             assert score >= 0.1
 
     def test_search_with_limit(self, db_with_tasks):
@@ -198,7 +198,7 @@ class TestTaskSearch:
 
         results = manager.search_tasks("authentication", project_id=project_id)
 
-        for task, score in results:
+        for _task, score in results:
             assert isinstance(score, float)
             assert 0.0 <= score <= 1.0
 

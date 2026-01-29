@@ -329,9 +329,7 @@ class TestHandleRequireTaskComplete:
         mock_task.id = "gt-ready-123"
         mock_services["task_manager"].list_ready_tasks.return_value = [mock_task]
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
             await action_executor.execute(
@@ -360,9 +358,7 @@ class TestHandleRequireTaskComplete:
 
         task_ids = ["gt-task1", "gt-task2", "gt-task3"]
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -388,9 +384,7 @@ class TestHandleRequireTaskComplete:
         )
         action_context.session_id = session.id
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -420,9 +414,7 @@ class TestHandleRequireTaskComplete:
         # Mock template engine to resolve the variable
         mock_services["template_engine"].render.return_value = "gt-resolved-task"
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(

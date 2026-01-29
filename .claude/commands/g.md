@@ -32,6 +32,6 @@ Follow the exact same routing logic as `/gobby`:
 
 1. **No args or "help"** → Show help (see /gobby skill for full help text)
 2. **First arg is "mcp"** → Route to MCP server
-3. **First arg matches a skill** → Load skill via `gobby-skills.get_skill(name=...)`
+3. **First arg matches a skill** → Load skill via `get_skill(name=...)`
 
 See the `gobby` skill for complete routing documentation.

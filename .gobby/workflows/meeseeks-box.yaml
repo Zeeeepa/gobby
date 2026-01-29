@@ -50,7 +50,7 @@ steps:
                server_name="gobby-agents",
                tool_name="spawn_agent",
                arguments={
-                 "prompt": "EXECUTE IMMEDIATELY - Do not wait for user input:\n\n1. Your session_id was injected at startup. Activate the meeseeks workflow NOW:\n   mcp__gobby__call_tool(server_name='gobby-workflows', tool_name='activate_workflow', arguments={'name': 'meeseeks', 'session_id': '<YOUR_SESSION_ID>', 'variables': {'assigned_task_id': '<TASK_ID>', 'task_category': 'code'}})\n\n2. Follow the workflow steps that will be injected.\n\nTask: <task_title>",
+                 "prompt": "FIRST: Get your session ID, then activate the meeseeks workflow:\n\n1. mcp__gobby__call_tool(server_name='gobby-sessions', tool_name='get_current_session', arguments={})\n\n2. mcp__gobby__call_tool(server_name='gobby-workflows', tool_name='activate_workflow', arguments={'name': 'meeseeks', 'session_id': '<your_session_id>', 'variables': {'assigned_task_id': '<TASK_ID>'}})\n\nThen follow the workflow steps that will be injected.\n\nTask: <task_title>",
                  "workflow": "meeseeks",
                  "task_id": "<subtask_uuid>",
                  "terminal": "ghostty",

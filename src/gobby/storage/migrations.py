@@ -43,9 +43,9 @@ class MigrationUnsupportedError(Exception):
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
 
-# Baseline version - the schema state after all legacy migrations
-# Baseline version - the schema state at v75 (flattened)
-BASELINE_VERSION = 75
+# Baseline version - the schema state at v78 (flattened)
+# This is applied for new databases directly
+BASELINE_VERSION = 78
 
 # Baseline schema - flattened from v75 production state
 # This is applied for new databases directly
@@ -583,6 +583,9 @@ CREATE TABLE skills (
     source_path TEXT,
     source_type TEXT,
     source_ref TEXT,
+    hub_name TEXT,
+    hub_slug TEXT,
+    hub_version TEXT,
     enabled INTEGER DEFAULT 1,
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL,
@@ -697,6 +700,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
     # Project-scoped session refs: Re-backfill seq_num per project
     (77, "Backfill sessions.seq_num per project", _migrate_backfill_session_seq_num_per_project),
+    # Hub tracking: Add hub_name, hub_slug, hub_version to skills table
+    (
+        78,
+        "Add hub tracking fields to skills",
+        "ALTER TABLE skills ADD COLUMN hub_name TEXT; ALTER TABLE skills ADD COLUMN hub_slug TEXT; ALTER TABLE skills ADD COLUMN hub_version TEXT;",
+    ),
 ]
 
 

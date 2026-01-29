@@ -4,8 +4,6 @@ Tests for Isolation Handlers.
 Tests the isolation abstraction layer for spawn_agent unified API.
 """
 
-import time
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
