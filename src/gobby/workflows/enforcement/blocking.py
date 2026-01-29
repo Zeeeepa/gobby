@@ -5,6 +5,7 @@ Provides configurable tool blocking based on workflow state and conditions.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -241,7 +242,18 @@ async def block_tools(
                 if mcp_key in mcp_tools:
                     rule_matches = True
                     # For MCP tools, the actual arguments are in tool_input.arguments
-                    mcp_tool_args = tool_input.get("arguments", {}) or {}
+                    # Arguments may be a JSON string (Claude Code serialization) or dict
+                    raw_args = tool_input.get("arguments")
+                    if isinstance(raw_args, str):
+                        try:
+                            parsed = json.loads(raw_args)
+                            mcp_tool_args = parsed if isinstance(parsed, dict) else {}
+                        except (json.JSONDecodeError, TypeError):
+                            mcp_tool_args = {}
+                    elif isinstance(raw_args, dict):
+                        mcp_tool_args = raw_args
+                    else:
+                        mcp_tool_args = {}
 
         if not rule_matches:
             continue

@@ -178,6 +178,14 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         except (KeyError, IndexError, TypeError) as e:
             raise ValueError(f"Subscript access failed: {e}") from e
 
+    def visit_List(self, node: ast.List) -> list[Any]:
+        """Handle list literals (e.g., ['a', 'b', 'c'])."""
+        return [self.visit(elt) for elt in node.elts]
+
+    def visit_Tuple(self, node: ast.Tuple) -> tuple[Any, ...]:
+        """Handle tuple literals (e.g., ('a', 'b', 'c'))."""
+        return tuple(self.visit(elt) for elt in node.elts)
+
     def generic_visit(self, node: ast.AST) -> Any:
         """Reject any unsupported AST nodes."""
         raise ValueError(f"Unsupported expression type: {type(node).__name__}")

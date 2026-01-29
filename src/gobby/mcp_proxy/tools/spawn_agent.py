@@ -21,6 +21,7 @@ from gobby.agents.isolation import (
     SpawnConfig,
     get_isolation_handler,
 )
+from gobby.agents.registry import RunningAgent, get_running_agent_registry
 from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -270,7 +271,23 @@ async def spawn_agent_impl(
 
     spawn_result = await execute_spawn(spawn_request)
 
-    # 11. Return response with isolation metadata
+    # 11. Register with RunningAgentRegistry for send_to_parent/child messaging
+    if spawn_result.success:
+        agent_registry = get_running_agent_registry()
+        agent_registry.add(
+            RunningAgent(
+                run_id=spawn_result.run_id,
+                session_id=spawn_result.child_session_id,
+                parent_session_id=parent_session_id,
+                mode=effective_mode,
+                pid=spawn_result.pid,
+                provider=effective_provider,
+                workflow_name=effective_workflow,
+                worktree_id=isolation_ctx.worktree_id,
+            )
+        )
+
+    # 12. Return response with isolation metadata
     return {
         "success": spawn_result.success,
         "run_id": spawn_result.run_id,
