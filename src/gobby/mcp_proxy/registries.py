@@ -200,6 +200,7 @@ def setup_internal_registries(
                 registry=agents_registry,
                 message_manager=inter_session_message_manager,
                 agent_registry=get_running_agent_registry(),
+                session_manager=local_session_manager,  # Database fallback for Gemini/Codex
             )
             logger.debug("Agent messaging tools added to agents registry")
 

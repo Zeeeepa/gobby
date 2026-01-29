@@ -157,7 +157,7 @@ A typical parallel workflow using clones:
 
 ```text
 1. Create subtasks for parallel work
-   gobby tasks expand #parent --parallel
+   /gobby tasks expand #parent --parallel
 
 2. Spawn agents in separate clones
    /gobby clones spawn feature/auth "Implement OAuth" --task #1

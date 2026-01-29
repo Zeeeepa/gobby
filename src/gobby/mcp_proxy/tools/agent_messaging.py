@@ -8,7 +8,9 @@ Provides messaging capabilities between parent and child sessions:
 - mark_message_read: Mark a message as read
 - broadcast_to_children: Send message to all running children
 
-These tools resolve session relationships from RunningAgentRegistry.
+These tools resolve session relationships from RunningAgentRegistry,
+with database fallback for Gemini/Codex agents whose session_id isn't
+known at spawn time (they register via hooks).
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ if TYPE_CHECKING:
     from gobby.agents.registry import RunningAgentRegistry
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
     from gobby.storage.inter_session_messages import InterSessionMessageManager
+    from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,7 @@ def add_messaging_tools(
     registry: InternalToolRegistry,
     message_manager: InterSessionMessageManager,
     agent_registry: RunningAgentRegistry,
+    session_manager: LocalSessionManager | None = None,
 ) -> None:
     """
     Add inter-agent messaging tools to an existing registry.
@@ -36,6 +40,8 @@ def add_messaging_tools(
         registry: The InternalToolRegistry to add tools to (typically gobby-agents)
         message_manager: InterSessionMessageManager for persisting messages
         agent_registry: RunningAgentRegistry for resolving parent/child relationships
+        session_manager: Optional LocalSessionManager for database fallback (needed for
+            Gemini/Codex agents whose session_id isn't in the in-memory registry)
     """
 
     @registry.tool(
@@ -64,17 +70,24 @@ def add_messaging_tools(
         try:
             # Find the running agent to get parent relationship
             agent = agent_registry.get_by_session(session_id)
-            if not agent:
-                return {
-                    "success": False,
-                    "error": f"Session {session_id} not found in running agent registry",
-                }
+            parent_session_id: str | None = None
 
-            parent_session_id = agent.parent_session_id
+            if agent:
+                parent_session_id = agent.parent_session_id
+            elif session_manager:
+                # Database fallback for Gemini/Codex agents whose session_id
+                # isn't in the in-memory registry (they register via hooks)
+                session = session_manager.get(session_id)
+                if session:
+                    parent_session_id = session.parent_session_id
+                    logger.debug(
+                        f"Found parent_session_id via database fallback: {parent_session_id}"
+                    )
+
             if not parent_session_id:
                 return {
                     "success": False,
-                    "error": "No parent session found for this agent",
+                    "error": f"Session {session_id} not found in registry or database",
                 }
 
             # Create the message

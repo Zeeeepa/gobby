@@ -190,10 +190,12 @@ steps:
             server_name="gobby-sessions",
             tool_name="update_session",
             arguments={
-              "session_id": "<your_session_id>",
+              "session_id": "$GOBBY_SESSION_ID",
               "status": "completed"
             }
           )
+
+          Note: Replace $GOBBY_SESSION_ID with the value from environment variable GOBBY_SESSION_ID.
 
           Then run the shutdown script (if available):
           ~/.gobby/scripts/agent_shutdown.sh

@@ -16,10 +16,10 @@ Add a generic hub/registry abstraction to Gobby's skill system supporting ClawdH
 **Goal**: Add hub configuration schema and update skill storage for hub tracking.
 
 **Tasks:**
-- [ ] Add HubConfig pydantic model to config/app.py (category: code)
-- [ ] Extend SkillsConfig with hubs dict (category: code)
-- [ ] Add hub tracking fields to Skill dataclass (category: code)
-- [ ] Update SkillSourceType to include "hub" (category: code)
+- [ ] Add HubConfig pydantic model to config/skills.py (category: code)
+- [ ] Extend SkillsConfig with hubs dict in config/skills.py (category: code)
+- [ ] Add hub tracking fields to Skill dataclass in config/skills.py (category: code)
+- [ ] Update SkillSourceType in config/skills.py to include "hub" (category: code)
 
 ## Phase 2: Provider Abstraction
 

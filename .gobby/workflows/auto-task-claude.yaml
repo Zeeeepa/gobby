@@ -23,7 +23,7 @@ variables:
   session_task: null              # Task ID(s) to complete
   premature_stop_max_attempts: 3
   worker_provider: "gemini"
-  worker_model: "gemini-3-pro"
+  worker_model: "gemini-2.5-pro"
   worker_terminal: "ghostty"
   worker_timeout: 600
 

@@ -526,7 +526,14 @@ class WebSocketServer:
         if not run_id or input_data is None:
             # Don't send error for every keystroke if malformed, just log debug
             logger.debug(
-                f"Invalid terminal_input: run_id={run_id}, data_len={len(str(input_data))}"
+                f"Invalid terminal_input: run_id={run_id}, data_len={len(str(input_data)) if input_data else 0}"
+            )
+            return
+
+        if not isinstance(input_data, str):
+            # input_data must be a string to encode; log and skip non-strings
+            logger.debug(
+                f"Invalid terminal_input type: run_id={run_id}, data_type={type(input_data).__name__}"
             )
             return
 
