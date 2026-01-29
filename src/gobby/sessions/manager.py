@@ -98,6 +98,9 @@ class SessionManager:
             title: Optional session title/summary
             git_branch: Optional git branch name
             project_path: Optional project path (for git extraction if git_branch not provided)
+            terminal_context: Optional terminal context for correlation
+            workflow_name: Optional workflow to auto-activate for this session
+            agent_depth: Depth in agent hierarchy (0 = root session)
 
         Returns:
             session_id (database UUID)
