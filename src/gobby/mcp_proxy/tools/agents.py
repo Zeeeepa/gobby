@@ -239,6 +239,12 @@ def create_agents_registry(
         agent = agent_registry.get(run_id)
         session_id = agent.session_id if agent else None
 
+        # Database fallback: if not in registry, look up from DB
+        if session_id is None:
+            db_run = runner.get_run(run_id)
+            if db_run and db_run.child_session_id:
+                session_id = db_run.child_session_id
+
         # Kill via registry (run in thread to avoid blocking event loop)
         import asyncio
 
