@@ -6,11 +6,10 @@ Provides messaging capabilities between parent and child sessions:
 - send_to_child: Parent sends message to a specific child
 - poll_messages: Check for incoming messages
 - mark_message_read: Mark a message as read
-- broadcast_to_children: Send message to all running children
+- broadcast_to_children: Send message to all children (active in database)
 
-These tools resolve session relationships from RunningAgentRegistry,
-with database fallback for Gemini/Codex agents whose session_id isn't
-known at spawn time (they register via hooks).
+These tools resolve session relationships from the database (LocalSessionManager),
+which is the authoritative source for parent_session_id relationships.
 """
 
 from __future__ import annotations
@@ -19,7 +18,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.agents.registry import RunningAgentRegistry
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
@@ -30,8 +28,7 @@ logger = logging.getLogger(__name__)
 def add_messaging_tools(
     registry: InternalToolRegistry,
     message_manager: InterSessionMessageManager,
-    agent_registry: RunningAgentRegistry,
-    session_manager: LocalSessionManager | None = None,
+    session_manager: LocalSessionManager,
 ) -> None:
     """
     Add inter-agent messaging tools to an existing registry.
@@ -39,9 +36,8 @@ def add_messaging_tools(
     Args:
         registry: The InternalToolRegistry to add tools to (typically gobby-agents)
         message_manager: InterSessionMessageManager for persisting messages
-        agent_registry: RunningAgentRegistry for resolving parent/child relationships
-        session_manager: Optional LocalSessionManager for database fallback (needed for
-            Gemini/Codex agents whose session_id isn't in the in-memory registry)
+        session_manager: LocalSessionManager for resolving parent/child relationships
+            (database is the authoritative source for session relationships)
     """
 
     @registry.tool(
@@ -68,26 +64,19 @@ def add_messaging_tools(
             Dict with success status and message details
         """
         try:
-            # Find the running agent to get parent relationship
-            agent = agent_registry.get_by_session(session_id)
-            parent_session_id: str | None = None
+            # Look up session in database (authoritative source for relationships)
+            session = session_manager.get(session_id)
+            if not session:
+                return {
+                    "success": False,
+                    "error": f"Session {session_id} not found",
+                }
 
-            if agent:
-                parent_session_id = agent.parent_session_id
-            elif session_manager:
-                # Database fallback for Gemini/Codex agents whose session_id
-                # isn't in the in-memory registry (they register via hooks)
-                session = session_manager.get(session_id)
-                if session:
-                    parent_session_id = session.parent_session_id
-                    logger.debug(
-                        f"Found parent_session_id via database fallback: {parent_session_id}"
-                    )
-
+            parent_session_id = session.parent_session_id
             if not parent_session_id:
                 return {
                     "success": False,
-                    "error": f"Session {session_id} not found in registry or database",
+                    "error": "No parent session for this session",
                 }
 
             # Create the message
@@ -98,7 +87,9 @@ def add_messaging_tools(
                 priority=priority,
             )
 
-            logger.info(f"Message sent from {session_id} to parent {parent_session_id}: {msg.id}")
+            logger.info(
+                "Message sent from %s to parent %s: %s", session_id, parent_session_id, msg.id
+            )
 
             return {
                 "success": True,
@@ -107,7 +98,7 @@ def add_messaging_tools(
             }
 
         except Exception as e:
-            logger.error(f"Failed to send message to parent: {e}")
+            logger.error("Failed to send message to parent: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -139,20 +130,20 @@ def add_messaging_tools(
             Dict with success status and message details
         """
         try:
-            # Verify the child exists and belongs to this parent
-            child_agent = agent_registry.get_by_session(child_session_id)
-            if not child_agent:
+            # Verify the child exists in database and belongs to this parent
+            child_session = session_manager.get(child_session_id)
+            if not child_session:
                 return {
                     "success": False,
-                    "error": f"Child session {child_session_id} not found in running agent registry",
+                    "error": f"Child session {child_session_id} not found",
                 }
 
-            if child_agent.parent_session_id != parent_session_id:
+            if child_session.parent_session_id != parent_session_id:
                 return {
                     "success": False,
                     "error": (
                         f"Session {child_session_id} is not a child of {parent_session_id}. "
-                        f"Actual parent: {child_agent.parent_session_id}"
+                        f"Actual parent: {child_session.parent_session_id}"
                     ),
                 }
 
@@ -165,7 +156,7 @@ def add_messaging_tools(
             )
 
             logger.info(
-                f"Message sent from {parent_session_id} to child {child_session_id}: {msg.id}"
+                "Message sent from %s to child %s: %s", parent_session_id, child_session_id, msg.id
             )
 
             return {
@@ -174,7 +165,7 @@ def add_messaging_tools(
             }
 
         except Exception as e:
-            logger.error(f"Failed to send message to child: {e}")
+            logger.error("Failed to send message to child: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -261,7 +252,7 @@ def add_messaging_tools(
 
     @registry.tool(
         name="broadcast_to_children",
-        description="Broadcast a message to all running child sessions.",
+        description="Broadcast a message to all active child sessions.",
     )
     async def broadcast_to_children(
         parent_session_id: str,
@@ -269,9 +260,10 @@ def add_messaging_tools(
         priority: str = "normal",
     ) -> dict[str, Any]:
         """
-        Broadcast a message to all running children.
+        Broadcast a message to all active children.
 
-        Send the same message to all child sessions spawned by this parent.
+        Send the same message to all child sessions spawned by this parent
+        that are currently active in the database.
         Useful for coordination or shutdown signals.
 
         Args:
@@ -283,13 +275,16 @@ def add_messaging_tools(
             Dict with success status and count of messages sent
         """
         try:
-            children = agent_registry.list_by_parent(parent_session_id)
+            # Get all children from database
+            all_children = session_manager.find_children(parent_session_id)
+            # Filter to active children only
+            children = [c for c in all_children if c.status == "active"]
 
             if not children:
                 return {
                     "success": True,
                     "sent_count": 0,
-                    "message": "No running children found",
+                    "message": "No active children found",
                 }
 
             sent_count = 0
@@ -299,13 +294,13 @@ def add_messaging_tools(
                 try:
                     message_manager.create_message(
                         from_session=parent_session_id,
-                        to_session=child.session_id,
+                        to_session=child.id,
                         content=content,
                         priority=priority,
                     )
                     sent_count += 1
                 except Exception as e:
-                    errors.append(f"{child.session_id}: {e}")
+                    errors.append(f"{child.id}: {e}")
 
             result: dict[str, Any] = {
                 "success": True,
@@ -317,13 +312,16 @@ def add_messaging_tools(
                 result["errors"] = errors
 
             logger.info(
-                f"Broadcast from {parent_session_id} sent to {sent_count}/{len(children)} children"
+                "Broadcast from %s sent to %d/%d children",
+                parent_session_id,
+                sent_count,
+                len(children),
             )
 
             return result
 
         except Exception as e:
-            logger.error(f"Failed to broadcast to children: {e}")
+            logger.error("Failed to broadcast to children: %s", e)
             return {
                 "success": False,
                 "error": str(e),

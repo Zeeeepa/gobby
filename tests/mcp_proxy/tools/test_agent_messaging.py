@@ -6,13 +6,14 @@ Tests the inter-agent messaging MCP tools:
 - send_to_child
 - poll_messages
 - mark_message_read
+- broadcast_to_children
 """
 
+from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import pytest
 
-from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 
@@ -49,6 +50,15 @@ class MockInterSessionMessage:
         }
 
 
+@dataclass
+class MockSession:
+    """Mock session object for tests."""
+
+    id: str
+    parent_session_id: str | None = None
+    status: str = "active"
+
+
 @pytest.fixture
 def mock_message_manager():
     """Create a mock inter-session message manager."""
@@ -62,14 +72,18 @@ def mock_message_manager():
 
 
 @pytest.fixture
-def mock_agent_registry():
-    """Create a mock running agent registry."""
-    registry = RunningAgentRegistry()
-    return registry
+def mock_session_manager():
+    """Create a mock session manager."""
+    manager = MagicMock()
+    # Default: return None for any get() call
+    manager.get = MagicMock(return_value=None)
+    # Default: return empty list for find_children()
+    manager.find_children = MagicMock(return_value=[])
+    return manager
 
 
 @pytest.fixture
-def messaging_registry(mock_message_manager, mock_agent_registry):
+def messaging_registry(mock_message_manager, mock_session_manager):
     """Create a registry with messaging tools."""
     from gobby.mcp_proxy.tools.agent_messaging import add_messaging_tools
 
@@ -80,11 +94,12 @@ def messaging_registry(mock_message_manager, mock_agent_registry):
     add_messaging_tools(
         registry=registry,
         message_manager=mock_message_manager,
-        agent_registry=mock_agent_registry,
+        session_manager=mock_session_manager,
     )
     return registry
 
 
+@pytest.mark.unit
 class TestAddMessagingTools:
     """Tests for add_messaging_tools function."""
 
@@ -100,22 +115,20 @@ class TestAddMessagingTools:
         assert "mark_message_read" in tool_names
 
 
+@pytest.mark.unit
 class TestSendToParent:
     """Tests for send_to_parent tool."""
 
     @pytest.mark.asyncio
     async def test_send_to_parent_success(
-        self, messaging_registry, mock_message_manager, mock_agent_registry
+        self, messaging_registry, mock_message_manager, mock_session_manager
     ):
         """Test successful message send to parent."""
-        # Register a running agent with parent relationship
-        child_agent = RunningAgent(
-            run_id="run-123",
-            session_id="session-child",
+        # Setup: session exists in database with parent relationship
+        mock_session_manager.get.return_value = MockSession(
+            id="session-child",
             parent_session_id="session-parent",
-            mode="terminal",
         )
-        mock_agent_registry.add(child_agent)
 
         result = await messaging_registry.call(
             "send_to_parent",
@@ -128,6 +141,7 @@ class TestSendToParent:
 
         assert result["success"] is True
         assert "message" in result
+        assert result["parent_session_id"] == "session-parent"
         mock_message_manager.create_message.assert_called_once_with(
             from_session="session-child",
             to_session="session-parent",
@@ -136,8 +150,10 @@ class TestSendToParent:
         )
 
     @pytest.mark.asyncio
-    async def test_send_to_parent_no_running_agent(self, messaging_registry, mock_agent_registry):
-        """Test send_to_parent when session is not in running registry."""
+    async def test_send_to_parent_session_not_found(self, messaging_registry, mock_session_manager):
+        """Test send_to_parent when session is not found in database."""
+        mock_session_manager.get.return_value = None
+
         result = await messaging_registry.call(
             "send_to_parent",
             {
@@ -149,31 +165,41 @@ class TestSendToParent:
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    def test_send_to_parent_no_parent(self):
-        """Test send_to_parent when agent has no parent.
+    @pytest.mark.asyncio
+    async def test_send_to_parent_no_parent(self, messaging_registry, mock_session_manager):
+        """Test send_to_parent when session has no parent."""
+        # Session exists but has no parent
+        mock_session_manager.get.return_value = MockSession(
+            id="session-orphan",
+            parent_session_id=None,
+        )
 
-        This test is skipped because RunningAgent dataclass requires parent_session_id.
-        All spawned agents in practice have parents, so this edge case cannot occur.
-        """
-        pytest.skip("RunningAgent requires parent_session_id - edge case cannot occur")
+        result = await messaging_registry.call(
+            "send_to_parent",
+            {
+                "session_id": "session-orphan",
+                "content": "Hello?",
+            },
+        )
+
+        assert result["success"] is False
+        assert "no parent" in result["error"].lower()
 
 
+@pytest.mark.unit
 class TestSendToChild:
     """Tests for send_to_child tool."""
 
     @pytest.mark.asyncio
     async def test_send_to_child_success(
-        self, messaging_registry, mock_message_manager, mock_agent_registry
+        self, messaging_registry, mock_message_manager, mock_session_manager
     ):
         """Test successful message send to child."""
-        # Register a running agent as a child
-        child_agent = RunningAgent(
-            run_id="run-456",
-            session_id="session-child",
+        # Setup: child session exists in database with correct parent
+        mock_session_manager.get.return_value = MockSession(
+            id="session-child",
             parent_session_id="session-parent",
-            mode="terminal",
         )
-        mock_agent_registry.add(child_agent)
 
         result = await messaging_registry.call(
             "send_to_child",
@@ -195,8 +221,10 @@ class TestSendToChild:
         )
 
     @pytest.mark.asyncio
-    async def test_send_to_child_not_running(self, messaging_registry, mock_agent_registry):
-        """Test send_to_child when child is not running."""
+    async def test_send_to_child_not_found(self, messaging_registry, mock_session_manager):
+        """Test send_to_child when child session is not found."""
+        mock_session_manager.get.return_value = None
+
         result = await messaging_registry.call(
             "send_to_child",
             {
@@ -207,18 +235,16 @@ class TestSendToChild:
         )
 
         assert result["success"] is False
-        assert "not found" in result["error"].lower() or "not running" in result["error"].lower()
+        assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_send_to_child_wrong_parent(self, messaging_registry, mock_agent_registry):
+    async def test_send_to_child_wrong_parent(self, messaging_registry, mock_session_manager):
         """Test send_to_child when parent doesn't match."""
-        child_agent = RunningAgent(
-            run_id="run-789",
-            session_id="session-child",
+        # Child exists but has different parent
+        mock_session_manager.get.return_value = MockSession(
+            id="session-child",
             parent_session_id="session-actual-parent",
-            mode="terminal",
         )
-        mock_agent_registry.add(child_agent)
 
         result = await messaging_registry.call(
             "send_to_child",
@@ -230,9 +256,10 @@ class TestSendToChild:
         )
 
         assert result["success"] is False
-        assert "parent" in result["error"].lower()
+        assert "not a child of" in result["error"].lower()
 
 
+@pytest.mark.unit
 class TestPollMessages:
     """Tests for poll_messages tool."""
 
@@ -293,6 +320,7 @@ class TestPollMessages:
         assert result["count"] == 0
 
 
+@pytest.mark.unit
 class TestMarkMessageRead:
     """Tests for mark_message_read tool."""
 
@@ -331,23 +359,21 @@ class TestMarkMessageRead:
         assert "not found" in result["error"].lower()
 
 
+@pytest.mark.unit
 class TestBroadcastToChildren:
-    """Tests for broadcast_to_children tool (optional extension)."""
+    """Tests for broadcast_to_children tool."""
 
     @pytest.mark.asyncio
     async def test_broadcast_to_children_success(
-        self, messaging_registry, mock_message_manager, mock_agent_registry
+        self, messaging_registry, mock_message_manager, mock_session_manager
     ):
-        """Test broadcasting message to all children."""
-        # Register multiple children
-        for i in range(3):
-            child_agent = RunningAgent(
-                run_id=f"run-{i}",
-                session_id=f"session-child-{i}",
-                parent_session_id="session-parent",
-                mode="terminal",
-            )
-            mock_agent_registry.add(child_agent)
+        """Test broadcasting message to all active children."""
+        # Setup: 3 active children in database
+        mock_session_manager.find_children.return_value = [
+            MockSession(id="session-child-0", parent_session_id="session-parent", status="active"),
+            MockSession(id="session-child-1", parent_session_id="session-parent", status="active"),
+            MockSession(id="session-child-2", parent_session_id="session-parent", status="active"),
+        ]
 
         result = await messaging_registry.call(
             "broadcast_to_children",
@@ -362,8 +388,36 @@ class TestBroadcastToChildren:
         assert mock_message_manager.create_message.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_broadcast_to_children_no_children(self, messaging_registry, mock_agent_registry):
+    async def test_broadcast_to_children_filters_inactive(
+        self, messaging_registry, mock_message_manager, mock_session_manager
+    ):
+        """Test that broadcast filters out inactive children."""
+        # Setup: 2 active, 1 paused child
+        mock_session_manager.find_children.return_value = [
+            MockSession(id="session-child-0", parent_session_id="session-parent", status="active"),
+            MockSession(id="session-child-1", parent_session_id="session-parent", status="paused"),
+            MockSession(id="session-child-2", parent_session_id="session-parent", status="active"),
+        ]
+
+        result = await messaging_registry.call(
+            "broadcast_to_children",
+            {
+                "parent_session_id": "session-parent",
+                "content": "Hello active children!",
+            },
+        )
+
+        assert result["success"] is True
+        assert result["sent_count"] == 2
+        assert result["total_children"] == 2
+
+    @pytest.mark.asyncio
+    async def test_broadcast_to_children_no_children(
+        self, messaging_registry, mock_session_manager
+    ):
         """Test broadcasting when no children exist."""
+        mock_session_manager.find_children.return_value = []
+
         result = await messaging_registry.call(
             "broadcast_to_children",
             {
@@ -376,21 +430,20 @@ class TestBroadcastToChildren:
         assert result["sent_count"] == 0
 
 
+@pytest.mark.unit
 class TestErrorHandling:
     """Tests for error handling in messaging tools."""
 
     @pytest.mark.asyncio
     async def test_send_to_parent_manager_error(
-        self, messaging_registry, mock_message_manager, mock_agent_registry
+        self, messaging_registry, mock_message_manager, mock_session_manager
     ):
         """Test error handling when message manager fails."""
-        child_agent = RunningAgent(
-            run_id="run-err",
-            session_id="session-child",
+        # Setup: session exists with parent
+        mock_session_manager.get.return_value = MockSession(
+            id="session-child",
             parent_session_id="session-parent",
-            mode="terminal",
         )
-        mock_agent_registry.add(child_agent)
 
         mock_message_manager.create_message.side_effect = Exception("Database error")
 
