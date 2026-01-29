@@ -42,7 +42,6 @@ Usage in Workflows:
 
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -76,7 +75,6 @@ class ExampleNotifyPlugin(HookPlugin):
         self.log_file: Path = Path("~/.gobby/logs/metrics.log").expanduser()
         self._metrics_logged: int = 0
         self._notifications_sent: int = 0
-        self._counter_lock: asyncio.Lock = asyncio.Lock()
 
     def on_load(self, config: dict[str, Any]) -> None:
         """Initialize plugin with configuration and register actions."""
@@ -188,9 +186,7 @@ class ExampleNotifyPlugin(HookPlugin):
             f"[SIMULATED] HTTP {method} to {url} | channel={effective_channel} | payload={payload}"
         )
 
-        async with self._counter_lock:
-            self._notifications_sent += 1
-            notification_count = self._notifications_sent
+        self._notifications_sent += 1
 
         return {
             "success": True,
@@ -199,7 +195,7 @@ class ExampleNotifyPlugin(HookPlugin):
             "url": url,
             "channel": effective_channel,
             "timestamp": timestamp,
-            "notification_count": notification_count,
+            "notification_count": self._notifications_sent,
         }
 
     async def _execute_log_metric(
@@ -234,19 +230,15 @@ class ExampleNotifyPlugin(HookPlugin):
             "session_id": context.session_id if context else None,
         }
 
-        # Append to log file in JSON Lines format (non-blocking)
-        def _write_metric() -> None:
-            # Ensure log directory exists (inside try for error handling)
-            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure log directory exists
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Append to log file in JSON Lines format
+        try:
             with open(self.log_file, "a") as f:
                 f.write(json.dumps(metric_entry) + "\n")
 
-        try:
-            await asyncio.to_thread(_write_metric)
-
-            async with self._counter_lock:
-                self._metrics_logged += 1
-                metrics_logged = self._metrics_logged
+            self._metrics_logged += 1
 
             self.logger.debug(f"Logged metric: {metric_name}={value}")
 
@@ -256,7 +248,7 @@ class ExampleNotifyPlugin(HookPlugin):
                 "value": value,
                 "timestamp": timestamp,
                 "log_file": str(self.log_file),
-                "metrics_logged": metrics_logged,
+                "metrics_logged": self._metrics_logged,
             }
 
         except OSError as e:

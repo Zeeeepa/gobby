@@ -40,16 +40,15 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 [Key discoveries from research or debugging that should be remembered, with bullet points]
 
 ## Files Changed
-[List {{ file_changes }} with specific details about WHY each file was changed and WHAT the changes accomplish.]
+{{ file_changes }}
+[Add specific details about WHY each file was changed and WHAT the changes accomplish.]
 
 ## Git Status
 ```
 {{ git_status }}
 ```
 
-{% if todo_list %}
 {{ todo_list }}
-{% endif %}
 
 ## Next Steps
 [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]

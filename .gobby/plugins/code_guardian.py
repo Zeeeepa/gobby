@@ -32,31 +32,13 @@ Configuration Options:
 
 from __future__ import annotations
 
-import ast
-import asyncio
 import shutil
 import subprocess  # nosec B404 - subprocess needed for code linting commands
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.plugins import HookPlugin, hook_handler
-
-
-class BoundedCache(OrderedDict):
-    """LRU-style bounded cache with configurable max size."""
-
-    def __init__(self, max_size: int = 100) -> None:
-        super().__init__()
-        self.max_size = max_size
-
-    def __setitem__(self, key: Any, value: Any) -> None:
-        if key in self:
-            self.move_to_end(key)
-        super().__setitem__(key, value)
-        while len(self) > self.max_size:
-            self.popitem(last=False)
 
 
 class CodeGuardianPlugin(HookPlugin):
@@ -82,12 +64,9 @@ class CodeGuardianPlugin(HookPlugin):
         # Rules to exclude from auto-fix (F401=unused imports, F811=redefinition)
         # These are commonly "wrong" during multi-step refactoring
         self.auto_fix_exclude_rules: list[str] = ["F401", "F811"]
-        # Max cache size for bounded caches (configurable via on_load)
-        self.max_cache_size: int = 100
 
-        # State tracking with bounded caches to prevent unbounded growth
-        self._last_check_results: BoundedCache = BoundedCache(max_size=self.max_cache_size)
-        self._mypy_results_by_path: BoundedCache = BoundedCache(max_size=self.max_cache_size)
+        # State tracking
+        self._last_check_results: dict[str, Any] = {}
         self._files_checked: int = 0
         self._files_blocked: int = 0
 
@@ -101,12 +80,6 @@ class CodeGuardianPlugin(HookPlugin):
         self.auto_fix_exclude_rules = config.get(
             "auto_fix_exclude_rules", self.auto_fix_exclude_rules
         )
-        # Update cache sizes if configured
-        new_cache_size = config.get("max_cache_size", self.max_cache_size)
-        if new_cache_size != self.max_cache_size:
-            self.max_cache_size = new_cache_size
-            self._last_check_results = BoundedCache(max_size=new_cache_size)
-            self._mypy_results_by_path = BoundedCache(max_size=new_cache_size)
 
         self.logger.info(
             f"Code Guardian loaded: checks={self.checks}, "
@@ -192,7 +165,6 @@ class CodeGuardianPlugin(HookPlugin):
         # For Edit tool, run checks on the modified file
         if tool_name == "Edit" and path.exists():
             self._files_checked += 1
-            # _run_checks populates _mypy_results_by_path internally when mypy is enabled
             errors = self._run_checks(path)
 
             if errors:
@@ -219,9 +191,10 @@ class CodeGuardianPlugin(HookPlugin):
         if not matches_pattern:
             return False
 
-        # Check ignore paths - match against path components, not substrings
+        # Check ignore paths
+        path_str = str(path)
         for ignore in self.ignore_paths:
-            if ignore in path.parts:
+            if ignore in path_str:
                 return False
 
         return True
@@ -242,22 +215,13 @@ class CodeGuardianPlugin(HookPlugin):
         # Check for obvious issues (placeholder for real checks)
         issues: list[str] = []
 
-        # Check for debug prints using AST to avoid false positives in strings/comments
+        # Example: Check for debug prints
         if "print(" in content and "def " in content:
-            try:
-                tree = ast.parse(content)
-                lines = content.split("\n")
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-                        func = node.value.func
-                        if isinstance(func, ast.Name) and func.id == "print":
-                            line_num = node.lineno
-                            # Check for # noqa on the same line
-                            if line_num <= len(lines) and "# noqa" not in lines[line_num - 1]:
-                                issues.append(f"Line {line_num}: Debug print statement found")
-            except SyntaxError:
-                # If AST parsing fails, skip the check rather than false positive
-                pass
+            lines = content.split("\n")
+            for i, line in enumerate(lines, 1):
+                stripped = line.lstrip()
+                if stripped.startswith("print(") and "# noqa" not in line:
+                    issues.append(f"Line {i}: Debug print statement found")
 
         if issues and self.block_on_error:
             self._files_blocked += 1
@@ -274,20 +238,14 @@ class CodeGuardianPlugin(HookPlugin):
         return None
 
     def _run_checks(self, path: Path) -> list[str]:
-        """Run configured checkers on a file.
-
-        Also populates _mypy_results_by_path when mypy is enabled.
-        """
+        """Run configured checkers on a file."""
         errors: list[str] = []
 
         if "ruff" in self.checks:
             errors.extend(self._run_ruff_check(path))
 
         if "mypy" in self.checks:
-            mypy_errors = self._run_mypy_check(path)
-            # Cache mypy results for condition checks (single source of truth)
-            self._mypy_results_by_path[str(path)] = mypy_errors
-            errors.extend(mypy_errors)
+            errors.extend(self._run_mypy_check(path))
 
         return errors
 
@@ -401,8 +359,7 @@ class CodeGuardianPlugin(HookPlugin):
         for file_path in target_files:
             path = Path(file_path)
             if path.exists() and self._should_check_file(path):
-                # Run blocking _run_checks off the event loop
-                errors = await asyncio.to_thread(self._run_checks, path)
+                errors = self._run_checks(path)
                 all_errors.extend(errors)
                 checked += 1
 
@@ -442,25 +399,16 @@ class CodeGuardianPlugin(HookPlugin):
         for file_path in target_files:
             path = Path(file_path)
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    "ruff",
-                    "format",
-                    str(path),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
+                result = subprocess.run(  # nosec B603 B607 - hardcoded ruff command
+                    ["ruff", "format", str(path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
-                try:
-                    _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
-                except TimeoutError:
-                    proc.kill()
-                    await proc.wait()
-                    errors.append(f"{path}: timeout after 60s")
-                    continue
-
-                if proc.returncode == 0:
+                if result.returncode == 0:
                     formatted += 1
                 else:
-                    errors.append(f"{path}: {stderr.decode().strip()}")
+                    errors.append(f"{path}: {result.stderr.strip()}")
             except Exception as e:
                 errors.append(f"{path}: {e}")
 
@@ -495,18 +443,12 @@ class CodeGuardianPlugin(HookPlugin):
 
         Usage in workflow YAML:
             when: "plugin_code_guardian_has_type_errors()"
-
-        Note: This method reads from cached mypy results populated by the
-        post-tool handler. Returns False if no cache entry exists.
         """
         if file_path:
-            # Use cached mypy results from post-tool handler
-            cached_errors = self._mypy_results_by_path.get(file_path, [])
-            return len(cached_errors) > 0
-        # If no specific file, check if any cached results have errors
-        for errors in self._mypy_results_by_path.values():
-            if errors:
-                return True
+            path = Path(file_path)
+            if path.exists():
+                errors = self._run_mypy_check(path)
+                return len(errors) > 0
         return False
 
 

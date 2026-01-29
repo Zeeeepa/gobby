@@ -11,10 +11,8 @@ optional_variables:
 ---
 You are creating a session continuation summary after a compaction event.
 
-{% if previous_summary %}
-## Context from Earlier in This Session:
+## Context from Earlier in This Session (if any):
 {{ previous_summary }}
-{% endif %}
 
 If there is previous context above, focus your summary on what happened AFTER
 that point. Compress the historical context into a brief "Session History" section.
@@ -48,10 +46,9 @@ This is the most important section.]
 ### This Segment's Progress
 [Bullet points of what was accomplished in this segment]
 
-{% if previous_summary %}
 ### Session History
-[1-2 sentences summarizing the overall session journey, compressing earlier context.]
-{% endif %}
+[1-2 sentences summarizing the overall session journey. Include if there was
+previous context, otherwise skip this section.]
 
 ### Technical State
 - Key files modified: [list files]

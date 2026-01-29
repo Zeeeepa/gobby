@@ -97,7 +97,7 @@ steps:
 
           IMPORTANT: You are in a git worktree. After completing your work:
           1. Stage your changes: git add <files>
-          2. Commit with task reference: git commit -m "[#{{ variables.assigned_task_id }}] Description"
+          2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
           3. Close the task with the commit SHA:
 
              mcp__gobby__call_tool(
@@ -109,10 +109,7 @@ steps:
                }
              )
 
-          IMPORTANT RULES:
-          - Do NOT push - the parent orchestrator will handle merging
-          - Do NOT create markdown files or reports - send results via send_to_parent
-          - Your work output should be CODE CHANGES committed to the branch
+          Do NOT push - the parent orchestrator will handle merging.
 
     allowed_tools: all
 
@@ -128,7 +125,7 @@ steps:
 
     transitions:
       - to: report_to_parent
-        when: "mcp_called('gobby-tasks', 'close_task')"
+        when: "variables.get('task_closed', False)"
 
   - name: report_to_parent
     description: "Notify parent of completion"
@@ -193,10 +190,12 @@ steps:
             server_name="gobby-sessions",
             tool_name="update_session",
             arguments={
-              "session_id": "<your_session_id>",
+              "session_id": "$GOBBY_SESSION_ID",
               "status": "completed"
             }
           )
+
+          Note: Replace $GOBBY_SESSION_ID with the value from environment variable GOBBY_SESSION_ID.
 
           Then run the shutdown script (if available):
           ~/.gobby/scripts/agent_shutdown.sh

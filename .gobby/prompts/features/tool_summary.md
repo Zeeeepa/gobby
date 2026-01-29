@@ -8,8 +8,8 @@ variables:
     required: true
     description: The tool description to summarize
 ---
-Summarize this MCP tool description in 180 characters or less using one to two sentences.
-Prioritize the character limit over sentence count. Be concise and preserve the key functionality.
+Summarize this MCP tool description in 180 characters or less.
+Keep it to three sentences or less. Be concise and preserve the key functionality.
 Do not add quotes, extra formatting, or code examples.
 
 Description: {{ description }}
