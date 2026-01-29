@@ -90,22 +90,34 @@ steps:
 
           Task: {{ variables.assigned_task_id }}
 
-          You now have full tool access. Complete the implementation:
-          1. Read relevant files to understand the codebase
-          2. Make the required changes
+          You now have full tool access. Complete the task:
+          1. Read the task details to understand what needs to be done
+          2. Execute the required work (may involve file edits, API calls, or just gathering information)
           3. Run tests if applicable
 
-          IMPORTANT: You are in a git worktree. After completing your work:
+          IMPORTANT: Closing the task depends on what type of work you did:
+
+          **If you made file changes:**
           1. Stage your changes: git add <files>
           2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
-          3. Close the task with the commit SHA:
-
+          3. Close the task WITH commit_sha:
              mcp__gobby__call_tool(
                server_name="gobby-tasks",
                tool_name="close_task",
                arguments={
                  "task_id": "{{ variables.assigned_task_id }}",
                  "commit_sha": "<commit_sha_from_git_commit>"
+               }
+             )
+
+          **If NO file changes (e.g., research, messaging, information gathering):**
+          Close the task WITHOUT commit_sha:
+             mcp__gobby__call_tool(
+               server_name="gobby-tasks",
+               tool_name="close_task",
+               arguments={
+                 "task_id": "{{ variables.assigned_task_id }}",
+                 "changes_summary": "<brief summary of what you did>"
                }
              )
 
@@ -226,9 +238,9 @@ on_premature_stop:
     Cannot stop - task not complete.
 
     You must:
-    1. Complete your implementation
-    2. Commit your changes (git add && git commit)
-    3. Close the task with close_task()
+    1. Complete your work
+    2. If you made file changes: commit them (git add && git commit)
+    3. Close the task with close_task() (commit_sha optional if no file changes)
     4. Report to parent with send_to_parent()
 
     If you're stuck, check the task details with get_task().
