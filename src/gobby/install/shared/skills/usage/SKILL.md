@@ -10,23 +10,31 @@ This skill displays token usage, costs, and budget status by querying the gobby-
 
 ## Subcommands
 
+> **Note**: All tool calls below are executed against `server_name="gobby-metrics"`.
+
 ### `/gobby usage` - Show help
 Display available options and current budget status.
 
 ### `/gobby usage --today` - Today's usage summary
 Show token usage and costs for today only.
 
-Call `get_usage_report(days=1)`
+```python
+call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 1})
+```
 
 ### `/gobby usage --week` - Weekly usage summary
 Show token usage and costs for the last 7 days.
 
-Call `get_usage_report(days=7)`
+```python
+call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 7})
+```
 
 ### `/gobby usage --budget` - Budget status only
 Show current daily budget status without usage breakdown.
 
-Call `get_budget_status()`
+```python
+call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
+```
 
 ## Output Format
 

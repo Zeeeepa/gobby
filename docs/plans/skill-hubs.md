@@ -23,19 +23,20 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 ## API Reference
 
 ### ClawdHub API
+> **Note**: These endpoints are proposed/aspirational — pending official documentation from ClawdHub.
+
 - **Base**: `https://clawdhub.com`
-- **Discovery**: `GET /.well-known/clawdhub.json` → `{apiBase, authBase}`
-- **Search**: `GET /api/v1/search?q=<query>&limit=<n>` → `{results: [{slug, displayName, version, score}]}`
-- **Details**: `GET /api/v1/skills/<slug>`
-- **Download**: `GET /api/v1/download?slug=<slug>&version=<version>` → ZIP
+- **Discovery**: `GET /.well-known/clawdhub.json` → `{apiBase, authBase}` (proposed)
+- **Search**: `GET /api/v1/search?q=<query>&limit=<n>` → `{results: [{slug, displayName, version, score}]}` (proposed)
+- **Details**: `GET /api/v1/skills/<slug>` (proposed)
+- **Download**: `GET /api/v1/download?slug=<slug>&version=<version>` → ZIP (proposed)
 - **Auth**: Bearer token (optional for read, required for publish)
 
 ### SkillHub API
 - **Base**: `https://www.skillhub.club/api/v1`
 - **Search**: `POST /skills/search` body: `{query, limit, category, method}` → `{skills: [...]}`
 - **Catalog**: `GET /skills/catalog?limit=<n>&sort=score|stars|recent`
-- **Auth**: `x-api-key: sk-sh-...` header (required)
-- **Rate limit**: 60 req/min per key
+- **Auth**: `Authorization: Bearer YOUR_API_KEY` header (required)
 
 ## Hub Configuration (`~/.gobby/config.yaml`)
 

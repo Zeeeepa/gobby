@@ -79,7 +79,7 @@ Use `depends_on` to specify execution order:
 2. **Dependencies**: Use `depends_on` to enforce logical order (e.g., create file before importing it).
 3. **Context Awareness**: Reference specific existing files or functions from the provided codebase context.
 4. **Categories Required**: Every actionable subtask MUST have a category from the enum.
-5. **Validation Criteria**: Include validation criteria for code/config/test tasks.
+5. **Validation Criteria**: Include validation criteria for code/config/refactor tasks.
 6. **Completeness**: The set of subtasks must fully accomplish the parent task.
 7. **JSON Only**: Output ONLY valid JSON - no markdown, no explanation, no code blocks.
 8. **No Scope Creep**: Do NOT include optional features, alternatives, or "nice-to-haves". Each subtask must be a concrete requirement from the parent task. Never invent additional features, suggest "consider also adding X", or include "(Optional)" sections. Implement exactly what is specified.

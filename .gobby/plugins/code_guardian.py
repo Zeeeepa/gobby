@@ -68,6 +68,7 @@ class CodeGuardianPlugin(HookPlugin):
 
         # State tracking
         self._last_check_results: dict[str, Any] = {}
+        self._mypy_results_by_path: dict[str, list[str]] = {}  # Cache for mypy results
         self._files_checked: int = 0
         self._files_blocked: int = 0
 
@@ -168,6 +169,11 @@ class CodeGuardianPlugin(HookPlugin):
             self._files_checked += 1
             errors = self._run_checks(path)
 
+            # Cache mypy results separately for condition checks
+            if "mypy" in self.checks:
+                mypy_errors = self._run_mypy_check(path)
+                self._mypy_results_by_path[str(path)] = mypy_errors
+
             if errors:
                 self._last_check_results[str(path)] = {
                     "status": "failed",
@@ -192,10 +198,9 @@ class CodeGuardianPlugin(HookPlugin):
         if not matches_pattern:
             return False
 
-        # Check ignore paths
-        path_str = str(path)
+        # Check ignore paths - match against path components, not substrings
         for ignore in self.ignore_paths:
-            if ignore in path_str:
+            if ignore in path.parts:
                 return False
 
         return True
@@ -446,22 +451,24 @@ class CodeGuardianPlugin(HookPlugin):
                 return False
         return True
 
-    async def _condition_has_type_errors(self, file_path: str | None = None) -> bool:
+    def _condition_has_type_errors(self, file_path: str | None = None) -> bool:
         """
         Workflow condition: Check if file has type errors (mypy).
 
         Usage in workflow YAML:
             when: "plugin_code_guardian_has_type_errors()"
 
-        Note: This method is async to avoid blocking the event loop when
-        running mypy subprocess.
+        Note: This method reads from cached mypy results populated by the
+        post-tool handler. Returns False if no cache entry exists.
         """
         if file_path:
-            path = Path(file_path)
-            if path.exists():
-                # Run blocking mypy check off the event loop
-                errors = await asyncio.to_thread(self._run_mypy_check, path)
-                return len(errors) > 0
+            # Use cached mypy results from post-tool handler
+            cached_errors = self._mypy_results_by_path.get(file_path, [])
+            return len(cached_errors) > 0
+        # If no specific file, check if any cached results have errors
+        for errors in self._mypy_results_by_path.values():
+            if errors:
+                return True
         return False
 
 
