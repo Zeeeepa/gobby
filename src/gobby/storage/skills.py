@@ -622,6 +622,15 @@ class LocalSkillManager:
         if source_ref is not _UNSET:
             updates.append("source_ref = ?")
             params.append(source_ref)
+        if hub_name is not _UNSET:
+            updates.append("hub_name = ?")
+            params.append(hub_name)
+        if hub_slug is not _UNSET:
+            updates.append("hub_slug = ?")
+            params.append(hub_slug)
+        if hub_version is not _UNSET:
+            updates.append("hub_version = ?")
+            params.append(hub_version)
         if enabled is not None:
             updates.append("enabled = ?")
             params.append(enabled)

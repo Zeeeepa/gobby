@@ -540,18 +540,15 @@ class WebSocketServer:
             return
 
         if not agent.master_fd:
-            logger.warning(f" Agent {run_id} has no PTY master_fd")
+            logger.warning(f"Agent {run_id} has no PTY master_fd")
             return
 
         try:
-            # Write key/input to PTY
+            # Write key/input to PTY off the event loop
             encoded_data = input_data.encode("utf-8")
-            os.write(agent.master_fd, encoded_data)
+            await asyncio.to_thread(os.write, agent.master_fd, encoded_data)
         except OSError as e:
             logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
-            # If EIO, agent might be dead
-        except Exception as e:
-            logger.error(f"Unexpected error writing to PTY for {run_id}: {e}")
 
     async def broadcast(self, message: dict[str, Any]) -> None:
         """

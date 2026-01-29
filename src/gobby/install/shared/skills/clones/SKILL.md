@@ -50,8 +50,8 @@ Call `create_clone` with:
 
 Creates an isolated git clone for development.
 
-Example: `/gobby clones create feature/auth /tmp/gobby clones/auth`
--> `create_clone(branch_name="feature/auth", clone_path="/tmp/gobby clones/auth")`
+Example: `/gobby clones create feature/auth /tmp/gobby-clones/auth`
+-> `create_clone(branch_name="feature/auth", clone_path="/tmp/gobby-clones/auth")`
 
 ### `/gobby clones show <clone-id>` - Show clone details
 Call `get_clone` with:

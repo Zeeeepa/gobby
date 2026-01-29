@@ -115,7 +115,7 @@ Call `cleanup_stale_worktrees` with:
 Marks and optionally deletes stale worktrees.
 
 Example: `/gobby worktrees cleanup` → `cleanup_stale_worktrees()`
-Example: `/gobby worktrees cleanup --dry-run` → `cleanup_stale_worktrees(dry_run="true")`
+Example: `/gobby worktrees cleanup --dry-run` → `cleanup_stale_worktrees(dry_run=true)`
 
 ### `/gobby worktrees stats` - Get worktree statistics
 Call `get_worktree_stats` for project worktree statistics.

@@ -32,6 +32,7 @@ Configuration Options:
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import subprocess  # nosec B404 - subprocess needed for code linting commands
 from pathlib import Path
@@ -359,7 +360,8 @@ class CodeGuardianPlugin(HookPlugin):
         for file_path in target_files:
             path = Path(file_path)
             if path.exists() and self._should_check_file(path):
-                errors = self._run_checks(path)
+                # Run blocking _run_checks off the event loop
+                errors = await asyncio.to_thread(self._run_checks, path)
                 all_errors.extend(errors)
                 checked += 1
 
@@ -399,16 +401,23 @@ class CodeGuardianPlugin(HookPlugin):
         for file_path in target_files:
             path = Path(file_path)
             try:
-                result = subprocess.run(  # nosec B603 B607 - hardcoded ruff command
-                    ["ruff", "format", str(path)],
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
+                proc = await asyncio.create_subprocess_exec(
+                    "ruff", "format", str(path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-                if result.returncode == 0:
+                try:
+                    _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                except TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    errors.append(f"{path}: timeout after 60s")
+                    continue
+
+                if proc.returncode == 0:
                     formatted += 1
                 else:
-                    errors.append(f"{path}: {result.stderr.strip()}")
+                    errors.append(f"{path}: {stderr.decode().strip()}")
             except Exception as e:
                 errors.append(f"{path}: {e}")
 

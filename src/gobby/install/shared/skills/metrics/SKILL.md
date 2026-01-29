@@ -46,7 +46,7 @@ Call `get_failing_tools` with:
 Returns tools with failure rates above the threshold.
 
 Example: `/gobby metrics failing` → `get_failing_tools()`
-Example: `/gobby metrics failing 0.05` → `get_failing_tools(threshold="0.05")`
+Example: `/gobby metrics failing 0.05` → `get_failing_tools(threshold=0.05)`
 
 ### `/gobby metrics success <server> <tool>` - Get tool success rate
 Call `get_tool_success_rate` with:

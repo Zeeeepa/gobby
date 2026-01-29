@@ -171,8 +171,7 @@ create_task(
     title="__diag__ diagnostic test task",
     description="Diagnostic test task - safe to delete",
     task_type="chore",
-    session_id=<id from # gobby-sessions server:
-get_current_session()>
+    session_id=<id>  # from gobby-sessions get_current_session()
 )
 ```
 
@@ -200,8 +199,14 @@ set_variable(
 )
 ```
 
-**Get:** Call `# gobby-workflows server:
-get_variable(name="diag_test_var")` - should return "diagnostic_value".
+**Get:**
+
+```python
+# gobby-workflows server:
+get_variable(name="diag_test_var")
+```
+
+Expected return: `"diagnostic_value"`
 
 Report summary: "Write+Cleanup: X/3 PASS"
 

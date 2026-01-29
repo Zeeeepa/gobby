@@ -38,13 +38,6 @@ class TestSkillHubFields:
         assert d["hub_slug"] == "gobby-hub"
         assert d["hub_version"] == "1.2.3"
 
-    def test_skill_from_row_handles_hub_fields(self):
-        """Test that from_row handles hub tracking fields."""
-        # Mock a sqlite3.Row
-        # Note: We need a real Row or something that behaves like it
-        # for testing from_row
-        pass
-
 
 class MockRow:
     def __init__(self, data):
