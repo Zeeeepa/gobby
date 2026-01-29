@@ -27,7 +27,10 @@ variables:
 Validate if the following changes satisfy the requirements.
 
 Task: {{ title }}
-{{ category_section }}{{ criteria_text }}
+{% if category_section %}
+{{ category_section }}
+{% endif %}
+{{ criteria_text }}
 
 {{ changes_section }}
 IMPORTANT: Return ONLY a JSON object, nothing else. No explanation, no preamble.

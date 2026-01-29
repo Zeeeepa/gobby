@@ -6,7 +6,7 @@ category: core
 
 # /gobby worktrees - Worktree Management Skill
 
-This skill manages git worktrees via the gobby-worktrees MCP server. Parse the user's input to determine which subcommand to execute.
+This skill manages git worktrees via the `gobby-worktrees` MCP server (invoked as `/gobby worktrees`). Parse the user's input to determine which subcommand to execute.
 
 ## Subcommands
 

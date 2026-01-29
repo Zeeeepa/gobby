@@ -54,7 +54,7 @@ Call `list_sessions` with:
 
 Returns recent sessions with ID, source, start time, and status.
 
-Example: `/gobby sessions list` → `list_sessions(limit="20")`
+Example: `/gobby sessions list` → `list_sessions(limit=20)`
 Example: `/gobby sessions list active` → `list_sessions(status="active")`
 Example: `/gobby sessions list claude` → `list_sessions(source="claude")`
 

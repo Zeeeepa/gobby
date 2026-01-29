@@ -42,15 +42,15 @@ Analyze and expand this task into subtasks.
 Return a JSON object with a "subtasks" array. Each subtask must have these fields:
 
 ### Required Fields
-| Field | Type | Description |
-|-------|------|-------------|
-| `title` | string | Brief, imperative task title (e.g., "Add login endpoint") |
-| `description` | string | Detailed description of what needs to be done |
-| `priority` | integer | 1 (highest) to 5 (lowest) |
-| `task_type` | string | One of: "task", "bug", "spike" |
-| `category` | string | See allowed values below |
-| `validation` | string | How to verify completion (e.g., "Tests pass", "File exists") |
-| `depends_on` | array | 0-based indices of subtasks this depends on (e.g., [0, 1]) |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | Brief, imperative task title (e.g., "Add login endpoint") |
+| `description` | string | Yes | Detailed description of what needs to be done |
+| `priority` | integer | No | 1=High, 2=Medium (default), 3=Low |
+| `task_type` | string | No | "task" (default), "bug", "feature", "epic", "spike" |
+| `category` | string | Yes | See allowed values below |
+| `validation` | string | No | How to verify completion (e.g., "Tests pass", "File exists") |
+| `depends_on` | array | No | 0-based indices of subtasks this depends on (e.g., [0, 1]) |
 
 ### Allowed Categories
 Use exactly one of: `code`, `config`, `docs`, `refactor`, `research`, `planning`, `manual`

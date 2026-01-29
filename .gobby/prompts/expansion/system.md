@@ -15,7 +15,7 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
 | title | string | Yes | Short, actionable title for the subtask |
 | description | string | No | Detailed description including implementation notes |
 | priority | integer | No | 1=High, 2=Medium (default), 3=Low |
-| task_type | string | No | "task" (default), "bug", "feature", "epic" |
+| task_type | string | No | "task" (default), "bug", "feature", "epic", "spike" |
 | category | string | Yes* | Task domain: code, config, docs, refactor, research, planning, manual (NOT test) |
 | validation | string | No | Acceptance criteria with project commands |
 | depends_on | array[int] | No | Indices (0-based) of subtasks this one depends on |
