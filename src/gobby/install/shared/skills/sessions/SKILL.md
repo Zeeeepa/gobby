@@ -10,9 +10,12 @@ This skill manages agent sessions via the gobby-sessions MCP server. Parse the u
 
 ## Session Context
 
-**IMPORTANT**: Use the `session_id` from your SessionStart hook context for most calls. Look for it in your system context:
+**IMPORTANT**: Use the `session_id` from your SessionStart hook context for most calls.
+
+Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 ```
-session_id: #5  (or full UUID)
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
 
 This is the **internal Gobby session ID** - use it for task creation, parent_session_id, etc.

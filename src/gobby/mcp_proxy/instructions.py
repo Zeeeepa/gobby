@@ -26,7 +26,7 @@ def build_gobby_instructions() -> str:
 At the start of EVERY session:
 1. `list_mcp_servers()` — Discover available servers
 2. `list_skills()` — Discover available skills
-3. Session ID: Look for `session_id: <uuid>` in your context.
+3. Session ID: Look for `Gobby Session Ref:` or `Gobby Session ID:` in your context.
    If missing, call:
    `call_tool("gobby-sessions", "get_current", {"external_id": "<your-session-id>", "source": "<cli-name>"})`
 

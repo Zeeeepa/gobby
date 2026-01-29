@@ -1,5 +1,5 @@
 ---
-name: gobby-tasks
+name: tasks
 description: This skill should be used when the user asks to "/gobby tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, validate, dependencies, and orchestration.
 version: "2.0.0"
 category: core
@@ -11,9 +11,12 @@ This skill manages tasks via the gobby-tasks MCP server. Parse the user's input 
 
 ## Session Context
 
-**IMPORTANT**: Pass your `session_id` from SessionStart context when creating or closing tasks for tracking:
+**IMPORTANT**: Pass your `session_id` from SessionStart context when creating or closing tasks for tracking.
+
+Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 ```
-session_id: #5  (or full UUID from SessionStart context)
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.

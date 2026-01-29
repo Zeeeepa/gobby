@@ -16,9 +16,12 @@ Survives session compaction - spec is saved before execution.
 
 ## Session Context
 
-**IMPORTANT**: Use the `session_id` from your SessionStart hook context:
+**IMPORTANT**: Use the `session_id` from your SessionStart hook context.
+
+Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 ```
-session_id: #5 (or full UUID)
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.

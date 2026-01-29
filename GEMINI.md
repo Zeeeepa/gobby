@@ -109,10 +109,11 @@ call_tool("gobby-tasks", "close_task", {
 
 ## Session Context
 
-Your `session_id` is injected at session start. Look for:
+Your `session_id` is injected at session start. Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 
 ```
-session_id: #5  (or full UUID)
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.

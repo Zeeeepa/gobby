@@ -32,9 +32,12 @@ This skill manages git clones via the gobby-clones MCP server. Clones are full r
 
 ## Session Context
 
-**IMPORTANT**: Use the `session_id` from your SessionStart hook context:
+**IMPORTANT**: Use the `session_id` from your SessionStart hook context.
+
+Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 ```
-session_id: #5  (or full UUID)
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
 
 **Note**: All `session_id` and `parent_session_id` parameters accept #N, N, UUID, or prefix formats.
