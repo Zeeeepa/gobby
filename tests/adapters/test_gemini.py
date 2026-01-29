@@ -95,6 +95,7 @@ class TestEventTypeMapping:
         assert adapter.HOOK_EVENT_NAME_MAP[event_type_value] == expected_gemini_name
 
 
+@pytest.mark.unit
 class TestToolNameNormalization:
     """Tests for Gemini tool name normalization."""
 
