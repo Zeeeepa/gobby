@@ -63,8 +63,47 @@ steps:
     transitions:
       - to: complete
         when: "task_tree_complete(variables.session_task)"
+      - to: wait_for_workers
+        when: "mcp_result_is_null('gobby-tasks', 'suggest_next_task')"
       - to: spawn_worker
         when: "mcp_called('gobby-tasks', 'suggest_next_task')"
+
+  - name: wait_for_workers
+    description: "No ready tasks - wait for in-progress workers"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: No ready tasks found.
+
+          All tasks are either in progress or blocked. Waiting for workers to complete.
+
+          Poll for messages from child agents:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="poll_messages",
+            arguments={"session_id": "<your_session_id>"}
+          )
+
+          Then check for newly available tasks.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+      - to: find_work
+        when: "mcp_called('gobby-agents', 'poll_messages')"
 
   - name: spawn_worker
     description: "Spawn Gemini worker in worktree"
@@ -112,6 +151,8 @@ steps:
     transitions:
       - to: wait_for_worker
         when: "mcp_called('gobby-agents', 'spawn_agent')"
+      - to: find_work
+        when: "mcp_failed('gobby-agents', 'spawn_agent')"
 
   - name: wait_for_worker
     description: "Wait for task completion"
@@ -151,8 +192,45 @@ steps:
       - Bash
 
     transitions:
+      - to: handle_timeout
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
       - to: collect_results
-        when: "mcp_called('gobby-agents', 'wait_for_task')"
+        when: "mcp_called('gobby-tasks', 'wait_for_task')"
+
+  - name: handle_timeout
+    description: "Handle worker timeout"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Worker timed out.
+
+          The worker did not complete within the timeout period.
+
+          Poll for any messages from the child:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="poll_messages",
+            arguments={"session_id": "<your_session_id>"}
+          )
+
+          Check task status and decide whether to retry or escalate.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: find_work
+        when: "mcp_called('gobby-agents', 'poll_messages')"
 
   - name: collect_results
     description: "Poll messages, loop back"
@@ -185,10 +263,10 @@ steps:
       - Bash
 
     transitions:
-      - to: complete
-        when: "task_tree_complete(variables.session_task)"
       - to: find_work
         when: "mcp_called('gobby-agents', 'poll_messages')"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
 
   - name: complete
     description: "All tasks done"

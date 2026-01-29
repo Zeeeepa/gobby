@@ -116,6 +116,30 @@ steps:
     transitions:
       - to: wait_for_worker
         when: "mcp_called('gobby-agents', 'spawn_agent')"
+      - to: spawn_failed
+        when: "mcp_failed('gobby-agents', 'spawn_agent')"
+
+  - name: spawn_failed
+    description: "Handle spawn_agent failure"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Worker spawn failed.
+
+          The spawn_agent call failed. This could be due to:
+          - No available worktrees
+          - Invalid task ID
+          - Terminal/provider configuration issues
+
+          Logging the failure and returning to find_work to try another task.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - Read
+
+    transitions:
+      - to: find_work
+        when: "always"
 
   - name: wait_for_worker
     description: "Wait for task completion"
@@ -155,8 +179,50 @@ steps:
       - Bash
 
     transitions:
+      - to: handle_timeout
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
       - to: collect_results
         when: "mcp_called('gobby-tasks', 'wait_for_task')"
+
+  - name: handle_timeout
+    description: "Handle worker timeout"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Worker timed out.
+
+          The worker did not complete within {{ variables.worker_timeout }} seconds.
+
+          Options:
+          1. Check if the worker is still running
+          2. Escalate or reassign the task
+          3. Continue to next task
+
+          Poll for any messages from the child before deciding:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="poll_messages",
+            arguments={"session_id": "<your_session_id>"}
+          )
+
+          Then check the task status and decide whether to retry or move on.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: find_work
+        when: "mcp_called('gobby-agents', 'poll_messages')"
 
   - name: collect_results
     description: "Poll messages, loop back"
@@ -189,10 +255,10 @@ steps:
       - Bash
 
     transitions:
-      - to: complete
-        when: "task_tree_complete(variables.session_task)"
       - to: merge_worktree
         when: "mcp_called('gobby-agents', 'poll_messages')"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
 
   - name: merge_worktree
     description: "Merge worktree branch and cleanup"

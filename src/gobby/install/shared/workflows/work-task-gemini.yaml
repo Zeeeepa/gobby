@@ -125,7 +125,7 @@ steps:
 
     transitions:
       - to: report_to_parent
-        when: "mcp_called('gobby-tasks', 'close_task')"
+        when: "variables.get('task_closed', False)"
 
   - name: report_to_parent
     description: "Notify parent of completion"
