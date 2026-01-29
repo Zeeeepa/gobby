@@ -189,11 +189,15 @@ Store returned `task_id` in `cleanup_tracker["tasks"]`.
 
 **Note:** Workflow variables are session-scoped and automatically cleaned up when the session ends. No `__diag__` prefix needed since they don't persist beyond the session.
 
+**Get session ID first:**
+Use the same session ID obtained in Phase 3.2 from `get_current_session()`.
+
 **Set:**
 
 ```python
 # gobby-workflows server:
 set_variable(
+    session_id=<id>,  # from gobby-sessions get_current_session()
     name="diag_test_var",
     value="diagnostic_value"
 )
@@ -203,7 +207,10 @@ set_variable(
 
 ```python
 # gobby-workflows server:
-get_variable(name="diag_test_var")
+get_variable(
+    session_id=<id>,  # from gobby-sessions get_current_session()
+    name="diag_test_var"
+)
 ```
 
 Expected return: `"diagnostic_value"`

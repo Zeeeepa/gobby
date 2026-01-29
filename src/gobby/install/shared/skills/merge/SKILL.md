@@ -43,8 +43,8 @@ Example: `/gobby merge status res-abc123`
 
 Call `merge_resolve` with:
 - `conflict_id`: (required) The conflict ID
-- `resolved_content`: Manual resolution content (skips AI)
-- `use_ai`: Whether to use AI for resolution (default: true)
+- `resolved_content`: (optional) Manual resolution content; if provided, skips AI
+- `use_ai`: (optional, default: true) Whether to use AI for resolution
 
 Resolves a specific conflict, either manually or with AI assistance.
 

@@ -263,10 +263,10 @@ steps:
       - Bash
 
     transitions:
-      - to: find_work
-        when: "mcp_called('gobby-agents', 'poll_messages')"
       - to: complete
         when: "task_tree_complete(variables.session_task)"
+      - to: find_work
+        when: "mcp_called('gobby-agents', 'poll_messages')"
 
   - name: complete
     description: "All tasks done"

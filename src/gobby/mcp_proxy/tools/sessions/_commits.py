@@ -193,7 +193,7 @@ Args:
             Success status and session details
         """
         if not session_manager:
-            raise RuntimeError("Session manager not available")
+            return {"error": "Session manager not available"}
 
         # Resolve session reference (#N, N, UUID, or prefix)
         try:

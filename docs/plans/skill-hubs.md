@@ -8,8 +8,8 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 
 | Hub | CLI | Skills | Notes |
 | ----- | ----- | -------- | ------- |
-| [ClawdHub](https://clawdhub.com) | `npx clawdhub` | 500+ | Moltbot's registry, REST API |
-| [SkillHub](https://skillhub.club) | `npx @skill-hub/cli` | 7,000+ | AI-evaluated, S/A rankings |
+| [ClawdHub](https://clawdhub.com) | `npm i -g clawdhub` | 500+ | Moltbot's registry, **CLI only** (no public REST API) |
+| [SkillHub](https://skillhub.club) | `npx @skill-hub/cli` | 7,000+ | AI-evaluated, S/A rankings, has REST API |
 | [SkillCreator.ai](https://skillcreator.ai) | `npx ai-agent-skills` | Dynamic | Creates skills from URLs/docs |
 | [n-skills](https://github.com/numman-ali/n-skills) | `openskills` | Curated | GitHub-based marketplace |
 | GitHub Collections | git | Varies | Repos like `moltbot/skills` |
@@ -22,38 +22,51 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 
 ## API Reference
 
-### ClawdHub API
+### ClawdHub API (CLI-Based)
 
-> **Warning**: These endpoints are **speculative** and undocumented. The implementation approach below should be followed.
+> **Verified**: ClawdHub does NOT expose a public REST API. Use the official CLI tool.
 
-**Recommended Implementation Approach:**
+**CLI Tool**: `npm i -g clawdhub` ([docs](https://docs.molt.bot/tools/clawdhub))
 
-1. **Primary**: Use the official `npx clawdhub` CLI tool for all operations (search, install, publish)
-2. **Fallback**: If CLI integration is insufficient, contact ClawdHub maintainers for official API documentation
+**Available Commands:**
+- `clawdhub search "query"` - Vector search for skills
+- `clawdhub install <slug>` - Install a skill to workspace
+- `clawdhub update <slug>` / `--all` - Update installed skills
+- `clawdhub list` - View installed skills
+- `clawdhub publish <path>` - Publish a skill
+- `clawdhub sync` - Batch publish/update local skills
+- `clawdhub login` / `logout` / `whoami` - Authentication
 
-**Speculative Endpoints (DO NOT implement without verification):**
+**Environment Variables:**
+- `CLAWDHUB_SITE` - Override site URL
+- `CLAWDHUB_REGISTRY` - Override registry API URL
+- `CLAWDHUB_CONFIG_PATH` - Token/config storage location
+- `CLAWDHUB_WORKDIR` - Default working directory
 
-- **Base**: `https://clawdhub.com`
-- **Discovery**: `GET /.well-known/clawdhub.json` → `{apiBase, authBase}` (speculative)
-- **Search**: `GET /api/v1/search?q=<query>&limit=<n>` → `{results: [{slug, displayName, version, score}]}` (speculative)
-- **Details**: `GET /api/v1/skills/<slug>` (speculative)
-- **Download**: `GET /api/v1/download?slug=<slug>&version=<version>` → ZIP (speculative)
-- **Auth**: Bearer token (speculative)
+**Authentication:**
+- Browser-based: `clawdhub login`
+- Token-based: `clawdhub login --token <token>`
 
-**Risks & Assumptions:**
-
-- All endpoint paths, request/response formats, and auth mechanisms are unverified guesses
-- ClawdHub may not expose a public REST API at all
-- Endpoints may require authentication even for read operations
-- Response schemas are assumed and may differ significantly
-- Rate limiting, error formats, and pagination are unknown
+**Implementation Approach:**
+Wrap CLI commands via subprocess, parse output into `HubSkillInfo` objects.
 
 ### SkillHub API
 
+> **Verified**: SkillHub has both REST API and CLI.
+
+**CLI Tool**: `npx @skill-hub/cli`
+- `npx @skill-hub/cli search "query"`
+- `npx @skill-hub/cli install <slug>`
+
+**REST API:**
 - **Base**: `https://www.skillhub.club/api/v1`
 - **Search**: `POST /skills/search` body: `{query, limit, category, method}` → `{skills: [...]}`
 - **Catalog**: `GET /skills/catalog?limit=<n>&sort=score|stars|recent`
-- **Auth**: `Authorization: Bearer YOUR_API_KEY` header (required)
+- **Auth**: `Authorization: Bearer <SKILLHUB_API_KEY>` header (required for all requests)
+
+**Rate Limits:**
+- Free tier: 2 queries/day
+- Pro: 50 queries/day
 
 ## Hub Configuration (`~/.gobby/config.yaml`)
 
@@ -120,7 +133,7 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 | `src/gobby/skills/hubs/__init__.py` | Module exports |
 | `src/gobby/skills/hubs/base.py` | `HubProvider` ABC, data classes |
 | `src/gobby/skills/hubs/manager.py` | `HubManager` (multi-hub orchestration) |
-| `src/gobby/skills/hubs/clawdhub.py` | ClawdHub REST API provider |
+| `src/gobby/skills/hubs/clawdhub.py` | ClawdHub CLI wrapper provider |
 | `src/gobby/skills/hubs/skillhub.py` | SkillHub REST API provider |
 | `src/gobby/skills/hubs/github_collection.py` | GitHub repo provider |
 
@@ -128,7 +141,7 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 
 | Path | Changes |
 | ------ | --------- |
-| `src/gobby/config/app.py` | Add `HubConfig` model, extend `SkillsConfig` |
+| `src/gobby/skills/hubs/base.py` | Add `HubConfig` model (referenced by `SkillsConfig`) |
 | `src/gobby/storage/skills.py` | Add hub tracking fields to `Skill` dataclass |
 | `src/gobby/mcp_proxy/tools/skills/__init__.py` | Add `search_hub`, `list_hubs` tools; update `install_skill` |
 | `src/gobby/cli/skills.py` | Add `search` command, `hub` subcommand group |
@@ -146,17 +159,18 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 - Create `HubProvider` ABC with data classes
 - Create `HubManager` for multi-hub orchestration
 
-### Phase 3: ClawdHub Provider
+### Phase 3: ClawdHub Provider (CLI Wrapper)
 
-- Implement well-known discovery (`/.well-known/clawdhub.json`)
-- Implement search, details, download endpoints
-- Handle auth tokens
+- Check for `clawdhub` CLI availability on init
+- Implement search via `clawdhub search` subprocess
+- Implement download via `clawdhub install` subprocess
+- Parse CLI output into `HubSkillInfo` objects
 
 ### Phase 4: SkillHub Provider
 
 - Implement search (`POST /skills/search`)
 - Implement catalog listing (`GET /skills/catalog`)
-- Handle API key authentication (`Authorization: Bearer` header)
+- Handle API key authentication (`Authorization: Bearer <SKILLHUB_API_KEY>` header)
 
 ### Phase 5: GitHub Collection Provider
 
@@ -178,8 +192,8 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 
 ## Verification
 
-1. **Unit tests**: Mock HTTP responses for ClawdHub and SkillHub APIs
-2. **Integration test**: Install a skill from ClawdHub
+1. **Unit tests**: Mock subprocess calls for ClawdHub CLI, mock HTTP responses for SkillHub API
+2. **Integration test**: Install a skill from ClawdHub (requires `clawdhub` CLI installed)
 3. **CLI test**: `gobby skills search "git"` returns results
 4. **MCP test**: `search_hub` tool via Claude Code
 

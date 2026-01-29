@@ -68,7 +68,7 @@ def create_agents_registry(
             return ref  # No resolution available, return as-is
         project_ctx = get_project_context()
         project_id = project_ctx.get("id") if project_ctx else None
-        return session_manager.resolve_session_reference(ref, project_id)
+        return str(session_manager.resolve_session_reference(ref, project_id))
 
     registry = InternalToolRegistry(
         name="gobby-agents",

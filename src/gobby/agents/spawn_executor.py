@@ -225,58 +225,84 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     We pass env vars for linking (parent_session_id, workflow, etc.) but don't
     pass GOBBY_SESSION_ID since the startup hook creates the session.
     """
-    from gobby.agents.constants import (
-        GOBBY_AGENT_DEPTH,
-        GOBBY_MAX_AGENT_DEPTH,
-        GOBBY_PARENT_SESSION_ID,
-        GOBBY_PROJECT_ID,
-        GOBBY_WORKFLOW_NAME,
-    )
+    try:
+        from gobby.agents.constants import (
+            GOBBY_AGENT_DEPTH,
+            GOBBY_MAX_AGENT_DEPTH,
+            GOBBY_PARENT_SESSION_ID,
+            GOBBY_PROJECT_ID,
+            GOBBY_WORKFLOW_NAME,
+        )
 
-    # Build command (fresh session, hooks handle registration)
-    cmd = build_cli_command(
-        cli="gemini",
-        prompt=request.prompt,
-        session_id=None,
-        auto_approve=True,
-    )
+        # Build command (fresh session, hooks handle registration)
+        cmd = build_cli_command(
+            cli="gemini",
+            prompt=request.prompt,
+            session_id=None,
+            auto_approve=True,
+        )
 
-    # Build env vars for session linking (but not GOBBY_SESSION_ID - hook creates session)
-    env_vars: dict[str, str] = {
-        GOBBY_PARENT_SESSION_ID: request.parent_session_id,
-        GOBBY_PROJECT_ID: request.project_id,
-        GOBBY_AGENT_DEPTH: str(request.agent_depth),
-        GOBBY_MAX_AGENT_DEPTH: str(request.max_agent_depth),
-    }
-    if request.workflow:
-        env_vars[GOBBY_WORKFLOW_NAME] = request.workflow
+        # Build env vars for session linking (but not GOBBY_SESSION_ID - hook creates session)
+        env_vars: dict[str, str] = {
+            GOBBY_PARENT_SESSION_ID: request.parent_session_id,
+            GOBBY_PROJECT_ID: request.project_id,
+            GOBBY_AGENT_DEPTH: str(request.agent_depth),
+            GOBBY_MAX_AGENT_DEPTH: str(request.max_agent_depth),
+        }
+        if request.workflow:
+            env_vars[GOBBY_WORKFLOW_NAME] = request.workflow
 
-    # Spawn in terminal with env vars for hook session linking
-    terminal_spawner = TerminalSpawner()
-    terminal_result = terminal_spawner.spawn(
-        command=cmd,
-        cwd=request.cwd,
-        terminal=request.terminal,
-        env=env_vars,
-    )
+        # Spawn in terminal with env vars for hook session linking
+        terminal_spawner = TerminalSpawner()
+        terminal_result = terminal_spawner.spawn(
+            command=cmd,
+            cwd=request.cwd,
+            terminal=request.terminal,
+            env=env_vars,
+        )
 
-    if not terminal_result.success:
+        if not terminal_result.success:
+            return SpawnResult(
+                success=False,
+                run_id=request.run_id,
+                child_session_id=None,
+                status="failed",
+                error=terminal_result.error or terminal_result.message,
+            )
+
+        return SpawnResult(
+            success=True,
+            run_id=request.run_id,
+            child_session_id=None,  # Will be set by startup hook
+            status="pending",
+            pid=terminal_result.pid,
+            message="Gemini agent spawned - session will register via startup hook",
+        )
+    except FileNotFoundError as e:
+        logger.error(
+            f"Gemini spawn failed - command not found: {e}",
+            extra={"project_id": request.project_id, "run_id": request.run_id},
+        )
         return SpawnResult(
             success=False,
             run_id=request.run_id,
             child_session_id=None,
             status="failed",
-            error=terminal_result.error or terminal_result.message,
+            error=str(e),
         )
-
-    return SpawnResult(
-        success=True,
-        run_id=request.run_id,
-        child_session_id=None,  # Will be set by startup hook
-        status="pending",
-        pid=terminal_result.pid,
-        message="Gemini agent spawned - session will register via startup hook",
-    )
+    except Exception as e:
+        logger.error(
+            f"Gemini spawn failed: {e}",
+            extra={"project_id": request.project_id, "run_id": request.run_id},
+            exc_info=True,
+        )
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=None,
+            status="failed",
+            error=f"Gemini spawn failed: {e}",
+        )
 
 
 async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:

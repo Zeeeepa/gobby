@@ -308,7 +308,7 @@ def create_worktrees_registry(
             return ref  # No resolution available, return as-is
         ctx = get_project_context()
         proj_id = ctx.get("id") if ctx else project_id
-        return session_manager.resolve_session_reference(ref, proj_id)
+        return str(session_manager.resolve_session_reference(ref, proj_id))
 
     registry = InternalToolRegistry(
         name="gobby-worktrees",

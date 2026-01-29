@@ -255,10 +255,10 @@ steps:
       - Bash
 
     transitions:
-      - to: merge_worktree
-        when: "mcp_called('gobby-agents', 'poll_messages')"
       - to: complete
         when: "task_tree_complete(variables.session_task)"
+      - to: merge_worktree
+        when: "mcp_called('gobby-agents', 'poll_messages')"
 
   - name: merge_worktree
     description: "Merge worktree branch and cleanup"
