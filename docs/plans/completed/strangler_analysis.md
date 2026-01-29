@@ -27,7 +27,7 @@ src/gobby/mcp_proxy/tools/sessions/
 ├── __init__.py        # Exports create_session_messages_registry
 ├── _messages.py       # get_session_messages, search_messages
 ├── _handoff.py        # create_handoff, get_handoff_context, pickup, helpers
-├── _crud.py           # get_session, get_current, list_sessions, session_stats
+├── _crud.py           # get_session, get_current_session, list_sessions, session_stats
 ├── _commits.py        # get_session_commits, mark_loop_complete
 └── _factory.py        # create_session_messages_registry
 ```

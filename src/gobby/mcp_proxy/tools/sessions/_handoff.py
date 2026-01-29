@@ -176,7 +176,7 @@ def register_handoff_tools(
 Args:
     session_id: (REQUIRED) Your session ID. Accepts #N, N, UUID, or prefix. Get it from:
         1. Your injected context (look for 'Session Ref: #N' or 'session_id: xxx')
-        2. Or call get_current(external_id, source) first""",
+        2. Or call get_current_session(external_id, source) first""",
     )
     async def create_handoff(
         session_id: str,

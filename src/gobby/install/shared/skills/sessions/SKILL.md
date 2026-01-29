@@ -25,7 +25,7 @@ This is the **internal Gobby session ID** - use it for task creation, parent_ses
 ## Subcommands
 
 ### `/gobby sessions get-current` - Look up your session ID
-Call `get_current` with:
+Call `get_current_session` with:
 - `external_id`: (required) Your CLI's session ID
 - `source`: (required) CLI source - "claude", "antigravity", "gemini", or "codex"
 
@@ -48,7 +48,7 @@ Returns your internal Gobby session_id from the external CLI session ID.
 **Note:** If you already have `session_id` in your context (from SessionStart hook), you don't need this tool.
 
 Example: `/gobby sessions get-current ea13ad4f-ca32-48e6-9000-e5e6af35a397 claude`
-→ `get_current(external_id="ea13ad4f-ca32-48e6-9000-e5e6af35a397", source="claude")`
+→ `get_current_session(external_id="ea13ad4f-ca32-48e6-9000-e5e6af35a397", source="claude")`
 
 ### `/gobby sessions list` - List all sessions
 Call `list_sessions` with:
@@ -101,7 +101,7 @@ Example: `/gobby sessions search error --session=sess-abc123` → `search_messag
 
 ### `/gobby sessions handoff` - Create session handoff
 Call `create_handoff` with:
-- `session_id`: (REQUIRED) Your session ID - from injected context or `get_current()`
+- `session_id`: (REQUIRED) Your session ID - from injected context or `get_current_session()`
 - `notes`: Optional notes to include
 - `compact`: Generate compact markdown
 - `full`: Generate full transcript
@@ -152,7 +152,7 @@ Example: `/gobby sessions stats` → `session_stats()`
 
 ### `/gobby sessions mark-complete` - Mark loop complete
 Call `mark_loop_complete` with:
-- `session_id`: (REQUIRED) Your session ID - from injected context or `get_current()`
+- `session_id`: (REQUIRED) Your session ID - from injected context or `get_current_session()`
 
 Marks the autonomous loop as complete, preventing session chaining.
 
@@ -190,12 +190,12 @@ my_session_id = result["sessions"][0]["id"]  # Could be ANY active session!
 
 **CORRECT:**
 ```python
-# ✅ Use get_current with your unique identifiers
-result = get_current(external_id="...", source="claude")
+# ✅ Use get_current_session with your unique identifiers
+result = get_current_session(external_id="...", source="claude")
 my_session_id = result["session_id"]
 ```
 
-Multiple sessions can be active simultaneously (parallel agents, multiple terminals). The `get_current` tool uses a composite key to reliably find YOUR session.
+Multiple sessions can be active simultaneously (parallel agents, multiple terminals). The `get_current_session` tool uses a composite key to reliably find YOUR session.
 
 ## Error Handling
 

@@ -118,10 +118,10 @@ Gobby Session ID: <uuid>
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
-If not present, use `get_current`:
+If not present, use `get_current_session`:
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-gemini-session-id>",
     "source": "gemini"
 })
@@ -134,7 +134,7 @@ When spawned as a subagent (via `start_agent` or `spawn_agent_in_worktree`), use
 ### 1. Get your session info
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-session-id>",
     "source": "gemini"
 })
@@ -161,7 +161,7 @@ call_tool("gobby-sessions", "mark_loop_complete", {
 
 ```python
 call_tool("gobby-agents", "kill_agent", {
-    "run_id": "<agent_run_id>"  # From get_current response
+    "run_id": "<agent_run_id>"  # From get_current_session response
 })
 ```
 

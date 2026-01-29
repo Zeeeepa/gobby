@@ -287,7 +287,7 @@ def _track_mcp_call(
     Args:
         state: Current workflow state (modified in place)
         server_name: MCP server name (e.g., "gobby-sessions")
-        inner_tool: Tool name on the server (e.g., "get_current")
+        inner_tool: Tool name on the server (e.g., "get_current_session")
         tool_output: Tool output to check for errors
     """
     # Check if call succeeded (skip tracking failed calls)

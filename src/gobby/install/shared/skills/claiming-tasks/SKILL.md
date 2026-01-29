@@ -65,10 +65,10 @@ Gobby Session ID: <uuid>
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
-If not present, retrieve it with `get_current`:
+If not present, retrieve it with `get_current_session`:
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-cli-session-id>",
     "source": "claude"
 })

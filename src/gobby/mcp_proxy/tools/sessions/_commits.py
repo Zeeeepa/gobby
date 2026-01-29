@@ -171,7 +171,7 @@ def register_commits_tools(
 Args:
     session_id: (REQUIRED) Your session ID. Accepts #N, N, UUID, or prefix. Get it from:
         1. Your injected context (look for 'Session Ref: #N' or 'session_id: xxx')
-        2. Or call get_current(external_id, source) first""",
+        2. Or call get_current_session(external_id, source) first""",
     )
     def mark_loop_complete(session_id: str) -> dict[str, Any]:
         """

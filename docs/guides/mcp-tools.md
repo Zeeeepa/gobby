@@ -415,7 +415,7 @@ call_tool("gobby-tasks", "close_task", {
 
 | Tool | Description |
 |------|-------------|
-| `get_current` | Get YOUR current session ID (correct way to look up session) |
+| `get_current_session` | Get YOUR current session ID (correct way to look up session) |
 | `get_session` | Get session details by ID. Accepts `#N`, UUID, or prefix. |
 | `list_sessions` | List sessions with filters (NOT for finding your session) |
 | `session_stats` | Get session statistics for project |

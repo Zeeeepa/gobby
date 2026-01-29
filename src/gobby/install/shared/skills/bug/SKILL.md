@@ -62,7 +62,7 @@ The `session_id` parameter is required. If session context is unavailable:
 3. **Fallback options**:
    - Prompt the user to provide a session ID manually
    - Implement retry logic with exponential backoff if the session service is temporarily unavailable
-   - Check `get_current` from `gobby-sessions` to obtain or refresh the session
+   - Check `get_current_session` from `gobby-sessions` to obtain or refresh the session
 
 ```python
 # Example error handling

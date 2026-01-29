@@ -33,7 +33,7 @@ Gobby Session ID: <uuid>
 If not present, retrieve it:
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-cli-session-id>",
     "source": "claude"  # or "gemini", "codex"
 })
