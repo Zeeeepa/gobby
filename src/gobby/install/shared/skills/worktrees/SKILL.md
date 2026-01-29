@@ -124,11 +124,12 @@ Example: `/gobby worktrees stats` → `get_worktree_stats()`
 
 ### `/gobby worktrees by-task <task-id>` - Get worktree for task
 Call `get_worktree_by_task` with:
-- Task ID
+- `task_id`: (required) The task identifier (integer or #ref format)
 
 Finds the worktree linked to a specific task.
 
-Example: `/gobby worktrees by-task #1` → `get_worktree_by_task(...)`
+Example: `/gobby worktrees by-task #1` → `get_worktree_by_task(task_id="#1")`
+Example: `/gobby worktrees by-task 42` → `get_worktree_by_task(task_id="42")`
 
 ### `/gobby worktrees link <worktree-id> <task-id>` - Link task to worktree
 Call `link_task_to_worktree` to link a task to an existing worktree.

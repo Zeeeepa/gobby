@@ -39,10 +39,53 @@ Analyze and expand this task into subtasks.
 
 ## Instructions
 
-Return a JSON object with a "subtasks" array. Remember to:
-1. Use `depends_on` with 0-based indices to specify dependencies
-2. Include a category for each coding subtask
-3. Order subtasks logically - dependencies before dependents
-4. Output ONLY valid JSON - no markdown, no explanation
+Return a JSON object with a "subtasks" array. Each subtask must have these fields:
+
+### Required Fields
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Brief, imperative task title (e.g., "Add login endpoint") |
+| `description` | string | Detailed description of what needs to be done |
+| `priority` | integer | 1 (highest) to 5 (lowest) |
+| `task_type` | string | One of: "task", "bug", "spike" |
+| `category` | string | See allowed values below |
+| `validation` | string | How to verify completion (e.g., "Tests pass", "File exists") |
+| `depends_on` | array | 0-based indices of subtasks this depends on (e.g., [0, 1]) |
+
+### Allowed Categories
+Use exactly one of: `code`, `config`, `docs`, `refactor`, `research`, `planning`, `manual`
+
+**Note**: The category `test` is forbidden — use `code` for test-related tasks.
+
+### Example Output
+```json
+{
+  "subtasks": [
+    {
+      "title": "Create database schema",
+      "description": "Define the SQLite schema for user accounts",
+      "priority": 1,
+      "task_type": "task",
+      "category": "code",
+      "validation": "Schema file exists and migrations run",
+      "depends_on": []
+    },
+    {
+      "title": "Implement user model",
+      "description": "Create User class with CRUD operations",
+      "priority": 2,
+      "task_type": "task",
+      "category": "code",
+      "validation": "Unit tests pass for User model",
+      "depends_on": [0]
+    }
+  ]
+}
+```
+
+### Rules
+1. Order subtasks logically — dependencies before dependents
+2. Use `depends_on` with 0-based indices referring to earlier subtasks
+3. Output ONLY valid JSON — no markdown, no explanation
 
 Return the JSON now.

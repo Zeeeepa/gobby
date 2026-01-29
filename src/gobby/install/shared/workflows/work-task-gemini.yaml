@@ -216,7 +216,7 @@ steps:
   - name: complete
     description: "Worker done"
 
-exit_condition: "current_step == 'complete' or variables.get('task_closed', False)"
+exit_condition: "current_step == 'complete'"
 
 on_premature_stop:
   action: block

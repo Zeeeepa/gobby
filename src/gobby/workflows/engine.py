@@ -544,8 +544,14 @@ class WorkflowEngine:
                     "error": f"Session already has workflow '{existing.workflow_name}' active",
                 }
 
-        # Determine initial step
-        step = definition.steps[0].name if definition.steps else "default"
+        # Determine initial step - fail fast if no steps defined
+        if not definition.steps:
+            logger.error(f"Workflow '{workflow_name}' has no steps defined")
+            return {
+                "success": False,
+                "error": f"Workflow '{workflow_name}' has no steps defined",
+            }
+        step = definition.steps[0].name
 
         # Merge workflow default variables with passed-in variables
         merged_variables = dict(definition.variables)
