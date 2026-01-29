@@ -41,11 +41,10 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
             return {"error": str(e)}
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        resolved_session_id = session_id
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError:
-            pass  # Fall back to raw value if resolution fails
+        except ValueError as e:
+            return {"error": f"Invalid session_id '{session_id}': {e}"}
 
         try:
             ctx.session_task_manager.link_task(resolved_session_id, resolved_id, action)
@@ -82,11 +81,10 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
     def get_session_tasks(session_id: str) -> dict[str, Any]:
         """Get all tasks associated with a session."""
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        resolved_session_id = session_id
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError:
-            pass  # Fall back to raw value if resolution fails
+        except ValueError as e:
+            return {"error": f"Invalid session_id '{session_id}': {e}"}
 
         tasks = ctx.session_task_manager.get_session_tasks(resolved_session_id)
         return {"session_id": resolved_session_id, "tasks": tasks}

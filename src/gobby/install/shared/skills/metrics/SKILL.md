@@ -6,7 +6,7 @@ category: core
 
 # /gobby metrics - Metrics and Statistics Skill
 
-This skill retrieves usage metrics via the gobby-metrics MCP server. Parse the user's input to determine which subcommand to execute.
+This skill retrieves usage metrics via the gobby-metrics MCP tools (e.g., `get_tool_metrics()`, `get_top_tools()`, `get_failing_tools()`). Parse the user's input to determine which subcommand to execute.
 
 ## Subcommands
 

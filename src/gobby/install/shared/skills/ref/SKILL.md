@@ -25,7 +25,7 @@ Create a refactoring task with the provided title and optional description. For 
 
 ## Action
 
-Call the gobby-tasks create_task tool with the following parameters:
+Create a refactoring task with the following parameters:
 
 - `title`: The refactoring title from user input
 - `task_type`: "chore"

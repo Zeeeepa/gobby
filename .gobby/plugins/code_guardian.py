@@ -32,6 +32,7 @@ Configuration Options:
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import shutil
 import subprocess  # nosec B404 - subprocess needed for code linting commands
@@ -241,13 +242,22 @@ class CodeGuardianPlugin(HookPlugin):
         # Check for obvious issues (placeholder for real checks)
         issues: list[str] = []
 
-        # Example: Check for debug prints
+        # Check for debug prints using AST to avoid false positives in strings/comments
         if "print(" in content and "def " in content:
-            lines = content.split("\n")
-            for i, line in enumerate(lines, 1):
-                stripped = line.lstrip()
-                if stripped.startswith("print(") and "# noqa" not in line:
-                    issues.append(f"Line {i}: Debug print statement found")
+            try:
+                tree = ast.parse(content)
+                lines = content.split("\n")
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+                        func = node.value.func
+                        if isinstance(func, ast.Name) and func.id == "print":
+                            line_num = node.lineno
+                            # Check for # noqa on the same line
+                            if line_num <= len(lines) and "# noqa" not in lines[line_num - 1]:
+                                issues.append(f"Line {line_num}: Debug print statement found")
+            except SyntaxError:
+                # If AST parsing fails, skip the check rather than false positive
+                pass
 
         if issues and self.block_on_error:
             self._files_blocked += 1
