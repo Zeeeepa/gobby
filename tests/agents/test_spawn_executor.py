@@ -364,13 +364,15 @@ class TestExecuteSpawn:
             # Verify spawn was called with env vars for linking
             mock_spawner.spawn.assert_called_once()
             call_kwargs = mock_spawner.spawn.call_args.kwargs
-            env = call_kwargs.get("env", {})
+            # Explicitly assert env key exists (not masked by .get default)
+            assert "env" in call_kwargs, "spawn() must be called with env kwarg"
+            env = call_kwargs["env"]
             # Env vars should include parent/project/depth info but NOT session ID
             assert "GOBBY_SESSION_ID" not in env
-            assert env.get("GOBBY_PARENT_SESSION_ID") == "parent"
-            assert env.get("GOBBY_PROJECT_ID") == "proj"
-            assert env.get("GOBBY_AGENT_DEPTH") == "0"
-            assert env.get("GOBBY_MAX_AGENT_DEPTH") == "3"
+            assert env["GOBBY_PARENT_SESSION_ID"] == "parent"
+            assert env["GOBBY_PROJECT_ID"] == "proj"
+            assert env["GOBBY_AGENT_DEPTH"] == "0"
+            assert env["GOBBY_MAX_AGENT_DEPTH"] == "3"
             assert result.success is True
             # child_session_id is None because startup hook will register it
             assert result.child_session_id is None
