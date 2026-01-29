@@ -896,7 +896,7 @@ class TestListSessions:
 
         # Should return a warning about this pattern
         assert "warning" in result
-        assert "get_current" in result["warning"]
+        assert "get_current_session" in result["warning"]
         assert "hint" in result
         # Should still return the sessions
         assert result["count"] == 1
