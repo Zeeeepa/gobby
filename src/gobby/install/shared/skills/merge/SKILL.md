@@ -12,7 +12,7 @@ This skill manages git merge operations with AI-powered conflict resolution via 
 
 ### `/gobby merge start <worktree-id> <source-branch>` - Start a merge
 
-Call `gobby-merge.merge_start` with:
+Call `merge_start` with:
 - `worktree_id`: (required) ID of the worktree to merge in
 - `source_branch`: (required) Branch being merged in
 - `target_branch`: Target branch (default: "main")
@@ -28,7 +28,7 @@ Example: `/gobby merge start wt-abc123 feature/auth --strategy conflict_only`
 
 ### `/gobby merge status <resolution-id>` - Check merge status
 
-Call `gobby-merge.merge_status` with:
+Call `merge_status` with:
 - `resolution_id`: (required) The resolution ID returned from merge_start
 
 Returns merge resolution status including:
@@ -41,7 +41,7 @@ Example: `/gobby merge status res-abc123`
 
 ### `/gobby merge resolve <conflict-id>` - Resolve a specific conflict
 
-Call `gobby-merge.merge_resolve` with:
+Call `merge_resolve` with:
 - `conflict_id`: (required) The conflict ID
 - `resolved_content`: Manual resolution content (skips AI)
 - `use_ai`: Whether to use AI for resolution (default: true)
@@ -56,7 +56,7 @@ Example with manual content:
 
 ### `/gobby merge apply <resolution-id>` - Apply and complete merge
 
-Call `gobby-merge.merge_apply` with:
+Call `merge_apply` with:
 - `resolution_id`: (required) The resolution ID
 
 Applies all resolved conflicts and completes the merge. All conflicts must be resolved before calling apply.
@@ -66,7 +66,7 @@ Example: `/gobby merge apply res-abc123`
 
 ### `/gobby merge abort <resolution-id>` - Abort the merge
 
-Call `gobby-merge.merge_abort` with:
+Call `merge_abort` with:
 - `resolution_id`: (required) The resolution ID
 
 Aborts the merge operation and restores the previous state. Cannot abort already-resolved merges.

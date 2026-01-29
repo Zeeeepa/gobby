@@ -272,7 +272,8 @@ async def spawn_agent_impl(
     spawn_result = await execute_spawn(spawn_request)
 
     # 11. Register with RunningAgentRegistry for send_to_parent/child messaging
-    if spawn_result.success:
+    # Only register if spawn succeeded and we have a valid child_session_id
+    if spawn_result.success and spawn_result.child_session_id is not None:
         agent_registry = get_running_agent_registry()
         agent_registry.add(
             RunningAgent(

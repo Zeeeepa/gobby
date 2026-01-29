@@ -237,10 +237,13 @@ class ExampleNotifyPlugin(HookPlugin):
         # Ensure log directory exists
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Append to log file in JSON Lines format
-        try:
+        # Append to log file in JSON Lines format (non-blocking)
+        def _write_metric() -> None:
             with open(self.log_file, "a") as f:
                 f.write(json.dumps(metric_entry) + "\n")
+
+        try:
+            await asyncio.to_thread(_write_metric)
 
             async with self._counter_lock:
                 self._metrics_logged += 1

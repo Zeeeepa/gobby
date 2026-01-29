@@ -446,17 +446,21 @@ class CodeGuardianPlugin(HookPlugin):
                 return False
         return True
 
-    def _condition_has_type_errors(self, file_path: str | None = None) -> bool:
+    async def _condition_has_type_errors(self, file_path: str | None = None) -> bool:
         """
         Workflow condition: Check if file has type errors (mypy).
 
         Usage in workflow YAML:
             when: "plugin_code_guardian_has_type_errors()"
+
+        Note: This method is async to avoid blocking the event loop when
+        running mypy subprocess.
         """
         if file_path:
             path = Path(file_path)
             if path.exists():
-                errors = self._run_mypy_check(path)
+                # Run blocking mypy check off the event loop
+                errors = await asyncio.to_thread(self._run_mypy_check, path)
                 return len(errors) > 0
         return False
 

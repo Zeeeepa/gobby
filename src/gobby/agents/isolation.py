@@ -198,7 +198,7 @@ class WorktreeIsolationHandler(IsolationHandler):
         )
 
         # Copy CLI hooks to worktree so hooks fire correctly
-        self._copy_cli_hooks(
+        await self._copy_cli_hooks(
             main_repo_path=self._git_manager.repo_path,
             worktree_path=worktree_path,
             provider=config.provider,
@@ -242,7 +242,7 @@ Commit your changes to the worktree branch when done.
         worktree_dir = tempfile.gettempdir()
         return f"{worktree_dir}/gobby-worktrees/{project_name}/{safe_branch}"
 
-    def _copy_cli_hooks(
+    async def _copy_cli_hooks(
         self,
         main_repo_path: str,
         worktree_path: str,
@@ -259,6 +259,7 @@ Commit your changes to the worktree branch when done.
             worktree_path: Path to the newly created worktree
             provider: CLI provider (gemini, claude, codex)
         """
+        import asyncio
         import logging
         import shutil
         from pathlib import Path
@@ -285,8 +286,8 @@ Commit your changes to the worktree branch when done.
             return
 
         try:
-            # Copy entire CLI hooks directory
-            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+            # Copy entire CLI hooks directory (non-blocking)
+            await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
             logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
         except Exception as e:
             logger.warning(f"Failed to copy CLI hooks: {e}")
@@ -367,7 +368,7 @@ class CloneIsolationHandler(IsolationHandler):
         )
 
         # Copy CLI hooks to clone so hooks fire correctly
-        self._copy_cli_hooks(
+        await self._copy_cli_hooks(
             source_repo_path=config.project_path,
             clone_path=clone_path,
             provider=config.provider,
@@ -411,7 +412,7 @@ Push your changes when ready to share with the original.
         clone_dir = tempfile.gettempdir()
         return f"{clone_dir}/gobby-clones/{project_name}/{safe_branch}"
 
-    def _copy_cli_hooks(
+    async def _copy_cli_hooks(
         self,
         source_repo_path: str,
         clone_path: str,
@@ -428,6 +429,7 @@ Push your changes when ready to share with the original.
             clone_path: Path to the newly created clone
             provider: CLI provider (gemini, claude, codex)
         """
+        import asyncio
         import logging
         import shutil
         from pathlib import Path
@@ -454,8 +456,8 @@ Push your changes when ready to share with the original.
             return
 
         try:
-            # Copy entire CLI hooks directory
-            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+            # Copy entire CLI hooks directory (non-blocking)
+            await asyncio.to_thread(shutil.copytree, src_path, dst_path, dirs_exist_ok=True)
             logger.info(f"Copied CLI hooks from {src_path} to {dst_path}")
         except Exception as e:
             logger.warning(f"Failed to copy CLI hooks: {e}")
