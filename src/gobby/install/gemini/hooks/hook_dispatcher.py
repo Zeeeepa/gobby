@@ -62,6 +62,23 @@ def get_daemon_url() -> str:
     return f"http://localhost:{port}"
 
 
+def get_gobby_context() -> dict[str, str | None]:
+    """Capture Gobby spawn context from environment variables.
+
+    These are set by Gobby when spawning child agents to link sessions.
+
+    Returns:
+        Dict with gobby context (values may be None if not a spawned agent)
+    """
+    return {
+        "parent_session_id": os.environ.get("GOBBY_PARENT_SESSION_ID"),
+        "workflow_name": os.environ.get("GOBBY_WORKFLOW_NAME"),
+        "project_id": os.environ.get("GOBBY_PROJECT_ID"),
+        "agent_depth": os.environ.get("GOBBY_AGENT_DEPTH"),
+        "max_agent_depth": os.environ.get("GOBBY_MAX_AGENT_DEPTH"),
+    }
+
+
 def get_terminal_context() -> dict[str, str | int | bool | None]:
     """Capture terminal/process context for session correlation.
 
@@ -216,6 +233,11 @@ def main() -> int:
         # This captures the terminal/process info for session correlation
         if hook_type == "SessionStart":
             input_data["terminal_context"] = get_terminal_context()
+            # Inject gobby context (parent_session_id, workflow, etc.) for spawned agents
+            gobby_ctx = get_gobby_context()
+            for key, value in gobby_ctx.items():
+                if value is not None:
+                    input_data[key] = value
 
         # Log what Gemini CLI sends us (for debugging hook data issues)
         logger.info(f"[{hook_type}] Received input keys: {list(input_data.keys())}")

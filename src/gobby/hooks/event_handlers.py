@@ -292,9 +292,13 @@ class EventHandlers:
             except Exception as e:
                 self.logger.debug(f"No pre-created session found: {e}")
 
-        # Step 1: Find parent session if this is a handoff (source='clear' only)
-        parent_session_id = None
-        if session_source == "clear" and self._session_storage:
+        # Step 1: Find parent session
+        # Check env vars first (spawned agent case), then handoff (source='clear')
+        parent_session_id = input_data.get("parent_session_id")
+        workflow_name = input_data.get("workflow_name")
+        agent_depth = input_data.get("agent_depth")
+
+        if not parent_session_id and session_source == "clear" and self._session_storage:
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,
@@ -311,6 +315,14 @@ class EventHandlers:
         # Step 2: Register new session with parent if found
         # Extract terminal context (injected by hook_dispatcher for terminal correlation)
         terminal_context = input_data.get("terminal_context")
+        # Parse agent_depth as int if provided
+        agent_depth_val = 0
+        if agent_depth:
+            try:
+                agent_depth_val = int(agent_depth)
+            except (ValueError, TypeError):
+                pass
+
         session_id = None
         if self._session_manager:
             session_id = self._session_manager.register_session(
@@ -322,6 +334,8 @@ class EventHandlers:
                 source=cli_source,
                 project_path=cwd,
                 terminal_context=terminal_context,
+                workflow_name=workflow_name,
+                agent_depth=agent_depth_val,
             )
 
         # Step 2b: Mark parent session as expired after successful handoff
@@ -331,6 +345,23 @@ class EventHandlers:
                 self.logger.debug(f"Marked parent session {parent_session_id} as expired")
             except Exception as e:
                 self.logger.warning(f"Failed to mark parent session as expired: {e}")
+
+        # Step 2c: Auto-activate workflow if specified (for spawned agents)
+        if workflow_name and self._workflow_handler and session_id:
+            try:
+                result = self._workflow_handler.activate_workflow(
+                    workflow_name=workflow_name,
+                    session_id=session_id,
+                    project_path=cwd,
+                )
+                if result.get("success"):
+                    self.logger.info(
+                        f"Auto-activated workflow '{workflow_name}' for session {session_id}"
+                    )
+                else:
+                    self.logger.warning(f"Failed to auto-activate workflow: {result.get('error')}")
+            except Exception as e:
+                self.logger.warning(f"Failed to auto-activate workflow: {e}")
 
         # Step 3: Track registered session
         if transcript_path and self._session_coordinator:

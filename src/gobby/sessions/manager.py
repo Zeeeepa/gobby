@@ -82,6 +82,8 @@ class SessionManager:
         git_branch: str | None = None,
         project_path: str | None = None,
         terminal_context: dict[str, Any] | None = None,
+        workflow_name: str | None = None,
+        agent_depth: int = 0,
     ) -> str:
         """
         Register new session with local storage.
@@ -125,6 +127,8 @@ class SessionManager:
                 git_branch=git_branch,
                 parent_session_id=parent_session_id,
                 terminal_context=terminal_context,
+                workflow_name=workflow_name,
+                agent_depth=agent_depth,
             )
 
             session_id: str = session.id

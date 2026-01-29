@@ -328,6 +328,8 @@ class TestExecuteSpawn:
         """Test that provider='gemini' with mode='terminal' spawns directly without preflight.
 
         Session registration is handled by Gemini's startup hook, not pre-creation.
+        Env vars are passed for linking (parent_session_id, workflow, etc.) but not
+        GOBBY_SESSION_ID (since we don't pre-create the session).
         """
         request = SpawnRequest(
             prompt="Test",
@@ -359,10 +361,14 @@ class TestExecuteSpawn:
         ):
             result = await execute_spawn(request)
 
-            # Verify spawn was called without env vars (no pre-created session)
+            # Verify spawn was called with env vars for linking
             mock_spawner.spawn.assert_called_once()
             call_kwargs = mock_spawner.spawn.call_args.kwargs
-            assert "env" not in call_kwargs or call_kwargs.get("env") is None
+            env = call_kwargs.get("env", {})
+            # Env vars should include parent/project info but NOT session ID
+            assert "GOBBY_SESSION_ID" not in env
+            assert env.get("GOBBY_PARENT_SESSION_ID") == "parent"
+            assert env.get("GOBBY_PROJECT_ID") == "proj"
             assert result.success is True
             # child_session_id is None because startup hook will register it
             assert result.child_session_id is None
