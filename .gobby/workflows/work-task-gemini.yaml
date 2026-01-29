@@ -109,7 +109,10 @@ steps:
                }
              )
 
-          Do NOT push - the parent orchestrator will handle merging.
+          IMPORTANT RULES:
+          - Do NOT push - the parent orchestrator will handle merging
+          - Do NOT create markdown files or reports - send results via send_to_parent
+          - Your work output should be CODE CHANGES committed to the branch
 
     allowed_tools: all
 
