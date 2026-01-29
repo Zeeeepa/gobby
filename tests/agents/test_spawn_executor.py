@@ -324,13 +324,13 @@ class TestExecuteSpawn:
             assert call_kwargs.kwargs.get("workflow_name") == "auto-task"
 
     @pytest.mark.asyncio
-    async def test_gemini_terminal_spawns_without_preflight(self):
-        """Test that provider='gemini' with mode='terminal' spawns directly without preflight.
+    async def test_gemini_terminal_calls_preflight(self):
+        """Test that provider='gemini' with mode='terminal' calls prepare_gemini_spawn_with_preflight.
 
-        Session registration is handled by Gemini's startup hook, not pre-creation.
-        Env vars are passed for linking (parent_session_id, workflow, etc.) but not
-        GOBBY_SESSION_ID (since we don't pre-create the session).
+        Gemini now uses preflight to capture session_id before launching interactive mode,
+        similar to Codex. This ensures session linkage works without relying on env vars.
         """
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -341,6 +341,14 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
+        )
+
+        mock_preflight = AsyncMock(
+            return_value=MagicMock(
+                session_id="gobby-sess-123",
+                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-789"},
+            )
         )
 
         mock_spawner = MagicMock()
@@ -351,8 +359,12 @@ class TestExecuteSpawn:
 
         with (
             patch(
-                "gobby.agents.spawn_executor.build_cli_command",
-                return_value=["gemini", "."],
+                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
+                mock_preflight,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
+                return_value=["gemini", "-r", "gemini-ext-789"],
             ),
             patch(
                 "gobby.agents.spawn_executor.TerminalSpawner",
@@ -361,21 +373,15 @@ class TestExecuteSpawn:
         ):
             result = await execute_spawn(request)
 
-            # Verify spawn was called with env vars for linking
+            mock_preflight.assert_called_once()
             mock_spawner.spawn.assert_called_once()
+            # No env vars passed to spawn (session linkage is in database)
             call_kwargs = mock_spawner.spawn.call_args.kwargs
-            # Explicitly assert env key exists (not masked by .get default)
-            assert "env" in call_kwargs, "spawn() must be called with env kwarg"
-            env = call_kwargs["env"]
-            # Env vars should include parent/project/depth info but NOT session ID
-            assert "GOBBY_SESSION_ID" not in env
-            assert env["GOBBY_PARENT_SESSION_ID"] == "parent"
-            assert env["GOBBY_PROJECT_ID"] == "proj"
-            assert env["GOBBY_AGENT_DEPTH"] == "0"
-            assert env["GOBBY_MAX_AGENT_DEPTH"] == "3"
+            assert "env" not in call_kwargs or call_kwargs.get("env") is None
             assert result.success is True
-            # child_session_id is None because startup hook will register it
-            assert result.child_session_id is None
+            # child_session_id is now properly set via preflight
+            assert result.child_session_id == "gobby-sess-123"
+            assert result.gemini_session_id == "gemini-ext-789"
             assert result.pid == 12345
 
     @pytest.mark.asyncio
@@ -429,8 +435,8 @@ class TestExecuteSpawn:
             assert result.codex_session_id == "codex-ext-789"
 
     @pytest.mark.asyncio
-    async def test_gemini_terminal_spawn_failure_propagates_error(self):
-        """Test that Gemini spawn failure is properly propagated to SpawnResult."""
+    async def test_gemini_terminal_requires_session_manager(self):
+        """Test that Gemini spawn requires session_manager for preflight."""
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -441,6 +447,36 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            # No session_manager provided
+        )
+
+        result = await execute_spawn(request)
+
+        assert result.success is False
+        assert "session_manager is required" in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_gemini_terminal_spawn_failure_propagates_error(self):
+        """Test that Gemini spawn failure is properly propagated to SpawnResult."""
+        mock_session_manager = MagicMock()
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="gemini",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+            session_manager=mock_session_manager,
+        )
+
+        mock_preflight = AsyncMock(
+            return_value=MagicMock(
+                session_id="gobby-sess-123",
+                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-789"},
+            )
         )
 
         mock_spawner = MagicMock()
@@ -452,8 +488,12 @@ class TestExecuteSpawn:
 
         with (
             patch(
-                "gobby.agents.spawn_executor.build_cli_command",
-                return_value=["gemini", "."],
+                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
+                mock_preflight,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
+                return_value=["gemini", "-r", "gemini-ext-789"],
             ),
             patch(
                 "gobby.agents.spawn_executor.TerminalSpawner",

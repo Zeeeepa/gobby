@@ -62,23 +62,6 @@ def get_daemon_url() -> str:
     return f"http://localhost:{port}"
 
 
-def get_gobby_context() -> dict[str, str | None]:
-    """Capture Gobby spawn context from environment variables.
-
-    These are set by Gobby when spawning child agents to link sessions.
-
-    Returns:
-        Dict with gobby context (values may be None if not a spawned agent)
-    """
-    return {
-        "parent_session_id": os.environ.get("GOBBY_PARENT_SESSION_ID"),
-        "workflow_name": os.environ.get("GOBBY_WORKFLOW_NAME"),
-        "project_id": os.environ.get("GOBBY_PROJECT_ID"),
-        "agent_depth": os.environ.get("GOBBY_AGENT_DEPTH"),
-        "max_agent_depth": os.environ.get("GOBBY_MAX_AGENT_DEPTH"),
-    }
-
-
 def get_terminal_context() -> dict[str, str | int | bool | None]:
     """Capture terminal/process context for session correlation.
 
@@ -233,16 +216,10 @@ def main() -> int:
         # This captures the terminal/process info for session correlation
         if hook_type == "SessionStart":
             input_data["terminal_context"] = get_terminal_context()
-            # Inject gobby context (parent_session_id, workflow, etc.) for spawned agents
-            # Use namespaced key to avoid silent overwrites of top-level keys
-            gobby_ctx = get_gobby_context()
-            filtered_ctx = {k: v for k, v in gobby_ctx.items() if v is not None}
-            if filtered_ctx:
-                existing = input_data.get("gobby_context")
-                if isinstance(existing, dict):
-                    existing.update(filtered_ctx)
-                else:
-                    input_data["gobby_context"] = filtered_ctx
+            # Note: gobby_context (parent_session_id, workflow, etc.) is no longer
+            # injected from env vars. For spawned agents, the session is pre-created
+            # with all linkage via preflight+resume pattern, so the daemon already
+            # has the context when SessionStart fires.
 
         # Log what Gemini CLI sends us (for debugging hook data issues)
         # Extract common context fields for structured logging
