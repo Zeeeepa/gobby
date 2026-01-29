@@ -40,8 +40,7 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 [Key discoveries from research or debugging that should be remembered, with bullet points]
 
 ## Files Changed
-{{ file_changes }}
-[Add specific details about WHY each file was changed and WHAT the changes accomplish.]
+[List {{ file_changes }} with specific details about WHY each file was changed and WHAT the changes accomplish.]
 
 ## Git Status
 ```

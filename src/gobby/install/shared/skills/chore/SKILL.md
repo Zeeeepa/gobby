@@ -26,7 +26,7 @@ Create a maintenance or housekeeping task with the provided title and optional d
 
 ## Action
 
-Create a chore task with the following parameters:
+Create a chore task by invoking `call_tool()` with the following parameters:
 
 - `title`: The chore title from user input
 - `task_type`: "chore"

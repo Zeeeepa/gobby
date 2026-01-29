@@ -29,8 +29,13 @@ def register_message_tools(
         session_manager: LocalSessionManager for resolving session references
     """
 
-    def _resolve_session_id(session_id: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+    def _resolve_session_id(session_id: str) -> str | dict[str, Any]:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID.
+
+        Returns:
+            str: Resolved UUID on success
+            dict: Error dict {"success": False, "error": str} on failure
+        """
         if not session_manager:
             return session_id  # Fall back to raw value if no manager
 
@@ -41,8 +46,8 @@ def register_message_tools(
 
         try:
             return session_manager.resolve_session_reference(session_id, project_id)
-        except ValueError:
-            return session_id  # Fall back to raw value if resolution fails
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_session_messages",
@@ -68,6 +73,8 @@ def register_message_tools(
                 raise RuntimeError("Message manager not available")
 
             resolved_id = _resolve_session_id(session_id)
+            if isinstance(resolved_id, dict):
+                return resolved_id  # Return error dict from resolution failure
             messages = await message_manager.get_messages(
                 session_id=resolved_id,
                 limit=limit,
@@ -136,7 +143,12 @@ def register_message_tools(
             if not message_manager:
                 raise RuntimeError("Message manager not available")
 
-            resolved_session_id = _resolve_session_id(session_id) if session_id else None
+            resolved_session_id = None
+            if session_id:
+                resolved = _resolve_session_id(session_id)
+                if isinstance(resolved, dict):
+                    return resolved  # Return error dict from resolution failure
+                resolved_session_id = resolved
             results = await message_manager.search_messages(
                 query_text=query,
                 session_id=resolved_session_id,

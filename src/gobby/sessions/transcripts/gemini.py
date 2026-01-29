@@ -186,9 +186,13 @@ class GeminiTranscriptParser:
                 content_type = "tool_result"
                 content = str(data["tool_result"])
 
-            # If still no role, skip this line
+            # If still no role in fallback, skip this line
             if not role:
                 return None
+
+        # Validate role is set - skip lines with missing role
+        if not role:
+            return None
 
         # Normalize role: model -> assistant
         if role == "model":
