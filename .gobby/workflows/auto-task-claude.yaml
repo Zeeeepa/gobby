@@ -125,7 +125,7 @@ steps:
           Wait for the task to be closed:
 
           mcp__gobby__call_tool(
-            server_name="gobby-agents",
+            server_name="gobby-tasks",
             tool_name="wait_for_task",
             arguments={
               "task_id": "<task_id_being_worked>",
@@ -152,7 +152,7 @@ steps:
 
     transitions:
       - to: collect_results
-        when: "mcp_called('gobby-agents', 'wait_for_task')"
+        when: "mcp_called('gobby-tasks', 'wait_for_task')"
 
   - name: collect_results
     description: "Poll messages, loop back"
