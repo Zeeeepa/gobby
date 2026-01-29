@@ -21,6 +21,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
 from gobby.storage.migrations import run_migrations
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -102,20 +104,20 @@ def mock_db():
 class TestMemoryManagerInit:
     """Tests for MemoryManager initialization."""
 
-    def test_init_creates_storage(self, db, memory_config):
+    def test_init_creates_storage(self, db, memory_config) -> None:
         """Test that initialization creates a LocalMemoryManager."""
         manager = MemoryManager(db=db, config=memory_config)
         assert manager.db is db
         assert manager.config is memory_config
         assert isinstance(manager.storage, LocalMemoryManager)
 
-    def test_init_creates_backend(self, db, memory_config):
+    def test_init_creates_backend(self, db, memory_config) -> None:
         """Test that initialization creates a MemoryBackendProtocol instance."""
         manager = MemoryManager(db=db, config=memory_config)
         assert hasattr(manager, "_backend")
         assert isinstance(manager._backend, MemoryBackendProtocol)
 
-    def test_init_with_null_backend(self, db):
+    def test_init_with_null_backend(self, db) -> None:
         """Test that null backend can be used for testing."""
         config = MemoryConfig(backend="null")
         manager = MemoryManager(db=db, config=config)
@@ -309,12 +311,12 @@ class TestAccessStats:
         # Should still be same count due to debouncing
         assert updated_again.access_count == first_access_count
 
-    def test_update_access_stats_empty_list(self, memory_manager):
+    def test_update_access_stats_empty_list(self, memory_manager) -> None:
         """Test _update_access_stats handles empty list."""
         # Should not raise
         memory_manager._update_access_stats([])
 
-    def test_update_access_stats_invalid_timestamp(self, db, memory_config):
+    def test_update_access_stats_invalid_timestamp(self, db, memory_config) -> None:
         """Test _update_access_stats handles invalid timestamps gracefully."""
         manager = MemoryManager(db=db, config=memory_config)
 
@@ -326,7 +328,7 @@ class TestAccessStats:
         # Should not raise, should proceed with update
         manager._update_access_stats([memory])
 
-    def test_update_access_stats_no_timezone(self, db, memory_config):
+    def test_update_access_stats_no_timezone(self, db, memory_config) -> None:
         """Test _update_access_stats handles timestamps without timezone."""
         manager = MemoryManager(db=db, config=memory_config)
 
@@ -363,7 +365,7 @@ class TestForget:
         assert result is True
         assert memory_manager.get_memory(memory.id) is None
 
-    def test_forget_nonexistent_memory(self, memory_manager):
+    def test_forget_nonexistent_memory(self, memory_manager) -> None:
         """Test forgetting a non-existent memory returns False."""
         result = memory_manager.forget("mm-nonexistent")
         assert result is False
@@ -428,7 +430,7 @@ class TestContentExists:
 
         assert result is True
 
-    def test_content_exists_false(self, memory_manager):
+    def test_content_exists_false(self, memory_manager) -> None:
         """Test content_exists returns False for non-existing content."""
         result = memory_manager.content_exists("Non-existing content")
 
@@ -454,7 +456,7 @@ class TestGetMemory:
         assert retrieved.id == created.id
         assert retrieved.content == created.content
 
-    def test_get_memory_not_found(self, memory_manager):
+    def test_get_memory_not_found(self, memory_manager) -> None:
         """Test getting a non-existent memory returns None."""
         result = memory_manager.get_memory("mm-nonexistent")
 
@@ -511,7 +513,7 @@ class TestUpdateMemory:
 class TestGetStats:
     """Tests for get_stats method."""
 
-    def test_get_stats_empty(self, memory_manager):
+    def test_get_stats_empty(self, memory_manager) -> None:
         """Test stats with no memories."""
         stats = memory_manager.get_stats()
 
@@ -542,7 +544,7 @@ class TestGetStats:
 class TestDecayMemories:
     """Tests for decay_memories method."""
 
-    def test_decay_disabled_returns_zero(self, db):
+    def test_decay_disabled_returns_zero(self, db) -> None:
         """Test decay returns 0 when disabled."""
         config = MemoryConfig(decay_enabled=False)
         manager = MemoryManager(db=db, config=config)
@@ -565,7 +567,7 @@ class TestDecayMemories:
         # Should skip because it was just created
         assert count == 0
 
-    def test_decay_old_memories(self, db):
+    def test_decay_old_memories(self, db) -> None:
         """Test decay applies to old memories."""
         config = MemoryConfig(decay_enabled=True, decay_rate=0.3, decay_floor=0.1)
         manager = MemoryManager(db=db, config=config)
@@ -588,7 +590,7 @@ class TestDecayMemories:
         updated = manager.get_memory(memory_id)
         assert updated.importance < 0.8
 
-    def test_decay_respects_floor(self, db):
+    def test_decay_respects_floor(self, db) -> None:
         """Test decay doesn't go below floor."""
         config = MemoryConfig(decay_enabled=True, decay_rate=0.9, decay_floor=0.2)
         manager = MemoryManager(db=db, config=config)
@@ -647,7 +649,7 @@ class TestEdgeCases:
         # Should return same memory due to content-based ID
         assert memory1.id == memory2.id
 
-    def test_recall_empty_database(self, memory_manager):
+    def test_recall_empty_database(self, memory_manager) -> None:
         """Test recall on empty database returns empty list."""
         memories = memory_manager.recall()
         assert memories == []
@@ -667,7 +669,7 @@ class TestEdgeCases:
             # Should not raise, just log warning
             manager._update_access_stats([memory])
 
-    def test_decay_memories_handles_timezone_naive_timestamps(self, db):
+    def test_decay_memories_handles_timezone_naive_timestamps(self, db) -> None:
         """Test decay_memories handles timestamps without timezone."""
         config = MemoryConfig(decay_enabled=True, decay_rate=0.3, decay_floor=0.1)
         manager = MemoryManager(db=db, config=config)

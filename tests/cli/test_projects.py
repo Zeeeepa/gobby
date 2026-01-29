@@ -14,6 +14,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def runner() -> CliRunner:
@@ -52,7 +53,7 @@ class TestListProjects:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list with no projects found."""
         mock_manager = MagicMock()
         mock_manager.list.return_value = []
@@ -70,7 +71,7 @@ class TestListProjects:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_project: MagicMock,
-    ):
+    ) -> None:
         """Test list with multiple projects."""
         project2 = MagicMock()
         project2.id = "proj-def456"
@@ -94,7 +95,7 @@ class TestListProjects:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_project: MagicMock,
-    ):
+    ) -> None:
         """Test list with JSON output format."""
         mock_manager = MagicMock()
         mock_manager.list.return_value = [mock_project]
@@ -112,7 +113,7 @@ class TestListProjects:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list with project that has no repo_path."""
         project = MagicMock()
         project.id = "proj-no-path"
@@ -138,7 +139,7 @@ class TestShowProject:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_project: MagicMock,
-    ):
+    ) -> None:
         """Test showing project by UUID."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_project
@@ -159,7 +160,7 @@ class TestShowProject:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_project: MagicMock,
-    ):
+    ) -> None:
         """Test showing project by name when ID lookup fails."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None  # ID lookup fails
@@ -177,7 +178,7 @@ class TestShowProject:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test showing project when not found."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None
@@ -195,7 +196,7 @@ class TestShowProject:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_project: MagicMock,
-    ):
+    ) -> None:
         """Test showing project with JSON output format."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_project
@@ -213,7 +214,7 @@ class TestShowProject:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test showing project with minimal information (no github)."""
         project = MagicMock()
         project.id = "proj-minimal"

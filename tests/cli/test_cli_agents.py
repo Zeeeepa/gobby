@@ -20,6 +20,8 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -162,14 +164,14 @@ def mock_failed_run():
 class TestAgentsGroup:
     """Tests for the agents command group."""
 
-    def test_agents_help(self, runner: CliRunner):
+    def test_agents_help(self, runner: CliRunner) -> None:
         """Test agents --help displays help text."""
         result = runner.invoke(cli, ["agents", "--help"])
 
         assert result.exit_code == 0
         assert "Manage subagent runs" in result.output
 
-    def test_agents_group_alone(self, runner: CliRunner):
+    def test_agents_group_alone(self, runner: CliRunner) -> None:
         """Test invoking agents alone shows help or requires subcommand."""
         result = runner.invoke(cli, ["agents"])
 
@@ -186,7 +188,7 @@ class TestAgentsGroup:
 class TestAgentsStartCommand:
     """Tests for gobby agents start command."""
 
-    def test_start_help(self, runner: CliRunner):
+    def test_start_help(self, runner: CliRunner) -> None:
         """Test start --help displays help text."""
         result = runner.invoke(cli, ["agents", "start", "--help"])
 
@@ -198,7 +200,7 @@ class TestAgentsStartCommand:
         assert "--terminal" in result.output
         assert "--provider" in result.output
 
-    def test_start_requires_session(self, runner: CliRunner):
+    def test_start_requires_session(self, runner: CliRunner) -> None:
         """Test start requires --session option."""
         result = runner.invoke(cli, ["agents", "start", "Test prompt"])
 
@@ -214,7 +216,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test successful agent start."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent123"
@@ -247,7 +249,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start with all optional parameters."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent123"
@@ -318,7 +320,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start with JSON output format."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
@@ -358,7 +360,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start when daemon is not running."""
         import httpx
 
@@ -384,7 +386,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start when daemon returns HTTP error."""
         import httpx
 
@@ -415,7 +417,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start with failure response from daemon."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-nonexistent"
@@ -445,7 +447,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start in in_process mode shows output."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
@@ -487,7 +489,7 @@ class TestAgentsStartCommand:
         mock_post: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test start handles generic exceptions."""
         mock_get_url.return_value = "http://localhost:60887"
         mock_resolve_session.return_value = "sess-parent"
@@ -501,7 +503,7 @@ class TestAgentsStartCommand:
         assert result.exit_code == 0
         assert "Error: Unexpected error" in result.output
 
-    def test_start_mode_choices(self, runner: CliRunner):
+    def test_start_mode_choices(self, runner: CliRunner) -> None:
         """Test start mode option validates choices."""
         result = runner.invoke(
             cli,
@@ -519,7 +521,7 @@ class TestAgentsStartCommand:
         assert result.exit_code == 2
         assert "Invalid value" in result.output or "invalid_mode" in result.output
 
-    def test_start_terminal_choices(self, runner: CliRunner):
+    def test_start_terminal_choices(self, runner: CliRunner) -> None:
         """Test start terminal option validates choices."""
         result = runner.invoke(
             cli,
@@ -546,7 +548,7 @@ class TestAgentsStartCommand:
 class TestAgentsListCommand:
     """Tests for gobby agents list command."""
 
-    def test_list_help(self, runner: CliRunner):
+    def test_list_help(self, runner: CliRunner) -> None:
         """Test list --help displays options."""
         result = runner.invoke(cli, ["agents", "list", "--help"])
 
@@ -561,7 +563,7 @@ class TestAgentsListCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list with no agent runs."""
         mock_manager = MagicMock()
         mock_manager.list_running.return_value = []
@@ -584,7 +586,7 @@ class TestAgentsListCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test list displays agent runs."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -628,7 +630,7 @@ class TestAgentsListCommand:
         mock_resolve_session: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test list filtered by session."""
         mock_manager = MagicMock()
         mock_manager.list_by_session.return_value = [mock_agent_run]
@@ -649,7 +651,7 @@ class TestAgentsListCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test list filtered by running status."""
         mock_manager = MagicMock()
         mock_manager.list_running.return_value = [mock_agent_run]
@@ -666,7 +668,7 @@ class TestAgentsListCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test list filtered by non-running status."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -708,7 +710,7 @@ class TestAgentsListCommand:
         mock_resolve_session: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test list with both session and status filters."""
         mock_manager = MagicMock()
         mock_manager.list_by_session.return_value = [mock_completed_run]
@@ -728,7 +730,7 @@ class TestAgentsListCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list with custom limit."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -751,7 +753,7 @@ class TestAgentsListCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test list with JSON output."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -793,7 +795,7 @@ class TestAgentsListCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list shows correct status icons."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -843,7 +845,7 @@ class TestAgentsListCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list truncates long prompts."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -890,7 +892,7 @@ class TestAgentsListCommand:
 class TestAgentsShowCommand:
     """Tests for gobby agents show command."""
 
-    def test_show_help(self, runner: CliRunner):
+    def test_show_help(self, runner: CliRunner) -> None:
         """Test show --help displays options."""
         result = runner.invoke(cli, ["agents", "show", "--help"])
 
@@ -906,7 +908,7 @@ class TestAgentsShowCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test show with exact run ID match."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
@@ -929,7 +931,7 @@ class TestAgentsShowCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test show with single prefix match."""
         mock_manager = MagicMock()
         # When resolve succeeds, it returns the ID, then manager.get(ID) is called.
@@ -972,7 +974,7 @@ class TestAgentsShowCommand:
         mock_db_cls: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test show with ambiguous prefix match."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None
@@ -1036,7 +1038,7 @@ class TestAgentsShowCommand:
         mock_db_cls: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test show with non-existent run ID."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None
@@ -1060,7 +1062,7 @@ class TestAgentsShowCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test show with JSON output."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
@@ -1082,7 +1084,7 @@ class TestAgentsShowCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test show displays result for completed run."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
@@ -1103,7 +1105,7 @@ class TestAgentsShowCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_failed_run: MagicMock,
-    ):
+    ) -> None:
         """Test show displays error for failed run."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_failed_run
@@ -1123,7 +1125,7 @@ class TestAgentsShowCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test show truncates long prompts."""
         run = MagicMock()
         run.id = "ar-longprompt"
@@ -1161,7 +1163,7 @@ class TestAgentsShowCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test show truncates long results."""
         run = MagicMock()
         # ... preserved setup ...
@@ -1202,7 +1204,7 @@ class TestAgentsShowCommand:
 class TestAgentsStatusCommand:
     """Tests for gobby agents status command."""
 
-    def test_status_help(self, runner: CliRunner):
+    def test_status_help(self, runner: CliRunner) -> None:
         """Test status --help displays options."""
         result = runner.invoke(cli, ["agents", "status", "--help"])
 
@@ -1217,7 +1219,7 @@ class TestAgentsStatusCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test status for running agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_agent_run
@@ -1240,7 +1242,7 @@ class TestAgentsStatusCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test status for successful agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
@@ -1261,7 +1263,7 @@ class TestAgentsStatusCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_failed_run: MagicMock,
-    ):
+    ) -> None:
         """Test status for failed agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_failed_run
@@ -1283,7 +1285,7 @@ class TestAgentsStatusCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test status with prefix match."""
         mock_manager = MagicMock()
         # Ensure manager returns run when resolved ID is passed
@@ -1325,7 +1327,7 @@ class TestAgentsStatusCommand:
         mock_db_cls: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test status with non-existent run."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None
@@ -1349,7 +1351,7 @@ class TestAgentsStatusCommand:
 class TestAgentsStopCommand:
     """Tests for gobby agents stop command."""
 
-    def test_stop_help(self, runner: CliRunner):
+    def test_stop_help(self, runner: CliRunner) -> None:
         """Test stop --help displays options."""
         result = runner.invoke(cli, ["agents", "stop", "--help"])
 
@@ -1364,7 +1366,7 @@ class TestAgentsStopCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test stopping a running agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_agent_run
@@ -1384,7 +1386,7 @@ class TestAgentsStopCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stopping a pending agent."""
         pending_run = MagicMock()
         pending_run.id = "ar-pending123"
@@ -1408,7 +1410,7 @@ class TestAgentsStopCommand:
         mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
-    ):
+    ) -> None:
         """Test stopping already completed agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
@@ -1427,7 +1429,7 @@ class TestAgentsStopCommand:
         mock_db_cls: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stopping non-existent agent."""
         mock_manager = MagicMock()
         mock_manager.get.return_value = None
@@ -1450,7 +1452,7 @@ class TestAgentsStopCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
-    ):
+    ) -> None:
         """Test stop with prefix match."""
         mock_manager = MagicMock()
         # Fix: ensure manager.get returns the run for the resolved ID
@@ -1485,7 +1487,7 @@ class TestAgentsStopCommand:
         assert result.exit_code == 0
         assert "Stopped agent run" in result.output
 
-    def test_stop_requires_confirmation(self, runner: CliRunner):
+    def test_stop_requires_confirmation(self, runner: CliRunner) -> None:
         """Test stop requires confirmation."""
         result = runner.invoke(cli, ["agents", "stop", "ar-test123"])
 
@@ -1502,7 +1504,7 @@ class TestAgentsStopCommand:
 class TestAgentsStatsCommand:
     """Tests for gobby agents stats command."""
 
-    def test_stats_help(self, runner: CliRunner):
+    def test_stats_help(self, runner: CliRunner) -> None:
         """Test stats --help displays options."""
         result = runner.invoke(cli, ["agents", "stats", "--help"])
 
@@ -1514,7 +1516,7 @@ class TestAgentsStatsCommand:
         self,
         mock_db_cls: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test global agent statistics."""
         mock_db = MagicMock()
         mock_db.fetchone.return_value = {
@@ -1545,7 +1547,7 @@ class TestAgentsStatsCommand:
         mock_get_manager: MagicMock,
         mock_resolve_session: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test session-specific agent statistics."""
         mock_manager = MagicMock()
         mock_manager.count_by_session.return_value = {
@@ -1567,7 +1569,7 @@ class TestAgentsStatsCommand:
         self,
         mock_db_cls: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stats with no agent runs."""
         mock_db = MagicMock()
         mock_db.fetchone.return_value = None
@@ -1583,7 +1585,7 @@ class TestAgentsStatsCommand:
         self,
         mock_db_cls: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stats with zero total runs doesn't divide by zero."""
         mock_db = MagicMock()
         mock_db.fetchone.return_value = {
@@ -1613,7 +1615,7 @@ class TestAgentsStatsCommand:
 class TestAgentsCleanupCommand:
     """Tests for gobby agents cleanup command."""
 
-    def test_cleanup_help(self, runner: CliRunner):
+    def test_cleanup_help(self, runner: CliRunner) -> None:
         """Test cleanup --help displays options."""
         result = runner.invoke(cli, ["agents", "cleanup", "--help"])
 
@@ -1626,7 +1628,7 @@ class TestAgentsCleanupCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test cleanup with default options."""
         mock_manager = MagicMock()
         mock_manager.cleanup_stale_runs.return_value = 3
@@ -1644,7 +1646,7 @@ class TestAgentsCleanupCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test cleanup with custom timeout."""
         mock_manager = MagicMock()
         mock_manager.cleanup_stale_runs.return_value = 1
@@ -1661,7 +1663,7 @@ class TestAgentsCleanupCommand:
         self,
         mock_db_cls: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test cleanup with --dry-run."""
         mock_db = MagicMock()
         mock_db.fetchall.side_effect = [
@@ -1688,7 +1690,7 @@ class TestAgentsCleanupCommand:
         self,
         mock_db_cls: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test cleanup dry-run with no stale runs."""
         mock_db = MagicMock()
         mock_db.fetchall.return_value = []
@@ -1715,7 +1717,7 @@ class TestHelperFunctions:
         self,
         mock_manager_cls: MagicMock,
         mock_db_cls: MagicMock,
-    ):
+    ) -> None:
         """Test get_agent_run_manager creates manager correctly."""
         from gobby.cli.agents import get_agent_run_manager
 
@@ -1732,7 +1734,7 @@ class TestHelperFunctions:
         assert result == mock_manager
 
     @patch("gobby.config.app.load_config")
-    def test_get_daemon_url(self, mock_load_config: MagicMock):
+    def test_get_daemon_url(self, mock_load_config: MagicMock) -> None:
         """Test get_daemon_url returns correct URL."""
         from gobby.cli.agents import get_daemon_url
 
@@ -1758,7 +1760,7 @@ class TestEdgeCases:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list handles prompts with newlines."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -1804,7 +1806,7 @@ class TestEdgeCases:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test show handles run without optional fields."""
         run = MagicMock()
         run.id = "ar-minimal"
@@ -1847,7 +1849,7 @@ class TestEdgeCases:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test status display for timed-out agent."""
         run = MagicMock()
         run.id = "ar-timeout"
@@ -1873,7 +1875,7 @@ class TestEdgeCases:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test status display for cancelled agent."""
         run = MagicMock()
         run.id = "ar-cancelled"
@@ -1898,7 +1900,7 @@ class TestEdgeCases:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test cannot stop agent already in error status."""
         run = MagicMock()
         run.id = "ar-error"

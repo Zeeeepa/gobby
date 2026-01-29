@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -80,11 +82,11 @@ def mock_conflict():
 class TestMergeCliImports:
     """Test that merge CLI module can be imported."""
 
-    def test_import_merge_cli_module(self):
+    def test_import_merge_cli_module(self) -> None:
         """Can import merge CLI module."""
         from gobby.cli import merge  # noqa: F401
 
-    def test_import_merge_commands(self):
+    def test_import_merge_commands(self) -> None:
         """Can import merge command group."""
         from gobby.cli.merge import merge
 
@@ -111,7 +113,7 @@ class TestMergeStartCommand:
         mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test basic merge start command."""
         from gobby.cli import cli
 
@@ -141,7 +143,7 @@ class TestMergeStartCommand:
         mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test merge start with --strategy option."""
         from gobby.cli import cli
 
@@ -163,7 +165,7 @@ class TestMergeStartCommand:
         self,
         mock_project_ctx: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test merge start fails without project context."""
         from gobby.cli import cli
 
@@ -173,7 +175,7 @@ class TestMergeStartCommand:
 
         assert result.exit_code != 0 or "error" in result.output.lower()
 
-    def test_merge_start_requires_branch(self, runner: CliRunner):
+    def test_merge_start_requires_branch(self, runner: CliRunner) -> None:
         """Test merge start requires source branch argument."""
         from gobby.cli import cli
 
@@ -201,7 +203,7 @@ class TestMergeStatusCommand:
         mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test basic merge status command."""
         from gobby.cli import cli
 
@@ -227,7 +229,7 @@ class TestMergeStatusCommand:
         runner: CliRunner,
         mock_resolution: MagicMock,
         mock_conflict: MagicMock,
-    ):
+    ) -> None:
         """Test merge status with --verbose option."""
         from gobby.cli import cli
 
@@ -253,7 +255,7 @@ class TestMergeStatusCommand:
         mock_get_manager: MagicMock,
         mock_worktree_ctx: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test merge status when no active merges."""
         from gobby.cli import cli
 
@@ -287,7 +289,7 @@ class TestMergeResolveCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_conflict: MagicMock,
-    ):
+    ) -> None:
         """Test basic merge resolve command."""
         from gobby.cli import cli
 
@@ -311,7 +313,7 @@ class TestMergeResolveCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_conflict: MagicMock,
-    ):
+    ) -> None:
         """Test merge resolve with --strategy option."""
         from gobby.cli import cli
 
@@ -331,7 +333,7 @@ class TestMergeResolveCommand:
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test merge resolve when file not found."""
         from gobby.cli import cli
 
@@ -344,7 +346,7 @@ class TestMergeResolveCommand:
 
         assert result.exit_code != 0 or "not found" in result.output.lower()
 
-    def test_merge_resolve_requires_file(self, runner: CliRunner):
+    def test_merge_resolve_requires_file(self, runner: CliRunner) -> None:
         """Test merge resolve requires file argument."""
         from gobby.cli import cli
 
@@ -370,7 +372,7 @@ class TestMergeApplyCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test basic merge apply command."""
         from gobby.cli import cli
 
@@ -393,7 +395,7 @@ class TestMergeApplyCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test merge apply with --force option."""
         from gobby.cli import cli
 
@@ -415,7 +417,7 @@ class TestMergeApplyCommand:
         runner: CliRunner,
         mock_resolution: MagicMock,
         mock_conflict: MagicMock,
-    ):
+    ) -> None:
         """Test merge apply fails with pending conflicts."""
         from gobby.cli import cli
 
@@ -438,7 +440,7 @@ class TestMergeApplyCommand:
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test merge apply when no active merge."""
         from gobby.cli import cli
 
@@ -468,7 +470,7 @@ class TestMergeAbortCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test basic merge abort command."""
         from gobby.cli import cli
 
@@ -490,7 +492,7 @@ class TestMergeAbortCommand:
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test merge abort when no active merge."""
         from gobby.cli import cli
 
@@ -511,7 +513,7 @@ class TestMergeAbortCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test merge abort when already resolved."""
         from gobby.cli import cli
 
@@ -546,7 +548,7 @@ class TestMergeOutputFormatting:
         runner: CliRunner,
         mock_resolution: MagicMock,
         mock_conflict: MagicMock,
-    ):
+    ) -> None:
         """Test status command outputs formatted merge info."""
         from gobby.cli import cli
 
@@ -577,7 +579,7 @@ class TestMergeErrorMessages:
         self,
         mock_project_ctx: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test error message when no project context."""
         from gobby.cli import cli
 
@@ -595,7 +597,7 @@ class TestMergeErrorMessages:
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test error message when conflict resolution fails."""
         from gobby.cli import cli
 
@@ -628,7 +630,7 @@ class TestMergeWorktreeIntegration:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test merge start uses current worktree context."""
         from gobby.cli import cli
 
@@ -653,7 +655,7 @@ class TestMergeWorktreeIntegration:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
-    ):
+    ) -> None:
         """Test merge operations work in worktree directory."""
         from gobby.cli import cli
 

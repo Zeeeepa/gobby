@@ -10,6 +10,7 @@ from gobby.config.extensions import WebhookEndpointConfig, WebhooksConfig
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.hooks.webhooks import WebhookDispatcher, WebhookResult
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def sample_event() -> HookEvent:
@@ -54,7 +55,7 @@ def blocking_endpoint() -> WebhookEndpointConfig:
 class TestWebhookEndpointConfig:
     """Tests for WebhookEndpointConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default endpoint config values."""
         config = WebhookEndpointConfig(
             name="test",
@@ -68,7 +69,7 @@ class TestWebhookEndpointConfig:
         assert config.events == []
         assert config.headers == {}
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom endpoint config values."""
         config = WebhookEndpointConfig(
             name="custom",
@@ -89,7 +90,7 @@ class TestWebhookEndpointConfig:
 class TestWebhooksConfig:
     """Tests for WebhooksConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default webhooks config values."""
         config = WebhooksConfig()
         assert config.enabled is True
@@ -97,7 +98,7 @@ class TestWebhooksConfig:
         assert config.default_timeout == 10.0
         assert config.async_dispatch is True
 
-    def test_with_endpoints(self):
+    def test_with_endpoints(self) -> None:
         """Test config with multiple endpoints."""
         config = WebhooksConfig(
             endpoints=[
@@ -111,7 +112,7 @@ class TestWebhooksConfig:
 class TestWebhookDispatcherMatching:
     """Tests for webhook endpoint matching logic."""
 
-    def test_matches_exact_event(self, basic_endpoint: WebhookEndpointConfig):
+    def test_matches_exact_event(self, basic_endpoint: WebhookEndpointConfig) -> None:
         """Test matching exact event type."""
         config = WebhooksConfig(endpoints=[basic_endpoint])
         dispatcher = WebhookDispatcher(config)
@@ -119,7 +120,7 @@ class TestWebhookDispatcherMatching:
         assert dispatcher._matches_event(basic_endpoint, "session_start") is True
         assert dispatcher._matches_event(basic_endpoint, "session_end") is False
 
-    def test_matches_kebab_case(self, basic_endpoint: WebhookEndpointConfig):
+    def test_matches_kebab_case(self, basic_endpoint: WebhookEndpointConfig) -> None:
         """Test matching with kebab-case event type."""
         config = WebhooksConfig(endpoints=[basic_endpoint])
         dispatcher = WebhookDispatcher(config)
@@ -127,14 +128,14 @@ class TestWebhookDispatcherMatching:
         # Should match kebab-case variant
         assert dispatcher._matches_event(basic_endpoint, "session-start") is True
 
-    def test_matches_uppercase(self, basic_endpoint: WebhookEndpointConfig):
+    def test_matches_uppercase(self, basic_endpoint: WebhookEndpointConfig) -> None:
         """Test matching with uppercase event type."""
         config = WebhooksConfig(endpoints=[basic_endpoint])
         dispatcher = WebhookDispatcher(config)
 
         assert dispatcher._matches_event(basic_endpoint, "SESSION_START") is True
 
-    def test_empty_events_matches_all(self):
+    def test_empty_events_matches_all(self) -> None:
         """Test that empty events list matches all events."""
         endpoint = WebhookEndpointConfig(
             name="catch-all",
@@ -152,7 +153,7 @@ class TestWebhookDispatcherMatching:
 class TestWebhookDispatcherPayload:
     """Tests for payload building."""
 
-    def test_build_payload(self, sample_event: HookEvent):
+    def test_build_payload(self, sample_event: HookEvent) -> None:
         """Test building webhook payload from event."""
         config = WebhooksConfig()
         dispatcher = WebhookDispatcher(config)
@@ -384,7 +385,7 @@ class TestBlockingWebhooks:
 class TestWebhookResult:
     """Tests for WebhookResult dataclass."""
 
-    def test_success_result(self):
+    def test_success_result(self) -> None:
         """Test creating a success result."""
         result = WebhookResult(
             endpoint_name="test",
@@ -397,7 +398,7 @@ class TestWebhookResult:
         assert result.success is True
         assert result.error is None
 
-    def test_failure_result(self):
+    def test_failure_result(self) -> None:
         """Test creating a failure result."""
         result = WebhookResult(
             endpoint_name="test",

@@ -35,6 +35,8 @@ from gobby.agents.spawners.macos import (
     escape_applescript,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Helper Fixtures
 # =============================================================================
@@ -77,13 +79,13 @@ def mock_tty_config():
 class TestKittySpawner:
     """Tests for KittySpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = KittySpawner()
         assert spawner.terminal_type == TerminalType.KITTY
 
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_disabled(self, mock_config):
+    def test_is_available_disabled(self, mock_config) -> None:
         """Kitty spawner not available when disabled in config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="kitty", app_path=None
@@ -93,7 +95,7 @@ class TestKittySpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_macos_app_exists(self, mock_config, mock_system):
+    def test_is_available_macos_app_exists(self, mock_config, mock_system) -> None:
         """Kitty available on macOS when app bundle exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/kitty.app", command=None
@@ -104,7 +106,7 @@ class TestKittySpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_macos_app_not_exists(self, mock_config, mock_system):
+    def test_is_available_macos_app_not_exists(self, mock_config, mock_system) -> None:
         """Kitty not available on macOS when app bundle doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/kitty.app", command=None
@@ -116,7 +118,7 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value="/usr/bin/kitty")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_linux_command_exists(self, mock_config, mock_which, mock_system):
+    def test_is_available_linux_command_exists(self, mock_config, mock_which, mock_system) -> None:
         """Kitty available on Linux when command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="kitty", app_path=None
@@ -127,7 +129,7 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_linux_command_not_exists(self, mock_config, mock_which, mock_system):
+    def test_is_available_linux_command_not_exists(self, mock_config, mock_which, mock_system) -> None:
         """Kitty not available on Linux when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="kitty", app_path=None
@@ -138,7 +140,7 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_macos(self, mock_config, mock_popen, mock_system):
+    def test_spawn_macos(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn on macOS uses app bundle path."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True,
@@ -168,7 +170,7 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_linux(self, mock_config, mock_popen, mock_system):
+    def test_spawn_linux(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn on Linux uses command with --detach."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="kitty", app_path=None, options=[]
@@ -192,7 +194,7 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen, mock_system):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/kitty.app", options=[]
@@ -213,7 +215,7 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen", side_effect=Exception("Spawn failed"))
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system):
+    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/kitty.app", options=[]
@@ -235,13 +237,13 @@ class TestKittySpawner:
 class TestAlacrittySpawner:
     """Tests for AlacrittySpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = AlacrittySpawner()
         assert spawner.terminal_type == TerminalType.ALACRITTY
 
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_disabled(self, mock_config):
+    def test_is_available_disabled(self, mock_config) -> None:
         """Alacritty spawner not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="alacritty"
@@ -251,7 +253,7 @@ class TestAlacrittySpawner:
 
     @patch("shutil.which", return_value="/usr/bin/alacritty")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_with_command(self, mock_config, mock_which):
+    def test_is_available_with_command(self, mock_config, mock_which) -> None:
         """Alacritty available when command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="alacritty"
@@ -262,7 +264,7 @@ class TestAlacrittySpawner:
 
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_without_command(self, mock_config, mock_which):
+    def test_is_available_without_command(self, mock_config, mock_which) -> None:
         """Alacritty not available when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="alacritty"
@@ -272,7 +274,7 @@ class TestAlacrittySpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_basic(self, mock_config, mock_popen):
+    def test_spawn_basic(self, mock_config, mock_popen) -> None:
         """Basic spawn creates correct command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="alacritty", options=[]
@@ -294,7 +296,7 @@ class TestAlacrittySpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen):
+    def test_spawn_with_title(self, mock_config, mock_popen) -> None:
         """Spawn with title includes --title flag."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="alacritty", options=[]
@@ -316,7 +318,7 @@ class TestAlacrittySpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_with_options(self, mock_config, mock_popen):
+    def test_spawn_with_options(self, mock_config, mock_popen) -> None:
         """Spawn includes extra options from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="alacritty", options=["--class", "gobby-terminal"]
@@ -337,7 +339,7 @@ class TestAlacrittySpawner:
 
     @patch("subprocess.Popen", side_effect=FileNotFoundError("alacritty not found"))
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="alacritty", options=[]
@@ -358,20 +360,20 @@ class TestAlacrittySpawner:
 class TestTmuxSpawner:
     """Tests for TmuxSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = TmuxSpawner()
         assert spawner.terminal_type == TerminalType.TMUX
 
     @patch("platform.system", return_value="Windows")
-    def test_is_available_windows(self, mock_system):
+    def test_is_available_windows(self, mock_system) -> None:
         """tmux not available on Windows."""
         spawner = TmuxSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """tmux not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="tmux"
@@ -382,7 +384,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("shutil.which", return_value="/usr/local/bin/tmux")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_macos_with_tmux(self, mock_config, mock_which, mock_system):
+    def test_is_available_macos_with_tmux(self, mock_config, mock_which, mock_system) -> None:
         """tmux available on macOS when installed."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux"
@@ -393,7 +395,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value="/usr/bin/tmux")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_linux_with_tmux(self, mock_config, mock_which, mock_system):
+    def test_is_available_linux_with_tmux(self, mock_config, mock_which, mock_system) -> None:
         """tmux available on Linux when installed."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux"
@@ -404,7 +406,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_without_tmux(self, mock_config, mock_which, mock_system):
+    def test_is_available_without_tmux(self, mock_config, mock_which, mock_system) -> None:
         """tmux not available when not installed."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux"
@@ -415,7 +417,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_creates_detached_session(self, mock_config, mock_popen, mock_system):
+    def test_spawn_creates_detached_session(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn creates a detached tmux session."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -442,7 +444,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_sanitizes_session_name(self, mock_config, mock_popen, mock_system):
+    def test_spawn_sanitizes_session_name(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn sanitizes session names (dots and colons to dashes)."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -469,7 +471,7 @@ class TestTmuxSpawner:
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
     def test_spawn_generates_session_name_without_title(
         self, mock_config, mock_time, mock_popen, mock_system
-    ):
+    ) -> None:
         """Spawn generates session name from timestamp when no title."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -491,7 +493,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_disables_destroy_unattached(self, mock_config, mock_popen, mock_system):
+    def test_spawn_disables_destroy_unattached(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn disables destroy-unattached option."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -519,7 +521,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_sets_window_title(self, mock_config, mock_popen, mock_system):
+    def test_spawn_sets_window_title(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn sets window title using -n flag."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -541,7 +543,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_passes_env_vars(self, mock_config, mock_popen, mock_system):
+    def test_spawn_passes_env_vars(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn passes env vars via shell exports."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -572,7 +574,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_single_command_no_env(self, mock_config, mock_popen, mock_system):
+    def test_spawn_single_command_no_env(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn with single command and no env uses simple command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -597,7 +599,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_multi_command_no_env(self, mock_config, mock_popen, mock_system):
+    def test_spawn_multi_command_no_env(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn with multiple args and no env uses sh -c."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -619,7 +621,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_failure_returns_error(self, mock_config, mock_popen, mock_system):
+    def test_spawn_failure_returns_error(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn returns error when tmux fails."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -639,7 +641,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen", side_effect=Exception("tmux not found"))
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system):
+    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -654,7 +656,7 @@ class TestTmuxSpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_with_config_options(self, mock_config, mock_popen, mock_system):
+    def test_spawn_with_config_options(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn includes extra options from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=["-L", "gobby-socket"]
@@ -681,7 +683,7 @@ class TestTmuxSpawner:
 class TestEmbeddedSpawner:
     """Tests for EmbeddedSpawner."""
 
-    def test_spawn_empty_command(self):
+    def test_spawn_empty_command(self) -> None:
         """Spawn returns error for empty command."""
         spawner = EmbeddedSpawner()
         result = spawner.spawn([], cwd="/tmp")
@@ -690,7 +692,7 @@ class TestEmbeddedSpawner:
         assert "empty command" in result.message.lower()
 
     @patch("platform.system", return_value="Windows")
-    def test_spawn_not_supported_windows(self, mock_system):
+    def test_spawn_not_supported_windows(self, mock_system) -> None:
         """Spawn not supported on Windows."""
         with patch("gobby.agents.spawners.embedded.pty", None):
             spawner = EmbeddedSpawner()
@@ -702,7 +704,7 @@ class TestEmbeddedSpawner:
     @patch("gobby.agents.spawners.embedded.pty")
     @patch("os.fork")
     @patch("os.close")
-    def test_spawn_handles_fork_error(self, mock_close, mock_fork, mock_pty):
+    def test_spawn_handles_fork_error(self, mock_close, mock_fork, mock_pty) -> None:
         """Spawn handles fork() errors gracefully."""
         mock_pty.openpty.return_value = (10, 11)
         mock_fork.side_effect = OSError("Fork failed")
@@ -714,7 +716,7 @@ class TestEmbeddedSpawner:
         assert "Fork failed" in result.error or "Failed" in result.message
 
     @patch("gobby.agents.spawners.embedded.pty")
-    def test_spawn_handles_openpty_error(self, mock_pty):
+    def test_spawn_handles_openpty_error(self, mock_pty) -> None:
         """Spawn handles openpty() errors gracefully."""
         mock_pty.openpty.side_effect = OSError("PTY creation failed")
 
@@ -727,7 +729,7 @@ class TestEmbeddedSpawner:
     @patch("gobby.agents.spawners.embedded.pty")
     @patch("os.fork", return_value=12345)  # Parent process (pid > 0)
     @patch("os.close")
-    def test_spawn_parent_process(self, mock_close, mock_fork, mock_pty):
+    def test_spawn_parent_process(self, mock_close, mock_fork, mock_pty) -> None:
         """Spawn in parent process returns correct result."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -743,7 +745,7 @@ class TestEmbeddedSpawner:
     @patch("gobby.agents.spawners.embedded.pty")
     @patch("os.fork", return_value=12345)
     @patch("os.close")
-    def test_spawn_with_env_vars(self, mock_close, mock_fork, mock_pty):
+    def test_spawn_with_env_vars(self, mock_close, mock_fork, mock_pty) -> None:
         """Spawn passes environment variables."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -753,7 +755,7 @@ class TestEmbeddedSpawner:
         assert result.success is True
 
     @patch("platform.system", return_value="Windows")
-    def test_spawn_agent_not_supported_windows(self, mock_system):
+    def test_spawn_agent_not_supported_windows(self, mock_system) -> None:
         """spawn_agent not supported on Windows."""
         with patch("gobby.agents.spawners.embedded.pty", None):
             spawner = EmbeddedSpawner()
@@ -772,7 +774,7 @@ class TestEmbeddedSpawner:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_basic(self, mock_utils, mock_close, mock_fork, mock_pty):
+    def test_spawn_agent_basic(self, mock_utils, mock_close, mock_fork, mock_pty) -> None:
         """spawn_agent creates command with correct flags."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -814,7 +816,7 @@ class TestEmbeddedSpawner:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_long_prompt(self, mock_utils, mock_close, mock_fork, mock_pty):
+    def test_spawn_agent_with_long_prompt(self, mock_utils, mock_close, mock_fork, mock_pty) -> None:
         """spawn_agent writes long prompt to file."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -844,7 +846,7 @@ class TestEmbeddedSpawner:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_codex_working_directory(self, mock_utils, mock_close, mock_fork, mock_pty):
+    def test_spawn_agent_codex_working_directory(self, mock_utils, mock_close, mock_fork, mock_pty) -> None:
         """spawn_agent passes working directory for Codex."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -873,7 +875,7 @@ class TestEmbeddedSpawner:
 class TestEmbeddedSpawnerUnix:
     """Integration tests for EmbeddedSpawner on Unix systems."""
 
-    def test_spawn_real_process(self):
+    def test_spawn_real_process(self) -> None:
         """spawn() creates real PTY and runs command."""
         spawner = EmbeddedSpawner()
         result = spawner.spawn(
@@ -903,20 +905,20 @@ class TestEmbeddedSpawnerUnix:
 class TestEscapeApplescript:
     """Tests for escape_applescript helper function."""
 
-    def test_escape_backslash(self):
+    def test_escape_backslash(self) -> None:
         """Backslashes are escaped."""
         assert escape_applescript("path\\to\\file") == "path\\\\to\\\\file"
 
-    def test_escape_quotes(self):
+    def test_escape_quotes(self) -> None:
         """Double quotes are escaped."""
         assert escape_applescript('say "hello"') == 'say \\"hello\\"'
 
-    def test_escape_mixed(self):
+    def test_escape_mixed(self) -> None:
         """Mixed escaping works correctly."""
         result = escape_applescript('path\\to\\"file"')
         assert result == 'path\\\\to\\\\\\"file\\"'
 
-    def test_no_escape_needed(self):
+    def test_no_escape_needed(self) -> None:
         """Strings without special chars pass through unchanged."""
         assert escape_applescript("simple string") == "simple string"
 
@@ -929,13 +931,13 @@ class TestEscapeApplescript:
 class TestGhosttySpawner:
     """Tests for GhosttySpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = GhosttySpawner()
         assert spawner.terminal_type == TerminalType.GHOSTTY
 
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_disabled(self, mock_config):
+    def test_is_available_disabled(self, mock_config) -> None:
         """Ghostty not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, app_path=None, command="ghostty"
@@ -945,7 +947,7 @@ class TestGhosttySpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_macos_app_exists(self, mock_config, mock_system):
+    def test_is_available_macos_app_exists(self, mock_config, mock_system) -> None:
         """Ghostty available on macOS when app bundle exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/Ghostty.app", command=None
@@ -956,7 +958,7 @@ class TestGhosttySpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_macos_app_not_exists(self, mock_config, mock_system):
+    def test_is_available_macos_app_not_exists(self, mock_config, mock_system) -> None:
         """Ghostty not available on macOS when app doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/Ghostty.app", command=None
@@ -968,7 +970,7 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value="/usr/bin/ghostty")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_linux_command_exists(self, mock_config, mock_which, mock_system):
+    def test_is_available_linux_command_exists(self, mock_config, mock_which, mock_system) -> None:
         """Ghostty available on Linux when command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="ghostty", app_path=None
@@ -979,7 +981,7 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_linux_command_not_exists(self, mock_config, mock_which, mock_system):
+    def test_is_available_linux_command_not_exists(self, mock_config, mock_which, mock_system) -> None:
         """Ghostty not available on Linux when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="ghostty", app_path=None
@@ -990,7 +992,7 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_macos(self, mock_config, mock_popen, mock_system):
+    def test_spawn_macos(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn on macOS uses 'open -na' command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/Ghostty.app", command=None, options=[]
@@ -1018,7 +1020,7 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_linux(self, mock_config, mock_popen, mock_system):
+    def test_spawn_linux(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn on Linux uses ghostty command directly."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="ghostty", app_path=None, options=[]
@@ -1040,7 +1042,7 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen, mock_system):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/Ghostty.app", options=[]
@@ -1059,7 +1061,7 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen", side_effect=Exception("Spawn failed"))
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system):
+    def test_spawn_handles_exception(self, mock_config, mock_popen, mock_system) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/Ghostty.app", options=[]
@@ -1080,20 +1082,20 @@ class TestGhosttySpawner:
 class TestITermSpawner:
     """Tests for ITermSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = ITermSpawner()
         assert spawner.terminal_type == TerminalType.ITERM
 
     @patch("platform.system", return_value="Linux")
-    def test_is_available_not_macos(self, mock_system):
+    def test_is_available_not_macos(self, mock_system) -> None:
         """iTerm not available on non-macOS platforms."""
         spawner = ITermSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """iTerm not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, app_path="/Applications/iTerm.app"
@@ -1103,7 +1105,7 @@ class TestITermSpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_app_exists(self, mock_config, mock_system):
+    def test_is_available_app_exists(self, mock_config, mock_system) -> None:
         """iTerm available when app bundle exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/iTerm.app"
@@ -1114,7 +1116,7 @@ class TestITermSpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_app_not_exists(self, mock_config, mock_system):
+    def test_is_available_app_not_exists(self, mock_config, mock_system) -> None:
         """iTerm not available when app doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/iTerm.app"
@@ -1125,7 +1127,7 @@ class TestITermSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_creates_script_and_applescript(self, mock_config, mock_popen):
+    def test_spawn_creates_script_and_applescript(self, mock_config, mock_popen) -> None:
         """Spawn creates temp script and runs AppleScript."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/iTerm.app"
@@ -1146,7 +1148,7 @@ class TestITermSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn includes env vars in script."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/iTerm.app"
@@ -1168,7 +1170,7 @@ class TestITermSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_validates_env_var_names(self, mock_config, mock_popen):
+    def test_spawn_validates_env_var_names(self, mock_config, mock_popen) -> None:
         """Spawn only exports valid identifier env var names."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/iTerm.app"
@@ -1199,7 +1201,7 @@ class TestITermSpawner:
 
     @patch("subprocess.Popen", side_effect=Exception("osascript failed"))
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/iTerm.app"
@@ -1224,20 +1226,20 @@ class TestITermSpawner:
 class TestTerminalAppSpawner:
     """Tests for TerminalAppSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = TerminalAppSpawner()
         assert spawner.terminal_type == TerminalType.TERMINAL_APP
 
     @patch("platform.system", return_value="Linux")
-    def test_is_available_not_macos(self, mock_system):
+    def test_is_available_not_macos(self, mock_system) -> None:
         """Terminal.app not available on non-macOS platforms."""
         spawner = TerminalAppSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """Terminal.app not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1247,7 +1249,7 @@ class TestTerminalAppSpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_app_exists(self, mock_config, mock_system):
+    def test_is_available_app_exists(self, mock_config, mock_system) -> None:
         """Terminal.app available when app exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1258,7 +1260,7 @@ class TestTerminalAppSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_uses_applescript(self, mock_config, mock_popen):
+    def test_spawn_uses_applescript(self, mock_config, mock_popen) -> None:
         """Spawn uses AppleScript to launch Terminal.app."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1278,7 +1280,7 @@ class TestTerminalAppSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_escapes_command(self, mock_config, mock_popen):
+    def test_spawn_escapes_command(self, mock_config, mock_popen) -> None:
         """Spawn properly escapes shell command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1297,7 +1299,7 @@ class TestTerminalAppSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn includes env var exports in command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1315,7 +1317,7 @@ class TestTerminalAppSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_validates_env_var_names(self, mock_config, mock_popen):
+    def test_spawn_validates_env_var_names(self, mock_config, mock_popen) -> None:
         """Spawn only exports valid identifier env var names."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1341,7 +1343,7 @@ class TestTerminalAppSpawner:
 
     @patch("subprocess.Popen", side_effect=Exception("osascript error"))
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1362,13 +1364,13 @@ class TestTerminalAppSpawner:
 class TestGnomeTerminalSpawner:
     """Tests for GnomeTerminalSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = GnomeTerminalSpawner()
         assert spawner.terminal_type == TerminalType.GNOME_TERMINAL
 
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_is_available_disabled(self, mock_config):
+    def test_is_available_disabled(self, mock_config) -> None:
         """GNOME Terminal not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="gnome-terminal"
@@ -1378,7 +1380,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("shutil.which", return_value="/usr/bin/gnome-terminal")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_is_available_with_command(self, mock_config, mock_which):
+    def test_is_available_with_command(self, mock_config, mock_which) -> None:
         """GNOME Terminal available when command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal"
@@ -1388,7 +1390,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_is_available_without_command(self, mock_config, mock_which):
+    def test_is_available_without_command(self, mock_config, mock_which) -> None:
         """GNOME Terminal not available when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal"
@@ -1398,7 +1400,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_basic(self, mock_config, mock_popen):
+    def test_spawn_basic(self, mock_config, mock_popen) -> None:
         """Spawn creates correct command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal", options=[]
@@ -1422,7 +1424,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen):
+    def test_spawn_with_title(self, mock_config, mock_popen) -> None:
         """Spawn with title includes --title flag."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal", options=[]
@@ -1441,7 +1443,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_with_options(self, mock_config, mock_popen):
+    def test_spawn_with_options(self, mock_config, mock_popen) -> None:
         """Spawn includes extra options from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal", options=["--hide-menubar"]
@@ -1458,7 +1460,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal", options=[]
@@ -1476,7 +1478,7 @@ class TestGnomeTerminalSpawner:
 
     @patch("subprocess.Popen", side_effect=Exception("Command not found"))
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="gnome-terminal", options=[]
@@ -1497,13 +1499,13 @@ class TestGnomeTerminalSpawner:
 class TestKonsoleSpawner:
     """Tests for KonsoleSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = KonsoleSpawner()
         assert spawner.terminal_type == TerminalType.KONSOLE
 
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_is_available_disabled(self, mock_config):
+    def test_is_available_disabled(self, mock_config) -> None:
         """Konsole not available when disabled."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="konsole"
@@ -1513,7 +1515,7 @@ class TestKonsoleSpawner:
 
     @patch("shutil.which", return_value="/usr/bin/konsole")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_is_available_with_command(self, mock_config, mock_which):
+    def test_is_available_with_command(self, mock_config, mock_which) -> None:
         """Konsole available when command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole"
@@ -1523,7 +1525,7 @@ class TestKonsoleSpawner:
 
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_is_available_without_command(self, mock_config, mock_which):
+    def test_is_available_without_command(self, mock_config, mock_which) -> None:
         """Konsole not available when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole"
@@ -1533,7 +1535,7 @@ class TestKonsoleSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_basic(self, mock_config, mock_popen):
+    def test_spawn_basic(self, mock_config, mock_popen) -> None:
         """Spawn creates correct command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=[]
@@ -1556,7 +1558,7 @@ class TestKonsoleSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen):
+    def test_spawn_with_title(self, mock_config, mock_popen) -> None:
         """Spawn with title uses -p tabtitle= syntax."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=[]
@@ -1575,7 +1577,7 @@ class TestKonsoleSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_with_options(self, mock_config, mock_popen):
+    def test_spawn_with_options(self, mock_config, mock_popen) -> None:
         """Spawn includes extra options from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=["--hide-menubar", "--notransparency"]
@@ -1593,7 +1595,7 @@ class TestKonsoleSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=[]
@@ -1611,7 +1613,7 @@ class TestKonsoleSpawner:
 
     @patch("subprocess.Popen", side_effect=FileNotFoundError("konsole not found"))
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_spawn_handles_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=[]
@@ -1632,7 +1634,7 @@ class TestKonsoleSpawner:
 class TestEmbeddedPTYResultClose:
     """Tests for EmbeddedPTYResult.close() method."""
 
-    def test_close_with_valid_fds(self):
+    def test_close_with_valid_fds(self) -> None:
         """close() closes valid file descriptors."""
         r, w = os.pipe()
         result = EmbeddedPTYResult(
@@ -1651,7 +1653,7 @@ class TestEmbeddedPTYResultClose:
         with pytest.raises(OSError):
             os.close(w)
 
-    def test_close_with_none_fds(self):
+    def test_close_with_none_fds(self) -> None:
         """close() handles None file descriptors gracefully."""
         result = EmbeddedPTYResult(
             success=False,
@@ -1662,7 +1664,7 @@ class TestEmbeddedPTYResultClose:
         # Should not raise
         result.close()
 
-    def test_close_with_already_closed_fd(self):
+    def test_close_with_already_closed_fd(self) -> None:
         """close() handles already closed file descriptors gracefully."""
         r, w = os.pipe()
         os.close(r)
@@ -1689,7 +1691,7 @@ class TestSecurityAndEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_applescript_injection_prevention_terminal_app(self, mock_config, mock_popen):
+    def test_applescript_injection_prevention_terminal_app(self, mock_config, mock_popen) -> None:
         """Terminal.app spawn escapes AppleScript injection attempts."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/System/Applications/Utilities/Terminal.app"
@@ -1710,7 +1712,7 @@ class TestSecurityAndEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_shell_injection_prevention_tmux(self, mock_config, mock_popen):
+    def test_shell_injection_prevention_tmux(self, mock_config, mock_popen) -> None:
         """tmux spawn properly escapes shell commands."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -1737,7 +1739,7 @@ class TestSecurityAndEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_path_with_spaces(self, mock_config, mock_popen):
+    def test_path_with_spaces(self, mock_config, mock_popen) -> None:
         """Spawners handle paths with spaces correctly."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=[]
@@ -1758,7 +1760,7 @@ class TestSecurityAndEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
-    def test_konsole_workdir_with_spaces(self, mock_config, mock_popen):
+    def test_konsole_workdir_with_spaces(self, mock_config, mock_popen) -> None:
         """Konsole handles working directory with spaces."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="konsole", options=[]
@@ -1785,7 +1787,7 @@ class TestSecurityAndEdgeCases:
 class TestMacOSIntegration:
     """Integration tests that only run on macOS."""
 
-    def test_terminal_app_available(self):
+    def test_terminal_app_available(self) -> None:
         """Terminal.app should be available on macOS."""
         # Skip if running in CI without GUI
         if os.environ.get("CI"):
@@ -1813,18 +1815,18 @@ class TestLinuxIntegration:
 class TestBuildCliCommandSandboxArgs:
     """Tests for build_cli_command sandbox_args parameter."""
 
-    def test_sandbox_args_none_has_no_effect(self):
+    def test_sandbox_args_none_has_no_effect(self) -> None:
         """Test that sandbox_args=None doesn't add anything."""
         cmd = build_cli_command(cli="claude", prompt="test")
         # Should just be basic command without sandbox args
         assert cmd == ["claude", "test"]
 
-    def test_sandbox_args_empty_list_has_no_effect(self):
+    def test_sandbox_args_empty_list_has_no_effect(self) -> None:
         """Test that empty sandbox_args list doesn't add anything."""
         cmd = build_cli_command(cli="claude", prompt="test", sandbox_args=[])
         assert cmd == ["claude", "test"]
 
-    def test_sandbox_args_inserted_for_claude(self):
+    def test_sandbox_args_inserted_for_claude(self) -> None:
         """Test sandbox_args are inserted for Claude CLI."""
         sandbox_args = ["--settings", '{"sandbox":{"enabled":true}}']
         cmd = build_cli_command(cli="claude", prompt="test", sandbox_args=sandbox_args)
@@ -1834,7 +1836,7 @@ class TestBuildCliCommandSandboxArgs:
         # Prompt should still be last
         assert cmd[-1] == "test"
 
-    def test_sandbox_args_inserted_for_codex(self):
+    def test_sandbox_args_inserted_for_codex(self) -> None:
         """Test sandbox_args are inserted for Codex CLI."""
         sandbox_args = ["--sandbox", "workspace-write", "--add-dir", "/extra"]
         cmd = build_cli_command(cli="codex", prompt="test", sandbox_args=sandbox_args)
@@ -1845,7 +1847,7 @@ class TestBuildCliCommandSandboxArgs:
         # Prompt should still be last
         assert cmd[-1] == "test"
 
-    def test_sandbox_args_inserted_for_gemini(self):
+    def test_sandbox_args_inserted_for_gemini(self) -> None:
         """Test sandbox_args are inserted for Gemini CLI."""
         sandbox_args = ["-s"]
         cmd = build_cli_command(
@@ -1855,7 +1857,7 @@ class TestBuildCliCommandSandboxArgs:
         # Prompt should still be last
         assert cmd[-1] == "test"
 
-    def test_sandbox_args_combined_with_other_flags(self):
+    def test_sandbox_args_combined_with_other_flags(self) -> None:
         """Test sandbox_args work alongside other flags."""
         sandbox_args = ["--settings", '{"sandbox":{"enabled":true}}']
         cmd = build_cli_command(
@@ -1884,7 +1886,7 @@ class TestTerminalSpawnerSandbox:
 
     @patch("gobby.agents.spawn.TerminalSpawner.spawn")
     @patch("gobby.agents.spawn.build_cli_command")
-    def test_sandbox_config_none_has_no_effect(self, mock_build_cmd, mock_spawn):
+    def test_sandbox_config_none_has_no_effect(self, mock_build_cmd, mock_spawn) -> None:
         """Test that sandbox_config=None doesn't add sandbox args."""
         from gobby.agents.spawn import TerminalSpawner
 
@@ -1911,7 +1913,7 @@ class TestTerminalSpawnerSandbox:
 
     @patch("gobby.agents.spawn.TerminalSpawner.spawn")
     @patch("gobby.agents.spawn.build_cli_command")
-    def test_sandbox_config_disabled_has_no_effect(self, mock_build_cmd, mock_spawn):
+    def test_sandbox_config_disabled_has_no_effect(self, mock_build_cmd, mock_spawn) -> None:
         """Test that sandbox_config with enabled=False doesn't add sandbox args."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawn import TerminalSpawner
@@ -1940,7 +1942,7 @@ class TestTerminalSpawnerSandbox:
 
     @patch("gobby.agents.spawn.TerminalSpawner.spawn")
     @patch("gobby.agents.spawn.build_cli_command")
-    def test_sandbox_config_enabled_adds_sandbox_args_for_claude(self, mock_build_cmd, mock_spawn):
+    def test_sandbox_config_enabled_adds_sandbox_args_for_claude(self, mock_build_cmd, mock_spawn) -> None:
         """Test that enabled sandbox_config adds sandbox args for Claude CLI."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawn import TerminalSpawner
@@ -1971,7 +1973,7 @@ class TestTerminalSpawnerSandbox:
 
     @patch("gobby.agents.spawn.TerminalSpawner.spawn")
     @patch("gobby.agents.spawn.build_cli_command")
-    def test_sandbox_config_enabled_adds_env_for_gemini(self, mock_build_cmd, mock_spawn):
+    def test_sandbox_config_enabled_adds_env_for_gemini(self, mock_build_cmd, mock_spawn) -> None:
         """Test that enabled sandbox_config adds env vars for Gemini CLI."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawn import TerminalSpawner
@@ -2002,7 +2004,7 @@ class TestTerminalSpawnerSandbox:
 
     @patch("gobby.agents.spawn.TerminalSpawner.spawn")
     @patch("gobby.agents.spawn.build_cli_command")
-    def test_sandbox_config_enabled_adds_args_for_codex(self, mock_build_cmd, mock_spawn):
+    def test_sandbox_config_enabled_adds_args_for_codex(self, mock_build_cmd, mock_spawn) -> None:
         """Test that enabled sandbox_config adds sandbox args for Codex CLI."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawn import TerminalSpawner
@@ -2043,7 +2045,7 @@ class TestEmbeddedSpawnerSandbox:
 
     @patch("gobby.agents.spawners.embedded.EmbeddedSpawner.spawn")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_sandbox_config_none_has_no_effect(self, mock_utils, mock_spawn):
+    def test_sandbox_config_none_has_no_effect(self, mock_utils, mock_spawn) -> None:
         """Test that sandbox_config=None doesn't add sandbox args."""
         mock_build_cmd = MagicMock(return_value=["claude", "test"])
         mock_create_file = MagicMock()
@@ -2070,7 +2072,7 @@ class TestEmbeddedSpawnerSandbox:
 
     @patch("gobby.agents.spawners.embedded.EmbeddedSpawner.spawn")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_sandbox_config_disabled_has_no_effect(self, mock_utils, mock_spawn):
+    def test_sandbox_config_disabled_has_no_effect(self, mock_utils, mock_spawn) -> None:
         """Test that sandbox_config with enabled=False doesn't add sandbox args."""
         from gobby.agents.sandbox import SandboxConfig
 
@@ -2100,7 +2102,7 @@ class TestEmbeddedSpawnerSandbox:
 
     @patch("gobby.agents.spawners.embedded.EmbeddedSpawner.spawn")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_sandbox_config_enabled_adds_sandbox_args(self, mock_utils, mock_spawn):
+    def test_sandbox_config_enabled_adds_sandbox_args(self, mock_utils, mock_spawn) -> None:
         """Test that enabled sandbox_config adds sandbox args for CLI."""
         from gobby.agents.sandbox import SandboxConfig
 
@@ -2132,7 +2134,7 @@ class TestEmbeddedSpawnerSandbox:
 
     @patch("gobby.agents.spawners.embedded.EmbeddedSpawner.spawn")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_sandbox_env_merged_into_spawn_env(self, mock_utils, mock_spawn):
+    def test_sandbox_env_merged_into_spawn_env(self, mock_utils, mock_spawn) -> None:
         """Test that sandbox_env is merged into spawn environment."""
         from gobby.agents.sandbox import SandboxConfig
 
@@ -2174,7 +2176,7 @@ class TestHeadlessSpawnerSandbox:
 
     @patch("gobby.agents.spawners.headless.HeadlessSpawner.spawn")
     @patch("gobby.agents.spawners.headless._get_spawn_utils")
-    def test_sandbox_config_none_has_no_effect(self, mock_utils, mock_spawn):
+    def test_sandbox_config_none_has_no_effect(self, mock_utils, mock_spawn) -> None:
         """Test that sandbox_config=None doesn't add sandbox args."""
         from gobby.agents.spawners.headless import HeadlessSpawner
 
@@ -2203,7 +2205,7 @@ class TestHeadlessSpawnerSandbox:
 
     @patch("gobby.agents.spawners.headless.HeadlessSpawner.spawn")
     @patch("gobby.agents.spawners.headless._get_spawn_utils")
-    def test_sandbox_config_disabled_has_no_effect(self, mock_utils, mock_spawn):
+    def test_sandbox_config_disabled_has_no_effect(self, mock_utils, mock_spawn) -> None:
         """Test that sandbox_config with enabled=False doesn't add sandbox args."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawners.headless import HeadlessSpawner
@@ -2234,7 +2236,7 @@ class TestHeadlessSpawnerSandbox:
 
     @patch("gobby.agents.spawners.headless.HeadlessSpawner.spawn")
     @patch("gobby.agents.spawners.headless._get_spawn_utils")
-    def test_sandbox_config_enabled_adds_sandbox_args(self, mock_utils, mock_spawn):
+    def test_sandbox_config_enabled_adds_sandbox_args(self, mock_utils, mock_spawn) -> None:
         """Test that enabled sandbox_config adds sandbox args for CLI."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawners.headless import HeadlessSpawner
@@ -2267,7 +2269,7 @@ class TestHeadlessSpawnerSandbox:
 
     @patch("gobby.agents.spawners.headless.HeadlessSpawner.spawn")
     @patch("gobby.agents.spawners.headless._get_spawn_utils")
-    def test_sandbox_env_merged_into_spawn_env(self, mock_utils, mock_spawn):
+    def test_sandbox_env_merged_into_spawn_env(self, mock_utils, mock_spawn) -> None:
         """Test that sandbox_env is merged into spawn environment."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawners.headless import HeadlessSpawner

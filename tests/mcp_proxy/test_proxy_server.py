@@ -7,6 +7,7 @@ from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.server import GobbyDaemonTools
 
+pytestmark = pytest.mark.unit
 
 # Define dummy classes for mocking imports effectively
 class AssistantMessage:

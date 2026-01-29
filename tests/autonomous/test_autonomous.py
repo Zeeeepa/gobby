@@ -32,6 +32,8 @@ from gobby.storage.migrations import run_migrations
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -122,7 +124,7 @@ def create_session(
 class TestProgressTypeConstants:
     """Tests for progress type definitions and constants."""
 
-    def test_progress_type_values(self):
+    def test_progress_type_values(self) -> None:
         """Test that all progress types have expected string values."""
         assert ProgressType.TOOL_CALL.value == "tool_call"
         assert ProgressType.FILE_MODIFIED.value == "file_modified"
@@ -136,7 +138,7 @@ class TestProgressTypeConstants:
         assert ProgressType.COMMIT_CREATED.value == "commit_created"
         assert ProgressType.ERROR_OCCURRED.value == "error_occurred"
 
-    def test_meaningful_tools_mapping(self):
+    def test_meaningful_tools_mapping(self) -> None:
         """Test MEANINGFUL_TOOLS maps tool names to progress types."""
         assert MEANINGFUL_TOOLS["Edit"] == ProgressType.FILE_MODIFIED
         assert MEANINGFUL_TOOLS["Write"] == ProgressType.FILE_MODIFIED
@@ -146,7 +148,7 @@ class TestProgressTypeConstants:
         assert MEANINGFUL_TOOLS["Glob"] == ProgressType.FILE_READ
         assert MEANINGFUL_TOOLS["Grep"] == ProgressType.FILE_READ
 
-    def test_high_value_progress_types(self):
+    def test_high_value_progress_types(self) -> None:
         """Test HIGH_VALUE_PROGRESS contains expected types."""
         assert ProgressType.FILE_MODIFIED in HIGH_VALUE_PROGRESS
         assert ProgressType.TASK_COMPLETED in HIGH_VALUE_PROGRESS
@@ -166,7 +168,7 @@ class TestProgressTypeConstants:
 class TestProgressEvent:
     """Tests for ProgressEvent dataclass."""
 
-    def test_create_progress_event(self, session_id: str):
+    def test_create_progress_event(self, session_id: str) -> None:
         """Test creating a basic progress event."""
         now = datetime.now(UTC)
         event = ProgressEvent(
@@ -183,7 +185,7 @@ class TestProgressEvent:
         assert event.tool_name == "Edit"
         assert event.details == {"file": "test.py"}
 
-    def test_is_high_value_for_high_value_types(self, session_id: str):
+    def test_is_high_value_for_high_value_types(self, session_id: str) -> None:
         """Test is_high_value returns True for high-value progress types."""
         now = datetime.now(UTC)
 
@@ -195,7 +197,7 @@ class TestProgressEvent:
             )
             assert event.is_high_value is True, f"{progress_type} should be high value"
 
-    def test_is_high_value_for_low_value_types(self, session_id: str):
+    def test_is_high_value_for_low_value_types(self, session_id: str) -> None:
         """Test is_high_value returns False for low-value progress types."""
         now = datetime.now(UTC)
         low_value_types = [
@@ -215,7 +217,7 @@ class TestProgressEvent:
             )
             assert event.is_high_value is False, f"{progress_type} should not be high value"
 
-    def test_default_details_is_empty_dict(self, session_id: str):
+    def test_default_details_is_empty_dict(self, session_id: str) -> None:
         """Test that details defaults to empty dict."""
         event = ProgressEvent(
             session_id=session_id,
@@ -233,13 +235,13 @@ class TestProgressEvent:
 class TestProgressTracker:
     """Tests for ProgressTracker class."""
 
-    def test_init_with_defaults(self, test_db: LocalDatabase):
+    def test_init_with_defaults(self, test_db: LocalDatabase) -> None:
         """Test initialization with default thresholds."""
         tracker = ProgressTracker(test_db)
         assert tracker.stagnation_threshold == ProgressTracker.DEFAULT_STAGNATION_THRESHOLD
         assert tracker.max_low_value_events == ProgressTracker.DEFAULT_MAX_LOW_VALUE_EVENTS
 
-    def test_init_with_custom_thresholds(self, test_db: LocalDatabase):
+    def test_init_with_custom_thresholds(self, test_db: LocalDatabase) -> None:
         """Test initialization with custom thresholds."""
         tracker = ProgressTracker(
             test_db,
@@ -249,7 +251,7 @@ class TestProgressTracker:
         assert tracker.stagnation_threshold == 300.0
         assert tracker.max_low_value_events == 25
 
-    def test_record_event_basic(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_record_event_basic(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test recording a basic progress event."""
         event = progress_tracker.record_event(
             session_id=session_id,
@@ -265,7 +267,7 @@ class TestProgressTracker:
 
     def test_record_event_persists_to_database(
         self, progress_tracker: ProgressTracker, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test that recorded events are persisted to database."""
         progress_tracker.record_event(
             session_id=session_id,
@@ -286,7 +288,7 @@ class TestProgressTracker:
 
     def test_record_event_sets_is_high_value_correctly(
         self, progress_tracker: ProgressTracker, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test that is_high_value flag is set correctly in database."""
         # Record high-value event
         progress_tracker.record_event(
@@ -313,7 +315,7 @@ class TestProgressTracker:
 class TestProgressTrackerToolCall:
     """Tests for ProgressTracker.record_tool_call method."""
 
-    def test_record_tool_call_for_edit(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_record_tool_call_for_edit(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test recording Edit tool call."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -325,7 +327,7 @@ class TestProgressTrackerToolCall:
         assert event.progress_type == ProgressType.FILE_MODIFIED
         assert event.tool_name == "Edit"
 
-    def test_record_tool_call_for_read(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_record_tool_call_for_read(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test recording Read tool call."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -339,7 +341,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_for_bash_test_pass(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test recording Bash tool with passing tests."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -354,7 +356,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_for_bash_test_fail(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test recording Bash tool with failing tests."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -369,7 +371,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_for_bash_build_success(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test recording Bash tool with successful build."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -384,7 +386,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_for_bash_build_failed(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test recording Bash tool with failed build."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -399,7 +401,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_for_git_commit(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test recording git commit via Bash."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -414,7 +416,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_includes_details(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test that tool call records include details."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -429,7 +431,7 @@ class TestProgressTrackerToolCall:
 
     def test_record_tool_call_for_unknown_tool(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test recording unknown tool defaults to TOOL_CALL."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -444,7 +446,7 @@ class TestProgressTrackerToolCall:
 class TestProgressTrackerSummary:
     """Tests for ProgressTracker.get_summary method."""
 
-    def test_get_summary_empty_session(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_get_summary_empty_session(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test summary for session with no events."""
         summary = progress_tracker.get_summary(session_id)
 
@@ -456,7 +458,7 @@ class TestProgressTrackerSummary:
         assert summary.events_by_type == {}
         assert summary.is_stagnant is False
 
-    def test_get_summary_with_events(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_get_summary_with_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test summary with multiple events."""
         # Record various events
         progress_tracker.record_event(session_id, ProgressType.FILE_READ)
@@ -474,7 +476,7 @@ class TestProgressTrackerSummary:
         assert summary.last_high_value_at is not None
         assert summary.last_event_at is not None
 
-    def test_get_summary_timestamps(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_get_summary_timestamps(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test that summary timestamps are accurate."""
         # Record low-value first
         progress_tracker.record_event(session_id, ProgressType.FILE_READ)
@@ -497,19 +499,19 @@ class TestProgressTrackerSummary:
 class TestProgressTrackerStagnation:
     """Tests for ProgressTracker stagnation detection."""
 
-    def test_not_stagnant_with_no_events(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_not_stagnant_with_no_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test that session with no events is not stagnant."""
         assert progress_tracker.is_stagnant(session_id) is False
 
     def test_not_stagnant_with_recent_high_value(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test that session with recent high-value progress is not stagnant."""
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)
 
         assert progress_tracker.is_stagnant(session_id) is False
 
-    def test_stagnant_by_event_count(self, test_db: LocalDatabase, session_id: str):
+    def test_stagnant_by_event_count(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test stagnation detection by low-value event count."""
         # Create tracker with low threshold for testing
         tracker = ProgressTracker(
@@ -527,7 +529,7 @@ class TestProgressTrackerStagnation:
         assert summary.high_value_events == 0
         assert summary.total_events == 6
 
-    def test_not_stagnant_with_mixed_events(self, test_db: LocalDatabase, session_id: str):
+    def test_not_stagnant_with_mixed_events(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test that high-value events prevent stagnation detection."""
         tracker = ProgressTracker(
             test_db,
@@ -545,7 +547,7 @@ class TestProgressTrackerStagnation:
         # Should not be stagnant because we have high-value events
         assert tracker.is_stagnant(session_id) is False
 
-    def test_stagnant_by_time(self, test_db: LocalDatabase, session_id: str):
+    def test_stagnant_by_time(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test stagnation detection by time threshold."""
         tracker = ProgressTracker(
             test_db,
@@ -572,7 +574,7 @@ class TestProgressTrackerClearSession:
 
     def test_clear_session_removes_events(
         self, progress_tracker: ProgressTracker, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test that clear_session removes all events."""
         # Record some events
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)
@@ -592,7 +594,7 @@ class TestProgressTrackerClearSession:
 
     def test_clear_session_returns_zero_for_empty(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test that clear_session returns 0 for session with no events."""
         count = progress_tracker.clear_session(session_id)
         assert count == 0
@@ -603,7 +605,7 @@ class TestProgressTrackerClearSession:
         session_id: str,
         session_manager: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test that clear_session only removes events for specified session."""
         other_session = create_session(session_manager, test_project["id"], "ext-other-session-456")
 
@@ -621,7 +623,7 @@ class TestProgressTrackerClearSession:
 class TestProgressTrackerRecentEvents:
     """Tests for ProgressTracker.get_recent_events method."""
 
-    def test_get_recent_events(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_get_recent_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test getting recent events."""
         progress_tracker.record_event(session_id, ProgressType.FILE_READ)
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)
@@ -637,7 +639,7 @@ class TestProgressTrackerRecentEvents:
 
     def test_get_recent_events_respects_limit(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test that limit is respected."""
         for _ in range(10):
             progress_tracker.record_event(session_id, ProgressType.FILE_READ)
@@ -647,7 +649,7 @@ class TestProgressTrackerRecentEvents:
 
     def test_get_recent_events_empty_session(
         self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test getting events from empty session."""
         events = progress_tracker.get_recent_events(session_id)
         assert events == []
@@ -656,7 +658,7 @@ class TestProgressTrackerRecentEvents:
 class TestProgressTrackerThreadSafety:
     """Tests for ProgressTracker thread safety."""
 
-    def test_concurrent_record_events(self, progress_tracker: ProgressTracker, session_id: str):
+    def test_concurrent_record_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
         """Test that concurrent event recording is thread-safe."""
         num_threads = 10
         events_per_thread = 20
@@ -694,7 +696,7 @@ class TestProgressTrackerThreadSafety:
 class TestStopSignal:
     """Tests for StopSignal dataclass."""
 
-    def test_create_stop_signal(self, session_id: str):
+    def test_create_stop_signal(self, session_id: str) -> None:
         """Test creating a stop signal."""
         now = datetime.now(UTC)
         signal = StopSignal(
@@ -710,7 +712,7 @@ class TestStopSignal:
         assert signal.requested_at == now
         assert signal.acknowledged_at is None
 
-    def test_is_pending_when_not_acknowledged(self, session_id: str):
+    def test_is_pending_when_not_acknowledged(self, session_id: str) -> None:
         """Test is_pending returns True when not acknowledged."""
         signal = StopSignal(
             session_id=session_id,
@@ -722,7 +724,7 @@ class TestStopSignal:
 
         assert signal.is_pending is True
 
-    def test_is_pending_when_acknowledged(self, session_id: str):
+    def test_is_pending_when_acknowledged(self, session_id: str) -> None:
         """Test is_pending returns False when acknowledged."""
         now = datetime.now(UTC)
         signal = StopSignal(
@@ -746,7 +748,7 @@ class TestStopRegistry:
 
     def test_signal_stop_creates_signal(
         self, stop_registry: StopRegistry, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test that signal_stop creates a new stop signal."""
         signal = stop_registry.signal_stop(
             session_id=session_id,
@@ -769,7 +771,7 @@ class TestStopRegistry:
 
     def test_signal_stop_returns_existing_if_pending(
         self, stop_registry: StopRegistry, session_id: str
-    ):
+    ) -> None:
         """Test that signal_stop returns existing pending signal."""
         # Create first signal
         first_signal = stop_registry.signal_stop(
@@ -790,7 +792,7 @@ class TestStopRegistry:
         assert second_signal.reason == "First request"
         assert first_signal.requested_at == second_signal.requested_at
 
-    def test_get_signal_returns_signal(self, stop_registry: StopRegistry, session_id: str):
+    def test_get_signal_returns_signal(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test get_signal returns the signal."""
         stop_registry.signal_stop(session_id, source="mcp")
 
@@ -802,12 +804,12 @@ class TestStopRegistry:
 
     def test_get_signal_returns_none_for_unknown(
         self, stop_registry: StopRegistry, session_id: str
-    ):
+    ) -> None:
         """Test get_signal returns None for unknown session."""
         signal = stop_registry.get_signal("unknown-session")
         assert signal is None
 
-    def test_has_pending_signal(self, stop_registry: StopRegistry, session_id: str):
+    def test_has_pending_signal(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test has_pending_signal detection."""
         assert stop_registry.has_pending_signal(session_id) is False
 
@@ -815,7 +817,7 @@ class TestStopRegistry:
 
         assert stop_registry.has_pending_signal(session_id) is True
 
-    def test_acknowledge_signal(self, stop_registry: StopRegistry, session_id: str):
+    def test_acknowledge_signal(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test acknowledging a stop signal."""
         stop_registry.signal_stop(session_id, source="test")
 
@@ -830,12 +832,12 @@ class TestStopRegistry:
 
     def test_acknowledge_returns_false_for_no_signal(
         self, stop_registry: StopRegistry, session_id: str
-    ):
+    ) -> None:
         """Test acknowledge returns False when no signal exists."""
         result = stop_registry.acknowledge(session_id)
         assert result is False
 
-    def test_acknowledge_is_idempotent(self, stop_registry: StopRegistry, session_id: str):
+    def test_acknowledge_is_idempotent(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test that acknowledging twice doesn't fail."""
         stop_registry.signal_stop(session_id, source="test")
 
@@ -847,7 +849,7 @@ class TestStopRegistry:
 
     def test_clear_signal(
         self, stop_registry: StopRegistry, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test clearing a stop signal."""
         stop_registry.signal_stop(session_id, source="test")
 
@@ -856,7 +858,7 @@ class TestStopRegistry:
         assert result is True
         assert stop_registry.get_signal(session_id) is None
 
-    def test_clear_returns_false_for_no_signal(self, stop_registry: StopRegistry, session_id: str):
+    def test_clear_returns_false_for_no_signal(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test clear returns False when no signal exists."""
         result = stop_registry.clear(session_id)
         assert result is False
@@ -865,7 +867,7 @@ class TestStopRegistry:
 class TestStopRegistryListPending:
     """Tests for StopRegistry.list_pending method."""
 
-    def test_list_pending_empty(self, stop_registry: StopRegistry):
+    def test_list_pending_empty(self, stop_registry: StopRegistry) -> None:
         """Test list_pending with no signals."""
         signals = stop_registry.list_pending()
         assert signals == []
@@ -875,7 +877,7 @@ class TestStopRegistryListPending:
         stop_registry: StopRegistry,
         session_manager: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test list_pending only returns unacknowledged signals."""
         session_1 = create_session(session_manager, test_project["id"], "ext-session-1")
         session_2 = create_session(session_manager, test_project["id"], "ext-session-2")
@@ -902,7 +904,7 @@ class TestStopRegistryCleanup:
 
     def test_cleanup_stale_removes_old_acknowledged(
         self, stop_registry: StopRegistry, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test that cleanup removes old acknowledged signals."""
         # Create and acknowledge a signal
         stop_registry.signal_stop(session_id, source="test")
@@ -925,7 +927,7 @@ class TestStopRegistryCleanup:
         # Verify signal is gone
         assert stop_registry.has_pending_signal(session_id) is False
 
-    def test_cleanup_stale_preserves_pending(self, stop_registry: StopRegistry, session_id: str):
+    def test_cleanup_stale_preserves_pending(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test that cleanup preserves pending (unacknowledged) signals."""
         stop_registry.signal_stop(session_id, source="test")
 
@@ -939,7 +941,7 @@ class TestStopRegistryCleanup:
 class TestStopRegistryThreadSafety:
     """Tests for StopRegistry thread safety."""
 
-    def test_concurrent_signal_stop(self, stop_registry: StopRegistry, session_id: str):
+    def test_concurrent_signal_stop(self, stop_registry: StopRegistry, session_id: str) -> None:
         """Test concurrent signal_stop calls are thread-safe."""
         signals = []
         errors = []
@@ -971,7 +973,7 @@ class TestStopRegistryThreadSafety:
 class TestStuckDetectionResult:
     """Tests for StuckDetectionResult dataclass."""
 
-    def test_create_not_stuck_result(self):
+    def test_create_not_stuck_result(self) -> None:
         """Test creating a not-stuck result."""
         result = StuckDetectionResult(is_stuck=False)
 
@@ -981,7 +983,7 @@ class TestStuckDetectionResult:
         assert result.details is None
         assert result.suggested_action is None
 
-    def test_create_stuck_result(self):
+    def test_create_stuck_result(self) -> None:
         """Test creating a stuck result with details."""
         result = StuckDetectionResult(
             is_stuck=True,
@@ -1006,7 +1008,7 @@ class TestStuckDetectionResult:
 class TestTaskSelectionEvent:
     """Tests for TaskSelectionEvent dataclass."""
 
-    def test_create_task_selection_event(self, session_id: str):
+    def test_create_task_selection_event(self, session_id: str) -> None:
         """Test creating a task selection event."""
         now = datetime.now(UTC)
         event = TaskSelectionEvent(
@@ -1030,7 +1032,7 @@ class TestTaskSelectionEvent:
 class TestStuckDetector:
     """Tests for StuckDetector class."""
 
-    def test_init_with_defaults(self, test_db: LocalDatabase):
+    def test_init_with_defaults(self, test_db: LocalDatabase) -> None:
         """Test initialization with default thresholds."""
         detector = StuckDetector(test_db)
 
@@ -1039,7 +1041,7 @@ class TestStuckDetector:
         assert detector.tool_loop_threshold == StuckDetector.DEFAULT_TOOL_LOOP_THRESHOLD
         assert detector.tool_window_size == StuckDetector.DEFAULT_TOOL_WINDOW_SIZE
 
-    def test_init_with_custom_thresholds(self, test_db: LocalDatabase):
+    def test_init_with_custom_thresholds(self, test_db: LocalDatabase) -> None:
         """Test initialization with custom thresholds."""
         detector = StuckDetector(
             test_db,
@@ -1056,7 +1058,7 @@ class TestStuckDetector:
 
     def test_record_task_selection(
         self, stuck_detector: StuckDetector, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test recording a task selection."""
         event = stuck_detector.record_task_selection(
             session_id=session_id,
@@ -1080,13 +1082,13 @@ class TestStuckDetector:
 class TestStuckDetectorTaskLoop:
     """Tests for StuckDetector task loop detection."""
 
-    def test_no_task_loop_with_no_history(self, stuck_detector: StuckDetector, session_id: str):
+    def test_no_task_loop_with_no_history(self, stuck_detector: StuckDetector, session_id: str) -> None:
         """Test no task loop detected with no history."""
         result = stuck_detector.detect_task_loop(session_id)
 
         assert result.is_stuck is False
 
-    def test_no_task_loop_with_varied_tasks(self, stuck_detector: StuckDetector, session_id: str):
+    def test_no_task_loop_with_varied_tasks(self, stuck_detector: StuckDetector, session_id: str) -> None:
         """Test no task loop with varied task selections."""
         for i in range(5):
             stuck_detector.record_task_selection(session_id, f"task-{i}")
@@ -1095,7 +1097,7 @@ class TestStuckDetectorTaskLoop:
 
         assert result.is_stuck is False
 
-    def test_task_loop_detected(self, test_db: LocalDatabase, session_id: str):
+    def test_task_loop_detected(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test task loop detection when same task selected repeatedly."""
         detector = StuckDetector(test_db, task_loop_threshold=3)
 
@@ -1110,7 +1112,7 @@ class TestStuckDetectorTaskLoop:
         assert "stuck-task-123" in result.reason
         assert result.suggested_action == "change_approach"
 
-    def test_task_loop_threshold_boundary(self, test_db: LocalDatabase, session_id: str):
+    def test_task_loop_threshold_boundary(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test task loop at exact threshold."""
         detector = StuckDetector(test_db, task_loop_threshold=3)
 
@@ -1127,7 +1129,7 @@ class TestStuckDetectorTaskLoop:
 class TestStuckDetectorProgressStagnation:
     """Tests for StuckDetector progress stagnation detection."""
 
-    def test_no_stagnation_without_progress_tracker(self, test_db: LocalDatabase, session_id: str):
+    def test_no_stagnation_without_progress_tracker(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test no stagnation detection without progress tracker."""
         detector = StuckDetector(test_db, progress_tracker=None)
 
@@ -1137,7 +1139,7 @@ class TestStuckDetectorProgressStagnation:
 
     def test_no_stagnation_with_recent_progress(
         self, stuck_detector: StuckDetector, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test no stagnation with recent high-value progress."""
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)
 
@@ -1145,7 +1147,7 @@ class TestStuckDetectorProgressStagnation:
 
         assert result.is_stuck is False
 
-    def test_stagnation_detected(self, test_db: LocalDatabase, session_id: str):
+    def test_stagnation_detected(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test stagnation detection."""
         tracker = ProgressTracker(
             test_db,
@@ -1173,7 +1175,7 @@ class TestStuckDetectorProgressStagnation:
 class TestStuckDetectorToolLoop:
     """Tests for StuckDetector tool loop detection."""
 
-    def test_no_tool_loop_without_progress_tracker(self, test_db: LocalDatabase, session_id: str):
+    def test_no_tool_loop_without_progress_tracker(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test no tool loop detection without progress tracker."""
         detector = StuckDetector(test_db, progress_tracker=None)
 
@@ -1183,7 +1185,7 @@ class TestStuckDetectorToolLoop:
 
     def test_no_tool_loop_with_varied_tools(
         self, stuck_detector: StuckDetector, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test no tool loop with varied tool calls."""
         tools = ["Read", "Edit", "Bash", "Glob", "Grep"]
         for tool in tools:
@@ -1195,7 +1197,7 @@ class TestStuckDetectorToolLoop:
 
         assert result.is_stuck is False
 
-    def test_tool_loop_detected(self, test_db: LocalDatabase, session_id: str):
+    def test_tool_loop_detected(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test tool loop detection with repeated identical calls."""
         tracker = ProgressTracker(test_db)
         detector = StuckDetector(
@@ -1226,7 +1228,7 @@ class TestStuckDetectorIsStuck:
 
     def test_is_stuck_returns_not_stuck_when_healthy(
         self, stuck_detector: StuckDetector, progress_tracker: ProgressTracker, session_id: str
-    ):
+    ) -> None:
         """Test is_stuck returns not stuck for healthy session."""
         # Record varied progress
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)
@@ -1240,7 +1242,7 @@ class TestStuckDetectorIsStuck:
 
         assert result.is_stuck is False
 
-    def test_is_stuck_returns_first_detected_issue(self, test_db: LocalDatabase, session_id: str):
+    def test_is_stuck_returns_first_detected_issue(self, test_db: LocalDatabase, session_id: str) -> None:
         """Test is_stuck returns first detected stuck state."""
         tracker = ProgressTracker(test_db)
         detector = StuckDetector(
@@ -1265,7 +1267,7 @@ class TestStuckDetectorClearSession:
 
     def test_clear_session(
         self, stuck_detector: StuckDetector, test_db: LocalDatabase, session_id: str
-    ):
+    ) -> None:
         """Test clearing session history."""
         stuck_detector.record_task_selection(session_id, "task-1")
         stuck_detector.record_task_selection(session_id, "task-2")
@@ -1280,7 +1282,7 @@ class TestStuckDetectorClearSession:
 
     def test_clear_session_returns_zero_for_empty(
         self, stuck_detector: StuckDetector, session_id: str
-    ):
+    ) -> None:
         """Test clear_session returns 0 for empty session."""
         count = stuck_detector.clear_session(session_id)
         assert count == 0
@@ -1289,7 +1291,7 @@ class TestStuckDetectorClearSession:
 class TestStuckDetectorSelectionHistory:
     """Tests for StuckDetector.get_selection_history method."""
 
-    def test_get_selection_history(self, stuck_detector: StuckDetector, session_id: str):
+    def test_get_selection_history(self, stuck_detector: StuckDetector, session_id: str) -> None:
         """Test getting selection history."""
         stuck_detector.record_task_selection(session_id, "task-1")
         stuck_detector.record_task_selection(session_id, "task-2")
@@ -1304,7 +1306,7 @@ class TestStuckDetectorSelectionHistory:
 
     def test_get_selection_history_respects_limit(
         self, stuck_detector: StuckDetector, session_id: str
-    ):
+    ) -> None:
         """Test history respects limit."""
         for i in range(10):
             stuck_detector.record_task_selection(session_id, f"task-{i}")
@@ -1313,7 +1315,7 @@ class TestStuckDetectorSelectionHistory:
 
         assert len(history) == 5
 
-    def test_get_selection_history_empty(self, stuck_detector: StuckDetector, session_id: str):
+    def test_get_selection_history_empty(self, stuck_detector: StuckDetector, session_id: str) -> None:
         """Test history for empty session."""
         history = stuck_detector.get_selection_history(session_id)
         assert history == []
@@ -1322,7 +1324,7 @@ class TestStuckDetectorSelectionHistory:
 class TestStuckDetectorThreadSafety:
     """Tests for StuckDetector thread safety."""
 
-    def test_concurrent_task_selections(self, stuck_detector: StuckDetector, session_id: str):
+    def test_concurrent_task_selections(self, stuck_detector: StuckDetector, session_id: str) -> None:
         """Test concurrent task selection recording is thread-safe."""
         num_threads = 5
         selections_per_thread = 10
@@ -1371,7 +1373,7 @@ class TestAutonomousIntegration:
         stop_registry: StopRegistry,
         stuck_detector: StuckDetector,
         session_id: str,
-    ):
+    ) -> None:
         """Test a complete autonomous workflow scenario."""
         # Session starts work
         progress_tracker.record_event(session_id, ProgressType.TASK_STARTED)
@@ -1410,7 +1412,7 @@ class TestAutonomousIntegration:
         self,
         test_db: LocalDatabase,
         session_id: str,
-    ):
+    ) -> None:
         """Test that stuck detection can trigger a stop signal."""
         tracker = ProgressTracker(test_db)
         registry = StopRegistry(test_db)
@@ -1450,7 +1452,7 @@ class TestAutonomousIntegration:
         stop_registry: StopRegistry,
         stuck_detector: StuckDetector,
         session_id: str,
-    ):
+    ) -> None:
         """Test cleanup of all autonomous data when session completes."""
         # Create data in all modules
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)

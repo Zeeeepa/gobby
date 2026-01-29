@@ -19,6 +19,7 @@ import pytest
 
 from gobby.mcp_proxy.tools.memory import create_memory_registry, get_current_project_id
 
+pytestmark = pytest.mark.unit
 
 class MockMemory:
     """Mock memory object for tests."""
@@ -79,21 +80,21 @@ def memory_registry(mock_memory_manager):
 class TestGetCurrentProjectId:
     """Tests for get_current_project_id helper."""
 
-    def test_returns_project_id(self):
+    def test_returns_project_id(self) -> None:
         """Returns project ID when available."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "project-123", "name": "test"}
             result = get_current_project_id()
             assert result == "project-123"
 
-    def test_returns_none_when_no_context(self):
+    def test_returns_none_when_no_context(self) -> None:
         """Returns None when no project context."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = None
             result = get_current_project_id()
             assert result is None
 
-    def test_returns_none_when_no_id(self):
+    def test_returns_none_when_no_id(self) -> None:
         """Returns None when context has no ID."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"name": "test"}
@@ -574,14 +575,14 @@ class TestExportMemoryGraph:
 class TestRegistryCreation:
     """Tests for create_memory_registry function."""
 
-    def test_creates_registry(self, mock_memory_manager):
+    def test_creates_registry(self, mock_memory_manager) -> None:
         """Test registry is created with correct name."""
         registry = create_memory_registry(mock_memory_manager)
 
         assert registry.name == "gobby-memory"
         assert "memory management" in registry.description.lower()
 
-    def test_all_tools_registered(self, mock_memory_manager):
+    def test_all_tools_registered(self, mock_memory_manager) -> None:
         """Test all expected tools are registered."""
         registry = create_memory_registry(mock_memory_manager)
 
@@ -605,7 +606,7 @@ class TestRegistryCreation:
         for tool_name in expected_tools:
             assert tool_name in tool_names, f"Tool {tool_name} not found"
 
-    def test_registry_with_llm_service(self, mock_memory_manager):
+    def test_registry_with_llm_service(self, mock_memory_manager) -> None:
         """Test registry creation with LLM service (optional parameter)."""
         mock_llm = MagicMock()
         registry = create_memory_registry(mock_memory_manager, llm_service=mock_llm)

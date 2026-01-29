@@ -1,9 +1,12 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from gobby.mcp_proxy.registries import setup_internal_registries
 
+pytestmark = pytest.mark.unit
 
-def test_merge_server_registration_integration():
+def test_merge_server_registration_integration() -> None:
     """Verify that gobby-merge server is correctly registered and reachable."""
     # Setup dependencies
     merge_storage = MagicMock()

@@ -6,6 +6,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path):
@@ -25,7 +26,7 @@ def manager(db):
 class TestParentTaskMove:
     """Test that children follow their parent when parent is moved."""
 
-    def test_move_parent_children_follow(self, manager):
+    def test_move_parent_children_follow(self, manager) -> None:
         """When parent B is moved from A to D, children of B should still be B's children."""
         # Create hierarchy: A -> B -> C
         a = manager.create_task(project_id="p1", title="Epic A", task_type="epic")
@@ -64,7 +65,7 @@ class TestParentTaskMove:
         assert len(b_children) == 1
         assert b_children[0].id == c.id
 
-    def test_move_to_root_children_follow(self, manager):
+    def test_move_to_root_children_follow(self, manager) -> None:
         """When parent B is moved to root (cleared parent), children should follow."""
         # Create hierarchy: A -> B -> C
         a = manager.create_task(project_id="p1", title="Epic A", task_type="epic")
@@ -91,7 +92,7 @@ class TestParentTaskMove:
         assert len(b_children) == 1
         assert b_children[0].id == c.id
 
-    def test_deep_hierarchy_move(self, manager):
+    def test_deep_hierarchy_move(self, manager) -> None:
         """Moving a task with deep hierarchy should preserve entire subtree."""
         # Create hierarchy: A -> B -> C -> D -> E
         a = manager.create_task(project_id="p1", title="Epic A", task_type="epic")

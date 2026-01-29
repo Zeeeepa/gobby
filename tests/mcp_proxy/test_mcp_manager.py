@@ -15,11 +15,12 @@ from gobby.mcp_proxy.manager import (
     _create_transport_connection,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestMCPServerConfig:
     """Tests for MCPServerConfig dataclass."""
 
-    def test_http_config_valid(self):
+    def test_http_config_valid(self) -> None:
         """Test valid HTTP config."""
         config = MCPServerConfig(
             name="test-server",
@@ -35,7 +36,7 @@ class TestMCPServerConfig:
         assert config.transport == "http"
         assert config.url == "http://localhost:8080/mcp"
 
-    def test_http_config_missing_url_raises(self):
+    def test_http_config_missing_url_raises(self) -> None:
         """Test HTTP config without URL raises error."""
         config = MCPServerConfig(
             name="test-server",
@@ -47,7 +48,7 @@ class TestMCPServerConfig:
         with pytest.raises(ValueError, match="http transport requires 'url' parameter"):
             config.validate()
 
-    def test_stdio_config_valid(self):
+    def test_stdio_config_valid(self) -> None:
         """Test valid stdio config."""
         config = MCPServerConfig(
             name="stdio-server",
@@ -63,7 +64,7 @@ class TestMCPServerConfig:
         assert config.command == "npx"
         assert config.args == ["-y", "@test/server"]
 
-    def test_stdio_config_missing_command_raises(self):
+    def test_stdio_config_missing_command_raises(self) -> None:
         """Test stdio config without command raises error."""
         config = MCPServerConfig(
             name="test-server",
@@ -75,7 +76,7 @@ class TestMCPServerConfig:
         with pytest.raises(ValueError, match="stdio transport requires 'command' parameter"):
             config.validate()
 
-    def test_websocket_config_valid(self):
+    def test_websocket_config_valid(self) -> None:
         """Test valid WebSocket config."""
         config = MCPServerConfig(
             name="ws-server",
@@ -87,7 +88,7 @@ class TestMCPServerConfig:
         # Should not raise
         config.validate()
 
-    def test_unsupported_transport_raises(self):
+    def test_unsupported_transport_raises(self) -> None:
         """Test unsupported transport raises error."""
         config = MCPServerConfig(
             name="test-server",
@@ -98,7 +99,7 @@ class TestMCPServerConfig:
         with pytest.raises(ValueError, match="Unsupported transport"):
             config.validate()
 
-    def test_http_config_with_headers(self):
+    def test_http_config_with_headers(self) -> None:
         """Test HTTP config with custom headers."""
         config = MCPServerConfig(
             name="api-server",
@@ -111,7 +112,7 @@ class TestMCPServerConfig:
         config.validate()
         assert config.headers == {"Authorization": "Bearer token123", "X-API-Key": "secret"}
 
-    def test_connect_timeout_default(self):
+    def test_connect_timeout_default(self) -> None:
         """Test connect_timeout has default value of 30.0."""
         config = MCPServerConfig(
             name="test-server",
@@ -123,7 +124,7 @@ class TestMCPServerConfig:
         assert config.connect_timeout == 30.0
         config.validate()
 
-    def test_connect_timeout_custom(self):
+    def test_connect_timeout_custom(self) -> None:
         """Test connect_timeout can be customized."""
         config = MCPServerConfig(
             name="test-server",
@@ -136,7 +137,7 @@ class TestMCPServerConfig:
         assert config.connect_timeout == 60.0
         config.validate()
 
-    def test_connect_timeout_zero_raises(self):
+    def test_connect_timeout_zero_raises(self) -> None:
         """Test connect_timeout of zero raises error."""
         config = MCPServerConfig(
             name="test-server",
@@ -149,7 +150,7 @@ class TestMCPServerConfig:
         with pytest.raises(ValueError, match="connect_timeout must be a positive number"):
             config.validate()
 
-    def test_connect_timeout_negative_raises(self):
+    def test_connect_timeout_negative_raises(self) -> None:
         """Test negative connect_timeout raises error."""
         config = MCPServerConfig(
             name="test-server",
@@ -166,7 +167,7 @@ class TestMCPServerConfig:
 class TestMCPConnectionHealth:
     """Tests for MCPConnectionHealth tracking."""
 
-    def test_initial_state(self):
+    def test_initial_state(self) -> None:
         """Test initial health state."""
         health = MCPConnectionHealth(
             name="test-server",
@@ -177,7 +178,7 @@ class TestMCPConnectionHealth:
         assert health.consecutive_failures == 0
         assert health.last_error is None
 
-    def test_record_success(self):
+    def test_record_success(self) -> None:
         """Test recording successful operation."""
         health = MCPConnectionHealth(
             name="test-server",
@@ -194,7 +195,7 @@ class TestMCPConnectionHealth:
         assert health.response_time_ms == 50.0
         assert health.last_health_check is not None
 
-    def test_record_failure_degraded(self):
+    def test_record_failure_degraded(self) -> None:
         """Test health becomes degraded after 3 failures."""
         health = MCPConnectionHealth(
             name="test-server",
@@ -209,7 +210,7 @@ class TestMCPConnectionHealth:
         assert health.health == HealthState.DEGRADED
         assert health.last_error == "Error 3"
 
-    def test_record_failure_unhealthy(self):
+    def test_record_failure_unhealthy(self) -> None:
         """Test health becomes unhealthy after 5 failures."""
         health = MCPConnectionHealth(
             name="test-server",
@@ -227,7 +228,7 @@ class TestMCPConnectionHealth:
 class TestCreateTransportConnection:
     """Tests for transport connection factory."""
 
-    def test_create_http_connection(self):
+    def test_create_http_connection(self) -> None:
         """Test creating HTTP transport connection."""
         config = MCPServerConfig(
             name="http-server",
@@ -241,7 +242,7 @@ class TestCreateTransportConnection:
         assert connection.config == config
         assert connection.state == ConnectionState.DISCONNECTED
 
-    def test_create_stdio_connection(self):
+    def test_create_stdio_connection(self) -> None:
         """Test creating stdio transport connection."""
         config = MCPServerConfig(
             name="stdio-server",
@@ -256,7 +257,7 @@ class TestCreateTransportConnection:
         assert connection.config == config
         assert connection.state == ConnectionState.DISCONNECTED
 
-    def test_create_websocket_connection(self):
+    def test_create_websocket_connection(self) -> None:
         """Test creating WebSocket transport connection."""
         config = MCPServerConfig(
             name="ws-server",
@@ -270,7 +271,7 @@ class TestCreateTransportConnection:
         assert connection.config == config
         assert connection.state == ConnectionState.DISCONNECTED
 
-    def test_create_unsupported_transport_raises(self):
+    def test_create_unsupported_transport_raises(self) -> None:
         """Test unsupported transport raises error."""
         config = MCPServerConfig(
             name="invalid-server",
@@ -285,7 +286,7 @@ class TestCreateTransportConnection:
 class TestMCPClientManagerInit:
     """Tests for MCPClientManager initialization."""
 
-    def test_init_with_configs(self):
+    def test_init_with_configs(self) -> None:
         """Test initialization with server configs."""
         configs = [
             MCPServerConfig(
@@ -308,14 +309,14 @@ class TestMCPClientManagerInit:
         assert manager.connections == {}
         assert manager.health == {}
 
-    def test_init_empty_configs(self):
+    def test_init_empty_configs(self) -> None:
         """Test initialization with empty configs."""
         manager = MCPClientManager(server_configs=[])
 
         assert manager.server_configs == []
         assert manager.connections == {}
 
-    def test_init_with_project_context(self):
+    def test_init_with_project_context(self) -> None:
         """Test initialization with project context."""
         configs = [
             MCPServerConfig(
@@ -341,13 +342,13 @@ class TestMCPClientManagerInit:
 class TestMCPClientManagerConnections:
     """Tests for MCPClientManager connection operations."""
 
-    def test_list_connections_empty(self):
+    def test_list_connections_empty(self) -> None:
         """Test listing connections when none are connected."""
         manager = MCPClientManager(server_configs=[])
 
         assert manager.list_connections() == []
 
-    def test_get_client_not_found_raises(self):
+    def test_get_client_not_found_raises(self) -> None:
         """Test getting unknown client raises error."""
         manager = MCPClientManager(server_configs=[])
 
@@ -470,14 +471,14 @@ class TestMCPClientManagerServerOperations:
 class TestMCPError:
     """Tests for MCPError exception."""
 
-    def test_mcp_error_message(self):
+    def test_mcp_error_message(self) -> None:
         """Test MCPError stores message."""
         error = MCPError("Test error message")
 
         assert str(error) == "Test error message"
         assert error.code is None
 
-    def test_mcp_error_with_code(self):
+    def test_mcp_error_with_code(self) -> None:
         """Test MCPError with error code."""
         error = MCPError("JSON-RPC error", code=-32600)
 
@@ -488,7 +489,7 @@ class TestMCPError:
 class TestConnectionStateEnum:
     """Tests for ConnectionState enum."""
 
-    def test_connection_states(self):
+    def test_connection_states(self) -> None:
         """Test all connection state values."""
         assert ConnectionState.DISCONNECTED.value == "disconnected"
         assert ConnectionState.CONNECTING.value == "connecting"
@@ -499,7 +500,7 @@ class TestConnectionStateEnum:
 class TestHealthStateEnum:
     """Tests for HealthState enum."""
 
-    def test_health_states(self):
+    def test_health_states(self) -> None:
         """Test all health state values."""
         assert HealthState.HEALTHY.value == "healthy"
         assert HealthState.DEGRADED.value == "degraded"

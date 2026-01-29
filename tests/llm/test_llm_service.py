@@ -9,6 +9,7 @@ from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.sessions import SessionSummaryConfig
 from gobby.llm.service import LLMService
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def llm_config() -> DaemonConfig:
@@ -40,7 +41,7 @@ def llm_config_claude_only() -> DaemonConfig:
 class TestLLMServiceInit:
     """Tests for LLMService initialization."""
 
-    def test_init_with_valid_config(self, llm_config: DaemonConfig):
+    def test_init_with_valid_config(self, llm_config: DaemonConfig) -> None:
         """Test initialization with valid configuration."""
         service = LLMService(llm_config)
 
@@ -48,7 +49,7 @@ class TestLLMServiceInit:
         assert service._providers == {}
         assert service._initialized_providers == set()
 
-    def test_init_with_empty_providers_succeeds(self, llm_config_empty_providers: DaemonConfig):
+    def test_init_with_empty_providers_succeeds(self, llm_config_empty_providers: DaemonConfig) -> None:
         """Test initialization succeeds with empty providers (validation happens later)."""
         # Empty LLMProvidersConfig is still a valid config object
         # Errors occur when trying to get a provider
@@ -59,14 +60,14 @@ class TestLLMServiceInit:
 class TestLLMServiceGetProvider:
     """Tests for get_provider method."""
 
-    def test_get_provider_unconfigured_raises(self, llm_config_claude_only: DaemonConfig):
+    def test_get_provider_unconfigured_raises(self, llm_config_claude_only: DaemonConfig) -> None:
         """Test getting an unconfigured provider raises error."""
         service = LLMService(llm_config_claude_only)
 
         with pytest.raises(ValueError, match="Provider 'gemini' is not configured"):
             service.get_provider("gemini")
 
-    def test_get_provider_unknown_raises(self, llm_config: DaemonConfig):
+    def test_get_provider_unknown_raises(self, llm_config: DaemonConfig) -> None:
         """Test getting an unknown provider raises error."""
         service = LLMService(llm_config)
 
@@ -77,7 +78,7 @@ class TestLLMServiceGetProvider:
     @patch("gobby.llm.claude.ClaudeLLMProvider")
     def test_get_provider_claude(
         self, mock_claude_provider: MagicMock, llm_config_claude_only: DaemonConfig
-    ):
+    ) -> None:
         """Test getting Claude provider creates instance."""
         mock_instance = MagicMock()
         mock_claude_provider.return_value = mock_instance
@@ -91,7 +92,7 @@ class TestLLMServiceGetProvider:
     @patch("gobby.llm.claude.ClaudeLLMProvider")
     def test_get_provider_caches_instance(
         self, mock_claude_provider: MagicMock, llm_config_claude_only: DaemonConfig
-    ):
+    ) -> None:
         """Test that get_provider caches provider instances."""
         mock_instance = MagicMock()
         mock_claude_provider.return_value = mock_instance
@@ -111,7 +112,7 @@ class TestLLMServiceGetProvider:
 class TestLLMServiceGetProviderForFeature:
     """Tests for get_provider_for_feature method."""
 
-    def test_get_provider_for_feature_missing_provider(self, llm_config: DaemonConfig):
+    def test_get_provider_for_feature_missing_provider(self, llm_config: DaemonConfig) -> None:
         """Test error when feature config missing provider field."""
         service = LLMService(llm_config)
 
@@ -122,7 +123,7 @@ class TestLLMServiceGetProviderForFeature:
         with pytest.raises(ValueError, match="missing 'provider' field"):
             service.get_provider_for_feature(feature_config)
 
-    def test_get_provider_for_feature_missing_model(self, llm_config: DaemonConfig):
+    def test_get_provider_for_feature_missing_model(self, llm_config: DaemonConfig) -> None:
         """Test error when feature config missing model field."""
         service = LLMService(llm_config)
 
@@ -136,7 +137,7 @@ class TestLLMServiceGetProviderForFeature:
     @patch("gobby.llm.claude.ClaudeLLMProvider")
     def test_get_provider_for_feature_success(
         self, mock_claude_provider: MagicMock, llm_config_claude_only: DaemonConfig
-    ):
+    ) -> None:
         """Test successful feature provider lookup."""
         mock_instance = MagicMock()
         mock_claude_provider.return_value = mock_instance
@@ -159,7 +160,7 @@ class TestLLMServiceGetProviderForFeature:
     @patch("gobby.llm.claude.ClaudeLLMProvider")
     def test_get_provider_for_feature_no_prompt(
         self, mock_claude_provider: MagicMock, llm_config_claude_only: DaemonConfig
-    ):
+    ) -> None:
         """Test feature provider lookup when prompt is None."""
         mock_instance = MagicMock()
         mock_claude_provider.return_value = mock_instance
@@ -184,7 +185,7 @@ class TestLLMServiceGetDefaultProvider:
     @patch("gobby.llm.claude.ClaudeLLMProvider")
     def test_get_default_provider_prefers_claude(
         self, mock_claude_provider: MagicMock, llm_config: DaemonConfig
-    ):
+    ) -> None:
         """Test default provider prefers Claude when available."""
         mock_instance = MagicMock()
         mock_claude_provider.return_value = mock_instance
@@ -195,7 +196,7 @@ class TestLLMServiceGetDefaultProvider:
         assert provider == mock_instance
 
     @patch("gobby.llm.gemini.GeminiProvider")
-    def test_get_default_provider_fallback(self, mock_gemini_provider: MagicMock):
+    def test_get_default_provider_fallback(self, mock_gemini_provider: MagicMock) -> None:
         """Test default provider falls back to first available when Claude not configured."""
         mock_instance = MagicMock()
         mock_gemini_provider.return_value = mock_instance
@@ -212,7 +213,7 @@ class TestLLMServiceGetDefaultProvider:
 
         assert provider == mock_instance
 
-    def test_get_default_provider_no_enabled_raises(self):
+    def test_get_default_provider_no_enabled_raises(self) -> None:
         """Test error when no providers are enabled."""
         # Create config with empty llm_providers
         config = DaemonConfig(llm_providers=LLMProvidersConfig())
@@ -226,7 +227,7 @@ class TestLLMServiceGetDefaultProvider:
 class TestLLMServiceProperties:
     """Tests for LLMService properties."""
 
-    def test_enabled_providers(self, llm_config: DaemonConfig):
+    def test_enabled_providers(self, llm_config: DaemonConfig) -> None:
         """Test enabled_providers property."""
         service = LLMService(llm_config)
 
@@ -238,7 +239,7 @@ class TestLLMServiceProperties:
     @patch("gobby.llm.claude.ClaudeLLMProvider")
     def test_initialized_providers(
         self, mock_claude_provider: MagicMock, llm_config_claude_only: DaemonConfig
-    ):
+    ) -> None:
         """Test initialized_providers property."""
         mock_claude_provider.return_value = MagicMock()
 
@@ -251,7 +252,7 @@ class TestLLMServiceProperties:
         service.get_provider("claude")
         assert "claude" in service.initialized_providers
 
-    def test_repr(self, llm_config: DaemonConfig):
+    def test_repr(self, llm_config: DaemonConfig) -> None:
         """Test string representation."""
         service = LLMService(llm_config)
 

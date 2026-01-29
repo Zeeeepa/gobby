@@ -12,11 +12,12 @@ from gobby.worktrees.git import (
     WorktreeStatus,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestWorktreeInfo:
     """Tests for WorktreeInfo dataclass."""
 
-    def test_create_minimal(self):
+    def test_create_minimal(self) -> None:
         """WorktreeInfo can be created with required fields."""
         info = WorktreeInfo(
             path="/path/to/worktree",
@@ -32,7 +33,7 @@ class TestWorktreeInfo:
         assert info.locked is False
         assert info.prunable is False
 
-    def test_create_with_all_fields(self):
+    def test_create_with_all_fields(self) -> None:
         """WorktreeInfo can be created with all fields."""
         info = WorktreeInfo(
             path="/path/to/worktree",
@@ -53,7 +54,7 @@ class TestWorktreeInfo:
 class TestWorktreeStatus:
     """Tests for WorktreeStatus dataclass."""
 
-    def test_create(self):
+    def test_create(self) -> None:
         """WorktreeStatus can be created with all fields."""
         status = WorktreeStatus(
             has_uncommitted_changes=True,
@@ -73,7 +74,7 @@ class TestWorktreeStatus:
         assert status.branch == "feature/test"
         assert status.commit == "abc1234"
 
-    def test_clean_status(self):
+    def test_clean_status(self) -> None:
         """WorktreeStatus can represent clean working tree."""
         status = WorktreeStatus(
             has_uncommitted_changes=False,
@@ -93,7 +94,7 @@ class TestWorktreeStatus:
 class TestGitOperationResult:
     """Tests for GitOperationResult dataclass."""
 
-    def test_success_result(self):
+    def test_success_result(self) -> None:
         """GitOperationResult can represent success."""
         result = GitOperationResult(
             success=True,
@@ -106,7 +107,7 @@ class TestGitOperationResult:
         assert result.output == "some output"
         assert result.error is None
 
-    def test_failure_result(self):
+    def test_failure_result(self) -> None:
         """GitOperationResult can represent failure."""
         result = GitOperationResult(
             success=False,
@@ -123,19 +124,19 @@ class TestGitOperationResult:
 class TestWorktreeGitManagerInit:
     """Tests for WorktreeGitManager initialization."""
 
-    def test_init_with_valid_path(self, tmp_path):
+    def test_init_with_valid_path(self, tmp_path) -> None:
         """Manager initializes with valid path."""
         manager = WorktreeGitManager(tmp_path)
 
         assert manager.repo_path == tmp_path
 
-    def test_init_with_string_path(self, tmp_path):
+    def test_init_with_string_path(self, tmp_path) -> None:
         """Manager accepts string path."""
         manager = WorktreeGitManager(str(tmp_path))
 
         assert manager.repo_path == tmp_path
 
-    def test_init_invalid_path_raises(self):
+    def test_init_invalid_path_raises(self) -> None:
         """Manager raises ValueError for non-existent path."""
         with pytest.raises(ValueError, match="does not exist"):
             WorktreeGitManager("/nonexistent/path")
@@ -150,7 +151,7 @@ class TestWorktreeGitManagerRunGit:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_run_git_success(self, mock_run, manager):
+    def test_run_git_success(self, mock_run, manager) -> None:
         """_run_git returns CompletedProcess on success."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "status"],
@@ -166,7 +167,7 @@ class TestWorktreeGitManagerRunGit:
         mock_run.assert_called_once()
 
     @patch("subprocess.run")
-    def test_run_git_uses_repo_path(self, mock_run, manager):
+    def test_run_git_uses_repo_path(self, mock_run, manager) -> None:
         """_run_git uses repo_path as default cwd."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "status"],
@@ -181,7 +182,7 @@ class TestWorktreeGitManagerRunGit:
         assert call_kwargs["cwd"] == manager.repo_path
 
     @patch("subprocess.run")
-    def test_run_git_custom_cwd(self, mock_run, manager, tmp_path):
+    def test_run_git_custom_cwd(self, mock_run, manager, tmp_path) -> None:
         """_run_git accepts custom cwd."""
         custom_path = tmp_path / "custom"
         custom_path.mkdir()
@@ -198,7 +199,7 @@ class TestWorktreeGitManagerRunGit:
         assert call_kwargs["cwd"] == custom_path
 
     @patch("subprocess.run")
-    def test_run_git_timeout(self, mock_run, manager):
+    def test_run_git_timeout(self, mock_run, manager) -> None:
         """_run_git raises on timeout."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
 
@@ -214,7 +215,7 @@ class TestWorktreeGitManagerCreateWorktree:
         """Create manager with temp directory."""
         return WorktreeGitManager(tmp_path)
 
-    def test_create_fails_if_path_exists(self, manager, tmp_path):
+    def test_create_fails_if_path_exists(self, manager, tmp_path) -> None:
         """Create fails if worktree path already exists."""
         existing_path = tmp_path / "existing"
         existing_path.mkdir()
@@ -225,7 +226,7 @@ class TestWorktreeGitManagerCreateWorktree:
         assert "already exists" in result.message
 
     @patch("subprocess.run")
-    def test_create_with_new_branch(self, mock_run, manager, tmp_path):
+    def test_create_with_new_branch(self, mock_run, manager, tmp_path) -> None:
         """Create worktree with new branch."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -243,7 +244,7 @@ class TestWorktreeGitManagerCreateWorktree:
         assert "Created worktree" in result.message
 
     @patch("subprocess.run")
-    def test_create_with_existing_branch(self, mock_run, manager, tmp_path):
+    def test_create_with_existing_branch(self, mock_run, manager, tmp_path) -> None:
         """Create worktree with existing branch."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -258,7 +259,7 @@ class TestWorktreeGitManagerCreateWorktree:
         assert result.success is True
 
     @patch("subprocess.run")
-    def test_create_handles_git_failure(self, mock_run, manager, tmp_path):
+    def test_create_handles_git_failure(self, mock_run, manager, tmp_path) -> None:
         """Create handles git command failure."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         # First call is fetch (succeeds), second call is worktree add (fails)
@@ -283,7 +284,7 @@ class TestWorktreeGitManagerCreateWorktree:
         assert "Failed to create" in result.message
 
     @patch("subprocess.run")
-    def test_create_handles_timeout(self, mock_run, manager, tmp_path):
+    def test_create_handles_timeout(self, mock_run, manager, tmp_path) -> None:
         """Create handles git timeout."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=60)
@@ -303,7 +304,7 @@ class TestWorktreeGitManagerDeleteWorktree:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_delete_success(self, mock_run, manager, tmp_path):
+    def test_delete_success(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree successfully."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -319,7 +320,7 @@ class TestWorktreeGitManagerDeleteWorktree:
         assert "Deleted worktree" in result.message
 
     @patch("subprocess.run")
-    def test_delete_with_force(self, mock_run, manager, tmp_path):
+    def test_delete_with_force(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree with force option."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -337,7 +338,7 @@ class TestWorktreeGitManagerDeleteWorktree:
         assert "--force" in call_args
 
     @patch("subprocess.run")
-    def test_delete_with_branch_deletion(self, mock_run, manager, tmp_path):
+    def test_delete_with_branch_deletion(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree and associated branch."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         worktree_path.mkdir(parents=True)
@@ -374,7 +375,7 @@ class TestWorktreeGitManagerDeleteWorktree:
         assert "branch" in result.message
 
     @patch("subprocess.run")
-    def test_delete_handles_failure(self, mock_run, manager, tmp_path):
+    def test_delete_handles_failure(self, mock_run, manager, tmp_path) -> None:
         """Delete handles git failure."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -398,7 +399,7 @@ class TestWorktreeGitManagerSyncFromMain:
         """Create manager with temp directory."""
         return WorktreeGitManager(tmp_path)
 
-    def test_sync_fails_if_path_not_exists(self, manager, tmp_path):
+    def test_sync_fails_if_path_not_exists(self, manager, tmp_path) -> None:
         """Sync fails if worktree path doesn't exist."""
         worktree_path = tmp_path / "nonexistent"
 
@@ -408,7 +409,7 @@ class TestWorktreeGitManagerSyncFromMain:
         assert "does not exist" in result.message
 
     @patch("subprocess.run")
-    def test_sync_with_rebase(self, mock_run, manager, tmp_path):
+    def test_sync_with_rebase(self, mock_run, manager, tmp_path) -> None:
         """Sync with rebase strategy."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -426,7 +427,7 @@ class TestWorktreeGitManagerSyncFromMain:
         assert "rebase" in result.message
 
     @patch("subprocess.run")
-    def test_sync_with_merge(self, mock_run, manager, tmp_path):
+    def test_sync_with_merge(self, mock_run, manager, tmp_path) -> None:
         """Sync with merge strategy."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -444,7 +445,7 @@ class TestWorktreeGitManagerSyncFromMain:
         assert "merge" in result.message
 
     @patch("subprocess.run")
-    def test_sync_handles_conflict(self, mock_run, manager, tmp_path):
+    def test_sync_handles_conflict(self, mock_run, manager, tmp_path) -> None:
         """Sync handles merge/rebase conflicts."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -467,7 +468,7 @@ class TestWorktreeGitManagerSyncFromMain:
         assert "conflicts" in result.message.lower()
 
     @patch("subprocess.run")
-    def test_sync_handles_fetch_failure(self, mock_run, manager, tmp_path):
+    def test_sync_handles_fetch_failure(self, mock_run, manager, tmp_path) -> None:
         """Sync handles fetch failure."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -493,14 +494,14 @@ class TestWorktreeGitManagerGetStatus:
         """Create manager with temp directory."""
         return WorktreeGitManager(tmp_path)
 
-    def test_get_status_nonexistent_path(self, manager, tmp_path):
+    def test_get_status_nonexistent_path(self, manager, tmp_path) -> None:
         """Get status returns None for non-existent path."""
         result = manager.get_worktree_status(tmp_path / "nonexistent")
 
         assert result is None
 
     @patch("subprocess.run")
-    def test_get_status_clean(self, mock_run, manager, tmp_path):
+    def test_get_status_clean(self, mock_run, manager, tmp_path) -> None:
         """Get status for clean worktree."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -534,7 +535,7 @@ class TestWorktreeGitManagerGetStatus:
         assert status.behind == 0
 
     @patch("subprocess.run")
-    def test_get_status_with_changes(self, mock_run, manager, tmp_path):
+    def test_get_status_with_changes(self, mock_run, manager, tmp_path) -> None:
         """Get status for worktree with changes."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -571,7 +572,7 @@ class TestWorktreeGitManagerGetStatus:
         assert status.ahead == 3
 
     @patch("subprocess.run")
-    def test_get_status_handles_exception(self, mock_run, manager, tmp_path):
+    def test_get_status_handles_exception(self, mock_run, manager, tmp_path) -> None:
         """Get status handles exception gracefully."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -592,7 +593,7 @@ class TestWorktreeGitManagerListWorktrees:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_list_empty(self, mock_run, manager):
+    def test_list_empty(self, mock_run, manager) -> None:
         """List returns empty list when no worktrees."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -606,7 +607,7 @@ class TestWorktreeGitManagerListWorktrees:
         assert worktrees == []
 
     @patch("subprocess.run")
-    def test_list_single_worktree(self, mock_run, manager):
+    def test_list_single_worktree(self, mock_run, manager) -> None:
         """List returns single worktree."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -623,7 +624,7 @@ class TestWorktreeGitManagerListWorktrees:
         assert worktrees[0].branch == "main"
 
     @patch("subprocess.run")
-    def test_list_multiple_worktrees(self, mock_run, manager):
+    def test_list_multiple_worktrees(self, mock_run, manager) -> None:
         """List returns multiple worktrees."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -648,7 +649,7 @@ class TestWorktreeGitManagerListWorktrees:
         assert worktrees[1].branch == "feature/one"
 
     @patch("subprocess.run")
-    def test_list_with_flags(self, mock_run, manager):
+    def test_list_with_flags(self, mock_run, manager) -> None:
         """List parses locked/prunable/detached flags."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -668,7 +669,7 @@ class TestWorktreeGitManagerListWorktrees:
         assert worktrees[0].branch is None
 
     @patch("subprocess.run")
-    def test_list_handles_failure(self, mock_run, manager):
+    def test_list_handles_failure(self, mock_run, manager) -> None:
         """List returns empty list on git failure."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -691,7 +692,7 @@ class TestWorktreeGitManagerPrune:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_prune_success(self, mock_run, manager):
+    def test_prune_success(self, mock_run, manager) -> None:
         """Prune succeeds."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "prune"],
@@ -706,7 +707,7 @@ class TestWorktreeGitManagerPrune:
         assert "Pruned" in result.message
 
     @patch("subprocess.run")
-    def test_prune_failure(self, mock_run, manager):
+    def test_prune_failure(self, mock_run, manager) -> None:
         """Prune handles failure."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "prune"],
@@ -730,7 +731,7 @@ class TestWorktreeGitManagerLock:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_lock_success(self, mock_run, manager, tmp_path):
+    def test_lock_success(self, mock_run, manager, tmp_path) -> None:
         """Lock worktree successfully."""
         worktree_path = tmp_path / "worktree"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -746,7 +747,7 @@ class TestWorktreeGitManagerLock:
         assert "Locked" in result.message
 
     @patch("subprocess.run")
-    def test_lock_with_reason(self, mock_run, manager, tmp_path):
+    def test_lock_with_reason(self, mock_run, manager, tmp_path) -> None:
         """Lock worktree with reason."""
         worktree_path = tmp_path / "worktree"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -765,7 +766,7 @@ class TestWorktreeGitManagerLock:
         assert "Important work" in call_args
 
     @patch("subprocess.run")
-    def test_lock_failure(self, mock_run, manager, tmp_path):
+    def test_lock_failure(self, mock_run, manager, tmp_path) -> None:
         """Lock handles failure."""
         worktree_path = tmp_path / "worktree"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -790,7 +791,7 @@ class TestWorktreeGitManagerUnlock:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_unlock_success(self, mock_run, manager, tmp_path):
+    def test_unlock_success(self, mock_run, manager, tmp_path) -> None:
         """Unlock worktree successfully."""
         worktree_path = tmp_path / "worktree"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -806,7 +807,7 @@ class TestWorktreeGitManagerUnlock:
         assert "Unlocked" in result.message
 
     @patch("subprocess.run")
-    def test_unlock_failure(self, mock_run, manager, tmp_path):
+    def test_unlock_failure(self, mock_run, manager, tmp_path) -> None:
         """Unlock handles failure."""
         worktree_path = tmp_path / "worktree"
         mock_run.return_value = subprocess.CompletedProcess(
@@ -822,7 +823,7 @@ class TestWorktreeGitManagerUnlock:
         assert "Failed to unlock" in result.message
 
     @patch("subprocess.run")
-    def test_unlock_handles_exception(self, mock_run, manager, tmp_path):
+    def test_unlock_handles_exception(self, mock_run, manager, tmp_path) -> None:
         """Unlock handles generic exception gracefully."""
         worktree_path = tmp_path / "worktree"
         mock_run.side_effect = Exception("Unexpected error")
@@ -843,7 +844,7 @@ class TestWorktreeGitManagerRunGitCalledProcessError:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_run_git_called_process_error(self, mock_run, manager):
+    def test_run_git_called_process_error(self, mock_run, manager) -> None:
         """_run_git raises CalledProcessError when check=True."""
         mock_run.side_effect = subprocess.CalledProcessError(
             returncode=128,
@@ -864,7 +865,7 @@ class TestWorktreeGitManagerCreateWorktreeFetchFailure:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_create_worktree_fetch_failure(self, mock_run, manager, tmp_path):
+    def test_create_worktree_fetch_failure(self, mock_run, manager, tmp_path) -> None:
         """Create worktree fails when fetch fails."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
 
@@ -884,7 +885,7 @@ class TestWorktreeGitManagerCreateWorktreeFetchFailure:
         assert result.error == "fatal: could not fetch origin/main"
 
     @patch("subprocess.run")
-    def test_create_worktree_generic_exception(self, mock_run, manager, tmp_path):
+    def test_create_worktree_generic_exception(self, mock_run, manager, tmp_path) -> None:
         """Create worktree handles generic exception."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
 
@@ -908,7 +909,7 @@ class TestWorktreeGitManagerDeleteWorktreeEdgeCases:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_delete_branch_deletion_failure(self, mock_run, manager, tmp_path):
+    def test_delete_branch_deletion_failure(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree succeeds but branch deletion fails."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         worktree_path.mkdir(parents=True)
@@ -949,7 +950,7 @@ class TestWorktreeGitManagerDeleteWorktreeEdgeCases:
         assert "failed to delete branch" in result.message
 
     @patch("subprocess.run")
-    def test_delete_branch_with_no_status(self, mock_run, manager, tmp_path):
+    def test_delete_branch_with_no_status(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree with delete_branch=True but no status found."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
         # Path doesn't exist, so get_worktree_status returns None
@@ -969,7 +970,7 @@ class TestWorktreeGitManagerDeleteWorktreeEdgeCases:
         )
 
     @patch("subprocess.run")
-    def test_delete_timeout(self, mock_run, manager, tmp_path):
+    def test_delete_timeout(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree handles timeout."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
 
@@ -981,7 +982,7 @@ class TestWorktreeGitManagerDeleteWorktreeEdgeCases:
         assert "timed out" in result.message
 
     @patch("subprocess.run")
-    def test_delete_generic_exception(self, mock_run, manager, tmp_path):
+    def test_delete_generic_exception(self, mock_run, manager, tmp_path) -> None:
         """Delete worktree handles generic exception."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
 
@@ -1003,7 +1004,7 @@ class TestWorktreeGitManagerSyncEdgeCases:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_sync_rebase_failure_no_conflict(self, mock_run, manager, tmp_path):
+    def test_sync_rebase_failure_no_conflict(self, mock_run, manager, tmp_path) -> None:
         """Sync fails with rebase error but no conflict."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1027,7 +1028,7 @@ class TestWorktreeGitManagerSyncEdgeCases:
         assert "dirty index" in result.error
 
     @patch("subprocess.run")
-    def test_sync_merge_failure_no_conflict(self, mock_run, manager, tmp_path):
+    def test_sync_merge_failure_no_conflict(self, mock_run, manager, tmp_path) -> None:
         """Sync fails with merge error but no conflict."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1050,7 +1051,7 @@ class TestWorktreeGitManagerSyncEdgeCases:
         assert "Failed to merge" in result.message
 
     @patch("subprocess.run")
-    def test_sync_conflict_in_stderr(self, mock_run, manager, tmp_path):
+    def test_sync_conflict_in_stderr(self, mock_run, manager, tmp_path) -> None:
         """Sync detects conflict in stderr."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1074,7 +1075,7 @@ class TestWorktreeGitManagerSyncEdgeCases:
         assert "abort" in result.message.lower()
 
     @patch("subprocess.run")
-    def test_sync_timeout(self, mock_run, manager, tmp_path):
+    def test_sync_timeout(self, mock_run, manager, tmp_path) -> None:
         """Sync handles timeout."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1087,7 +1088,7 @@ class TestWorktreeGitManagerSyncEdgeCases:
         assert "timed out" in result.message
 
     @patch("subprocess.run")
-    def test_sync_generic_exception(self, mock_run, manager, tmp_path):
+    def test_sync_generic_exception(self, mock_run, manager, tmp_path) -> None:
         """Sync handles generic exception."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1110,7 +1111,7 @@ class TestWorktreeGitManagerGetStatusEdgeCases:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_get_status_no_upstream(self, mock_run, manager, tmp_path):
+    def test_get_status_no_upstream(self, mock_run, manager, tmp_path) -> None:
         """Get status when branch has no upstream."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1143,7 +1144,7 @@ class TestWorktreeGitManagerGetStatusEdgeCases:
         assert status.behind == 0
 
     @patch("subprocess.run")
-    def test_get_status_detached_head(self, mock_run, manager, tmp_path):
+    def test_get_status_detached_head(self, mock_run, manager, tmp_path) -> None:
         """Get status with detached HEAD (no branch)."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1170,7 +1171,7 @@ class TestWorktreeGitManagerGetStatusEdgeCases:
         assert status.behind == 0
 
     @patch("subprocess.run")
-    def test_get_status_branch_command_failure(self, mock_run, manager, tmp_path):
+    def test_get_status_branch_command_failure(self, mock_run, manager, tmp_path) -> None:
         """Get status when branch command fails."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1201,7 +1202,7 @@ class TestWorktreeGitManagerGetStatusEdgeCases:
         assert status.commit is None
 
     @patch("subprocess.run")
-    def test_get_status_ahead_behind_parsing(self, mock_run, manager, tmp_path):
+    def test_get_status_ahead_behind_parsing(self, mock_run, manager, tmp_path) -> None:
         """Get status parses ahead/behind correctly."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1231,7 +1232,7 @@ class TestWorktreeGitManagerGetStatusEdgeCases:
         assert status.behind == 0
 
     @patch("subprocess.run")
-    def test_get_status_status_porcelain_parsing(self, mock_run, manager, tmp_path):
+    def test_get_status_status_porcelain_parsing(self, mock_run, manager, tmp_path) -> None:
         """Get status correctly parses various porcelain status formats."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1281,7 +1282,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_list_worktrees_bare_repo(self, mock_run, manager):
+    def test_list_worktrees_bare_repo(self, mock_run, manager) -> None:
         """List worktrees parses bare repository."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -1297,7 +1298,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         assert worktrees[0].path == "/path/to/repo.git"
 
     @patch("subprocess.run")
-    def test_list_worktrees_non_refs_heads_branch(self, mock_run, manager):
+    def test_list_worktrees_non_refs_heads_branch(self, mock_run, manager) -> None:
         """List worktrees parses branches without refs/heads prefix."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -1315,7 +1316,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         assert worktrees[0].branch == "feature/direct-branch"
 
     @patch("subprocess.run")
-    def test_list_worktrees_locked_with_reason(self, mock_run, manager):
+    def test_list_worktrees_locked_with_reason(self, mock_run, manager) -> None:
         """List worktrees parses locked with reason."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -1336,7 +1337,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         assert worktrees[0].locked is True
 
     @patch("subprocess.run")
-    def test_list_worktrees_prunable_with_reason(self, mock_run, manager):
+    def test_list_worktrees_prunable_with_reason(self, mock_run, manager) -> None:
         """List worktrees parses prunable with reason."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -1357,7 +1358,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         assert worktrees[0].prunable is True
 
     @patch("subprocess.run")
-    def test_list_worktrees_exception(self, mock_run, manager):
+    def test_list_worktrees_exception(self, mock_run, manager) -> None:
         """List worktrees handles exception gracefully."""
         mock_run.side_effect = Exception("Git process crashed")
 
@@ -1366,7 +1367,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         assert worktrees == []
 
     @patch("subprocess.run")
-    def test_list_worktrees_no_trailing_newline(self, mock_run, manager):
+    def test_list_worktrees_no_trailing_newline(self, mock_run, manager) -> None:
         """List worktrees handles output without trailing newline."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -1392,7 +1393,7 @@ class TestWorktreeGitManagerPruneEdgeCases:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_prune_exception(self, mock_run, manager):
+    def test_prune_exception(self, mock_run, manager) -> None:
         """Prune handles exception gracefully."""
         mock_run.side_effect = Exception("Git process crashed")
 
@@ -1412,7 +1413,7 @@ class TestWorktreeGitManagerLockEdgeCases:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_lock_exception(self, mock_run, manager, tmp_path):
+    def test_lock_exception(self, mock_run, manager, tmp_path) -> None:
         """Lock handles exception gracefully."""
         worktree_path = tmp_path / "worktree"
         mock_run.side_effect = Exception("Permission denied")
@@ -1433,7 +1434,7 @@ class TestWorktreeGitManagerBranchCoverage:
         return WorktreeGitManager(tmp_path)
 
     @patch("subprocess.run")
-    def test_get_status_porcelain_failure(self, mock_run, manager, tmp_path):
+    def test_get_status_porcelain_failure(self, mock_run, manager, tmp_path) -> None:
         """Get status when status --porcelain command fails."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1471,7 +1472,7 @@ class TestWorktreeGitManagerBranchCoverage:
         assert status.commit == "abc1234"
 
     @patch("subprocess.run")
-    def test_list_worktrees_unknown_line_format(self, mock_run, manager):
+    def test_list_worktrees_unknown_line_format(self, mock_run, manager) -> None:
         """List worktrees ignores unknown line formats."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
@@ -1496,7 +1497,7 @@ class TestWorktreeGitManagerBranchCoverage:
         assert worktrees[0].commit == "abc1234567890"
 
     @patch("subprocess.run")
-    def test_get_status_single_char_status_line(self, mock_run, manager, tmp_path):
+    def test_get_status_single_char_status_line(self, mock_run, manager, tmp_path) -> None:
         """Get status handles single character status line (edge case)."""
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -1536,7 +1537,7 @@ class TestWorktreeGitManagerBranchCoverage:
 class TestWorktreeGitManagerGetDefaultBranch:
     """Tests for get_default_branch method."""
 
-    def test_get_default_branch_from_origin_head(self, mock_run, tmp_path):
+    def test_get_default_branch_from_origin_head(self, mock_run, tmp_path) -> None:
         """Get default branch from origin/HEAD symbolic ref."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
@@ -1554,7 +1555,7 @@ class TestWorktreeGitManagerGetDefaultBranch:
 
         assert branch == "main"
 
-    def test_get_default_branch_from_origin_head_master(self, mock_run, tmp_path):
+    def test_get_default_branch_from_origin_head_master(self, mock_run, tmp_path) -> None:
         """Get default branch 'master' from origin/HEAD."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
@@ -1572,7 +1573,7 @@ class TestWorktreeGitManagerGetDefaultBranch:
 
         assert branch == "master"
 
-    def test_get_default_branch_fallback_to_local_main(self, mock_run, tmp_path):
+    def test_get_default_branch_fallback_to_local_main(self, mock_run, tmp_path) -> None:
         """Fall back to local main branch when origin/HEAD fails."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
@@ -1600,7 +1601,7 @@ class TestWorktreeGitManagerGetDefaultBranch:
 
         assert branch == "main"
 
-    def test_get_default_branch_fallback_to_remote_master(self, mock_run, tmp_path):
+    def test_get_default_branch_fallback_to_remote_master(self, mock_run, tmp_path) -> None:
         """Fall back to remote master when main doesn't exist."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
@@ -1649,7 +1650,7 @@ class TestWorktreeGitManagerGetDefaultBranch:
 
         assert branch == "master"
 
-    def test_get_default_branch_fallback_to_main(self, mock_run, tmp_path):
+    def test_get_default_branch_fallback_to_main(self, mock_run, tmp_path) -> None:
         """Fall back to 'main' when all detection methods fail."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
@@ -1669,7 +1670,7 @@ class TestWorktreeGitManagerGetDefaultBranch:
         # Should fall back to "main"
         assert branch == "main"
 
-    def test_get_default_branch_handles_exception(self, mock_run, tmp_path):
+    def test_get_default_branch_handles_exception(self, mock_run, tmp_path) -> None:
         """Handle exception gracefully and fall back to main."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()

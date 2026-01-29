@@ -30,6 +30,8 @@ from gobby.agents.tty_config import (
     reload_tty_config,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Tests for TerminalConfig model
 # =============================================================================
@@ -38,7 +40,7 @@ from gobby.agents.tty_config import (
 class TestTerminalConfig:
     """Tests for the TerminalConfig Pydantic model."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """TerminalConfig has sensible defaults."""
         config = TerminalConfig()
         assert config.app_path is None
@@ -46,28 +48,28 @@ class TestTerminalConfig:
         assert config.options == []
         assert config.enabled is True
 
-    def test_custom_app_path(self):
+    def test_custom_app_path(self) -> None:
         """TerminalConfig accepts custom app_path."""
         config = TerminalConfig(app_path="/Applications/Custom.app")
         assert config.app_path == "/Applications/Custom.app"
 
-    def test_custom_command(self):
+    def test_custom_command(self) -> None:
         """TerminalConfig accepts custom command."""
         config = TerminalConfig(command="my-terminal")
         assert config.command == "my-terminal"
 
-    def test_custom_options(self):
+    def test_custom_options(self) -> None:
         """TerminalConfig accepts custom options list."""
         options = ["-o", "option=value", "--flag"]
         config = TerminalConfig(options=options)
         assert config.options == options
 
-    def test_disabled_terminal(self):
+    def test_disabled_terminal(self) -> None:
         """TerminalConfig can be disabled."""
         config = TerminalConfig(enabled=False)
         assert config.enabled is False
 
-    def test_full_configuration(self):
+    def test_full_configuration(self) -> None:
         """TerminalConfig accepts all fields together."""
         config = TerminalConfig(
             app_path="/Applications/Test.app",
@@ -80,14 +82,14 @@ class TestTerminalConfig:
         assert config.options == ["--arg1", "--arg2"]
         assert config.enabled is True
 
-    def test_model_dump_excludes_none(self):
+    def test_model_dump_excludes_none(self) -> None:
         """model_dump with exclude_none removes None values."""
         config = TerminalConfig(command="test")
         data = config.model_dump(exclude_none=True)
         assert "app_path" not in data
         assert data["command"] == "test"
 
-    def test_model_dump_includes_empty_options(self):
+    def test_model_dump_includes_empty_options(self) -> None:
         """model_dump includes empty options list by default."""
         config = TerminalConfig()
         data = config.model_dump()
@@ -102,7 +104,7 @@ class TestTerminalConfig:
 class TestPlatformPreferences:
     """Tests for the PlatformPreferences Pydantic model."""
 
-    def test_default_macos_preferences(self):
+    def test_default_macos_preferences(self) -> None:
         """PlatformPreferences has default macOS terminal order."""
         prefs = PlatformPreferences()
         assert "ghostty" in prefs.macos
@@ -115,7 +117,7 @@ class TestPlatformPreferences:
         # tmux should be last (multiplexer fallback)
         assert prefs.macos[-1] == "tmux"
 
-    def test_default_linux_preferences(self):
+    def test_default_linux_preferences(self) -> None:
         """PlatformPreferences has default Linux terminal order."""
         prefs = PlatformPreferences()
         assert "ghostty" in prefs.linux
@@ -129,7 +131,7 @@ class TestPlatformPreferences:
         # tmux should be last
         assert prefs.linux[-1] == "tmux"
 
-    def test_default_windows_preferences(self):
+    def test_default_windows_preferences(self) -> None:
         """PlatformPreferences has default Windows terminal order."""
         prefs = PlatformPreferences()
         assert "windows-terminal" in prefs.windows
@@ -140,7 +142,7 @@ class TestPlatformPreferences:
         # Windows Terminal should be first
         assert prefs.windows[0] == "windows-terminal"
 
-    def test_custom_preferences(self):
+    def test_custom_preferences(self) -> None:
         """PlatformPreferences accepts custom terminal orders."""
         prefs = PlatformPreferences(
             macos=["iterm", "terminal.app"],
@@ -151,7 +153,7 @@ class TestPlatformPreferences:
         assert prefs.linux == ["gnome-terminal", "konsole"]
         assert prefs.windows == ["powershell", "cmd"]
 
-    def test_empty_preferences_list(self):
+    def test_empty_preferences_list(self) -> None:
         """PlatformPreferences accepts empty lists."""
         prefs = PlatformPreferences(macos=[])
         assert prefs.macos == []
@@ -165,67 +167,67 @@ class TestPlatformPreferences:
 class TestDefaultTerminalConfigs:
     """Tests for the DEFAULT_TERMINAL_CONFIGS constant."""
 
-    def test_ghostty_config(self):
+    def test_ghostty_config(self) -> None:
         """Ghostty has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["ghostty"]
         assert config["app_path"] == "/Applications/Ghostty.app"
         assert config["command"] == "ghostty"
 
-    def test_iterm_config(self):
+    def test_iterm_config(self) -> None:
         """iTerm has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["iterm"]
         assert config["app_path"] == "/Applications/iTerm.app"
         # iTerm uses AppleScript, no command needed
 
-    def test_terminal_app_config(self):
+    def test_terminal_app_config(self) -> None:
         """Terminal.app has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["terminal.app"]
         assert config["app_path"] == "/System/Applications/Utilities/Terminal.app"
 
-    def test_kitty_config(self):
+    def test_kitty_config(self) -> None:
         """Kitty has expected default config with options."""
         config = DEFAULT_TERMINAL_CONFIGS["kitty"]
         assert config["app_path"] == "/Applications/kitty.app"
         assert config["command"] == "kitty"
         assert config["options"] == ["-o", "confirm_os_window_close=0"]
 
-    def test_alacritty_config(self):
+    def test_alacritty_config(self) -> None:
         """Alacritty has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["alacritty"]
         assert config["command"] == "alacritty"
         assert "app_path" not in config
 
-    def test_gnome_terminal_config(self):
+    def test_gnome_terminal_config(self) -> None:
         """GNOME Terminal has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["gnome-terminal"]
         assert config["command"] == "gnome-terminal"
 
-    def test_konsole_config(self):
+    def test_konsole_config(self) -> None:
         """Konsole has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["konsole"]
         assert config["command"] == "konsole"
 
-    def test_windows_terminal_config(self):
+    def test_windows_terminal_config(self) -> None:
         """Windows Terminal has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["windows-terminal"]
         assert config["command"] == "wt"
 
-    def test_cmd_config(self):
+    def test_cmd_config(self) -> None:
         """cmd has minimal config (built-in)."""
         config = DEFAULT_TERMINAL_CONFIGS["cmd"]
         assert config == {}
 
-    def test_powershell_config(self):
+    def test_powershell_config(self) -> None:
         """PowerShell has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["powershell"]
         assert config["command"] == "pwsh"
 
-    def test_wsl_config(self):
+    def test_wsl_config(self) -> None:
         """WSL has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["wsl"]
         assert config["command"] == "wsl"
 
-    def test_tmux_config(self):
+    def test_tmux_config(self) -> None:
         """tmux has expected default config."""
         config = DEFAULT_TERMINAL_CONFIGS["tmux"]
         assert config["command"] == "tmux"
@@ -239,19 +241,19 @@ class TestDefaultTerminalConfigs:
 class TestTTYConfig:
     """Tests for the TTYConfig class."""
 
-    def test_default_configuration(self):
+    def test_default_configuration(self) -> None:
         """TTYConfig has sensible defaults."""
         config = TTYConfig()
         assert isinstance(config.preferences, PlatformPreferences)
         assert config.terminals == {}
 
-    def test_custom_preferences(self):
+    def test_custom_preferences(self) -> None:
         """TTYConfig accepts custom preferences."""
         prefs = PlatformPreferences(macos=["iterm", "terminal.app"])
         config = TTYConfig(preferences=prefs)
         assert config.preferences.macos == ["iterm", "terminal.app"]
 
-    def test_custom_terminals(self):
+    def test_custom_terminals(self) -> None:
         """TTYConfig accepts custom terminal configs."""
         terminals = {
             "ghostty": TerminalConfig(app_path="/custom/Ghostty.app"),
@@ -265,7 +267,7 @@ class TestTTYConfig:
 class TestTTYConfigGetTerminalConfig:
     """Tests for TTYConfig.get_terminal_config() method."""
 
-    def test_get_config_returns_defaults(self):
+    def test_get_config_returns_defaults(self) -> None:
         """get_terminal_config returns defaults for known terminal."""
         config = TTYConfig()
         ghostty = config.get_terminal_config("ghostty")
@@ -273,7 +275,7 @@ class TestTTYConfigGetTerminalConfig:
         assert ghostty.command == "ghostty"
         assert ghostty.enabled is True
 
-    def test_get_config_unknown_terminal(self):
+    def test_get_config_unknown_terminal(self) -> None:
         """get_terminal_config returns empty config for unknown terminal."""
         config = TTYConfig()
         unknown = config.get_terminal_config("unknown-terminal")
@@ -282,7 +284,7 @@ class TestTTYConfigGetTerminalConfig:
         assert unknown.options == []
         assert unknown.enabled is True
 
-    def test_get_config_merges_user_config(self):
+    def test_get_config_merges_user_config(self) -> None:
         """get_terminal_config merges user config with defaults."""
         user_terminals = {
             "ghostty": TerminalConfig(app_path="/custom/path/Ghostty.app"),
@@ -294,7 +296,7 @@ class TestTTYConfigGetTerminalConfig:
         # Default preserved
         assert ghostty.command == "ghostty"
 
-    def test_get_config_user_overrides_defaults(self):
+    def test_get_config_user_overrides_defaults(self) -> None:
         """User config values override defaults completely."""
         user_terminals = {
             "ghostty": TerminalConfig(
@@ -309,7 +311,7 @@ class TestTTYConfigGetTerminalConfig:
         assert ghostty.command == "new-ghostty"
         assert ghostty.enabled is False
 
-    def test_get_config_extends_options(self):
+    def test_get_config_extends_options(self) -> None:
         """User options are appended to default options, not replaced."""
         # Kitty has default options
         user_terminals = {
@@ -322,7 +324,7 @@ class TestTTYConfigGetTerminalConfig:
         assert "confirm_os_window_close=0" in kitty.options
         assert "--extra-option" in kitty.options
 
-    def test_get_config_user_only_options(self):
+    def test_get_config_user_only_options(self) -> None:
         """User options work for terminals without default options."""
         user_terminals = {
             "alacritty": TerminalConfig(options=["--class", "my-class"]),
@@ -331,7 +333,7 @@ class TestTTYConfigGetTerminalConfig:
         alacritty = config.get_terminal_config("alacritty")
         assert alacritty.options == ["--class", "my-class"]
 
-    def test_get_config_disabled_terminal(self):
+    def test_get_config_disabled_terminal(self) -> None:
         """get_terminal_config respects disabled flag."""
         user_terminals = {
             "ghostty": TerminalConfig(enabled=False),
@@ -345,7 +347,7 @@ class TestTTYConfigGetPreferences:
     """Tests for TTYConfig.get_preferences() method."""
 
     @patch("platform.system", return_value="Darwin")
-    def test_get_preferences_macos(self, mock_system):
+    def test_get_preferences_macos(self, mock_system) -> None:
         """get_preferences returns macOS list on Darwin."""
         config = TTYConfig()
         prefs = config.get_preferences()
@@ -354,7 +356,7 @@ class TestTTYConfigGetPreferences:
         assert "iterm" in prefs
 
     @patch("platform.system", return_value="Windows")
-    def test_get_preferences_windows(self, mock_system):
+    def test_get_preferences_windows(self, mock_system) -> None:
         """get_preferences returns Windows list on Windows."""
         config = TTYConfig()
         prefs = config.get_preferences()
@@ -363,7 +365,7 @@ class TestTTYConfigGetPreferences:
         assert "cmd" in prefs
 
     @patch("platform.system", return_value="Linux")
-    def test_get_preferences_linux(self, mock_system):
+    def test_get_preferences_linux(self, mock_system) -> None:
         """get_preferences returns Linux list on Linux."""
         config = TTYConfig()
         prefs = config.get_preferences()
@@ -372,7 +374,7 @@ class TestTTYConfigGetPreferences:
         assert "konsole" in prefs
 
     @patch("platform.system", return_value="FreeBSD")
-    def test_get_preferences_unknown_platform(self, mock_system):
+    def test_get_preferences_unknown_platform(self, mock_system) -> None:
         """get_preferences returns Linux list for unknown platforms."""
         config = TTYConfig()
         prefs = config.get_preferences()
@@ -380,7 +382,7 @@ class TestTTYConfigGetPreferences:
         assert prefs == config.preferences.linux
 
     @patch("platform.system", return_value="Darwin")
-    def test_get_preferences_custom(self, mock_system):
+    def test_get_preferences_custom(self, mock_system) -> None:
         """get_preferences returns custom preferences when set."""
         custom_prefs = PlatformPreferences(macos=["iterm", "terminal.app"])
         config = TTYConfig(preferences=custom_prefs)
@@ -396,7 +398,7 @@ class TestTTYConfigGetPreferences:
 class TestLoadTTYConfig:
     """Tests for the load_tty_config function."""
 
-    def test_load_nonexistent_file_returns_defaults(self):
+    def test_load_nonexistent_file_returns_defaults(self) -> None:
         """load_tty_config returns defaults when file doesn't exist."""
         config = load_tty_config("/nonexistent/path/config.yaml")
         assert isinstance(config, TTYConfig)
@@ -405,13 +407,13 @@ class TestLoadTTYConfig:
         # No custom terminals
         assert config.terminals == {}
 
-    def test_load_default_path_nonexistent(self):
+    def test_load_default_path_nonexistent(self) -> None:
         """load_tty_config with None path uses default location."""
         with patch.object(Path, "home", return_value=Path("/nonexistent/home")):
             config = load_tty_config(None)
             assert isinstance(config, TTYConfig)
 
-    def test_load_valid_yaml_file(self):
+    def test_load_valid_yaml_file(self) -> None:
         """load_tty_config parses valid YAML configuration."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -436,7 +438,7 @@ class TestLoadTTYConfig:
             # Cleanup
             Path(f.name).unlink()
 
-    def test_load_empty_yaml_file(self):
+    def test_load_empty_yaml_file(self) -> None:
         """load_tty_config handles empty YAML file."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("")
@@ -449,7 +451,7 @@ class TestLoadTTYConfig:
 
             Path(f.name).unlink()
 
-    def test_load_yaml_with_only_preferences(self):
+    def test_load_yaml_with_only_preferences(self) -> None:
         """load_tty_config works with only preferences section."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -471,7 +473,7 @@ class TestLoadTTYConfig:
 
             Path(f.name).unlink()
 
-    def test_load_yaml_with_only_terminals(self):
+    def test_load_yaml_with_only_terminals(self) -> None:
         """load_tty_config works with only terminals section."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -495,7 +497,7 @@ class TestLoadTTYConfig:
 
             Path(f.name).unlink()
 
-    def test_load_invalid_yaml_returns_defaults(self):
+    def test_load_invalid_yaml_returns_defaults(self) -> None:
         """load_tty_config returns defaults for invalid YAML."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("invalid: yaml: content: [unclosed")
@@ -508,7 +510,7 @@ class TestLoadTTYConfig:
 
             Path(f.name).unlink()
 
-    def test_load_yaml_with_invalid_schema_returns_defaults(self):
+    def test_load_yaml_with_invalid_schema_returns_defaults(self) -> None:
         """load_tty_config returns defaults for invalid schema."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -524,7 +526,7 @@ class TestLoadTTYConfig:
 
             Path(f.name).unlink()
 
-    def test_load_expands_user_path(self):
+    def test_load_expands_user_path(self) -> None:
         """load_tty_config expands ~ in path."""
         with patch.object(Path, "expanduser") as mock_expand:
             mock_path = MagicMock()
@@ -535,7 +537,7 @@ class TestLoadTTYConfig:
             mock_expand.assert_called()
 
     @pytest.mark.skipif(os.name == "nt", reason="chmod 000 doesn't prevent reading on Windows")
-    def test_load_handles_permission_error(self):
+    def test_load_handles_permission_error(self) -> None:
         """load_tty_config handles permission errors gracefully."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("preferences: {}")
@@ -561,7 +563,7 @@ class TestLoadTTYConfig:
 class TestGenerateDefaultTTYConfig:
     """Tests for the generate_default_tty_config function."""
 
-    def test_generate_creates_file(self):
+    def test_generate_creates_file(self) -> None:
         """generate_default_tty_config creates config file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -570,7 +572,7 @@ class TestGenerateDefaultTTYConfig:
             assert result == config_path
             assert config_path.exists()
 
-    def test_generate_creates_parent_directories(self):
+    def test_generate_creates_parent_directories(self) -> None:
         """generate_default_tty_config creates parent directories."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "nested" / "dir" / "config.yaml"
@@ -580,7 +582,7 @@ class TestGenerateDefaultTTYConfig:
             assert config_path.exists()
             assert config_path.parent.exists()
 
-    def test_generate_sets_restrictive_permissions(self):
+    def test_generate_sets_restrictive_permissions(self) -> None:
         """generate_default_tty_config sets 0o600 permissions."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -593,7 +595,7 @@ class TestGenerateDefaultTTYConfig:
                 # On Windows, permissions might be different, check at least read/write
                 pass
 
-    def test_generate_content_has_preferences_section(self):
+    def test_generate_content_has_preferences_section(self) -> None:
         """Generated config has preferences section."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -605,7 +607,7 @@ class TestGenerateDefaultTTYConfig:
             assert "linux:" in content
             assert "windows:" in content
 
-    def test_generate_content_has_terminal_examples(self):
+    def test_generate_content_has_terminal_examples(self) -> None:
         """Generated config has terminal configuration examples."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -620,7 +622,7 @@ class TestGenerateDefaultTTYConfig:
             assert "options:" in content
             assert "enabled:" in content
 
-    def test_generate_content_has_comments(self):
+    def test_generate_content_has_comments(self) -> None:
         """Generated config has helpful comments."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -630,7 +632,7 @@ class TestGenerateDefaultTTYConfig:
             assert "# Terminal spawner configuration" in content
             assert "# Terminal preference order" in content
 
-    def test_generate_default_path(self):
+    def test_generate_default_path(self) -> None:
         """generate_default_tty_config uses default path when None."""
         with patch.object(Path, "home") as mock_home:
             mock_home_path = MagicMock(spec=Path)
@@ -649,7 +651,7 @@ class TestGenerateDefaultTTYConfig:
 
             mock_home.assert_called_once()
 
-    def test_generate_expands_user_path(self):
+    def test_generate_expands_user_path(self) -> None:
         """generate_default_tty_config expands ~ in path."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a path that would need expansion
@@ -662,7 +664,7 @@ class TestGenerateDefaultTTYConfig:
                 mock_expand.assert_called()
                 assert result == actual_path
 
-    def test_generate_overwrites_existing_file(self):
+    def test_generate_overwrites_existing_file(self) -> None:
         """generate_default_tty_config overwrites existing file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -683,7 +685,7 @@ class TestGenerateDefaultTTYConfig:
 class TestGetTTYConfig:
     """Tests for the get_tty_config cached function."""
 
-    def test_get_returns_config(self):
+    def test_get_returns_config(self) -> None:
         """get_tty_config returns TTYConfig instance."""
         # Reset the global cache
         import gobby.agents.tty_config as tty_module
@@ -694,7 +696,7 @@ class TestGetTTYConfig:
             config = get_tty_config()
             assert isinstance(config, TTYConfig)
 
-    def test_get_caches_result(self):
+    def test_get_caches_result(self) -> None:
         """get_tty_config caches the configuration."""
         import gobby.agents.tty_config as tty_module
 
@@ -711,7 +713,7 @@ class TestGetTTYConfig:
             assert config1 is config2
             mock_load.assert_called_once()
 
-    def test_get_returns_cached_on_second_call(self):
+    def test_get_returns_cached_on_second_call(self) -> None:
         """get_tty_config returns same instance on subsequent calls."""
         import gobby.agents.tty_config as tty_module
 
@@ -726,12 +728,12 @@ class TestGetTTYConfig:
 class TestReloadTTYConfig:
     """Tests for the reload_tty_config function."""
 
-    def test_reload_returns_new_config(self):
+    def test_reload_returns_new_config(self) -> None:
         """reload_tty_config returns new TTYConfig instance."""
         config = reload_tty_config()
         assert isinstance(config, TTYConfig)
 
-    def test_reload_updates_cache(self):
+    def test_reload_updates_cache(self) -> None:
         """reload_tty_config updates the global cache."""
         import gobby.agents.tty_config as tty_module
 
@@ -746,7 +748,7 @@ class TestReloadTTYConfig:
         assert tty_module._config is new_config
         assert tty_module._config is not original_config
 
-    def test_reload_loads_from_disk(self):
+    def test_reload_loads_from_disk(self) -> None:
         """reload_tty_config loads fresh config from disk."""
         with patch("gobby.agents.tty_config.load_tty_config") as mock_load:
             mock_config = TTYConfig()
@@ -757,7 +759,7 @@ class TestReloadTTYConfig:
             mock_load.assert_called_once()
             assert result is mock_config
 
-    def test_reload_after_file_change(self):
+    def test_reload_after_file_change(self) -> None:
         """reload_tty_config picks up file changes."""
         import gobby.agents.tty_config as tty_module
 
@@ -797,17 +799,17 @@ class TestReloadTTYConfig:
 class TestEdgeCasesAndErrorHandling:
     """Tests for edge cases and error handling."""
 
-    def test_terminal_config_with_empty_options_list(self):
+    def test_terminal_config_with_empty_options_list(self) -> None:
         """TerminalConfig handles empty options list."""
         config = TerminalConfig(options=[])
         assert config.options == []
 
-    def test_tty_config_with_empty_terminals_dict(self):
+    def test_tty_config_with_empty_terminals_dict(self) -> None:
         """TTYConfig handles empty terminals dict."""
         config = TTYConfig(terminals={})
         assert config.terminals == {}
 
-    def test_platform_preferences_with_single_terminal(self):
+    def test_platform_preferences_with_single_terminal(self) -> None:
         """PlatformPreferences works with single-item lists."""
         prefs = PlatformPreferences(
             macos=["terminal.app"],
@@ -816,7 +818,7 @@ class TestEdgeCasesAndErrorHandling:
         )
         assert prefs.macos == ["terminal.app"]
 
-    def test_get_terminal_config_case_sensitive_lookup(self):
+    def test_get_terminal_config_case_sensitive_lookup(self) -> None:
         """get_terminal_config is case-sensitive (lowercase expected)."""
         config = TTYConfig()
         # These should be different
@@ -826,7 +828,7 @@ class TestEdgeCasesAndErrorHandling:
         assert lower.app_path == "/Applications/Ghostty.app"
         assert upper.app_path is None  # Unknown terminal
 
-    def test_load_tty_config_with_extra_keys_ignored(self):
+    def test_load_tty_config_with_extra_keys_ignored(self) -> None:
         """load_tty_config ignores unknown top-level keys."""
         import pydantic
 
@@ -850,12 +852,12 @@ class TestEdgeCasesAndErrorHandling:
             finally:
                 Path(f.name).unlink()
 
-    def test_terminal_config_options_are_list_not_tuple(self):
+    def test_terminal_config_options_are_list_not_tuple(self) -> None:
         """TerminalConfig options are always a list."""
         config = TerminalConfig()
         assert isinstance(config.options, list)
 
-    def test_get_terminal_config_preserves_defaults_when_user_has_no_options(self):
+    def test_get_terminal_config_preserves_defaults_when_user_has_no_options(self) -> None:
         """get_terminal_config preserves default options when user config has none."""
         user_terminals = {
             "kitty": TerminalConfig(app_path="/custom/kitty.app"),
@@ -868,7 +870,7 @@ class TestEdgeCasesAndErrorHandling:
         assert "-o" in kitty.options
         assert "confirm_os_window_close=0" in kitty.options
 
-    def test_load_handles_yaml_none_values(self):
+    def test_load_handles_yaml_none_values(self) -> None:
         """load_tty_config handles YAML null/None values."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("preferences:\n  macos: null\n")
@@ -893,7 +895,7 @@ class TestEdgeCasesAndErrorHandling:
 class TestIntegrationScenarios:
     """Integration tests for realistic usage scenarios."""
 
-    def test_full_config_workflow(self):
+    def test_full_config_workflow(self) -> None:
         """Test complete workflow: generate, load, use."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "tty_config.yaml"
@@ -908,7 +910,7 @@ class TestIntegrationScenarios:
             ghostty = config.get_terminal_config("ghostty")
             assert ghostty.app_path == "/Applications/Ghostty.app"
 
-    def test_custom_config_with_disabled_terminals(self):
+    def test_custom_config_with_disabled_terminals(self) -> None:
         """Test config that disables certain terminals."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -934,7 +936,7 @@ class TestIntegrationScenarios:
 
             Path(f.name).unlink()
 
-    def test_custom_wsl_distribution(self):
+    def test_custom_wsl_distribution(self) -> None:
         """Test WSL config with custom distribution."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -959,7 +961,7 @@ class TestIntegrationScenarios:
 
             Path(f.name).unlink()
 
-    def test_custom_tmux_socket(self):
+    def test_custom_tmux_socket(self) -> None:
         """Test tmux config with custom socket name."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
@@ -986,7 +988,7 @@ class TestIntegrationScenarios:
             Path(f.name).unlink()
 
     @patch("platform.system", return_value="Darwin")
-    def test_platform_specific_preference_order(self, mock_system):
+    def test_platform_specific_preference_order(self, mock_system) -> None:
         """Test that correct platform preferences are used."""
         config = TTYConfig(
             preferences=PlatformPreferences(
@@ -1000,7 +1002,7 @@ class TestIntegrationScenarios:
         assert prefs == ["iterm", "terminal.app"]
 
     @patch("platform.system", return_value="Linux")
-    def test_linux_preference_order(self, mock_system):
+    def test_linux_preference_order(self, mock_system) -> None:
         """Test Linux platform preferences."""
         config = TTYConfig(
             preferences=PlatformPreferences(

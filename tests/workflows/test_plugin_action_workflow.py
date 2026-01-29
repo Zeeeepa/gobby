@@ -17,6 +17,8 @@ from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test Plugin Fixtures
 # =============================================================================
@@ -200,7 +202,7 @@ def action_context(workflow_state, mock_db, mock_session_manager, mock_template_
 class TestPluginActionResolution:
     """Tests for plugin action type resolution in workflows."""
 
-    def test_plugin_action_registered_with_correct_name(self, action_executor):
+    def test_plugin_action_registered_with_correct_name(self, action_executor) -> None:
         """Plugin actions should be registered as plugin:name:action."""
         assert "plugin:workflow-test:track_call" in action_executor._handlers
         assert "plugin:workflow-test:modify_state" in action_executor._handlers

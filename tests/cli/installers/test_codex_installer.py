@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 class TestInstallCodexNotify:
     """Tests for install_codex_notify function."""
@@ -60,7 +61,7 @@ class TestInstallCodexNotify:
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test successful installation with a new config file."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -89,7 +90,7 @@ class TestInstallCodexNotify:
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test installation when config exists but has no notify line."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -119,7 +120,7 @@ class TestInstallCodexNotify:
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test installation when config already has a notify line."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -145,7 +146,7 @@ class TestInstallCodexNotify:
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test that existing hook file is replaced."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -163,7 +164,7 @@ class TestInstallCodexNotify:
         new_content = existing_hook.read_text()
         assert "# Hook dispatcher" in new_content
 
-    def test_install_missing_source_file(self, mock_home: Path, temp_dir: Path):
+    def test_install_missing_source_file(self, mock_home: Path, temp_dir: Path) -> None:
         """Test installation fails when source file is missing."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -182,7 +183,7 @@ class TestInstallCodexNotify:
         mock_home: Path,
         mock_install_dir: Path,
         mock_shared_content,
-    ):
+    ) -> None:
         """Test that MCP config failure is non-fatal."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -199,7 +200,7 @@ class TestInstallCodexNotify:
         mock_home: Path,
         mock_install_dir: Path,
         mock_shared_content,
-    ):
+    ) -> None:
         """Test detection of already configured MCP server."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -221,7 +222,7 @@ class TestInstallCodexNotify:
         mock_home: Path,
         mock_install_dir: Path,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test that shared and CLI-specific workflows are merged."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -251,7 +252,7 @@ class TestInstallCodexNotify:
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test handling of config write exception."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -274,7 +275,7 @@ class TestInstallCodexNotify:
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
-    ):
+    ) -> None:
         """Test that installed hook file has executable permissions."""
         import stat
 
@@ -305,7 +306,7 @@ class TestUninstallCodexNotify:
             mock.return_value = {"success": True, "removed": True}
             yield mock
 
-    def test_uninstall_success_full(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_success_full(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test successful uninstallation with all components present."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -337,7 +338,7 @@ class TestUninstallCodexNotify:
         assert "notify" not in config_content
         assert 'model = "gpt-4"' in config_content
 
-    def test_uninstall_no_hook_file(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_no_hook_file(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test uninstallation when hook file doesn't exist."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -353,7 +354,7 @@ class TestUninstallCodexNotify:
         assert len(result["files_removed"]) == 0
         assert result["config_updated"] is True
 
-    def test_uninstall_no_config_file(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_no_config_file(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test uninstallation when config file doesn't exist."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -369,7 +370,7 @@ class TestUninstallCodexNotify:
         assert len(result["files_removed"]) == 1
         assert result["config_updated"] is False
 
-    def test_uninstall_config_without_notify(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_config_without_notify(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test uninstallation when config exists but has no notify line."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -387,7 +388,7 @@ class TestUninstallCodexNotify:
         config_content = config_path.read_text()
         assert config_content == 'model = "gpt-4"\n'
 
-    def test_uninstall_removes_empty_parent_dir(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_removes_empty_parent_dir(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test that empty parent directories are removed after uninstall."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -404,7 +405,7 @@ class TestUninstallCodexNotify:
         # Verify hook directory was removed since it's now empty
         assert not hook_dir.exists()
 
-    def test_uninstall_rmdir_exception_ignored(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_rmdir_exception_ignored(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test that rmdir exceptions are silently ignored."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -423,7 +424,7 @@ class TestUninstallCodexNotify:
         assert result["success"] is True
         assert len(result["files_removed"]) == 1
 
-    def test_uninstall_keeps_non_empty_parent_dir(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_keeps_non_empty_parent_dir(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test that non-empty parent directories are preserved."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -443,7 +444,7 @@ class TestUninstallCodexNotify:
         assert hook_dir.exists()
         assert other_file.exists()
 
-    def test_uninstall_creates_backup(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_creates_backup(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test that config backup is created before modification."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -462,7 +463,7 @@ class TestUninstallCodexNotify:
         assert backup_path.exists()
         assert backup_path.read_text() == original_content
 
-    def test_uninstall_cleans_multiple_blank_lines(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_cleans_multiple_blank_lines(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test that multiple blank lines are cleaned up after removal."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -479,7 +480,7 @@ class TestUninstallCodexNotify:
         config_content = config_path.read_text()
         assert "\n\n\n" not in config_content
 
-    def test_uninstall_config_read_exception(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_config_read_exception(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test handling of config read exception."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -494,7 +495,7 @@ class TestUninstallCodexNotify:
         assert result["success"] is False
         assert "Failed to update Codex config" in result["error"]
 
-    def test_uninstall_nothing_installed(self, mock_home: Path, mock_mcp_remove):
+    def test_uninstall_nothing_installed(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test uninstallation when nothing is installed."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -504,7 +505,7 @@ class TestUninstallCodexNotify:
         assert len(result["files_removed"]) == 0
         assert result["config_updated"] is False
 
-    def test_uninstall_mcp_removal_failure_non_fatal(self, mock_home: Path):
+    def test_uninstall_mcp_removal_failure_non_fatal(self, mock_home: Path) -> None:
         """Test that MCP removal failure is non-fatal."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -557,7 +558,7 @@ class TestNotifyLineFormat:
         mock_home: Path,
         mock_install_dir: Path,
         mock_deps,
-    ):
+    ) -> None:
         """Test that the notify line contains valid JSON array."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -584,7 +585,7 @@ class TestNotifyLineFormat:
         mock_home: Path,
         mock_install_dir: Path,
         mock_deps,
-    ):
+    ) -> None:
         """Test that the notify line contains an absolute path to the hook."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -611,7 +612,7 @@ class TestEdgeCases:
         with patch.object(Path, "home", return_value=temp_dir):
             yield temp_dir
 
-    def test_install_with_unicode_in_path(self, mock_home: Path, temp_dir: Path):
+    def test_install_with_unicode_in_path(self, mock_home: Path, temp_dir: Path) -> None:
         """Test installation with unicode characters in paths."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -636,7 +637,7 @@ class TestEdgeCases:
 
         assert result["success"] is True
 
-    def test_install_with_empty_existing_config(self, mock_home: Path, temp_dir: Path):
+    def test_install_with_empty_existing_config(self, mock_home: Path, temp_dir: Path) -> None:
         """Test installation with an empty existing config file."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -671,7 +672,7 @@ class TestEdgeCases:
         config_content = config_path.read_text()
         assert "notify" in config_content
 
-    def test_install_with_whitespace_only_config(self, mock_home: Path, temp_dir: Path):
+    def test_install_with_whitespace_only_config(self, mock_home: Path, temp_dir: Path) -> None:
         """Test installation with a config file containing only whitespace."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -704,7 +705,7 @@ class TestEdgeCases:
         # Should have just the notify line
         assert "notify" in config_content
 
-    def test_uninstall_with_notify_at_different_positions(self, mock_home: Path):
+    def test_uninstall_with_notify_at_different_positions(self, mock_home: Path) -> None:
         """Test uninstallation with notify line at different positions in config."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -733,7 +734,7 @@ class TestEdgeCases:
             assert result["success"] is True
             assert "notify" not in config_path.read_text()
 
-    def test_uninstall_with_indented_notify_line(self, mock_home: Path):
+    def test_uninstall_with_indented_notify_line(self, mock_home: Path) -> None:
         """Test uninstallation with an indented notify line."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -754,7 +755,7 @@ class TestEdgeCases:
 
     def test_install_updates_existing_notify_preserving_other_content(
         self, mock_home: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test that updating notify preserves other config content."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -806,7 +807,7 @@ debug = true
 
     def test_install_config_unchanged_when_notify_already_correct(
         self, mock_home: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test that config_updated is False when notify line is already correct."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -850,7 +851,7 @@ debug = true
 
     def test_uninstall_config_unchanged_when_removing_results_in_same_content(
         self, mock_home: Path
-    ):
+    ) -> None:
         """Test that config_updated is False when removal results in same content."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 
@@ -879,7 +880,7 @@ debug = true
         # Config not updated since there was no notify line to remove
         assert result["config_updated"] is False
 
-    def test_uninstall_notify_removal_produces_identical_content(self, mock_home: Path):
+    def test_uninstall_notify_removal_produces_identical_content(self, mock_home: Path) -> None:
         """Test edge case where regex matches but substitution produces same content.
 
         This tests the branch at line 166 where updated == existing after substitution.
@@ -947,7 +948,7 @@ class TestResultStructure:
         with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir):
             yield install_dir
 
-    def test_install_result_has_all_keys(self, mock_home: Path, mock_install_dir: Path):
+    def test_install_result_has_all_keys(self, mock_home: Path, mock_install_dir: Path) -> None:
         """Test that install result contains all expected keys."""
         from gobby.cli.installers.codex import install_codex_notify
 
@@ -975,7 +976,7 @@ class TestResultStructure:
         }
         assert set(result.keys()) >= expected_keys
 
-    def test_uninstall_result_has_all_keys(self, mock_home: Path):
+    def test_uninstall_result_has_all_keys(self, mock_home: Path) -> None:
         """Test that uninstall result contains all expected keys."""
         from gobby.cli.installers.codex import uninstall_codex_notify
 

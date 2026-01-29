@@ -10,6 +10,7 @@ import pytest
 
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):
@@ -27,14 +28,14 @@ def project_id(sample_project):
 class TestPathCacheOnInsert:
     """Test path_cache is computed and stored when tasks are inserted."""
 
-    def test_root_task_gets_path_cache_on_insert(self, task_manager, project_id):
+    def test_root_task_gets_path_cache_on_insert(self, task_manager, project_id) -> None:
         """Test that a root task gets path_cache computed immediately on insert."""
         task = task_manager.create_task(project_id=project_id, title="Root Task")
 
         # Path should be the task's seq_num (which is 1 for first task)
         assert task.path_cache == "1"
 
-    def test_second_root_task_gets_correct_path(self, task_manager, project_id):
+    def test_second_root_task_gets_correct_path(self, task_manager, project_id) -> None:
         """Test second root task gets its seq_num as path."""
         task1 = task_manager.create_task(project_id=project_id, title="Task 1")
         task2 = task_manager.create_task(project_id=project_id, title="Task 2")
@@ -42,7 +43,7 @@ class TestPathCacheOnInsert:
         assert task1.path_cache == "1"
         assert task2.path_cache == "2"
 
-    def test_child_task_gets_hierarchical_path(self, task_manager, project_id):
+    def test_child_task_gets_hierarchical_path(self, task_manager, project_id) -> None:
         """Test that a child task gets parent.child path on insert."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
@@ -53,7 +54,7 @@ class TestPathCacheOnInsert:
         assert parent.path_cache == "1"
         assert child.path_cache == "1.2"
 
-    def test_grandchild_task_gets_deep_path(self, task_manager, project_id):
+    def test_grandchild_task_gets_deep_path(self, task_manager, project_id) -> None:
         """Test path computation for deeply nested tasks."""
         root = task_manager.create_task(project_id=project_id, title="Root")
         child = task_manager.create_task(
@@ -67,7 +68,7 @@ class TestPathCacheOnInsert:
         assert child.path_cache == "1.2"
         assert grandchild.path_cache == "1.2.3"
 
-    def test_sibling_tasks_have_distinct_paths(self, task_manager, project_id):
+    def test_sibling_tasks_have_distinct_paths(self, task_manager, project_id) -> None:
         """Test that sibling tasks have distinct paths."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child1 = task_manager.create_task(
@@ -81,7 +82,7 @@ class TestPathCacheOnInsert:
         assert child1.path_cache == "1.2"
         assert child2.path_cache == "1.3"
 
-    def test_path_cache_preserved_in_database(self, task_manager, project_id, temp_db):
+    def test_path_cache_preserved_in_database(self, task_manager, project_id, temp_db) -> None:
         """Test that path_cache is stored in database and retrievable."""
         task = task_manager.create_task(project_id=project_id, title="Task")
         task_id = task.id
@@ -94,7 +95,7 @@ class TestPathCacheOnInsert:
         retrieved = task_manager.get_task(task_id)
         assert retrieved.path_cache == "1"
 
-    def test_path_cache_in_to_dict(self, task_manager, project_id):
+    def test_path_cache_in_to_dict(self, task_manager, project_id) -> None:
         """Test that path_cache is included in to_dict() output."""
         task = task_manager.create_task(project_id=project_id, title="Task")
         data = task.to_dict()
@@ -102,7 +103,7 @@ class TestPathCacheOnInsert:
         assert "path_cache" in data
         assert data["path_cache"] == "1"
 
-    def test_path_cache_in_to_brief(self, task_manager, project_id):
+    def test_path_cache_in_to_brief(self, task_manager, project_id) -> None:
         """Test that path_cache is included in to_brief() output."""
         task = task_manager.create_task(project_id=project_id, title="Task")
         brief = task.to_brief()
@@ -110,7 +111,7 @@ class TestPathCacheOnInsert:
         assert "path_cache" in brief
         assert brief["path_cache"] == "1"
 
-    def test_complex_hierarchy_paths(self, task_manager, project_id):
+    def test_complex_hierarchy_paths(self, task_manager, project_id) -> None:
         """Test path computation in a complex hierarchy."""
         # Create:
         #   task1 (seq 1)
@@ -140,7 +141,7 @@ class TestPathCacheOnInsert:
         assert task2b1.path_cache == "2.4.5"
         assert task3.path_cache == "6"
 
-    def test_multiple_projects_independent_paths(self, task_manager, temp_db):
+    def test_multiple_projects_independent_paths(self, task_manager, temp_db) -> None:
         """Test that each project has independent path sequences."""
         # Create two projects
         temp_db.execute(
@@ -167,7 +168,7 @@ class TestPathCacheOnInsert:
 class TestPathCacheOnReparent:
     """Test path_cache updates when tasks are reparented."""
 
-    def test_reparent_root_to_child(self, task_manager, project_id):
+    def test_reparent_root_to_child(self, task_manager, project_id) -> None:
         """Test moving a root task to become a child of another task."""
         # Create two root tasks
         parent = task_manager.create_task(project_id=project_id, title="Parent")
@@ -184,7 +185,7 @@ class TestPathCacheOnReparent:
         # Orphan should now have parent's path prefix
         assert updated_orphan.path_cache == "1.2"
 
-    def test_reparent_child_to_root(self, task_manager, project_id):
+    def test_reparent_child_to_root(self, task_manager, project_id) -> None:
         """Test moving a child task to become a root task."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
@@ -200,7 +201,7 @@ class TestPathCacheOnReparent:
         # Child should now be a root-level path
         assert updated_child.path_cache == "2"
 
-    def test_reparent_child_to_different_parent(self, task_manager, project_id):
+    def test_reparent_child_to_different_parent(self, task_manager, project_id) -> None:
         """Test moving a child from one parent to another."""
         parent1 = task_manager.create_task(project_id=project_id, title="Parent 1")
         parent2 = task_manager.create_task(project_id=project_id, title="Parent 2")
@@ -217,7 +218,7 @@ class TestPathCacheOnReparent:
         # Child should now have parent2's prefix
         assert updated_child.path_cache == "2.3"
 
-    def test_reparent_updates_descendants(self, task_manager, project_id):
+    def test_reparent_updates_descendants(self, task_manager, project_id) -> None:
         """Test that reparenting updates all descendant paths."""
         # Create hierarchy: parent1 -> child -> grandchild
         parent1 = task_manager.create_task(project_id=project_id, title="Parent 1")
@@ -243,7 +244,7 @@ class TestPathCacheOnReparent:
         assert updated_child.path_cache == "2.3"
         assert updated_grandchild.path_cache == "2.3.4"
 
-    def test_reparent_deep_subtree(self, task_manager, project_id):
+    def test_reparent_deep_subtree(self, task_manager, project_id) -> None:
         """Test reparenting a subtree with multiple levels."""
         # Create: root1 -> level1 -> level2 -> level3
         #         root2
@@ -276,7 +277,7 @@ class TestPathCacheOnReparent:
         assert updated_level2.path_cache == "2.3.4"
         assert updated_level3.path_cache == "2.3.4.5"
 
-    def test_reparent_with_multiple_children(self, task_manager, project_id):
+    def test_reparent_with_multiple_children(self, task_manager, project_id) -> None:
         """Test reparenting when the moved task has multiple children."""
         parent1 = task_manager.create_task(project_id=project_id, title="Parent 1")
         parent2 = task_manager.create_task(project_id=project_id, title="Parent 2")
@@ -302,7 +303,7 @@ class TestPathCacheOnReparent:
         assert updated_gc1.path_cache == "2.3.4"
         assert updated_gc2.path_cache == "2.3.5"
 
-    def test_reparent_preserves_seq_num(self, task_manager, project_id):
+    def test_reparent_preserves_seq_num(self, task_manager, project_id) -> None:
         """Test that reparenting preserves the task's seq_num."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
@@ -321,7 +322,7 @@ class TestPathCacheOnReparent:
         # But path should just be the seq_num
         assert updated_child.path_cache == "2"
 
-    def test_reparent_path_stored_in_database(self, task_manager, project_id, temp_db):
+    def test_reparent_path_stored_in_database(self, task_manager, project_id, temp_db) -> None:
         """Test that reparent path changes are persisted to database."""
         parent1 = task_manager.create_task(project_id=project_id, title="Parent 1")
         parent2 = task_manager.create_task(project_id=project_id, title="Parent 2")

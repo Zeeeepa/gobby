@@ -13,17 +13,18 @@ import click
 import pytest
 from click.testing import CliRunner
 
+pytestmark = pytest.mark.unit
 
 class TestCascadeProgress:
     """Tests for cascade_progress context manager."""
 
-    def test_cascade_progress_exists(self):
+    def test_cascade_progress_exists(self) -> None:
         """Test that cascade_progress is importable."""
         from gobby.cli.tasks._utils import cascade_progress
 
         assert callable(cascade_progress)
 
-    def test_cascade_progress_yields_task_info(self):
+    def test_cascade_progress_yields_task_info(self) -> None:
         """Test that cascade_progress yields task info for each task."""
         from gobby.cli.tasks._utils import cascade_progress
 
@@ -40,7 +41,7 @@ class TestCascadeProgress:
 
         assert processed == ["t1", "t2"]
 
-    def test_cascade_progress_shows_task_reference(self):
+    def test_cascade_progress_shows_task_reference(self) -> None:
         """Test that progress displays #N format for tasks."""
         from gobby.cli.tasks._utils import cascade_progress
 
@@ -51,7 +52,7 @@ class TestCascadeProgress:
             for _task, update in progress:
                 update()
 
-    def test_cascade_progress_truncates_long_titles(self):
+    def test_cascade_progress_truncates_long_titles(self) -> None:
         """Test that very long titles are truncated."""
         from gobby.cli.tasks._utils import cascade_progress
 
@@ -62,7 +63,7 @@ class TestCascadeProgress:
             for _task, update in progress:
                 update()
 
-    def test_cascade_progress_handles_empty_list(self):
+    def test_cascade_progress_handles_empty_list(self) -> None:
         """Test that empty task list is handled gracefully."""
         from gobby.cli.tasks._utils import cascade_progress
 
@@ -74,7 +75,7 @@ class TestCascadeProgress:
 
         assert processed == []
 
-    def test_cascade_progress_with_keyboard_interrupt(self):
+    def test_cascade_progress_with_keyboard_interrupt(self) -> None:
         """Test that KeyboardInterrupt is caught and reported."""
         from gobby.cli.tasks._utils import cascade_progress
 
@@ -99,7 +100,7 @@ class TestCascadeProgress:
 class TestCascadeProgressErrorHandling:
     """Tests for error handling in cascade_progress."""
 
-    def test_cascade_progress_on_error_callback(self):
+    def test_cascade_progress_on_error_callback(self) -> None:
         """Test that on_error callback is invoked on task failure.
 
         Note: The cascade_progress context manager catches exceptions,
@@ -132,7 +133,7 @@ class TestCascadeProgressErrorHandling:
         assert errors[0][0] == "t1"
         assert "Test error" in errors[0][1]
 
-    def test_cascade_progress_stop_on_error(self):
+    def test_cascade_progress_stop_on_error(self) -> None:
         """Test that exception is re-raised and on_error is called.
 
         Note: The cascade_progress context manager catches exceptions,
@@ -173,12 +174,12 @@ class TestCascadeProgressErrorHandling:
 class TestCascadeProgressIntegration:
     """Integration tests with Click CLI runner."""
 
-    def test_cascade_progress_in_cli_command(self):
+    def test_cascade_progress_in_cli_command(self) -> None:
         """Test cascade_progress works within a Click command."""
         from gobby.cli.tasks._utils import cascade_progress
 
         @click.command()
-        def test_cmd():
+        def test_cmd() -> None:
             tasks = [
                 MagicMock(id="t1", seq_num=1, title="Task 1"),
                 MagicMock(id="t2", seq_num=2, title="Task 2"),

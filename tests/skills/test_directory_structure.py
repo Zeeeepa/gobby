@@ -11,6 +11,7 @@ import pytest
 from gobby.skills.loader import SkillLoader
 from gobby.skills.parser import ParsedSkill
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def skill_with_directories(tmp_path: Path) -> Path:
@@ -95,7 +96,7 @@ Has scripts but no assets or references.
 class TestParsedSkillDirectoryFields:
     """Tests for ParsedSkill dataclass directory fields."""
 
-    def test_parsed_skill_has_scripts_field(self):
+    def test_parsed_skill_has_scripts_field(self) -> None:
         """Test that ParsedSkill has scripts field."""
         skill = ParsedSkill(
             name="test",
@@ -105,7 +106,7 @@ class TestParsedSkillDirectoryFields:
         )
         assert skill.scripts == ["scripts/validate.sh"]
 
-    def test_parsed_skill_has_references_field(self):
+    def test_parsed_skill_has_references_field(self) -> None:
         """Test that ParsedSkill has references field."""
         skill = ParsedSkill(
             name="test",
@@ -115,7 +116,7 @@ class TestParsedSkillDirectoryFields:
         )
         assert skill.references == ["references/spec.md"]
 
-    def test_parsed_skill_has_assets_field(self):
+    def test_parsed_skill_has_assets_field(self) -> None:
         """Test that ParsedSkill has assets field."""
         skill = ParsedSkill(
             name="test",
@@ -125,7 +126,7 @@ class TestParsedSkillDirectoryFields:
         )
         assert skill.assets == ["assets/icon.svg"]
 
-    def test_parsed_skill_directory_fields_default_to_none(self):
+    def test_parsed_skill_directory_fields_default_to_none(self) -> None:
         """Test that directory fields default to None."""
         skill = ParsedSkill(
             name="test",
@@ -136,7 +137,7 @@ class TestParsedSkillDirectoryFields:
         assert skill.references is None
         assert skill.assets is None
 
-    def test_parsed_skill_to_dict_includes_directory_fields(self):
+    def test_parsed_skill_to_dict_includes_directory_fields(self) -> None:
         """Test that to_dict includes directory fields."""
         skill = ParsedSkill(
             name="test",
@@ -155,7 +156,7 @@ class TestParsedSkillDirectoryFields:
 class TestSkillLoaderDirectoryDetection:
     """Tests for SkillLoader directory detection."""
 
-    def test_load_skill_detects_scripts_directory(self, skill_with_directories):
+    def test_load_skill_detects_scripts_directory(self, skill_with_directories) -> None:
         """Test that load_skill detects scripts directory."""
         loader = SkillLoader()
         skill = loader.load_skill(skill_with_directories)
@@ -165,7 +166,7 @@ class TestSkillLoaderDirectoryDetection:
         assert "scripts/validate.sh" in skill.scripts
         assert "scripts/build.py" in skill.scripts
 
-    def test_load_skill_detects_references_directory(self, skill_with_directories):
+    def test_load_skill_detects_references_directory(self, skill_with_directories) -> None:
         """Test that load_skill detects references directory."""
         loader = SkillLoader()
         skill = loader.load_skill(skill_with_directories)
@@ -175,7 +176,7 @@ class TestSkillLoaderDirectoryDetection:
         assert "references/spec.md" in skill.references
         assert "references/examples.md" in skill.references
 
-    def test_load_skill_detects_assets_directory(self, skill_with_directories):
+    def test_load_skill_detects_assets_directory(self, skill_with_directories) -> None:
         """Test that load_skill detects assets directory."""
         loader = SkillLoader()
         skill = loader.load_skill(skill_with_directories)
@@ -185,7 +186,7 @@ class TestSkillLoaderDirectoryDetection:
         assert "assets/template.txt" in skill.assets
         assert "assets/icon.svg" in skill.assets
 
-    def test_load_skill_returns_none_for_missing_directories(self, skill_without_directories):
+    def test_load_skill_returns_none_for_missing_directories(self, skill_without_directories) -> None:
         """Test that missing directories result in None values."""
         loader = SkillLoader()
         skill = loader.load_skill(skill_without_directories)
@@ -194,7 +195,7 @@ class TestSkillLoaderDirectoryDetection:
         assert skill.references is None
         assert skill.assets is None
 
-    def test_load_skill_partial_directories(self, skill_with_partial_directories):
+    def test_load_skill_partial_directories(self, skill_with_partial_directories) -> None:
         """Test loading skill with only some directories present."""
         loader = SkillLoader()
         skill = loader.load_skill(skill_with_partial_directories)
@@ -207,7 +208,7 @@ class TestSkillLoaderDirectoryDetection:
         assert skill.references is None
         assert skill.assets is None
 
-    def test_load_skill_from_file_ignores_directories(self, skill_with_directories):
+    def test_load_skill_from_file_ignores_directories(self, skill_with_directories) -> None:
         """Test that loading from SKILL.md file directly ignores directories."""
         loader = SkillLoader()
         skill_file = skill_with_directories / "SKILL.md"
@@ -222,7 +223,7 @@ class TestSkillLoaderDirectoryDetection:
         assert skill.references is None
         assert skill.assets is None
 
-    def test_load_skill_empty_directories_result_in_none(self, tmp_path: Path):
+    def test_load_skill_empty_directories_result_in_none(self, tmp_path: Path) -> None:
         """Test that empty subdirectories result in None (no files)."""
         skill_dir = tmp_path / "empty-dirs-skill"
         skill_dir.mkdir()
@@ -248,7 +249,7 @@ description: Skill with empty subdirectories
         assert skill.references is None
         assert skill.assets is None
 
-    def test_load_skill_nested_files_in_directories(self, tmp_path: Path):
+    def test_load_skill_nested_files_in_directories(self, tmp_path: Path) -> None:
         """Test that nested files in subdirectories are detected."""
         skill_dir = tmp_path / "nested-skill"
         skill_dir.mkdir()
@@ -282,7 +283,7 @@ description: Skill with nested files
 class TestSkillDirectoryStructureWithZip:
     """Tests for directory structure detection with ZIP archives."""
 
-    def test_load_from_zip_detects_directories(self, tmp_path: Path):
+    def test_load_from_zip_detects_directories(self, tmp_path: Path) -> None:
         """Test that loading from ZIP detects skill directories."""
         import zipfile
 

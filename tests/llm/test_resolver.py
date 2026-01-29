@@ -18,11 +18,12 @@ from gobby.llm.resolver import (
     validate_provider_name,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestValidateProviderName:
     """Tests for validate_provider_name function."""
 
-    def test_valid_provider_names(self):
+    def test_valid_provider_names(self) -> None:
         """Test that valid provider names pass validation."""
         assert validate_provider_name("claude") == "claude"
         assert validate_provider_name("gemini") == "gemini"
@@ -32,7 +33,7 @@ class TestValidateProviderName:
         assert validate_provider_name("my_provider") == "my_provider"
         assert validate_provider_name("Provider123") == "Provider123"
 
-    def test_none_raises_error(self):
+    def test_none_raises_error(self) -> None:
         """Test that None raises InvalidProviderError."""
         with pytest.raises(InvalidProviderError) as exc_info:
             validate_provider_name(None)
@@ -40,24 +41,24 @@ class TestValidateProviderName:
         assert exc_info.value.provider is None
         assert "None" in str(exc_info.value)
 
-    def test_empty_string_raises_error(self):
+    def test_empty_string_raises_error(self) -> None:
         """Test that empty string raises InvalidProviderError."""
         with pytest.raises(InvalidProviderError) as exc_info:
             validate_provider_name("")
 
         assert "empty" in exc_info.value.reason.lower()
 
-    def test_whitespace_only_raises_error(self):
+    def test_whitespace_only_raises_error(self) -> None:
         """Test that whitespace-only string raises InvalidProviderError."""
         with pytest.raises(InvalidProviderError):
             validate_provider_name("   ")
 
-    def test_strips_whitespace(self):
+    def test_strips_whitespace(self) -> None:
         """Test that leading/trailing whitespace is stripped."""
         # Valid after stripping
         assert validate_provider_name("  claude  ") == "claude"
 
-    def test_too_long_raises_error(self):
+    def test_too_long_raises_error(self) -> None:
         """Test that names over 64 characters raise InvalidProviderError."""
         long_name = "a" * 65
         with pytest.raises(InvalidProviderError) as exc_info:
@@ -65,12 +66,12 @@ class TestValidateProviderName:
 
         assert "64" in str(exc_info.value)
 
-    def test_max_length_accepted(self):
+    def test_max_length_accepted(self) -> None:
         """Test that 64 character names are accepted."""
         name_64 = "a" * 64
         assert validate_provider_name(name_64) == name_64
 
-    def test_special_characters_rejected(self):
+    def test_special_characters_rejected(self) -> None:
         """Test that special characters are rejected."""
         invalid_names = [
             "provider@v1",
@@ -85,7 +86,7 @@ class TestValidateProviderName:
             with pytest.raises(InvalidProviderError):
                 validate_provider_name(name)
 
-    def test_numeric_only_accepted(self):
+    def test_numeric_only_accepted(self) -> None:
         """Test that numeric-only names are accepted."""
         assert validate_provider_name("123") == "123"
 
@@ -93,7 +94,7 @@ class TestValidateProviderName:
 class TestResolveProvider:
     """Tests for resolve_provider function."""
 
-    def test_explicit_provider_highest_priority(self):
+    def test_explicit_provider_highest_priority(self) -> None:
         """Test that explicit provider has highest priority."""
         result = resolve_provider(explicit_provider="gemini")
 
@@ -101,7 +102,7 @@ class TestResolveProvider:
         assert result.provider == "gemini"
         assert result.source == "explicit"
 
-    def test_workflow_provider_second_priority(self):
+    def test_workflow_provider_second_priority(self) -> None:
         """Test that workflow provider has second priority."""
         # Create mock workflow
         mock_workflow = MagicMock()
@@ -113,7 +114,7 @@ class TestResolveProvider:
         assert result.source == "workflow"
         assert result.model == "gpt-4o"
 
-    def test_config_provider_third_priority(self):
+    def test_config_provider_third_priority(self) -> None:
         """Test that config provider has third priority."""
         # Create mock config
         mock_config = MagicMock()
@@ -125,7 +126,7 @@ class TestResolveProvider:
         assert result.provider == "gemini"
         assert result.source == "config"
 
-    def test_config_prefers_claude(self):
+    def test_config_prefers_claude(self) -> None:
         """Test that config prefers claude when available."""
         mock_config = MagicMock()
         mock_config.llm_providers.get_enabled_providers.return_value = [
@@ -139,14 +140,14 @@ class TestResolveProvider:
         assert result.provider == "claude"
         assert result.source == "config"
 
-    def test_default_provider_lowest_priority(self):
+    def test_default_provider_lowest_priority(self) -> None:
         """Test that default is used when nothing else is available."""
         result = resolve_provider()
 
         assert result.provider == DEFAULT_PROVIDER
         assert result.source == "default"
 
-    def test_explicit_overrides_workflow(self):
+    def test_explicit_overrides_workflow(self) -> None:
         """Test that explicit provider overrides workflow."""
         mock_workflow = MagicMock()
         mock_workflow.variables = {"provider": "litellm"}
@@ -156,7 +157,7 @@ class TestResolveProvider:
         assert result.provider == "claude"
         assert result.source == "explicit"
 
-    def test_workflow_overrides_config(self):
+    def test_workflow_overrides_config(self) -> None:
         """Test that workflow overrides config."""
         mock_workflow = MagicMock()
         mock_workflow.variables = {"provider": "litellm"}
@@ -169,12 +170,12 @@ class TestResolveProvider:
         assert result.provider == "litellm"
         assert result.source == "workflow"
 
-    def test_validates_explicit_provider(self):
+    def test_validates_explicit_provider(self) -> None:
         """Test that explicit provider is validated."""
         with pytest.raises(InvalidProviderError):
             resolve_provider(explicit_provider="invalid/provider")
 
-    def test_validates_against_config(self):
+    def test_validates_against_config(self) -> None:
         """Test provider validation against config when not allow_unconfigured."""
         mock_config = MagicMock()
         mock_config.llm_providers.get_enabled_providers.return_value = ["claude"]
@@ -189,7 +190,7 @@ class TestResolveProvider:
         assert exc_info.value.provider == "gemini"
         assert "claude" in exc_info.value.available
 
-    def test_allow_unconfigured_skips_validation(self):
+    def test_allow_unconfigured_skips_validation(self) -> None:
         """Test that allow_unconfigured=True skips config validation."""
         mock_config = MagicMock()
         mock_config.llm_providers.get_enabled_providers.return_value = ["claude"]
@@ -213,7 +214,7 @@ class TestCreateExecutor:
     - cli mode (Codex): Route to CodexExecutor
     """
 
-    def test_create_claude_subscription_uses_claude_executor(self):
+    def test_create_claude_subscription_uses_claude_executor(self) -> None:
         """Test Claude with subscription mode uses ClaudeExecutor."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -230,7 +231,7 @@ class TestCreateExecutor:
             assert executor.provider_name == "claude"
             mock_create.assert_called_once()
 
-    def test_create_claude_api_key_uses_litellm(self):
+    def test_create_claude_api_key_uses_litellm(self) -> None:
         """Test Claude with api_key mode routes to LiteLLMExecutor."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -250,7 +251,7 @@ class TestCreateExecutor:
             assert call_args[0][0] == "claude"  # provider
             assert call_args[0][1] == "api_key"  # auth_mode
 
-    def test_create_gemini_routes_to_litellm(self):
+    def test_create_gemini_routes_to_litellm(self) -> None:
         """Test Gemini routes to LiteLLMExecutor for all auth modes."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -268,7 +269,7 @@ class TestCreateExecutor:
             call_args = mock_create.call_args
             assert call_args[0][0] == "gemini"
 
-    def test_create_gemini_adc_routes_to_litellm(self):
+    def test_create_gemini_adc_routes_to_litellm(self) -> None:
         """Test Gemini ADC routes to LiteLLMExecutor."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -284,7 +285,7 @@ class TestCreateExecutor:
             call_args = mock_create.call_args
             assert call_args[0][1] == "adc"  # auth_mode
 
-    def test_create_codex_cli_uses_codex_executor(self):
+    def test_create_codex_cli_uses_codex_executor(self) -> None:
         """Test Codex with cli/subscription mode uses CodexExecutor."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -301,7 +302,7 @@ class TestCreateExecutor:
             assert executor.provider_name == "codex"
             mock_create.assert_called_once()
 
-    def test_create_codex_api_key_uses_litellm(self):
+    def test_create_codex_api_key_uses_litellm(self) -> None:
         """Test Codex with api_key mode routes to LiteLLMExecutor."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -318,7 +319,7 @@ class TestCreateExecutor:
             call_args = mock_create.call_args
             assert call_args[0][0] == "codex"
 
-    def test_create_litellm_executor(self):
+    def test_create_litellm_executor(self) -> None:
         """Test creating a LiteLLM executor.
 
         Direct litellm provider usage routes through _create_litellm_executor
@@ -334,7 +335,7 @@ class TestCreateExecutor:
             assert executor.provider_name == "litellm"
             mock_create.assert_called_once()
 
-    def test_unknown_provider_routes_to_litellm(self):
+    def test_unknown_provider_routes_to_litellm(self) -> None:
         """Test that unknown provider routes to LiteLLM for api_key mode."""
         # With the new routing, unknown providers with api_key mode route to LiteLLM
         with patch("gobby.llm.resolver._create_litellm_executor_for_provider") as mock_create:
@@ -346,7 +347,7 @@ class TestCreateExecutor:
 
             mock_create.assert_called_once()
 
-    def test_invalid_provider_raises_error(self):
+    def test_invalid_provider_raises_error(self) -> None:
         """Test that invalid provider name raises InvalidProviderError."""
         with pytest.raises(InvalidProviderError):
             create_executor("invalid/provider")
@@ -355,7 +356,7 @@ class TestCreateExecutor:
 class TestExecutorRegistry:
     """Tests for ExecutorRegistry class."""
 
-    def test_get_creates_executor(self):
+    def test_get_creates_executor(self) -> None:
         """Test that get() creates an executor."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -368,7 +369,7 @@ class TestExecutorRegistry:
             assert executor.provider_name == "claude"
             mock_create.assert_called_once()
 
-    def test_get_caches_executor(self):
+    def test_get_caches_executor(self) -> None:
         """Test that get() caches executors."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -383,7 +384,7 @@ class TestExecutorRegistry:
             # Should only create once
             assert mock_create.call_count == 1
 
-    def test_get_different_providers(self):
+    def test_get_different_providers(self) -> None:
         """Test getting different providers."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             claude_executor = MagicMock()
@@ -402,7 +403,7 @@ class TestExecutorRegistry:
             assert result2.provider_name == "gemini"
             assert result1 is not result2
 
-    def test_get_resolves_from_workflow(self):
+    def test_get_resolves_from_workflow(self) -> None:
         """Test that get() resolves from workflow."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -417,7 +418,7 @@ class TestExecutorRegistry:
 
             assert executor.provider_name == "litellm"
 
-    def test_get_all_returns_cached(self):
+    def test_get_all_returns_cached(self) -> None:
         """Test that get_all() returns cached executors."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -431,7 +432,7 @@ class TestExecutorRegistry:
             assert len(all_executors) == 1
             assert any("claude" in key for key in all_executors)
 
-    def test_clear_cache(self):
+    def test_clear_cache(self) -> None:
         """Test that clear_cache() clears executors."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -450,7 +451,7 @@ class TestExecutorRegistry:
 class TestExceptionTypes:
     """Tests for exception types."""
 
-    def test_invalid_provider_error_fields(self):
+    def test_invalid_provider_error_fields(self) -> None:
         """Test InvalidProviderError has correct fields."""
         error = InvalidProviderError("bad-provider", "invalid characters")
 
@@ -459,7 +460,7 @@ class TestExceptionTypes:
         assert "bad-provider" in str(error)
         assert "invalid characters" in str(error)
 
-    def test_missing_provider_error_fields(self):
+    def test_missing_provider_error_fields(self) -> None:
         """Test MissingProviderError has correct fields."""
         error = MissingProviderError(["explicit", "workflow", "config"])
 
@@ -468,7 +469,7 @@ class TestExceptionTypes:
         assert "workflow" in str(error)
         assert "config" in str(error)
 
-    def test_provider_not_configured_error_fields(self):
+    def test_provider_not_configured_error_fields(self) -> None:
         """Test ProviderNotConfiguredError has correct fields."""
         error = ProviderNotConfiguredError("gemini", ["claude", "litellm"])
 
@@ -477,7 +478,7 @@ class TestExceptionTypes:
         assert "gemini" in str(error)
         assert "claude" in str(error)
 
-    def test_executor_creation_error_fields(self):
+    def test_executor_creation_error_fields(self) -> None:
         """Test ExecutorCreationError has correct fields."""
         error = ExecutorCreationError("claude", "API key missing")
 
@@ -494,7 +495,7 @@ class TestCreateClaudeExecutorIntegration:
     api_key mode is routed through LiteLLMExecutor.
     """
 
-    def test_creates_executor_for_subscription_mode(self):
+    def test_creates_executor_for_subscription_mode(self) -> None:
         """Test creating Claude executor for subscription mode."""
         from unittest.mock import patch
 
@@ -511,7 +512,7 @@ class TestCreateClaudeExecutorIntegration:
 class TestCreateLitellmExecutorIntegration:
     """Integration tests for _create_litellm_executor."""
 
-    def test_creates_executor(self):
+    def test_creates_executor(self) -> None:
         """Test creating LiteLLM executor."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -534,7 +535,7 @@ class TestCreateCodexExecutorIntegration:
     api_key mode is routed through LiteLLMExecutor.
     """
 
-    def test_creates_executor_for_subscription_mode(self):
+    def test_creates_executor_for_subscription_mode(self) -> None:
         """Test creating Codex executor for subscription mode."""
         from unittest.mock import patch
 
@@ -551,7 +552,7 @@ class TestCreateCodexExecutorIntegration:
 class TestCreateLitellmExecutorForProviderIntegration:
     """Integration tests for _create_litellm_executor_for_provider."""
 
-    def test_creates_executor_for_claude(self):
+    def test_creates_executor_for_claude(self) -> None:
         """Test creating LiteLLM executor for Claude api_key mode."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -574,7 +575,7 @@ class TestCreateLitellmExecutorForProviderIntegration:
             assert executor.auth_mode == "api_key"
             assert "claude" in executor.default_model.lower()
 
-    def test_creates_executor_for_gemini_adc(self):
+    def test_creates_executor_for_gemini_adc(self) -> None:
         """Test creating LiteLLM executor for Gemini ADC mode."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -597,7 +598,7 @@ class TestCreateLitellmExecutorForProviderIntegration:
                 assert executor.auth_mode == "adc"
                 assert "gemini" in executor.default_model.lower()
 
-    def test_uses_model_from_provider_config(self):
+    def test_uses_model_from_provider_config(self) -> None:
         """Test that model from provider config is used."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -621,7 +622,7 @@ class TestCreateLitellmExecutorForProviderIntegration:
 
             assert executor.default_model == "gemini-1.5-pro"
 
-    def test_model_override_takes_precedence(self):
+    def test_model_override_takes_precedence(self) -> None:
         """Test that explicit model override takes precedence."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -649,7 +650,7 @@ class TestCreateLitellmExecutorForProviderIntegration:
 class TestResolveProviderAdvanced:
     """Advanced tests for resolve_provider covering edge cases."""
 
-    def test_workflow_provider_validates_against_config(self):
+    def test_workflow_provider_validates_against_config(self) -> None:
         """Test that workflow provider is validated against config."""
         mock_workflow = MagicMock()
         mock_workflow.variables = {"provider": "litellm"}
@@ -667,7 +668,7 @@ class TestResolveProviderAdvanced:
         assert exc_info.value.provider == "litellm"
         assert "claude" in exc_info.value.available
 
-    def test_workflow_with_non_string_model(self):
+    def test_workflow_with_non_string_model(self) -> None:
         """Test that non-string workflow model is ignored."""
         mock_workflow = MagicMock()
         mock_workflow.variables = {"provider": "claude", "model": 123}  # Non-string model
@@ -678,7 +679,7 @@ class TestResolveProviderAdvanced:
         assert result.source == "workflow"
         assert result.model is None  # Should be None for non-string
 
-    def test_workflow_with_none_model(self):
+    def test_workflow_with_none_model(self) -> None:
         """Test that None workflow model is handled correctly."""
         mock_workflow = MagicMock()
         mock_workflow.variables = {"provider": "claude", "model": None}
@@ -689,7 +690,7 @@ class TestResolveProviderAdvanced:
         assert result.source == "workflow"
         assert result.model is None
 
-    def test_workflow_without_provider(self):
+    def test_workflow_without_provider(self) -> None:
         """Test workflow without provider falls through to config."""
         mock_workflow = MagicMock()
         mock_workflow.variables = {"other_setting": "value"}  # No provider
@@ -702,7 +703,7 @@ class TestResolveProviderAdvanced:
         assert result.provider == "gemini"
         assert result.source == "config"
 
-    def test_config_with_empty_enabled_providers(self):
+    def test_config_with_empty_enabled_providers(self) -> None:
         """Test config with empty enabled providers falls to default."""
         mock_config = MagicMock()
         mock_config.llm_providers.get_enabled_providers.return_value = []
@@ -712,7 +713,7 @@ class TestResolveProviderAdvanced:
         assert result.provider == DEFAULT_PROVIDER
         assert result.source == "default"
 
-    def test_default_fallback_when_not_in_config(self):
+    def test_default_fallback_when_not_in_config(self) -> None:
         """Test that default fallback uses first enabled when default not configured."""
         mock_config = MagicMock()
         # Default is "claude" but only gemini and litellm are enabled
@@ -724,7 +725,7 @@ class TestResolveProviderAdvanced:
         assert result.provider == "gemini"
         assert result.source == "config"
 
-    def test_config_with_none_llm_providers(self):
+    def test_config_with_none_llm_providers(self) -> None:
         """Test config with None llm_providers falls to default."""
         mock_config = MagicMock()
         mock_config.llm_providers = None
@@ -738,7 +739,7 @@ class TestResolveProviderAdvanced:
 class TestCreateExecutorAdvanced:
     """Advanced tests for create_executor covering edge cases."""
 
-    def test_create_codex_subscription_uses_codex_executor(self):
+    def test_create_codex_subscription_uses_codex_executor(self) -> None:
         """Test creating Codex executor with subscription mode."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -755,7 +756,7 @@ class TestCreateExecutorAdvanced:
             assert executor.provider_name == "codex"
             mock_create.assert_called_once()
 
-    def test_non_provider_error_wrapped(self):
+    def test_non_provider_error_wrapped(self) -> None:
         """Test that non-ProviderError exceptions are wrapped in ExecutorCreationError."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -772,7 +773,7 @@ class TestCreateExecutorAdvanced:
             assert "Unexpected error" in str(exc_info.value)
             assert exc_info.value.__cause__ is not None
 
-    def test_provider_error_not_wrapped(self):
+    def test_provider_error_not_wrapped(self) -> None:
         """Test that ProviderError exceptions are not wrapped."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -788,7 +789,7 @@ class TestCreateExecutorAdvanced:
             assert exc_info.value.provider == "claude"
             assert exc_info.value.reason == "test reason"
 
-    def test_create_executor_with_config_routes_to_litellm(self):
+    def test_create_executor_with_config_routes_to_litellm(self) -> None:
         """Test create_executor with api_key mode routes to LiteLLM."""
         mock_config = MagicMock()
         mock_provider_config = MagicMock()
@@ -813,7 +814,7 @@ class TestExecutorCreationWithConfig:
     These tests verify the subscription mode behavior.
     """
 
-    def test_claude_executor_with_models_config(self):
+    def test_claude_executor_with_models_config(self) -> None:
         """Test Claude executor uses first model from config (subscription mode)."""
         from unittest.mock import MagicMock, patch
 
@@ -827,7 +828,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.default_model == "claude-opus-4-5"
 
-    def test_claude_executor_model_override(self):
+    def test_claude_executor_model_override(self) -> None:
         """Test Claude executor model override takes precedence."""
         from unittest.mock import MagicMock, patch
 
@@ -841,7 +842,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.default_model == "claude-opus-4-20250514"
 
-    def test_claude_executor_with_empty_models(self):
+    def test_claude_executor_with_empty_models(self) -> None:
         """Test Claude executor with empty models string uses default."""
         from unittest.mock import MagicMock, patch
 
@@ -855,7 +856,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.default_model == "claude-sonnet-4-20250514"
 
-    def test_claude_executor_with_whitespace_only_models(self):
+    def test_claude_executor_with_whitespace_only_models(self) -> None:
         """Test Claude executor with whitespace-only models uses default."""
         from unittest.mock import MagicMock, patch
 
@@ -869,7 +870,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.default_model == "claude-sonnet-4-20250514"
 
-    def test_claude_executor_always_subscription_mode(self):
+    def test_claude_executor_always_subscription_mode(self) -> None:
         """Test Claude executor always uses subscription mode."""
         from unittest.mock import patch
 
@@ -880,7 +881,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.auth_mode == "subscription"
 
-    def test_litellm_executor_with_models_config(self):
+    def test_litellm_executor_with_models_config(self) -> None:
         """Test LiteLLM executor uses first model from config."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -898,7 +899,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.default_model == "gpt-4"
 
-    def test_litellm_executor_with_api_base(self):
+    def test_litellm_executor_with_api_base(self) -> None:
         """Test LiteLLM executor with api_base from config."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -916,7 +917,7 @@ class TestExecutorCreationWithConfig:
 
             assert executor.api_base == "https://my-proxy.example.com"
 
-    def test_litellm_executor_with_api_keys(self):
+    def test_litellm_executor_with_api_keys(self) -> None:
         """Test LiteLLM executor with api_keys from config."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -940,7 +941,7 @@ class TestExecutorCreationWithConfig:
                 # Verify executor was created (api_keys are set in env, not stored)
                 assert executor.provider_name == "litellm"
 
-    def test_litellm_executor_with_none_api_keys(self):
+    def test_litellm_executor_with_none_api_keys(self) -> None:
         """Test LiteLLM executor with None api_keys from config."""
         import sys
         from unittest.mock import MagicMock, patch
@@ -962,7 +963,7 @@ class TestExecutorCreationWithConfig:
             # Verify executor was created (None api_keys means no env vars set)
             assert executor.provider_name == "litellm"
 
-    def test_codex_executor_subscription_mode(self):
+    def test_codex_executor_subscription_mode(self) -> None:
         """Test Codex executor uses subscription mode."""
         from unittest.mock import patch
 
@@ -977,7 +978,7 @@ class TestExecutorCreationWithConfig:
 class TestExecutorRegistryAdvanced:
     """Advanced tests for ExecutorRegistry class."""
 
-    def test_cache_key_includes_model(self):
+    def test_cache_key_includes_model(self) -> None:
         """Test that cache key includes model for separate caching."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             executor1 = MagicMock()
@@ -991,7 +992,7 @@ class TestExecutorRegistryAdvanced:
             assert result1 is not result2
             assert mock_create.call_count == 2
 
-    def test_cache_key_with_workflow_model(self):
+    def test_cache_key_with_workflow_model(self) -> None:
         """Test that workflow model is included in cache key."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             executor1 = MagicMock()
@@ -1011,7 +1012,7 @@ class TestExecutorRegistryAdvanced:
             assert result1 is not result2
             assert mock_create.call_count == 2
 
-    def test_explicit_model_overrides_workflow_model(self):
+    def test_explicit_model_overrides_workflow_model(self) -> None:
         """Test that explicit model override takes precedence over workflow model."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -1027,7 +1028,7 @@ class TestExecutorRegistryAdvanced:
             call_kwargs = mock_create.call_args
             assert call_kwargs[1]["model"] == "explicit-model"
 
-    def test_get_with_config(self):
+    def test_get_with_config(self) -> None:
         """Test that registry passes config to create_executor."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -1043,7 +1044,7 @@ class TestExecutorRegistryAdvanced:
             call_kwargs = mock_create.call_args
             assert call_kwargs[1]["config"] is mock_config
 
-    def test_get_all_returns_copy(self):
+    def test_get_all_returns_copy(self) -> None:
         """Test that get_all returns a copy of the cache."""
         with patch("gobby.llm.resolver.create_executor") as mock_create:
             mock_executor = MagicMock()
@@ -1063,7 +1064,7 @@ class TestExecutorRegistryAdvanced:
 class TestValidateProviderConfigured:
     """Tests for _validate_provider_configured function."""
 
-    def test_provider_configured(self):
+    def test_provider_configured(self) -> None:
         """Test no error when provider is configured."""
         from gobby.llm.resolver import _validate_provider_configured
 
@@ -1073,7 +1074,7 @@ class TestValidateProviderConfigured:
         # Should not raise
         _validate_provider_configured("claude", mock_llm_providers)
 
-    def test_provider_not_configured(self):
+    def test_provider_not_configured(self) -> None:
         """Test error when provider is not configured."""
         from gobby.llm.resolver import _validate_provider_configured
 
@@ -1090,12 +1091,12 @@ class TestValidateProviderConfigured:
 class TestResolvedProviderDataclass:
     """Tests for ResolvedProvider dataclass."""
 
-    def test_default_model_is_none(self):
+    def test_default_model_is_none(self) -> None:
         """Test that model defaults to None."""
         result = ResolvedProvider(provider="claude", source="explicit")
         assert result.model is None
 
-    def test_all_fields_set(self):
+    def test_all_fields_set(self) -> None:
         """Test creating ResolvedProvider with all fields."""
         result = ResolvedProvider(
             provider="claude",
@@ -1106,7 +1107,7 @@ class TestResolvedProviderDataclass:
         assert result.source == "workflow"
         assert result.model == "claude-opus-4-5"
 
-    def test_resolution_sources(self):
+    def test_resolution_sources(self) -> None:
         """Test all valid resolution sources."""
         sources = ["explicit", "workflow", "config", "default"]
         for source in sources:

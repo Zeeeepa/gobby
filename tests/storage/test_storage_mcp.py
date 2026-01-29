@@ -3,10 +3,13 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.projects import LocalProjectManager
 
+pytestmark = pytest.mark.unit
 
 class TestMCPServer:
     """Tests for MCPServer dataclass."""
@@ -15,7 +18,7 @@ class TestMCPServer:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test converting MCPServer to dictionary."""
         server = mcp_manager.upsert(
             name="test-server",
@@ -36,7 +39,7 @@ class TestMCPServer:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test converting MCPServer to MCP config format."""
         server = mcp_manager.upsert(
             name="config-server",
@@ -62,7 +65,7 @@ class TestTool:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test converting Tool to dictionary."""
         # Create server first
         mcp_manager.upsert(
@@ -100,7 +103,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test upserting an HTTP MCP server."""
         server = mcp_manager.upsert(
             name="http-server",
@@ -120,7 +123,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test upserting a stdio MCP server."""
         server = mcp_manager.upsert(
             name="stdio-server",
@@ -141,7 +144,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that server names are normalized to lowercase."""
         server = mcp_manager.upsert(
             name="MyServer",
@@ -156,7 +159,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that upsert updates existing server."""
         server1 = mcp_manager.upsert(
             name="update-server",
@@ -180,7 +183,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting a server by name."""
         created = mcp_manager.upsert(
             name="get-test",
@@ -197,7 +200,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that get_server lookup is case-insensitive."""
         mcp_manager.upsert(
             name="casetest",
@@ -215,7 +218,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting nonexistent server returns None."""
         result = mcp_manager.get_server("nonexistent", project_id=sample_project["id"])
         assert result is None
@@ -224,7 +227,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing servers."""
         mcp_manager.upsert(
             name="server-1",
@@ -249,7 +252,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing only enabled servers."""
         mcp_manager.upsert(
             name="enabled-server",
@@ -277,7 +280,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating server fields."""
         mcp_manager.upsert(
             name="update-me",
@@ -301,7 +304,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test removing a server."""
         mcp_manager.upsert(
             name="remove-me",
@@ -318,7 +321,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test removing nonexistent server returns False."""
         result = mcp_manager.remove_server("nonexistent", project_id=sample_project["id"])
         assert result is False
@@ -327,7 +330,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test caching tools for a server."""
         mcp_manager.upsert(
             name="tools-server",
@@ -356,7 +359,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that tool names are normalized to lowercase."""
         mcp_manager.upsert(
             name="normalize-server",
@@ -378,7 +381,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that caching tools replaces existing tools."""
         mcp_manager.upsert(
             name="replace-server",
@@ -409,7 +412,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting cached tools for a server."""
         mcp_manager.upsert(
             name="cached-server",
@@ -437,7 +440,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting tools for nonexistent server returns empty list."""
         tools = mcp_manager.get_cached_tools("nonexistent", project_id=sample_project["id"])
         assert tools == []
@@ -447,7 +450,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test importing servers from Gobby-format .mcp.json."""
         mcp_json = temp_dir / ".mcp.json"
         mcp_json.write_text(
@@ -476,7 +479,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test importing servers from Claude Code format .mcp.json."""
         mcp_json = temp_dir / ".mcp.json"
         mcp_json.write_text(
@@ -504,7 +507,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test importing from nonexistent file returns 0."""
         count = mcp_manager.import_from_mcp_json(
             "/nonexistent/path.json",
@@ -517,7 +520,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test importing tool schemas from filesystem."""
         # Create server first
         mcp_manager.upsert(
@@ -555,7 +558,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test importing from nonexistent directory returns 0."""
         count = mcp_manager.import_tools_from_filesystem(
             project_id=sample_project["id"],
@@ -568,7 +571,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that hidden directories are skipped during import."""
         # Create server
         mcp_manager.upsert(
@@ -594,7 +597,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that tools for unknown servers are skipped."""
         # Create tool directory without corresponding server
         tools_dir = temp_dir / "tools" / "unknown-server"
@@ -612,7 +615,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that invalid JSON files are gracefully skipped."""
         mcp_manager.upsert(
             name="json-server",
@@ -643,7 +646,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that tool name defaults to file stem if not in JSON."""
         mcp_manager.upsert(
             name="stem-server",
@@ -672,7 +675,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting a server by ID."""
         created = mcp_manager.upsert(
             name="id-test",
@@ -689,7 +692,7 @@ class TestLocalMCPManager:
     def test_get_server_by_id_nonexistent(
         self,
         mcp_manager: LocalMCPManager,
-    ):
+    ) -> None:
         """Test getting nonexistent server by ID returns None."""
         result = mcp_manager.get_server_by_id("nonexistent-uuid")
         assert result is None
@@ -699,7 +702,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         project_manager: LocalProjectManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing all servers across all projects."""
         # Create another project
         project2 = project_manager.create(
@@ -730,7 +733,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test list_all_servers with enabled_only filter."""
         mcp_manager.upsert(
             name="enabled-all",
@@ -758,7 +761,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating nonexistent server returns None."""
         result = mcp_manager.update_server(
             "nonexistent",
@@ -771,7 +774,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating with no valid fields returns unchanged server."""
         original = mcp_manager.upsert(
             name="no-update",
@@ -793,7 +796,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating JSON-serializable fields (args, env, headers)."""
         mcp_manager.upsert(
             name="json-update",
@@ -819,7 +822,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test caching tools for nonexistent server returns 0."""
         count = mcp_manager.cache_tools(
             "nonexistent-server",
@@ -832,7 +835,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test caching tools using 'args' key instead of 'inputSchema'."""
         mcp_manager.upsert(
             name="args-server",
@@ -864,7 +867,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test caching tools without inputSchema or args."""
         mcp_manager.upsert(
             name="no-schema-server",
@@ -888,7 +891,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test importing from invalid JSON file returns 0."""
         mcp_json = temp_dir / ".mcp.json"
         mcp_json.write_text("{ invalid json }")
@@ -901,7 +904,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that servers without name are skipped in Gobby format."""
         mcp_json = temp_dir / ".mcp.json"
         mcp_json.write_text(
@@ -926,7 +929,7 @@ class TestLocalMCPManager:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test importing from JSON without servers or mcpServers returns 0."""
         mcp_json = temp_dir / ".mcp.json"
         mcp_json.write_text(json.dumps({"other_key": "value"}))
@@ -938,7 +941,7 @@ class TestLocalMCPManager:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that remove_server is case-insensitive."""
         mcp_manager.upsert(
             name="removecase",
@@ -960,7 +963,7 @@ class TestRefreshToolsIncremental:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test incremental refresh for nonexistent server returns empty stats."""
         stats = mcp_manager.refresh_tools_incremental(
             "nonexistent",
@@ -973,7 +976,7 @@ class TestRefreshToolsIncremental:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that new tools are added during incremental refresh."""
         mcp_manager.upsert(
             name="refresh-server",
@@ -1001,7 +1004,7 @@ class TestRefreshToolsIncremental:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that stale tools are removed during incremental refresh."""
         mcp_manager.upsert(
             name="stale-server",
@@ -1038,7 +1041,7 @@ class TestRefreshToolsIncremental:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that changed tools are updated during incremental refresh."""
         mcp_manager.upsert(
             name="update-server",
@@ -1080,7 +1083,7 @@ class TestRefreshToolsIncremental:
         mcp_manager: LocalMCPManager,
         sample_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Test incremental refresh with schema hash manager for change detection."""
         from gobby.mcp_proxy.schema_hash import SchemaHashManager
 
@@ -1127,7 +1130,7 @@ class TestRefreshToolsIncremental:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that refresh handles 'args' key as alternative to 'inputSchema'."""
         mcp_manager.upsert(
             name="args-refresh",
@@ -1155,7 +1158,7 @@ class TestMCPServerFromRow:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test from_row with all JSON fields populated."""
         server = mcp_manager.upsert(
             name="full-server",
@@ -1179,7 +1182,7 @@ class TestMCPServerFromRow:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test from_row with null JSON fields."""
         server = mcp_manager.upsert(
             name="minimal-server",
@@ -1201,7 +1204,7 @@ class TestToolFromRow:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test Tool.from_row with input_schema."""
         mcp_manager.upsert(
             name="tool-row-server",
@@ -1225,7 +1228,7 @@ class TestToolFromRow:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test Tool.from_row without input_schema."""
         mcp_manager.upsert(
             name="no-schema-row-server",
@@ -1254,7 +1257,7 @@ class TestMCPServerToConfig:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test to_config with minimal fields."""
         server = mcp_manager.upsert(
             name="minimal-config",
@@ -1278,7 +1281,7 @@ class TestMCPServerToConfig:
         self,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test to_config includes project_id when present."""
         server = mcp_manager.upsert(
             name="project-config",

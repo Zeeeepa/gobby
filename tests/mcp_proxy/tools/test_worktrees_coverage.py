@@ -13,6 +13,7 @@ from gobby.mcp_proxy.tools.worktrees import (
 )
 from gobby.storage.worktrees import Worktree
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_worktree_storage():
@@ -421,7 +422,7 @@ async def test_cleanup_stale_worktrees(registry, mock_worktree_storage, mock_git
 class TestGetWorktreeBaseDir:
     """Tests for _get_worktree_base_dir helper."""
 
-    def test_unix_path(self):
+    def test_unix_path(self) -> None:
         """Test Unix path generation."""
         with patch("gobby.mcp_proxy.tools.worktrees.platform.system", return_value="Darwin"):
             path = _get_worktree_base_dir()
@@ -429,7 +430,7 @@ class TestGetWorktreeBaseDir:
             # On macOS, /tmp resolves to /private/tmp
             assert path.exists() or str(path).startswith("/")
 
-    def test_windows_path(self, tmp_path):
+    def test_windows_path(self, tmp_path) -> None:
         """Test Windows path generation uses tempdir."""
         with (
             patch("gobby.mcp_proxy.tools.worktrees.platform.system", return_value="Windows"),
@@ -445,14 +446,14 @@ class TestGetWorktreeBaseDir:
 class TestGenerateWorktreePath:
     """Tests for _generate_worktree_path helper."""
 
-    def test_with_project_name(self, tmp_path):
+    def test_with_project_name(self, tmp_path) -> None:
         """Test path generation with project name."""
         with patch("gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path):
             path = _generate_worktree_path("feature/test", project_name="myproject")
             assert "myproject" in path
             assert "feature-test" in path
 
-    def test_without_project_name(self, tmp_path):
+    def test_without_project_name(self, tmp_path) -> None:
         """Test path generation without project name."""
         with patch("gobby.mcp_proxy.tools.worktrees._get_worktree_base_dir", return_value=tmp_path):
             path = _generate_worktree_path("feature/test")
@@ -463,7 +464,7 @@ class TestGenerateWorktreePath:
 class TestResolveProjectContext:
     """Tests for _resolve_project_context helper."""
 
-    def test_project_path_not_exists(self):
+    def test_project_path_not_exists(self) -> None:
         """Test with non-existent project path."""
         git_manager, project_id, error = _resolve_project_context(
             project_path="/nonexistent/path",
@@ -475,7 +476,7 @@ class TestResolveProjectContext:
         assert git_manager is None
         assert project_id is None
 
-    def test_project_path_no_gobby(self, tmp_path):
+    def test_project_path_no_gobby(self, tmp_path) -> None:
         """Test with path that has no .gobby/project.json."""
         with patch("gobby.mcp_proxy.tools.worktrees.get_project_context", return_value=None):
             git_manager, project_id, error = _resolve_project_context(
@@ -486,7 +487,7 @@ class TestResolveProjectContext:
             assert error is not None
             assert "No .gobby/project.json" in error
 
-    def test_project_path_invalid_git_repo(self, tmp_path):
+    def test_project_path_invalid_git_repo(self, tmp_path) -> None:
         """Test with path that's not a valid git repo."""
         with (
             patch(
@@ -506,7 +507,7 @@ class TestResolveProjectContext:
             assert error is not None
             assert "Invalid git repository" in error
 
-    def test_no_project_path_no_defaults(self):
+    def test_no_project_path_no_defaults(self) -> None:
         """Test with no project path and no defaults."""
         git_manager, project_id, error = _resolve_project_context(
             project_path=None,
@@ -516,7 +517,7 @@ class TestResolveProjectContext:
         assert error is not None
         assert "No project_path provided" in error
 
-    def test_no_project_path_no_project_id(self):
+    def test_no_project_path_no_project_id(self) -> None:
         """Test with no project path and no project ID default."""
         git_manager, project_id, error = _resolve_project_context(
             project_path=None,
@@ -526,7 +527,7 @@ class TestResolveProjectContext:
         assert error is not None
         assert "no default project ID" in error
 
-    def test_with_defaults(self):
+    def test_with_defaults(self) -> None:
         """Test with valid defaults."""
         mock_manager = MagicMock()
         git_manager, project_id, error = _resolve_project_context(
@@ -542,7 +543,7 @@ class TestResolveProjectContext:
 class TestCopyProjectJsonToWorktree:
     """Tests for _copy_project_json_to_worktree helper."""
 
-    def test_copies_project_json(self, tmp_path):
+    def test_copies_project_json(self, tmp_path) -> None:
         """Test that project.json is copied with parent reference."""
         # Setup source
         repo_path = tmp_path / "repo"
@@ -565,7 +566,7 @@ class TestCopyProjectJsonToWorktree:
         assert data["id"] == "proj-1"
         assert "parent_project_path" in data
 
-    def test_skips_if_no_source(self, tmp_path):
+    def test_skips_if_no_source(self, tmp_path) -> None:
         """Test that nothing happens if source doesn't exist."""
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
@@ -577,7 +578,7 @@ class TestCopyProjectJsonToWorktree:
 
         assert not (worktree_path / ".gobby" / "project.json").exists()
 
-    def test_skips_if_target_exists(self, tmp_path):
+    def test_skips_if_target_exists(self, tmp_path) -> None:
         """Test that existing project.json is not overwritten."""
         # Setup source
         repo_path = tmp_path / "repo"
@@ -603,12 +604,12 @@ class TestCopyProjectJsonToWorktree:
 class TestInstallProviderHooks:
     """Tests for _install_provider_hooks helper."""
 
-    def test_none_provider(self, tmp_path):
+    def test_none_provider(self, tmp_path) -> None:
         """Test with None provider returns False."""
         result = _install_provider_hooks(None, tmp_path)
         assert result is False
 
-    def test_claude_hooks_success(self, tmp_path):
+    def test_claude_hooks_success(self, tmp_path) -> None:
         """Test Claude hooks installation success."""
         with patch("gobby.cli.installers.claude.install_claude") as mock_install:
             mock_install.return_value = {"success": True}
@@ -616,35 +617,35 @@ class TestInstallProviderHooks:
             assert result is True
             mock_install.assert_called_once()
 
-    def test_claude_hooks_failure(self, tmp_path, caplog):
+    def test_claude_hooks_failure(self, tmp_path, caplog) -> None:
         """Test Claude hooks installation failure."""
         with patch("gobby.cli.installers.claude.install_claude") as mock_install:
             mock_install.return_value = {"success": False, "error": "Install failed"}
             result = _install_provider_hooks("claude", tmp_path)
             assert result is False
 
-    def test_gemini_hooks_success(self, tmp_path):
+    def test_gemini_hooks_success(self, tmp_path) -> None:
         """Test Gemini hooks installation success."""
         with patch("gobby.cli.installers.gemini.install_gemini") as mock_install:
             mock_install.return_value = {"success": True}
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is True
 
-    def test_gemini_hooks_failure(self, tmp_path):
+    def test_gemini_hooks_failure(self, tmp_path) -> None:
         """Test Gemini hooks installation failure."""
         with patch("gobby.cli.installers.gemini.install_gemini") as mock_install:
             mock_install.return_value = {"success": False, "error": "Failed"}
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is False
 
-    def test_antigravity_hooks_success(self, tmp_path):
+    def test_antigravity_hooks_success(self, tmp_path) -> None:
         """Test Antigravity hooks installation success."""
         with patch("gobby.cli.installers.antigravity.install_antigravity") as mock_install:
             mock_install.return_value = {"success": True}
             result = _install_provider_hooks("antigravity", tmp_path)
             assert result is True
 
-    def test_hooks_install_exception(self, tmp_path, caplog):
+    def test_hooks_install_exception(self, tmp_path, caplog) -> None:
         """Test hooks installation handles exceptions."""
         with patch("gobby.cli.installers.claude.install_claude") as mock_install:
             mock_install.side_effect = Exception("Import error")

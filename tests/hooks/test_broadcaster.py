@@ -12,6 +12,7 @@ from gobby.hooks.hook_types import (
     SessionStartSource,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_websocket_server():

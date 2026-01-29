@@ -11,6 +11,7 @@ from gobby.hooks.hook_manager import HookManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.database import LocalDatabase
 
+pytestmark = pytest.mark.unit
 
 # Mock WebSocket Server
 class MockWebSocketServer:

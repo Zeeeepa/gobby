@@ -16,6 +16,8 @@ from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.llm_actions import call_llm
 from gobby.workflows.templates import TemplateEngine
 
+pytestmark = pytest.mark.unit
+
 # --- Fixtures ---
 
 

@@ -15,6 +15,7 @@ from gobby.workflows.memory_actions import (
 )
 from gobby.workflows.templates import TemplateEngine
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_mem_services():
@@ -378,20 +379,20 @@ async def test_memory_recall_relevant_respects_kwargs(
 class TestContentFingerprint:
     """Tests for _content_fingerprint helper function."""
 
-    def test_content_fingerprint_returns_16_char_hash(self):
+    def test_content_fingerprint_returns_16_char_hash(self) -> None:
         """Test fingerprint returns a 16 character hex string."""
         result = _content_fingerprint("test content")
         assert len(result) == 16
         assert all(c in "0123456789abcdef" for c in result)
 
-    def test_content_fingerprint_deterministic(self):
+    def test_content_fingerprint_deterministic(self) -> None:
         """Test fingerprint is deterministic for same input."""
         content = "some test content here"
         result1 = _content_fingerprint(content)
         result2 = _content_fingerprint(content)
         assert result1 == result2
 
-    def test_content_fingerprint_different_for_different_content(self):
+    def test_content_fingerprint_different_for_different_content(self) -> None:
         """Test fingerprint differs for different content."""
         result1 = _content_fingerprint("content A")
         result2 = _content_fingerprint("content B")
@@ -922,7 +923,7 @@ class TestMemoryDeduplication:
 class TestResetMemoryInjectionTracking:
     """Tests for reset_memory_injection_tracking function."""
 
-    def test_reset_clears_injected_ids(self):
+    def test_reset_clears_injected_ids(self) -> None:
         """Test that reset clears the injected memory IDs."""
         state = WorkflowState(
             session_id="test-session",
@@ -937,7 +938,7 @@ class TestResetMemoryInjectionTracking:
         assert result["cleared"] == 3
         assert state.variables["_injected_memory_ids"] == []
 
-    def test_reset_returns_zero_when_no_ids(self):
+    def test_reset_returns_zero_when_no_ids(self) -> None:
         """Test that reset returns 0 cleared when no IDs exist."""
         state = WorkflowState(
             session_id="test-session",
@@ -951,7 +952,7 @@ class TestResetMemoryInjectionTracking:
         assert result["success"] is True
         assert result["cleared"] == 0
 
-    def test_reset_handles_none_state(self):
+    def test_reset_handles_none_state(self) -> None:
         """Test that reset handles None state gracefully."""
         result = reset_memory_injection_tracking(state=None)
 
@@ -959,7 +960,7 @@ class TestResetMemoryInjectionTracking:
         assert result["cleared"] == 0
         assert result["reason"] == "no_state"
 
-    def test_reset_handles_state_without_variables(self):
+    def test_reset_handles_state_without_variables(self) -> None:
         """Test that reset handles state without variables attribute."""
         state = MagicMock()
         state.variables = None

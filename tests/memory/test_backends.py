@@ -22,6 +22,7 @@ from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
 
+pytestmark = pytest.mark.unit
 
 # =============================================================================
 # Test: get_backend Factory Function
@@ -31,26 +32,26 @@ if TYPE_CHECKING:
 class TestGetBackend:
     """Tests for the get_backend factory function."""
 
-    def test_get_backend_exists(self):
+    def test_get_backend_exists(self) -> None:
         """Test that get_backend function is importable."""
         assert callable(get_backend)
 
-    def test_get_backend_returns_protocol(self, temp_db: LocalDatabase):
+    def test_get_backend_returns_protocol(self, temp_db: LocalDatabase) -> None:
         """Test that get_backend returns a MemoryBackendProtocol instance."""
         backend = get_backend("sqlite", database=temp_db)
         assert isinstance(backend, MemoryBackendProtocol)
 
-    def test_get_backend_unknown_type_raises(self):
+    def test_get_backend_unknown_type_raises(self) -> None:
         """Test that unknown backend type raises ValueError."""
         with pytest.raises(ValueError, match="Unknown backend type"):
             get_backend("unknown_backend_type")
 
-    def test_get_backend_null_type(self):
+    def test_get_backend_null_type(self) -> None:
         """Test that 'null' backend type returns a valid backend."""
         backend = get_backend("null")
         assert isinstance(backend, MemoryBackendProtocol)
 
-    def test_get_backend_sqlite_type(self, temp_db: LocalDatabase):
+    def test_get_backend_sqlite_type(self, temp_db: LocalDatabase) -> None:
         """Test that 'sqlite' backend type returns SQLite backend."""
         backend = get_backend("sqlite", database=temp_db)
         assert isinstance(backend, MemoryBackendProtocol)
@@ -70,7 +71,7 @@ class TestGetBackend:
 class TestNullBackend:
     """Tests for the NullBackend implementation (for testing purposes)."""
 
-    def test_null_backend_capabilities(self):
+    def test_null_backend_capabilities(self) -> None:
         """Test that NullBackend declares its capabilities."""
         backend = get_backend("null")
         caps = backend.capabilities()
@@ -128,7 +129,7 @@ class TestNullBackend:
 class TestSQLiteBackend:
     """Tests for the SQLiteBackend implementation."""
 
-    def test_sqlite_backend_capabilities(self, temp_db: LocalDatabase):
+    def test_sqlite_backend_capabilities(self, temp_db: LocalDatabase) -> None:
         """Test that SQLiteBackend declares full capabilities."""
         backend = get_backend("sqlite", database=temp_db)
         caps = backend.capabilities()
@@ -257,14 +258,14 @@ class TestSQLiteBackend:
 class TestModuleExports:
     """Tests for module exports."""
 
-    def test_get_backend_exported(self):
+    def test_get_backend_exported(self) -> None:
         """Test that get_backend is exported from backends module."""
         from gobby.memory import backends
 
         assert hasattr(backends, "get_backend")
         assert callable(backends.get_backend)
 
-    def test_backend_classes_not_directly_exported(self):
+    def test_backend_classes_not_directly_exported(self) -> None:
         """Test that backend implementations are not directly exported.
 
         Users should use get_backend() factory, not import classes directly.

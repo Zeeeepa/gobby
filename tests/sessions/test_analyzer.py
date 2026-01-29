@@ -10,6 +10,7 @@ import pytest
 from gobby.sessions.analyzer import HandoffContext, TranscriptAnalyzer
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 
+pytestmark = pytest.mark.unit
 
 class TestHandoffContextActiveSkills:
     """Tests for active_skills field in HandoffContext."""
@@ -77,7 +78,7 @@ def sample_turns():
     ]
 
 
-def test_extract_handoff_context_basic(sample_turns):
+def test_extract_handoff_context_basic(sample_turns) -> None:
     analyzer = TranscriptAnalyzer()
     ctx = analyzer.extract_handoff_context(sample_turns)
 
@@ -89,7 +90,7 @@ def test_extract_handoff_context_basic(sample_turns):
     assert "git commit -m 'fix login'" in ctx.git_commits[0]["command"]
 
 
-def test_extract_handoff_context_empty():
+def test_extract_handoff_context_empty() -> None:
     analyzer = TranscriptAnalyzer()
     ctx = analyzer.extract_handoff_context([])
     assert ctx.initial_goal == ""
@@ -97,7 +98,7 @@ def test_extract_handoff_context_empty():
     assert not ctx.files_modified
 
 
-def test_extract_handoff_context_no_task(sample_turns):
+def test_extract_handoff_context_no_task(sample_turns) -> None:
     # Filter out mcp_call_tool lines
     # This requires deep filtering of the fixture structure
     turns = [
@@ -122,7 +123,7 @@ def test_extract_handoff_context_no_task(sample_turns):
     assert "/path/to/login.py" in ctx.files_modified
 
 
-def test_extract_handoff_context_recent_activity(sample_turns):
+def test_extract_handoff_context_recent_activity(sample_turns) -> None:
     analyzer = TranscriptAnalyzer()
     ctx = analyzer.extract_handoff_context(sample_turns)
     # Check that recent tools are captured with detailed descriptions
@@ -133,7 +134,7 @@ def test_extract_handoff_context_recent_activity(sample_turns):
     assert "Ran:" in activity_str or "Write:" in activity_str
 
 
-def test_extract_handoff_context_max_turns():
+def test_extract_handoff_context_max_turns() -> None:
     # Generate many turns
     turns = [{"type": "user", "message": {"content": f"msg {i}"}} for i in range(200)]
     # Make the last one have a goal just to check scanning logic (first user message is usually goal)
@@ -149,7 +150,7 @@ def test_extract_handoff_context_max_turns():
     # So it won't see tool uses before that.
 
 
-def test_extract_handoff_context_default_max_turns_is_150():
+def test_extract_handoff_context_default_max_turns_is_150() -> None:
     """Test that default max_turns is 150 (increased from 100)."""
     import inspect
 
@@ -161,7 +162,7 @@ def test_extract_handoff_context_default_max_turns_is_150():
     assert max_turns_param.default == 150, "Default max_turns should be 150"
 
 
-def test_extract_handoff_context_explicit_max_turns_overrides_default():
+def test_extract_handoff_context_explicit_max_turns_overrides_default() -> None:
     """Test that explicit max_turns parameter overrides the default."""
     # Create turns with file modifications at different positions
     turns = []
@@ -192,7 +193,7 @@ def test_extract_handoff_context_explicit_max_turns_overrides_default():
     assert "/path/file149.py" not in ctx.files_modified
 
 
-def test_extract_todowrite():
+def test_extract_todowrite() -> None:
     """Test extraction of TodoWrite state from transcript."""
     turns = [
         {"type": "user", "message": {"content": "Help me with tasks"}},
@@ -228,14 +229,14 @@ def test_extract_todowrite():
     assert ctx.todo_state[2]["status"] == "pending"
 
 
-def test_extract_todowrite_empty():
+def test_extract_todowrite_empty() -> None:
     """Test that empty transcript returns empty todo_state."""
     analyzer = TranscriptAnalyzer()
     ctx = analyzer.extract_handoff_context([])
     assert ctx.todo_state == []
 
 
-def test_extract_todowrite_uses_latest():
+def test_extract_todowrite_uses_latest() -> None:
     """Test that we extract the most recent TodoWrite, not earlier ones."""
     turns = [
         {
@@ -284,7 +285,7 @@ def test_extract_todowrite_uses_latest():
 # --- Edge Case Tests ---
 
 
-def test_todowrite_empty_todos_list():
+def test_todowrite_empty_todos_list() -> None:
     """Test that TodoWrite with empty todos list returns empty state."""
     turns = [
         {
@@ -307,7 +308,7 @@ def test_todowrite_empty_todos_list():
     assert ctx.todo_state == []
 
 
-def test_malformed_tool_blocks_not_dict():
+def test_malformed_tool_blocks_not_dict() -> None:
     """Test handling of malformed content blocks that aren't dicts."""
     turns = [
         {"type": "user", "message": {"content": "do something"}},
@@ -332,7 +333,7 @@ def test_malformed_tool_blocks_not_dict():
     assert "/valid.py" in ctx.files_modified
 
 
-def test_malformed_tool_blocks_missing_keys():
+def test_malformed_tool_blocks_missing_keys() -> None:
     """Test handling of tool_use blocks missing expected keys."""
     turns = [
         {"type": "user", "message": {"content": "do something"}},
@@ -356,7 +357,7 @@ def test_malformed_tool_blocks_missing_keys():
     assert ctx.files_modified == ["/good.py"]
 
 
-def test_multiple_edit_write_calls():
+def test_multiple_edit_write_calls() -> None:
     """Test extraction of multiple Edit and Write calls to different files."""
     turns = [
         {"type": "user", "message": {"content": "refactor the code"}},
@@ -391,7 +392,7 @@ def test_multiple_edit_write_calls():
     assert ctx.files_modified == ["/src/bar.py", "/src/baz.py", "/src/foo.py"]
 
 
-def test_git_status_not_extracted_from_transcript():
+def test_git_status_not_extracted_from_transcript() -> None:
     """Test that git_status remains empty from transcript (enriched separately)."""
     turns = [
         {"type": "user", "message": {"content": "check status"}},
@@ -416,7 +417,7 @@ def test_git_status_not_extracted_from_transcript():
     assert ctx.git_status == ""
 
 
-def test_multiple_git_commits():
+def test_multiple_git_commits() -> None:
     """Test extraction of multiple git commit commands."""
     turns = [
         {"type": "user", "message": {"content": "commit the changes"}},
@@ -455,7 +456,7 @@ def test_multiple_git_commits():
     assert "first commit" in ctx.git_commits[1]["command"]
 
 
-def test_large_transcript_max_turns_limits_scanning():
+def test_large_transcript_max_turns_limits_scanning() -> None:
     """Test that max_turns limits which turns are scanned for activity."""
     # Create a large transcript with 150 turns
     turns = []
@@ -508,7 +509,7 @@ def test_large_transcript_max_turns_limits_scanning():
     assert len(ctx.files_modified) == 50
 
 
-def test_content_as_string_not_list():
+def test_content_as_string_not_list() -> None:
     """Test handling when message content is a string instead of list."""
     turns = [
         {"type": "user", "message": {"content": "plain string user message"}},
@@ -524,7 +525,7 @@ def test_content_as_string_not_list():
     assert ctx.todo_state == []
 
 
-def test_todowrite_missing_content_or_status():
+def test_todowrite_missing_content_or_status() -> None:
     """Test TodoWrite extraction with todos missing content or status keys."""
     turns = [
         {
@@ -560,7 +561,7 @@ def test_todowrite_missing_content_or_status():
     assert ctx.todo_state[2]["status"] == "pending"
 
 
-def test_recent_activity_limited_to_10():
+def test_recent_activity_limited_to_10() -> None:
     """Test that recent_activity is limited to last 10 tool calls."""
     turns = []
     for i in range(20):
@@ -585,7 +586,7 @@ def test_recent_activity_limited_to_10():
     assert "Called Tool15" in ctx.recent_activity[4]
 
 
-def test_mcp_call_tool_gobby_tasks_extracts_task():
+def test_mcp_call_tool_gobby_tasks_extracts_task() -> None:
     """Test that mcp_call_tool with gobby-tasks extracts active task."""
     turns = [
         {"type": "user", "message": {"content": "work on the task"}},
@@ -615,7 +616,7 @@ def test_mcp_call_tool_gobby_tasks_extracts_task():
     assert ctx.active_gobby_task["action"] == "update_task"
 
 
-def test_gobby_tasks_without_task_id():
+def test_gobby_tasks_without_task_id() -> None:
     """Test gobby-tasks calls without task_id don't set active_gobby_task."""
     turns = [
         {"type": "user", "message": {"content": "list tasks"}},
@@ -644,7 +645,7 @@ def test_gobby_tasks_without_task_id():
     assert ctx.active_gobby_task is None
 
 
-def test_gobby_tasks_uses_id_field():
+def test_gobby_tasks_uses_id_field() -> None:
     """Test gobby-tasks calls with 'id' instead of 'task_id' are recognized."""
     turns = [
         {"type": "user", "message": {"content": "work on task"}},
@@ -673,7 +674,7 @@ def test_gobby_tasks_uses_id_field():
     assert ctx.active_gobby_task["id"] == "gt-def456"
 
 
-def test_gobby_tasks_only_first_task_captured():
+def test_gobby_tasks_only_first_task_captured() -> None:
     """Test that only the most recent (first in reverse) task is captured."""
     # Since we iterate in reverse, the "latest" turn comes first
     # and sets active_gobby_task. Subsequent turns shouldn't overwrite it.
@@ -721,7 +722,7 @@ def test_gobby_tasks_only_first_task_captured():
     assert ctx.active_gobby_task["id"] == "gt-latest"
 
 
-def test_gobby_tasks_with_title():
+def test_gobby_tasks_with_title() -> None:
     """Test gobby-tasks calls with title include it in the active task."""
     turns = [
         {"type": "user", "message": {"content": "create task"}},
@@ -750,7 +751,7 @@ def test_gobby_tasks_with_title():
     assert ctx.active_gobby_task["title"] == "Fix the login bug"
 
 
-def test_non_gobby_tasks_mcp_calls():
+def test_non_gobby_tasks_mcp_calls() -> None:
     """Test that MCP calls to other servers don't affect active_gobby_task."""
     turns = [
         {"type": "user", "message": {"content": "do something"}},
@@ -779,7 +780,7 @@ def test_non_gobby_tasks_mcp_calls():
     assert ctx.active_gobby_task is None
 
 
-def test_alternative_file_path_keys():
+def test_alternative_file_path_keys() -> None:
     """Test that alternative file path keys are recognized (TargetFile, path)."""
     turns = [
         {"type": "user", "message": {"content": "modify files"}},
@@ -813,7 +814,7 @@ def test_alternative_file_path_keys():
 class TestFormatToolDescription:
     """Tests for _format_tool_description method."""
 
-    def test_mcp_call_tool(self):
+    def test_mcp_call_tool(self) -> None:
         """Test MCP tool calls show server.tool format."""
         analyzer = TranscriptAnalyzer()
         block = {
@@ -822,7 +823,7 @@ class TestFormatToolDescription:
         }
         assert analyzer._format_tool_description(block) == "Called gobby-tasks.create_task"
 
-    def test_mcp_call_tool_alternative_name(self):
+    def test_mcp_call_tool_alternative_name(self) -> None:
         """Test alternative MCP tool name format."""
         analyzer = TranscriptAnalyzer()
         block = {
@@ -831,13 +832,13 @@ class TestFormatToolDescription:
         }
         assert analyzer._format_tool_description(block) == "Called context7.get_docs"
 
-    def test_bash_command(self):
+    def test_bash_command(self) -> None:
         """Test Bash commands show the actual command."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Bash", "input": {"command": "git status"}}
         assert analyzer._format_tool_description(block) == "Ran: git status"
 
-    def test_bash_long_command_truncated(self):
+    def test_bash_long_command_truncated(self) -> None:
         """Test long Bash commands are truncated."""
         analyzer = TranscriptAnalyzer()
         long_cmd = "git log --oneline --graph --all --decorate | head -50 && git status"
@@ -847,37 +848,37 @@ class TestFormatToolDescription:
         assert result.endswith("...")
         assert len(result) <= 65  # "Ran: " + 57 chars + "..."
 
-    def test_edit_with_path(self):
+    def test_edit_with_path(self) -> None:
         """Test Edit shows file path."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Edit", "input": {"file_path": "/src/main.py"}}
         assert analyzer._format_tool_description(block) == "Edit: /src/main.py"
 
-    def test_write_with_path(self):
+    def test_write_with_path(self) -> None:
         """Test Write shows file path."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Write", "input": {"file_path": "/new_file.py"}}
         assert analyzer._format_tool_description(block) == "Write: /new_file.py"
 
-    def test_read_with_path(self):
+    def test_read_with_path(self) -> None:
         """Test Read shows file path."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Read", "input": {"file_path": "/config.yaml"}}
         assert analyzer._format_tool_description(block) == "Read: /config.yaml"
 
-    def test_glob_with_pattern(self):
+    def test_glob_with_pattern(self) -> None:
         """Test Glob shows pattern."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Glob", "input": {"pattern": "**/*.py"}}
         assert analyzer._format_tool_description(block) == "Glob: **/*.py"
 
-    def test_grep_with_pattern(self):
+    def test_grep_with_pattern(self) -> None:
         """Test Grep shows pattern."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Grep", "input": {"pattern": "def test_"}}
         assert analyzer._format_tool_description(block) == "Grep: def test_"
 
-    def test_grep_long_pattern_truncated(self):
+    def test_grep_long_pattern_truncated(self) -> None:
         """Test long Grep patterns are truncated."""
         analyzer = TranscriptAnalyzer()
         long_pattern = "some_very_long_pattern_that_exceeds_the_limit_for_display"
@@ -887,7 +888,7 @@ class TestFormatToolDescription:
         assert result.endswith("...")
         assert len(result) <= 47  # "Grep: " + 37 chars + "..."
 
-    def test_todowrite_shows_count(self):
+    def test_todowrite_shows_count(self) -> None:
         """Test TodoWrite shows item count."""
         analyzer = TranscriptAnalyzer()
         block = {
@@ -896,7 +897,7 @@ class TestFormatToolDescription:
         }
         assert analyzer._format_tool_description(block) == "TodoWrite: 3 items"
 
-    def test_task_with_subagent(self):
+    def test_task_with_subagent(self) -> None:
         """Test Task shows subagent type and description."""
         analyzer = TranscriptAnalyzer()
         block = {
@@ -905,75 +906,75 @@ class TestFormatToolDescription:
         }
         assert analyzer._format_tool_description(block) == "Task (Explore): Find auth code"
 
-    def test_task_subagent_only(self):
+    def test_task_subagent_only(self) -> None:
         """Test Task with only subagent type."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Task", "input": {"subagent_type": "Plan"}}
         assert analyzer._format_tool_description(block) == "Task (Plan)"
 
-    def test_unknown_tool_fallback(self):
+    def test_unknown_tool_fallback(self) -> None:
         """Test unknown tools fall back to 'Called <name>'."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "SomeUnknownTool", "input": {}}
         assert analyzer._format_tool_description(block) == "Called SomeUnknownTool"
 
-    def test_missing_input_graceful(self):
+    def test_missing_input_graceful(self) -> None:
         """Test graceful handling when input is missing."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Bash"}  # No input key
         result = analyzer._format_tool_description(block)
         assert result == "Ran: "  # Empty command
 
-    def test_missing_name_graceful(self):
+    def test_missing_name_graceful(self) -> None:
         """Test graceful handling when name is missing."""
         analyzer = TranscriptAnalyzer()
         block = {"input": {"command": "ls"}}  # No name key
         result = analyzer._format_tool_description(block)
         assert result == "Called unknown"
 
-    def test_read_without_path(self):
+    def test_read_without_path(self) -> None:
         """Test Read tool without file_path falls back to generic message."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Read", "input": {}}  # No file_path
         result = analyzer._format_tool_description(block)
         assert result == "Called Read"
 
-    def test_glob_without_pattern(self):
+    def test_glob_without_pattern(self) -> None:
         """Test Glob tool without pattern falls back to generic message."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Glob", "input": {}}  # No pattern
         result = analyzer._format_tool_description(block)
         assert result == "Called Glob"
 
-    def test_grep_without_pattern(self):
+    def test_grep_without_pattern(self) -> None:
         """Test Grep tool without pattern falls back to generic message."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Grep", "input": {}}  # No pattern
         result = analyzer._format_tool_description(block)
         assert result == "Called Grep"
 
-    def test_task_with_description_no_subagent(self):
+    def test_task_with_description_no_subagent(self) -> None:
         """Test Task with description but no subagent type."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Task", "input": {"description": "Find auth code"}}
         result = analyzer._format_tool_description(block)
         assert result == "Task: Find auth code"
 
-    def test_task_without_description_or_subagent(self):
+    def test_task_without_description_or_subagent(self) -> None:
         """Test Task without description or subagent type."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Task", "input": {}}
         result = analyzer._format_tool_description(block)
         assert result == "Called Task"
 
-    def test_edit_without_path(self):
+    def test_edit_without_path(self) -> None:
         """Test Edit tool without file_path falls back to generic message."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Edit", "input": {}}  # No file_path
         result = analyzer._format_tool_description(block)
         assert result == "Called Edit"
 
-    def test_write_without_path(self):
+    def test_write_without_path(self) -> None:
         """Test Write tool without file_path falls back to generic message."""
         analyzer = TranscriptAnalyzer()
         block = {"name": "Write", "input": {}}  # No file_path
@@ -984,7 +985,7 @@ class TestFormatToolDescription:
 class TestHandoffContext:
     """Tests for HandoffContext dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test HandoffContext has correct default values."""
         ctx = HandoffContext()
         assert ctx.active_gobby_task is None
@@ -997,7 +998,7 @@ class TestHandoffContext:
         assert ctx.key_decisions is None
         assert ctx.active_worktree is None
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test HandoffContext with custom values."""
         ctx = HandoffContext(
             active_gobby_task={"id": "gt-123", "title": "Test task"},
@@ -1024,12 +1025,12 @@ class TestHandoffContext:
 class TestTranscriptAnalyzerInit:
     """Tests for TranscriptAnalyzer initialization."""
 
-    def test_default_parser(self):
+    def test_default_parser(self) -> None:
         """Test that TranscriptAnalyzer uses ClaudeTranscriptParser by default."""
         analyzer = TranscriptAnalyzer()
         assert isinstance(analyzer.parser, ClaudeTranscriptParser)
 
-    def test_custom_parser(self):
+    def test_custom_parser(self) -> None:
         """Test that TranscriptAnalyzer accepts a custom parser."""
         mock_parser = Mock()
         analyzer = TranscriptAnalyzer(parser=mock_parser)
@@ -1039,7 +1040,7 @@ class TestTranscriptAnalyzerInit:
 class TestAnalyzerEdgeCases:
     """Additional edge case tests for comprehensive coverage."""
 
-    def test_mcp_call_tool_missing_server_name(self):
+    def test_mcp_call_tool_missing_server_name(self) -> None:
         """Test mcp_call_tool blocks with missing server_name."""
         turns = [
             {"type": "user", "message": {"content": "do something"}},
@@ -1066,7 +1067,7 @@ class TestAnalyzerEdgeCases:
         # Should not crash, active_gobby_task should be None
         assert ctx.active_gobby_task is None
 
-    def test_mcp_call_tool_missing_tool_name(self):
+    def test_mcp_call_tool_missing_tool_name(self) -> None:
         """Test MCP format description with missing tool_name."""
         analyzer = TranscriptAnalyzer()
         block = {
@@ -1076,7 +1077,7 @@ class TestAnalyzerEdgeCases:
         result = analyzer._format_tool_description(block)
         assert result == "Called gobby-tasks.unknown"
 
-    def test_mcp_call_tool_missing_server_name_format(self):
+    def test_mcp_call_tool_missing_server_name_format(self) -> None:
         """Test MCP format description with missing server_name."""
         analyzer = TranscriptAnalyzer()
         block = {
@@ -1086,7 +1087,7 @@ class TestAnalyzerEdgeCases:
         result = analyzer._format_tool_description(block)
         assert result == "Called unknown.some_tool"
 
-    def test_todowrite_with_missing_todos_key(self):
+    def test_todowrite_with_missing_todos_key(self) -> None:
         """Test TodoWrite extraction when todos key is missing."""
         turns = [
             {
@@ -1109,7 +1110,7 @@ class TestAnalyzerEdgeCases:
         # Should return empty list when todos key is missing
         assert ctx.todo_state == []
 
-    def test_replace_tool_for_file_modification(self):
+    def test_replace_tool_for_file_modification(self) -> None:
         """Test that Replace tool captures file modifications."""
         turns = [
             {"type": "user", "message": {"content": "refactor code"}},
@@ -1132,7 +1133,7 @@ class TestAnalyzerEdgeCases:
 
         assert "/replaced.py" in ctx.files_modified
 
-    def test_turns_without_message_key(self):
+    def test_turns_without_message_key(self) -> None:
         """Test handling of turns missing the message key."""
         turns = [
             {"type": "user"},  # No message key - becomes first user, with empty content
@@ -1147,7 +1148,7 @@ class TestAnalyzerEdgeCases:
         # (The code breaks on first user message found)
         assert ctx.initial_goal == ""
 
-    def test_first_user_message_with_content_captured(self):
+    def test_first_user_message_with_content_captured(self) -> None:
         """Test that initial goal is extracted from first user message with content."""
         turns = [
             {"type": "assistant", "message": {"content": "Hello!"}},  # Not a user turn
@@ -1161,7 +1162,7 @@ class TestAnalyzerEdgeCases:
         # Should get the first user message, not the second
         assert ctx.initial_goal == "My actual goal"
 
-    def test_initial_goal_with_dict_content(self):
+    def test_initial_goal_with_dict_content(self) -> None:
         """Test initial goal extraction when content is a dict."""
         turns = [
             {"type": "user", "message": {"content": {"key": "value"}}},
@@ -1174,7 +1175,7 @@ class TestAnalyzerEdgeCases:
         assert "key" in ctx.initial_goal
         assert "value" in ctx.initial_goal
 
-    def test_bash_without_git_commit(self):
+    def test_bash_without_git_commit(self) -> None:
         """Test Bash commands without git commit don't add to git_commits."""
         turns = [
             {"type": "user", "message": {"content": "run commands"}},
@@ -1195,7 +1196,7 @@ class TestAnalyzerEdgeCases:
 
         assert ctx.git_commits == []
 
-    def test_gobby_tasks_with_empty_arguments(self):
+    def test_gobby_tasks_with_empty_arguments(self) -> None:
         """Test gobby-tasks calls with missing arguments key."""
         turns = [
             {"type": "user", "message": {"content": "work on task"}},
@@ -1223,7 +1224,7 @@ class TestAnalyzerEdgeCases:
         # Should handle gracefully
         assert ctx.active_gobby_task is None
 
-    def test_multiple_tool_calls_in_single_turn(self):
+    def test_multiple_tool_calls_in_single_turn(self) -> None:
         """Test extraction when multiple tool calls are in a single turn."""
         turns = [
             {"type": "user", "message": {"content": "do many things"}},

@@ -14,6 +14,8 @@ import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Import Tests - verify module structure
 # ==============================================================================
@@ -22,17 +24,17 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 class TestMergeToolsImports:
     """Test that gobby-merge MCP tools module can be imported."""
 
-    def test_import_merge_tools_module(self):
+    def test_import_merge_tools_module(self) -> None:
         """Can import merge tools module."""
         from gobby.mcp_proxy.tools import merge  # noqa: F401
 
-    def test_import_create_merge_registry(self):
+    def test_import_create_merge_registry(self) -> None:
         """Can import create_merge_registry function."""
         from gobby.mcp_proxy.tools.merge import create_merge_registry
 
         assert callable(create_merge_registry)
 
-    def test_import_merge_tool_names(self):
+    def test_import_merge_tool_names(self) -> None:
         """Registry exposes expected tool names."""
         from gobby.mcp_proxy.tools.merge import create_merge_registry
 
@@ -64,7 +66,7 @@ class TestMergeToolsImports:
 class TestMergeRegistryCreation:
     """Tests for merge registry creation."""
 
-    def test_registry_has_correct_name(self):
+    def test_registry_has_correct_name(self) -> None:
         """Registry has name 'gobby-merge'."""
         from gobby.mcp_proxy.tools.merge import create_merge_registry
 
@@ -81,7 +83,7 @@ class TestMergeRegistryCreation:
         assert isinstance(registry, InternalToolRegistry)
         assert registry.name == "gobby-merge"
 
-    def test_registry_has_description(self):
+    def test_registry_has_description(self) -> None:
         """Registry has a description."""
         from gobby.mcp_proxy.tools.merge import create_merge_registry
 

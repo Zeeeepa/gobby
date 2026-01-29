@@ -11,6 +11,7 @@ from gobby.storage.migrations import run_migrations
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.tasks import Task
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_hook_manager(temp_dir: Path):
@@ -80,7 +81,7 @@ def mock_hook_manager(temp_dir: Path):
         db.close()
 
 
-def test_hook_event_task_id(mock_hook_manager):
+def test_hook_event_task_id(mock_hook_manager) -> None:
     """Test that task_id is populated in HookEvent during handling."""
 
     # Setup
@@ -123,7 +124,7 @@ def test_hook_event_task_id(mock_hook_manager):
     assert event.metadata["_platform_session_id"] == platform_session_id
 
 
-def test_session_start_context_injection(mock_hook_manager):
+def test_session_start_context_injection(mock_hook_manager) -> None:
     """Test that task context is injected into SESSION_START context."""
 
     external_id = "test-session-123"

@@ -7,6 +7,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
 
 class TestMemoryShowCommand:
     """Tests for gobby memory show command."""
@@ -23,7 +24,7 @@ class TestMemoryShowCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test showing a memory item successfully (mocked)."""
         mock_manager = MagicMock()
         mock_item = MagicMock()
@@ -48,7 +49,7 @@ class TestMemoryShowCommand:
         assert "ID: mem-123" in result.output
         assert "Remember this" in result.output
 
-    def test_show_help(self, runner: CliRunner):
+    def test_show_help(self, runner: CliRunner) -> None:
         """Test show --help."""
         result = runner.invoke(cli, ["memory", "show", "--help"])
         assert result.exit_code == 0
@@ -70,7 +71,7 @@ class TestMemoryDeleteCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test deleting a memory item."""
         mock_manager = MagicMock()
         mock_manager.forget.return_value = True
@@ -99,7 +100,7 @@ class TestMemoryUpdateCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test updating a memory item."""
         mock_manager = MagicMock()
         mock_mem = MagicMock()
@@ -126,7 +127,7 @@ class TestMemoryUpdateCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test updating a memory with tags."""
         mock_manager = MagicMock()
         mock_mem = MagicMock()
@@ -155,7 +156,7 @@ class TestMemoryUpdateCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test updating with empty tags string."""
         mock_manager = MagicMock()
         mock_mem = MagicMock()
@@ -182,7 +183,7 @@ class TestMemoryUpdateCommand:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test update error handling."""
         mock_manager = MagicMock()
         mock_manager.update_memory.side_effect = ValueError("Invalid importance")
@@ -205,7 +206,7 @@ class TestMemoryRecallCommand:
 
     @pytest.mark.unit
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_recall_no_results(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_recall_no_results(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test recall with no results."""
         mock_manager = MagicMock()
         mock_manager.recall.return_value = []
@@ -217,7 +218,7 @@ class TestMemoryRecallCommand:
         assert "No memories found" in result.output
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_recall_with_results(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_recall_with_results(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test recall with results."""
         mock_manager = MagicMock()
         mock_mem = MagicMock()
@@ -237,7 +238,7 @@ class TestMemoryRecallCommand:
         assert "[tag1, tag2]" in result.output
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_recall_with_tag_filters(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_recall_with_tag_filters(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test recall with tag filters."""
         mock_manager = MagicMock()
         mock_manager.recall.return_value = []
@@ -276,7 +277,7 @@ class TestMemoryListCommand:
 
     @pytest.mark.unit
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_list_no_results(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_list_no_results(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test list with no results."""
         mock_manager = MagicMock()
         mock_manager.list_memories.return_value = []
@@ -288,7 +289,7 @@ class TestMemoryListCommand:
         assert "No memories found" in result.output
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_list_with_results(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_list_with_results(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test list with results."""
         mock_manager = MagicMock()
         mock_mem = MagicMock()
@@ -308,7 +309,7 @@ class TestMemoryListCommand:
         assert "..." in result.output  # Truncated content
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_list_with_tags(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_list_with_tags(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test list with tag display."""
         mock_manager = MagicMock()
         mock_mem = MagicMock()
@@ -326,7 +327,7 @@ class TestMemoryListCommand:
         assert "[important, code]" in result.output
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_list_with_filters(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_list_with_filters(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test list with all filters."""
         mock_manager = MagicMock()
         mock_manager.list_memories.return_value = []
@@ -365,7 +366,7 @@ class TestMemoryStatsCommand:
 
     @pytest.mark.unit
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_stats_output(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_stats_output(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test stats command output formatting."""
         mock_manager = MagicMock()
         mock_manager.get_stats.return_value = {
@@ -384,7 +385,7 @@ class TestMemoryStatsCommand:
         assert "preference: 15" in result.output
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_stats_empty_by_type(self, mock_get_manager: MagicMock, runner: CliRunner):
+    def test_stats_empty_by_type(self, mock_get_manager: MagicMock, runner: CliRunner) -> None:
         """Test stats with no type breakdown."""
         mock_manager = MagicMock()
         mock_manager.get_stats.return_value = {
@@ -404,7 +405,7 @@ class TestResolveMemoryId:
     """Tests for resolve_memory_id function."""
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_resolve_exact_match(self, mock_get_manager: MagicMock):
+    def test_resolve_exact_match(self, mock_get_manager: MagicMock) -> None:
         """Test resolving exact UUID match."""
         from gobby.cli.memory import resolve_memory_id
 
@@ -418,7 +419,7 @@ class TestResolveMemoryId:
         assert result == "12345678-1234-1234-1234-123456789012"
 
     @patch("gobby.cli.memory.get_memory_manager")
-    def test_resolve_prefix_match(self, mock_get_manager: MagicMock):
+    def test_resolve_prefix_match(self, mock_get_manager: MagicMock) -> None:
         """Test resolving prefix match."""
         from gobby.cli.memory import resolve_memory_id
 
@@ -432,7 +433,7 @@ class TestResolveMemoryId:
         result = resolve_memory_id(mock_manager, "mem-12")
         assert result == "mem-123456789"
 
-    def test_resolve_not_found(self):
+    def test_resolve_not_found(self) -> None:
         """Test resolving non-existent memory."""
         import click
 
@@ -446,7 +447,7 @@ class TestResolveMemoryId:
             resolve_memory_id(mock_manager, "nonexistent")
         assert "Memory not found" in str(exc_info.value)
 
-    def test_resolve_ambiguous(self):
+    def test_resolve_ambiguous(self) -> None:
         """Test resolving ambiguous prefix."""
         import click
 
@@ -480,7 +481,7 @@ class TestMemoryDeleteNotFound:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test deleting a non-existent memory."""
         mock_manager = MagicMock()
         mock_manager.forget.return_value = False
@@ -508,7 +509,7 @@ class TestMemoryShowNotFound:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test showing a non-existent memory."""
         mock_manager = MagicMock()
         mock_manager.get_memory.return_value = None
@@ -527,7 +528,7 @@ class TestMemoryShowNotFound:
         mock_get_manager: MagicMock,
         mock_resolve: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test showing a memory with tags."""
         mock_manager = MagicMock()
         mock_item = MagicMock()

@@ -14,6 +14,7 @@ from gobby.mcp_proxy.tools.hub import create_hub_registry
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def temp_hub_db(tmp_path: Path) -> Path:
@@ -103,7 +104,7 @@ def populated_hub_db(temp_hub_db: Path) -> Path:
 class TestListAllProjects:
     """Tests for list_all_projects tool."""
 
-    def test_list_all_projects_returns_unique_list(self, populated_hub_db: Path):
+    def test_list_all_projects_returns_unique_list(self, populated_hub_db: Path) -> None:
         """Test that list_all_projects returns unique project list."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_all_projects")
@@ -116,7 +117,7 @@ class TestListAllProjects:
         assert "project-alpha" in project_ids
         assert "project-beta" in project_ids
 
-    def test_list_all_projects_includes_counts(self, populated_hub_db: Path):
+    def test_list_all_projects_includes_counts(self, populated_hub_db: Path) -> None:
         """Test that list_all_projects includes task and session counts."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_all_projects")
@@ -132,7 +133,7 @@ class TestListAllProjects:
         assert beta["task_count"] == 1
         assert beta["session_count"] == 1
 
-    def test_list_all_projects_empty_database(self, temp_hub_db: Path):
+    def test_list_all_projects_empty_database(self, temp_hub_db: Path) -> None:
         """Test list_all_projects handles empty database gracefully."""
         registry = create_hub_registry(hub_db_path=temp_hub_db)
         tool = registry.get_tool("list_all_projects")
@@ -143,7 +144,7 @@ class TestListAllProjects:
         assert result["project_count"] == 0
         assert result["projects"] == []
 
-    def test_list_all_projects_missing_database(self, tmp_path: Path):
+    def test_list_all_projects_missing_database(self, tmp_path: Path) -> None:
         """Test list_all_projects handles missing database."""
         nonexistent = tmp_path / "nonexistent.db"
         registry = create_hub_registry(hub_db_path=nonexistent)
@@ -158,7 +159,7 @@ class TestListAllProjects:
 class TestListCrossProjectTasks:
     """Tests for list_cross_project_tasks tool."""
 
-    def test_list_cross_project_tasks_all(self, populated_hub_db: Path):
+    def test_list_cross_project_tasks_all(self, populated_hub_db: Path) -> None:
         """Test list_cross_project_tasks returns all tasks."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_cross_project_tasks")
@@ -168,7 +169,7 @@ class TestListCrossProjectTasks:
         assert result["success"] is True
         assert result["count"] == 3
 
-    def test_list_cross_project_tasks_with_status_filter(self, populated_hub_db: Path):
+    def test_list_cross_project_tasks_with_status_filter(self, populated_hub_db: Path) -> None:
         """Test list_cross_project_tasks with status filter."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_cross_project_tasks")
@@ -179,7 +180,7 @@ class TestListCrossProjectTasks:
         assert result["count"] == 1
         assert result["tasks"][0]["status"] == "open"
 
-    def test_list_cross_project_tasks_with_limit(self, populated_hub_db: Path):
+    def test_list_cross_project_tasks_with_limit(self, populated_hub_db: Path) -> None:
         """Test list_cross_project_tasks respects limit."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_cross_project_tasks")
@@ -189,7 +190,7 @@ class TestListCrossProjectTasks:
         assert result["success"] is True
         assert result["count"] == 2
 
-    def test_list_cross_project_tasks_empty_database(self, temp_hub_db: Path):
+    def test_list_cross_project_tasks_empty_database(self, temp_hub_db: Path) -> None:
         """Test list_cross_project_tasks handles empty database."""
         registry = create_hub_registry(hub_db_path=temp_hub_db)
         tool = registry.get_tool("list_cross_project_tasks")
@@ -204,7 +205,7 @@ class TestListCrossProjectTasks:
 class TestListCrossProjectSessions:
     """Tests for list_cross_project_sessions tool."""
 
-    def test_list_cross_project_sessions_all(self, populated_hub_db: Path):
+    def test_list_cross_project_sessions_all(self, populated_hub_db: Path) -> None:
         """Test list_cross_project_sessions returns all sessions."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_cross_project_sessions")
@@ -218,7 +219,7 @@ class TestListCrossProjectSessions:
         assert "source" in session  # Not cli_type
         assert "created_at" in session
 
-    def test_list_cross_project_sessions_respects_limit(self, populated_hub_db: Path):
+    def test_list_cross_project_sessions_respects_limit(self, populated_hub_db: Path) -> None:
         """Test list_cross_project_sessions respects limit parameter."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("list_cross_project_sessions")
@@ -228,7 +229,7 @@ class TestListCrossProjectSessions:
         assert result["success"] is True
         assert result["count"] == 1
 
-    def test_list_cross_project_sessions_empty_database(self, temp_hub_db: Path):
+    def test_list_cross_project_sessions_empty_database(self, temp_hub_db: Path) -> None:
         """Test list_cross_project_sessions handles empty database."""
         registry = create_hub_registry(hub_db_path=temp_hub_db)
         tool = registry.get_tool("list_cross_project_sessions")
@@ -243,7 +244,7 @@ class TestListCrossProjectSessions:
 class TestHubStats:
     """Tests for hub_stats tool."""
 
-    def test_hub_stats_returns_correct_counts(self, populated_hub_db: Path):
+    def test_hub_stats_returns_correct_counts(self, populated_hub_db: Path) -> None:
         """Test hub_stats returns correct aggregate counts."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("hub_stats")
@@ -256,7 +257,7 @@ class TestHubStats:
         assert stats["tasks"]["total"] == 3
         assert stats["sessions"]["total"] == 3
 
-    def test_hub_stats_includes_status_breakdown(self, populated_hub_db: Path):
+    def test_hub_stats_includes_status_breakdown(self, populated_hub_db: Path) -> None:
         """Test hub_stats includes breakdown by status."""
         registry = create_hub_registry(hub_db_path=populated_hub_db)
         tool = registry.get_tool("hub_stats")
@@ -269,7 +270,7 @@ class TestHubStats:
         assert stats["tasks"]["by_status"]["closed"] == 1
         assert stats["tasks"]["by_status"]["in_progress"] == 1
 
-    def test_hub_stats_empty_database(self, temp_hub_db: Path):
+    def test_hub_stats_empty_database(self, temp_hub_db: Path) -> None:
         """Test hub_stats handles empty database gracefully."""
         registry = create_hub_registry(hub_db_path=temp_hub_db)
         tool = registry.get_tool("hub_stats")
@@ -282,7 +283,7 @@ class TestHubStats:
         assert stats["tasks"]["total"] == 0
         assert stats["sessions"]["total"] == 0
 
-    def test_hub_stats_missing_database(self, tmp_path: Path):
+    def test_hub_stats_missing_database(self, tmp_path: Path) -> None:
         """Test hub_stats handles missing database."""
         nonexistent = tmp_path / "nonexistent.db"
         registry = create_hub_registry(hub_db_path=nonexistent)

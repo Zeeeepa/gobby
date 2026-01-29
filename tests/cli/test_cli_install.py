@@ -19,11 +19,12 @@ from gobby.cli.install import (
     uninstall,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestEnsureDaemonConfig:
     """Tests for _ensure_daemon_config function."""
 
-    def test_config_already_exists(self, temp_dir: Path):
+    def test_config_already_exists(self, temp_dir: Path) -> None:
         """Test when config file already exists."""
         config_path = temp_dir / ".gobby" / "config.yaml"
         config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +37,7 @@ class TestEnsureDaemonConfig:
         assert result["path"] == str(config_path)
         assert "source" not in result
 
-    def test_config_created_from_shared_template(self, temp_dir: Path):
+    def test_config_created_from_shared_template(self, temp_dir: Path) -> None:
         """Test creating config from shared template."""
         config_path = temp_dir / ".gobby" / "config.yaml"
         shared_config = temp_dir / "install" / "shared" / "config" / "config.yaml"
@@ -60,7 +61,7 @@ class TestEnsureDaemonConfig:
         # Check permissions
         assert (config_path.stat().st_mode & 0o777) == 0o600
 
-    def test_config_generated_from_pydantic_defaults(self, temp_dir: Path):
+    def test_config_generated_from_pydantic_defaults(self, temp_dir: Path) -> None:
         """Test generating config from Pydantic defaults when no template exists."""
         config_path = temp_dir / ".gobby" / "config.yaml"
         install_dir = temp_dir / "install"
@@ -99,40 +100,40 @@ class TestCLIDetectionFunctions:
     """Tests for CLI detection helper functions."""
 
     @patch("shutil.which")
-    def test_is_claude_code_installed_true(self, mock_which: MagicMock):
+    def test_is_claude_code_installed_true(self, mock_which: MagicMock) -> None:
         """Test Claude Code detection when installed."""
         mock_which.return_value = "/usr/local/bin/claude"
         assert _is_claude_code_installed() is True
         mock_which.assert_called_once_with("claude")
 
     @patch("shutil.which")
-    def test_is_claude_code_installed_false(self, mock_which: MagicMock):
+    def test_is_claude_code_installed_false(self, mock_which: MagicMock) -> None:
         """Test Claude Code detection when not installed."""
         mock_which.return_value = None
         assert _is_claude_code_installed() is False
 
     @patch("shutil.which")
-    def test_is_gemini_cli_installed_true(self, mock_which: MagicMock):
+    def test_is_gemini_cli_installed_true(self, mock_which: MagicMock) -> None:
         """Test Gemini CLI detection when installed."""
         mock_which.return_value = "/usr/local/bin/gemini"
         assert _is_gemini_cli_installed() is True
         mock_which.assert_called_once_with("gemini")
 
     @patch("shutil.which")
-    def test_is_gemini_cli_installed_false(self, mock_which: MagicMock):
+    def test_is_gemini_cli_installed_false(self, mock_which: MagicMock) -> None:
         """Test Gemini CLI detection when not installed."""
         mock_which.return_value = None
         assert _is_gemini_cli_installed() is False
 
     @patch("shutil.which")
-    def test_is_codex_cli_installed_true(self, mock_which: MagicMock):
+    def test_is_codex_cli_installed_true(self, mock_which: MagicMock) -> None:
         """Test Codex CLI detection when installed."""
         mock_which.return_value = "/usr/local/bin/codex"
         assert _is_codex_cli_installed() is True
         mock_which.assert_called_once_with("codex")
 
     @patch("shutil.which")
-    def test_is_codex_cli_installed_false(self, mock_which: MagicMock):
+    def test_is_codex_cli_installed_false(self, mock_which: MagicMock) -> None:
         """Test Codex CLI detection when not installed."""
         mock_which.return_value = None
         assert _is_codex_cli_installed() is False
@@ -146,7 +147,7 @@ class TestInstallCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_install_help(self, runner: CliRunner):
+    def test_install_help(self, runner: CliRunner) -> None:
         """Test install --help displays help text."""
         result = runner.invoke(cli, ["install", "--help"])
         assert result.exit_code == 0
@@ -170,7 +171,7 @@ class TestInstallCommand:
         mock_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install when no CLIs are detected and no git repo."""
         mock_load_config.return_value = MagicMock()
         mock_claude.return_value = False
@@ -202,7 +203,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --claude flag only."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -241,7 +242,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --gemini flag only."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -284,7 +285,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --codex flag when Codex is detected."""
         mock_load_config.return_value = MagicMock()
         mock_codex_detected.return_value = True
@@ -322,7 +323,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --codex flag when Codex is not detected."""
         mock_load_config.return_value = MagicMock()
         mock_codex_detected.return_value = False
@@ -351,7 +352,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --hooks flag only."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -388,7 +389,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install --hooks with some skipped hooks."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -423,7 +424,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install --hooks when git hooks installation fails."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -456,7 +457,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --antigravity flag."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -500,7 +501,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with --all flag auto-detects CLIs."""
         mock_load_config.return_value = MagicMock()
         mock_claude.return_value = True
@@ -556,7 +557,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with no flags acts like --all."""
         mock_load_config.return_value = MagicMock()
         mock_claude.return_value = True
@@ -593,7 +594,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install when Claude installation fails."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -629,7 +630,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install shows development mode when using source directory."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -665,7 +666,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install shows when daemon config was created."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -700,7 +701,7 @@ class TestInstallCommand:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install codex when config was already configured."""
         mock_load_config.return_value = MagicMock()
         mock_codex_detected.return_value = True
@@ -732,7 +733,7 @@ class TestUninstallCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_uninstall_help(self, runner: CliRunner):
+    def test_uninstall_help(self, runner: CliRunner) -> None:
         """Test uninstall --help displays help text."""
         result = runner.invoke(cli, ["uninstall", "--help"])
         assert result.exit_code == 0
@@ -749,7 +750,7 @@ class TestUninstallCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall when no hooks are found."""
         mock_load_config.return_value = MagicMock()
 
@@ -767,7 +768,7 @@ class TestUninstallCommand:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall with --claude flag only."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_claude.return_value = {
@@ -798,7 +799,7 @@ class TestUninstallCommand:
         mock_uninstall_gemini: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall with --gemini flag only."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_gemini.return_value = {
@@ -827,7 +828,7 @@ class TestUninstallCommand:
         mock_uninstall_codex: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall with --codex flag only."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
@@ -853,7 +854,7 @@ class TestUninstallCommand:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall when Claude uninstallation fails."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_claude.return_value = {
@@ -879,7 +880,7 @@ class TestUninstallCommand:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall when no hooks were found to remove."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_claude.return_value = {
@@ -903,7 +904,7 @@ class TestUninstallCommand:
         mock_uninstall_codex: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall codex when no integration was found."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
@@ -928,7 +929,7 @@ class TestUninstallCommand:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall with --all auto-detects installed CLIs."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_claude.return_value = {
@@ -964,7 +965,7 @@ class TestUninstallCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall requires confirmation without --yes."""
         mock_load_config.return_value = MagicMock()
 
@@ -987,7 +988,7 @@ class TestUninstallCommand:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall proceeds when user confirms with 'y'."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_claude.return_value = {
@@ -1016,7 +1017,7 @@ class TestUninstallCommand:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall with no flags acts like --all."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_claude.return_value = {
@@ -1069,7 +1070,7 @@ class TestInstallCommandDirectInvocation:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test invoking the install command directly."""
         mock_codex.return_value = False
         mock_get_install_dir.return_value = temp_dir / "install"
@@ -1093,7 +1094,7 @@ class TestInstallCommandDirectInvocation:
         mock_uninstall_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test invoking the uninstall command directly."""
         mock_uninstall_claude.return_value = {
             "success": True,
@@ -1137,7 +1138,7 @@ class TestInstallEdgeCases:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with multiple CLI flags."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1184,7 +1185,7 @@ class TestInstallEdgeCases:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install with both CLI and git hooks flags."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1227,7 +1228,7 @@ class TestInstallEdgeCases:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install --hooks when no hooks are installed or skipped."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1262,7 +1263,7 @@ class TestUninstallEdgeCases:
         runner: CliRunner,
         temp_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
-    ):
+    ) -> None:
         """Test uninstall --all checks codex notify in home directory."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
@@ -1296,7 +1297,7 @@ class TestUninstallEdgeCases:
         mock_uninstall_gemini: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall when Gemini uninstallation fails."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_gemini.return_value = {
@@ -1320,7 +1321,7 @@ class TestUninstallEdgeCases:
         mock_uninstall_codex: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall when Codex uninstallation fails."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
@@ -1360,7 +1361,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install Claude with skills, workflows, commands, and plugins."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1406,7 +1407,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install Gemini with skills, workflows, commands, and plugins."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1448,7 +1449,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install when Gemini installation fails."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1483,7 +1484,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install Codex with skills, workflows, commands, and plugins."""
         mock_load_config.return_value = MagicMock()
         mock_codex_detected.return_value = True
@@ -1526,7 +1527,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install when Codex installation fails."""
         mock_load_config.return_value = MagicMock()
         mock_codex_detected.return_value = True
@@ -1561,7 +1562,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install Antigravity with skills, workflows, commands, and plugins."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1603,7 +1604,7 @@ class TestInstallFullOutput:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install when Antigravity installation fails."""
         mock_load_config.return_value = MagicMock()
         mock_codex.return_value = False
@@ -1639,7 +1640,7 @@ class TestUninstallFullOutput:
         mock_uninstall_gemini: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall Gemini with files removed."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_gemini.return_value = {
@@ -1668,7 +1669,7 @@ class TestUninstallFullOutput:
         mock_uninstall_gemini: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall Gemini when no hooks found."""
         mock_load_config.return_value = MagicMock()
         mock_uninstall_gemini.return_value = {
@@ -1714,7 +1715,7 @@ class TestInstallWithCodexAllDetected:
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install --all when codex is detected."""
         mock_load_config.return_value = MagicMock()
         mock_claude.return_value = False

@@ -11,11 +11,12 @@ import pytest
 from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
 from gobby.agents.sandbox import SandboxConfig
 
+pytestmark = pytest.mark.unit
 
 class TestAgentDefinition:
     """Tests for AgentDefinition Pydantic model."""
 
-    def test_basic_validation(self):
+    def test_basic_validation(self) -> None:
         """Test basic schema validation."""
         data: dict[str, Any] = {
             "name": "test-agent",
@@ -30,7 +31,7 @@ class TestAgentDefinition:
         assert agent.lifecycle_variables == {}  # Default empty dict
         assert agent.workflow is None
 
-    def test_lifecycle_variables(self):
+    def test_lifecycle_variables(self) -> None:
         """Test lifecycle variables validation."""
         data: dict[str, Any] = {
             "name": "test-agent",
@@ -46,13 +47,13 @@ class TestAgentDefinition:
         assert agent.lifecycle_variables["require_task"] is False
         assert agent.lifecycle_variables["some_int"] == 123
 
-    def test_validation_errors(self):
+    def test_validation_errors(self) -> None:
         """Test validation fails for missing required fields."""
         # Missing name
         with pytest.raises(ValueError):
             AgentDefinition(name=None, description="test")  # type: ignore
 
-    def test_isolation_fields_defaults(self):
+    def test_isolation_fields_defaults(self) -> None:
         """Test that new isolation fields have correct defaults."""
         data: dict[str, Any] = {
             "name": "test-agent",
@@ -66,7 +67,7 @@ class TestAgentDefinition:
         assert agent.base_branch == "main"
         assert agent.provider == "claude"
 
-    def test_isolation_fields_custom_values(self):
+    def test_isolation_fields_custom_values(self) -> None:
         """Test that new isolation fields accept custom values."""
         data: dict[str, Any] = {
             "name": "feature-developer",
@@ -83,7 +84,7 @@ class TestAgentDefinition:
         assert agent.base_branch == "develop"
         assert agent.provider == "gemini"
 
-    def test_isolation_literal_values(self):
+    def test_isolation_literal_values(self) -> None:
         """Test that isolation accepts all valid literal values."""
         for isolation_value in ["current", "worktree", "clone"]:
             data: dict[str, Any] = {
@@ -93,7 +94,7 @@ class TestAgentDefinition:
             agent = AgentDefinition(**data)
             assert agent.isolation == isolation_value
 
-    def test_yaml_loading_with_isolation_fields(self):
+    def test_yaml_loading_with_isolation_fields(self) -> None:
         """Test that YAML loading works with new isolation fields."""
         loader = AgentDefinitionLoader()
 
@@ -120,7 +121,7 @@ class TestAgentDefinition:
             assert agent.base_branch == "main"
             assert agent.provider == "claude"
 
-    def test_sandbox_field_defaults_to_none(self):
+    def test_sandbox_field_defaults_to_none(self) -> None:
         """Test that sandbox field defaults to None."""
         data: dict[str, Any] = {
             "name": "test-agent",
@@ -130,7 +131,7 @@ class TestAgentDefinition:
 
         assert agent.sandbox is None
 
-    def test_sandbox_field_accepts_sandbox_config(self):
+    def test_sandbox_field_accepts_sandbox_config(self) -> None:
         """Test that sandbox field accepts SandboxConfig."""
         sandbox = SandboxConfig(
             enabled=True,
@@ -153,7 +154,7 @@ class TestAgentDefinition:
         assert agent.sandbox.extra_read_paths == ["/opt"]
         assert agent.sandbox.extra_write_paths == ["/tmp"]
 
-    def test_yaml_loading_with_sandbox_config(self):
+    def test_yaml_loading_with_sandbox_config(self) -> None:
         """Test that YAML loading works with sandbox config."""
         loader = AgentDefinitionLoader()
 
@@ -211,14 +212,14 @@ class TestAgentDefinitionLoader:
 
             yield loader, mock_shared, mock_user, mock_project
 
-    def test_search_paths_order(self, mock_paths):
+    def test_search_paths_order(self, mock_paths) -> None:
         """Test search order: Project > User > Shared."""
         loader, shared, user, project = mock_paths
         pass
 
     @patch("yaml.safe_load")
     @patch("builtins.open")
-    def test_load_definition_found(self, mock_open, mock_yaml):
+    def test_load_definition_found(self, mock_open, mock_yaml) -> None:
         """Test loading a definition successfully."""
         loader = AgentDefinitionLoader()
 
@@ -240,7 +241,7 @@ class TestAgentDefinitionLoader:
             assert agent.model == "haiku"
             mock_open.assert_called_once()
 
-    def test_load_definition_not_found(self):
+    def test_load_definition_not_found(self) -> None:
         """Test loading a definition that doesn't exist."""
         loader = AgentDefinitionLoader()
 
@@ -248,7 +249,7 @@ class TestAgentDefinitionLoader:
             agent = loader.load("non-existent")
             assert agent is None
 
-    def test_find_agent_file_priority(self):
+    def test_find_agent_file_priority(self) -> None:
         """Test search priority: Project > User > Shared."""
         with (
             patch("gobby.agents.definitions.Path"),
@@ -302,7 +303,7 @@ class TestAgentDefinitionLoader:
             found = loader._find_agent_file("my-agent")
             assert found == shared_file
 
-    def test_load_builtin_validation_runner(self):
+    def test_load_builtin_validation_runner(self) -> None:
         """Test that the built-in validation-runner agent can be loaded."""
         # Use a real loader without mocks to test actual file system
         loader = AgentDefinitionLoader()
@@ -323,7 +324,7 @@ class TestAgentDefinitionLoader:
 class TestGenericAgentDefinition:
     """Tests for the generic.yaml agent definition."""
 
-    def test_generic_agent_loads_successfully(self):
+    def test_generic_agent_loads_successfully(self) -> None:
         """Test that the generic agent definition can be loaded."""
         loader = AgentDefinitionLoader()
 
@@ -349,7 +350,7 @@ class TestGenericAgentDefinition:
             assert agent is not None
             assert agent.name == "generic"
 
-    def test_generic_agent_has_expected_defaults(self):
+    def test_generic_agent_has_expected_defaults(self) -> None:
         """Test that generic agent has correct default values."""
         loader = AgentDefinitionLoader()
 
@@ -380,7 +381,7 @@ class TestGenericAgentDefinition:
             assert agent.max_turns == 10
             assert agent.base_branch == "main"
 
-    def test_generic_agent_isolation_is_null(self):
+    def test_generic_agent_isolation_is_null(self) -> None:
         """Test that generic agent has no isolation by default."""
         loader = AgentDefinitionLoader()
 
@@ -405,7 +406,7 @@ class TestGenericAgentDefinition:
 class TestSandboxedAgentDefinition:
     """Tests for the sandboxed.yaml agent definition."""
 
-    def test_sandboxed_agent_loads_successfully(self):
+    def test_sandboxed_agent_loads_successfully(self) -> None:
         """Test that the sandboxed agent definition can be loaded."""
         loader = AgentDefinitionLoader()
         agent = loader.load("sandboxed")
@@ -416,7 +417,7 @@ class TestSandboxedAgentDefinition:
 
         assert agent.name == "sandboxed"
 
-    def test_sandboxed_agent_has_sandbox_enabled(self):
+    def test_sandboxed_agent_has_sandbox_enabled(self) -> None:
         """Test that sandboxed agent has sandbox.enabled=True."""
         loader = AgentDefinitionLoader()
         agent = loader.load("sandboxed")
@@ -427,7 +428,7 @@ class TestSandboxedAgentDefinition:
         assert agent.sandbox is not None
         assert agent.sandbox.enabled is True
 
-    def test_sandboxed_agent_has_permissive_mode(self):
+    def test_sandboxed_agent_has_permissive_mode(self) -> None:
         """Test that sandboxed agent uses permissive sandbox mode."""
         loader = AgentDefinitionLoader()
         agent = loader.load("sandboxed")
@@ -438,7 +439,7 @@ class TestSandboxedAgentDefinition:
         assert agent.sandbox is not None
         assert agent.sandbox.mode == "permissive"
 
-    def test_sandboxed_agent_allows_network(self):
+    def test_sandboxed_agent_allows_network(self) -> None:
         """Test that sandboxed agent allows network access."""
         loader = AgentDefinitionLoader()
         agent = loader.load("sandboxed")
@@ -449,7 +450,7 @@ class TestSandboxedAgentDefinition:
         assert agent.sandbox is not None
         assert agent.sandbox.allow_network is True
 
-    def test_sandboxed_agent_has_expected_mode(self):
+    def test_sandboxed_agent_has_expected_mode(self) -> None:
         """Test that sandboxed agent uses headless mode."""
         loader = AgentDefinitionLoader()
         agent = loader.load("sandboxed")

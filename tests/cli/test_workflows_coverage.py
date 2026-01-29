@@ -6,6 +6,7 @@ from click.testing import CliRunner
 from gobby.cli.workflows import workflows
 from gobby.workflows.definitions import WorkflowState
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def runner():
@@ -35,7 +36,7 @@ def mock_resolve_session():
         yield m
 
 
-def test_list_workflows_empty(runner, mock_loader):
+def test_list_workflows_empty(runner, mock_loader) -> None:
     mock_loader.global_dirs = []
     # patch get_project_path
     with patch("gobby.cli.workflows.get_project_path", return_value=None):
@@ -44,7 +45,7 @@ def test_list_workflows_empty(runner, mock_loader):
         assert "No workflows found" in result.output
 
 
-def test_show_workflow_not_found(runner, mock_loader):
+def test_show_workflow_not_found(runner, mock_loader) -> None:
     mock_loader.load_workflow.return_value = None
     with patch("gobby.cli.workflows.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["show", "unknown"])
@@ -52,14 +53,14 @@ def test_show_workflow_not_found(runner, mock_loader):
         assert "Workflow 'unknown' not found" in result.output
 
 
-def test_status_no_workflow(runner, mock_state_manager, mock_resolve_session):
+def test_status_no_workflow(runner, mock_state_manager, mock_resolve_session) -> None:
     mock_state_manager.get_state.return_value = None
     result = runner.invoke(workflows, ["status"])
     assert result.exit_code == 0
     assert "No workflow active" in result.output
 
 
-def test_clear_workflow_success(runner, mock_state_manager, mock_resolve_session):
+def test_clear_workflow_success(runner, mock_state_manager, mock_resolve_session) -> None:
     state = Mock(spec=WorkflowState)
     state.workflow_name = "test-wf"
     mock_state_manager.get_state.return_value = state
@@ -72,7 +73,7 @@ def test_clear_workflow_success(runner, mock_state_manager, mock_resolve_session
 
 def test_set_workflow_lifecycle_error(
     runner, mock_loader, mock_state_manager, mock_resolve_session
-):
+) -> None:
     # Mock that no workflow is currently active
     mock_state_manager.get_state.return_value = None
 
@@ -87,7 +88,7 @@ def test_set_workflow_lifecycle_error(
         assert "is a lifecycle workflow" in result.output
 
 
-def test_reload_workflows_success(runner):
+def test_reload_workflows_success(runner) -> None:
     # Mock load_config - imported inside function from gobby.config.app
     with patch("gobby.config.app.load_config") as mock_conf:
         mock_conf.return_value.daemon_port = 60887
@@ -108,7 +109,7 @@ def test_reload_workflows_success(runner):
                 assert "Triggered daemon workflow reload" in result.output
 
 
-def test_reload_workflows_fallback(runner):
+def test_reload_workflows_fallback(runner) -> None:
     # Mock load_config failure or process not found - imported inside function
     with patch("gobby.config.app.load_config") as mock_conf:
         mock_conf.side_effect = Exception("Config error")

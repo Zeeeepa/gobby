@@ -19,7 +19,7 @@ pytestmark = pytest.mark.unit
 class TestSpawnRequest:
     """Tests for SpawnRequest dataclass."""
 
-    def test_spawn_request_fields(self):
+    def test_spawn_request_fields(self) -> None:
         """Test SpawnRequest has all required fields."""
         request = SpawnRequest(
             prompt="Test prompt",
@@ -43,7 +43,7 @@ class TestSpawnRequest:
         assert request.parent_session_id == "parent-789"
         assert request.project_id == "proj-abc"
 
-    def test_spawn_request_optional_fields(self):
+    def test_spawn_request_optional_fields(self) -> None:
         """Test SpawnRequest optional fields have defaults."""
         request = SpawnRequest(
             prompt="Test",
@@ -109,7 +109,7 @@ class TestSpawnRequest:
 class TestSpawnResult:
     """Tests for SpawnResult dataclass."""
 
-    def test_spawn_result_success(self):
+    def test_spawn_result_success(self) -> None:
         """Test successful SpawnResult."""
         result = SpawnResult(
             success=True,
@@ -127,7 +127,7 @@ class TestSpawnResult:
         assert result.pid == 12345
         assert result.terminal_type == "ghostty"
 
-    def test_spawn_result_failure(self):
+    def test_spawn_result_failure(self) -> None:
         """Test failed SpawnResult."""
         result = SpawnResult(
             success=False,
@@ -140,7 +140,7 @@ class TestSpawnResult:
         assert result.success is False
         assert result.error == "Failed to spawn process"
 
-    def test_spawn_result_optional_fields(self):
+    def test_spawn_result_optional_fields(self) -> None:
         """Test SpawnResult optional fields have defaults."""
         result = SpawnResult(
             success=True,

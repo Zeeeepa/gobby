@@ -12,11 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 class TestSyncTasks:
     """Tests for sync_tasks MCP tool."""
 
-    def test_sync_tasks_both_directions(self, mock_sync_registry):
+    def test_sync_tasks_both_directions(self, mock_sync_registry) -> None:
         """Test sync_tasks with both directions."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -31,7 +32,7 @@ class TestSyncTasks:
         sync_manager.import_from_jsonl.assert_called_once()
         sync_manager.export_to_jsonl.assert_called_once()
 
-    def test_sync_tasks_import_only(self, mock_sync_registry):
+    def test_sync_tasks_import_only(self, mock_sync_registry) -> None:
         """Test sync_tasks with import direction only."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -46,7 +47,7 @@ class TestSyncTasks:
         sync_manager.import_from_jsonl.assert_called_once()
         sync_manager.export_to_jsonl.assert_not_called()
 
-    def test_sync_tasks_export_only(self, mock_sync_registry):
+    def test_sync_tasks_export_only(self, mock_sync_registry) -> None:
         """Test sync_tasks with export direction only."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -61,7 +62,7 @@ class TestSyncTasks:
         sync_manager.export_to_jsonl.assert_called_once()
         sync_manager.import_from_jsonl.assert_not_called()
 
-    def test_sync_tasks_default_is_both(self, mock_sync_registry):
+    def test_sync_tasks_default_is_both(self, mock_sync_registry) -> None:
         """Test that default direction is 'both'."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -78,7 +79,7 @@ class TestSyncTasks:
 class TestGetSyncStatus:
     """Tests for get_sync_status MCP tool."""
 
-    def test_get_sync_status_basic(self, mock_sync_registry):
+    def test_get_sync_status_basic(self, mock_sync_registry) -> None:
         """Test get_sync_status returns sync manager status."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -101,7 +102,7 @@ class TestGetSyncStatus:
 class TestLinkCommit:
     """Tests for link_commit MCP tool."""
 
-    def test_link_commit_success(self, mock_sync_registry):
+    def test_link_commit_success(self, mock_sync_registry) -> None:
         """Test successful commit linking."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -123,7 +124,7 @@ class TestLinkCommit:
         assert "abc123" in result["commits"]
         task_manager.link_commit.assert_called_once_with("task-1", "abc123", cwd=None)
 
-    def test_link_commit_error(self, mock_sync_registry):
+    def test_link_commit_error(self, mock_sync_registry) -> None:
         """Test link_commit returns error on failure."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -141,7 +142,7 @@ class TestLinkCommit:
         assert "error" in result
         assert "Task not found" in result["error"]
 
-    def test_link_commit_empty_commits_list(self, mock_sync_registry):
+    def test_link_commit_empty_commits_list(self, mock_sync_registry) -> None:
         """Test link_commit when task had no previous commits."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -166,7 +167,7 @@ class TestLinkCommit:
 class TestUnlinkCommit:
     """Tests for unlink_commit MCP tool."""
 
-    def test_unlink_commit_success(self, mock_sync_registry):
+    def test_unlink_commit_success(self, mock_sync_registry) -> None:
         """Test successful commit unlinking."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -188,7 +189,7 @@ class TestUnlinkCommit:
         assert result["commits"] == []
         task_manager.unlink_commit.assert_called_once_with("task-1", "abc123", cwd=None)
 
-    def test_unlink_commit_error(self, mock_sync_registry):
+    def test_unlink_commit_error(self, mock_sync_registry) -> None:
         """Test unlink_commit returns error on failure."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -210,7 +211,7 @@ class TestUnlinkCommit:
 class TestAutoLinkCommits:
     """Tests for auto_link_commits MCP tool."""
 
-    def test_auto_link_commits_basic(self, mock_sync_registry):
+    def test_auto_link_commits_basic(self, mock_sync_registry) -> None:
         """Test auto_link_commits basic call."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -239,7 +240,7 @@ class TestAutoLinkCommits:
         assert "task-1" in result["linked_tasks"]
         assert "task-2" in result["linked_tasks"]
 
-    def test_auto_link_commits_with_task_filter(self, mock_sync_registry):
+    def test_auto_link_commits_with_task_filter(self, mock_sync_registry) -> None:
         """Test auto_link_commits with task_id filter."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -268,7 +269,7 @@ class TestAutoLinkCommits:
         call_kwargs = mock_fn.call_args.kwargs
         assert call_kwargs["task_id"] == "task-1"
 
-    def test_auto_link_commits_with_since(self, mock_sync_registry):
+    def test_auto_link_commits_with_since(self, mock_sync_registry) -> None:
         """Test auto_link_commits with since parameter."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -296,7 +297,7 @@ class TestAutoLinkCommits:
         call_kwargs = mock_fn.call_args.kwargs
         assert call_kwargs["since"] == "1 week ago"
 
-    def test_auto_link_commits_no_project(self, mock_sync_registry):
+    def test_auto_link_commits_no_project(self, mock_sync_registry) -> None:
         """Test auto_link_commits when no project context."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -333,7 +334,7 @@ class TestAutoLinkCommits:
 class TestGetTaskDiff:
     """Tests for get_task_diff MCP tool."""
 
-    def test_get_task_diff_basic(self, mock_sync_registry):
+    def test_get_task_diff_basic(self, mock_sync_registry) -> None:
         """Test get_task_diff basic call."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -370,7 +371,7 @@ class TestGetTaskDiff:
         assert result["has_uncommitted_changes"] is False
         assert result["file_count"] == 3
 
-    def test_get_task_diff_task_not_found(self, mock_sync_registry):
+    def test_get_task_diff_task_not_found(self, mock_sync_registry) -> None:
         """Test get_task_diff when task not found."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -388,7 +389,7 @@ class TestGetTaskDiff:
         assert "error" in result
         assert "not found" in result["error"]
 
-    def test_get_task_diff_include_uncommitted(self, mock_sync_registry):
+    def test_get_task_diff_include_uncommitted(self, mock_sync_registry) -> None:
         """Test get_task_diff with include_uncommitted=True."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -426,7 +427,7 @@ class TestGetTaskDiff:
 class TestGitIntegrationEdgeCases:
     """Tests for git integration edge cases."""
 
-    def test_link_commit_full_sha(self, mock_sync_registry):
+    def test_link_commit_full_sha(self, mock_sync_registry) -> None:
         """Test linking with full SHA."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -447,7 +448,7 @@ class TestGitIntegrationEdgeCases:
 
         task_manager.link_commit.assert_called_with("task-1", full_sha, cwd=None)
 
-    def test_link_commit_short_sha(self, mock_sync_registry):
+    def test_link_commit_short_sha(self, mock_sync_registry) -> None:
         """Test linking with short SHA."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -467,7 +468,7 @@ class TestGitIntegrationEdgeCases:
 
         task_manager.link_commit.assert_called_with("task-1", "abc123", cwd=None)
 
-    def test_auto_link_with_skipped_commits(self, mock_sync_registry):
+    def test_auto_link_with_skipped_commits(self, mock_sync_registry) -> None:
         """Test auto_link_commits reports skipped commits."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
@@ -497,7 +498,7 @@ class TestGitIntegrationEdgeCases:
 
         assert len(result["skipped"]) == 2
 
-    def test_get_task_diff_no_commits(self, mock_sync_registry):
+    def test_get_task_diff_no_commits(self, mock_sync_registry) -> None:
         """Test get_task_diff when task has no linked commits."""
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 

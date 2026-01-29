@@ -12,6 +12,7 @@ from gobby.workflows.detection_helpers import (
     detect_task_claim,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def workflow_state():
@@ -84,7 +85,7 @@ def make_before_agent_event():
 class TestDetectPlanMode:
     """Tests for detect_plan_mode function."""
 
-    def test_enters_plan_mode_on_enter_tool(self, workflow_state, make_after_tool_event):
+    def test_enters_plan_mode_on_enter_tool(self, workflow_state, make_after_tool_event) -> None:
         """EnterPlanMode tool sets plan_mode=True."""
         event = make_after_tool_event("EnterPlanMode")
 
@@ -92,7 +93,7 @@ class TestDetectPlanMode:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_exits_plan_mode_on_exit_tool(self, workflow_state, make_after_tool_event):
+    def test_exits_plan_mode_on_exit_tool(self, workflow_state, make_after_tool_event) -> None:
         """ExitPlanMode tool sets plan_mode=False."""
         workflow_state.variables["plan_mode"] = True
         event = make_after_tool_event("ExitPlanMode")
@@ -101,7 +102,7 @@ class TestDetectPlanMode:
 
         assert workflow_state.variables.get("plan_mode") is False
 
-    def test_ignores_other_tools(self, workflow_state, make_after_tool_event):
+    def test_ignores_other_tools(self, workflow_state, make_after_tool_event) -> None:
         """Other tools do not affect plan_mode."""
         event = make_after_tool_event("Read")
 
@@ -109,7 +110,7 @@ class TestDetectPlanMode:
 
         assert "plan_mode" not in workflow_state.variables
 
-    def test_handles_empty_event_data(self, workflow_state):
+    def test_handles_empty_event_data(self, workflow_state) -> None:
         """Handles event with no data gracefully."""
         event = HookEvent(
             event_type=HookEventType.AFTER_TOOL,
@@ -133,7 +134,7 @@ class TestDetectPlanMode:
 class TestDetectPlanModeFromContext:
     """Tests for detect_plan_mode_from_context function."""
 
-    def test_detects_plan_mode_active_indicator(self, workflow_state, make_before_agent_event):
+    def test_detects_plan_mode_active_indicator(self, workflow_state, make_before_agent_event) -> None:
         """Detects 'Plan mode is active' in prompt."""
         event = make_before_agent_event(
             "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
@@ -143,7 +144,7 @@ class TestDetectPlanModeFromContext:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_detects_plan_mode_still_active(self, workflow_state, make_before_agent_event):
+    def test_detects_plan_mode_still_active(self, workflow_state, make_before_agent_event) -> None:
         """Detects 'Plan mode still active' in prompt."""
         event = make_before_agent_event(
             "<system-reminder>Plan mode still active</system-reminder>\nWhat should I do?"
@@ -153,7 +154,7 @@ class TestDetectPlanModeFromContext:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_detects_you_are_in_plan_mode(self, workflow_state, make_before_agent_event):
+    def test_detects_you_are_in_plan_mode(self, workflow_state, make_before_agent_event) -> None:
         """Detects 'You are in plan mode' in prompt."""
         event = make_before_agent_event(
             "<system-reminder>You are in plan mode</system-reminder>. Please continue planning."
@@ -163,7 +164,7 @@ class TestDetectPlanModeFromContext:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_detects_exited_plan_mode(self, workflow_state, make_before_agent_event):
+    def test_detects_exited_plan_mode(self, workflow_state, make_before_agent_event) -> None:
         """Detects 'Exited Plan Mode' in prompt."""
         workflow_state.variables["plan_mode"] = True
         event = make_before_agent_event(
@@ -176,7 +177,7 @@ class TestDetectPlanModeFromContext:
 
     def test_does_not_change_when_already_in_plan_mode(
         self, workflow_state, make_before_agent_event
-    ):
+    ) -> None:
         """Does not log again if already in plan mode."""
         workflow_state.variables["plan_mode"] = True
         event = make_before_agent_event("Plan mode is active")
@@ -186,7 +187,7 @@ class TestDetectPlanModeFromContext:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_ignores_prompt_without_indicators(self, workflow_state, make_before_agent_event):
+    def test_ignores_prompt_without_indicators(self, workflow_state, make_before_agent_event) -> None:
         """Ignores prompts without plan mode indicators."""
         event = make_before_agent_event("Please fix the bug in the code.")
 
@@ -194,7 +195,7 @@ class TestDetectPlanModeFromContext:
 
         assert "plan_mode" not in workflow_state.variables
 
-    def test_handles_empty_event_data(self, workflow_state):
+    def test_handles_empty_event_data(self, workflow_state) -> None:
         """Handles event with no data gracefully."""
         event = HookEvent(
             event_type=HookEventType.BEFORE_AGENT,
@@ -209,7 +210,7 @@ class TestDetectPlanModeFromContext:
 
         assert "plan_mode" not in workflow_state.variables
 
-    def test_handles_empty_prompt(self, workflow_state, make_before_agent_event):
+    def test_handles_empty_prompt(self, workflow_state, make_before_agent_event) -> None:
         """Handles empty prompt gracefully."""
         event = make_before_agent_event("")
 
@@ -235,7 +236,7 @@ class TestDetectTaskClaimCloseTaskBehavior:
     - Failed close_task leaves task_claimed unchanged
     """
 
-    def test_successful_close_task_clears_task_claimed(self, workflow_state, make_after_tool_event):
+    def test_successful_close_task_clears_task_claimed(self, workflow_state, make_after_tool_event) -> None:
         """Successful close_task should clear task_claimed for CLIs that send tool_result."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
@@ -256,7 +257,7 @@ class TestDetectTaskClaimCloseTaskBehavior:
         assert workflow_state.variables.get("task_claimed") is False
         assert workflow_state.variables.get("claimed_task_id") is None
 
-    def test_failed_close_task_with_error(self, workflow_state, make_after_tool_event):
+    def test_failed_close_task_with_error(self, workflow_state, make_after_tool_event) -> None:
         """close_task with error should NOT clear task_claimed."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
@@ -292,7 +293,7 @@ class TestDetectTaskClaimCloseTaskBehavior:
 class TestDetectTaskClaimClaimOperations:
     """Tests for detect_task_claim function, claim operations."""
 
-    def test_sets_task_claimed_on_claim_task(self, workflow_state, make_after_tool_event):
+    def test_sets_task_claimed_on_claim_task(self, workflow_state, make_after_tool_event) -> None:
         """claim_task sets task_claimed=True and stores task ID."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -309,7 +310,7 @@ class TestDetectTaskClaimClaimOperations:
         assert workflow_state.variables.get("task_claimed") is True
         assert workflow_state.variables.get("claimed_task_id") == "task-123"
 
-    def test_sets_task_claimed_on_create_task(self, workflow_state, make_after_tool_event):
+    def test_sets_task_claimed_on_create_task(self, workflow_state, make_after_tool_event) -> None:
         """create_task sets task_claimed=True and stores new task ID."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -328,7 +329,7 @@ class TestDetectTaskClaimClaimOperations:
 
     def test_sets_task_claimed_on_update_to_in_progress(
         self, workflow_state, make_after_tool_event
-    ):
+    ) -> None:
         """update_task with status=in_progress sets task_claimed=True."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -345,7 +346,7 @@ class TestDetectTaskClaimClaimOperations:
         assert workflow_state.variables.get("task_claimed") is True
         assert workflow_state.variables.get("claimed_task_id") == "task-123"
 
-    def test_ignores_update_to_other_status(self, workflow_state, make_after_tool_event):
+    def test_ignores_update_to_other_status(self, workflow_state, make_after_tool_event) -> None:
         """update_task with status other than in_progress is ignored."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -361,7 +362,7 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in workflow_state.variables
 
-    def test_does_not_set_task_claimed_on_claim_error(self, workflow_state, make_after_tool_event):
+    def test_does_not_set_task_claimed_on_claim_error(self, workflow_state, make_after_tool_event) -> None:
         """claim_task with error response does NOT set task_claimed."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -380,7 +381,7 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in workflow_state.variables
 
-    def test_ignores_non_gobby_tasks_server(self, workflow_state, make_after_tool_event):
+    def test_ignores_non_gobby_tasks_server(self, workflow_state, make_after_tool_event) -> None:
         """Calls to other MCP servers are ignored."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -396,7 +397,7 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in workflow_state.variables
 
-    def test_ignores_non_mcp_tools(self, workflow_state, make_after_tool_event):
+    def test_ignores_non_mcp_tools(self, workflow_state, make_after_tool_event) -> None:
         """Non-MCP tool calls are ignored."""
         event = make_after_tool_event(
             "Read",

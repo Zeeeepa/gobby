@@ -13,6 +13,7 @@ import pytest
 from gobby.workflows.artifact_actions import capture_artifact, read_artifact
 from gobby.workflows.definitions import WorkflowState
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def workflow_state():
@@ -45,17 +46,17 @@ def temp_artifact_dir(tmp_path):
 class TestCaptureArtifact:
     """Tests for capture_artifact function."""
 
-    def test_capture_artifact_returns_none_when_no_pattern(self, workflow_state):
+    def test_capture_artifact_returns_none_when_no_pattern(self, workflow_state) -> None:
         """Should return None when pattern is None."""
         result = capture_artifact(workflow_state, pattern=None)
         assert result is None
 
-    def test_capture_artifact_returns_none_when_pattern_empty(self, workflow_state):
+    def test_capture_artifact_returns_none_when_pattern_empty(self, workflow_state) -> None:
         """Should return None when pattern is empty string."""
         result = capture_artifact(workflow_state, pattern="")
         assert result is None
 
-    def test_capture_artifact_returns_none_when_no_match(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_returns_none_when_no_match(self, workflow_state, temp_artifact_dir) -> None:
         """Should return None when glob pattern doesn't match any files."""
         # Use a pattern that won't match anything
         result = capture_artifact(
@@ -64,7 +65,7 @@ class TestCaptureArtifact:
         )
         assert result is None
 
-    def test_capture_artifact_matches_single_file(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_matches_single_file(self, workflow_state, temp_artifact_dir) -> None:
         """Should capture a single matching file."""
         pattern = str(temp_artifact_dir / "plan.md")
         result = capture_artifact(workflow_state, pattern=pattern)
@@ -73,7 +74,7 @@ class TestCaptureArtifact:
         assert "captured" in result
         assert result["captured"] == str(temp_artifact_dir / "plan.md")
 
-    def test_capture_artifact_matches_glob_pattern(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_matches_glob_pattern(self, workflow_state, temp_artifact_dir) -> None:
         """Should capture files matching glob pattern."""
         pattern = str(temp_artifact_dir / "*.txt")
         result = capture_artifact(workflow_state, pattern=pattern)
@@ -85,7 +86,7 @@ class TestCaptureArtifact:
 
     def test_capture_artifact_selects_lexicographically_smallest(
         self, workflow_state, temp_artifact_dir
-    ):
+    ) -> None:
         """Should select lexicographically smallest file for determinism."""
         pattern = str(temp_artifact_dir / "file_*.txt")
         result = capture_artifact(workflow_state, pattern=pattern)
@@ -94,7 +95,7 @@ class TestCaptureArtifact:
         # file_a.txt < file_b.txt < file_c.txt lexicographically
         assert result["captured"].endswith("file_a.txt")
 
-    def test_capture_artifact_recursive_glob(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_recursive_glob(self, workflow_state, temp_artifact_dir) -> None:
         """Should support recursive glob patterns."""
         pattern = str(temp_artifact_dir / "**" / "*.txt")
         result = capture_artifact(workflow_state, pattern=pattern)
@@ -103,7 +104,7 @@ class TestCaptureArtifact:
         assert "captured" in result
         # Should find files in nested directories too
 
-    def test_capture_artifact_saves_to_state_with_save_as(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_saves_to_state_with_save_as(self, workflow_state, temp_artifact_dir) -> None:
         """Should save artifact path to state.artifacts when save_as is provided."""
         pattern = str(temp_artifact_dir / "plan.md")
         result = capture_artifact(
@@ -118,7 +119,7 @@ class TestCaptureArtifact:
 
     def test_capture_artifact_initializes_artifacts_dict_if_none(
         self, workflow_state, temp_artifact_dir
-    ):
+    ) -> None:
         """Should initialize state.artifacts if it's None."""
         # Set artifacts to None (edge case)
         workflow_state.artifacts = None  # type: ignore
@@ -136,7 +137,7 @@ class TestCaptureArtifact:
 
     def test_capture_artifact_without_save_as_does_not_modify_state(
         self, workflow_state, temp_artifact_dir
-    ):
+    ) -> None:
         """Should not modify state.artifacts when save_as is None."""
         original_artifacts = dict(workflow_state.artifacts)
         pattern = str(temp_artifact_dir / "plan.md")
@@ -146,7 +147,7 @@ class TestCaptureArtifact:
         assert result is not None
         assert workflow_state.artifacts == original_artifacts
 
-    def test_capture_artifact_returns_absolute_path(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_returns_absolute_path(self, workflow_state, temp_artifact_dir) -> None:
         """Should return absolute file path."""
         pattern = str(temp_artifact_dir / "plan.md")
         result = capture_artifact(workflow_state, pattern=pattern)
@@ -154,7 +155,7 @@ class TestCaptureArtifact:
         assert result is not None
         assert os.path.isabs(result["captured"])
 
-    def test_capture_artifact_multiple_captures(self, workflow_state, temp_artifact_dir):
+    def test_capture_artifact_multiple_captures(self, workflow_state, temp_artifact_dir) -> None:
         """Should handle multiple captures with different save_as names."""
         capture_artifact(
             workflow_state,
@@ -176,27 +177,27 @@ class TestCaptureArtifact:
 class TestReadArtifact:
     """Tests for read_artifact function."""
 
-    def test_read_artifact_returns_none_when_no_pattern(self, workflow_state):
+    def test_read_artifact_returns_none_when_no_pattern(self, workflow_state) -> None:
         """Should return None when pattern is None."""
         result = read_artifact(workflow_state, pattern=None, variable_name="var")
         assert result is None
 
-    def test_read_artifact_returns_none_when_pattern_empty(self, workflow_state):
+    def test_read_artifact_returns_none_when_pattern_empty(self, workflow_state) -> None:
         """Should return None when pattern is empty string."""
         result = read_artifact(workflow_state, pattern="", variable_name="var")
         assert result is None
 
-    def test_read_artifact_returns_none_when_no_variable_name(self, workflow_state):
+    def test_read_artifact_returns_none_when_no_variable_name(self, workflow_state) -> None:
         """Should return None and log warning when variable_name is missing."""
         result = read_artifact(workflow_state, pattern="some_key", variable_name=None)
         assert result is None
 
-    def test_read_artifact_returns_none_when_variable_name_empty(self, workflow_state):
+    def test_read_artifact_returns_none_when_variable_name_empty(self, workflow_state) -> None:
         """Should return None when variable_name is empty string."""
         result = read_artifact(workflow_state, pattern="some_key", variable_name="")
         assert result is None
 
-    def test_read_artifact_from_artifact_key(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_from_artifact_key(self, workflow_state, temp_artifact_dir) -> None:
         """Should read content from file referenced by artifact key."""
         # First capture an artifact
         artifact_path = str(temp_artifact_dir / "plan.md")
@@ -214,7 +215,7 @@ class TestReadArtifact:
         assert result["length"] > 0
         assert workflow_state.variables["plan_content"] == "# Plan\n\nThis is the plan."
 
-    def test_read_artifact_from_glob_pattern(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_from_glob_pattern(self, workflow_state, temp_artifact_dir) -> None:
         """Should read content from file matching glob pattern."""
         pattern = str(temp_artifact_dir / "plan.md")
         result = read_artifact(
@@ -229,7 +230,7 @@ class TestReadArtifact:
 
     def test_read_artifact_glob_pattern_selects_first_sorted_match(
         self, workflow_state, temp_artifact_dir
-    ):
+    ) -> None:
         """Should select first file alphabetically when multiple matches."""
         pattern = str(temp_artifact_dir / "file_*.txt")
         result = read_artifact(
@@ -242,7 +243,7 @@ class TestReadArtifact:
         # file_a.txt is first alphabetically
         assert workflow_state.variables["file_content"] == "Content A"
 
-    def test_read_artifact_recursive_glob(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_recursive_glob(self, workflow_state, temp_artifact_dir) -> None:
         """Should support recursive glob patterns."""
         pattern = str(temp_artifact_dir / "**" / "deep_file.txt")
         result = read_artifact(
@@ -256,7 +257,7 @@ class TestReadArtifact:
 
     def test_read_artifact_returns_none_when_file_not_found(
         self, workflow_state, temp_artifact_dir
-    ):
+    ) -> None:
         """Should return None and log warning when file doesn't exist."""
         result = read_artifact(
             workflow_state,
@@ -268,7 +269,7 @@ class TestReadArtifact:
     def test_read_artifact_returns_none_when_artifact_key_file_missing(
         self,
         workflow_state,
-    ):
+    ) -> None:
         """Should return None when artifact key points to non-existent file."""
         workflow_state.artifacts["missing_file"] = "/nonexistent/path/file.txt"
 
@@ -281,7 +282,7 @@ class TestReadArtifact:
 
     def test_read_artifact_initializes_variables_dict_if_none(
         self, workflow_state, temp_artifact_dir
-    ):
+    ) -> None:
         """Should initialize state.variables if it's None."""
         workflow_state.variables = None  # type: ignore
         pattern = str(temp_artifact_dir / "plan.md")
@@ -296,7 +297,7 @@ class TestReadArtifact:
         assert workflow_state.variables is not None
         assert "plan_content" in workflow_state.variables
 
-    def test_read_artifact_handles_binary_content_with_replace(self, workflow_state, tmp_path):
+    def test_read_artifact_handles_binary_content_with_replace(self, workflow_state, tmp_path) -> None:
         """Should handle non-UTF8 content with error replacement."""
         # Create a file with invalid UTF-8 bytes
         binary_file = tmp_path / "binary.bin"
@@ -313,7 +314,7 @@ class TestReadArtifact:
         assert "Hello" in workflow_state.variables["binary_content"]
         assert "World" in workflow_state.variables["binary_content"]
 
-    def test_read_artifact_handles_read_exception(self, workflow_state, tmp_path):
+    def test_read_artifact_handles_read_exception(self, workflow_state, tmp_path) -> None:
         """Should return None and log error on read exception."""
         # Create a directory instead of a file to cause read error
         dir_path = tmp_path / "not_a_file"
@@ -327,7 +328,7 @@ class TestReadArtifact:
         # Reading a directory should fail
         assert result is None
 
-    def test_read_artifact_artifact_key_takes_precedence(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_artifact_key_takes_precedence(self, workflow_state, temp_artifact_dir) -> None:
         """Artifact key lookup should take precedence over glob pattern."""
         # Store a file path under an artifact key that looks like a glob pattern
         # The key "*.txt" should be treated as a literal key, not a glob
@@ -343,7 +344,7 @@ class TestReadArtifact:
         # Should read plan.md content, not any *.txt files
         assert "# Plan" in workflow_state.variables["content"]
 
-    def test_read_artifact_empty_artifacts_dict(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_empty_artifacts_dict(self, workflow_state, temp_artifact_dir) -> None:
         """Should handle empty artifacts dict and fall back to glob."""
         workflow_state.artifacts = {}
         pattern = str(temp_artifact_dir / "plan.md")
@@ -357,7 +358,7 @@ class TestReadArtifact:
         assert result is not None
         assert workflow_state.variables["plan_content"] == "# Plan\n\nThis is the plan."
 
-    def test_read_artifact_none_artifacts(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_none_artifacts(self, workflow_state, temp_artifact_dir) -> None:
         """Should handle None artifacts and fall back to glob."""
         workflow_state.artifacts = None  # type: ignore
         pattern = str(temp_artifact_dir / "plan.md")
@@ -371,7 +372,7 @@ class TestReadArtifact:
         assert result is not None
         assert result["read_artifact"] is True
 
-    def test_read_artifact_returns_correct_length(self, workflow_state, temp_artifact_dir):
+    def test_read_artifact_returns_correct_length(self, workflow_state, temp_artifact_dir) -> None:
         """Should return correct content length in result."""
         pattern = str(temp_artifact_dir / "plan.md")
         expected_content = "# Plan\n\nThis is the plan."
@@ -385,7 +386,7 @@ class TestReadArtifact:
         assert result is not None
         assert result["length"] == len(expected_content)
 
-    def test_read_artifact_empty_file(self, workflow_state, tmp_path):
+    def test_read_artifact_empty_file(self, workflow_state, tmp_path) -> None:
         """Should handle reading empty files."""
         empty_file = tmp_path / "empty.txt"
         empty_file.write_text("")
@@ -401,7 +402,7 @@ class TestReadArtifact:
         assert result["length"] == 0
         assert workflow_state.variables["empty_content"] == ""
 
-    def test_read_artifact_large_file(self, workflow_state, tmp_path):
+    def test_read_artifact_large_file(self, workflow_state, tmp_path) -> None:
         """Should handle reading large files."""
         large_file = tmp_path / "large.txt"
         large_content = "x" * 100000  # 100KB
@@ -422,7 +423,7 @@ class TestReadArtifact:
 class TestIntegrationCaptureAndRead:
     """Integration tests for capture and read workflow."""
 
-    def test_capture_then_read_workflow(self, workflow_state, temp_artifact_dir):
+    def test_capture_then_read_workflow(self, workflow_state, temp_artifact_dir) -> None:
         """Should capture artifact and then read its content."""
         # Step 1: Capture the artifact
         capture_result = capture_artifact(
@@ -442,7 +443,7 @@ class TestIntegrationCaptureAndRead:
         assert read_result is not None
         assert workflow_state.variables["json_content"] == '{"key": "value"}'
 
-    def test_multiple_captures_and_reads(self, workflow_state, temp_artifact_dir):
+    def test_multiple_captures_and_reads(self, workflow_state, temp_artifact_dir) -> None:
         """Should handle multiple capture and read operations."""
         # Capture multiple artifacts
         capture_artifact(
@@ -477,7 +478,7 @@ class TestIntegrationCaptureAndRead:
 class TestEdgeCases:
     """Edge case tests for artifact actions."""
 
-    def test_capture_artifact_special_characters_in_filename(self, workflow_state, tmp_path):
+    def test_capture_artifact_special_characters_in_filename(self, workflow_state, tmp_path) -> None:
         """Should handle filenames with special characters."""
         special_file = tmp_path / "file with spaces & symbols.txt"
         special_file.write_text("Special content")
@@ -491,7 +492,7 @@ class TestEdgeCases:
         assert result is not None
         assert workflow_state.artifacts["special"].endswith("file with spaces & symbols.txt")
 
-    def test_read_artifact_unicode_content(self, workflow_state, tmp_path):
+    def test_read_artifact_unicode_content(self, workflow_state, tmp_path) -> None:
         """Should handle unicode content correctly."""
         unicode_file = tmp_path / "unicode.txt"
         unicode_content = "Hello, \u4e16\u754c! \U0001f600 \u00e9\u00e8\u00ea"
@@ -506,7 +507,7 @@ class TestEdgeCases:
         assert result is not None
         assert workflow_state.variables["unicode_var"] == unicode_content
 
-    def test_capture_artifact_symlink(self, workflow_state, tmp_path):
+    def test_capture_artifact_symlink(self, workflow_state, tmp_path) -> None:
         """Should handle symlinks correctly."""
         original = tmp_path / "original.txt"
         original.write_text("Original content")
@@ -527,7 +528,7 @@ class TestEdgeCases:
         # The captured path should be the absolute path to the symlink
         assert result["captured"].endswith("link.txt")
 
-    def test_read_artifact_through_symlink(self, workflow_state, tmp_path):
+    def test_read_artifact_through_symlink(self, workflow_state, tmp_path) -> None:
         """Should read content through symlink."""
         original = tmp_path / "original.txt"
         original.write_text("Symlinked content")
@@ -547,7 +548,7 @@ class TestEdgeCases:
         assert result is not None
         assert workflow_state.variables["link_content"] == "Symlinked content"
 
-    def test_capture_artifact_relative_becomes_absolute(self, workflow_state, tmp_path):
+    def test_capture_artifact_relative_becomes_absolute(self, workflow_state, tmp_path) -> None:
         """Captured paths should be absolute even from relative patterns."""
         # Create file in temp dir
         test_file = tmp_path / "test.txt"
@@ -567,7 +568,7 @@ class TestEdgeCases:
         finally:
             os.chdir(original_cwd)
 
-    def test_read_artifact_preserves_newlines(self, workflow_state, tmp_path):
+    def test_read_artifact_preserves_newlines(self, workflow_state, tmp_path) -> None:
         """Should preserve different newline styles."""
         # Test with Unix-style newlines
         unix_file = tmp_path / "unix.txt"
@@ -588,7 +589,7 @@ class TestEdgeCases:
 class TestMockedState:
     """Tests using mocked state objects."""
 
-    def test_capture_artifact_with_mock_state(self, tmp_path):
+    def test_capture_artifact_with_mock_state(self, tmp_path) -> None:
         """Should work with a mock state object that has artifacts attribute."""
         mock_state = MagicMock()
         mock_state.artifacts = None
@@ -607,7 +608,7 @@ class TestMockedState:
         assert mock_state.artifacts is not None
         assert "mock_artifact" in mock_state.artifacts
 
-    def test_read_artifact_with_mock_state(self, tmp_path):
+    def test_read_artifact_with_mock_state(self, tmp_path) -> None:
         """Should work with a mock state object."""
         mock_state = MagicMock()
         mock_state.artifacts = {}

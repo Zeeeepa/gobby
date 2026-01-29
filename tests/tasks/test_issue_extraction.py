@@ -6,13 +6,16 @@ parse_issues_from_response() which does not yet exist.
 Task: gt-35d11c
 """
 
+import pytest
+
 from gobby.tasks.validation_models import IssueSeverity, IssueType
 
+pytestmark = pytest.mark.unit
 
 class TestParseIssuesFromResponse:
     """Tests for parsing structured issues from LLM validation response."""
 
-    def test_parse_valid_json_array_of_issues(self):
+    def test_parse_valid_json_array_of_issues(self) -> None:
         """Test parsing a valid JSON array of issues from LLM response."""
         # Import the function we're testing (will fail until implemented)
         from gobby.tasks.issue_extraction import parse_issues_from_response
@@ -57,7 +60,7 @@ class TestParseIssuesFromResponse:
         assert issues[1].severity == IssueSeverity.MINOR
         assert issues[1].title == "Unused import"
 
-    def test_parse_issues_from_markdown_code_block(self):
+    def test_parse_issues_from_markdown_code_block(self) -> None:
         """Test parsing issues from response wrapped in markdown code block."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -84,7 +87,7 @@ class TestParseIssuesFromResponse:
         assert issues[0].issue_type == IssueType.ACCEPTANCE_GAP
         assert issues[0].severity == IssueSeverity.MAJOR
 
-    def test_parse_handles_malformed_json_gracefully(self):
+    def test_parse_handles_malformed_json_gracefully(self) -> None:
         """Test graceful handling of malformed JSON response."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -104,7 +107,7 @@ class TestParseIssuesFromResponse:
         # May return empty list or fallback unstructured issue
         # The implementation decides the exact behavior
 
-    def test_parse_handles_empty_response(self):
+    def test_parse_handles_empty_response(self) -> None:
         """Test handling of empty LLM response."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -112,7 +115,7 @@ class TestParseIssuesFromResponse:
 
         assert issues == []
 
-    def test_parse_handles_whitespace_only_response(self):
+    def test_parse_handles_whitespace_only_response(self) -> None:
         """Test handling of whitespace-only response."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -120,7 +123,7 @@ class TestParseIssuesFromResponse:
 
         assert issues == []
 
-    def test_parse_validates_required_issue_fields(self):
+    def test_parse_validates_required_issue_fields(self) -> None:
         """Test that issues with missing required fields are handled."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -142,7 +145,7 @@ class TestParseIssuesFromResponse:
         # The implementation should handle this gracefully
         assert isinstance(issues, list)
 
-    def test_parse_validates_invalid_enum_values(self):
+    def test_parse_validates_invalid_enum_values(self) -> None:
         """Test handling of invalid enum values in issues."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -163,7 +166,7 @@ class TestParseIssuesFromResponse:
 
         assert isinstance(issues, list)
 
-    def test_parse_falls_back_to_unstructured_issue_on_failure(self):
+    def test_parse_falls_back_to_unstructured_issue_on_failure(self) -> None:
         """Test fallback to single unstructured issue when parsing fails."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -183,7 +186,7 @@ class TestParseIssuesFromResponse:
                 or "authentication" in (issues[0].details or "").lower()
             )
 
-    def test_parse_handles_no_issues_array(self):
+    def test_parse_handles_no_issues_array(self) -> None:
         """Test response with valid JSON but no issues array."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -198,7 +201,7 @@ class TestParseIssuesFromResponse:
 
         assert issues == []
 
-    def test_parse_handles_empty_issues_array(self):
+    def test_parse_handles_empty_issues_array(self) -> None:
         """Test response with empty issues array."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -213,7 +216,7 @@ class TestParseIssuesFromResponse:
 
         assert issues == []
 
-    def test_parse_preserves_recurring_count(self):
+    def test_parse_preserves_recurring_count(self) -> None:
         """Test that recurring_count field is preserved if present."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -235,7 +238,7 @@ class TestParseIssuesFromResponse:
         assert len(issues) == 1
         assert issues[0].recurring_count == 3
 
-    def test_parse_handles_mixed_valid_invalid_issues(self):
+    def test_parse_handles_mixed_valid_invalid_issues(self) -> None:
         """Test parsing response with mix of valid and invalid issues."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -268,7 +271,7 @@ class TestParseIssuesFromResponse:
         valid_titles = [i.title for i in issues]
         assert "Valid issue" in valid_titles or len(issues) >= 1
 
-    def test_parse_handles_nested_json_in_response(self):
+    def test_parse_handles_nested_json_in_response(self) -> None:
         """Test response with nested JSON structures."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -297,7 +300,7 @@ class TestParseIssuesFromResponse:
 class TestParseIssuesEdgeCases:
     """Edge case tests for issue parsing."""
 
-    def test_parse_very_long_response(self):
+    def test_parse_very_long_response(self) -> None:
         """Test handling of very long LLM response."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -322,7 +325,7 @@ class TestParseIssuesEdgeCases:
         assert isinstance(issues, list)
         assert len(issues) <= 100
 
-    def test_parse_unicode_content(self):
+    def test_parse_unicode_content(self) -> None:
         """Test handling of unicode characters in issues."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
@@ -345,7 +348,7 @@ class TestParseIssuesEdgeCases:
         assert "日本語" in issues[0].title
         assert "🎉" in issues[0].details
 
-    def test_parse_null_values_in_optional_fields(self):
+    def test_parse_null_values_in_optional_fields(self) -> None:
         """Test handling of null values in optional issue fields."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 

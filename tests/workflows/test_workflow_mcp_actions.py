@@ -13,6 +13,7 @@ import pytest
 
 from gobby.workflows.mcp_actions import call_mcp_tool
 
+pytestmark = pytest.mark.unit
 
 class TestCallMcpToolBasic:
     """Basic functionality tests for call_mcp_tool."""

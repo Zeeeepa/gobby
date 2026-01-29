@@ -42,7 +42,7 @@ class TestSequentialReviewLoopE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test sequential processing of epic with 2 subtasks.
 
         This test verifies the sequential review loop:
@@ -227,7 +227,7 @@ class TestSequentialReviewLoopE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test sequential processing respects task dependencies.
 
         Subtask 2 depends on Subtask 1, so Subtask 2 should be blocked
@@ -374,7 +374,7 @@ class TestSequentialReviewLoopE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that orchestration status is tracked correctly."""
         # Setup - use "e2e-test-project" to match fixture's project.json
         project_result = cli_events.register_test_project(
@@ -440,7 +440,7 @@ class TestSequentialReviewLoopE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test suggest_next_task returns tasks in dependency order."""
         # Setup - use "e2e-test-project" to match fixture's project.json
         project_result = cli_events.register_test_project(
@@ -499,8 +499,7 @@ class TestSequentialReviewLoopE2E:
                 "session_id": session_id,
             },
         )
-        task2_result = unwrap_result(raw_result)
-        # task2_id not needed - we only verify task1 is suggested first
+        unwrap_result(raw_result)  # task2_id not needed - we only verify task1 is suggested first
 
         # suggest_next_task should return higher priority task first
         raw_result = mcp_client.call_tool(
@@ -525,7 +524,7 @@ class TestReviewStepE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that tasks with skip reason (obsolete) close directly.
 
         When closing a task with reason='obsolete', 'duplicate', 'already_implemented',
@@ -592,7 +591,7 @@ class TestReviewStepE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that tasks in review can be approved and closed.
 
         When a task is in review status, using update_task to set
@@ -672,7 +671,7 @@ class TestWorkflowToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify workflow management tools are available."""
         tools = mcp_client.list_tools(server="gobby-workflows")
         tool_names = [t["name"] for t in tools]
@@ -691,7 +690,7 @@ class TestWorkflowToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify orchestration tools are available on gobby-tasks."""
         tools = mcp_client.list_tools(server="gobby-tasks")
         tool_names = [t["name"] for t in tools]

@@ -20,6 +20,8 @@ from gobby.workflows.summary_actions import (
     synthesize_title,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -102,18 +104,18 @@ def mock_session(tmp_path):
 class TestFormatTurnsForLlm:
     """Tests for the format_turns_for_llm helper function."""
 
-    def test_format_empty_turns(self):
+    def test_format_empty_turns(self) -> None:
         """Test formatting with empty turns list."""
         result = format_turns_for_llm([])
         assert result == ""
 
-    def test_format_user_turn_string_content(self):
+    def test_format_user_turn_string_content(self) -> None:
         """Test formatting a user turn with string content."""
         turns = [{"message": {"role": "user", "content": "Hello world"}}]
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - user]: Hello world" in result
 
-    def test_format_assistant_turn_text_block(self):
+    def test_format_assistant_turn_text_block(self) -> None:
         """Test formatting an assistant turn with text block content."""
         turns = [
             {
@@ -126,7 +128,7 @@ class TestFormatTurnsForLlm:
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - assistant]: Hi there!" in result
 
-    def test_format_assistant_turn_thinking_block(self):
+    def test_format_assistant_turn_thinking_block(self) -> None:
         """Test formatting an assistant turn with thinking block."""
         turns = [
             {
@@ -139,7 +141,7 @@ class TestFormatTurnsForLlm:
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - assistant]: [Thinking: Let me consider...]" in result
 
-    def test_format_assistant_turn_tool_use_block(self):
+    def test_format_assistant_turn_tool_use_block(self) -> None:
         """Test formatting an assistant turn with tool_use block."""
         turns = [
             {
@@ -152,7 +154,7 @@ class TestFormatTurnsForLlm:
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - assistant]: [Tool: read_file]" in result
 
-    def test_format_assistant_turn_mixed_blocks(self):
+    def test_format_assistant_turn_mixed_blocks(self) -> None:
         """Test formatting assistant turn with multiple block types."""
         turns = [
             {
@@ -171,7 +173,7 @@ class TestFormatTurnsForLlm:
         assert "[Thinking: Analyzing request]" in result
         assert "[Tool: search]" in result
 
-    def test_format_multiple_turns(self):
+    def test_format_multiple_turns(self) -> None:
         """Test formatting multiple turns."""
         turns = [
             {"message": {"role": "user", "content": "First message"}},
@@ -190,25 +192,25 @@ class TestFormatTurnsForLlm:
         # Check turns are separated by double newlines
         assert "\n\n" in result
 
-    def test_format_turn_missing_message(self):
+    def test_format_turn_missing_message(self) -> None:
         """Test formatting turns with missing message key."""
         turns = [{"other_key": "value"}]
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - unknown]:" in result
 
-    def test_format_turn_missing_role(self):
+    def test_format_turn_missing_role(self) -> None:
         """Test formatting turns with missing role."""
         turns = [{"message": {"content": "No role here"}}]
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - unknown]: No role here" in result
 
-    def test_format_turn_missing_content(self):
+    def test_format_turn_missing_content(self) -> None:
         """Test formatting turns with missing content."""
         turns = [{"message": {"role": "user"}}]
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - user]:" in result
 
-    def test_format_turn_unknown_block_type(self):
+    def test_format_turn_unknown_block_type(self) -> None:
         """Test formatting turns with unknown block type (should be skipped)."""
         turns = [
             {
@@ -226,7 +228,7 @@ class TestFormatTurnsForLlm:
         assert "Known text" in result
         assert "unknown_type" not in result
 
-    def test_format_turn_tool_use_missing_name(self):
+    def test_format_turn_tool_use_missing_name(self) -> None:
         """Test formatting tool_use block with missing name."""
         turns = [
             {
@@ -239,7 +241,7 @@ class TestFormatTurnsForLlm:
         result = format_turns_for_llm(turns)
         assert "[Tool: unknown]" in result
 
-    def test_format_turn_non_dict_block(self):
+    def test_format_turn_non_dict_block(self) -> None:
         """Test formatting with non-dict items in content list."""
         turns = [
             {
@@ -254,7 +256,7 @@ class TestFormatTurnsForLlm:
         assert "dict item" in result
         assert "string item" not in result
 
-    def test_format_assistant_turn_tool_result_block(self):
+    def test_format_assistant_turn_tool_result_block(self) -> None:
         """Test formatting an assistant turn with tool_result block."""
         turns = [
             {
@@ -273,7 +275,7 @@ class TestFormatTurnsForLlm:
         result = format_turns_for_llm(turns)
         assert "[Turn 1 - user]: [Result: File contents here]" in result
 
-    def test_format_tool_result_truncates_long_content(self):
+    def test_format_tool_result_truncates_long_content(self) -> None:
         """Test that tool_result content is truncated to 100 chars."""
         long_content = "x" * 200  # 200 characters
         turns = [
@@ -305,14 +307,14 @@ class TestFormatTurnsForLlm:
 class TestExtractTodowriteState:
     """Tests for the extract_todowrite_state helper function."""
 
-    def test_extract_empty_turns(self):
+    def test_extract_empty_turns(self) -> None:
         """Test extraction from empty turns list."""
         from gobby.workflows.summary_actions import extract_todowrite_state
 
         result = extract_todowrite_state([])
         assert result == ""
 
-    def test_extract_no_todowrite(self):
+    def test_extract_no_todowrite(self) -> None:
         """Test extraction when no TodoWrite tool use exists."""
         from gobby.workflows.summary_actions import extract_todowrite_state
 
@@ -328,7 +330,7 @@ class TestExtractTodowriteState:
         result = extract_todowrite_state(turns)
         assert result == ""
 
-    def test_extract_todowrite_found(self):
+    def test_extract_todowrite_found(self) -> None:
         """Test extracting TodoWrite from transcript."""
         from gobby.workflows.summary_actions import extract_todowrite_state
 
@@ -357,7 +359,7 @@ class TestExtractTodowriteState:
         assert "- [>] Task 2" in result
         assert "- [ ] Task 3" in result
 
-    def test_extract_todowrite_uses_most_recent(self):
+    def test_extract_todowrite_uses_most_recent(self) -> None:
         """Test that extraction uses the most recent TodoWrite."""
         from gobby.workflows.summary_actions import extract_todowrite_state
 
@@ -391,7 +393,7 @@ class TestExtractTodowriteState:
         assert "New task" in result
         assert "Old task" not in result
 
-    def test_extract_todowrite_empty_todos(self):
+    def test_extract_todowrite_empty_todos(self) -> None:
         """Test extraction when TodoWrite has empty todos list."""
         from gobby.workflows.summary_actions import extract_todowrite_state
 

@@ -17,6 +17,7 @@ from gobby.workflows.enforcement import (
 )
 from gobby.workflows.git_utils import get_dirty_files
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_config():
@@ -53,7 +54,7 @@ def workflow_state():
 class TestGetDirtyFiles:
     """Tests for get_dirty_files helper function."""
 
-    def test_parses_git_status_output(self, monkeypatch):
+    def test_parses_git_status_output(self, monkeypatch) -> None:
         """Parse git status --porcelain output correctly."""
         import gobby.workflows.git_utils as git_utils
 
@@ -67,7 +68,7 @@ class TestGetDirtyFiles:
         result = get_dirty_files("/test/path")
         assert result == {"src/file.py", "new_file.py", "staged.py"}
 
-    def test_excludes_gobby_directory(self, monkeypatch):
+    def test_excludes_gobby_directory(self, monkeypatch) -> None:
         """Files in .gobby/ are excluded from dirty files."""
         import gobby.workflows.git_utils as git_utils
 
@@ -84,7 +85,7 @@ class TestGetDirtyFiles:
         assert ".gobby/tasks.jsonl" not in result
         assert ".gobby/new.json" not in result
 
-    def test_handles_renames(self, monkeypatch):
+    def test_handles_renames(self, monkeypatch) -> None:
         """Parse rename format correctly (old -> new)."""
         import gobby.workflows.git_utils as git_utils
 
@@ -99,7 +100,7 @@ class TestGetDirtyFiles:
         # Should capture the old name (source of rename)
         assert result == {"old_name.py"}
 
-    def test_returns_empty_set_on_no_changes(self, monkeypatch):
+    def test_returns_empty_set_on_no_changes(self, monkeypatch) -> None:
         """Empty output returns empty set."""
         import gobby.workflows.git_utils as git_utils
 
@@ -109,7 +110,7 @@ class TestGetDirtyFiles:
         result = get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_git_failure(self, monkeypatch):
+    def test_returns_empty_set_on_git_failure(self, monkeypatch) -> None:
         """Git failure returns empty set."""
         import gobby.workflows.git_utils as git_utils
 
@@ -119,7 +120,7 @@ class TestGetDirtyFiles:
         result = get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_timeout(self, monkeypatch):
+    def test_returns_empty_set_on_timeout(self, monkeypatch) -> None:
         """Timeout returns empty set."""
         import gobby.workflows.git_utils as git_utils
 
@@ -131,7 +132,7 @@ class TestGetDirtyFiles:
         result = get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_file_not_found(self, monkeypatch):
+    def test_returns_empty_set_on_file_not_found(self, monkeypatch) -> None:
         """Git not found returns empty set."""
         import gobby.workflows.git_utils as git_utils
 
@@ -143,7 +144,7 @@ class TestGetDirtyFiles:
         result = get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_generic_error(self, monkeypatch):
+    def test_returns_empty_set_on_generic_error(self, monkeypatch) -> None:
         """Generic error returns empty set."""
         import gobby.workflows.git_utils as git_utils
 
@@ -2585,14 +2586,14 @@ class TestEvaluateBlockCondition:
             variables={},
         )
 
-    def test_empty_condition_returns_true(self, workflow_state):
+    def test_empty_condition_returns_true(self, workflow_state) -> None:
         """Empty condition means always match (block)."""
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
         assert _evaluate_block_condition("", workflow_state) is True
         assert _evaluate_block_condition(None, workflow_state) is True
 
-    def test_task_claimed_shorthand(self, workflow_state):
+    def test_task_claimed_shorthand(self, workflow_state) -> None:
         """task_claimed shorthand works."""
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
@@ -2602,7 +2603,7 @@ class TestEvaluateBlockCondition:
         workflow_state.variables["task_claimed"] = False
         assert _evaluate_block_condition("task_claimed", workflow_state) is False
 
-    def test_not_operator(self, workflow_state):
+    def test_not_operator(self, workflow_state) -> None:
         """not operator works."""
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
@@ -2612,7 +2613,7 @@ class TestEvaluateBlockCondition:
         workflow_state.variables["task_claimed"] = True
         assert _evaluate_block_condition("not task_claimed", workflow_state) is False
 
-    def test_variables_get_access(self, workflow_state):
+    def test_variables_get_access(self, workflow_state) -> None:
         """variables.get() works."""
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 
@@ -2622,7 +2623,7 @@ class TestEvaluateBlockCondition:
         workflow_state.variables["custom_var"] = False
         assert _evaluate_block_condition("variables.get('custom_var')", workflow_state) is False
 
-    def test_combined_conditions(self, workflow_state):
+    def test_combined_conditions(self, workflow_state) -> None:
         """Combined conditions work."""
         from gobby.workflows.enforcement.blocking import _evaluate_block_condition
 

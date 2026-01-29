@@ -40,7 +40,7 @@ class TestBudgetToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify budget management tools are available on gobby-metrics server."""
         tools = mcp_client.list_tools(server="gobby-metrics")
         tool_names = [t["name"] for t in tools]
@@ -57,7 +57,7 @@ class TestBudgetToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify get_usage_report tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-metrics",
@@ -71,7 +71,7 @@ class TestBudgetToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify get_budget_status tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-metrics",
@@ -89,7 +89,7 @@ class TestBudgetStatusTracking:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test get_budget_status returns correct structure."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-metrics",
@@ -113,7 +113,7 @@ class TestBudgetStatusTracking:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test get_usage_report returns correct structure."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-metrics",
@@ -136,7 +136,7 @@ class TestBudgetStatusTracking:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test get_usage_report with custom days parameter."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-metrics",
@@ -158,7 +158,7 @@ class TestBudgetThrottling:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that budget under threshold shows not over_budget."""
         # Setup - register project and session
         project_result = cli_events.register_test_project(
@@ -203,7 +203,7 @@ class TestBudgetThrottling:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that exceeding budget threshold shows over_budget.
 
         Config has:
@@ -256,7 +256,7 @@ class TestBudgetThrottling:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that usage report includes session usage."""
         # Setup
         project_result = cli_events.register_test_project(
@@ -311,7 +311,7 @@ class TestAgentSpawnThrottling:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify agent spawning tools are available."""
         # Check gobby-agents tools - spawn_agent is the unified tool that replaces
         # start_agent and spawn_agent_in_clone (use isolation param for clone/worktree)
@@ -324,7 +324,7 @@ class TestAgentSpawnThrottling:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that spawning agent fails when budget is exceeded.
 
         Note: This test verifies the spawn validation, not actual agent execution.
@@ -415,7 +415,7 @@ class TestMultiSessionBudgetAggregation:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that budget status aggregates usage from multiple sessions."""
         # Setup
         project_result = cli_events.register_test_project(

@@ -6,6 +6,8 @@ from click.testing import CliRunner
 from gobby.cli.worktrees import worktrees
 from gobby.storage.worktrees import Worktree
 
+pytestmark = pytest.mark.unit
+
 # Mock worktree data
 MOCK_WORKTREE = Worktree(
     id="wt-123",
@@ -34,7 +36,7 @@ def mock_httpx():
         yield mock
 
 
-def test_list_worktrees_empty(mock_worktree_manager):
+def test_list_worktrees_empty(mock_worktree_manager) -> None:
     """Test 'worktrees list' with no worktrees."""
     mock_worktree_manager.list_worktrees.return_value = []
 
@@ -45,7 +47,7 @@ def test_list_worktrees_empty(mock_worktree_manager):
     assert "No worktrees found" in result.output
 
 
-def test_list_worktrees_populated(mock_worktree_manager):
+def test_list_worktrees_populated(mock_worktree_manager) -> None:
     """Test 'worktrees list' with active worktrees."""
     mock_worktree_manager.list_worktrees.return_value = [MOCK_WORKTREE]
 
@@ -58,7 +60,7 @@ def test_list_worktrees_populated(mock_worktree_manager):
     assert "active" in result.output
 
 
-def test_create_worktree_success(mock_httpx):
+def test_create_worktree_success(mock_httpx) -> None:
     """Test 'worktrees create' success via Daemon API."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -78,7 +80,7 @@ def test_create_worktree_success(mock_httpx):
     mock_httpx.assert_called_once()
 
 
-def test_create_worktree_failure(mock_httpx):
+def test_create_worktree_failure(mock_httpx) -> None:
     """Test 'worktrees create' failure."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -92,7 +94,7 @@ def test_create_worktree_failure(mock_httpx):
     assert "Failed to create worktree: Branch exists" in result.output
 
 
-def test_delete_worktree_success(mock_worktree_manager, mock_httpx):
+def test_delete_worktree_success(mock_worktree_manager, mock_httpx) -> None:
     """Test 'worktrees delete' success via Daemon API."""
     mock_worktree_manager.list_worktrees.return_value = [MOCK_WORKTREE]
     mock_worktree_manager.get.return_value = MOCK_WORKTREE
@@ -112,7 +114,7 @@ def test_delete_worktree_success(mock_worktree_manager, mock_httpx):
     assert "Deleted worktree: wt-123" in result.output
 
 
-def test_show_worktree(mock_worktree_manager):
+def test_show_worktree(mock_worktree_manager) -> None:
     """Test 'worktrees show'."""
     mock_worktree_manager.list_worktrees.return_value = [MOCK_WORKTREE]
     mock_worktree_manager.get.return_value = MOCK_WORKTREE

@@ -6,6 +6,7 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.workflow_audit import WorkflowAuditManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def test_db(tmp_path):
@@ -39,7 +40,7 @@ def audit_manager(test_db):
     return WorkflowAuditManager(test_db)
 
 
-def test_log_basic_entry(audit_manager):
+def test_log_basic_entry(audit_manager) -> None:
     """Test logging a basic entry."""
     row_id = audit_manager.log(
         session_id="sess-1", step="plan", event_type="tool_call", result="allow", reason="whitelist"
@@ -58,7 +59,7 @@ def test_log_basic_entry(audit_manager):
     assert entry.reason == "whitelist"
 
 
-def test_log_helpers(audit_manager):
+def test_log_helpers(audit_manager) -> None:
     """Test helper logging methods."""
     # log_tool_call
     audit_manager.log_tool_call(
@@ -84,7 +85,7 @@ def test_log_helpers(audit_manager):
     assert audit_manager.get_entry_count() == 5
 
 
-def test_get_entries_filtering(audit_manager):
+def test_get_entries_filtering(audit_manager) -> None:
     """Test filtering entries."""
     audit_manager.log(session_id="s1", step="1", event_type="e1", result="allow")
     audit_manager.log(session_id="s2", step="1", event_type="e2", result="block")
@@ -105,7 +106,7 @@ def test_get_entries_filtering(audit_manager):
     assert len(entries) == 1
 
 
-def test_cleanup_entries(audit_manager, test_db):
+def test_cleanup_entries(audit_manager, test_db) -> None:
     """Test cleaning up old entries."""
     # Insert old entry manually to bypass generic timestamp usage in log()
     old_time = (datetime.now(UTC) - timedelta(days=10)).isoformat()
@@ -127,7 +128,7 @@ def test_cleanup_entries(audit_manager, test_db):
     assert entries[0].session_id == "new"
 
 
-def test_log_error_handling(audit_manager):
+def test_log_error_handling(audit_manager) -> None:
     """Test error handling in log method."""
     # Break the DB connection to force error
     # By convention, if we close the connection inside LocalDatabase, generic execute might check.

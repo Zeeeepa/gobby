@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Import Tests
 # =============================================================================
@@ -19,19 +21,19 @@ import pytest
 class TestMergeResolverImport:
     """Tests for MergeResolver import."""
 
-    def test_import_merge_resolver(self):
+    def test_import_merge_resolver(self) -> None:
         """Test that MergeResolver can be imported."""
         from gobby.worktrees.merge.resolver import MergeResolver
 
         assert MergeResolver is not None
 
-    def test_import_merge_result(self):
+    def test_import_merge_result(self) -> None:
         """Test that MergeResult can be imported."""
         from gobby.worktrees.merge.resolver import MergeResult
 
         assert MergeResult is not None
 
-    def test_import_resolution_tier(self):
+    def test_import_resolution_tier(self) -> None:
         """Test that ResolutionTier enum can be imported."""
         from gobby.worktrees.merge.resolver import ResolutionTier
 
@@ -454,7 +456,7 @@ class TestStrategyEscalation:
 class TestMergeResult:
     """Tests for MergeResult dataclass."""
 
-    def test_merge_result_has_required_fields(self):
+    def test_merge_result_has_required_fields(self) -> None:
         """Test that MergeResult has all required fields."""
         from gobby.worktrees.merge.resolver import MergeResult, ResolutionTier
 
@@ -471,7 +473,7 @@ class TestMergeResult:
         assert result.tier == ResolutionTier.GIT_AUTO
         assert result.conflicts == []
 
-    def test_merge_result_to_dict(self):
+    def test_merge_result_to_dict(self) -> None:
         """Test MergeResult serialization to dict."""
         from gobby.worktrees.merge.resolver import MergeResult, ResolutionTier
 

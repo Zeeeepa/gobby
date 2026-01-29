@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.integration]
 class TestSessionArtifactsTableExists:
     """Test that session_artifacts table is created."""
 
-    def test_session_artifacts_table_created(self, tmp_path):
+    def test_session_artifacts_table_created(self, tmp_path) -> None:
         """Test that session_artifacts table exists after migrations."""
         db_path = tmp_path / "artifacts.db"
         db = LocalDatabase(db_path)
@@ -39,7 +39,7 @@ class TestSessionArtifactsTableExists:
 class TestSessionArtifactsSchema:
     """Test session_artifacts table has correct columns."""
 
-    def test_has_required_columns(self, tmp_path):
+    def test_has_required_columns(self, tmp_path) -> None:
         """Test that session_artifacts has all required columns."""
         db_path = tmp_path / "artifacts_schema.db"
         db = LocalDatabase(db_path)
@@ -62,7 +62,7 @@ class TestSessionArtifactsSchema:
         for col in expected_columns:
             assert col in columns, f"Column {col} missing from session_artifacts"
 
-    def test_id_is_primary_key(self, tmp_path):
+    def test_id_is_primary_key(self, tmp_path) -> None:
         """Test that id is the primary key."""
         db_path = tmp_path / "artifacts_pk.db"
         db = LocalDatabase(db_path)
@@ -74,7 +74,7 @@ class TestSessionArtifactsSchema:
         assert id_col is not None
         assert id_col["pk"] == 1, "id column is not primary key"
 
-    def test_session_id_not_null(self, tmp_path):
+    def test_session_id_not_null(self, tmp_path) -> None:
         """Test that session_id is NOT NULL."""
         db_path = tmp_path / "artifacts_notnull.db"
         db = LocalDatabase(db_path)
@@ -86,7 +86,7 @@ class TestSessionArtifactsSchema:
         assert session_id_col is not None
         assert session_id_col["notnull"] == 1, "session_id should be NOT NULL"
 
-    def test_artifact_type_not_null(self, tmp_path):
+    def test_artifact_type_not_null(self, tmp_path) -> None:
         """Test that artifact_type is NOT NULL."""
         db_path = tmp_path / "artifacts_type_notnull.db"
         db = LocalDatabase(db_path)
@@ -107,7 +107,7 @@ class TestSessionArtifactsSchema:
 class TestSessionArtifactsFTS5:
     """Test FTS5 virtual table for full-text search on content."""
 
-    def test_fts5_table_exists(self, tmp_path):
+    def test_fts5_table_exists(self, tmp_path) -> None:
         """Test that FTS5 virtual table is created for content search."""
         db_path = tmp_path / "artifacts_fts.db"
         db = LocalDatabase(db_path)
@@ -123,7 +123,7 @@ class TestSessionArtifactsFTS5:
         assert row is not None, "FTS5 virtual table for session_artifacts not created"
         assert "fts5" in row["sql"].lower(), "Table is not an FTS5 virtual table"
 
-    def test_fts5_indexes_content_column(self, tmp_path):
+    def test_fts5_indexes_content_column(self, tmp_path) -> None:
         """Test that FTS5 table indexes the content column."""
         db_path = tmp_path / "artifacts_fts_content.db"
         db = LocalDatabase(db_path)
@@ -141,7 +141,7 @@ class TestSessionArtifactsFTS5:
         sql_lower = row["sql"].lower()
         assert "content" in sql_lower, "FTS5 table should index content column"
 
-    def test_fts5_full_text_search_works(self, tmp_path):
+    def test_fts5_full_text_search_works(self, tmp_path) -> None:
         """Test that full-text search works on artifacts content."""
         db_path = tmp_path / "artifacts_fts_search.db"
         db = LocalDatabase(db_path)
@@ -187,7 +187,7 @@ class TestSessionArtifactsFTS5:
 class TestSessionArtifactsIndexes:
     """Test index creation on session_id and artifact_type."""
 
-    def test_session_id_index_exists(self, tmp_path):
+    def test_session_id_index_exists(self, tmp_path) -> None:
         """Test that index on session_id exists."""
         db_path = tmp_path / "artifacts_idx_session.db"
         db = LocalDatabase(db_path)
@@ -205,7 +205,7 @@ class TestSessionArtifactsIndexes:
         has_session_index = any("session" in name.lower() for name in index_names)
         assert has_session_index, f"No session_id index found. Indexes: {index_names}"
 
-    def test_artifact_type_index_exists(self, tmp_path):
+    def test_artifact_type_index_exists(self, tmp_path) -> None:
         """Test that index on artifact_type exists."""
         db_path = tmp_path / "artifacts_idx_type.db"
         db = LocalDatabase(db_path)
@@ -223,7 +223,7 @@ class TestSessionArtifactsIndexes:
         has_type_index = any("type" in name.lower() for name in index_names)
         assert has_type_index, f"No artifact_type index found. Indexes: {index_names}"
 
-    def test_composite_index_session_type(self, tmp_path):
+    def test_composite_index_session_type(self, tmp_path) -> None:
         """Test that composite index on (session_id, artifact_type) may exist."""
         db_path = tmp_path / "artifacts_idx_composite.db"
         db = LocalDatabase(db_path)
@@ -268,7 +268,7 @@ class TestSessionArtifactsIndexes:
 class TestSessionArtifactsMigration:
     """Test migration applies cleanly to existing databases."""
 
-    def test_migration_applies_cleanly(self, tmp_path):
+    def test_migration_applies_cleanly(self, tmp_path) -> None:
         """Test that session_artifacts migration applies without errors."""
         db_path = tmp_path / "artifacts_migrate.db"
         db = LocalDatabase(db_path)
@@ -285,7 +285,7 @@ class TestSessionArtifactsMigration:
         )
         assert row is not None
 
-    def test_migration_idempotent(self, tmp_path):
+    def test_migration_idempotent(self, tmp_path) -> None:
         """Test that running migrations twice doesn't fail."""
         db_path = tmp_path / "artifacts_idempotent.db"
         db = LocalDatabase(db_path)
@@ -303,7 +303,7 @@ class TestSessionArtifactsMigration:
         )
         assert row is not None
 
-    def test_foreign_key_to_sessions(self, tmp_path):
+    def test_foreign_key_to_sessions(self, tmp_path) -> None:
         """Test that session_artifacts has foreign key to sessions table."""
         db_path = tmp_path / "artifacts_fk.db"
         db = LocalDatabase(db_path)
@@ -322,7 +322,7 @@ class TestSessionArtifactsMigration:
             "session_artifacts missing foreign key to sessions"
         )
 
-    def test_cascade_delete_on_session(self, tmp_path):
+    def test_cascade_delete_on_session(self, tmp_path) -> None:
         """Test that deleting a session cascades to artifacts."""
         db_path = tmp_path / "artifacts_cascade.db"
         db = LocalDatabase(db_path)
@@ -371,7 +371,7 @@ class TestSessionArtifactsMigration:
 class TestSessionArtifactsDataIntegrity:
     """Test data integrity for session_artifacts table."""
 
-    def test_can_insert_artifact(self, tmp_path):
+    def test_can_insert_artifact(self, tmp_path) -> None:
         """Test that artifacts can be inserted."""
         db_path = tmp_path / "artifacts_insert.db"
         db = LocalDatabase(db_path)
@@ -404,7 +404,7 @@ class TestSessionArtifactsDataIntegrity:
         assert row["artifact_type"] == "code"
         assert row["content"] == "def hello(): pass"
 
-    def test_metadata_json_stores_valid_json(self, tmp_path):
+    def test_metadata_json_stores_valid_json(self, tmp_path) -> None:
         """Test that metadata_json stores valid JSON."""
         db_path = tmp_path / "artifacts_json.db"
         db = LocalDatabase(db_path)
@@ -442,7 +442,7 @@ class TestSessionArtifactsDataIntegrity:
         parsed = json.loads(row["metadata_json"])
         assert parsed == metadata
 
-    def test_content_can_be_large(self, tmp_path):
+    def test_content_can_be_large(self, tmp_path) -> None:
         """Test that content column can store large text."""
         db_path = tmp_path / "artifacts_large.db"
         db = LocalDatabase(db_path)
@@ -474,7 +474,7 @@ class TestSessionArtifactsDataIntegrity:
         assert row is not None
         assert len(row["content"]) == 100 * 1024
 
-    def test_multiple_artifacts_per_session(self, tmp_path):
+    def test_multiple_artifacts_per_session(self, tmp_path) -> None:
         """Test that multiple artifacts can be stored per session."""
         db_path = tmp_path / "artifacts_multi.db"
         db = LocalDatabase(db_path)
@@ -505,7 +505,7 @@ class TestSessionArtifactsDataIntegrity:
         rows = db.fetchall("SELECT * FROM session_artifacts WHERE session_id = ?", ("sess-1",))
         assert len(rows) == 5
 
-    def test_artifact_types(self, tmp_path):
+    def test_artifact_types(self, tmp_path) -> None:
         """Test various artifact types can be stored."""
         db_path = tmp_path / "artifacts_types.db"
         db = LocalDatabase(db_path)
@@ -547,13 +547,13 @@ class TestSessionArtifactsDataIntegrity:
 class TestArtifactDataclass:
     """Tests for Artifact dataclass with from_row() and to_dict() methods."""
 
-    def test_import_artifact(self):
+    def test_import_artifact(self) -> None:
         """Test that Artifact can be imported from storage.artifacts."""
         from gobby.storage.artifacts import Artifact
 
         assert Artifact is not None
 
-    def test_artifact_has_required_fields(self):
+    def test_artifact_has_required_fields(self) -> None:
         """Test that Artifact has all required fields."""
         from gobby.storage.artifacts import Artifact
 
@@ -570,7 +570,7 @@ class TestArtifactDataclass:
         assert artifact.content == "def hello(): pass"
         assert artifact.created_at == "2026-01-08T00:00:00Z"
 
-    def test_artifact_has_optional_fields(self):
+    def test_artifact_has_optional_fields(self) -> None:
         """Test that Artifact has optional fields with defaults."""
         from gobby.storage.artifacts import Artifact
 
@@ -586,7 +586,7 @@ class TestArtifactDataclass:
         assert artifact.line_start is None
         assert artifact.line_end is None
 
-    def test_artifact_from_row(self, tmp_path):
+    def test_artifact_from_row(self, tmp_path) -> None:
         """Test Artifact.from_row() creates Artifact from database row."""
         from gobby.storage.artifacts import Artifact
 
@@ -620,7 +620,7 @@ class TestArtifactDataclass:
         assert artifact.content == "def hello(): pass"
         assert artifact.metadata == {"lang": "python"}
 
-    def test_artifact_to_dict(self):
+    def test_artifact_to_dict(self) -> None:
         """Test Artifact.to_dict() returns proper dictionary."""
         from gobby.storage.artifacts import Artifact
 
@@ -656,7 +656,7 @@ class TestArtifactDataclass:
 class TestLocalArtifactManagerImport:
     """Tests for LocalArtifactManager import."""
 
-    def test_import_local_artifact_manager(self):
+    def test_import_local_artifact_manager(self) -> None:
         """Test that LocalArtifactManager can be imported."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -666,7 +666,7 @@ class TestLocalArtifactManagerImport:
 class TestLocalArtifactManagerCreate:
     """Tests for LocalArtifactManager.create_artifact()."""
 
-    def test_create_artifact_with_required_fields(self, tmp_path):
+    def test_create_artifact_with_required_fields(self, tmp_path) -> None:
         """Test create_artifact with required fields only."""
         from gobby.storage.artifacts import Artifact, LocalArtifactManager
 
@@ -699,7 +699,7 @@ class TestLocalArtifactManagerCreate:
         assert artifact.content == "def hello(): pass"
         assert artifact.id is not None
 
-    def test_create_artifact_with_all_fields(self, tmp_path):
+    def test_create_artifact_with_all_fields(self, tmp_path) -> None:
         """Test create_artifact with all fields."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -735,7 +735,7 @@ class TestLocalArtifactManagerCreate:
         assert artifact.line_start == 1
         assert artifact.line_end == 10
 
-    def test_create_artifact_persists_to_database(self, tmp_path):
+    def test_create_artifact_persists_to_database(self, tmp_path) -> None:
         """Test that create_artifact saves to database."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -771,7 +771,7 @@ class TestLocalArtifactManagerCreate:
 class TestLocalArtifactManagerGet:
     """Tests for LocalArtifactManager.get_artifact()."""
 
-    def test_get_artifact_by_id(self, tmp_path):
+    def test_get_artifact_by_id(self, tmp_path) -> None:
         """Test get_artifact returns artifact by ID."""
         from gobby.storage.artifacts import Artifact, LocalArtifactManager
 
@@ -805,7 +805,7 @@ class TestLocalArtifactManagerGet:
         assert retrieved.id == created.id
         assert retrieved.content == "def hello(): pass"
 
-    def test_get_artifact_returns_none_for_nonexistent(self, tmp_path):
+    def test_get_artifact_returns_none_for_nonexistent(self, tmp_path) -> None:
         """Test get_artifact returns None for nonexistent ID."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -822,7 +822,7 @@ class TestLocalArtifactManagerGet:
 class TestLocalArtifactManagerList:
     """Tests for LocalArtifactManager.list_artifacts()."""
 
-    def test_list_artifacts_by_session_id(self, tmp_path):
+    def test_list_artifacts_by_session_id(self, tmp_path) -> None:
         """Test list_artifacts filters by session_id."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -857,7 +857,7 @@ class TestLocalArtifactManagerList:
         assert len(results) == 2
         assert all(a.session_id == "sess-1" for a in results)
 
-    def test_list_artifacts_by_type(self, tmp_path):
+    def test_list_artifacts_by_type(self, tmp_path) -> None:
         """Test list_artifacts filters by artifact_type."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -887,7 +887,7 @@ class TestLocalArtifactManagerList:
         assert len(results) == 2
         assert all(a.artifact_type == "code" for a in results)
 
-    def test_list_artifacts_combined_filters(self, tmp_path):
+    def test_list_artifacts_combined_filters(self, tmp_path) -> None:
         """Test list_artifacts with both session_id and artifact_type."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -927,7 +927,7 @@ class TestLocalArtifactManagerList:
 class TestLocalArtifactManagerDelete:
     """Tests for LocalArtifactManager.delete_artifact()."""
 
-    def test_delete_artifact(self, tmp_path):
+    def test_delete_artifact(self, tmp_path) -> None:
         """Test delete_artifact removes artifact."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -959,7 +959,7 @@ class TestLocalArtifactManagerDelete:
         assert result is True
         assert manager.get_artifact(artifact.id) is None
 
-    def test_delete_nonexistent_artifact(self, tmp_path):
+    def test_delete_nonexistent_artifact(self, tmp_path) -> None:
         """Test delete_artifact returns False for nonexistent ID."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -976,7 +976,7 @@ class TestLocalArtifactManagerDelete:
 class TestLocalArtifactManagerChangeListeners:
     """Tests for change listener notification."""
 
-    def test_add_change_listener(self, tmp_path):
+    def test_add_change_listener(self, tmp_path) -> None:
         """Test add_change_listener adds listener."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -995,7 +995,7 @@ class TestLocalArtifactManagerChangeListeners:
 
         assert len(manager._change_listeners) == 1
 
-    def test_create_artifact_notifies_listeners(self, tmp_path):
+    def test_create_artifact_notifies_listeners(self, tmp_path) -> None:
         """Test create_artifact notifies change listeners."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1027,7 +1027,7 @@ class TestLocalArtifactManagerChangeListeners:
 
         assert "create" in called
 
-    def test_delete_artifact_notifies_listeners(self, tmp_path):
+    def test_delete_artifact_notifies_listeners(self, tmp_path) -> None:
         """Test delete_artifact notifies change listeners."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1071,7 +1071,7 @@ class TestLocalArtifactManagerChangeListeners:
 class TestLocalArtifactManagerSearchImport:
     """Tests for search_artifacts import."""
 
-    def test_search_artifacts_method_exists(self, tmp_path):
+    def test_search_artifacts_method_exists(self, tmp_path) -> None:
         """Test that search_artifacts method exists on LocalArtifactManager."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1086,7 +1086,7 @@ class TestLocalArtifactManagerSearchImport:
 class TestLocalArtifactManagerSearchBasic:
     """Tests for basic search_artifacts functionality."""
 
-    def test_search_artifacts_returns_matching_content(self, tmp_path):
+    def test_search_artifacts_returns_matching_content(self, tmp_path) -> None:
         """Test search_artifacts returns artifacts matching query."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1122,7 +1122,7 @@ class TestLocalArtifactManagerSearchBasic:
         assert len(results) == 2
         assert all("calculate" in r.content.lower() for r in results)
 
-    def test_search_artifacts_respects_session_id_filter(self, tmp_path):
+    def test_search_artifacts_respects_session_id_filter(self, tmp_path) -> None:
         """Test search_artifacts filters by session_id."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1160,7 +1160,7 @@ class TestLocalArtifactManagerSearchBasic:
         assert len(results) == 1
         assert results[0].session_id == "sess-1"
 
-    def test_search_artifacts_respects_artifact_type_filter(self, tmp_path):
+    def test_search_artifacts_respects_artifact_type_filter(self, tmp_path) -> None:
         """Test search_artifacts filters by artifact_type."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1197,7 +1197,7 @@ class TestLocalArtifactManagerSearchBasic:
 class TestLocalArtifactManagerSearchAdvanced:
     """Tests for advanced search_artifacts functionality."""
 
-    def test_search_artifacts_with_limit(self, tmp_path):
+    def test_search_artifacts_with_limit(self, tmp_path) -> None:
         """Test search_artifacts respects limit parameter."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1227,7 +1227,7 @@ class TestLocalArtifactManagerSearchAdvanced:
 
         assert len(results) == 3
 
-    def test_search_artifacts_empty_query_returns_empty(self, tmp_path):
+    def test_search_artifacts_empty_query_returns_empty(self, tmp_path) -> None:
         """Test search_artifacts with empty query returns empty list."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1254,7 +1254,7 @@ class TestLocalArtifactManagerSearchAdvanced:
 
         assert len(results) == 0
 
-    def test_search_artifacts_special_characters_handled(self, tmp_path):
+    def test_search_artifacts_special_characters_handled(self, tmp_path) -> None:
         """Test search_artifacts handles special characters safely."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -1287,7 +1287,7 @@ class TestLocalArtifactManagerSearchAdvanced:
         # Should return results (query matches content)
         assert isinstance(results, list)
 
-    def test_search_artifacts_no_match_returns_empty(self, tmp_path):
+    def test_search_artifacts_no_match_returns_empty(self, tmp_path) -> None:
         """Test search_artifacts returns empty list when no matches."""
         from gobby.storage.artifacts import LocalArtifactManager
 

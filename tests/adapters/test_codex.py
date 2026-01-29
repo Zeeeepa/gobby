@@ -34,6 +34,8 @@ from gobby.adapters.codex_impl.types import (
 )
 from gobby.hooks.events import HookEventType, HookResponse, SessionSource
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Data Types Tests
 # =============================================================================
@@ -42,7 +44,7 @@ from gobby.hooks.events import HookEventType, HookResponse, SessionSource
 class TestCodexConnectionState:
     """Tests for CodexConnectionState enum."""
 
-    def test_connection_states(self):
+    def test_connection_states(self) -> None:
         """All connection states are defined."""
         assert CodexConnectionState.DISCONNECTED.value == "disconnected"
         assert CodexConnectionState.CONNECTING.value == "connecting"
@@ -53,7 +55,7 @@ class TestCodexConnectionState:
 class TestCodexThread:
     """Tests for CodexThread dataclass."""
 
-    def test_create_minimal(self):
+    def test_create_minimal(self) -> None:
         """Create thread with only required field."""
         thread = CodexThread(id="thr-123")
 
@@ -62,7 +64,7 @@ class TestCodexThread:
         assert thread.model_provider == "openai"
         assert thread.created_at == 0
 
-    def test_create_full(self):
+    def test_create_full(self) -> None:
         """Create thread with all fields."""
         thread = CodexThread(
             id="thr-456",
@@ -80,7 +82,7 @@ class TestCodexThread:
 class TestCodexTurn:
     """Tests for CodexTurn dataclass."""
 
-    def test_create_minimal(self):
+    def test_create_minimal(self) -> None:
         """Create turn with required fields."""
         turn = CodexTurn(id="turn-1", thread_id="thr-1")
 
@@ -91,7 +93,7 @@ class TestCodexTurn:
         assert turn.error is None
         assert turn.usage is None
 
-    def test_create_full(self):
+    def test_create_full(self) -> None:
         """Create turn with all fields."""
         turn = CodexTurn(
             id="turn-2",
@@ -111,7 +113,7 @@ class TestCodexTurn:
 class TestCodexItem:
     """Tests for CodexItem dataclass."""
 
-    def test_create_minimal(self):
+    def test_create_minimal(self) -> None:
         """Create item with required fields."""
         item = CodexItem(id="item-1", type="reasoning")
 
@@ -121,7 +123,7 @@ class TestCodexItem:
         assert item.status == "pending"
         assert item.metadata == {}
 
-    def test_create_full(self):
+    def test_create_full(self) -> None:
         """Create item with all fields."""
         item = CodexItem(
             id="item-2",
@@ -139,14 +141,14 @@ class TestCodexItem:
 class TestGetMachineId:
     """Tests for _get_machine_id utility."""
 
-    def test_returns_string(self):
+    def test_returns_string(self) -> None:
         """Returns a string machine ID."""
         machine_id = _get_machine_id()
         assert isinstance(machine_id, str)
         assert len(machine_id) > 0
 
     @patch("gobby.adapters.codex_impl.adapter.platform.node")
-    def test_uses_hostname(self, mock_node):
+    def test_uses_hostname(self, mock_node) -> None:
         """Uses hostname for stable ID when available."""
         mock_node.return_value = "test-hostname"
 
@@ -157,7 +159,7 @@ class TestGetMachineId:
         assert id1 == id2
 
     @patch("gobby.adapters.codex_impl.adapter.platform.node")
-    def test_fallback_when_no_hostname(self, mock_node):
+    def test_fallback_when_no_hostname(self, mock_node) -> None:
         """Falls back to random UUID when hostname unavailable."""
         mock_node.return_value = ""
 
@@ -175,7 +177,7 @@ class TestGetMachineId:
 class TestCodexAppServerClientInit:
     """Tests for CodexAppServerClient initialization."""
 
-    def test_default_init(self):
+    def test_default_init(self) -> None:
         """Default initialization."""
         client = CodexAppServerClient()
 
@@ -185,12 +187,12 @@ class TestCodexAppServerClientInit:
         assert client.state == CodexConnectionState.DISCONNECTED
         assert client.is_connected is False
 
-    def test_custom_command(self):
+    def test_custom_command(self) -> None:
         """Initialize with custom codex command."""
         client = CodexAppServerClient(codex_command="/custom/codex")
         assert client._codex_command == "/custom/codex"
 
-    def test_with_notification_handler(self):
+    def test_with_notification_handler(self) -> None:
         """Initialize with notification handler."""
 
         def handler(method: str, params: dict) -> None:
@@ -203,17 +205,17 @@ class TestCodexAppServerClientInit:
 class TestCodexAppServerClientProperties:
     """Tests for CodexAppServerClient properties."""
 
-    def test_state_property(self):
+    def test_state_property(self) -> None:
         """State property returns current state."""
         client = CodexAppServerClient()
         assert client.state == CodexConnectionState.DISCONNECTED
 
-    def test_is_connected_false_when_disconnected(self):
+    def test_is_connected_false_when_disconnected(self) -> None:
         """is_connected returns False when disconnected."""
         client = CodexAppServerClient()
         assert client.is_connected is False
 
-    def test_is_connected_true_when_connected(self):
+    def test_is_connected_true_when_connected(self) -> None:
         """is_connected returns True when connected."""
         client = CodexAppServerClient()
         client._state = CodexConnectionState.CONNECTED
@@ -223,7 +225,7 @@ class TestCodexAppServerClientProperties:
 class TestCodexAppServerClientNotificationHandlers:
     """Tests for notification handler management."""
 
-    def test_add_notification_handler(self):
+    def test_add_notification_handler(self) -> None:
         """Add a notification handler."""
         client = CodexAppServerClient()
         handler = MagicMock()
@@ -233,7 +235,7 @@ class TestCodexAppServerClientNotificationHandlers:
         assert "turn/started" in client._notification_handlers
         assert handler in client._notification_handlers["turn/started"]
 
-    def test_add_multiple_handlers(self):
+    def test_add_multiple_handlers(self) -> None:
         """Add multiple handlers for same method."""
         client = CodexAppServerClient()
         handler1 = MagicMock()
@@ -244,7 +246,7 @@ class TestCodexAppServerClientNotificationHandlers:
 
         assert len(client._notification_handlers["turn/completed"]) == 2
 
-    def test_remove_notification_handler(self):
+    def test_remove_notification_handler(self) -> None:
         """Remove a notification handler."""
         client = CodexAppServerClient()
         handler = MagicMock()
@@ -254,7 +256,7 @@ class TestCodexAppServerClientNotificationHandlers:
 
         assert handler not in client._notification_handlers.get("item/completed", [])
 
-    def test_remove_nonexistent_handler(self):
+    def test_remove_nonexistent_handler(self) -> None:
         """Remove handler that doesn't exist."""
         client = CodexAppServerClient()
         handler = MagicMock()
@@ -405,7 +407,7 @@ class TestCodexAppServerClientContextManager:
 class TestCodexAppServerClientRequestId:
     """Tests for request ID generation."""
 
-    def test_next_request_id_increments(self):
+    def test_next_request_id_increments(self) -> None:
         """Request ID increments with each call."""
         client = CodexAppServerClient()
 
@@ -744,7 +746,7 @@ class TestCodexAppServerClientAuthentication:
 class TestCodexAdapterInit:
     """Tests for CodexAdapter initialization."""
 
-    def test_default_init(self):
+    def test_default_init(self) -> None:
         """Default initialization."""
         adapter = CodexAdapter()
 
@@ -754,7 +756,7 @@ class TestCodexAdapterInit:
         assert adapter._attached is False
         assert adapter.source == SessionSource.CODEX
 
-    def test_with_hook_manager(self):
+    def test_with_hook_manager(self) -> None:
         """Initialize with hook manager."""
         mock_hook_manager = MagicMock()
         adapter = CodexAdapter(hook_manager=mock_hook_manager)
@@ -766,7 +768,7 @@ class TestCodexAdapterIsAvailable:
     """Tests for is_codex_available static method."""
 
     @patch("shutil.which")
-    def test_codex_available(self, mock_which):
+    def test_codex_available(self, mock_which) -> None:
         """Returns True when codex is in PATH."""
         mock_which.return_value = "/usr/local/bin/codex"
 
@@ -774,7 +776,7 @@ class TestCodexAdapterIsAvailable:
         mock_which.assert_called_once_with("codex")
 
     @patch("shutil.which")
-    def test_codex_not_available(self, mock_which):
+    def test_codex_not_available(self, mock_which) -> None:
         """Returns False when codex is not in PATH."""
         mock_which.return_value = None
 
@@ -784,7 +786,7 @@ class TestCodexAdapterIsAvailable:
 class TestCodexAdapterMachineId:
     """Tests for machine ID handling."""
 
-    def test_get_machine_id_cached(self):
+    def test_get_machine_id_cached(self) -> None:
         """Machine ID is cached after first call."""
         adapter = CodexAdapter()
 
@@ -798,7 +800,7 @@ class TestCodexAdapterMachineId:
 class TestCodexAdapterAttachDetach:
     """Tests for attach/detach from client."""
 
-    def test_attach_to_client(self):
+    def test_attach_to_client(self) -> None:
         """Attaching registers notification handlers."""
         adapter = CodexAdapter()
         mock_client = MagicMock()
@@ -816,7 +818,7 @@ class TestCodexAdapterAttachDetach:
         assert "turn/completed" in methods_registered
         assert "item/completed" in methods_registered
 
-    def test_attach_when_already_attached(self):
+    def test_attach_when_already_attached(self) -> None:
         """Attaching when already attached is a no-op."""
         adapter = CodexAdapter()
         adapter._attached = True
@@ -826,7 +828,7 @@ class TestCodexAdapterAttachDetach:
 
         mock_client.add_notification_handler.assert_not_called()
 
-    def test_detach_from_client(self):
+    def test_detach_from_client(self) -> None:
         """Detaching removes notification handlers."""
         adapter = CodexAdapter()
         mock_client = MagicMock()
@@ -840,7 +842,7 @@ class TestCodexAdapterAttachDetach:
         calls = mock_client.remove_notification_handler.call_args_list
         assert len(calls) == len(CodexAdapter.SESSION_TRACKING_EVENTS)
 
-    def test_detach_when_not_attached(self):
+    def test_detach_when_not_attached(self) -> None:
         """Detaching when not attached is a no-op."""
         adapter = CodexAdapter()
 
@@ -851,7 +853,7 @@ class TestCodexAdapterAttachDetach:
 class TestCodexAdapterTranslateToHookEvent:
     """Tests for translate_to_hook_event method."""
 
-    def test_thread_started(self):
+    def test_thread_started(self) -> None:
         """Translate thread/started to SESSION_START."""
         adapter = CodexAdapter()
 
@@ -876,7 +878,7 @@ class TestCodexAdapterTranslateToHookEvent:
         assert hook_event.data["preview"] == "Help me with code"
         assert hook_event.data["model_provider"] == "openai"
 
-    def test_thread_archive(self):
+    def test_thread_archive(self) -> None:
         """Translate thread/archive to SESSION_END."""
         adapter = CodexAdapter()
 
@@ -891,7 +893,7 @@ class TestCodexAdapterTranslateToHookEvent:
         assert hook_event.event_type == HookEventType.SESSION_END
         assert hook_event.session_id == "thr-456"
 
-    def test_turn_started(self):
+    def test_turn_started(self) -> None:
         """Translate turn/started to BEFORE_AGENT."""
         adapter = CodexAdapter()
 
@@ -914,7 +916,7 @@ class TestCodexAdapterTranslateToHookEvent:
         assert hook_event.data["turn_id"] == "turn-1"
         assert hook_event.data["status"] == "inProgress"
 
-    def test_turn_completed(self):
+    def test_turn_completed(self) -> None:
         """Translate turn/completed to AFTER_AGENT."""
         adapter = CodexAdapter()
 
@@ -937,7 +939,7 @@ class TestCodexAdapterTranslateToHookEvent:
         assert hook_event.session_id == "thr-abc"
         assert hook_event.data["status"] == "completed"
 
-    def test_item_completed_tool(self):
+    def test_item_completed_tool(self) -> None:
         """Translate item/completed for tool items to AFTER_TOOL."""
         adapter = CodexAdapter()
 
@@ -960,7 +962,7 @@ class TestCodexAdapterTranslateToHookEvent:
             assert hook_event.event_type == HookEventType.AFTER_TOOL
             assert hook_event.data["item_type"] == item_type
 
-    def test_item_completed_non_tool(self):
+    def test_item_completed_non_tool(self) -> None:
         """item/completed for non-tool items returns None."""
         adapter = CodexAdapter()
 
@@ -980,7 +982,7 @@ class TestCodexAdapterTranslateToHookEvent:
 
         assert hook_event is None
 
-    def test_unknown_event(self):
+    def test_unknown_event(self) -> None:
         """Unknown event types return None."""
         adapter = CodexAdapter()
 
@@ -997,7 +999,7 @@ class TestCodexAdapterTranslateToHookEvent:
 class TestCodexAdapterTranslateApprovalEvent:
     """Tests for _translate_approval_event method."""
 
-    def test_command_execution_approval(self):
+    def test_command_execution_approval(self) -> None:
         """Translate command execution approval request."""
         adapter = CodexAdapter()
 
@@ -1020,7 +1022,7 @@ class TestCodexAdapterTranslateApprovalEvent:
         assert hook_event.data["tool_input"] == "rm -rf /"
         assert hook_event.metadata["requires_response"] is True
 
-    def test_file_change_approval(self):
+    def test_file_change_approval(self) -> None:
         """Translate file change approval request."""
         adapter = CodexAdapter()
 
@@ -1038,7 +1040,7 @@ class TestCodexAdapterTranslateApprovalEvent:
         assert hook_event.data["tool_name"] == "Write"
         assert hook_event.data["tool_input"] == changes
 
-    def test_unknown_approval_method(self):
+    def test_unknown_approval_method(self) -> None:
         """Unknown approval method returns None."""
         adapter = CodexAdapter()
 
@@ -1053,7 +1055,7 @@ class TestCodexAdapterTranslateApprovalEvent:
 class TestCodexAdapterTranslateFromHookResponse:
     """Tests for translate_from_hook_response method."""
 
-    def test_allow_response(self):
+    def test_allow_response(self) -> None:
         """Allow response maps to accept."""
         adapter = CodexAdapter()
 
@@ -1062,7 +1064,7 @@ class TestCodexAdapterTranslateFromHookResponse:
 
         assert result["decision"] == "accept"
 
-    def test_deny_response(self):
+    def test_deny_response(self) -> None:
         """Deny response maps to decline."""
         adapter = CodexAdapter()
 
@@ -1071,7 +1073,7 @@ class TestCodexAdapterTranslateFromHookResponse:
 
         assert result["decision"] == "decline"
 
-    def test_block_response(self):
+    def test_block_response(self) -> None:
         """Block response maps to accept (only 'deny' maps to decline)."""
         adapter = CodexAdapter()
 
@@ -1083,7 +1085,7 @@ class TestCodexAdapterTranslateFromHookResponse:
         # This is the actual behavior - block maps to accept
         assert result["decision"] == "accept"
 
-    def test_other_decisions_map_to_accept(self):
+    def test_other_decisions_map_to_accept(self) -> None:
         """Non-deny decisions map to accept."""
         adapter = CodexAdapter()
 
@@ -1096,7 +1098,7 @@ class TestCodexAdapterTranslateFromHookResponse:
 class TestCodexAdapterParseTimestamp:
     """Tests for _parse_timestamp method."""
 
-    def test_valid_timestamp(self):
+    def test_valid_timestamp(self) -> None:
         """Parse valid Unix timestamp."""
         adapter = CodexAdapter()
 
@@ -1111,7 +1113,7 @@ class TestCodexAdapterParseTimestamp:
         # The timestamp should be in late Dec 2023 or early Jan 2024 depending on timezone
         assert dt.year in (2023, 2024)
 
-    def test_none_timestamp(self):
+    def test_none_timestamp(self) -> None:
         """None timestamp returns now."""
         adapter = CodexAdapter()
 
@@ -1120,7 +1122,7 @@ class TestCodexAdapterParseTimestamp:
         # Should be close to now
         assert (datetime.now(UTC) - dt).total_seconds() < 5
 
-    def test_invalid_timestamp(self):
+    def test_invalid_timestamp(self) -> None:
         """Invalid timestamp returns now."""
         adapter = CodexAdapter()
 
@@ -1132,7 +1134,7 @@ class TestCodexAdapterParseTimestamp:
 class TestCodexAdapterHandleNotification:
     """Tests for _handle_notification callback."""
 
-    def test_handle_notification_processes_event(self):
+    def test_handle_notification_processes_event(self) -> None:
         """Notification is processed through hook manager."""
         mock_hook_manager = MagicMock()
         adapter = CodexAdapter(hook_manager=mock_hook_manager)
@@ -1146,14 +1148,14 @@ class TestCodexAdapterHandleNotification:
         call_args = mock_hook_manager.handle.call_args[0]
         assert call_args[0].event_type == HookEventType.BEFORE_AGENT
 
-    def test_handle_notification_without_hook_manager(self):
+    def test_handle_notification_without_hook_manager(self) -> None:
         """Notification without hook manager is silently ignored."""
         adapter = CodexAdapter()
 
         # Should not raise
         adapter._handle_notification("turn/started", {"threadId": "thr-1"})
 
-    def test_handle_notification_error_handling(self):
+    def test_handle_notification_error_handling(self) -> None:
         """Errors in notification handling are caught."""
         mock_hook_manager = MagicMock()
         mock_hook_manager.handle.side_effect = Exception("Processing error")
@@ -1252,7 +1254,7 @@ class TestCodexAdapterSyncExistingSessions:
 class TestCodexNotifyAdapterInit:
     """Tests for CodexNotifyAdapter initialization."""
 
-    def test_default_init(self):
+    def test_default_init(self) -> None:
         """Default initialization."""
         adapter = CodexNotifyAdapter()
 
@@ -1261,7 +1263,7 @@ class TestCodexNotifyAdapterInit:
         assert adapter._seen_threads == OrderedDict()
         assert adapter.source == SessionSource.CODEX
 
-    def test_with_hook_manager(self):
+    def test_with_hook_manager(self) -> None:
         """Initialize with hook manager."""
         mock_hook_manager = MagicMock()
         adapter = CodexNotifyAdapter(hook_manager=mock_hook_manager)
@@ -1272,7 +1274,7 @@ class TestCodexNotifyAdapterInit:
 class TestCodexNotifyAdapterFindJsonlPath:
     """Tests for _find_jsonl_path method."""
 
-    def test_find_jsonl_path_not_exists(self):
+    def test_find_jsonl_path_not_exists(self) -> None:
         """Returns None when sessions dir doesn't exist."""
         adapter = CodexNotifyAdapter()
 
@@ -1281,7 +1283,7 @@ class TestCodexNotifyAdapterFindJsonlPath:
 
         assert result is None
 
-    def test_find_jsonl_path_found(self):
+    def test_find_jsonl_path_found(self) -> None:
         """Returns path when file found."""
         adapter = CodexNotifyAdapter()
 
@@ -1307,7 +1309,7 @@ class TestCodexNotifyAdapterFindJsonlPath:
 class TestCodexNotifyAdapterGetFirstPrompt:
     """Tests for _get_first_prompt method."""
 
-    def test_get_first_prompt_string(self):
+    def test_get_first_prompt_string(self) -> None:
         """Extract first prompt from string list."""
         adapter = CodexNotifyAdapter()
 
@@ -1315,7 +1317,7 @@ class TestCodexNotifyAdapterGetFirstPrompt:
 
         assert result == "Hello world"
 
-    def test_get_first_prompt_dict_text(self):
+    def test_get_first_prompt_dict_text(self) -> None:
         """Extract first prompt from dict with text key."""
         adapter = CodexNotifyAdapter()
 
@@ -1323,7 +1325,7 @@ class TestCodexNotifyAdapterGetFirstPrompt:
 
         assert result == "Help me code"
 
-    def test_get_first_prompt_dict_content(self):
+    def test_get_first_prompt_dict_content(self) -> None:
         """Extract first prompt from dict with content key."""
         adapter = CodexNotifyAdapter()
 
@@ -1331,7 +1333,7 @@ class TestCodexNotifyAdapterGetFirstPrompt:
 
         assert result == "Fix this bug"
 
-    def test_get_first_prompt_empty(self):
+    def test_get_first_prompt_empty(self) -> None:
         """Returns None for empty list."""
         adapter = CodexNotifyAdapter()
 
@@ -1339,7 +1341,7 @@ class TestCodexNotifyAdapterGetFirstPrompt:
 
         assert result is None
 
-    def test_get_first_prompt_none(self):
+    def test_get_first_prompt_none(self) -> None:
         """Returns None for None input."""
         adapter = CodexNotifyAdapter()
 
@@ -1351,7 +1353,7 @@ class TestCodexNotifyAdapterGetFirstPrompt:
 class TestCodexNotifyAdapterTranslateToHookEvent:
     """Tests for translate_to_hook_event method."""
 
-    def test_translate_agent_turn_complete(self):
+    def test_translate_agent_turn_complete(self) -> None:
         """Translate agent-turn-complete to AFTER_AGENT."""
         adapter = CodexNotifyAdapter()
 
@@ -1379,7 +1381,7 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
         assert hook_event.data["is_first_event"] is True
         assert hook_event.data["prompt"] == "Help me refactor"
 
-    def test_translate_missing_thread_id(self):
+    def test_translate_missing_thread_id(self) -> None:
         """Returns None when thread_id is missing."""
         adapter = CodexNotifyAdapter()
 
@@ -1395,7 +1397,7 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
 
         assert hook_event is None
 
-    def test_translate_tracks_seen_threads(self):
+    def test_translate_tracks_seen_threads(self) -> None:
         """Adapter tracks seen threads for is_first_event."""
         adapter = CodexNotifyAdapter()
 
@@ -1419,7 +1421,7 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
         assert event2.data["is_first_event"] is False
         assert event2.data["prompt"] is None
 
-    def test_translate_uses_cwd_fallback(self):
+    def test_translate_uses_cwd_fallback(self) -> None:
         """Uses current working directory when cwd not provided."""
         adapter = CodexNotifyAdapter()
 
@@ -1440,7 +1442,7 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
 class TestCodexNotifyAdapterTranslateFromHookResponse:
     """Tests for translate_from_hook_response method."""
 
-    def test_translate_response(self):
+    def test_translate_response(self) -> None:
         """Translate response to simple status dict."""
         adapter = CodexNotifyAdapter()
 
@@ -1450,7 +1452,7 @@ class TestCodexNotifyAdapterTranslateFromHookResponse:
         assert result["status"] == "processed"
         assert result["decision"] == "allow"
 
-    def test_translate_deny_response(self):
+    def test_translate_deny_response(self) -> None:
         """Translate deny response."""
         adapter = CodexNotifyAdapter()
 
@@ -1464,7 +1466,7 @@ class TestCodexNotifyAdapterTranslateFromHookResponse:
 class TestCodexNotifyAdapterHandleNative:
     """Tests for handle_native method."""
 
-    def test_handle_native_success(self):
+    def test_handle_native_success(self) -> None:
         """Handle native event through hook manager."""
         adapter = CodexNotifyAdapter()
         mock_hook_manager = MagicMock()
@@ -1485,7 +1487,7 @@ class TestCodexNotifyAdapterHandleNative:
         assert result["status"] == "processed"
         assert result["decision"] == "allow"
 
-    def test_handle_native_unsupported_event(self):
+    def test_handle_native_unsupported_event(self) -> None:
         """Handle unsupported event returns skipped."""
         adapter = CodexNotifyAdapter()
         mock_hook_manager = MagicMock()
@@ -1510,7 +1512,7 @@ class TestCodexNotifyAdapterHandleNative:
 class TestCodexAdapterEventMapping:
     """Tests verifying event type mapping constants."""
 
-    def test_event_map_contains_all_supported_events(self):
+    def test_event_map_contains_all_supported_events(self) -> None:
         """EVENT_MAP contains all events we claim to support."""
         expected_methods = [
             "thread/started",
@@ -1525,13 +1527,13 @@ class TestCodexAdapterEventMapping:
         for method in expected_methods:
             assert method in CodexAdapter.EVENT_MAP
 
-    def test_tool_item_types_complete(self):
+    def test_tool_item_types_complete(self) -> None:
         """TOOL_ITEM_TYPES contains all tool-related item types."""
         assert "commandExecution" in CodexAdapter.TOOL_ITEM_TYPES
         assert "fileChange" in CodexAdapter.TOOL_ITEM_TYPES
         assert "mcpToolCall" in CodexAdapter.TOOL_ITEM_TYPES
 
-    def test_session_tracking_events_complete(self):
+    def test_session_tracking_events_complete(self) -> None:
         """SESSION_TRACKING_EVENTS contains necessary events."""
         assert "thread/started" in CodexAdapter.SESSION_TRACKING_EVENTS
         assert "turn/started" in CodexAdapter.SESSION_TRACKING_EVENTS

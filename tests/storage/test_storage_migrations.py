@@ -1,6 +1,8 @@
 import sqlite3
 from unittest.mock import patch
 
+import pytest
+
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import (
     BASELINE_VERSION,
@@ -9,6 +11,8 @@ from gobby.storage.migrations import (
     run_migrations,
 )
 
+pytestmark = pytest.mark.unit
+
 # Calculate expected version after all migrations
 EXPECTED_FINAL_VERSION = max(
     BASELINE_VERSION,
@@ -16,7 +20,7 @@ EXPECTED_FINAL_VERSION = max(
 )
 
 
-def test_migrations_fresh_db(tmp_path):
+def test_migrations_fresh_db(tmp_path) -> None:
     """Test running migrations on a fresh database.
 
     With the baseline schema architecture:
@@ -62,7 +66,7 @@ def test_migrations_fresh_db(tmp_path):
         assert row is not None, f"Table {table} not created"
 
 
-def test_migrations_idempotency(tmp_path):
+def test_migrations_idempotency(tmp_path) -> None:
     """Test that running migrations again does nothing."""
     db_path = tmp_path / "idempotency.db"
     db = LocalDatabase(db_path)
@@ -77,7 +81,7 @@ def test_migrations_idempotency(tmp_path):
     assert get_current_version(db) == initial_version
 
 
-def test_get_current_version_error(tmp_path):
+def test_get_current_version_error(tmp_path) -> None:
     """Test get_current_version handles errors (e.g. missing table)."""
     db_path = tmp_path / "error.db"
     db = LocalDatabase(db_path)
@@ -95,7 +99,7 @@ def test_get_current_version_error(tmp_path):
 # =============================================================================
 
 
-def test_commits_column_exists_after_migration(tmp_path):
+def test_commits_column_exists_after_migration(tmp_path) -> None:
     """Test that the 'commits' column is added to the tasks table."""
     db_path = tmp_path / "commits_migration.db"
     db = LocalDatabase(db_path)
@@ -109,7 +113,7 @@ def test_commits_column_exists_after_migration(tmp_path):
     assert "commits" in row["sql"].lower(), "commits column not found in tasks table"
 
 
-def test_commits_column_allows_null(tmp_path):
+def test_commits_column_allows_null(tmp_path) -> None:
     """Test that the commits column allows NULL values (for existing tasks)."""
     db_path = tmp_path / "commits_null.db"
     db = LocalDatabase(db_path)
@@ -135,7 +139,7 @@ def test_commits_column_allows_null(tmp_path):
     assert row["commits"] is None
 
 
-def test_commits_column_accepts_json_array(tmp_path):
+def test_commits_column_accepts_json_array(tmp_path) -> None:
     """Test that commits column stores JSON array of commit SHAs."""
     db_path = tmp_path / "commits_json.db"
     db = LocalDatabase(db_path)
@@ -166,7 +170,7 @@ def test_commits_column_accepts_json_array(tmp_path):
     assert parsed == ["abc123", "def456", "789ghi"]
 
 
-def test_commits_migration_idempotent(tmp_path):
+def test_commits_migration_idempotent(tmp_path) -> None:
     """Test that running migrations twice doesn't fail or duplicate columns."""
     db_path = tmp_path / "commits_idempotent.db"
     db = LocalDatabase(db_path)
@@ -191,7 +195,7 @@ def test_commits_migration_idempotent(tmp_path):
 # =============================================================================
 
 
-def test_validation_history_table_exists(tmp_path):
+def test_validation_history_table_exists(tmp_path) -> None:
     """Test that task_validation_history table is created."""
     db_path = tmp_path / "validation_history.db"
     db = LocalDatabase(db_path)
@@ -205,7 +209,7 @@ def test_validation_history_table_exists(tmp_path):
     assert row is not None, "task_validation_history table not created"
 
 
-def test_validation_history_schema(tmp_path):
+def test_validation_history_schema(tmp_path) -> None:
     """Test that task_validation_history has correct columns."""
     db_path = tmp_path / "validation_schema.db"
     db = LocalDatabase(db_path)
@@ -233,7 +237,7 @@ def test_validation_history_schema(tmp_path):
         assert col in columns, f"Column {col} missing from task_validation_history"
 
 
-def test_validation_history_foreign_key(tmp_path):
+def test_validation_history_foreign_key(tmp_path) -> None:
     """Test that task_validation_history has foreign key to tasks."""
     db_path = tmp_path / "validation_fk.db"
     db = LocalDatabase(db_path)
@@ -253,7 +257,7 @@ def test_validation_history_foreign_key(tmp_path):
     )
 
 
-def test_validation_history_index_exists(tmp_path):
+def test_validation_history_index_exists(tmp_path) -> None:
     """Test that index on task_id exists for task_validation_history."""
     db_path = tmp_path / "validation_index.db"
     db = LocalDatabase(db_path)
@@ -271,7 +275,7 @@ def test_validation_history_index_exists(tmp_path):
     assert has_task_index, f"No task_id index found. Indexes: {index_names}"
 
 
-def test_validation_history_cascade_delete(tmp_path):
+def test_validation_history_cascade_delete(tmp_path) -> None:
     """Test that deleting a task cascades to validation history."""
     db_path = tmp_path / "validation_cascade.db"
     db = LocalDatabase(db_path)
@@ -312,7 +316,7 @@ def test_validation_history_cascade_delete(tmp_path):
     assert row is None, "Validation history not cascade deleted"
 
 
-def test_tasks_escalation_columns(tmp_path):
+def test_tasks_escalation_columns(tmp_path) -> None:
     """Test that escalation columns are added to tasks table."""
     db_path = tmp_path / "escalation_cols.db"
     db = LocalDatabase(db_path)
@@ -333,7 +337,7 @@ def test_tasks_escalation_columns(tmp_path):
 # =============================================================================
 
 
-def test_github_columns_exist_after_migration(tmp_path):
+def test_github_columns_exist_after_migration(tmp_path) -> None:
     """Test that GitHub integration columns are added to tasks table."""
     db_path = tmp_path / "github_cols.db"
     db = LocalDatabase(db_path)
@@ -350,7 +354,7 @@ def test_github_columns_exist_after_migration(tmp_path):
     assert "github_repo" in columns, "github_repo column missing from tasks"
 
 
-def test_github_columns_allow_null(tmp_path):
+def test_github_columns_allow_null(tmp_path) -> None:
     """Test that GitHub columns allow NULL values (for existing tasks)."""
     db_path = tmp_path / "github_null.db"
     db = LocalDatabase(db_path)
@@ -381,7 +385,7 @@ def test_github_columns_allow_null(tmp_path):
     assert row["github_repo"] is None
 
 
-def test_github_columns_store_values(tmp_path):
+def test_github_columns_store_values(tmp_path) -> None:
     """Test that GitHub columns store integer and text values correctly."""
     db_path = tmp_path / "github_values.db"
     db = LocalDatabase(db_path)
@@ -417,7 +421,7 @@ def test_github_columns_store_values(tmp_path):
 # =============================================================================
 
 
-def test_seq_num_and_path_cache_columns_exist(tmp_path):
+def test_seq_num_and_path_cache_columns_exist(tmp_path) -> None:
     """Test that seq_num and path_cache columns are added to tasks table."""
     db_path = tmp_path / "seq_num_cols.db"
     db = LocalDatabase(db_path)
@@ -433,7 +437,7 @@ def test_seq_num_and_path_cache_columns_exist(tmp_path):
     assert "path_cache" in columns, "path_cache column missing from tasks"
 
 
-def test_seq_num_unique_index_per_project(tmp_path):
+def test_seq_num_unique_index_per_project(tmp_path) -> None:
     """Test that seq_num is unique per project via index."""
     db_path = tmp_path / "seq_num_index.db"
     db = LocalDatabase(db_path)
@@ -454,7 +458,7 @@ def test_seq_num_unique_index_per_project(tmp_path):
             assert "UNIQUE" in row["sql"].upper(), "idx_tasks_seq_num should be UNIQUE"
 
 
-def test_path_cache_index_exists(tmp_path):
+def test_path_cache_index_exists(tmp_path) -> None:
     """Test that path_cache index exists for efficient lookups."""
     db_path = tmp_path / "path_cache_index.db"
     db = LocalDatabase(db_path)
@@ -468,7 +472,7 @@ def test_path_cache_index_exists(tmp_path):
     assert "idx_tasks_path_cache" in index_names, "idx_tasks_path_cache index missing"
 
 
-def test_seq_num_allows_null(tmp_path):
+def test_seq_num_allows_null(tmp_path) -> None:
     """Test that seq_num allows NULL values (for existing tasks pre-backfill)."""
     db_path = tmp_path / "seq_num_null.db"
     db = LocalDatabase(db_path)
@@ -495,7 +499,7 @@ def test_seq_num_allows_null(tmp_path):
     assert row["path_cache"] is None, "path_cache should be NULL when not set"
 
 
-def test_seq_num_stores_integer_values(tmp_path):
+def test_seq_num_stores_integer_values(tmp_path) -> None:
     """Test that seq_num stores integer values correctly."""
     db_path = tmp_path / "seq_num_values.db"
     db = LocalDatabase(db_path)
@@ -527,7 +531,7 @@ def test_seq_num_stores_integer_values(tmp_path):
 # =============================================================================
 
 
-def test_category_column_exists_after_migration(tmp_path):
+def test_category_column_exists_after_migration(tmp_path) -> None:
     """Test that the 'category' column exists in the tasks table after migration.
 
     This replaces the old 'test_strategy' column with a more semantic name.
@@ -547,7 +551,7 @@ def test_category_column_exists_after_migration(tmp_path):
     assert "category" in sql_lower, "category column not found in tasks table"
 
 
-def test_test_strategy_column_removed_after_migration(tmp_path):
+def test_test_strategy_column_removed_after_migration(tmp_path) -> None:
     """Test that the 'test_strategy' column no longer exists after migration.
 
     The migration renames test_strategy to category, so test_strategy should
@@ -569,7 +573,7 @@ def test_test_strategy_column_removed_after_migration(tmp_path):
     )
 
 
-def test_category_column_accepts_values(tmp_path):
+def test_category_column_accepts_values(tmp_path) -> None:
     """Test that the category column accepts valid values."""
     db_path = tmp_path / "category_values.db"
     db = LocalDatabase(db_path)
@@ -596,7 +600,7 @@ def test_category_column_accepts_values(tmp_path):
     assert row["category"] == "unit"
 
 
-def test_category_column_allows_null(tmp_path):
+def test_category_column_allows_null(tmp_path) -> None:
     """Test that the category column allows NULL values."""
     db_path = tmp_path / "category_null.db"
     db = LocalDatabase(db_path)
@@ -628,7 +632,7 @@ def test_category_column_allows_null(tmp_path):
 # =============================================================================
 
 
-def test_agent_name_column_exists_after_migration(tmp_path):
+def test_agent_name_column_exists_after_migration(tmp_path) -> None:
     """Test that the 'agent_name' column exists in the tasks table after migration.
 
     The agent_name field specifies which subagent configuration file to use when
@@ -647,7 +651,7 @@ def test_agent_name_column_exists_after_migration(tmp_path):
     assert "agent_name" in sql_lower, "agent_name column not found in tasks table"
 
 
-def test_agent_name_column_accepts_values(tmp_path):
+def test_agent_name_column_accepts_values(tmp_path) -> None:
     """Test that the agent_name column accepts valid TEXT values."""
     db_path = tmp_path / "agent_name_values.db"
     db = LocalDatabase(db_path)
@@ -674,7 +678,7 @@ def test_agent_name_column_accepts_values(tmp_path):
     assert row["agent_name"] == "backend-specialist"
 
 
-def test_agent_name_column_allows_null(tmp_path):
+def test_agent_name_column_allows_null(tmp_path) -> None:
     """Test that the agent_name column allows NULL values.
 
     Most tasks won't have a specific agent configuration, so NULL should be allowed.
@@ -709,7 +713,7 @@ def test_agent_name_column_allows_null(tmp_path):
 # =============================================================================
 
 
-def test_reference_doc_column_exists_after_migration(tmp_path):
+def test_reference_doc_column_exists_after_migration(tmp_path) -> None:
     """Test that the 'reference_doc' column exists in the tasks table after migration.
 
     The reference_doc field stores the path to the source specification document
@@ -728,7 +732,7 @@ def test_reference_doc_column_exists_after_migration(tmp_path):
     assert "reference_doc" in sql_lower, "reference_doc column not found in tasks table"
 
 
-def test_reference_doc_column_accepts_values(tmp_path):
+def test_reference_doc_column_accepts_values(tmp_path) -> None:
     """Test that the reference_doc column accepts valid TEXT values."""
     db_path = tmp_path / "reference_doc_values.db"
     db = LocalDatabase(db_path)
@@ -755,7 +759,7 @@ def test_reference_doc_column_accepts_values(tmp_path):
     assert row["reference_doc"] == "docs/specs/auth-design.md"
 
 
-def test_reference_doc_column_allows_null(tmp_path):
+def test_reference_doc_column_allows_null(tmp_path) -> None:
     """Test that the reference_doc column allows NULL values.
 
     Most tasks won't have a reference document, so NULL should be allowed.
@@ -790,7 +794,7 @@ def test_reference_doc_column_allows_null(tmp_path):
 # =============================================================================
 
 
-def test_boolean_columns_exist_after_migration(tmp_path):
+def test_boolean_columns_exist_after_migration(tmp_path) -> None:
     """Test that the boolean columns exist in the tasks table after migration.
 
     These flags enable idempotent batch operations:
@@ -811,7 +815,7 @@ def test_boolean_columns_exist_after_migration(tmp_path):
     # is_tdd_applied was dropped in migration 74
 
 
-def test_boolean_columns_accept_values(tmp_path):
+def test_boolean_columns_accept_values(tmp_path) -> None:
     """Test that the boolean columns accept INTEGER values (0/1)."""
     db_path = tmp_path / "boolean_columns_values.db"
     db = LocalDatabase(db_path)
@@ -841,7 +845,7 @@ def test_boolean_columns_accept_values(tmp_path):
     assert row["is_expanded"] == 1
 
 
-def test_boolean_columns_default_to_zero(tmp_path):
+def test_boolean_columns_default_to_zero(tmp_path) -> None:
     """Test that the boolean columns default to 0 (false).
 
     New tasks should have all processing flags set to false by default.
@@ -879,7 +883,7 @@ def test_boolean_columns_default_to_zero(tmp_path):
 # =============================================================================
 
 
-def test_inter_session_messages_table_exists(tmp_path):
+def test_inter_session_messages_table_exists(tmp_path) -> None:
     """Test that inter_session_messages table is created after migration.
 
     This table enables communication between parent and child agent sessions,
@@ -897,7 +901,7 @@ def test_inter_session_messages_table_exists(tmp_path):
     assert row is not None, "inter_session_messages table not created"
 
 
-def test_inter_session_messages_schema(tmp_path):
+def test_inter_session_messages_schema(tmp_path) -> None:
     """Test that inter_session_messages has correct columns."""
     db_path = tmp_path / "inter_session_schema.db"
     db = LocalDatabase(db_path)
@@ -922,7 +926,7 @@ def test_inter_session_messages_schema(tmp_path):
         assert col in columns, f"Column {col} missing from inter_session_messages"
 
 
-def test_inter_session_messages_foreign_keys(tmp_path):
+def test_inter_session_messages_foreign_keys(tmp_path) -> None:
     """Test that inter_session_messages has foreign keys to sessions table."""
     db_path = tmp_path / "inter_session_fk.db"
     db = LocalDatabase(db_path)
@@ -942,7 +946,7 @@ def test_inter_session_messages_foreign_keys(tmp_path):
     )
 
 
-def test_inter_session_messages_indexes(tmp_path):
+def test_inter_session_messages_indexes(tmp_path) -> None:
     """Test that inter_session_messages has proper indexes for queries."""
     db_path = tmp_path / "inter_session_index.db"
     db = LocalDatabase(db_path)
@@ -960,7 +964,7 @@ def test_inter_session_messages_indexes(tmp_path):
     assert has_to_session_index, f"No to_session index found. Indexes: {index_names}"
 
 
-def test_inter_session_messages_insert_and_query(tmp_path):
+def test_inter_session_messages_insert_and_query(tmp_path) -> None:
     """Test that inter_session_messages can store and retrieve messages."""
     db_path = tmp_path / "inter_session_insert.db"
     db = LocalDatabase(db_path)
@@ -1007,7 +1011,7 @@ def test_inter_session_messages_insert_and_query(tmp_path):
     assert row["read_at"] is None  # Not read yet
 
 
-def test_inter_session_messages_read_at_nullable(tmp_path):
+def test_inter_session_messages_read_at_nullable(tmp_path) -> None:
     """Test that read_at is nullable for unread messages."""
     db_path = tmp_path / "inter_session_read.db"
     db = LocalDatabase(db_path)
@@ -1057,7 +1061,7 @@ def test_inter_session_messages_read_at_nullable(tmp_path):
     assert row["read_at"] is not None
 
 
-def test_inter_session_messages_priority_values(tmp_path):
+def test_inter_session_messages_priority_values(tmp_path) -> None:
     """Test that priority accepts expected values (normal, urgent)."""
     db_path = tmp_path / "inter_session_priority.db"
     db = LocalDatabase(db_path)
@@ -1106,7 +1110,7 @@ def test_inter_session_messages_priority_values(tmp_path):
     assert "urgent" in priorities
 
 
-def test_inter_session_messages_cascade_delete(tmp_path):
+def test_inter_session_messages_cascade_delete(tmp_path) -> None:
     """Test that deleting a session cascades to inter_session_messages."""
     db_path = tmp_path / "inter_session_cascade.db"
     db = LocalDatabase(db_path)

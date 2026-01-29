@@ -9,6 +9,7 @@ import pytest
 from gobby.workflows.definitions import WorkflowDefinition
 from gobby.workflows.loader import DiscoveredWorkflow, WorkflowLoader
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def loader():
@@ -27,19 +28,19 @@ def temp_workflow_dir():
 class TestWorkflowLoader:
     """Tests for WorkflowLoader basic functionality."""
 
-    def test_init_default_dirs(self):
+    def test_init_default_dirs(self) -> None:
         """Test default workflow directory initialization."""
         loader = WorkflowLoader()
         assert len(loader.global_dirs) == 1
         assert loader.global_dirs[0] == Path.home() / ".gobby" / "workflows"
 
-    def test_init_custom_dirs(self):
+    def test_init_custom_dirs(self) -> None:
         """Test custom workflow directories initialization."""
         custom_dirs = [Path("/custom/path1"), Path("/custom/path2")]
         loader = WorkflowLoader(workflow_dirs=custom_dirs)
         assert loader.global_dirs == custom_dirs
 
-    def test_load_workflow_not_found(self, loader):
+    def test_load_workflow_not_found(self, loader) -> None:
         """Test loading a workflow that doesn't exist."""
         with patch(
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
@@ -47,7 +48,7 @@ class TestWorkflowLoader:
         ):
             assert loader.load_workflow("non_existent") is None
 
-    def test_load_workflow_valid_yaml(self, loader):
+    def test_load_workflow_valid_yaml(self, loader) -> None:
         """Test loading a valid workflow YAML."""
         yaml_content = """
         name: test_workflow
@@ -67,7 +68,7 @@ class TestWorkflowLoader:
                 assert len(wf.steps) == 1
                 assert wf.steps[0].name == "step1"
 
-    def test_load_workflow_invalid_yaml(self, loader):
+    def test_load_workflow_invalid_yaml(self, loader) -> None:
         """Test loading invalid YAML returns None."""
         yaml_content = "invalid: : yaml"
         with patch(
@@ -78,7 +79,7 @@ class TestWorkflowLoader:
                 wf = loader.load_workflow("invalid")
                 assert wf is None
 
-    def test_load_workflow_exception_handling(self, loader):
+    def test_load_workflow_exception_handling(self, loader) -> None:
         """Test that non-ValueError exceptions during loading return None."""
         yaml_content = """
         name: test_workflow
@@ -100,7 +101,7 @@ class TestWorkflowLoader:
                     result = loader.load_workflow("test")
                     assert result is None
 
-    def test_load_workflow_with_project_path(self, loader):
+    def test_load_workflow_with_project_path(self, loader) -> None:
         """Test that project path is prepended to search directories."""
         with patch("gobby.workflows.loader.WorkflowLoader._find_workflow_file") as mock_find:
             mock_find.return_value = None
@@ -111,7 +112,7 @@ class TestWorkflowLoader:
             assert Path("/my/project/.gobby/workflows") in search_dirs
             assert search_dirs[0] == Path("/my/project/.gobby/workflows")
 
-    def test_load_workflow_caching(self, loader):
+    def test_load_workflow_caching(self, loader) -> None:
         """Test that loaded workflows are cached."""
         yaml_content = """
         name: cached_workflow
@@ -133,7 +134,7 @@ class TestWorkflowLoader:
         wf2 = loader.load_workflow("cached_workflow")
         assert wf2 is wf1
 
-    def test_load_workflow_cache_key_includes_project(self, loader):
+    def test_load_workflow_cache_key_includes_project(self, loader) -> None:
         """Test that cache keys include project path for proper isolation."""
         yaml_content = """
         name: project_workflow
@@ -161,7 +162,7 @@ class TestWorkflowLoader:
         assert "global:project_workflow" in loader._cache
         assert "/project/a:project_workflow" in loader._cache
 
-    def test_clear_cache_forces_reload(self, loader):
+    def test_clear_cache_forces_reload(self, loader) -> None:
         """Test that clearing cache forces reload from disk."""
         yaml_content_v1 = """
         name: dynamic_workflow
@@ -197,7 +198,7 @@ class TestWorkflowLoader:
 class TestFindWorkflowFile:
     """Tests for _find_workflow_file method."""
 
-    def test_find_in_root_directory(self, temp_workflow_dir):
+    def test_find_in_root_directory(self, temp_workflow_dir) -> None:
         """Test finding workflow file in root directory."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -209,7 +210,7 @@ class TestFindWorkflowFile:
 
         assert result == workflow_file
 
-    def test_find_in_subdirectory(self, temp_workflow_dir):
+    def test_find_in_subdirectory(self, temp_workflow_dir) -> None:
         """Test finding workflow file in subdirectory like lifecycle/."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -223,7 +224,7 @@ class TestFindWorkflowFile:
 
         assert result == workflow_file
 
-    def test_find_not_found(self, temp_workflow_dir):
+    def test_find_not_found(self, temp_workflow_dir) -> None:
         """Test that None is returned when workflow file doesn't exist."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -233,7 +234,7 @@ class TestFindWorkflowFile:
 
         assert result is None
 
-    def test_find_priority_order(self, temp_workflow_dir):
+    def test_find_priority_order(self, temp_workflow_dir) -> None:
         """Test that first matching directory takes priority."""
         dir1 = temp_workflow_dir / "dir1"
         dir1.mkdir()
@@ -250,7 +251,7 @@ class TestFindWorkflowFile:
         # Should find in dir1 first
         assert result == dir1 / "test.yaml"
 
-    def test_find_with_nonexistent_directory(self, temp_workflow_dir):
+    def test_find_with_nonexistent_directory(self, temp_workflow_dir) -> None:
         """Test handling of non-existent directories in search list."""
         existing_dir = temp_workflow_dir / "existing"
         existing_dir.mkdir()
@@ -264,7 +265,7 @@ class TestFindWorkflowFile:
 
         assert result == existing_dir / "test.yaml"
 
-    def test_find_skips_files_in_subdirectory_check(self, temp_workflow_dir):
+    def test_find_skips_files_in_subdirectory_check(self, temp_workflow_dir) -> None:
         """Test that files (not dirs) in search dir are skipped during subdir iteration."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -282,7 +283,7 @@ class TestFindWorkflowFile:
         # Should skip the file and find in subdir
         assert result == subdir / "test.yaml"
 
-    def test_find_not_found_in_subdirectory(self, temp_workflow_dir):
+    def test_find_not_found_in_subdirectory(self, temp_workflow_dir) -> None:
         """Test that None is returned when workflow exists in subdir but not the searched one."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -302,7 +303,7 @@ class TestFindWorkflowFile:
 class TestWorkflowInheritance:
     """Tests for workflow inheritance and cycle detection."""
 
-    def test_valid_inheritance(self):
+    def test_valid_inheritance(self) -> None:
         """Test that valid inheritance (A extends B) works correctly."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -346,7 +347,7 @@ class TestWorkflowInheritance:
                 assert "step1" in step_names
                 assert "step2" in step_names
 
-    def test_parent_workflow_not_found(self):
+    def test_parent_workflow_not_found(self) -> None:
         """Test handling when parent workflow doesn't exist."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -371,7 +372,7 @@ class TestWorkflowInheritance:
                 assert wf is not None
                 assert wf.name == "orphan_workflow"
 
-    def test_self_inheritance_cycle(self):
+    def test_self_inheritance_cycle(self) -> None:
         """Test that self-inheritance (A extends A) raises ValueError."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -393,7 +394,7 @@ class TestWorkflowInheritance:
                 with pytest.raises(ValueError, match="Circular workflow inheritance"):
                     loader.load_workflow("self_ref")
 
-    def test_two_way_circular_inheritance(self):
+    def test_two_way_circular_inheritance(self) -> None:
         """Test that A extends B, B extends A raises ValueError."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -434,7 +435,7 @@ class TestWorkflowInheritance:
                 with pytest.raises(ValueError, match="Circular workflow inheritance"):
                     loader.load_workflow("workflow_a")
 
-    def test_three_level_circular_inheritance(self):
+    def test_three_level_circular_inheritance(self) -> None:
         """Test that A extends B, B extends C, C extends A raises ValueError."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -489,7 +490,7 @@ class TestWorkflowInheritance:
                 with pytest.raises(ValueError, match="Circular workflow inheritance"):
                     loader.load_workflow("workflow_a")
 
-    def test_valid_chain_inheritance(self):
+    def test_valid_chain_inheritance(self) -> None:
         """Test that valid chain (A extends B extends C) works correctly."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -552,7 +553,7 @@ class TestWorkflowInheritance:
 class TestMergeWorkflows:
     """Tests for _merge_workflows method."""
 
-    def test_simple_merge(self, loader):
+    def test_simple_merge(self, loader) -> None:
         """Test basic parent/child merge."""
         parent = {"name": "parent", "version": "1.0.0", "description": "Parent desc"}
         child = {"name": "child", "version": "2.0"}
@@ -563,7 +564,7 @@ class TestMergeWorkflows:
         assert result["version"] == "2.0"
         assert result["description"] == "Parent desc"
 
-    def test_nested_dict_merge(self, loader):
+    def test_nested_dict_merge(self, loader) -> None:
         """Test that nested dicts are deep merged."""
         parent = {
             "name": "parent",
@@ -579,7 +580,7 @@ class TestMergeWorkflows:
         assert result["settings"]["timeout"] == 60
         assert result["settings"]["retry"] is True
 
-    def test_steps_merge_by_name(self, loader):
+    def test_steps_merge_by_name(self, loader) -> None:
         """Test that steps/phases are merged by name."""
         parent = {
             "name": "parent",
@@ -606,7 +607,7 @@ class TestMergeWorkflows:
         assert step_map["step2"]["allowed_tools"] == ["read", "write"]  # Child overrides
         assert step_map["step3"]["allowed_tools"] == ["exec"]
 
-    def test_phases_merge_by_name(self, loader):
+    def test_phases_merge_by_name(self, loader) -> None:
         """Test that 'phases' key (legacy) is merged correctly."""
         parent = {
             "name": "parent",
@@ -630,7 +631,7 @@ class TestMergeWorkflows:
 class TestMergeSteps:
     """Tests for _merge_steps method."""
 
-    def test_merge_steps_update_existing(self, loader):
+    def test_merge_steps_update_existing(self, loader) -> None:
         """Test that existing steps are updated."""
         parent_steps = [
             {"name": "step1", "timeout": 30},
@@ -646,7 +647,7 @@ class TestMergeSteps:
         assert step_map["step1"]["timeout"] == 120
         assert step_map["step2"]["timeout"] == 60
 
-    def test_merge_steps_add_new(self, loader):
+    def test_merge_steps_add_new(self, loader) -> None:
         """Test that new steps are added."""
         parent_steps = [
             {"name": "step1", "timeout": 30},
@@ -662,7 +663,7 @@ class TestMergeSteps:
         assert "step1" in step_names
         assert "step2" in step_names
 
-    def test_merge_steps_without_name_parent(self, loader):
+    def test_merge_steps_without_name_parent(self, loader) -> None:
         """Test that parent steps without 'name' key are skipped with warning."""
         parent_steps = [
             {"timeout": 30},  # Missing name
@@ -680,7 +681,7 @@ class TestMergeSteps:
         assert "step2" in step_names
         assert len(result) == 2
 
-    def test_merge_steps_without_name_child(self, loader):
+    def test_merge_steps_without_name_child(self, loader) -> None:
         """Test that child steps without 'name' key are skipped with warning."""
         parent_steps = [
             {"name": "step1", "timeout": 30},
@@ -701,7 +702,7 @@ class TestMergeSteps:
 class TestDiscoverLifecycleWorkflows:
     """Tests for discover_lifecycle_workflows method."""
 
-    def test_discover_from_global_directory(self, temp_workflow_dir):
+    def test_discover_from_global_directory(self, temp_workflow_dir) -> None:
         """Test discovering lifecycle workflows from global directory."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         lifecycle_dir = global_dir / "lifecycle"
@@ -725,7 +726,7 @@ settings:
         assert discovered[0].is_project is False
         assert discovered[0].priority == 10
 
-    def test_discover_project_shadows_global(self, temp_workflow_dir):
+    def test_discover_project_shadows_global(self, temp_workflow_dir) -> None:
         """Test that project workflows shadow global ones with the same name."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -758,7 +759,7 @@ settings:
         assert discovered[0].is_project is True
         assert discovered[0].priority == 50
 
-    def test_discover_sorting(self, temp_workflow_dir):
+    def test_discover_sorting(self, temp_workflow_dir) -> None:
         """Test that workflows are sorted by project/global, priority, then name."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -782,7 +783,7 @@ settings:
         names = [w.name for w in discovered]
         assert names == ["b_workflow", "c_workflow", "a_workflow"]
 
-    def test_discover_filters_non_lifecycle(self, temp_workflow_dir):
+    def test_discover_filters_non_lifecycle(self, temp_workflow_dir) -> None:
         """Test that non-lifecycle workflows are filtered out."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -806,7 +807,7 @@ type: step
         assert len(discovered) == 1
         assert discovered[0].name == "lifecycle_wf"
 
-    def test_discover_caching(self, temp_workflow_dir):
+    def test_discover_caching(self, temp_workflow_dir) -> None:
         """Test that discovery results are cached."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -827,7 +828,7 @@ type: lifecycle
 
         assert discovered1 is discovered2
 
-    def test_discover_default_priority(self, temp_workflow_dir):
+    def test_discover_default_priority(self, temp_workflow_dir) -> None:
         """Test that workflows without priority setting get default of 100."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -849,7 +850,7 @@ type: lifecycle
 class TestScanDirectory:
     """Tests for _scan_directory method."""
 
-    def test_scan_nonexistent_directory(self, loader, temp_workflow_dir):
+    def test_scan_nonexistent_directory(self, loader, temp_workflow_dir) -> None:
         """Test that scanning non-existent directory does nothing."""
         discovered = {}
         loader._scan_directory(
@@ -859,7 +860,7 @@ class TestScanDirectory:
         )
         assert len(discovered) == 0
 
-    def test_scan_skips_empty_yaml(self, temp_workflow_dir):
+    def test_scan_skips_empty_yaml(self, temp_workflow_dir) -> None:
         """Test that empty YAML files are skipped."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -871,7 +872,7 @@ class TestScanDirectory:
 
         assert len(discovered) == 0
 
-    def test_scan_skips_invalid_yaml(self, temp_workflow_dir):
+    def test_scan_skips_invalid_yaml(self, temp_workflow_dir) -> None:
         """Test that invalid YAML files are skipped with warning."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -883,7 +884,7 @@ class TestScanDirectory:
 
         assert len(discovered) == 0
 
-    def test_scan_handles_inheritance_in_discovery(self, temp_workflow_dir):
+    def test_scan_handles_inheritance_in_discovery(self, temp_workflow_dir) -> None:
         """Test that inheritance is resolved during discovery."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         global_dir.mkdir(parents=True)
@@ -913,7 +914,7 @@ extends: parent
         assert "parent" in discovered
         assert "child" in discovered
 
-    def test_scan_handles_circular_inheritance_gracefully(self, temp_workflow_dir):
+    def test_scan_handles_circular_inheritance_gracefully(self, temp_workflow_dir) -> None:
         """Test that circular inheritance is handled during scan."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -942,7 +943,7 @@ extends: cycle_a
         # At least one will fail to load
         assert len(discovered) <= 2
 
-    def test_scan_handles_missing_parent_in_inheritance(self, temp_workflow_dir):
+    def test_scan_handles_missing_parent_in_inheritance(self, temp_workflow_dir) -> None:
         """Test that workflows extending missing parents are still loaded."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -967,7 +968,7 @@ extends: nonexistent_parent
 class TestClearCache:
     """Tests for clear_cache method."""
 
-    def test_clear_cache(self, temp_workflow_dir):
+    def test_clear_cache(self, temp_workflow_dir) -> None:
         """Test that discovery cache is cleared."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -993,7 +994,7 @@ type: lifecycle
 class TestValidateWorkflowForAgent:
     """Tests for validate_workflow_for_agent method."""
 
-    def test_validate_nonexistent_workflow(self, loader):
+    def test_validate_nonexistent_workflow(self, loader) -> None:
         """Test that nonexistent workflows are considered valid (no error)."""
         with patch.object(loader, "load_workflow", return_value=None):
             is_valid, error = loader.validate_workflow_for_agent("nonexistent")
@@ -1001,7 +1002,7 @@ class TestValidateWorkflowForAgent:
         assert is_valid is True
         assert error is None
 
-    def test_validate_step_workflow(self, loader):
+    def test_validate_step_workflow(self, loader) -> None:
         """Test that step workflows are valid for agents."""
         step_workflow = MagicMock(spec=WorkflowDefinition)
         step_workflow.type = "step"
@@ -1012,7 +1013,7 @@ class TestValidateWorkflowForAgent:
         assert is_valid is True
         assert error is None
 
-    def test_validate_lifecycle_workflow(self, loader):
+    def test_validate_lifecycle_workflow(self, loader) -> None:
         """Test that lifecycle workflows are invalid for agents."""
         lifecycle_workflow = MagicMock(spec=WorkflowDefinition)
         lifecycle_workflow.type = "lifecycle"
@@ -1024,7 +1025,7 @@ class TestValidateWorkflowForAgent:
         assert "lifecycle workflow" in error.lower()
         assert "plan-execute" in error
 
-    def test_validate_with_loading_error(self, loader):
+    def test_validate_with_loading_error(self, loader) -> None:
         """Test handling of ValueError during workflow loading."""
         with patch.object(
             loader,
@@ -1037,7 +1038,7 @@ class TestValidateWorkflowForAgent:
         assert "Failed to load" in error
         assert "Circular inheritance" in error
 
-    def test_validate_with_project_path(self, loader):
+    def test_validate_with_project_path(self, loader) -> None:
         """Test that project_path is passed through to load_workflow."""
         step_workflow = MagicMock(spec=WorkflowDefinition)
         step_workflow.type = "step"
@@ -1051,7 +1052,7 @@ class TestValidateWorkflowForAgent:
 class TestDiscoveredWorkflow:
     """Tests for DiscoveredWorkflow dataclass."""
 
-    def test_dataclass_creation(self):
+    def test_dataclass_creation(self) -> None:
         """Test creating a DiscoveredWorkflow instance."""
         definition = MagicMock(spec=WorkflowDefinition)
         definition.type = "lifecycle"
@@ -1073,7 +1074,7 @@ class TestDiscoveredWorkflow:
 class TestGenericWorkflow:
     """Tests for the generic.yaml workflow definition."""
 
-    def test_generic_workflow_loads_successfully(self, temp_workflow_dir):
+    def test_generic_workflow_loads_successfully(self, temp_workflow_dir) -> None:
         """Test that the generic workflow can be loaded."""
         # Copy the generic workflow to the test directory
         generic_yaml = """
@@ -1130,7 +1131,7 @@ exit_condition: "current_step == 'complete'"
         assert wf.name == "generic"
         assert wf.type == "step"
 
-    def test_generic_workflow_has_work_and_complete_steps(self, temp_workflow_dir):
+    def test_generic_workflow_has_work_and_complete_steps(self, temp_workflow_dir) -> None:
         """Test that generic workflow has work and complete steps."""
         generic_yaml = """
 name: generic
@@ -1170,7 +1171,7 @@ exit_condition: "current_step == 'complete'"
         assert "work" in step_names
         assert "complete" in step_names
 
-    def test_generic_workflow_work_step_has_allowed_tools(self, temp_workflow_dir):
+    def test_generic_workflow_work_step_has_allowed_tools(self, temp_workflow_dir) -> None:
         """Test that work step allows basic file tools."""
         generic_yaml = """
 name: generic
@@ -1214,7 +1215,7 @@ steps:
         assert "Glob" in work_step.allowed_tools
         assert "Grep" in work_step.allowed_tools
 
-    def test_generic_workflow_blocks_spawn_tools(self, temp_workflow_dir):
+    def test_generic_workflow_blocks_spawn_tools(self, temp_workflow_dir) -> None:
         """Test that work step blocks spawn tools to prevent recursive spawning."""
         generic_yaml = """
 name: generic

@@ -12,6 +12,7 @@ from gobby.hooks.verification_runner import (
     run_command,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_verification_config():
@@ -60,7 +61,7 @@ def mock_hooks_config():
 
 class TestRunCommand:
     @patch("subprocess.run")
-    def test_run_command_success(self, mock_run):
+    def test_run_command_success(self, mock_run) -> None:
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout="Success output",
@@ -77,7 +78,7 @@ class TestRunCommand:
         assert result.duration_ms >= 0
 
     @patch("subprocess.run")
-    def test_run_command_failure(self, mock_run):
+    def test_run_command_failure(self, mock_run) -> None:
         mock_run.return_value = MagicMock(
             returncode=1,
             stdout="",
@@ -91,7 +92,7 @@ class TestRunCommand:
         assert result.stderr == "Error output"
 
     @patch("subprocess.run")
-    def test_run_command_timeout(self, mock_run):
+    def test_run_command_timeout(self, mock_run) -> None:
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="long-cmd", timeout=1)
 
         result = run_command("timeout-cmd", "sleep 2", Path("/tmp"), timeout=1)
@@ -100,7 +101,7 @@ class TestRunCommand:
         assert "timed out" in result.error
 
     @patch("subprocess.run")
-    def test_run_command_exception(self, mock_run):
+    def test_run_command_exception(self, mock_run) -> None:
         mock_run.side_effect = OSError("System error")
 
         result = run_command("error-cmd", "broken", Path("/tmp"))
@@ -110,7 +111,7 @@ class TestRunCommand:
 
 
 class TestStageResult:
-    def test_counts(self):
+    def test_counts(self) -> None:
         results = [
             VerificationResult("p1", "c1", success=True),
             VerificationResult("p2", "c2", success=True),
@@ -125,7 +126,7 @@ class TestStageResult:
 
 
 class TestVerificationRunner:
-    def test_init_defaults(self):
+    def test_init_defaults(self) -> None:
         with patch("pathlib.Path.cwd", return_value=Path("/tmp")):
             runner = VerificationRunner()
             assert runner.cwd == Path("/tmp")
@@ -134,35 +135,35 @@ class TestVerificationRunner:
 
     @patch("gobby.hooks.verification_runner.get_verification_config")
     @patch("gobby.hooks.verification_runner.get_hooks_config")
-    def test_from_project(self, mock_get_hooks, mock_get_verif):
+    def test_from_project(self, mock_get_hooks, mock_get_verif) -> None:
         runner = VerificationRunner.from_project(Path("/test/project"))
 
         assert runner.cwd == Path("/test/project")
         mock_get_verif.assert_called_with(Path("/test/project"))
         mock_get_hooks.assert_called_with(Path("/test/project"))
 
-    def test_run_stage_no_hooks_config(self):
+    def test_run_stage_no_hooks_config(self) -> None:
         runner = VerificationRunner()
         result = runner.run_stage("pre-commit")
 
         assert result.skipped is True
         assert "No hooks configured" in result.skip_reason
 
-    def test_run_stage_disabled(self, mock_hooks_config):
+    def test_run_stage_disabled(self, mock_hooks_config) -> None:
         runner = VerificationRunner(hooks_config=mock_hooks_config)
         result = runner.run_stage("disabled")
 
         assert result.skipped is True
         assert "disabled" in result.skip_reason
 
-    def test_run_stage_empty(self, mock_hooks_config):
+    def test_run_stage_empty(self, mock_hooks_config) -> None:
         runner = VerificationRunner(hooks_config=mock_hooks_config)
         result = runner.run_stage("empty")
 
         assert result.skipped is True
         assert "No commands" in result.skip_reason
 
-    def test_run_stage_no_verification_config(self, mock_hooks_config):
+    def test_run_stage_no_verification_config(self, mock_hooks_config) -> None:
         runner = VerificationRunner(hooks_config=mock_hooks_config)
         result = runner.run_stage("pre-commit")
 
@@ -172,7 +173,7 @@ class TestVerificationRunner:
         assert "No verification commands defined" in result.skip_reason
 
     @patch("gobby.hooks.verification_runner.run_command")
-    def test_run_stage_success(self, mock_run_cmd, mock_verification_config, mock_hooks_config):
+    def test_run_stage_success(self, mock_run_cmd, mock_verification_config, mock_hooks_config) -> None:
         runner = VerificationRunner(
             verification_config=mock_verification_config, hooks_config=mock_hooks_config
         )
@@ -185,7 +186,7 @@ class TestVerificationRunner:
         assert len(result.results) == 2
         assert mock_run_cmd.call_count == 2
 
-    def test_run_stage_undefined_command(self, mock_verification_config, mock_hooks_config):
+    def test_run_stage_undefined_command(self, mock_verification_config, mock_hooks_config) -> None:
         # Add unknown command
         mock_hooks_config.get_stage("pre-commit").run = ["unknown"]
 
@@ -200,7 +201,7 @@ class TestVerificationRunner:
         assert "not defined" in result.results[0].skip_reason
 
     @patch("gobby.hooks.verification_runner.run_command")
-    def test_run_stage_fail_fast(self, mock_run_cmd, mock_verification_config, mock_hooks_config):
+    def test_run_stage_fail_fast(self, mock_run_cmd, mock_verification_config, mock_hooks_config) -> None:
         stage_config = mock_hooks_config.get_stage("pre-commit")
         stage_config.fail_fast = True
 
@@ -220,7 +221,7 @@ class TestVerificationRunner:
         assert len(result.results) == 1  # Should stop after first failure
         assert result.results[0].name == "lint"
 
-    def test_get_stage_config(self, mock_hooks_config):
+    def test_get_stage_config(self, mock_hooks_config) -> None:
         runner = VerificationRunner(hooks_config=mock_hooks_config)
         config = runner.get_stage_config("pre-commit")
         assert config is not None

@@ -5,6 +5,7 @@ import pytest
 from gobby.storage.task_dependencies import DependencyCycleError, TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):
@@ -22,7 +23,7 @@ def project_id(sample_project):
 
 
 class TestTaskDependencyManager:
-    def test_add_dependency(self, task_manager, dep_manager, project_id):
+    def test_add_dependency(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")  # T1 -> T2 (T1 depends on T2)
 
@@ -31,7 +32,7 @@ class TestTaskDependencyManager:
         assert dep.depends_on == t2.id
         assert dep.dep_type == "blocks"
 
-    def test_cycle_detection(self, task_manager, dep_manager, project_id):
+    def test_cycle_detection(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
         t3 = task_manager.create_task(project_id, "T3")
@@ -44,7 +45,7 @@ class TestTaskDependencyManager:
         with pytest.raises(DependencyCycleError):
             dep_manager.add_dependency(t3.id, t1.id)
 
-    def test_get_blockers_blocking(self, task_manager, dep_manager, project_id):
+    def test_get_blockers_blocking(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
 
@@ -59,7 +60,7 @@ class TestTaskDependencyManager:
         assert len(blocking) == 1
         assert blocking[0].task_id == t1.id
 
-    def test_dependency_tree(self, task_manager, dep_manager, project_id):
+    def test_dependency_tree(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
         t3 = task_manager.create_task(project_id, "T3")
@@ -76,7 +77,7 @@ class TestTaskDependencyManager:
         assert len(tree["blockers"][0]["blockers"]) == 1
         assert tree["blockers"][0]["blockers"][0]["id"] == t3.id
 
-    def test_check_cycles_global(self, task_manager, dep_manager, project_id):
+    def test_check_cycles_global(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
 
@@ -96,7 +97,7 @@ class TestTaskDependencyManager:
         assert t1.id in cycle_ids
         assert t2.id in cycle_ids
 
-    def test_remove_dependency(self, task_manager, dep_manager, project_id):
+    def test_remove_dependency(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
 
@@ -107,12 +108,12 @@ class TestTaskDependencyManager:
         assert removed
         assert len(dep_manager.get_blockers(t1.id)) == 0
 
-    def test_self_dependency_fails(self, task_manager, dep_manager, project_id):
+    def test_self_dependency_fails(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         with pytest.raises(ValueError, match="itself"):
             dep_manager.add_dependency(t1.id, t1.id)
 
-    def test_to_dict(self, task_manager, dep_manager, project_id):
+    def test_to_dict(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
         dep = dep_manager.add_dependency(t1.id, t2.id, "related")
@@ -124,7 +125,7 @@ class TestTaskDependencyManager:
         assert "created_at" in data
         assert "id" in data
 
-    def test_get_all_dependencies(self, task_manager, dep_manager, project_id):
+    def test_get_all_dependencies(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
         t3 = task_manager.create_task(project_id, "T3")
@@ -140,7 +141,7 @@ class TestTaskDependencyManager:
         assert t2.id in dw_ids
         assert t3.id in dw_ids
 
-    def test_dependency_tree_blocking_and_both(self, task_manager, dep_manager, project_id):
+    def test_dependency_tree_blocking_and_both(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
         t3 = task_manager.create_task(project_id, "T3")
@@ -173,7 +174,7 @@ class TestTaskDependencyManager:
         assert len(tree_both["blocking"]) == 1
         assert tree_both["blocking"][0]["id"] == t1.id
 
-    def test_dependency_tree_max_depth(self, task_manager, dep_manager, project_id):
+    def test_dependency_tree_max_depth(self, task_manager, dep_manager, project_id) -> None:
         t1 = task_manager.create_task(project_id, "T1")
         t2 = task_manager.create_task(project_id, "T2")
         t3 = task_manager.create_task(project_id, "T3")

@@ -6,6 +6,7 @@ import pytest
 
 from gobby.cli.installers.shared import backup_gobby_skills
 
+pytestmark = pytest.mark.unit
 
 class TestBackupGobbySkills:
     """Tests for backup_gobby_skills function."""

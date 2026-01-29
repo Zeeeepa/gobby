@@ -20,6 +20,8 @@ from gobby.cli.extensions import (
 )
 from gobby.hooks.events import HookEventType
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -54,67 +56,67 @@ def mock_config():
 class TestGetHookDescription:
     """Tests for _get_hook_description helper function."""
 
-    def test_session_start_description(self):
+    def test_session_start_description(self) -> None:
         """Test description for SESSION_START event."""
         desc = _get_hook_description(HookEventType.SESSION_START)
         assert desc == "Fired when a new session starts"
 
-    def test_session_end_description(self):
+    def test_session_end_description(self) -> None:
         """Test description for SESSION_END event."""
         desc = _get_hook_description(HookEventType.SESSION_END)
         assert desc == "Fired when a session ends"
 
-    def test_before_agent_description(self):
+    def test_before_agent_description(self) -> None:
         """Test description for BEFORE_AGENT event."""
         desc = _get_hook_description(HookEventType.BEFORE_AGENT)
         assert desc == "Fired before agent turn starts"
 
-    def test_after_agent_description(self):
+    def test_after_agent_description(self) -> None:
         """Test description for AFTER_AGENT event."""
         desc = _get_hook_description(HookEventType.AFTER_AGENT)
         assert desc == "Fired after agent turn completes"
 
-    def test_stop_description(self):
+    def test_stop_description(self) -> None:
         """Test description for STOP event."""
         desc = _get_hook_description(HookEventType.STOP)
         assert desc == "Fired when agent attempts to stop (can block)"
 
-    def test_before_tool_description(self):
+    def test_before_tool_description(self) -> None:
         """Test description for BEFORE_TOOL event."""
         desc = _get_hook_description(HookEventType.BEFORE_TOOL)
         assert desc == "Fired before a tool is executed (can block)"
 
-    def test_after_tool_description(self):
+    def test_after_tool_description(self) -> None:
         """Test description for AFTER_TOOL event."""
         desc = _get_hook_description(HookEventType.AFTER_TOOL)
         assert desc == "Fired after a tool completes"
 
-    def test_before_tool_selection_description(self):
+    def test_before_tool_selection_description(self) -> None:
         """Test description for BEFORE_TOOL_SELECTION event."""
         desc = _get_hook_description(HookEventType.BEFORE_TOOL_SELECTION)
         assert desc == "Fired before tool selection (Gemini)"
 
-    def test_before_model_description(self):
+    def test_before_model_description(self) -> None:
         """Test description for BEFORE_MODEL event."""
         desc = _get_hook_description(HookEventType.BEFORE_MODEL)
         assert desc == "Fired before model call (Gemini)"
 
-    def test_after_model_description(self):
+    def test_after_model_description(self) -> None:
         """Test description for AFTER_MODEL event."""
         desc = _get_hook_description(HookEventType.AFTER_MODEL)
         assert desc == "Fired after model call (Gemini)"
 
-    def test_pre_compact_description(self):
+    def test_pre_compact_description(self) -> None:
         """Test description for PRE_COMPACT event."""
         desc = _get_hook_description(HookEventType.PRE_COMPACT)
         assert desc == "Fired before session context is compacted"
 
-    def test_notification_description(self):
+    def test_notification_description(self) -> None:
         """Test description for NOTIFICATION event."""
         desc = _get_hook_description(HookEventType.NOTIFICATION)
         assert desc == "Notification event from CLI"
 
-    def test_unknown_event_returns_empty(self):
+    def test_unknown_event_returns_empty(self) -> None:
         """Test that unknown events return empty string."""
         # Events not in the descriptions dict should return empty string
         desc = _get_hook_description(HookEventType.SUBAGENT_START)
@@ -132,7 +134,7 @@ class TestGetHookDescription:
 class TestHooksGroup:
     """Tests for the hooks command group."""
 
-    def test_hooks_help(self, runner: CliRunner):
+    def test_hooks_help(self, runner: CliRunner) -> None:
         """Test hooks --help displays help text."""
         result = runner.invoke(cli, ["hooks", "--help"])
         assert result.exit_code == 0
@@ -142,7 +144,7 @@ class TestHooksGroup:
 class TestHooksListCommand:
     """Tests for the hooks list command."""
 
-    def test_hooks_list_help(self, runner: CliRunner):
+    def test_hooks_list_help(self, runner: CliRunner) -> None:
         """Test hooks list --help displays help text."""
         result = runner.invoke(cli, ["hooks", "list", "--help"])
         assert result.exit_code == 0
@@ -154,7 +156,7 @@ class TestHooksListCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
-    ):
+    ) -> None:
         """Test hooks list with default (human-readable) output."""
         mock_load_config.return_value = mock_config
 
@@ -174,7 +176,7 @@ class TestHooksListCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
-    ):
+    ) -> None:
         """Test hooks list with JSON output."""
         mock_load_config.return_value = mock_config
 
@@ -204,7 +206,7 @@ class TestHooksListCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         mock_config: MagicMock,
-    ):
+    ) -> None:
         """Test that hooks list includes descriptions."""
         mock_load_config.return_value = mock_config
 
@@ -219,7 +221,7 @@ class TestHooksListCommand:
 class TestHooksTestCommand:
     """Tests for the hooks test command."""
 
-    def test_hooks_test_help(self, runner: CliRunner):
+    def test_hooks_test_help(self, runner: CliRunner) -> None:
         """Test hooks test --help displays help text."""
         result = runner.invoke(cli, ["hooks", "test", "--help"])
         assert result.exit_code == 0
@@ -242,7 +244,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test with successful response."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -273,7 +275,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test with different source option."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -303,7 +305,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test with tool-related event includes tool_name."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -333,7 +335,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test with non-tool event does not include tool_name."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -363,7 +365,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test with JSON output."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -395,7 +397,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test displays inject_context in output."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -421,7 +423,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test when daemon is not running."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -444,7 +446,7 @@ class TestHooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test hooks test when API call fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -465,7 +467,7 @@ class TestHooksTestCommand:
 class TestPluginsGroup:
     """Tests for the plugins command group."""
 
-    def test_plugins_help(self, runner: CliRunner):
+    def test_plugins_help(self, runner: CliRunner) -> None:
         """Test plugins --help displays help text."""
         result = runner.invoke(cli, ["plugins", "--help"])
         assert result.exit_code == 0
@@ -475,7 +477,7 @@ class TestPluginsGroup:
 class TestPluginsListCommand:
     """Tests for the plugins list command."""
 
-    def test_plugins_list_help(self, runner: CliRunner):
+    def test_plugins_list_help(self, runner: CliRunner) -> None:
         """Test plugins list --help displays help text."""
         result = runner.invoke(cli, ["plugins", "list", "--help"])
         assert result.exit_code == 0
@@ -494,7 +496,7 @@ class TestPluginsListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins list when plugin system is disabled."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -520,7 +522,7 @@ class TestPluginsListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins list with no plugins loaded."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -551,7 +553,7 @@ class TestPluginsListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins list with plugins loaded."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -596,7 +598,7 @@ class TestPluginsListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins list with JSON output."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -625,7 +627,7 @@ class TestPluginsListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins list when daemon is not running."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -648,7 +650,7 @@ class TestPluginsListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins list when API call fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -664,7 +666,7 @@ class TestPluginsListCommand:
 class TestPluginsReloadCommand:
     """Tests for the plugins reload command."""
 
-    def test_plugins_reload_help(self, runner: CliRunner):
+    def test_plugins_reload_help(self, runner: CliRunner) -> None:
         """Test plugins reload --help displays help text."""
         result = runner.invoke(cli, ["plugins", "reload", "--help"])
         assert result.exit_code == 0
@@ -683,7 +685,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload with successful response."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -714,7 +716,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload success without version in response."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -740,7 +742,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload when reload fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -768,7 +770,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload when reload fails with no error message."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -793,7 +795,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload with JSON output."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -818,7 +820,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload when daemon is not running."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -841,7 +843,7 @@ class TestPluginsReloadCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test plugins reload when API call fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -853,7 +855,7 @@ class TestPluginsReloadCommand:
         assert result.exit_code == 1
         assert "Failed to reload plugin: my-plugin" in result.output
 
-    def test_plugins_reload_requires_plugin_name(self, runner: CliRunner):
+    def test_plugins_reload_requires_plugin_name(self, runner: CliRunner) -> None:
         """Test plugins reload requires plugin name argument."""
         result = runner.invoke(cli, ["plugins", "reload"])
 
@@ -869,7 +871,7 @@ class TestPluginsReloadCommand:
 class TestWebhooksGroup:
     """Tests for the webhooks command group."""
 
-    def test_webhooks_help(self, runner: CliRunner):
+    def test_webhooks_help(self, runner: CliRunner) -> None:
         """Test webhooks --help displays help text."""
         result = runner.invoke(cli, ["webhooks", "--help"])
         assert result.exit_code == 0
@@ -879,7 +881,7 @@ class TestWebhooksGroup:
 class TestWebhooksListCommand:
     """Tests for the webhooks list command."""
 
-    def test_webhooks_list_help(self, runner: CliRunner):
+    def test_webhooks_list_help(self, runner: CliRunner) -> None:
         """Test webhooks list --help displays help text."""
         result = runner.invoke(cli, ["webhooks", "list", "--help"])
         assert result.exit_code == 0
@@ -898,7 +900,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list when webhook system is disabled."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -924,7 +926,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list with no endpoints configured."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -951,7 +953,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list with endpoints configured."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1003,7 +1005,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list with endpoint missing URL."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1036,7 +1038,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list with JSON output."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1070,7 +1072,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list when daemon is not running."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1093,7 +1095,7 @@ class TestWebhooksListCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks list when API call fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1109,7 +1111,7 @@ class TestWebhooksListCommand:
 class TestWebhooksTestCommand:
     """Tests for the webhooks test command."""
 
-    def test_webhooks_test_help(self, runner: CliRunner):
+    def test_webhooks_test_help(self, runner: CliRunner) -> None:
         """Test webhooks test --help displays help text."""
         result = runner.invoke(cli, ["webhooks", "test", "--help"])
         assert result.exit_code == 0
@@ -1129,7 +1131,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test with successful response."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1166,7 +1168,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test with custom event type."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1195,7 +1197,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test success without response time."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1221,7 +1223,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test when webhook fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1250,7 +1252,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test failure with status code."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1280,7 +1282,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test failure with no error message."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1305,7 +1307,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test with JSON output."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1335,7 +1337,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test when daemon is not running."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1358,7 +1360,7 @@ class TestWebhooksTestCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         mock_daemon_client: MagicMock,
-    ):
+    ) -> None:
         """Test webhooks test when API call fails."""
         mock_load_config.return_value = mock_config
         mock_get_client.return_value = mock_daemon_client
@@ -1370,7 +1372,7 @@ class TestWebhooksTestCommand:
         assert result.exit_code == 1
         assert "Failed to test webhook: my-webhook" in result.output
 
-    def test_webhooks_test_requires_webhook_name(self, runner: CliRunner):
+    def test_webhooks_test_requires_webhook_name(self, runner: CliRunner) -> None:
         """Test webhooks test requires webhook name argument."""
         result = runner.invoke(cli, ["webhooks", "test"])
 
@@ -1386,39 +1388,39 @@ class TestWebhooksTestCommand:
 class TestCommandGroupsRegistration:
     """Tests verifying command groups are properly registered with CLI."""
 
-    def test_hooks_registered_in_cli(self, runner: CliRunner):
+    def test_hooks_registered_in_cli(self, runner: CliRunner) -> None:
         """Test that hooks command group is registered in main CLI."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
         assert "hooks" in result.output
 
-    def test_plugins_registered_in_cli(self, runner: CliRunner):
+    def test_plugins_registered_in_cli(self, runner: CliRunner) -> None:
         """Test that plugins command group is registered in main CLI."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
         assert "plugins" in result.output
 
-    def test_webhooks_registered_in_cli(self, runner: CliRunner):
+    def test_webhooks_registered_in_cli(self, runner: CliRunner) -> None:
         """Test that webhooks command group is registered in main CLI."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
         assert "webhooks" in result.output
 
-    def test_hooks_subcommands_registered(self, runner: CliRunner):
+    def test_hooks_subcommands_registered(self, runner: CliRunner) -> None:
         """Test that hooks subcommands are registered."""
         result = runner.invoke(cli, ["hooks", "--help"])
         assert result.exit_code == 0
         assert "list" in result.output
         assert "test" in result.output
 
-    def test_plugins_subcommands_registered(self, runner: CliRunner):
+    def test_plugins_subcommands_registered(self, runner: CliRunner) -> None:
         """Test that plugins subcommands are registered."""
         result = runner.invoke(cli, ["plugins", "--help"])
         assert result.exit_code == 0
         assert "list" in result.output
         assert "reload" in result.output
 
-    def test_webhooks_subcommands_registered(self, runner: CliRunner):
+    def test_webhooks_subcommands_registered(self, runner: CliRunner) -> None:
         """Test that webhooks subcommands are registered."""
         result = runner.invoke(cli, ["webhooks", "--help"])
         assert result.exit_code == 0

@@ -19,7 +19,7 @@ pytestmark = pytest.mark.integration
 class TestConductorStartCommand:
     """Tests for 'conductor start' command."""
 
-    def test_start_conductor_success(self):
+    def test_start_conductor_success(self) -> None:
         """Test 'conductor start' success."""
         from gobby.cli.conductor import conductor
 
@@ -36,7 +36,7 @@ class TestConductorStartCommand:
             assert result.exit_code == 0
             assert "started" in result.output.lower() or "Conductor" in result.output
 
-    def test_start_with_interval(self):
+    def test_start_with_interval(self) -> None:
         """Test 'conductor start --interval 60'."""
         from gobby.cli.conductor import conductor
 
@@ -55,7 +55,7 @@ class TestConductorStartCommand:
             call_json = mock_post.call_args[1]["json"]
             assert call_json.get("interval") == 60
 
-    def test_start_with_autonomous_mode(self):
+    def test_start_with_autonomous_mode(self) -> None:
         """Test 'conductor start --autonomous'."""
         from gobby.cli.conductor import conductor
 
@@ -77,7 +77,7 @@ class TestConductorStartCommand:
 class TestConductorStopCommand:
     """Tests for 'conductor stop' command."""
 
-    def test_stop_conductor_success(self):
+    def test_stop_conductor_success(self) -> None:
         """Test 'conductor stop' success."""
         from gobby.cli.conductor import conductor
 
@@ -98,7 +98,7 @@ class TestConductorStopCommand:
 class TestConductorRestartCommand:
     """Tests for 'conductor restart' command."""
 
-    def test_restart_conductor_success(self):
+    def test_restart_conductor_success(self) -> None:
         """Test 'conductor restart' success."""
         from gobby.cli.conductor import conductor
 
@@ -118,7 +118,7 @@ class TestConductorRestartCommand:
 class TestConductorStatusCommand:
     """Tests for 'conductor status' command."""
 
-    def test_status_when_running(self):
+    def test_status_when_running(self) -> None:
         """Test 'conductor status' when conductor is running."""
         from gobby.cli.conductor import conductor
 
@@ -140,7 +140,7 @@ class TestConductorStatusCommand:
             assert result.exit_code == 0
             assert "running" in result.output.lower()
 
-    def test_status_when_stopped(self):
+    def test_status_when_stopped(self) -> None:
         """Test 'conductor status' when conductor is stopped."""
         from gobby.cli.conductor import conductor
 
@@ -159,7 +159,7 @@ class TestConductorStatusCommand:
             assert result.exit_code == 0
             assert "not running" in result.output.lower() or "stopped" in result.output.lower()
 
-    def test_status_json_format(self):
+    def test_status_json_format(self) -> None:
         """Test 'conductor status --json'."""
         from gobby.cli.conductor import conductor
 
@@ -183,7 +183,7 @@ class TestConductorStatusCommand:
 class TestConductorChatCommand:
     """Tests for 'conductor chat' command."""
 
-    def test_chat_send_message(self):
+    def test_chat_send_message(self) -> None:
         """Test 'conductor chat' sends message to conductor."""
         from gobby.cli.conductor import conductor
 
@@ -204,7 +204,7 @@ class TestConductorChatCommand:
             call_json = mock_post.call_args[1]["json"]
             assert call_json.get("message") == "Check all tasks"
 
-    def test_chat_displays_response(self):
+    def test_chat_displays_response(self) -> None:
         """Test 'conductor chat' displays the response."""
         from gobby.cli.conductor import conductor
 
@@ -224,7 +224,7 @@ class TestConductorChatCommand:
             assert result.exit_code == 0
             assert "3 stale tasks" in result.output or "response" in result.output.lower()
 
-    def test_chat_json_format(self):
+    def test_chat_json_format(self) -> None:
         """Test 'conductor chat --json'."""
         from gobby.cli.conductor import conductor
 
@@ -248,7 +248,7 @@ class TestConductorChatCommand:
 class TestConductorDaemonConnection:
     """Tests for daemon connection handling."""
 
-    def test_start_when_daemon_not_running(self):
+    def test_start_when_daemon_not_running(self) -> None:
         """Test 'conductor start' when daemon is not running."""
         from gobby.cli.conductor import conductor
 

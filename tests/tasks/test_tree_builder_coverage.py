@@ -5,6 +5,7 @@ import pytest
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.tree_builder import TaskTreeBuilder
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -22,7 +23,7 @@ def builder(mock_task_manager):
     )
 
 
-def test_build_simple_tree(builder, mock_task_manager):
+def test_build_simple_tree(builder, mock_task_manager) -> None:
     """Test building a simple tree with one node."""
     mock_task = Task(
         id="t1",
@@ -60,7 +61,7 @@ def test_build_simple_tree(builder, mock_task_manager):
     assert call_kwargs["created_in_session_id"] == "test-session"
 
 
-def test_build_nested_tree(builder, mock_task_manager):
+def test_build_nested_tree(builder, mock_task_manager) -> None:
     """Test building a tree with children."""
     root_task = Task(
         id="t1",
@@ -229,7 +230,7 @@ def test_dependency_resolution_by_index(MockDepManager, builder, mock_task_manag
     )
 
 
-def test_missing_title_error(builder):
+def test_missing_title_error(builder) -> None:
     """Test error handling for missing title."""
     tree = {
         "task_type": "epic",
@@ -244,7 +245,7 @@ def test_missing_title_error(builder):
     assert "missing required 'title'" in result.errors[0]
 
 
-def test_task_creation_failure(builder, mock_task_manager):
+def test_task_creation_failure(builder, mock_task_manager) -> None:
     """Test handling of task creation exceptions."""
     mock_task_manager.create_task.side_effect = Exception("DB Error")
 

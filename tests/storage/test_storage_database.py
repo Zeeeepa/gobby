@@ -15,14 +15,14 @@ pytestmark = pytest.mark.integration
 class TestLocalDatabase:
     """Tests for LocalDatabase class."""
 
-    def test_init_creates_directory(self, temp_dir: Path):
+    def test_init_creates_directory(self, temp_dir: Path) -> None:
         """Test that database initialization creates parent directory."""
         db_path = temp_dir / "subdir" / "test.db"
         db = LocalDatabase(db_path)
         assert db_path.parent.exists()
         db.close()
 
-    def test_init_with_explicit_path(self, temp_dir: Path):
+    def test_init_with_explicit_path(self, temp_dir: Path) -> None:
         """Test database creation with explicit path."""
         db_path = temp_dir / "custom" / "test.db"
         db = LocalDatabase(db_path)
@@ -30,36 +30,36 @@ class TestLocalDatabase:
         assert db_path.parent.exists()
         db.close()
 
-    def test_execute_returns_cursor(self, temp_db: LocalDatabase):
+    def test_execute_returns_cursor(self, temp_db: LocalDatabase) -> None:
         """Test that execute returns a cursor."""
         cursor = temp_db.execute("SELECT 1 as value")
         assert isinstance(cursor, sqlite3.Cursor)
 
-    def test_fetchone_returns_row(self, temp_db: LocalDatabase):
+    def test_fetchone_returns_row(self, temp_db: LocalDatabase) -> None:
         """Test fetchone returns a single row."""
         row = temp_db.fetchone("SELECT 1 as value, 'test' as name")
         assert row is not None
         assert row["value"] == 1
         assert row["name"] == "test"
 
-    def test_fetchone_returns_none_for_no_results(self, temp_db: LocalDatabase):
+    def test_fetchone_returns_none_for_no_results(self, temp_db: LocalDatabase) -> None:
         """Test fetchone returns None when no results."""
         row = temp_db.fetchone("SELECT * FROM projects WHERE id = 'nonexistent'")
         assert row is None
 
-    def test_fetchall_returns_list(self, temp_db: LocalDatabase):
+    def test_fetchall_returns_list(self, temp_db: LocalDatabase) -> None:
         """Test fetchall returns a list of rows."""
         rows = temp_db.fetchall("SELECT 1 as value UNION SELECT 2 UNION SELECT 3")
         assert len(rows) == 3
         values = [row["value"] for row in rows]
         assert sorted(values) == [1, 2, 3]
 
-    def test_fetchall_returns_empty_list_for_no_results(self, temp_db: LocalDatabase):
+    def test_fetchall_returns_empty_list_for_no_results(self, temp_db: LocalDatabase) -> None:
         """Test fetchall returns empty list when no results."""
         rows = temp_db.fetchall("SELECT * FROM projects WHERE id = 'nonexistent'")
         assert rows == []
 
-    def test_executemany(self, temp_db: LocalDatabase):
+    def test_executemany(self, temp_db: LocalDatabase) -> None:
         """Test executemany with multiple parameter sets."""
         # Create test table
         temp_db.execute("CREATE TABLE test_items (id INTEGER, name TEXT)")
@@ -75,7 +75,7 @@ class TestLocalDatabase:
         assert rows[0]["name"] == "one"
         assert rows[2]["name"] == "three"
 
-    def test_transaction_commit(self, temp_db: LocalDatabase):
+    def test_transaction_commit(self, temp_db: LocalDatabase) -> None:
         """Test successful transaction commits."""
         temp_db.execute("CREATE TABLE test_tx (id INTEGER, value TEXT)")
 
@@ -87,7 +87,7 @@ class TestLocalDatabase:
         rows = temp_db.fetchall("SELECT * FROM test_tx")
         assert len(rows) == 2
 
-    def test_transaction_rollback_on_error(self, temp_db: LocalDatabase):
+    def test_transaction_rollback_on_error(self, temp_db: LocalDatabase) -> None:
         """Test transaction rolls back on error."""
         temp_db.execute("CREATE TABLE test_rollback (id INTEGER PRIMARY KEY, value TEXT)")
         temp_db.execute("INSERT INTO test_rollback VALUES (1, 'original')")
@@ -102,7 +102,7 @@ class TestLocalDatabase:
         row = temp_db.fetchone("SELECT value FROM test_rollback WHERE id = 1")
         assert row["value"] == "original"
 
-    def test_thread_local_connections(self, temp_dir: Path):
+    def test_thread_local_connections(self, temp_dir: Path) -> None:
         """Test that each thread gets its own connection."""
         db_path = temp_dir / "thread_test.db"
         db = LocalDatabase(db_path)
@@ -129,7 +129,7 @@ class TestLocalDatabase:
 
         db.close()
 
-    def test_close_connection(self, temp_dir: Path):
+    def test_close_connection(self, temp_dir: Path) -> None:
         """Test closing database connection."""
         db_path = temp_dir / "close_test.db"
         db = LocalDatabase(db_path)
@@ -142,19 +142,19 @@ class TestLocalDatabase:
         # Connection should be None after close
         assert not hasattr(db._local, "connection") or db._local.connection is None
 
-    def test_row_factory_returns_dict_like_rows(self, temp_db: LocalDatabase):
+    def test_row_factory_returns_dict_like_rows(self, temp_db: LocalDatabase) -> None:
         """Test that rows can be accessed like dicts."""
         row = temp_db.fetchone("SELECT 1 as a, 2 as b, 3 as c")
         assert row["a"] == 1
         assert row["b"] == 2
         assert row["c"] == 3
 
-    def test_foreign_keys_enabled(self, temp_db: LocalDatabase):
+    def test_foreign_keys_enabled(self, temp_db: LocalDatabase) -> None:
         """Test that foreign keys are enabled."""
         row = temp_db.fetchone("PRAGMA foreign_keys")
         assert row[0] == 1
 
-    def test_artifact_manager_property_exists(self, temp_db: LocalDatabase):
+    def test_artifact_manager_property_exists(self, temp_db: LocalDatabase) -> None:
         """Test that artifact_manager property is available."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -162,7 +162,7 @@ class TestLocalDatabase:
         assert manager is not None
         assert isinstance(manager, LocalArtifactManager)
 
-    def test_artifact_manager_is_lazily_initialized(self, temp_dir: Path):
+    def test_artifact_manager_is_lazily_initialized(self, temp_dir: Path) -> None:
         """Test that artifact_manager is lazily initialized on first access."""
         db_path = temp_dir / "lazy_test.db"
         db = LocalDatabase(db_path)
@@ -179,14 +179,14 @@ class TestLocalDatabase:
 
         db.close()
 
-    def test_artifact_manager_is_reused(self, temp_db: LocalDatabase):
+    def test_artifact_manager_is_reused(self, temp_db: LocalDatabase) -> None:
         """Test that artifact_manager returns the same instance on multiple accesses."""
         manager1 = temp_db.artifact_manager
         manager2 = temp_db.artifact_manager
 
         assert manager1 is manager2
 
-    def test_close_cleans_up_artifact_manager(self, temp_dir: Path):
+    def test_close_cleans_up_artifact_manager(self, temp_dir: Path) -> None:
         """Test that close() sets artifact_manager to None."""
         db_path = temp_dir / "cleanup_test.db"
         db = LocalDatabase(db_path)

@@ -12,6 +12,7 @@ from gobby.agents.context import (
     format_injected_prompt,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_session_manager():
@@ -352,7 +353,7 @@ class TestUnknownSource:
 class TestFormatInjectedPrompt:
     """Tests for format_injected_prompt function."""
 
-    def test_formats_with_context(self):
+    def test_formats_with_context(self) -> None:
         """Formats prompt with context properly."""
         result = format_injected_prompt("Context here", "Do the task")
 
@@ -361,26 +362,26 @@ class TestFormatInjectedPrompt:
         assert "## Task" in result
         assert "Do the task" in result
 
-    def test_skips_empty_context(self):
+    def test_skips_empty_context(self) -> None:
         """Skips injection when context is empty."""
         result = format_injected_prompt("", "Do the task")
 
         assert result == "Do the task"
 
-    def test_skips_whitespace_context(self):
+    def test_skips_whitespace_context(self) -> None:
         """Skips injection when context is only whitespace."""
         result = format_injected_prompt("   \n\t  ", "Do the task")
 
         assert result == "Do the task"
 
-    def test_preserves_original_prompt(self):
+    def test_preserves_original_prompt(self) -> None:
         """Original prompt is preserved in output."""
         prompt = "This is a complex\nmulti-line\nprompt."
         result = format_injected_prompt("Context", prompt)
 
         assert prompt in result
 
-    def test_uses_custom_template(self):
+    def test_uses_custom_template(self) -> None:
         """Uses custom template when provided."""
         template = "CONTEXT:\n{{ context }}\n\nTASK:\n{{ prompt }}"
         result = format_injected_prompt("My context", "My task", template=template)
@@ -388,21 +389,21 @@ class TestFormatInjectedPrompt:
         assert result == "CONTEXT:\nMy context\n\nTASK:\nMy task"
         assert "## Context from Parent Session" not in result
 
-    def test_custom_template_with_missing_placeholder(self):
+    def test_custom_template_with_missing_placeholder(self) -> None:
         """Custom template without placeholders is returned as-is."""
         template = "Static template without placeholders"
         result = format_injected_prompt("Context", "Task", template=template)
 
         assert result == "Static template without placeholders"
 
-    def test_custom_template_partial_placeholder(self):
+    def test_custom_template_partial_placeholder(self) -> None:
         """Custom template with only one placeholder works."""
         template = "Just the task: {{ prompt }}"
         result = format_injected_prompt("Context ignored", "Do something", template=template)
 
         assert result == "Just the task: Do something"
 
-    def test_default_template_when_none(self):
+    def test_default_template_when_none(self) -> None:
         """Default template is used when template is None."""
         result = format_injected_prompt("Context", "Task", template=None)
 
@@ -410,7 +411,7 @@ class TestFormatInjectedPrompt:
         assert "Context" in result
         assert "Task" in result
 
-    def test_empty_context_skips_template(self):
+    def test_empty_context_skips_template(self) -> None:
         """Empty context returns original prompt regardless of template."""
         template = "Custom template"
         result = format_injected_prompt("", "Original prompt", template=template)

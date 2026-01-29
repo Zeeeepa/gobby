@@ -10,6 +10,7 @@ from gobby.mcp_proxy.actions import (
     remove_mcp_server,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestAddMcpServer:
     """Tests for add_mcp_server function."""

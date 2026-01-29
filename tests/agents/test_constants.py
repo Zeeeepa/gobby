@@ -1,5 +1,7 @@
 """Tests for agent constants module."""
 
+import pytest
+
 from gobby.agents.constants import (
     ALL_TERMINAL_ENV_VARS,
     GOBBY_AGENT_DEPTH,
@@ -14,11 +16,12 @@ from gobby.agents.constants import (
     get_terminal_env_vars,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestEnvironmentVariableConstants:
     """Tests for environment variable constant definitions."""
 
-    def test_constants_are_strings(self):
+    def test_constants_are_strings(self) -> None:
         """All constants are string values."""
         assert isinstance(GOBBY_SESSION_ID, str)
         assert isinstance(GOBBY_PARENT_SESSION_ID, str)
@@ -30,17 +33,17 @@ class TestEnvironmentVariableConstants:
         assert isinstance(GOBBY_PROMPT, str)
         assert isinstance(GOBBY_PROMPT_FILE, str)
 
-    def test_constants_are_uppercase(self):
+    def test_constants_are_uppercase(self) -> None:
         """All constants follow ENV_VAR naming convention."""
         for var in ALL_TERMINAL_ENV_VARS:
             assert var == var.upper(), f"{var} should be uppercase"
 
-    def test_constants_start_with_gobby(self):
+    def test_constants_start_with_gobby(self) -> None:
         """All constants are prefixed with GOBBY_."""
         for var in ALL_TERMINAL_ENV_VARS:
             assert var.startswith("GOBBY_"), f"{var} should start with GOBBY_"
 
-    def test_all_terminal_env_vars_complete(self):
+    def test_all_terminal_env_vars_complete(self) -> None:
         """ALL_TERMINAL_ENV_VARS contains all constants."""
         expected = {
             GOBBY_SESSION_ID,
@@ -59,7 +62,7 @@ class TestEnvironmentVariableConstants:
 class TestGetTerminalEnvVars:
     """Tests for get_terminal_env_vars function."""
 
-    def test_returns_all_required_vars(self):
+    def test_returns_all_required_vars(self) -> None:
         """Function returns all required environment variables."""
         result = get_terminal_env_vars(
             session_id="sess-child",
@@ -73,7 +76,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_RUN_ID] == "run-123"
         assert result[GOBBY_PROJECT_ID] == "proj-abc"
 
-    def test_includes_workflow_when_provided(self):
+    def test_includes_workflow_when_provided(self) -> None:
         """Function includes workflow name when provided."""
         result = get_terminal_env_vars(
             session_id="sess-child",
@@ -85,7 +88,7 @@ class TestGetTerminalEnvVars:
 
         assert result[GOBBY_WORKFLOW_NAME] == "plan-execute"
 
-    def test_omits_workflow_when_none(self):
+    def test_omits_workflow_when_none(self) -> None:
         """Function omits workflow name when not provided."""
         result = get_terminal_env_vars(
             session_id="sess-child",
@@ -97,7 +100,7 @@ class TestGetTerminalEnvVars:
 
         assert GOBBY_WORKFLOW_NAME not in result
 
-    def test_includes_depth_info(self):
+    def test_includes_depth_info(self) -> None:
         """Function includes agent depth information."""
         result = get_terminal_env_vars(
             session_id="sess-child",
@@ -111,7 +114,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_DEPTH] == "2"
         assert result[GOBBY_MAX_AGENT_DEPTH] == "5"
 
-    def test_default_depth_values(self):
+    def test_default_depth_values(self) -> None:
         """Function uses default depth values."""
         result = get_terminal_env_vars(
             session_id="sess-child",
@@ -123,7 +126,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_DEPTH] == "1"
         assert result[GOBBY_MAX_AGENT_DEPTH] == "3"
 
-    def test_all_values_are_strings(self):
+    def test_all_values_are_strings(self) -> None:
         """Function returns all values as strings."""
         result = get_terminal_env_vars(
             session_id="sess-child",

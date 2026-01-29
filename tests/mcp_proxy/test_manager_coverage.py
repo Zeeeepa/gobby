@@ -25,6 +25,7 @@ from gobby.mcp_proxy.models import (
     MCPServerConfig,
 )
 
+pytestmark = pytest.mark.unit
 
 class MockDBServer:
     """Mock database server object for testing."""
@@ -65,7 +66,7 @@ class MockCachedTool:
 class TestMCPClientManagerDatabaseInit:
     """Tests for MCPClientManager initialization from database."""
 
-    def test_init_with_db_manager_and_project_id(self):
+    def test_init_with_db_manager_and_project_id(self) -> None:
         """Test loading servers from database with project_id."""
         mock_db = MagicMock()
         mock_db.list_servers.return_value = [
@@ -98,7 +99,7 @@ class TestMCPClientManagerDatabaseInit:
             enabled_only=False,
         )
 
-    def test_init_with_db_manager_no_project_id(self):
+    def test_init_with_db_manager_no_project_id(self) -> None:
         """Test loading all servers from database without project_id."""
         mock_db = MagicMock()
         mock_db.list_all_servers.return_value = [
@@ -116,7 +117,7 @@ class TestMCPClientManagerDatabaseInit:
         assert manager.has_server("global-server")
         mock_db.list_all_servers.assert_called_once_with(enabled_only=False)
 
-    def test_init_with_db_manager_loads_cached_tools(self):
+    def test_init_with_db_manager_loads_cached_tools(self) -> None:
         """Test that cached tools are loaded from database."""
         mock_db = MagicMock()
         mock_db.list_servers.return_value = [
@@ -149,7 +150,7 @@ class TestMCPClientManagerDatabaseInit:
 class TestLoadToolsFromDB:
     """Tests for _load_tools_from_db static method."""
 
-    def test_load_tools_returns_none_when_no_tools(self):
+    def test_load_tools_returns_none_when_no_tools(self) -> None:
         """Test returns None when no cached tools exist."""
         mock_db = MagicMock()
         mock_db.get_cached_tools.return_value = []
@@ -158,7 +159,7 @@ class TestLoadToolsFromDB:
 
         assert result is None
 
-    def test_load_tools_handles_exception(self):
+    def test_load_tools_handles_exception(self) -> None:
         """Test handles exceptions gracefully."""
         mock_db = MagicMock()
         mock_db.get_cached_tools.side_effect = Exception("Database error")
@@ -167,7 +168,7 @@ class TestLoadToolsFromDB:
 
         assert result is None
 
-    def test_load_tools_handles_none_description(self):
+    def test_load_tools_handles_none_description(self) -> None:
         """Test handles tools with None description."""
         mock_db = MagicMock()
         mock_db.get_cached_tools.return_value = [
@@ -183,7 +184,7 @@ class TestLoadToolsFromDB:
 class TestMCPClientManagerServerOperations:
     """Tests for server management operations."""
 
-    def test_get_available_servers(self):
+    def test_get_available_servers(self) -> None:
         """Test get_available_servers returns configured server names."""
         configs = [
             MCPServerConfig(
@@ -207,7 +208,7 @@ class TestMCPClientManagerServerOperations:
         assert "server2" in available
         assert len(available) == 2
 
-    def test_has_server_true(self):
+    def test_has_server_true(self) -> None:
         """Test has_server returns True for configured server."""
         config = MCPServerConfig(
             name="test-server",
@@ -220,13 +221,13 @@ class TestMCPClientManagerServerOperations:
 
         assert manager.has_server("test-server") is True
 
-    def test_has_server_false(self):
+    def test_has_server_false(self) -> None:
         """Test has_server returns False for unknown server."""
         manager = MCPClientManager(server_configs=[])
 
         assert manager.has_server("nonexistent") is False
 
-    def test_get_client_configured_but_not_connected(self):
+    def test_get_client_configured_but_not_connected(self) -> None:
         """Test get_client raises when server configured but not connected."""
         config = MCPServerConfig(
             name="test-server",
@@ -240,7 +241,7 @@ class TestMCPClientManagerServerOperations:
         with pytest.raises(ValueError, match="Client 'test-server' not connected"):
             manager.get_client("test-server")
 
-    def test_get_client_returns_connection(self):
+    def test_get_client_returns_connection(self) -> None:
         """Test get_client returns connection when connected."""
         config = MCPServerConfig(
             name="test-server",
@@ -561,7 +562,7 @@ class TestMCPClientManagerConnectAll:
 class TestMCPClientManagerLazyConnection:
     """Tests for lazy connection functionality."""
 
-    def test_get_lazy_connection_states(self):
+    def test_get_lazy_connection_states(self) -> None:
         """Test get_lazy_connection_states returns state info."""
         config = MCPServerConfig(
             name="test-server",
@@ -1281,7 +1282,7 @@ class TestMCPClientManagerReconnect:
 class TestMCPClientManagerServerConfig:
     """Tests for add_server_config and remove_server_config methods."""
 
-    def test_add_server_config(self):
+    def test_add_server_config(self) -> None:
         """Test add_server_config registers new config."""
         manager = MCPClientManager(server_configs=[])
 
@@ -1297,7 +1298,7 @@ class TestMCPClientManagerServerConfig:
         assert manager.has_server("new-server")
         assert "new-server" in manager.health
 
-    def test_add_server_config_initializes_health(self):
+    def test_add_server_config_initializes_health(self) -> None:
         """Test add_server_config initializes health tracking."""
         manager = MCPClientManager(server_configs=[])
 
@@ -1312,7 +1313,7 @@ class TestMCPClientManagerServerConfig:
 
         assert manager.health["new-server"].state == ConnectionState.DISCONNECTED
 
-    def test_remove_server_config_success(self):
+    def test_remove_server_config_success(self) -> None:
         """Test remove_server_config removes config."""
         config = MCPServerConfig(
             name="test-server",
@@ -1327,7 +1328,7 @@ class TestMCPClientManagerServerConfig:
 
         assert not manager.has_server("test-server")
 
-    def test_remove_server_config_with_connection_raises(self):
+    def test_remove_server_config_with_connection_raises(self) -> None:
         """Test remove_server_config raises when connection exists."""
         config = MCPServerConfig(
             name="test-server",
@@ -1346,7 +1347,7 @@ class TestMCPClientManagerServerConfig:
 class TestMCPClientManagerServerHealth:
     """Tests for get_server_health method."""
 
-    def test_get_server_health_formats_output(self):
+    def test_get_server_health_formats_output(self) -> None:
         """Test get_server_health returns formatted health data."""
         manager = MCPClientManager(server_configs=[])
 

@@ -8,11 +8,14 @@ Tests for the TaskMonitor class that detects:
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
+pytestmark = pytest.mark.unit
 
 class TestTaskMonitorStaleTasks:
     """Tests for stale task detection."""
 
-    def test_check_returns_stale_tasks(self):
+    def test_check_returns_stale_tasks(self) -> None:
         """TaskMonitor.check() returns tasks in_progress longer than threshold."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 
@@ -44,7 +47,7 @@ class TestTaskMonitorStaleTasks:
         assert len(result["stale_tasks"]) == 1
         assert result["stale_tasks"][0]["task_id"] == "task-stale"
 
-    def test_check_with_no_stale_tasks(self):
+    def test_check_with_no_stale_tasks(self) -> None:
         """TaskMonitor.check() returns empty when no stale tasks."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 
@@ -65,7 +68,7 @@ class TestTaskMonitorStaleTasks:
 
         assert result["stale_tasks"] == []
 
-    def test_check_custom_threshold(self):
+    def test_check_custom_threshold(self) -> None:
         """TaskMonitor.check() respects custom stale threshold."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 
@@ -95,7 +98,7 @@ class TestTaskMonitorStaleTasks:
 class TestTaskMonitorBlockedChains:
     """Tests for blocked task chain detection."""
 
-    def test_check_returns_blocked_chains(self):
+    def test_check_returns_blocked_chains(self) -> None:
         """TaskMonitor.check() returns blocked task chains."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 
@@ -116,7 +119,7 @@ class TestTaskMonitorBlockedChains:
         assert "blocked_chains" in result
         assert len(result["blocked_chains"]) == 1
 
-    def test_check_with_no_blocked_tasks(self):
+    def test_check_with_no_blocked_tasks(self) -> None:
         """TaskMonitor.check() returns empty when no blocked chains."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 
@@ -133,7 +136,7 @@ class TestTaskMonitorBlockedChains:
 class TestTaskMonitorProjectFilter:
     """Tests for project-scoped monitoring."""
 
-    def test_check_filters_by_project(self):
+    def test_check_filters_by_project(self) -> None:
         """TaskMonitor.check() filters by project_id when provided."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 
@@ -153,7 +156,7 @@ class TestTaskMonitorProjectFilter:
 class TestTaskMonitorSummary:
     """Tests for monitor summary output."""
 
-    def test_check_returns_summary_counts(self):
+    def test_check_returns_summary_counts(self) -> None:
         """TaskMonitor.check() includes summary counts."""
         from gobby.conductor.monitors.tasks import TaskMonitor
 

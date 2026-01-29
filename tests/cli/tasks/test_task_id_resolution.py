@@ -17,6 +17,7 @@ from click.testing import CliRunner
 from gobby.cli import cli
 from gobby.storage.tasks import TaskNotFoundError
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def runner() -> CliRunner:
@@ -58,7 +59,7 @@ def mock_task_with_uuid():
 class TestResolveTaskIdWithSeqNum:
     """Tests for resolve_task_id with #N format."""
 
-    def test_resolve_hash_format_success(self, mock_task_with_uuid: MagicMock):
+    def test_resolve_hash_format_success(self, mock_task_with_uuid: MagicMock) -> None:
         """Test resolving #N format to task."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -83,7 +84,7 @@ class TestResolveTaskIdWithSeqNum:
         assert result == mock_task_with_uuid
         mock_manager.resolve_task_reference.assert_called_once_with("#1", "proj-123")
 
-    def test_resolve_hash_format_not_found(self):
+    def test_resolve_hash_format_not_found(self) -> None:
         """Test #N format when task doesn't exist."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -96,7 +97,7 @@ class TestResolveTaskIdWithSeqNum:
 
         assert result is None
 
-    def test_resolve_hash_format_invalid(self):
+    def test_resolve_hash_format_invalid(self) -> None:
         """Test invalid #N format (e.g., #abc)."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -111,7 +112,7 @@ class TestResolveTaskIdWithSeqNum:
 
         assert result is None
 
-    def test_resolve_hash_zero_invalid(self):
+    def test_resolve_hash_zero_invalid(self) -> None:
         """Test that #0 is invalid (seq_num starts at 1)."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -130,7 +131,7 @@ class TestResolveTaskIdWithSeqNum:
 class TestResolveTaskIdWithPathFormat:
     """Tests for resolve_task_id with path format (1.2.3)."""
 
-    def test_resolve_path_format_success(self, mock_task_with_uuid: MagicMock):
+    def test_resolve_path_format_success(self, mock_task_with_uuid: MagicMock) -> None:
         """Test resolving path format like 1.2.3."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -150,7 +151,7 @@ class TestResolveTaskIdWithPathFormat:
 
         assert result == mock_task_with_uuid
 
-    def test_resolve_path_format_not_found(self):
+    def test_resolve_path_format_not_found(self) -> None:
         """Test path format when path doesn't exist."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -169,7 +170,7 @@ class TestResolveTaskIdWithPathFormat:
 class TestResolveTaskIdWithDeprecatedFormat:
     """Tests for deprecated gt-* format handling."""
 
-    def test_resolve_gt_format_shows_deprecation_error(self, runner: CliRunner):
+    def test_resolve_gt_format_shows_deprecation_error(self, runner: CliRunner) -> None:
         """Test that gt-* format shows deprecation error."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -196,7 +197,7 @@ class TestCliShowCommandWithHashFormat:
         mock_crud_get_manager: MagicMock,
         runner: CliRunner,
         mock_task_with_uuid: MagicMock,
-    ):
+    ) -> None:
         """Test `gobby tasks show #1` resolves correctly."""
         mock_manager = MagicMock()
         mock_manager.resolve_task_reference.return_value = mock_task_with_uuid.id
@@ -219,7 +220,7 @@ class TestCliUpdateCommandWithHashFormat:
         mock_crud_get_manager: MagicMock,
         runner: CliRunner,
         mock_task_with_uuid: MagicMock,
-    ):
+    ) -> None:
         """Test `gobby tasks update #5 --status done` resolves correctly."""
         mock_manager = MagicMock()
         mock_manager.resolve_task_reference.return_value = mock_task_with_uuid.id
@@ -243,7 +244,7 @@ class TestCliDeleteCommandWithHashFormat:
         mock_crud_get_manager: MagicMock,
         runner: CliRunner,
         mock_task_with_uuid: MagicMock,
-    ):
+    ) -> None:
         """Test `gobby tasks delete #10` resolves correctly."""
         mock_manager = MagicMock()
         mock_manager.resolve_task_reference.return_value = mock_task_with_uuid.id
@@ -266,7 +267,7 @@ class TestCliCloseCommandWithHashFormat:
         mock_crud_get_manager: MagicMock,
         runner: CliRunner,
         mock_task_with_uuid: MagicMock,
-    ):
+    ) -> None:
         """Test `gobby tasks close #3` resolves correctly."""
         mock_manager = MagicMock()
         mock_manager.resolve_task_reference.return_value = mock_task_with_uuid.id
@@ -284,7 +285,7 @@ class TestIntegrationResolveTaskId:
     """Integration tests using real database for #N format resolution."""
 
     @pytest.mark.integration
-    def test_resolve_hash_format_integration(self, temp_db, sample_project):
+    def test_resolve_hash_format_integration(self, temp_db, sample_project) -> None:
         """Test #N resolution with real database."""
         from gobby.cli.tasks._utils import resolve_task_id
         from gobby.storage.tasks import LocalTaskManager
@@ -311,7 +312,7 @@ class TestIntegrationResolveTaskId:
         assert result.id == task3.id
 
     @pytest.mark.integration
-    def test_resolve_path_format_integration(self, temp_db, sample_project):
+    def test_resolve_path_format_integration(self, temp_db, sample_project) -> None:
         """Test path format resolution with real database."""
         from gobby.cli.tasks._utils import resolve_task_id
         from gobby.storage.tasks import LocalTaskManager
@@ -342,7 +343,7 @@ class TestIntegrationResolveTaskId:
         assert result.id == grandchild.id
 
     @pytest.mark.integration
-    def test_resolve_uuid_format_integration(self, temp_db, sample_project):
+    def test_resolve_uuid_format_integration(self, temp_db, sample_project) -> None:
         """Test UUID format resolution with real database."""
         from gobby.cli.tasks._utils import resolve_task_id
         from gobby.storage.tasks import LocalTaskManager
@@ -358,7 +359,7 @@ class TestIntegrationResolveTaskId:
         assert result.id == task.id
 
     @pytest.mark.integration
-    def test_resolve_gt_format_deprecated_integration(self, temp_db, sample_project):
+    def test_resolve_gt_format_deprecated_integration(self, temp_db, sample_project) -> None:
         """Test gt-* format shows deprecation error."""
         from gobby.cli.tasks._utils import resolve_task_id
         from gobby.storage.tasks import LocalTaskManager
@@ -373,7 +374,7 @@ class TestIntegrationResolveTaskId:
         assert result is None
 
     @pytest.mark.integration
-    def test_resolve_nonexistent_seq_num_integration(self, temp_db, sample_project):
+    def test_resolve_nonexistent_seq_num_integration(self, temp_db, sample_project) -> None:
         """Test non-existent #N returns None."""
         from gobby.cli.tasks._utils import resolve_task_id
         from gobby.storage.tasks import LocalTaskManager
@@ -401,77 +402,77 @@ class TestParseTaskRefs:
     - Mixed: "#42,#43 #44" -> ["#42", "#43", "#44"]
     """
 
-    def test_parse_single_numeric_ref(self):
+    def test_parse_single_numeric_ref(self) -> None:
         """Test parsing a single numeric reference."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("42",))
         assert result == ["#42"]
 
-    def test_parse_single_hash_ref(self):
+    def test_parse_single_hash_ref(self) -> None:
         """Test parsing a single #N reference."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("#42",))
         assert result == ["#42"]
 
-    def test_parse_single_uuid_ref(self):
+    def test_parse_single_uuid_ref(self) -> None:
         """Test parsing a single UUID reference (passthrough)."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("abc123-def",))
         assert result == ["abc123-def"]
 
-    def test_parse_comma_separated_refs(self):
+    def test_parse_comma_separated_refs(self) -> None:
         """Test parsing comma-separated references."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("#42,#43,#44",))
         assert result == ["#42", "#43", "#44"]
 
-    def test_parse_comma_separated_numeric(self):
+    def test_parse_comma_separated_numeric(self) -> None:
         """Test parsing comma-separated numeric references."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("42,43,44",))
         assert result == ["#42", "#43", "#44"]
 
-    def test_parse_space_separated_refs(self):
+    def test_parse_space_separated_refs(self) -> None:
         """Test parsing space-separated references (Click tuple)."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("#42", "#43", "#44"))
         assert result == ["#42", "#43", "#44"]
 
-    def test_parse_mixed_comma_and_space(self):
+    def test_parse_mixed_comma_and_space(self) -> None:
         """Test parsing mixed comma and space-separated refs."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("#42,#43", "#44"))
         assert result == ["#42", "#43", "#44"]
 
-    def test_parse_empty_input(self):
+    def test_parse_empty_input(self) -> None:
         """Test parsing empty input returns empty list."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(())
         assert result == []
 
-    def test_parse_whitespace_handling(self):
+    def test_parse_whitespace_handling(self) -> None:
         """Test that whitespace around refs is stripped."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs((" #42 , #43 ",))
         assert result == ["#42", "#43"]
 
-    def test_parse_mixed_formats_in_single_arg(self):
+    def test_parse_mixed_formats_in_single_arg(self) -> None:
         """Test parsing mixed numeric and hash formats."""
         from gobby.cli.tasks._utils import parse_task_refs
 
         result = parse_task_refs(("42,#43,44",))
         assert result == ["#42", "#43", "#44"]
 
-    def test_parse_preserves_uuid_refs(self):
+    def test_parse_preserves_uuid_refs(self) -> None:
         """Test that UUID-like refs are preserved without modification."""
         from gobby.cli.tasks._utils import parse_task_refs
 
@@ -479,7 +480,7 @@ class TestParseTaskRefs:
         result = parse_task_refs((uuid_ref,))
         assert result == [uuid_ref]
 
-    def test_parse_filters_empty_refs(self):
+    def test_parse_filters_empty_refs(self) -> None:
         """Test that empty refs from extra commas are filtered."""
         from gobby.cli.tasks._utils import parse_task_refs
 

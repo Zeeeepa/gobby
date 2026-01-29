@@ -7,11 +7,14 @@ Tests for the AgentWatcher class that detects:
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
+pytestmark = pytest.mark.unit
 
 class TestAgentWatcherStuckAgents:
     """Tests for stuck agent detection."""
 
-    def test_check_returns_stuck_agents(self):
+    def test_check_returns_stuck_agents(self) -> None:
         """AgentWatcher.check() returns agents running longer than threshold."""
         from gobby.conductor.monitors.agents import AgentWatcher
 
@@ -43,7 +46,7 @@ class TestAgentWatcherStuckAgents:
         assert len(result["stuck_agents"]) == 1
         assert result["stuck_agents"][0]["run_id"] == "run-stuck"
 
-    def test_check_with_no_stuck_agents(self):
+    def test_check_with_no_stuck_agents(self) -> None:
         """AgentWatcher.check() returns empty when no stuck agents."""
         from gobby.conductor.monitors.agents import AgentWatcher
 
@@ -64,7 +67,7 @@ class TestAgentWatcherStuckAgents:
 
         assert result["stuck_agents"] == []
 
-    def test_check_custom_threshold(self):
+    def test_check_custom_threshold(self) -> None:
         """AgentWatcher.check() respects custom stuck threshold."""
         from gobby.conductor.monitors.agents import AgentWatcher
 
@@ -90,7 +93,7 @@ class TestAgentWatcherStuckAgents:
         result = watcher.check(stuck_threshold_minutes=15)
         assert len(result["stuck_agents"]) == 0
 
-    def test_check_with_no_running_agents(self):
+    def test_check_with_no_running_agents(self) -> None:
         """AgentWatcher.check() handles empty registry."""
         from gobby.conductor.monitors.agents import AgentWatcher
 
@@ -107,7 +110,7 @@ class TestAgentWatcherStuckAgents:
 class TestAgentWatcherSummary:
     """Tests for watcher summary output."""
 
-    def test_check_returns_summary_counts(self):
+    def test_check_returns_summary_counts(self) -> None:
         """AgentWatcher.check() includes summary counts."""
         from gobby.conductor.monitors.agents import AgentWatcher
 
@@ -141,7 +144,7 @@ class TestAgentWatcherSummary:
 class TestAgentWatcherModeFilter:
     """Tests for mode-based filtering."""
 
-    def test_check_filters_by_mode(self):
+    def test_check_filters_by_mode(self) -> None:
         """AgentWatcher.check() can filter by agent mode."""
         from gobby.conductor.monitors.agents import AgentWatcher
 
@@ -178,7 +181,7 @@ class TestAgentWatcherModeFilter:
 class TestAgentWatcherAgentInfo:
     """Tests for stuck agent info."""
 
-    def test_stuck_agent_includes_minutes_running(self):
+    def test_stuck_agent_includes_minutes_running(self) -> None:
         """Stuck agent info includes how long it's been running."""
         from gobby.conductor.monitors.agents import AgentWatcher
 

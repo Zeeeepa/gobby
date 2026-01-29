@@ -16,11 +16,12 @@ from gobby.agents.registry import (
     get_running_agent_registry,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestRunningAgent:
     """Tests for RunningAgent dataclass."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """RunningAgent requires run_id, session_id, parent_session_id, and mode."""
         agent = RunningAgent(
             run_id="ar-123",
@@ -34,7 +35,7 @@ class TestRunningAgent:
         assert agent.parent_session_id == "sess-parent"
         assert agent.mode == "terminal"
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """RunningAgent has correct default values."""
         agent = RunningAgent(
             run_id="ar-1",
@@ -52,7 +53,7 @@ class TestRunningAgent:
         assert agent.task is None
         assert isinstance(agent.started_at, datetime)
 
-    def test_all_fields_settable(self):
+    def test_all_fields_settable(self) -> None:
         """RunningAgent allows setting all optional fields."""
         mock_task = MagicMock()
         agent = RunningAgent(
@@ -77,7 +78,7 @@ class TestRunningAgent:
         assert agent.worktree_id == "wt-abc"
         assert agent.task is mock_task
 
-    def test_started_at_uses_utc(self):
+    def test_started_at_uses_utc(self) -> None:
         """RunningAgent.started_at is timezone-aware UTC."""
         agent = RunningAgent(
             run_id="ar-time",
@@ -89,7 +90,7 @@ class TestRunningAgent:
         assert agent.started_at.tzinfo is not None
         assert agent.started_at.tzinfo == UTC
 
-    def test_to_dict_basic(self):
+    def test_to_dict_basic(self) -> None:
         """RunningAgent.to_dict returns correct dictionary."""
         agent = RunningAgent(
             run_id="ar-dict",
@@ -113,7 +114,7 @@ class TestRunningAgent:
         assert result["has_task"] is False
         assert "started_at" in result
 
-    def test_to_dict_with_all_fields(self):
+    def test_to_dict_with_all_fields(self) -> None:
         """RunningAgent.to_dict includes all fields when set."""
         mock_task = MagicMock()
         agent = RunningAgent(
@@ -140,7 +141,7 @@ class TestRunningAgent:
         assert result["worktree_id"] == "wt-xyz"
         assert result["has_task"] is True
 
-    def test_to_dict_started_at_is_isoformat(self):
+    def test_to_dict_started_at_is_isoformat(self) -> None:
         """RunningAgent.to_dict serializes started_at as ISO format string."""
         agent = RunningAgent(
             run_id="ar-iso",
@@ -177,19 +178,19 @@ class TestRunningAgentRegistry:
             pid=12345,
         )
 
-    def test_init_creates_empty_registry(self, registry):
+    def test_init_creates_empty_registry(self, registry) -> None:
         """Registry initializes with empty agents dict."""
         assert registry.count() == 0
         assert registry.list_all() == []
 
-    def test_add_agent(self, registry, sample_agent):
+    def test_add_agent(self, registry, sample_agent) -> None:
         """add() stores agent in registry."""
         registry.add(sample_agent)
 
         assert registry.count() == 1
         assert registry.get(sample_agent.run_id) is sample_agent
 
-    def test_add_multiple_agents(self, registry):
+    def test_add_multiple_agents(self, registry) -> None:
         """add() can store multiple agents."""
         agents = [
             RunningAgent(
@@ -208,7 +209,7 @@ class TestRunningAgentRegistry:
         for agent in agents:
             assert registry.get(agent.run_id) is agent
 
-    def test_add_overwrites_existing(self, registry):
+    def test_add_overwrites_existing(self, registry) -> None:
         """add() overwrites existing agent with same run_id."""
         agent1 = RunningAgent(
             run_id="ar-overwrite",
@@ -230,7 +231,7 @@ class TestRunningAgentRegistry:
         assert registry.get("ar-overwrite").session_id == "sess-2"
         assert registry.get("ar-overwrite").mode == "headless"
 
-    def test_get_returns_agent(self, registry, sample_agent):
+    def test_get_returns_agent(self, registry, sample_agent) -> None:
         """get() returns the agent when found."""
         registry.add(sample_agent)
 
@@ -238,13 +239,13 @@ class TestRunningAgentRegistry:
 
         assert result is sample_agent
 
-    def test_get_returns_none_when_not_found(self, registry):
+    def test_get_returns_none_when_not_found(self, registry) -> None:
         """get() returns None when agent not found."""
         result = registry.get("nonexistent-run-id")
 
         assert result is None
 
-    def test_remove_returns_and_deletes_agent(self, registry, sample_agent):
+    def test_remove_returns_and_deletes_agent(self, registry, sample_agent) -> None:
         """remove() returns the agent and removes it from registry."""
         registry.add(sample_agent)
 
@@ -254,13 +255,13 @@ class TestRunningAgentRegistry:
         assert registry.get(sample_agent.run_id) is None
         assert registry.count() == 0
 
-    def test_remove_returns_none_when_not_found(self, registry):
+    def test_remove_returns_none_when_not_found(self, registry) -> None:
         """remove() returns None when agent not found."""
         result = registry.remove("nonexistent-run-id")
 
         assert result is None
 
-    def test_remove_with_status(self, registry, sample_agent):
+    def test_remove_with_status(self, registry, sample_agent) -> None:
         """remove() accepts status parameter."""
         registry.add(sample_agent)
 
@@ -269,7 +270,7 @@ class TestRunningAgentRegistry:
 
         assert removed is sample_agent
 
-    def test_get_by_session(self, registry):
+    def test_get_by_session(self, registry) -> None:
         """get_by_session() returns agent by child session ID."""
         agent = RunningAgent(
             run_id="ar-session",
@@ -283,13 +284,13 @@ class TestRunningAgentRegistry:
 
         assert result is agent
 
-    def test_get_by_session_returns_none_when_not_found(self, registry):
+    def test_get_by_session_returns_none_when_not_found(self, registry) -> None:
         """get_by_session() returns None when session not found."""
         result = registry.get_by_session("nonexistent-session")
 
         assert result is None
 
-    def test_get_by_session_with_multiple_agents(self, registry):
+    def test_get_by_session_with_multiple_agents(self, registry) -> None:
         """get_by_session() finds correct agent among multiple."""
         agents = [
             RunningAgent(
@@ -307,7 +308,7 @@ class TestRunningAgentRegistry:
 
         assert result is agents[1]
 
-    def test_get_by_pid(self, registry):
+    def test_get_by_pid(self, registry) -> None:
         """get_by_pid() returns agent by process ID."""
         agent = RunningAgent(
             run_id="ar-pid",
@@ -322,13 +323,13 @@ class TestRunningAgentRegistry:
 
         assert result is agent
 
-    def test_get_by_pid_returns_none_when_not_found(self, registry):
+    def test_get_by_pid_returns_none_when_not_found(self, registry) -> None:
         """get_by_pid() returns None when PID not found."""
         result = registry.get_by_pid(99999)
 
         assert result is None
 
-    def test_get_by_pid_ignores_none_pids(self, registry):
+    def test_get_by_pid_ignores_none_pids(self, registry) -> None:
         """get_by_pid() does not match agents with None pid."""
         agent = RunningAgent(
             run_id="ar-no-pid",
@@ -343,7 +344,7 @@ class TestRunningAgentRegistry:
 
         assert result is None
 
-    def test_list_by_parent(self, registry):
+    def test_list_by_parent(self, registry) -> None:
         """list_by_parent() returns all agents for a parent session."""
         parent1_agents = [
             RunningAgent(
@@ -373,13 +374,13 @@ class TestRunningAgentRegistry:
         for agent in result:
             assert agent.parent_session_id == "parent-1"
 
-    def test_list_by_parent_returns_empty_list_when_none_found(self, registry):
+    def test_list_by_parent_returns_empty_list_when_none_found(self, registry) -> None:
         """list_by_parent() returns empty list when no agents found."""
         result = registry.list_by_parent("nonexistent-parent")
 
         assert result == []
 
-    def test_list_by_mode(self, registry):
+    def test_list_by_mode(self, registry) -> None:
         """list_by_mode() returns all agents with specified mode."""
         terminal_agents = [
             RunningAgent(
@@ -409,7 +410,7 @@ class TestRunningAgentRegistry:
         for agent in result:
             assert agent.mode == "terminal"
 
-    def test_list_by_mode_returns_empty_list_when_none_found(self, registry):
+    def test_list_by_mode_returns_empty_list_when_none_found(self, registry) -> None:
         """list_by_mode() returns empty list when no agents match."""
         agent = RunningAgent(
             run_id="ar-embedded",
@@ -423,7 +424,7 @@ class TestRunningAgentRegistry:
 
         assert result == []
 
-    def test_list_all(self, registry):
+    def test_list_all(self, registry) -> None:
         """list_all() returns all agents."""
         agents = [
             RunningAgent(
@@ -441,7 +442,7 @@ class TestRunningAgentRegistry:
 
         assert len(result) == 5
 
-    def test_list_all_returns_copy(self, registry, sample_agent):
+    def test_list_all_returns_copy(self, registry, sample_agent) -> None:
         """list_all() returns a copy, not the internal list."""
         registry.add(sample_agent)
 
@@ -450,7 +451,7 @@ class TestRunningAgentRegistry:
 
         assert registry.count() == 1
 
-    def test_count(self, registry):
+    def test_count(self, registry) -> None:
         """count() returns the number of agents."""
         assert registry.count() == 0
 
@@ -466,7 +467,7 @@ class TestRunningAgentRegistry:
 
         assert registry.count() == 3
 
-    def test_count_by_parent(self, registry):
+    def test_count_by_parent(self, registry) -> None:
         """count_by_parent() returns correct count for a parent."""
         for i in range(3):
             registry.add(
@@ -491,7 +492,7 @@ class TestRunningAgentRegistry:
         assert registry.count_by_parent("parent-2") == 2
         assert registry.count_by_parent("parent-3") == 0
 
-    def test_clear(self, registry):
+    def test_clear(self, registry) -> None:
         """clear() removes all agents and returns count."""
         for i in range(5):
             registry.add(
@@ -509,7 +510,7 @@ class TestRunningAgentRegistry:
         assert registry.count() == 0
         assert registry.list_all() == []
 
-    def test_clear_empty_registry(self, registry):
+    def test_clear_empty_registry(self, registry) -> None:
         """clear() returns 0 for empty registry."""
         cleared_count = registry.clear()
 
@@ -524,7 +525,7 @@ class TestRunningAgentRegistryCleanup:
         """Create a fresh registry for each test."""
         return RunningAgentRegistry()
 
-    def test_cleanup_by_pids_removes_dead_agents(self, registry):
+    def test_cleanup_by_pids_removes_dead_agents(self, registry) -> None:
         """cleanup_by_pids() removes agents with PIDs in dead_pids set."""
         alive_agent = RunningAgent(
             run_id="ar-alive",
@@ -560,7 +561,7 @@ class TestRunningAgentRegistryCleanup:
         assert registry.count() == 1
         assert registry.get("ar-alive") is alive_agent
 
-    def test_cleanup_by_pids_ignores_none_pids(self, registry):
+    def test_cleanup_by_pids_ignores_none_pids(self, registry) -> None:
         """cleanup_by_pids() ignores agents with None pid."""
         in_process_agent = RunningAgent(
             run_id="ar-in-process",
@@ -577,7 +578,7 @@ class TestRunningAgentRegistryCleanup:
         assert len(removed) == 0
         assert registry.count() == 1
 
-    def test_cleanup_by_pids_empty_set(self, registry):
+    def test_cleanup_by_pids_empty_set(self, registry) -> None:
         """cleanup_by_pids() handles empty set."""
         agent = RunningAgent(
             run_id="ar-test",
@@ -593,7 +594,7 @@ class TestRunningAgentRegistryCleanup:
         assert len(removed) == 0
         assert registry.count() == 1
 
-    def test_cleanup_stale_removes_old_agents(self, registry):
+    def test_cleanup_stale_removes_old_agents(self, registry) -> None:
         """cleanup_stale() removes agents older than max_age_seconds."""
         # Create agents with different ages
         old_agent = RunningAgent(
@@ -623,7 +624,7 @@ class TestRunningAgentRegistryCleanup:
         assert registry.count() == 1
         assert registry.get("ar-recent") is recent_agent
 
-    def test_cleanup_stale_keeps_all_when_none_old(self, registry):
+    def test_cleanup_stale_keeps_all_when_none_old(self, registry) -> None:
         """cleanup_stale() keeps all agents when none exceed max age."""
         agents = [
             RunningAgent(
@@ -643,7 +644,7 @@ class TestRunningAgentRegistryCleanup:
         assert len(removed) == 0
         assert registry.count() == 3
 
-    def test_cleanup_stale_with_small_max_age(self, registry):
+    def test_cleanup_stale_with_small_max_age(self, registry) -> None:
         """cleanup_stale() with very small max_age removes all agents."""
         agents = [
             RunningAgent(
@@ -675,7 +676,7 @@ class TestRunningAgentRegistryEventCallbacks:
         """Create a fresh registry for each test."""
         return RunningAgentRegistry()
 
-    def test_add_event_callback(self, registry):
+    def test_add_event_callback(self, registry) -> None:
         """add_event_callback() adds callback to list."""
         callback = MagicMock()
 
@@ -692,7 +693,7 @@ class TestRunningAgentRegistryEventCallbacks:
 
         callback.assert_called_once()
 
-    def test_event_callback_on_add(self, registry):
+    def test_event_callback_on_add(self, registry) -> None:
         """Event callback is invoked when agent is added."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -719,7 +720,7 @@ class TestRunningAgentRegistryEventCallbacks:
             },
         )
 
-    def test_event_callback_on_remove_completed(self, registry):
+    def test_event_callback_on_remove_completed(self, registry) -> None:
         """Event callback is invoked with agent_completed when removed."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -747,7 +748,7 @@ class TestRunningAgentRegistryEventCallbacks:
             },
         )
 
-    def test_event_callback_on_remove_failed(self, registry):
+    def test_event_callback_on_remove_failed(self, registry) -> None:
         """Event callback uses status for event type."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -768,7 +769,7 @@ class TestRunningAgentRegistryEventCallbacks:
         call_args = callback.call_args
         assert call_args[0][0] == "agent_failed"
 
-    def test_event_callback_on_remove_cancelled(self, registry):
+    def test_event_callback_on_remove_cancelled(self, registry) -> None:
         """Event callback uses cancelled status correctly."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -789,7 +790,7 @@ class TestRunningAgentRegistryEventCallbacks:
         call_args = callback.call_args
         assert call_args[0][0] == "agent_cancelled"
 
-    def test_event_callback_on_cleanup_by_pids(self, registry):
+    def test_event_callback_on_cleanup_by_pids(self, registry) -> None:
         """Event callback is invoked for each agent cleaned up by PIDs."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -812,7 +813,7 @@ class TestRunningAgentRegistryEventCallbacks:
         assert call_args[0][0] == "agent_completed"
         assert call_args[0][2]["cleanup_reason"] == "dead_pid"
 
-    def test_event_callback_on_cleanup_stale(self, registry):
+    def test_event_callback_on_cleanup_stale(self, registry) -> None:
         """Event callback is invoked for each stale agent cleaned up."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -835,7 +836,7 @@ class TestRunningAgentRegistryEventCallbacks:
         assert call_args[0][0] == "agent_timeout"
         assert call_args[0][2]["cleanup_reason"] == "stale"
 
-    def test_event_callback_exception_handling(self, registry):
+    def test_event_callback_exception_handling(self, registry) -> None:
         """Event callback exceptions are logged but don't propagate."""
 
         def bad_callback(event_type: str, run_id: str, data: dict):
@@ -859,7 +860,7 @@ class TestRunningAgentRegistryEventCallbacks:
         # Good callback should still be called
         good_callback.assert_called_once()
 
-    def test_multiple_event_callbacks(self, registry):
+    def test_multiple_event_callbacks(self, registry) -> None:
         """Multiple event callbacks are all invoked."""
         callbacks = [MagicMock() for _ in range(3)]
         for callback in callbacks:
@@ -876,7 +877,7 @@ class TestRunningAgentRegistryEventCallbacks:
         for callback in callbacks:
             callback.assert_called_once()
 
-    def test_remove_nonexistent_does_not_trigger_callback(self, registry):
+    def test_remove_nonexistent_does_not_trigger_callback(self, registry) -> None:
         """Removing nonexistent agent does not trigger callback."""
         callback = MagicMock()
         registry.add_event_callback(callback)
@@ -894,7 +895,7 @@ class TestRunningAgentRegistryThreadSafety:
         """Create a fresh registry for each test."""
         return RunningAgentRegistry()
 
-    def test_concurrent_adds(self, registry):
+    def test_concurrent_adds(self, registry) -> None:
         """Registry handles concurrent add operations safely."""
         num_threads = 10
         agents_per_thread = 100
@@ -922,7 +923,7 @@ class TestRunningAgentRegistryThreadSafety:
         assert len(errors) == 0
         assert registry.count() == num_threads * agents_per_thread
 
-    def test_concurrent_add_and_remove(self, registry):
+    def test_concurrent_add_and_remove(self, registry) -> None:
         """Registry handles concurrent add and remove operations safely."""
         # Pre-populate registry
         for i in range(100):
@@ -972,7 +973,7 @@ class TestRunningAgentRegistryThreadSafety:
         # Final count should be initial (100) + added (50) - removed (up to 50)
         # Some removes might fail if items don't exist, but no exceptions
 
-    def test_concurrent_reads(self, registry):
+    def test_concurrent_reads(self, registry) -> None:
         """Registry handles concurrent read operations safely."""
         # Pre-populate registry
         for i in range(100):
@@ -1018,20 +1019,20 @@ class TestRunningAgentRegistryThreadSafety:
 class TestGetRunningAgentRegistry:
     """Tests for get_running_agent_registry() singleton function."""
 
-    def test_returns_registry_instance(self):
+    def test_returns_registry_instance(self) -> None:
         """get_running_agent_registry() returns a RunningAgentRegistry."""
         result = get_running_agent_registry()
 
         assert isinstance(result, RunningAgentRegistry)
 
-    def test_returns_same_instance(self):
+    def test_returns_same_instance(self) -> None:
         """get_running_agent_registry() returns the same instance each time."""
         result1 = get_running_agent_registry()
         result2 = get_running_agent_registry()
 
         assert result1 is result2
 
-    def test_thread_safe_initialization(self):
+    def test_thread_safe_initialization(self) -> None:
         """get_running_agent_registry() initializes safely from multiple threads."""
         results: list[RunningAgentRegistry] = []
         errors: list[Exception] = []
@@ -1064,7 +1065,7 @@ class TestRunningAgentRegistryLogging:
         """Create a fresh registry for each test."""
         return RunningAgentRegistry()
 
-    def test_add_logs_debug_message(self, registry, caplog):
+    def test_add_logs_debug_message(self, registry, caplog) -> None:
         """add() logs debug message."""
         import logging
 
@@ -1081,7 +1082,7 @@ class TestRunningAgentRegistryLogging:
         assert "ar-log" in caplog.text
         assert "terminal" in caplog.text
 
-    def test_remove_logs_debug_message(self, registry, caplog):
+    def test_remove_logs_debug_message(self, registry, caplog) -> None:
         """remove() logs debug message when agent found."""
         import logging
 
@@ -1098,7 +1099,7 @@ class TestRunningAgentRegistryLogging:
 
         assert "ar-rm-log" in caplog.text
 
-    def test_cleanup_by_pids_logs_info(self, registry, caplog):
+    def test_cleanup_by_pids_logs_info(self, registry, caplog) -> None:
         """cleanup_by_pids() logs info message for cleaned up agents."""
         import logging
 
@@ -1117,7 +1118,7 @@ class TestRunningAgentRegistryLogging:
         assert "ar-cleanup-log" in caplog.text
         assert "77777" in caplog.text
 
-    def test_cleanup_stale_logs_info(self, registry, caplog):
+    def test_cleanup_stale_logs_info(self, registry, caplog) -> None:
         """cleanup_stale() logs info message for cleaned up agents."""
         import logging
 
@@ -1136,7 +1137,7 @@ class TestRunningAgentRegistryLogging:
         assert "ar-stale-log" in caplog.text
         assert "age=" in caplog.text
 
-    def test_clear_logs_info(self, registry, caplog):
+    def test_clear_logs_info(self, registry, caplog) -> None:
         """clear() logs info message with count."""
         import logging
 
@@ -1159,7 +1160,7 @@ class TestRunningAgentRegistryLogging:
 class TestEventCallbackType:
     """Tests for EventCallback type alias."""
 
-    def test_event_callback_type_signature(self):
+    def test_event_callback_type_signature(self) -> None:
         """EventCallback has correct type signature."""
         # This is a compile-time check; we verify by creating conforming functions
 
@@ -1170,7 +1171,7 @@ class TestEventCallbackType:
         callback: EventCallback = valid_callback
         assert callback is not None
 
-    def test_event_callback_with_any_data(self):
+    def test_event_callback_with_any_data(self) -> None:
         """EventCallback data parameter accepts dict with Any values."""
         from typing import Any
 
@@ -1184,7 +1185,7 @@ class TestEventCallbackType:
 class TestRunningAgentEdgeCases:
     """Edge case tests for RunningAgent."""
 
-    def test_agent_with_empty_strings(self):
+    def test_agent_with_empty_strings(self) -> None:
         """RunningAgent handles empty string values."""
         agent = RunningAgent(
             run_id="",
@@ -1198,7 +1199,7 @@ class TestRunningAgentEdgeCases:
         assert agent.parent_session_id == ""
         assert agent.mode == ""
 
-    def test_agent_to_dict_with_special_characters(self):
+    def test_agent_to_dict_with_special_characters(self) -> None:
         """RunningAgent.to_dict handles special characters in values."""
         agent = RunningAgent(
             run_id='ar-"special"',
@@ -1225,7 +1226,7 @@ class TestRunningAgentRegistryEdgeCases:
         """Create a fresh registry for each test."""
         return RunningAgentRegistry()
 
-    def test_get_by_pid_with_zero(self, registry):
+    def test_get_by_pid_with_zero(self, registry) -> None:
         """get_by_pid() handles PID 0."""
         agent = RunningAgent(
             run_id="ar-pid-0",
@@ -1240,7 +1241,7 @@ class TestRunningAgentRegistryEdgeCases:
 
         assert result is agent
 
-    def test_cleanup_by_pids_with_pid_zero(self, registry):
+    def test_cleanup_by_pids_with_pid_zero(self, registry) -> None:
         """cleanup_by_pids() does not clean up PID 0 due to falsy check.
 
         Note: The implementation checks `if agent.pid and agent.pid in dead_pids`
@@ -1262,7 +1263,7 @@ class TestRunningAgentRegistryEdgeCases:
         assert len(removed) == 0
         assert registry.count() == 1
 
-    def test_cleanup_stale_exact_boundary(self, registry):
+    def test_cleanup_stale_exact_boundary(self, registry) -> None:
         """cleanup_stale() at exact age boundary."""
         agent = RunningAgent(
             run_id="ar-boundary",
@@ -1281,7 +1282,7 @@ class TestRunningAgentRegistryEdgeCases:
         # It should be removed since we're slightly past due to execution time
         assert len(removed) >= 0  # May or may not be removed at exact boundary
 
-    def test_large_number_of_event_callbacks(self, registry):
+    def test_large_number_of_event_callbacks(self, registry) -> None:
         """Registry handles many event callbacks."""
         callbacks = [MagicMock() for _ in range(100)]
         for callback in callbacks:
@@ -1298,7 +1299,7 @@ class TestRunningAgentRegistryEdgeCases:
         for callback in callbacks:
             callback.assert_called_once()
 
-    def test_callback_modification_during_iteration(self, registry):
+    def test_callback_modification_during_iteration(self, registry) -> None:
         """Event callback list modification during iteration is safe."""
         call_count = [0]
 

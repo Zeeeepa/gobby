@@ -7,6 +7,7 @@ import pytest
 from gobby.config.app import DaemonConfig, ImportMCPServerConfig
 from gobby.mcp_proxy.importer import SECRET_PLACEHOLDER_PATTERN, MCPServerImporter
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_config() -> DaemonConfig:
@@ -62,32 +63,32 @@ def importer(mock_config, mock_db):
 class TestSecretPlaceholderPattern:
     """Tests for SECRET_PLACEHOLDER_PATTERN regex."""
 
-    def test_matches_simple_placeholder(self):
+    def test_matches_simple_placeholder(self) -> None:
         """Test matches simple API key placeholder."""
         text = "<YOUR_API_KEY>"
         match = SECRET_PLACEHOLDER_PATTERN.search(text)
         assert match is not None
         assert match.group(0) == "<YOUR_API_KEY>"
 
-    def test_matches_complex_placeholder(self):
+    def test_matches_complex_placeholder(self) -> None:
         """Test matches complex placeholder names."""
         text = "<YOUR_OPENAI_API_KEY>"
         match = SECRET_PLACEHOLDER_PATTERN.search(text)
         assert match is not None
 
-    def test_matches_with_numbers(self):
+    def test_matches_with_numbers(self) -> None:
         """Test matches placeholders with numbers."""
         text = "<YOUR_API_KEY_V2>"
         match = SECRET_PLACEHOLDER_PATTERN.search(text)
         assert match is not None
 
-    def test_does_not_match_lowercase(self):
+    def test_does_not_match_lowercase(self) -> None:
         """Test does not match lowercase placeholders."""
         text = "<your_api_key>"
         match = SECRET_PLACEHOLDER_PATTERN.search(text)
         assert match is None
 
-    def test_does_not_match_regular_text(self):
+    def test_does_not_match_regular_text(self) -> None:
         """Test does not match regular text."""
         text = "sk-1234567890"
         match = SECRET_PLACEHOLDER_PATTERN.search(text)
@@ -97,7 +98,7 @@ class TestSecretPlaceholderPattern:
 class TestMCPServerImporterInit:
     """Tests for MCPServerImporter initialization."""
 
-    def test_init_stores_config(self, mock_config, mock_db):
+    def test_init_stores_config(self, mock_config, mock_db) -> None:
         """Test initialization stores configuration."""
         importer = MCPServerImporter(
             config=mock_config,
@@ -109,7 +110,7 @@ class TestMCPServerImporterInit:
         assert importer.db == mock_db
         assert importer.current_project_id == "project-123"
 
-    def test_init_with_mcp_manager(self, mock_config, mock_db):
+    def test_init_with_mcp_manager(self, mock_config, mock_db) -> None:
         """Test initialization with MCP client manager."""
         mock_manager = MagicMock()
 
@@ -126,7 +127,7 @@ class TestMCPServerImporterInit:
 class TestExtractJson:
     """Tests for _extract_json method."""
 
-    def test_extracts_json_from_code_block(self, importer):
+    def test_extracts_json_from_code_block(self, importer) -> None:
         """Test extracts JSON from markdown code block."""
         text = """
 Here is the config:
@@ -140,7 +141,7 @@ Here is the config:
         assert result["name"] == "test-server"
         assert result["transport"] == "http"
 
-    def test_extracts_json_from_code_block_no_language(self, importer):
+    def test_extracts_json_from_code_block_no_language(self, importer) -> None:
         """Test extracts JSON from code block without language."""
         text = """
 ```
@@ -152,7 +153,7 @@ Here is the config:
         assert result is not None
         assert result["name"] == "server"
 
-    def test_extracts_raw_json(self, importer):
+    def test_extracts_raw_json(self, importer) -> None:
         """Test extracts raw JSON from text."""
         text = 'The config is {"name": "raw", "transport": "http"} here.'
 
@@ -161,14 +162,14 @@ Here is the config:
         assert result is not None
         assert result["name"] == "raw"
 
-    def test_returns_none_for_invalid_json(self, importer):
+    def test_returns_none_for_invalid_json(self, importer) -> None:
         """Test returns None for invalid JSON."""
         text = "This is not JSON at all"
 
         result = importer._extract_json(text)
         assert result is None
 
-    def test_prefers_valid_server_config(self, importer):
+    def test_prefers_valid_server_config(self, importer) -> None:
         """Test extracts first JSON that looks like server config."""
         # When text contains only server config JSON, it should be extracted
         text = """
@@ -180,7 +181,7 @@ Here is the config:
         assert result is not None
         assert result.get("name") == "real-server"
 
-    def test_rejects_non_server_config_json(self, importer):
+    def test_rejects_non_server_config_json(self, importer) -> None:
         """Test returns None when first JSON doesn't look like server config."""
         # When first JSON lacks name/transport, extraction returns None
         text = """
@@ -196,7 +197,7 @@ Here is the config:
 class TestFindMissingSecrets:
     """Tests for _find_missing_secrets method."""
 
-    def test_finds_placeholder_in_string(self, importer):
+    def test_finds_placeholder_in_string(self, importer) -> None:
         """Test finds placeholder in simple string."""
         config = {"api_key": "<YOUR_API_KEY>"}
 
@@ -204,7 +205,7 @@ class TestFindMissingSecrets:
 
         assert "<YOUR_API_KEY>" in result
 
-    def test_finds_placeholder_in_nested_dict(self, importer):
+    def test_finds_placeholder_in_nested_dict(self, importer) -> None:
         """Test finds placeholder in nested dict."""
         config = {"name": "server", "headers": {"Authorization": "Bearer <YOUR_TOKEN>"}}
 
@@ -212,7 +213,7 @@ class TestFindMissingSecrets:
 
         assert "<YOUR_TOKEN>" in result
 
-    def test_finds_placeholder_in_list(self, importer):
+    def test_finds_placeholder_in_list(self, importer) -> None:
         """Test finds placeholder in list."""
         config = {"args": ["--key", "<YOUR_SECRET_KEY>"]}
 
@@ -220,7 +221,7 @@ class TestFindMissingSecrets:
 
         assert "<YOUR_SECRET_KEY>" in result
 
-    def test_returns_empty_for_no_placeholders(self, importer):
+    def test_returns_empty_for_no_placeholders(self, importer) -> None:
         """Test returns empty list when no placeholders."""
         config = {
             "name": "server",
@@ -231,7 +232,7 @@ class TestFindMissingSecrets:
 
         assert result == []
 
-    def test_finds_multiple_placeholders(self, importer):
+    def test_finds_multiple_placeholders(self, importer) -> None:
         """Test finds multiple placeholders."""
         config = {
             "headers": {

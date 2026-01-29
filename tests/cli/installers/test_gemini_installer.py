@@ -8,6 +8,7 @@ import pytest
 
 from gobby.cli.installers.gemini import install_gemini, uninstall_gemini
 
+pytestmark = pytest.mark.unit
 
 class TestInstallGemini:
     """Tests for install_gemini function."""
@@ -67,7 +68,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test successful Gemini installation."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -108,7 +109,7 @@ class TestInstallGemini:
             assert settings["general"]["enableHooks"] is True
             assert "hooks" in settings
 
-    def test_install_gemini_missing_dispatcher(self, project_path: Path, temp_dir: Path):
+    def test_install_gemini_missing_dispatcher(self, project_path: Path, temp_dir: Path) -> None:
         """Test installation fails when dispatcher is missing."""
         install_dir = temp_dir / "install"
         gemini_dir = install_dir / "gemini"
@@ -120,7 +121,7 @@ class TestInstallGemini:
             assert result["success"] is False
             assert "Missing hook dispatcher" in result["error"]
 
-    def test_install_gemini_missing_template(self, project_path: Path, temp_dir: Path):
+    def test_install_gemini_missing_template(self, project_path: Path, temp_dir: Path) -> None:
         """Test installation fails when hooks template is missing."""
         install_dir = temp_dir / "install"
         gemini_dir = install_dir / "gemini"
@@ -144,7 +145,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that existing settings.json is backed up."""
         # Create existing settings
         gemini_path = project_path / ".gemini"
@@ -191,7 +192,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation handles invalid JSON in existing settings."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -227,7 +228,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that uv path is substituted in hooks template."""
         # Create template with uv run python
         template = mock_install_dir / "gemini" / "hooks-template.json"
@@ -273,7 +274,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test fallback to 'uv' when which returns None."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -300,7 +301,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test when MCP server is already configured."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -329,7 +330,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation continues when MCP config fails."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -358,7 +359,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that .gemini and hooks directories are created."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -387,7 +388,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that the copied dispatcher is made executable."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -420,7 +421,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that existing dispatcher is replaced."""
         # Create existing dispatcher
         gemini_path = project_path / ".gemini"
@@ -459,7 +460,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that $PROJECT_PATH is substituted with absolute path."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -495,7 +496,7 @@ class TestInstallGemini:
         mock_shared_content: dict,
         mock_cli_content: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that existing hooks are preserved (overwritten by type)."""
         # Create existing settings with hooks
         gemini_path = project_path / ".gemini"
@@ -546,7 +547,7 @@ class TestUninstallGemini:
         project.mkdir(parents=True)
         return project
 
-    def test_uninstall_gemini_no_settings_file(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_no_settings_file(self, project_path: Path, temp_dir: Path) -> None:
         """Test uninstall when no settings file exists."""
         with patch.object(Path, "home", return_value=temp_dir):
             result = uninstall_gemini(project_path)
@@ -556,7 +557,7 @@ class TestUninstallGemini:
             assert result["hooks_removed"] == []
             assert result["files_removed"] == []
 
-    def test_uninstall_gemini_success(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_success(self, project_path: Path, temp_dir: Path) -> None:
         """Test successful uninstallation."""
         # Create Gemini installation
         gemini_path = project_path / ".gemini"
@@ -605,7 +606,7 @@ class TestUninstallGemini:
             backup_file = gemini_path / "settings.json.1234567890.backup"
             assert backup_file.exists()
 
-    def test_uninstall_gemini_removes_all_hook_types(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_removes_all_hook_types(self, project_path: Path, temp_dir: Path) -> None:
         """Test that all Gobby hook types are removed."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -659,7 +660,7 @@ class TestUninstallGemini:
             for hook in expected_hooks:
                 assert hook in result["hooks_removed"]
 
-    def test_uninstall_gemini_preserves_other_settings(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_preserves_other_settings(self, project_path: Path, temp_dir: Path) -> None:
         """Test that non-Gobby settings are preserved."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -701,7 +702,7 @@ class TestUninstallGemini:
 
     def test_uninstall_gemini_removes_general_when_only_enable_hooks(
         self, project_path: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test that 'general' section is removed if only enableHooks was present."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -734,7 +735,7 @@ class TestUninstallGemini:
 
     def test_uninstall_gemini_preserves_general_with_other_entries(
         self, project_path: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test that 'general' section is preserved if it has other entries."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -769,7 +770,7 @@ class TestUninstallGemini:
 
     def test_uninstall_gemini_removes_empty_hooks_directory(
         self, project_path: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test that empty hooks directory is removed."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -799,7 +800,7 @@ class TestUninstallGemini:
 
     def test_uninstall_gemini_keeps_nonempty_hooks_directory(
         self, project_path: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test that hooks directory with other files is preserved."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -830,7 +831,7 @@ class TestUninstallGemini:
             assert hooks_dir.exists()
             assert other_file.exists()
 
-    def test_uninstall_gemini_mcp_remove_failure(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_mcp_remove_failure(self, project_path: Path, temp_dir: Path) -> None:
         """Test uninstall continues when MCP removal fails."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -854,7 +855,7 @@ class TestUninstallGemini:
             assert result["success"] is True
             assert result["mcp_removed"] is False
 
-    def test_uninstall_gemini_no_hooks_section(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_no_hooks_section(self, project_path: Path, temp_dir: Path) -> None:
         """Test uninstall when settings has no hooks section."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -877,7 +878,7 @@ class TestUninstallGemini:
             assert result["success"] is True
             assert result["hooks_removed"] == []
 
-    def test_uninstall_gemini_no_dispatcher(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_no_dispatcher(self, project_path: Path, temp_dir: Path) -> None:
         """Test uninstall when dispatcher doesn't exist."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -939,7 +940,7 @@ class TestInstallGeminiEdgeCases:
 
     def test_install_gemini_empty_shared_content(
         self, project_path: Path, mock_install_dir: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test installation with no shared content."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -970,7 +971,7 @@ class TestInstallGeminiEdgeCases:
 
     def test_install_gemini_shared_content_without_plugins(
         self, project_path: Path, mock_install_dir: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test installation when shared content doesn't include plugins key."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -996,7 +997,7 @@ class TestInstallGeminiEdgeCases:
 
     def test_install_gemini_cli_content_without_commands(
         self, project_path: Path, mock_install_dir: Path, temp_dir: Path
-    ):
+    ) -> None:
         """Test installation when CLI content doesn't include commands key."""
         with (
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
@@ -1035,7 +1036,7 @@ class TestUninstallGeminiEdgeCases:
         project.mkdir(parents=True)
         return project
 
-    def test_uninstall_gemini_hooks_dir_rmdir_error(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_hooks_dir_rmdir_error(self, project_path: Path, temp_dir: Path) -> None:
         """Test uninstall handles error when removing hooks directory."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -1072,7 +1073,7 @@ class TestUninstallGeminiEdgeCases:
             # Should still succeed (rmdir error is caught)
             assert result["success"] is True
 
-    def test_uninstall_gemini_with_enable_hooks_false(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_with_enable_hooks_false(self, project_path: Path, temp_dir: Path) -> None:
         """Test uninstall when enableHooks is False."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)

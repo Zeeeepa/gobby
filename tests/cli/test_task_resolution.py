@@ -1,9 +1,12 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.cli.tasks._utils import resolve_task_id
 
+pytestmark = pytest.mark.unit
 
-def test_resolve_numeric_string_as_seq_num():
+def test_resolve_numeric_string_as_seq_num() -> None:
     """Test that a numeric string '123' is treated as '#123'."""
     mock_manager = MagicMock()
 
@@ -23,7 +26,7 @@ def test_resolve_numeric_string_as_seq_num():
     assert result == mock_task
 
 
-def test_resolve_numeric_string_fails_if_no_project():
+def test_resolve_numeric_string_fails_if_no_project() -> None:
     """Test that numeric string resolution fails gracefully if no project_id."""
     mock_manager = MagicMock()
     mock_manager.get_task.side_effect = ValueError("Invalid UUID")

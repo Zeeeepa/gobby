@@ -12,6 +12,7 @@ import pytest
 
 from gobby.llm.executor import AgentResult, ToolResult, ToolSchema
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_anthropic_module():
@@ -32,7 +33,7 @@ def mock_anthropic_module():
 class TestClaudeExecutorInit:
     """Tests for ClaudeExecutor initialization."""
 
-    def test_init_with_subscription_mode(self, mock_anthropic_module):
+    def test_init_with_subscription_mode(self, mock_anthropic_module) -> None:
         """ClaudeExecutor initializes with subscription mode."""
         import shutil
 
@@ -44,7 +45,7 @@ class TestClaudeExecutorInit:
             assert executor.auth_mode == "subscription"
             assert executor._cli_path == "/usr/bin/claude"
 
-    def test_init_default_is_subscription_mode(self, mock_anthropic_module):
+    def test_init_default_is_subscription_mode(self, mock_anthropic_module) -> None:
         """ClaudeExecutor defaults to subscription mode."""
         import shutil
 
@@ -55,7 +56,7 @@ class TestClaudeExecutorInit:
 
             assert executor.auth_mode == "subscription"
 
-    def test_init_with_custom_model(self, mock_anthropic_module):
+    def test_init_with_custom_model(self, mock_anthropic_module) -> None:
         """ClaudeExecutor accepts custom default model."""
         import shutil
 
@@ -68,7 +69,7 @@ class TestClaudeExecutorInit:
 
             assert executor.default_model == "claude-opus-4-5-20251101"
 
-    def test_init_subscription_mode_without_cli_raises(self, mock_anthropic_module):
+    def test_init_subscription_mode_without_cli_raises(self, mock_anthropic_module) -> None:
         """ClaudeExecutor raises ValueError when CLI not found in subscription mode."""
         import shutil
 
@@ -78,14 +79,14 @@ class TestClaudeExecutorInit:
             with pytest.raises(ValueError, match="Claude CLI not found"):
                 ClaudeExecutor(auth_mode="subscription")
 
-    def test_init_api_key_mode_raises(self, mock_anthropic_module):
+    def test_init_api_key_mode_raises(self, mock_anthropic_module) -> None:
         """ClaudeExecutor raises ValueError for api_key mode (now unsupported)."""
         from gobby.llm.claude_executor import ClaudeExecutor
 
         with pytest.raises(ValueError, match="only supports subscription mode"):
             ClaudeExecutor(auth_mode="api_key")
 
-    def test_init_unknown_auth_mode_raises(self, mock_anthropic_module):
+    def test_init_unknown_auth_mode_raises(self, mock_anthropic_module) -> None:
         """ClaudeExecutor raises ValueError for unknown auth mode."""
         from gobby.llm.claude_executor import ClaudeExecutor
 
@@ -123,7 +124,7 @@ class TestClaudeExecutorSDKMode:
 
             return ClaudeExecutor(auth_mode="subscription")
 
-    def test_sdk_mode_uses_cli_path(self, mock_anthropic_module):
+    def test_sdk_mode_uses_cli_path(self, mock_anthropic_module) -> None:
         """ClaudeExecutor in SDK mode stores CLI path."""
         import shutil
 
@@ -134,7 +135,7 @@ class TestClaudeExecutorSDKMode:
 
             assert executor._cli_path == "/usr/local/bin/claude"
 
-    def test_sdk_mode_provider_name(self, executor_sdk_mode):
+    def test_sdk_mode_provider_name(self, executor_sdk_mode) -> None:
         """SDK mode executor returns correct provider name."""
         assert executor_sdk_mode.provider_name == "claude"
 
@@ -172,7 +173,7 @@ class TestClaudeExecutorSDKMode:
 class TestClaudeExecutorProviderName:
     """Tests for provider_name property."""
 
-    def test_provider_name_subscription_mode(self, mock_anthropic_module):
+    def test_provider_name_subscription_mode(self, mock_anthropic_module) -> None:
         """Provider name is 'claude' in subscription mode."""
         import shutil
 

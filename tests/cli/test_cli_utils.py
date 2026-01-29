@@ -33,6 +33,8 @@ from gobby.cli.utils import (
     wait_for_port_available,
 )
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Tests for get_gobby_home()
 # ==============================================================================
@@ -41,7 +43,7 @@ from gobby.cli.utils import (
 class TestGetGobbyHome:
     """Tests for get_gobby_home function."""
 
-    def test_default_home(self):
+    def test_default_home(self) -> None:
         """Test default home directory when GOBBY_HOME not set."""
         with patch.dict(os.environ, {}, clear=True):
             # Remove GOBBY_HOME if it exists
@@ -49,7 +51,7 @@ class TestGetGobbyHome:
             result = get_gobby_home()
             assert result == Path.home() / ".gobby"
 
-    def test_custom_home_from_env(self, temp_dir: Path):
+    def test_custom_home_from_env(self, temp_dir: Path) -> None:
         """Test custom home directory from GOBBY_HOME env var."""
         custom_path = str(temp_dir / "custom_gobby")
         with patch.dict(os.environ, {"GOBBY_HOME": custom_path}):
@@ -65,14 +67,14 @@ class TestGetGobbyHome:
 class TestGetResourcesDir:
     """Tests for get_resources_dir function."""
 
-    def test_global_resources_dir(self, temp_dir: Path):
+    def test_global_resources_dir(self, temp_dir: Path) -> None:
         """Test global resources directory."""
         with patch("gobby.cli.utils.get_gobby_home", return_value=temp_dir):
             result = get_resources_dir()
             assert result == temp_dir / "resources"
             assert result.exists()
 
-    def test_project_resources_dir(self, temp_dir: Path):
+    def test_project_resources_dir(self, temp_dir: Path) -> None:
         """Test project-local resources directory."""
         project_path = str(temp_dir / "my_project")
         Path(project_path).mkdir(parents=True)
@@ -91,20 +93,20 @@ class TestGetResourcesDir:
 class TestResolveProjectRef:
     """Tests for resolve_project_ref function."""
 
-    def test_none_with_context(self):
+    def test_none_with_context(self) -> None:
         """Test None project_ref returns current project from context."""
         mock_ctx = {"id": "proj-123", "name": "test-project"}
         with patch("gobby.cli.utils.get_project_context", return_value=mock_ctx):
             result = resolve_project_ref(None)
             assert result == "proj-123"
 
-    def test_none_without_context(self):
+    def test_none_without_context(self) -> None:
         """Test None project_ref returns None when no context."""
         with patch("gobby.cli.utils.get_project_context", return_value=None):
             result = resolve_project_ref(None)
             assert result is None
 
-    def test_uuid_lookup(self, temp_db):
+    def test_uuid_lookup(self, temp_db) -> None:
         """Test direct UUID lookup."""
         # Create a project
         from gobby.storage.projects import LocalProjectManager
@@ -117,7 +119,7 @@ class TestResolveProjectRef:
                 result = resolve_project_ref(project.id)
                 assert result == project.id
 
-    def test_name_lookup(self, temp_db):
+    def test_name_lookup(self, temp_db) -> None:
         """Test project name lookup."""
         from gobby.storage.projects import LocalProjectManager
 
@@ -129,7 +131,7 @@ class TestResolveProjectRef:
                 result = resolve_project_ref("my-named-project")
                 assert result == project.id
 
-    def test_not_found(self, temp_db):
+    def test_not_found(self, temp_db) -> None:
         """Test project not found returns None."""
         with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
             with patch.object(temp_db, "close"):
@@ -145,7 +147,7 @@ class TestResolveProjectRef:
 class TestGetActiveSessionId:
     """Tests for get_active_session_id function."""
 
-    def test_with_active_session(self, temp_db):
+    def test_with_active_session(self, temp_db) -> None:
         """Test finding an active session."""
         from gobby.storage.projects import LocalProjectManager
         from gobby.storage.sessions import LocalSessionManager
@@ -166,12 +168,12 @@ class TestGetActiveSessionId:
         result = get_active_session_id(temp_db)
         assert result == session.id
 
-    def test_no_active_session(self, temp_db):
+    def test_no_active_session(self, temp_db) -> None:
         """Test no active session returns None."""
         result = get_active_session_id(temp_db)
         assert result is None
 
-    def test_creates_db_when_not_provided(self):
+    def test_creates_db_when_not_provided(self) -> None:
         """Test that DB is created when not provided."""
         mock_db = MagicMock()
         mock_db.fetchone.return_value = None
@@ -190,7 +192,7 @@ class TestGetActiveSessionId:
 class TestResolveSessionId:
     """Tests for resolve_session_id function."""
 
-    def test_resolves_active_session(self, temp_db):
+    def test_resolves_active_session(self, temp_db) -> None:
         """Test resolving to active session when no ref provided."""
         from gobby.storage.projects import LocalProjectManager
         from gobby.storage.sessions import LocalSessionManager
@@ -211,7 +213,7 @@ class TestResolveSessionId:
                 result = resolve_session_id(None)
                 assert result == session.id
 
-    def test_no_active_session_raises(self, temp_db):
+    def test_no_active_session_raises(self, temp_db) -> None:
         """Test ClickException when no active session."""
         with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
             with patch.object(temp_db, "close"):
@@ -219,7 +221,7 @@ class TestResolveSessionId:
                     resolve_session_id(None)
                 assert "No active session found" in str(exc_info.value)
 
-    def test_resolves_session_reference(self, temp_db):
+    def test_resolves_session_reference(self, temp_db) -> None:
         """Test resolving a specific session reference."""
         from gobby.storage.projects import LocalProjectManager
         from gobby.storage.sessions import LocalSessionManager
@@ -240,7 +242,7 @@ class TestResolveSessionId:
                 result = resolve_session_id(session.id)
                 assert result == session.id
 
-    def test_resolves_seq_num_with_project_context(self, temp_db):
+    def test_resolves_seq_num_with_project_context(self, temp_db) -> None:
         """Test resolving #N format using project context."""
         from gobby.storage.projects import LocalProjectManager
         from gobby.storage.sessions import LocalSessionManager
@@ -265,7 +267,7 @@ class TestResolveSessionId:
                     result = resolve_session_id("#1")
                     assert result == session.id
 
-    def test_resolves_seq_num_with_explicit_project_id(self, temp_db):
+    def test_resolves_seq_num_with_explicit_project_id(self, temp_db) -> None:
         """Test resolving #N format with explicit project_id parameter."""
         from gobby.storage.projects import LocalProjectManager
         from gobby.storage.sessions import LocalSessionManager
@@ -302,7 +304,7 @@ class TestResolveSessionId:
 class TestListProjectNames:
     """Tests for list_project_names function."""
 
-    def test_lists_all_project_names(self, temp_db):
+    def test_lists_all_project_names(self, temp_db) -> None:
         """Test listing all project names."""
         from gobby.storage.projects import LocalProjectManager
 
@@ -316,7 +318,7 @@ class TestListProjectNames:
                 assert "project-alpha" in result
                 assert "project-beta" in result
 
-    def test_returns_list(self, temp_db):
+    def test_returns_list(self, temp_db) -> None:
         """Test that list_project_names returns a list."""
         with patch("gobby.cli.utils.LocalDatabase", return_value=temp_db):
             with patch.object(temp_db, "close"):
@@ -332,7 +334,7 @@ class TestListProjectNames:
 class TestSetupLogging:
     """Tests for setup_logging function."""
 
-    def test_verbose_logging(self):
+    def test_verbose_logging(self) -> None:
         """Test verbose mode sets DEBUG level."""
         with patch("logging.basicConfig") as mock_basic:
             setup_logging(verbose=True)
@@ -340,7 +342,7 @@ class TestSetupLogging:
             call_kwargs = mock_basic.call_args.kwargs
             assert call_kwargs["level"] == logging.DEBUG
 
-    def test_normal_logging(self):
+    def test_normal_logging(self) -> None:
         """Test non-verbose mode sets INFO level."""
         with patch("logging.basicConfig") as mock_basic:
             setup_logging(verbose=False)
@@ -357,31 +359,31 @@ class TestSetupLogging:
 class TestFormatUptime:
     """Tests for format_uptime function."""
 
-    def test_zero_seconds(self):
+    def test_zero_seconds(self) -> None:
         """Test formatting zero seconds."""
         assert format_uptime(0) == "0s"
 
-    def test_only_seconds(self):
+    def test_only_seconds(self) -> None:
         """Test formatting seconds only."""
         assert format_uptime(45) == "45s"
 
-    def test_minutes_and_seconds(self):
+    def test_minutes_and_seconds(self) -> None:
         """Test formatting minutes and seconds."""
         assert format_uptime(125) == "2m 5s"
 
-    def test_hours_minutes_seconds(self):
+    def test_hours_minutes_seconds(self) -> None:
         """Test formatting hours, minutes, and seconds."""
         assert format_uptime(3725) == "1h 2m 5s"
 
-    def test_hours_only(self):
+    def test_hours_only(self) -> None:
         """Test formatting full hours."""
         assert format_uptime(7200) == "2h"
 
-    def test_hours_and_minutes(self):
+    def test_hours_and_minutes(self) -> None:
         """Test hours and minutes, no seconds."""
         assert format_uptime(3720) == "1h 2m"
 
-    def test_large_uptime(self):
+    def test_large_uptime(self) -> None:
         """Test large uptime values."""
         # 100 hours
         assert format_uptime(360000) == "100h"
@@ -395,7 +397,7 @@ class TestFormatUptime:
 class TestIsPortAvailable:
     """Tests for is_port_available function."""
 
-    def test_available_port(self):
+    def test_available_port(self) -> None:
         """Test that an unused port is available."""
         # Find a high random port that's likely available
         result = is_port_available(59999)
@@ -403,7 +405,7 @@ class TestIsPortAvailable:
         assert isinstance(result, bool)
 
     @pytest.mark.skip(reason="Flaky - SO_REUSEADDR allows rebind on some systems")
-    def test_unavailable_port(self):
+    def test_unavailable_port(self) -> None:
         """Test that an occupied port is not available."""
         # Bind to a port
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -426,13 +428,13 @@ class TestIsPortAvailable:
 class TestWaitForPortAvailable:
     """Tests for wait_for_port_available function."""
 
-    def test_already_available(self):
+    def test_already_available(self) -> None:
         """Test immediate return when port is already available."""
         with patch("gobby.cli.utils.is_port_available", return_value=True):
             result = wait_for_port_available(60887, timeout=1.0)
             assert result is True
 
-    def test_timeout_when_unavailable(self):
+    def test_timeout_when_unavailable(self) -> None:
         """Test timeout when port stays unavailable."""
         with patch("gobby.cli.utils.is_port_available", return_value=False):
             start = time.time()
@@ -441,7 +443,7 @@ class TestWaitForPortAvailable:
             assert result is False
             assert elapsed >= 0.3
 
-    def test_becomes_available(self):
+    def test_becomes_available(self) -> None:
         """Test detecting port becoming available."""
         # Port becomes available after 2 calls
         call_count = [0]
@@ -463,18 +465,18 @@ class TestWaitForPortAvailable:
 class TestIsProcessAlive:
     """Tests for _is_process_alive function."""
 
-    def test_current_process_alive(self):
+    def test_current_process_alive(self) -> None:
         """Test that current process is detected as alive."""
         result = _is_process_alive(os.getpid())
         assert result is True
 
-    def test_nonexistent_process(self):
+    def test_nonexistent_process(self) -> None:
         """Test that nonexistent process is not alive."""
         # Use a very high PID that's unlikely to exist
         result = _is_process_alive(999999999)
         assert result is False
 
-    def test_zombie_process(self):
+    def test_zombie_process(self) -> None:
         """Test that zombie process is not detected as alive."""
         mock_proc = MagicMock()
         mock_proc.status.return_value = psutil.STATUS_ZOMBIE
@@ -483,7 +485,7 @@ class TestIsProcessAlive:
             result = _is_process_alive(12345)
             assert result is False
 
-    def test_access_denied(self):
+    def test_access_denied(self) -> None:
         """Test handling of access denied."""
         with patch("psutil.Process", side_effect=psutil.AccessDenied()):
             result = _is_process_alive(12345)
@@ -498,7 +500,7 @@ class TestIsProcessAlive:
 class TestKillAllGobbyDaemons:
     """Tests for kill_all_gobby_daemons function."""
 
-    def test_no_daemons_found(self):
+    def test_no_daemons_found(self) -> None:
         """Test when no gobby daemons are running."""
         with patch("psutil.process_iter", return_value=[]):
             with patch("gobby.cli.utils.load_config") as mock_config:
@@ -507,7 +509,7 @@ class TestKillAllGobbyDaemons:
                 result = kill_all_gobby_daemons()
                 assert result == 0
 
-    def test_finds_and_kills_daemon(self):
+    def test_finds_and_kills_daemon(self) -> None:
         """Test finding and killing a gobby daemon."""
         mock_proc = MagicMock()
         mock_proc.pid = 12345
@@ -525,7 +527,7 @@ class TestKillAllGobbyDaemons:
                         assert result == 1
                         mock_proc.send_signal.assert_called_with(signal.SIGTERM)
 
-    def test_skips_cli_processes(self):
+    def test_skips_cli_processes(self) -> None:
         """Test that CLI processes are not killed."""
         mock_proc = MagicMock()
         mock_proc.pid = 12345
@@ -550,13 +552,13 @@ class TestKillAllGobbyDaemons:
 class TestStopDaemon:
     """Tests for stop_daemon function."""
 
-    def test_no_pid_file(self, temp_dir: Path):
+    def test_no_pid_file(self, temp_dir: Path) -> None:
         """Test when no PID file exists."""
         with patch("gobby.cli.utils.get_gobby_home", return_value=temp_dir):
             result = stop_daemon(quiet=True)
             assert result is True
 
-    def test_stale_pid_file(self, temp_dir: Path):
+    def test_stale_pid_file(self, temp_dir: Path) -> None:
         """Test with stale PID file (process not running)."""
         pid_file = temp_dir / "gobby.pid"
         pid_file.write_text("999999999")  # Non-existent PID
@@ -567,7 +569,7 @@ class TestStopDaemon:
                 assert result is True
                 assert not pid_file.exists()
 
-    def test_stops_running_daemon(self, temp_dir: Path):
+    def test_stops_running_daemon(self, temp_dir: Path) -> None:
         """Test stopping a running daemon."""
         pid_file = temp_dir / "gobby.pid"
         pid_file.write_text("12345")
@@ -584,7 +586,7 @@ class TestStopDaemon:
                     assert result is True
                     mock_kill.assert_called_with(12345, signal.SIGTERM)
 
-    def test_force_kills_stubborn_process(self, temp_dir: Path):
+    def test_force_kills_stubborn_process(self, temp_dir: Path) -> None:
         """Test force killing when process doesn't stop gracefully."""
         pid_file = temp_dir / "gobby.pid"
         pid_file.write_text("12345")
@@ -611,7 +613,7 @@ class TestStopDaemon:
                         assert signal.SIGTERM in kill_calls
                         assert signal.SIGKILL in kill_calls
 
-    def test_permission_error(self, temp_dir: Path):
+    def test_permission_error(self, temp_dir: Path) -> None:
         """Test handling of permission error when stopping daemon."""
         pid_file = temp_dir / "gobby.pid"
         pid_file.write_text("12345")
@@ -631,7 +633,7 @@ class TestStopDaemon:
 class TestInitLocalStorage:
     """Tests for init_local_storage function."""
 
-    def test_creates_database(self, temp_dir: Path):
+    def test_creates_database(self, temp_dir: Path) -> None:
         """Test that database is created and migrations run."""
         db_path = temp_dir / "gobby-hub.db"
 
@@ -656,12 +658,12 @@ class TestInitLocalStorage:
 class TestGetInstallDir:
     """Tests for get_install_dir function."""
 
-    def test_returns_path(self):
+    def test_returns_path(self) -> None:
         """Test that a Path is returned."""
         result = get_install_dir()
         assert isinstance(result, Path)
 
-    def test_source_install_dir_found(self, temp_dir: Path):
+    def test_source_install_dir_found(self, temp_dir: Path) -> None:
         """Test finding source install directory."""
         # Create source directory structure
         source_install = temp_dir / "src" / "gobby" / "install"

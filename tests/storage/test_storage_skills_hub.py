@@ -1,12 +1,15 @@
 """Tests for skill hub tracking fields."""
 
+import pytest
+
 from gobby.storage.skills import Skill
 
+pytestmark = pytest.mark.unit
 
 class TestSkillHubFields:
     """Tests for hub tracking fields in the Skill dataclass."""
 
-    def test_hub_fields_default_to_none(self):
+    def test_hub_fields_default_to_none(self) -> None:
         """Test that hub tracking fields default to None."""
         skill = Skill(
             id="skl-123",
@@ -20,7 +23,7 @@ class TestSkillHubFields:
         assert skill.hub_slug is None
         assert skill.hub_version is None
 
-    def test_skill_to_dict_includes_hub_fields(self):
+    def test_skill_to_dict_includes_hub_fields(self) -> None:
         """Test that to_dict includes hub tracking fields."""
         skill = Skill(
             id="skl-123",
@@ -50,7 +53,7 @@ class MockRow:
         return list(self.data.keys())
 
 
-def test_skill_from_row_with_hub_fields():
+def test_skill_from_row_with_hub_fields() -> None:
     """Test from_row with hub fields using a MockRow."""
     row_data = {
         "id": "skl-123",

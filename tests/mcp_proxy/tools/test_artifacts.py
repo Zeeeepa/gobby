@@ -7,6 +7,7 @@ import pytest
 
 from gobby.mcp_proxy.tools.artifacts import create_artifacts_registry
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_artifact_manager():
@@ -32,21 +33,21 @@ def call_tool(registry, name: str, **kwargs):
 class TestSearchArtifacts:
     """Tests for search_artifacts tool."""
 
-    def test_empty_query_returns_empty(self, artifacts_registry):
+    def test_empty_query_returns_empty(self, artifacts_registry) -> None:
         """Test that empty query returns empty result."""
         result = call_tool(artifacts_registry, "search_artifacts", query="")
         assert result["success"] is True
         assert result["artifacts"] == []
         assert result["count"] == 0
 
-    def test_whitespace_query_returns_empty(self, artifacts_registry):
+    def test_whitespace_query_returns_empty(self, artifacts_registry) -> None:
         """Test that whitespace-only query returns empty result."""
         result = call_tool(artifacts_registry, "search_artifacts", query="   ")
         assert result["success"] is True
         assert result["artifacts"] == []
         assert result["count"] == 0
 
-    def test_valid_query_calls_manager(self, artifacts_registry, mock_artifact_manager):
+    def test_valid_query_calls_manager(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that valid query calls artifact manager."""
         call_tool(artifacts_registry, "search_artifacts", query="test query")
         mock_artifact_manager.search_artifacts.assert_called_once_with(
@@ -56,7 +57,7 @@ class TestSearchArtifacts:
             limit=50,
         )
 
-    def test_search_with_filters(self, artifacts_registry, mock_artifact_manager):
+    def test_search_with_filters(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test search with session_id and type filters."""
         call_tool(
             artifacts_registry,
@@ -73,7 +74,7 @@ class TestSearchArtifacts:
             limit=10,
         )
 
-    def test_search_exception_handling(self, artifacts_registry, mock_artifact_manager):
+    def test_search_exception_handling(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.search_artifacts.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "search_artifacts", query="test")
@@ -85,7 +86,7 @@ class TestSearchArtifacts:
 class TestGetArtifact:
     """Tests for get_artifact tool."""
 
-    def test_nonexistent_artifact_returns_error(self, artifacts_registry, mock_artifact_manager):
+    def test_nonexistent_artifact_returns_error(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that non-existent artifact returns error."""
         mock_artifact_manager.get_artifact.return_value = None
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="nonexistent-id")
@@ -93,7 +94,7 @@ class TestGetArtifact:
         assert "not found" in result["error"]
         assert result["artifact"] is None
 
-    def test_existing_artifact_returns_data(self, artifacts_registry, mock_artifact_manager):
+    def test_existing_artifact_returns_data(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that existing artifact is returned."""
         mock_artifact = MagicMock()
         mock_artifact.to_dict.return_value = {"id": "art-123", "content": "test"}
@@ -103,7 +104,7 @@ class TestGetArtifact:
         assert result["success"] is True
         assert result["artifact"]["id"] == "art-123"
 
-    def test_get_artifact_exception_handling(self, artifacts_registry, mock_artifact_manager):
+    def test_get_artifact_exception_handling(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.get_artifact.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="test-id")
@@ -114,20 +115,20 @@ class TestGetArtifact:
 class TestGetTimeline:
     """Tests for get_timeline tool."""
 
-    def test_missing_session_id_returns_error(self, artifacts_registry):
+    def test_missing_session_id_returns_error(self, artifacts_registry) -> None:
         """Test that missing session_id returns error."""
         result = call_tool(artifacts_registry, "get_timeline", session_id=None)
         assert result["success"] is False
         assert "session_id is required" in result["error"]
         assert result["artifacts"] == []
 
-    def test_empty_session_id_returns_error(self, artifacts_registry):
+    def test_empty_session_id_returns_error(self, artifacts_registry) -> None:
         """Test that empty session_id returns error."""
         result = call_tool(artifacts_registry, "get_timeline", session_id="")
         assert result["success"] is False
         assert "session_id is required" in result["error"]
 
-    def test_valid_session_returns_timeline(self, artifacts_registry, mock_artifact_manager):
+    def test_valid_session_returns_timeline(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that valid session_id returns timeline."""
         mock_artifact = MagicMock()
         mock_artifact.to_dict.return_value = {"id": "art-1", "created_at": "2024-01-01"}
@@ -138,7 +139,7 @@ class TestGetTimeline:
         assert result["count"] == 1
         mock_artifact_manager.list_artifacts.assert_called_once()
 
-    def test_timeline_exception_handling(self, artifacts_registry, mock_artifact_manager):
+    def test_timeline_exception_handling(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.list_artifacts.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "get_timeline", session_id="sess-123")
@@ -149,7 +150,7 @@ class TestGetTimeline:
 class TestListArtifacts:
     """Tests for list_artifacts tool."""
 
-    def test_list_with_no_filters(self, artifacts_registry, mock_artifact_manager):
+    def test_list_with_no_filters(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test listing artifacts without filters."""
         call_tool(artifacts_registry, "list_artifacts")
         mock_artifact_manager.list_artifacts.assert_called_once_with(
@@ -159,7 +160,7 @@ class TestListArtifacts:
             offset=0,
         )
 
-    def test_list_with_filters(self, artifacts_registry, mock_artifact_manager):
+    def test_list_with_filters(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test listing artifacts with filters."""
         call_tool(
             artifacts_registry,
@@ -176,7 +177,7 @@ class TestListArtifacts:
             offset=10,
         )
 
-    def test_list_exception_handling(self, artifacts_registry, mock_artifact_manager):
+    def test_list_exception_handling(self, artifacts_registry, mock_artifact_manager) -> None:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.list_artifacts.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "list_artifacts")
@@ -187,12 +188,12 @@ class TestListArtifacts:
 class TestCreateArtifactsRegistry:
     """Tests for registry creation."""
 
-    def test_creates_registry_with_manager(self, mock_artifact_manager):
+    def test_creates_registry_with_manager(self, mock_artifact_manager) -> None:
         """Test that registry is created with provided manager."""
         registry = create_artifacts_registry(artifact_manager=mock_artifact_manager)
         assert registry.name == "gobby-artifacts"
 
-    def test_registry_has_all_tools(self, artifacts_registry):
+    def test_registry_has_all_tools(self, artifacts_registry) -> None:
         """Test that registry has all expected tools."""
         tools = artifacts_registry.list_tools()
         tool_names = [t["name"] for t in tools]

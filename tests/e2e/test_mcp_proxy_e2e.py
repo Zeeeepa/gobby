@@ -24,7 +24,7 @@ class TestMCPProxyToolDiscovery:
 
     def test_client_discovers_internal_servers(
         self, daemon_instance: DaemonInstance, mcp_client: MCPTestClient
-    ):
+    ) -> None:
         """Verify client can discover internal gobby servers."""
         servers = mcp_client.list_servers()
 
@@ -43,7 +43,7 @@ class TestMCPProxyToolDiscovery:
 
     def test_client_discovers_tools_from_internal_servers(
         self, daemon_instance: DaemonInstance, mcp_client: MCPTestClient
-    ):
+    ) -> None:
         """Verify client can discover tools from internal servers."""
         # List all tools
         tools = mcp_client.list_tools()
@@ -58,7 +58,7 @@ class TestMCPProxyToolDiscovery:
 
     def test_client_can_filter_tools_by_server(
         self, daemon_instance: DaemonInstance, mcp_client: MCPTestClient
-    ):
+    ) -> None:
         """Verify client can filter tools by server name."""
         # Get servers first
         servers = mcp_client.list_servers()
@@ -98,7 +98,7 @@ class TestMCPProxyToolInvocation:
 
     def test_tool_invocation_returns_result(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify tool invocation returns expected result."""
         # Use the list_ready_tasks tool from gobby-tasks via HTTP directly
         # Endpoint is /mcp/tools/call (not /mcp/call)
@@ -120,7 +120,7 @@ class TestMCPProxyToolInvocation:
 
     def test_tool_with_parameters(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify tool invocation with parameters works."""
         # Use get_task which takes a task_id parameter
         response = daemon_client.post(
@@ -137,7 +137,7 @@ class TestMCPProxyToolInvocation:
 
     def test_invalid_server_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify calling tool on invalid server returns error."""
         response = daemon_client.post(
             "/mcp/tools/call",
@@ -158,7 +158,7 @@ class TestMCPProxyToolInvocation:
 
     def test_invalid_tool_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify calling invalid tool returns error in response body."""
         response = daemon_client.post(
             "/mcp/tools/call",
@@ -251,7 +251,7 @@ class TestMCPProxyErrorHandling:
 
     def test_missing_required_parameters(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify missing required parameters returns error."""
         # Call endpoint without required server_name
         response = daemon_client.post(
@@ -269,7 +269,7 @@ class TestMCPProxyErrorHandling:
 
     def test_malformed_json_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify malformed JSON returns error."""
         response = daemon_client.post(
             "/mcp/tools/call",
@@ -287,7 +287,7 @@ class TestMCPProxyErrorHandling:
 
     def test_empty_request_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify empty request returns error."""
         response = daemon_client.post("/mcp/tools/call", json={})
 
@@ -300,7 +300,7 @@ class TestMCPProxyErrorHandling:
 class TestMCPProxyToolSchema:
     """Tests for MCP proxy tool schema retrieval."""
 
-    def test_get_tool_schema(self, daemon_instance: DaemonInstance, daemon_client: httpx.Client):
+    def test_get_tool_schema(self, daemon_instance: DaemonInstance, daemon_client: httpx.Client) -> None:
         """Verify tool schema can be retrieved."""
         # Schema endpoint is POST /mcp/tools/schema with JSON body
         response = daemon_client.post(
@@ -322,7 +322,7 @@ class TestMCPProxyToolSchema:
 
     def test_schema_for_invalid_tool_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify getting schema for invalid tool returns error."""
         response = daemon_client.post(
             "/mcp/tools/schema",
@@ -343,7 +343,7 @@ class TestMCPProxyServerManagement:
 
     def test_servers_endpoint_returns_list(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify servers endpoint returns list of servers."""
         response = daemon_client.get("/mcp/servers")
         assert response.status_code == 200
@@ -354,7 +354,7 @@ class TestMCPProxyServerManagement:
 
     def test_tools_endpoint_returns_data(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify tools endpoint returns tools data."""
         response = daemon_client.get("/mcp/tools")
         assert response.status_code == 200

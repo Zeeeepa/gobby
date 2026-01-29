@@ -22,6 +22,8 @@ import pytest
 from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 
+pytestmark = pytest.mark.unit
+
 if TYPE_CHECKING:
     pass
 

@@ -23,6 +23,8 @@ from gobby.agents.spawners.windows import (
     WSLSpawner,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Helper Fixtures
 # =============================================================================
@@ -62,26 +64,26 @@ def mock_windows_env():
 class TestWindowsTerminalSpawner:
     """Tests for WindowsTerminalSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = WindowsTerminalSpawner()
         assert spawner.terminal_type == TerminalType.WINDOWS_TERMINAL
 
     @patch("platform.system", return_value="Linux")
-    def test_is_available_not_windows(self, mock_system):
+    def test_is_available_not_windows(self, mock_system) -> None:
         """Windows Terminal not available on non-Windows platforms."""
         spawner = WindowsTerminalSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
-    def test_is_available_not_windows_macos(self, mock_system):
+    def test_is_available_not_windows_macos(self, mock_system) -> None:
         """Windows Terminal not available on macOS."""
         spawner = WindowsTerminalSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Windows")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """Windows Terminal not available when disabled in config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="wt"
@@ -92,7 +94,7 @@ class TestWindowsTerminalSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\Program Files\\WindowsApps\\wt.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_with_wt_command(self, mock_config, mock_which, mock_system):
+    def test_is_available_with_wt_command(self, mock_config, mock_which, mock_system) -> None:
         """Windows Terminal available when wt command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt"
@@ -104,7 +106,7 @@ class TestWindowsTerminalSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_wt_not_found(self, mock_config, mock_which, mock_system):
+    def test_is_available_wt_not_found(self, mock_config, mock_which, mock_system) -> None:
         """Windows Terminal not available when wt command not found."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt"
@@ -115,7 +117,7 @@ class TestWindowsTerminalSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\custom\\wt.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_custom_command(self, mock_config, mock_which, mock_system):
+    def test_is_available_custom_command(self, mock_config, mock_which, mock_system) -> None:
         """Windows Terminal uses custom command from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="custom-wt"
@@ -127,7 +129,7 @@ class TestWindowsTerminalSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\wt.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_default_command_when_none(self, mock_config, mock_which, mock_system):
+    def test_is_available_default_command_when_none(self, mock_config, mock_which, mock_system) -> None:
         """Windows Terminal uses 'wt' as default command when config.command is None."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command=None
@@ -138,7 +140,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_basic(self, mock_config, mock_popen):
+    def test_spawn_basic(self, mock_config, mock_popen) -> None:
         """Spawn creates correct Windows Terminal command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -165,7 +167,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen):
+    def test_spawn_with_title(self, mock_config, mock_popen) -> None:
         """Spawn includes --title flag when title provided."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -185,7 +187,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_without_title(self, mock_config, mock_popen):
+    def test_spawn_without_title(self, mock_config, mock_popen) -> None:
         """Spawn excludes --title flag when no title provided."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -202,7 +204,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_options(self, mock_config, mock_popen):
+    def test_spawn_with_options(self, mock_config, mock_popen) -> None:
         """Spawn includes extra options from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=["--profile", "Ubuntu", "--tabColor", "#FF0000"]
@@ -222,7 +224,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -246,7 +248,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen):
+    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen) -> None:
         """Spawn uses CREATE_NEW_PROCESS_GROUP creationflags on Windows."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -265,7 +267,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_path_object(self, mock_config, mock_popen):
+    def test_spawn_with_path_object(self, mock_config, mock_popen) -> None:
         """Spawn handles Path objects for cwd."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -283,7 +285,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen", side_effect=FileNotFoundError("wt not found"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_file_not_found(self, mock_config, mock_popen):
+    def test_spawn_handles_file_not_found(self, mock_config, mock_popen) -> None:
         """Spawn handles FileNotFoundError gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -298,7 +300,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen", side_effect=OSError("Access denied"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_os_error(self, mock_config, mock_popen):
+    def test_spawn_handles_os_error(self, mock_config, mock_popen) -> None:
         """Spawn handles OSError gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -312,7 +314,7 @@ class TestWindowsTerminalSpawner:
 
     @patch("subprocess.Popen", side_effect=Exception("Unexpected error"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_generic_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_generic_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles generic exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -333,26 +335,26 @@ class TestWindowsTerminalSpawner:
 class TestCmdSpawner:
     """Tests for CmdSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = CmdSpawner()
         assert spawner.terminal_type == TerminalType.CMD
 
     @patch("platform.system", return_value="Linux")
-    def test_is_available_not_windows(self, mock_system):
+    def test_is_available_not_windows(self, mock_system) -> None:
         """cmd.exe not available on non-Windows platforms."""
         spawner = CmdSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
-    def test_is_available_not_windows_macos(self, mock_system):
+    def test_is_available_not_windows_macos(self, mock_system) -> None:
         """cmd.exe not available on macOS."""
         spawner = CmdSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Windows")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """cmd.exe not available when disabled in config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=False)
         spawner = CmdSpawner()
@@ -360,7 +362,7 @@ class TestCmdSpawner:
 
     @patch("platform.system", return_value="Windows")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_enabled(self, mock_config, mock_system):
+    def test_is_available_enabled(self, mock_config, mock_system) -> None:
         """cmd.exe available when enabled on Windows (built-in, no which check)."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         spawner = CmdSpawner()
@@ -368,7 +370,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_basic(self, mock_config, mock_popen):
+    def test_spawn_basic(self, mock_config, mock_popen) -> None:
         """Spawn creates correct cmd.exe command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -390,7 +392,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen):
+    def test_spawn_with_title(self, mock_config, mock_popen) -> None:
         """Spawn includes title in start command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -407,7 +409,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_without_title_uses_empty_quotes(self, mock_config, mock_popen):
+    def test_spawn_without_title_uses_empty_quotes(self, mock_config, mock_popen) -> None:
         """Spawn uses empty title quotes when no title provided."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -423,7 +425,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -440,7 +442,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_uses_cmd_k_for_keeping_window_open(self, mock_config, mock_popen):
+    def test_spawn_uses_cmd_k_for_keeping_window_open(self, mock_config, mock_popen) -> None:
         """Spawn uses cmd /k to keep window open after command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -456,7 +458,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_properly_escapes_command(self, mock_config, mock_popen):
+    def test_spawn_properly_escapes_command(self, mock_config, mock_popen) -> None:
         """Spawn uses list2cmdline for proper escaping."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -475,7 +477,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen):
+    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen) -> None:
         """Spawn uses CREATE_NEW_PROCESS_GROUP creationflags."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -491,7 +493,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen", side_effect=FileNotFoundError("cmd not found"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_file_not_found(self, mock_config, mock_popen):
+    def test_spawn_handles_file_not_found(self, mock_config, mock_popen) -> None:
         """Spawn handles FileNotFoundError gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
 
@@ -504,7 +506,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen", side_effect=OSError("The system cannot find the path"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_invalid_path(self, mock_config, mock_popen):
+    def test_spawn_handles_invalid_path(self, mock_config, mock_popen) -> None:
         """Spawn handles invalid path errors gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
 
@@ -516,7 +518,7 @@ class TestCmdSpawner:
 
     @patch("subprocess.Popen", side_effect=Exception("Unknown error"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_generic_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_generic_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles generic exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
 
@@ -535,26 +537,26 @@ class TestCmdSpawner:
 class TestPowerShellSpawner:
     """Tests for PowerShellSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = PowerShellSpawner()
         assert spawner.terminal_type == TerminalType.POWERSHELL
 
     @patch("platform.system", return_value="Linux")
-    def test_is_available_not_windows(self, mock_system):
+    def test_is_available_not_windows(self, mock_system) -> None:
         """PowerShell not available on non-Windows platforms."""
         spawner = PowerShellSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
-    def test_is_available_not_windows_macos(self, mock_system):
+    def test_is_available_not_windows_macos(self, mock_system) -> None:
         """PowerShell not available on macOS."""
         spawner = PowerShellSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Windows")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """PowerShell not available when disabled in config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="pwsh"
@@ -565,7 +567,7 @@ class TestPowerShellSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_pwsh_found(self, mock_config, mock_which, mock_system):
+    def test_is_available_pwsh_found(self, mock_config, mock_which, mock_system) -> None:
         """PowerShell available when pwsh (PowerShell Core) exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh"
@@ -579,7 +581,7 @@ class TestPowerShellSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_fallback_to_powershell(self, mock_config, mock_which, mock_system):
+    def test_is_available_fallback_to_powershell(self, mock_config, mock_which, mock_system) -> None:
         """PowerShell falls back to Windows PowerShell when pwsh not found."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh"
@@ -597,7 +599,7 @@ class TestPowerShellSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_neither_found(self, mock_config, mock_which, mock_system):
+    def test_is_available_neither_found(self, mock_config, mock_which, mock_system) -> None:
         """PowerShell not available when neither pwsh nor powershell found."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh"
@@ -609,7 +611,7 @@ class TestPowerShellSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\custom\\ps.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_custom_command(self, mock_config, mock_which, mock_system):
+    def test_is_available_custom_command(self, mock_config, mock_which, mock_system) -> None:
         """PowerShell uses custom command from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="custom-pwsh"
@@ -622,7 +624,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_basic_pwsh(self, mock_config, mock_popen, mock_which):
+    def test_spawn_basic_pwsh(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn creates correct PowerShell Core command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -651,7 +653,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_fallback_to_powershell(self, mock_config, mock_popen, mock_which):
+    def test_spawn_fallback_to_powershell(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn falls back to powershell when pwsh not found."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -672,7 +674,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen, mock_which):
+    def test_spawn_with_title(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn includes -Title flag when title provided."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -694,7 +696,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_escapes_single_quotes_in_title(self, mock_config, mock_popen, mock_which):
+    def test_spawn_escapes_single_quotes_in_title(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn properly escapes single quotes in title."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -714,7 +716,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_escapes_single_quotes_in_cwd(self, mock_config, mock_popen, mock_which):
+    def test_spawn_escapes_single_quotes_in_cwd(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn properly escapes single quotes in working directory."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -736,7 +738,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_options(self, mock_config, mock_popen, mock_which):
+    def test_spawn_with_options(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn includes extra options from config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=["-NoLogo", "-ExecutionPolicy", "Bypass"]
@@ -756,7 +758,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen, mock_which):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn passes environment variables."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -776,7 +778,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_uses_set_location(self, mock_config, mock_popen, mock_which):
+    def test_spawn_uses_set_location(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn uses Set-Location for working directory."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -797,7 +799,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen, mock_which):
+    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn uses CREATE_NEW_PROCESS_GROUP creationflags."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -816,7 +818,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen", side_effect=FileNotFoundError("pwsh not found"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_file_not_found(self, mock_config, mock_popen, mock_which):
+    def test_spawn_handles_file_not_found(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn handles FileNotFoundError gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -832,7 +834,7 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen", side_effect=Exception("Unexpected error"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_generic_exception(self, mock_config, mock_popen, mock_which):
+    def test_spawn_handles_generic_exception(self, mock_config, mock_popen, mock_which) -> None:
         """Spawn handles generic exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -853,26 +855,26 @@ class TestPowerShellSpawner:
 class TestWSLSpawner:
     """Tests for WSLSpawner."""
 
-    def test_terminal_type(self):
+    def test_terminal_type(self) -> None:
         """Spawner returns correct terminal type."""
         spawner = WSLSpawner()
         assert spawner.terminal_type == TerminalType.WSL
 
     @patch("platform.system", return_value="Linux")
-    def test_is_available_not_windows(self, mock_system):
+    def test_is_available_not_windows(self, mock_system) -> None:
         """WSL not available on non-Windows platforms."""
         spawner = WSLSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Darwin")
-    def test_is_available_not_windows_macos(self, mock_system):
+    def test_is_available_not_windows_macos(self, mock_system) -> None:
         """WSL not available on macOS."""
         spawner = WSLSpawner()
         assert spawner.is_available() is False
 
     @patch("platform.system", return_value="Windows")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_disabled(self, mock_config, mock_system):
+    def test_is_available_disabled(self, mock_config, mock_system) -> None:
         """WSL not available when disabled in config."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=False, command="wsl"
@@ -883,7 +885,7 @@ class TestWSLSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\Windows\\System32\\wsl.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_wsl_found(self, mock_config, mock_which, mock_system):
+    def test_is_available_wsl_found(self, mock_config, mock_which, mock_system) -> None:
         """WSL available when wsl command exists."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl"
@@ -895,7 +897,7 @@ class TestWSLSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_wsl_not_found(self, mock_config, mock_which, mock_system):
+    def test_is_available_wsl_not_found(self, mock_config, mock_which, mock_system) -> None:
         """WSL not available when wsl command not found."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl"
@@ -905,7 +907,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_basic(self, mock_config, mock_popen):
+    def test_spawn_basic(self, mock_config, mock_popen) -> None:
         """Spawn creates correct WSL command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -933,7 +935,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_converts_windows_path_to_wsl(self, mock_config, mock_popen):
+    def test_spawn_converts_windows_path_to_wsl(self, mock_config, mock_popen) -> None:
         """Spawn converts Windows path to WSL path format."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -954,7 +956,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_converts_drive_letter_lowercase(self, mock_config, mock_popen):
+    def test_spawn_converts_drive_letter_lowercase(self, mock_config, mock_popen) -> None:
         """Spawn converts drive letter to lowercase for WSL."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -974,7 +976,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_preserves_unix_paths(self, mock_config, mock_popen):
+    def test_spawn_preserves_unix_paths(self, mock_config, mock_popen) -> None:
         """Spawn preserves Unix-style paths without conversion."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -995,7 +997,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_title(self, mock_config, mock_popen):
+    def test_spawn_with_title(self, mock_config, mock_popen) -> None:
         """Spawn includes title in start command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1014,7 +1016,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_without_title_uses_empty_quotes(self, mock_config, mock_popen):
+    def test_spawn_without_title_uses_empty_quotes(self, mock_config, mock_popen) -> None:
         """Spawn uses empty title quotes when no title provided."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1031,7 +1033,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_options_distribution(self, mock_config, mock_popen):
+    def test_spawn_with_options_distribution(self, mock_config, mock_popen) -> None:
         """Spawn includes extra options from config (e.g., distribution)."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=["-d", "Ubuntu"]
@@ -1049,7 +1051,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_with_env_vars(self, mock_config, mock_popen):
+    def test_spawn_with_env_vars(self, mock_config, mock_popen) -> None:
         """Spawn includes environment variable exports in bash script."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1072,7 +1074,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_validates_env_var_names(self, mock_config, mock_popen):
+    def test_spawn_validates_env_var_names(self, mock_config, mock_popen) -> None:
         """Spawn only exports valid identifier env var names."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1097,7 +1099,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_escapes_command_for_bash(self, mock_config, mock_popen):
+    def test_spawn_escapes_command_for_bash(self, mock_config, mock_popen) -> None:
         """Spawn properly escapes command arguments for bash."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1118,7 +1120,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen):
+    def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen) -> None:
         """Spawn uses CREATE_NEW_PROCESS_GROUP creationflags."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1136,7 +1138,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen", side_effect=FileNotFoundError("wsl not found"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_file_not_found(self, mock_config, mock_popen):
+    def test_spawn_handles_file_not_found(self, mock_config, mock_popen) -> None:
         """Spawn handles FileNotFoundError gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1151,7 +1153,7 @@ class TestWSLSpawner:
 
     @patch("subprocess.Popen", side_effect=Exception("WSL not installed"))
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_handles_generic_exception(self, mock_config, mock_popen):
+    def test_spawn_handles_generic_exception(self, mock_config, mock_popen) -> None:
         """Spawn handles generic exceptions gracefully."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1174,7 +1176,7 @@ class TestWindowsSpawnerSecurity:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_cmd_injection_prevention(self, mock_config, mock_popen):
+    def test_cmd_injection_prevention(self, mock_config, mock_popen) -> None:
         """CmdSpawner properly escapes commands to prevent injection."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -1192,7 +1194,7 @@ class TestWindowsSpawnerSecurity:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_powershell_injection_prevention(self, mock_config, mock_popen, mock_which):
+    def test_powershell_injection_prevention(self, mock_config, mock_popen, mock_which) -> None:
         """PowerShellSpawner properly escapes commands to prevent injection."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]
@@ -1214,7 +1216,7 @@ class TestWindowsSpawnerSecurity:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_wsl_injection_prevention(self, mock_config, mock_popen):
+    def test_wsl_injection_prevention(self, mock_config, mock_popen) -> None:
         """WSLSpawner properly escapes commands to prevent injection."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1241,7 +1243,7 @@ class TestWindowsSpawnerEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_wt_path_with_spaces(self, mock_config, mock_popen):
+    def test_wt_path_with_spaces(self, mock_config, mock_popen) -> None:
         """WindowsTerminalSpawner handles paths with spaces."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -1259,7 +1261,7 @@ class TestWindowsSpawnerEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_cmd_path_with_special_chars(self, mock_config, mock_popen):
+    def test_cmd_path_with_special_chars(self, mock_config, mock_popen) -> None:
         """CmdSpawner handles paths with special characters."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
@@ -1274,7 +1276,7 @@ class TestWindowsSpawnerEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_wsl_handles_short_path(self, mock_config, mock_popen):
+    def test_wsl_handles_short_path(self, mock_config, mock_popen) -> None:
         """WSLSpawner handles short paths correctly."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1294,7 +1296,7 @@ class TestWindowsSpawnerEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_empty_env_dict(self, mock_config, mock_popen):
+    def test_empty_env_dict(self, mock_config, mock_popen) -> None:
         """Spawners handle empty env dict correctly."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wt", options=[]
@@ -1310,7 +1312,7 @@ class TestWindowsSpawnerEdgeCases:
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_wsl_empty_env_no_exports(self, mock_config, mock_popen):
+    def test_wsl_empty_env_no_exports(self, mock_config, mock_popen) -> None:
         """WSLSpawner doesn't add export statements for empty env."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="wsl", options=[]
@@ -1337,7 +1339,7 @@ class TestWindowsSpawnerEdgeCases:
 class TestSpawnResultDataclass:
     """Tests for SpawnResult dataclass attributes."""
 
-    def test_spawn_result_success(self):
+    def test_spawn_result_success(self) -> None:
         """SpawnResult correctly stores success data."""
         result = SpawnResult(
             success=True,
@@ -1351,7 +1353,7 @@ class TestSpawnResultDataclass:
         assert result.terminal_type == "windows-terminal"
         assert result.error is None
 
-    def test_spawn_result_failure(self):
+    def test_spawn_result_failure(self) -> None:
         """SpawnResult correctly stores failure data."""
         result = SpawnResult(
             success=False,
@@ -1374,13 +1376,13 @@ class TestSpawnResultDataclass:
 class TestWindowsIntegration:
     """Integration tests that only run on Windows."""
 
-    def test_cmd_spawner_available_on_windows(self):
+    def test_cmd_spawner_available_on_windows(self) -> None:
         """CmdSpawner should be available on Windows."""
         spawner = CmdSpawner()
         # cmd.exe is always available on Windows
         assert spawner.is_available() is True
 
-    def test_windows_terminal_type_values(self):
+    def test_windows_terminal_type_values(self) -> None:
         """Verify TerminalType enum values for Windows spawners."""
         assert TerminalType.WINDOWS_TERMINAL.value == "windows-terminal"
         assert TerminalType.CMD.value == "cmd"

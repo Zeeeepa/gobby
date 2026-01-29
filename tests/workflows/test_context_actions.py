@@ -18,6 +18,8 @@ from gobby.workflows.context_actions import (
 )
 from gobby.workflows.definitions import WorkflowState
 
+pytestmark = pytest.mark.unit
+
 # --- Fixtures ---
 
 
@@ -81,7 +83,7 @@ def mock_parent_session():
 class TestInjectContext:
     """Tests for the inject_context function."""
 
-    def test_returns_none_when_session_manager_is_none(self, workflow_state, mock_template_engine):
+    def test_returns_none_when_session_manager_is_none(self, workflow_state, mock_template_engine) -> None:
         """Should return None and log warning when session_manager is None."""
         result = inject_context(
             session_manager=None,
@@ -92,7 +94,7 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_state_is_none(self, mock_session_manager, mock_template_engine):
+    def test_returns_none_when_state_is_none(self, mock_session_manager, mock_template_engine) -> None:
         """Should return None and log warning when state is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -103,7 +105,7 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_template_engine_is_none(self, mock_session_manager, workflow_state):
+    def test_returns_none_when_template_engine_is_none(self, mock_session_manager, workflow_state) -> None:
         """Should return None and log warning when template_engine is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -116,7 +118,7 @@ class TestInjectContext:
 
     def test_returns_none_when_session_id_is_empty(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when session_id is empty."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -129,7 +131,7 @@ class TestInjectContext:
 
     def test_returns_none_when_session_id_is_none(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when session_id is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -142,7 +144,7 @@ class TestInjectContext:
 
     def test_returns_none_when_source_is_none(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when source is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -155,7 +157,7 @@ class TestInjectContext:
 
     def test_returns_none_when_source_is_empty(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when source is empty string."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -173,7 +175,7 @@ class TestInjectContext:
         mock_template_engine,
         mock_session,
         mock_parent_session,
-    ):
+    ) -> None:
         """Should return parent session summary for previous_session_summary source."""
         mock_session.parent_session_id = "parent-session-id"
         mock_session_manager.get.side_effect = lambda sid: (
@@ -199,7 +201,7 @@ class TestInjectContext:
         mock_template_engine,
         mock_session,
         mock_parent_session,
-    ):
+    ) -> None:
         """Should return parent session summary for handoff source."""
         mock_session.parent_session_id = "parent-session-id"
         mock_session_manager.get.side_effect = lambda sid: (
@@ -219,7 +221,7 @@ class TestInjectContext:
 
     def test_returns_none_when_session_not_found(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when current session is not found."""
         mock_session_manager.get.return_value = None
 
@@ -235,7 +237,7 @@ class TestInjectContext:
 
     def test_returns_none_when_no_parent_session(
         self, mock_session_manager, workflow_state, mock_template_engine, mock_session
-    ):
+    ) -> None:
         """Should return None when current session has no parent."""
         mock_session.parent_session_id = None
         mock_session_manager.get.return_value = mock_session
@@ -252,7 +254,7 @@ class TestInjectContext:
 
     def test_returns_none_when_parent_has_no_summary_and_no_failback(
         self, mock_session_manager, workflow_state, mock_template_engine, mock_session
-    ):
+    ) -> None:
         """Should return None when parent session has no summary and no failback file."""
         mock_session.parent_session_id = "parent-session-id"
         parent = MagicMock()
@@ -275,7 +277,7 @@ class TestInjectContext:
 
     def test_recovers_from_failback_file_when_no_summary(
         self, mock_session_manager, workflow_state, mock_template_engine, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should recover summary from failback file when database summary is empty."""
         from pathlib import Path
         from unittest.mock import patch
@@ -310,7 +312,7 @@ class TestInjectContext:
         assert result["inject_context"] == "# Recovered Summary\nRecovered from failback file."
         assert workflow_state.context_injected is True
 
-    def test_artifacts_source_with_artifacts(self, mock_session_manager, mock_template_engine):
+    def test_artifacts_source_with_artifacts(self, mock_session_manager, mock_template_engine) -> None:
         """Should format artifacts as markdown when source is artifacts."""
         state = WorkflowState(
             session_id="test-session",
@@ -334,7 +336,7 @@ class TestInjectContext:
 
     def test_artifacts_source_with_empty_artifacts(
         self, mock_session_manager, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when artifacts is empty."""
         state = WorkflowState(
             session_id="test-session",
@@ -355,7 +357,7 @@ class TestInjectContext:
 
     def test_observations_source_with_observations(
         self, mock_session_manager, mock_template_engine
-    ):
+    ) -> None:
         """Should format observations as JSON when source is observations."""
         state = WorkflowState(
             session_id="test-session",
@@ -378,7 +380,7 @@ class TestInjectContext:
 
     def test_observations_source_with_empty_observations(
         self, mock_session_manager, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when observations is empty."""
         state = WorkflowState(
             session_id="test-session",
@@ -397,7 +399,7 @@ class TestInjectContext:
 
         assert result is None
 
-    def test_workflow_state_source(self, mock_session_manager, mock_template_engine):
+    def test_workflow_state_source(self, mock_session_manager, mock_template_engine) -> None:
         """Should format workflow state as JSON."""
         state = WorkflowState(
             session_id="test-session",
@@ -421,7 +423,7 @@ class TestInjectContext:
 
     def test_workflow_state_with_dict_method_fallback(
         self, mock_session_manager, mock_template_engine
-    ):
+    ) -> None:
         """Should use .dict() method when .model_dump() is not available."""
 
         # Create a concrete helper class that has dict() but not model_dump
@@ -451,7 +453,7 @@ class TestInjectContext:
         assert "## Workflow State" in result["inject_context"]
         assert test_state.dict_called is True
 
-    def test_compact_handoff_source(self, mock_session_manager, mock_template_engine, mock_session):
+    def test_compact_handoff_source(self, mock_session_manager, mock_template_engine, mock_session) -> None:
         """Should return compact_markdown from current session."""
         mock_session.compact_markdown = "# Compact handoff content"
         mock_session_manager.get.return_value = mock_session
@@ -475,7 +477,7 @@ class TestInjectContext:
 
     def test_compact_handoff_with_no_markdown(
         self, mock_session_manager, mock_template_engine, mock_session
-    ):
+    ) -> None:
         """Should return None when compact_markdown is not set."""
         mock_session.compact_markdown = None
         mock_session_manager.get.return_value = mock_session
@@ -498,7 +500,7 @@ class TestInjectContext:
 
     def test_with_template_rendering_for_handoff(
         self, mock_session_manager, workflow_state, mock_session, mock_parent_session
-    ):
+    ) -> None:
         """Should render template with context for handoff source."""
         mock_session.parent_session_id = "parent-session-id"
         mock_session_manager.get.side_effect = lambda sid: (
@@ -524,7 +526,7 @@ class TestInjectContext:
         assert "summary" in call_args[0][1]
         assert "handoff" in call_args[0][1]
 
-    def test_with_template_rendering_for_artifacts(self, mock_session_manager):
+    def test_with_template_rendering_for_artifacts(self, mock_session_manager) -> None:
         """Should render template with artifacts_list for artifacts source."""
         state = WorkflowState(
             session_id="test-session",
@@ -549,7 +551,7 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "artifacts_list" in call_args[0][1]
 
-    def test_with_template_rendering_for_observations(self, mock_session_manager):
+    def test_with_template_rendering_for_observations(self, mock_session_manager) -> None:
         """Should render template with observations_text for observations source."""
         state = WorkflowState(
             session_id="test-session",
@@ -573,7 +575,7 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "observations_text" in call_args[0][1]
 
-    def test_with_template_rendering_for_workflow_state(self, mock_session_manager):
+    def test_with_template_rendering_for_workflow_state(self, mock_session_manager) -> None:
         """Should render template with workflow_state_text for workflow_state source."""
         state = WorkflowState(
             session_id="test-session",
@@ -596,7 +598,7 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "workflow_state_text" in call_args[0][1]
 
-    def test_with_template_rendering_for_compact_handoff(self, mock_session_manager, mock_session):
+    def test_with_template_rendering_for_compact_handoff(self, mock_session_manager, mock_session) -> None:
         """Should render template with handoff for compact_handoff source."""
         mock_session.compact_markdown = "Compact content"
         mock_session_manager.get.return_value = mock_session
@@ -625,7 +627,7 @@ class TestInjectContext:
 
     def test_template_rendering_with_previous_session_summary_source(
         self, mock_session_manager, mock_session, mock_parent_session
-    ):
+    ) -> None:
         """Should set summary and handoff in render context for previous_session_summary."""
         mock_session.parent_session_id = "parent-id"
         mock_session_manager.get.side_effect = lambda sid: (
@@ -654,7 +656,7 @@ class TestInjectContext:
         assert call_args["summary"] == "Parent session summary content"
         assert call_args["handoff"]["notes"] == "Parent session summary content"
 
-    def test_require_blocks_when_no_content(self, mock_session_manager, mock_template_engine):
+    def test_require_blocks_when_no_content(self, mock_session_manager, mock_template_engine) -> None:
         """Should return block decision when require=True and no content found."""
         state = WorkflowState(
             session_id="test-session",
@@ -678,7 +680,7 @@ class TestInjectContext:
 
     def test_require_false_returns_none_when_no_content(
         self, mock_session_manager, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when require=False and no content found."""
         state = WorkflowState(
             session_id="test-session",
@@ -698,7 +700,7 @@ class TestInjectContext:
 
         assert result is None
 
-    def test_unknown_source_returns_none(self, mock_session_manager, mock_template_engine):
+    def test_unknown_source_returns_none(self, mock_session_manager, mock_template_engine) -> None:
         """Should return None for unknown source type."""
         state = WorkflowState(
             session_id="test-session",
@@ -725,7 +727,7 @@ class TestInjectMessage:
 
     def test_returns_none_when_content_is_none(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when content is None."""
         result = inject_message(
             session_manager=mock_session_manager,
@@ -738,7 +740,7 @@ class TestInjectMessage:
 
     def test_returns_none_when_content_is_empty(
         self, mock_session_manager, workflow_state, mock_template_engine
-    ):
+    ) -> None:
         """Should return None when content is empty string."""
         result = inject_message(
             session_manager=mock_session_manager,
@@ -749,7 +751,7 @@ class TestInjectMessage:
         )
         assert result is None
 
-    def test_renders_and_returns_message(self, mock_session_manager, workflow_state, mock_session):
+    def test_renders_and_returns_message(self, mock_session_manager, workflow_state, mock_session) -> None:
         """Should render template and return inject_message dict."""
         mock_session_manager.get.return_value = mock_session
         template_engine = MagicMock()
@@ -769,7 +771,7 @@ class TestInjectMessage:
 
     def test_includes_state_in_render_context(
         self, mock_session_manager, workflow_state, mock_template_engine, mock_session
-    ):
+    ) -> None:
         """Should include state data in template render context."""
         mock_session_manager.get.return_value = mock_session
         mock_template_engine.render.return_value = "rendered"
@@ -791,7 +793,7 @@ class TestInjectMessage:
 
     def test_includes_extra_kwargs_in_render_context(
         self, mock_session_manager, workflow_state, mock_template_engine, mock_session
-    ):
+    ) -> None:
         """Should include extra kwargs in template render context."""
         mock_session_manager.get.return_value = mock_session
         mock_template_engine.render.return_value = "rendered"
@@ -812,7 +814,7 @@ class TestInjectMessage:
 
     def test_handles_none_variables_in_state(
         self, mock_session_manager, mock_template_engine, mock_session
-    ):
+    ) -> None:
         """Should handle None variables in state gracefully."""
         state = WorkflowState(
             session_id="test-session",
@@ -844,7 +846,7 @@ class TestInjectMessage:
 class TestExtractHandoffContext:
     """Tests for the extract_handoff_context function."""
 
-    def test_skips_when_compact_handoff_disabled(self, mock_session_manager):
+    def test_skips_when_compact_handoff_disabled(self, mock_session_manager) -> None:
         """Should skip extraction when compact_handoff is disabled."""
         config = MagicMock()
         config.compact_handoff.enabled = False
@@ -857,7 +859,7 @@ class TestExtractHandoffContext:
 
         assert result == {"skipped": True, "reason": "compact_handoff disabled"}
 
-    def test_returns_error_when_session_not_found(self, mock_session_manager):
+    def test_returns_error_when_session_not_found(self, mock_session_manager) -> None:
         """Should return error when session not found."""
         mock_session_manager.get.return_value = None
 
@@ -868,7 +870,7 @@ class TestExtractHandoffContext:
 
         assert result == {"error": "Session not found"}
 
-    def test_returns_error_when_no_transcript_path(self, mock_session_manager, mock_session):
+    def test_returns_error_when_no_transcript_path(self, mock_session_manager, mock_session) -> None:
         """Should return error when session has no jsonl_path."""
         mock_session.jsonl_path = None
         mock_session_manager.get.return_value = mock_session
@@ -882,7 +884,7 @@ class TestExtractHandoffContext:
 
     def test_returns_error_when_transcript_file_not_found(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should return error when transcript file doesn't exist."""
         mock_session.jsonl_path = str(tmp_path / "nonexistent.jsonl")
         mock_session_manager.get.return_value = mock_session
@@ -896,7 +898,7 @@ class TestExtractHandoffContext:
 
     def test_extracts_context_and_saves_markdown(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should extract context from transcript and save markdown to session."""
         # Create transcript file
         transcript_path = tmp_path / "transcript.jsonl"
@@ -940,7 +942,7 @@ class TestExtractHandoffContext:
 
     def test_enriches_with_git_status_when_empty(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should enrich with git status when not provided by analyzer."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -975,7 +977,7 @@ class TestExtractHandoffContext:
                     mock_status.assert_called_once()
                     assert mock_ctx.git_status == "M file.py"
 
-    def test_enriches_with_git_commits(self, mock_session_manager, mock_session, tmp_path):
+    def test_enriches_with_git_commits(self, mock_session_manager, mock_session, tmp_path) -> None:
         """Should enrich with recent git commits."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1010,7 +1012,7 @@ class TestExtractHandoffContext:
 
     def test_enriches_with_worktree_context_via_manager(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should enrich with worktree context when worktree_manager provided."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1059,7 +1061,7 @@ class TestExtractHandoffContext:
 
     def test_enriches_with_worktree_context_via_db(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should create worktree manager from db when provided."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1101,7 +1103,7 @@ class TestExtractHandoffContext:
 
     def test_handles_worktree_exception_gracefully(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should handle worktree lookup exceptions gracefully."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1138,7 +1140,7 @@ class TestExtractHandoffContext:
 
                     assert result.get("handoff_context_extracted") is True
 
-    def test_handles_extraction_exception(self, mock_session_manager, mock_session, tmp_path):
+    def test_handles_extraction_exception(self, mock_session_manager, mock_session, tmp_path) -> None:
         """Should return error dict when extraction raises exception."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1160,7 +1162,7 @@ class TestExtractHandoffContext:
 
     def test_config_without_compact_handoff_attribute(
         self, mock_session_manager, mock_session, tmp_path
-    ):
+    ) -> None:
         """Should proceed when config doesn't have compact_handoff attribute."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1195,7 +1197,7 @@ class TestExtractHandoffContext:
 
                     assert result.get("handoff_context_extracted") is True
 
-    def test_skips_empty_lines_in_transcript(self, mock_session_manager, mock_session, tmp_path):
+    def test_skips_empty_lines_in_transcript(self, mock_session_manager, mock_session, tmp_path) -> None:
         """Should skip empty lines when reading transcript file."""
         transcript_path = tmp_path / "transcript.jsonl"
         # Create transcript with empty lines
@@ -1256,13 +1258,13 @@ class TestFormatHandoffAsMarkdown:
         recent_activity: list = field(default_factory=list)
         active_skills: list = field(default_factory=list)
 
-    def test_empty_context_returns_empty_string(self):
+    def test_empty_context_returns_empty_string(self) -> None:
         """Should return empty string when all context fields are empty."""
         ctx = self.MockHandoffContext()
         result = format_handoff_as_markdown(ctx)
         assert result == ""
 
-    def test_formats_active_task(self):
+    def test_formats_active_task(self) -> None:
         """Should format active task section."""
         ctx = self.MockHandoffContext(
             active_gobby_task={"id": "gt-123", "title": "Fix auth bug", "status": "in_progress"}
@@ -1273,7 +1275,7 @@ class TestFormatHandoffAsMarkdown:
         assert "**Fix auth bug** (gt-123)" in result
         assert "Status: in_progress" in result
 
-    def test_formats_active_task_with_missing_fields(self):
+    def test_formats_active_task_with_missing_fields(self) -> None:
         """Should handle missing fields in active task with defaults."""
         ctx = self.MockHandoffContext(
             active_gobby_task={"some_field": "value"}  # Non-empty dict with no title/id/status
@@ -1284,7 +1286,7 @@ class TestFormatHandoffAsMarkdown:
         assert "**Untitled** (unknown)" in result
         assert "Status: unknown" in result
 
-    def test_formats_worktree_context(self):
+    def test_formats_worktree_context(self) -> None:
         """Should format worktree context section."""
         ctx = self.MockHandoffContext(
             active_worktree={
@@ -1302,7 +1304,7 @@ class TestFormatHandoffAsMarkdown:
         assert "**Base**: `main`" in result
         assert "**Task**: gt-123" in result
 
-    def test_formats_worktree_without_task_id(self):
+    def test_formats_worktree_without_task_id(self) -> None:
         """Should format worktree without task_id."""
         ctx = self.MockHandoffContext(
             active_worktree={
@@ -1316,7 +1318,7 @@ class TestFormatHandoffAsMarkdown:
         assert "### Worktree Context" in result
         assert "**Task**" not in result
 
-    def test_formats_todo_state(self):
+    def test_formats_todo_state(self) -> None:
         """Should format todo state with correct markers."""
         ctx = self.MockHandoffContext(
             todo_state=[
@@ -1332,7 +1334,7 @@ class TestFormatHandoffAsMarkdown:
         assert "- [>] Second task" in result
         assert "- [ ] Third task" in result
 
-    def test_formats_git_commits(self):
+    def test_formats_git_commits(self) -> None:
         """Should format git commits section."""
         ctx = self.MockHandoffContext(
             git_commits=[
@@ -1346,7 +1348,7 @@ class TestFormatHandoffAsMarkdown:
         assert "- `abc123d` feat: add feature" in result
         assert "- `789xyz` fix: bug fix" in result
 
-    def test_formats_git_status(self):
+    def test_formats_git_status(self) -> None:
         """Should format git status section."""
         ctx = self.MockHandoffContext(git_status="M src/file.py\nA new_file.py")
         result = format_handoff_as_markdown(ctx)
@@ -1354,7 +1356,7 @@ class TestFormatHandoffAsMarkdown:
         assert "### Uncommitted Changes" in result
         assert "```\nM src/file.py\nA new_file.py\n```" in result
 
-    def test_formats_files_modified(self):
+    def test_formats_files_modified(self) -> None:
         """Should format files modified section."""
         ctx = self.MockHandoffContext(files_modified=["src/auth.py", "tests/test_auth.py"])
         result = format_handoff_as_markdown(ctx)
@@ -1363,7 +1365,7 @@ class TestFormatHandoffAsMarkdown:
         assert "- src/auth.py" in result
         assert "- tests/test_auth.py" in result
 
-    def test_formats_initial_goal(self):
+    def test_formats_initial_goal(self) -> None:
         """Should format initial goal section."""
         ctx = self.MockHandoffContext(initial_goal="Implement user authentication")
         result = format_handoff_as_markdown(ctx)
@@ -1371,7 +1373,7 @@ class TestFormatHandoffAsMarkdown:
         assert "### Original Goal" in result
         assert "Implement user authentication" in result
 
-    def test_formats_recent_activity(self):
+    def test_formats_recent_activity(self) -> None:
         """Should format recent activity section with max 5 items."""
         ctx = self.MockHandoffContext(
             recent_activity=[
@@ -1396,7 +1398,7 @@ class TestFormatHandoffAsMarkdown:
         assert "- Activity 1" not in result
         assert "- Activity 2" not in result
 
-    def test_formats_multiple_sections(self):
+    def test_formats_multiple_sections(self) -> None:
         """Should format multiple sections separated by double newlines."""
         ctx = self.MockHandoffContext(
             initial_goal="Fix the bug",
@@ -1408,7 +1410,7 @@ class TestFormatHandoffAsMarkdown:
         sections = result.split("\n\n")
         assert len(sections) == 2
 
-    def test_prompt_template_parameter_is_ignored(self):
+    def test_prompt_template_parameter_is_ignored(self) -> None:
         """Should ignore prompt_template parameter (reserved for future)."""
         ctx = self.MockHandoffContext(initial_goal="Goal")
         result = format_handoff_as_markdown(ctx, prompt_template="custom template")
@@ -1416,7 +1418,7 @@ class TestFormatHandoffAsMarkdown:
         assert "### Original Goal" in result
         assert "Goal" in result
 
-    def test_handles_empty_strings_in_context(self):
+    def test_handles_empty_strings_in_context(self) -> None:
         """Should not include sections with empty strings."""
         ctx = self.MockHandoffContext(
             initial_goal="",
@@ -1427,7 +1429,7 @@ class TestFormatHandoffAsMarkdown:
         assert "### Original Goal" not in result
         assert "### Uncommitted Changes" not in result
 
-    def test_handles_commit_with_empty_hash(self):
+    def test_handles_commit_with_empty_hash(self) -> None:
         """Should handle commits with empty hash gracefully."""
         ctx = self.MockHandoffContext(git_commits=[{"hash": "", "message": "test commit"}])
         result = format_handoff_as_markdown(ctx)
@@ -1435,7 +1437,7 @@ class TestFormatHandoffAsMarkdown:
         assert "### Commits This Session" in result
         assert "- `` test commit" in result
 
-    def test_formats_active_skills(self):
+    def test_formats_active_skills(self) -> None:
         """Should format active skills section."""
         ctx = self.MockHandoffContext(active_skills=["gobby-tasks", "gobby-sessions"])
         result = format_handoff_as_markdown(ctx)
@@ -1444,7 +1446,7 @@ class TestFormatHandoffAsMarkdown:
         assert "gobby-tasks" in result
         assert "gobby-sessions" in result
 
-    def test_empty_active_skills_not_included(self):
+    def test_empty_active_skills_not_included(self) -> None:
         """Should not include active skills section when list is empty."""
         ctx = self.MockHandoffContext(active_skills=[])
         result = format_handoff_as_markdown(ctx)
@@ -1458,20 +1460,20 @@ class TestFormatHandoffAsMarkdown:
 class TestRecommendSkillsForTask:
     """Tests for the recommend_skills_for_task function."""
 
-    def test_import(self):
+    def test_import(self) -> None:
         """Test that recommend_skills_for_task can be imported."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
         assert recommend_skills_for_task is not None
 
-    def test_returns_list(self):
+    def test_returns_list(self) -> None:
         """Should return a list of skill names."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
         result = recommend_skills_for_task({"title": "Test task"})
         assert isinstance(result, list)
 
-    def test_with_code_category(self):
+    def test_with_code_category(self) -> None:
         """Should return code-related skills for code category."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
@@ -1480,7 +1482,7 @@ class TestRecommendSkillsForTask:
 
         assert "gobby-tasks" in result
 
-    def test_with_docs_category(self):
+    def test_with_docs_category(self) -> None:
         """Should return docs-related skills for docs category."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
@@ -1490,7 +1492,7 @@ class TestRecommendSkillsForTask:
         assert "gobby-tasks" in result
         assert "gobby-plan" in result
 
-    def test_with_test_category(self):
+    def test_with_test_category(self) -> None:
         """Should return test-related skills for test category."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
@@ -1499,7 +1501,7 @@ class TestRecommendSkillsForTask:
 
         assert "gobby-tasks" in result
 
-    def test_with_no_category(self):
+    def test_with_no_category(self) -> None:
         """Should return always-apply skills when no category."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
@@ -1508,14 +1510,14 @@ class TestRecommendSkillsForTask:
 
         assert isinstance(result, list)
 
-    def test_with_none_task(self):
+    def test_with_none_task(self) -> None:
         """Should return empty list for None task."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 
         result = recommend_skills_for_task(None)
         assert result == []
 
-    def test_with_empty_dict(self):
+    def test_with_empty_dict(self) -> None:
         """Should return always-apply skills for empty dict."""
         from gobby.workflows.context_actions import recommend_skills_for_task
 

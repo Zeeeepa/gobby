@@ -17,6 +17,7 @@ from gobby.agents.sandbox import (
     get_sandbox_resolver,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.mark.unit
 class TestSandboxConfig:

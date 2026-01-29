@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.utils.project_init import (
     InitResult,
     VerificationCommands,
@@ -12,11 +14,12 @@ from gobby.utils.project_init import (
     initialize_project,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestVerificationCommands:
     """Tests for the VerificationCommands dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that VerificationCommands has correct default values."""
         vc = VerificationCommands()
         assert vc.unit_tests is None
@@ -25,42 +28,42 @@ class TestVerificationCommands:
         assert vc.integration is None
         assert vc.custom == {}
 
-    def test_to_dict_empty(self):
+    def test_to_dict_empty(self) -> None:
         """Test to_dict returns empty dict when all values are None."""
         vc = VerificationCommands()
         assert vc.to_dict() == {}
 
-    def test_to_dict_with_unit_tests(self):
+    def test_to_dict_with_unit_tests(self) -> None:
         """Test to_dict includes unit_tests when set."""
         vc = VerificationCommands(unit_tests="pytest")
         result = vc.to_dict()
         assert result == {"unit_tests": "pytest"}
 
-    def test_to_dict_with_type_check(self):
+    def test_to_dict_with_type_check(self) -> None:
         """Test to_dict includes type_check when set."""
         vc = VerificationCommands(type_check="mypy .")
         result = vc.to_dict()
         assert result == {"type_check": "mypy ."}
 
-    def test_to_dict_with_lint(self):
+    def test_to_dict_with_lint(self) -> None:
         """Test to_dict includes lint when set."""
         vc = VerificationCommands(lint="ruff check .")
         result = vc.to_dict()
         assert result == {"lint": "ruff check ."}
 
-    def test_to_dict_with_integration(self):
+    def test_to_dict_with_integration(self) -> None:
         """Test to_dict includes integration when set."""
         vc = VerificationCommands(integration="pytest tests/integration")
         result = vc.to_dict()
         assert result == {"integration": "pytest tests/integration"}
 
-    def test_to_dict_with_custom(self):
+    def test_to_dict_with_custom(self) -> None:
         """Test to_dict includes custom when populated."""
         vc = VerificationCommands(custom={"build": "make build", "deploy": "make deploy"})
         result = vc.to_dict()
         assert result == {"custom": {"build": "make build", "deploy": "make deploy"}}
 
-    def test_to_dict_with_all_values(self):
+    def test_to_dict_with_all_values(self) -> None:
         """Test to_dict with all fields populated."""
         vc = VerificationCommands(
             unit_tests="pytest",
@@ -78,7 +81,7 @@ class TestVerificationCommands:
             "custom": {"build": "make build"},
         }
 
-    def test_to_dict_excludes_none_values(self):
+    def test_to_dict_excludes_none_values(self) -> None:
         """Test that to_dict excludes None values but includes set ones."""
         vc = VerificationCommands(unit_tests="pytest", lint="ruff")
         result = vc.to_dict()
@@ -88,7 +91,7 @@ class TestVerificationCommands:
         assert "integration" not in result
         assert "custom" not in result
 
-    def test_to_dict_excludes_empty_custom(self):
+    def test_to_dict_excludes_empty_custom(self) -> None:
         """Test that empty custom dict is excluded from to_dict output."""
         vc = VerificationCommands(unit_tests="pytest", custom={})
         result = vc.to_dict()
@@ -98,7 +101,7 @@ class TestVerificationCommands:
 class TestInitResult:
     """Tests for InitResult dataclass."""
 
-    def test_init_result_creation(self):
+    def test_init_result_creation(self) -> None:
         """Test creating InitResult with all fields."""
         result = InitResult(
             project_id="proj-123",
@@ -114,7 +117,7 @@ class TestInitResult:
         assert result.created_at == "2024-01-01T00:00:00Z"
         assert result.already_existed is False
 
-    def test_init_result_already_existed(self):
+    def test_init_result_already_existed(self) -> None:
         """Test InitResult with already_existed=True."""
         result = InitResult(
             project_id="existing-proj",
@@ -126,7 +129,7 @@ class TestInitResult:
 
         assert result.already_existed is True
 
-    def test_init_result_with_verification(self):
+    def test_init_result_with_verification(self) -> None:
         """Test InitResult with verification commands."""
         verification = VerificationCommands(unit_tests="pytest", lint="ruff")
         result = InitResult(
@@ -142,7 +145,7 @@ class TestInitResult:
         assert result.verification.unit_tests == "pytest"
         assert result.verification.lint == "ruff"
 
-    def test_init_result_verification_defaults_to_none(self):
+    def test_init_result_verification_defaults_to_none(self) -> None:
         """Test that verification defaults to None."""
         result = InitResult(
             project_id="proj-123",
@@ -158,7 +161,7 @@ class TestInitResult:
 class TestDetectVerificationCommands:
     """Tests for detect_verification_commands function."""
 
-    def test_no_project_files(self, tmp_path: Path):
+    def test_no_project_files(self, tmp_path: Path) -> None:
         """Test detection when no recognized project files exist."""
         result = detect_verification_commands(tmp_path)
 
@@ -168,7 +171,7 @@ class TestDetectVerificationCommands:
         assert result.integration is None
         assert result.custom == {}
 
-    def test_python_project_with_tests_and_src(self, tmp_path: Path):
+    def test_python_project_with_tests_and_src(self, tmp_path: Path) -> None:
         """Test detection for Python project with tests/ and src/ directories."""
         # Create pyproject.toml
         pyproject = tmp_path / "pyproject.toml"
@@ -186,7 +189,7 @@ class TestDetectVerificationCommands:
         assert result.type_check == "uv run mypy src/"
         assert result.lint == "uv run ruff check src/"
 
-    def test_python_project_with_tests_no_src(self, tmp_path: Path):
+    def test_python_project_with_tests_no_src(self, tmp_path: Path) -> None:
         """Test detection for Python project with tests/ but no src/ directory."""
         # Create pyproject.toml
         pyproject = tmp_path / "pyproject.toml"
@@ -202,7 +205,7 @@ class TestDetectVerificationCommands:
         assert result.type_check == "uv run mypy ."
         assert result.lint == "uv run ruff check ."
 
-    def test_python_project_with_src_no_tests(self, tmp_path: Path):
+    def test_python_project_with_src_no_tests(self, tmp_path: Path) -> None:
         """Test detection for Python project with src/ but no tests/ directory."""
         # Create pyproject.toml
         pyproject = tmp_path / "pyproject.toml"
@@ -218,7 +221,7 @@ class TestDetectVerificationCommands:
         assert result.type_check == "uv run mypy src/"
         assert result.lint == "uv run ruff check src/"
 
-    def test_python_project_no_dirs(self, tmp_path: Path):
+    def test_python_project_no_dirs(self, tmp_path: Path) -> None:
         """Test detection for Python project without tests/ or src/ directories."""
         # Create pyproject.toml
         pyproject = tmp_path / "pyproject.toml"
@@ -230,7 +233,7 @@ class TestDetectVerificationCommands:
         assert result.type_check == "uv run mypy ."
         assert result.lint == "uv run ruff check ."
 
-    def test_nodejs_project_with_test_script(self, tmp_path: Path):
+    def test_nodejs_project_with_test_script(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with test script."""
         package_json = tmp_path / "package.json"
         package_json.write_text(json.dumps({"name": "test-project", "scripts": {"test": "jest"}}))
@@ -241,7 +244,7 @@ class TestDetectVerificationCommands:
         assert result.lint is None
         assert result.type_check is None
 
-    def test_nodejs_project_with_lint_script(self, tmp_path: Path):
+    def test_nodejs_project_with_lint_script(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with lint script."""
         package_json = tmp_path / "package.json"
         package_json.write_text(
@@ -252,7 +255,7 @@ class TestDetectVerificationCommands:
 
         assert result.lint == "npm run lint"
 
-    def test_nodejs_project_with_type_check_script(self, tmp_path: Path):
+    def test_nodejs_project_with_type_check_script(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with type-check script."""
         package_json = tmp_path / "package.json"
         package_json.write_text(
@@ -263,7 +266,7 @@ class TestDetectVerificationCommands:
 
         assert result.type_check == "npm run type-check"
 
-    def test_nodejs_project_with_typecheck_script(self, tmp_path: Path):
+    def test_nodejs_project_with_typecheck_script(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with typecheck script (no hyphen)."""
         package_json = tmp_path / "package.json"
         package_json.write_text(
@@ -274,7 +277,7 @@ class TestDetectVerificationCommands:
 
         assert result.type_check == "npm run typecheck"
 
-    def test_nodejs_project_with_types_script(self, tmp_path: Path):
+    def test_nodejs_project_with_types_script(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with types script."""
         package_json = tmp_path / "package.json"
         package_json.write_text(
@@ -285,7 +288,7 @@ class TestDetectVerificationCommands:
 
         assert result.type_check == "npm run types"
 
-    def test_nodejs_project_with_tsc_script(self, tmp_path: Path):
+    def test_nodejs_project_with_tsc_script(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with tsc script."""
         package_json = tmp_path / "package.json"
         package_json.write_text(json.dumps({"name": "test-project", "scripts": {"tsc": "tsc"}}))
@@ -294,7 +297,7 @@ class TestDetectVerificationCommands:
 
         assert result.type_check == "npm run tsc"
 
-    def test_nodejs_project_with_all_scripts(self, tmp_path: Path):
+    def test_nodejs_project_with_all_scripts(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with all relevant scripts."""
         package_json = tmp_path / "package.json"
         package_json.write_text(
@@ -312,7 +315,7 @@ class TestDetectVerificationCommands:
         assert result.lint == "npm run lint"
         assert result.type_check == "npm run type-check"
 
-    def test_nodejs_project_no_scripts(self, tmp_path: Path):
+    def test_nodejs_project_no_scripts(self, tmp_path: Path) -> None:
         """Test detection for Node.js project without scripts."""
         package_json = tmp_path / "package.json"
         package_json.write_text(json.dumps({"name": "test-project"}))
@@ -323,7 +326,7 @@ class TestDetectVerificationCommands:
         assert result.lint is None
         assert result.type_check is None
 
-    def test_nodejs_project_empty_scripts(self, tmp_path: Path):
+    def test_nodejs_project_empty_scripts(self, tmp_path: Path) -> None:
         """Test detection for Node.js project with empty scripts object."""
         package_json = tmp_path / "package.json"
         package_json.write_text(json.dumps({"name": "test-project", "scripts": {}}))
@@ -334,7 +337,7 @@ class TestDetectVerificationCommands:
         assert result.lint is None
         assert result.type_check is None
 
-    def test_nodejs_project_invalid_json(self, tmp_path: Path):
+    def test_nodejs_project_invalid_json(self, tmp_path: Path) -> None:
         """Test detection when package.json contains invalid JSON."""
         package_json = tmp_path / "package.json"
         package_json.write_text("{ invalid json }")
@@ -346,7 +349,7 @@ class TestDetectVerificationCommands:
         assert result.lint is None
         assert result.type_check is None
 
-    def test_nodejs_project_type_check_script_priority(self, tmp_path: Path):
+    def test_nodejs_project_type_check_script_priority(self, tmp_path: Path) -> None:
         """Test that type-check script has priority over other type check scripts."""
         package_json = tmp_path / "package.json"
         package_json.write_text(
@@ -368,7 +371,7 @@ class TestDetectVerificationCommands:
         # type-check should be selected first due to iteration order
         assert result.type_check == "npm run type-check"
 
-    def test_python_project_tests_is_file_not_dir(self, tmp_path: Path):
+    def test_python_project_tests_is_file_not_dir(self, tmp_path: Path) -> None:
         """Test that tests file (not directory) doesn't trigger test command."""
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[project]\nname = 'test'\n")
@@ -382,7 +385,7 @@ class TestDetectVerificationCommands:
         # Should not detect tests since it's a file
         assert result.unit_tests is None
 
-    def test_python_project_src_is_file_not_dir(self, tmp_path: Path):
+    def test_python_project_src_is_file_not_dir(self, tmp_path: Path) -> None:
         """Test that src file (not directory) triggers fallback commands."""
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[project]\nname = 'test'\n")
@@ -401,7 +404,7 @@ class TestDetectVerificationCommands:
 class TestWriteProjectJson:
     """Tests for _write_project_json function."""
 
-    def test_creates_gobby_dir(self, tmp_path: Path):
+    def test_creates_gobby_dir(self, tmp_path: Path) -> None:
         """Test that .gobby directory is created if it doesn't exist."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -412,7 +415,7 @@ class TestWriteProjectJson:
         assert gobby_dir.exists()
         assert gobby_dir.is_dir()
 
-    def test_writes_project_json(self, tmp_path: Path):
+    def test_writes_project_json(self, tmp_path: Path) -> None:
         """Test that project.json is written with correct content."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -427,7 +430,7 @@ class TestWriteProjectJson:
         assert content["name"] == "my-project"
         assert content["created_at"] == "2024-06-15T12:00:00Z"
 
-    def test_overwrites_existing_project_json(self, tmp_path: Path):
+    def test_overwrites_existing_project_json(self, tmp_path: Path) -> None:
         """Test that existing project.json is overwritten."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -445,7 +448,7 @@ class TestWriteProjectJson:
         assert content["id"] == "new-id"
         assert content["name"] == "new-name"
 
-    def test_handles_existing_gobby_dir(self, tmp_path: Path):
+    def test_handles_existing_gobby_dir(self, tmp_path: Path) -> None:
         """Test that existing .gobby directory is handled correctly."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -457,7 +460,7 @@ class TestWriteProjectJson:
 
         assert (gobby_dir / "project.json").exists()
 
-    def test_writes_verification_commands(self, tmp_path: Path):
+    def test_writes_verification_commands(self, tmp_path: Path) -> None:
         """Test that verification commands are included in project.json."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -478,7 +481,7 @@ class TestWriteProjectJson:
         assert content["verification"]["type_check"] == "mypy ."
         assert content["verification"]["lint"] == "ruff check ."
 
-    def test_omits_empty_verification_commands(self, tmp_path: Path):
+    def test_omits_empty_verification_commands(self, tmp_path: Path) -> None:
         """Test that empty verification commands are not included."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -492,7 +495,7 @@ class TestWriteProjectJson:
 
         assert "verification" not in content
 
-    def test_writes_verification_with_custom_commands(self, tmp_path: Path):
+    def test_writes_verification_with_custom_commands(self, tmp_path: Path) -> None:
         """Test that custom verification commands are included."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -508,7 +511,7 @@ class TestWriteProjectJson:
         assert content["verification"]["custom"]["build"] == "make build"
         assert content["verification"]["custom"]["deploy"] == "make deploy"
 
-    def test_writes_json_with_proper_formatting(self, tmp_path: Path):
+    def test_writes_json_with_proper_formatting(self, tmp_path: Path) -> None:
         """Test that project.json is written with proper indentation."""
         cwd = tmp_path / "project"
         cwd.mkdir()
@@ -528,7 +531,7 @@ class TestWriteProjectJson:
 class TestInitializeProject:
     """Tests for initialize_project function."""
 
-    def test_already_initialized_returns_existing(self, tmp_path: Path):
+    def test_already_initialized_returns_existing(self, tmp_path: Path) -> None:
         """Test that already initialized project returns existing info."""
         # Patch at the source modules where they are imported from
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
@@ -545,7 +548,7 @@ class TestInitializeProject:
             assert result.project_name == "existing-name"
             assert result.already_existed is True
 
-    def test_already_initialized_with_empty_id(self, tmp_path: Path):
+    def test_already_initialized_with_empty_id(self, tmp_path: Path) -> None:
         """Test that project with empty id is treated as uninitialized."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {
@@ -573,7 +576,7 @@ class TestInitializeProject:
                             # Should create new project since id was empty
                             assert result.already_existed is False
 
-    def test_new_project_creation(self, tmp_path: Path):
+    def test_new_project_creation(self, tmp_path: Path) -> None:
         """Test creating a new project."""
         # Patch all the imports used inside the function
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
@@ -598,7 +601,7 @@ class TestInitializeProject:
                             assert result.project_name == tmp_path.name
                             assert result.already_existed is False
 
-    def test_uses_provided_name(self, tmp_path: Path):
+    def test_uses_provided_name(self, tmp_path: Path) -> None:
         """Test that provided name overrides directory name."""
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             with patch("gobby.utils.git.get_github_url", return_value=None):
@@ -621,7 +624,7 @@ class TestInitializeProject:
                             call_kwargs = mock_pm_instance.create.call_args
                             assert call_kwargs.kwargs["name"] == "custom-name"
 
-    def test_uses_provided_github_url(self, tmp_path: Path):
+    def test_uses_provided_github_url(self, tmp_path: Path) -> None:
         """Test that provided github_url is used."""
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             with patch("gobby.utils.git.get_github_url", return_value="https://auto-detected.com"):
@@ -648,7 +651,7 @@ class TestInitializeProject:
                                 call_kwargs.kwargs["github_url"] == "https://github.com/custom/repo"
                             )
 
-    def test_auto_detects_github_url(self, tmp_path: Path):
+    def test_auto_detects_github_url(self, tmp_path: Path) -> None:
         """Test that github URL is auto-detected from git remote."""
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             with patch(
@@ -676,7 +679,7 @@ class TestInitializeProject:
                                 == "https://github.com/detected/repo"
                             )
 
-    def test_existing_db_project_no_local_json(self, tmp_path: Path):
+    def test_existing_db_project_no_local_json(self, tmp_path: Path) -> None:
         """Test handling when project exists in DB but no local project.json."""
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             with patch("gobby.utils.git.get_github_url", return_value=None):
@@ -707,7 +710,7 @@ class TestInitializeProject:
                             # Should NOT call create
                             mock_pm_instance.create.assert_not_called()
 
-    def test_uses_cwd_when_none(self):
+    def test_uses_cwd_when_none(self) -> None:
         """Test that current working directory is used when cwd is None."""
         mock_project_context = {
             "id": "id",
@@ -727,7 +730,7 @@ class TestInitializeProject:
                 # Should use cwd
                 assert result.project_id == "id"
 
-    def test_project_context_none_id(self, tmp_path: Path):
+    def test_project_context_none_id(self, tmp_path: Path) -> None:
         """Test when project context exists but id is None."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {
@@ -755,7 +758,7 @@ class TestInitializeProject:
                             # Should create new project since id was None
                             assert result.already_existed is False
 
-    def test_new_project_with_verification_commands(self, tmp_path: Path):
+    def test_new_project_with_verification_commands(self, tmp_path: Path) -> None:
         """Test that new project creation includes verification commands."""
         # Create pyproject.toml to trigger verification detection
         pyproject = tmp_path / "pyproject.toml"
@@ -789,7 +792,7 @@ class TestInitializeProject:
                             assert result.verification.type_check == "uv run mypy src/"
                             assert result.verification.lint == "uv run ruff check src/"
 
-    def test_existing_db_project_includes_verification(self, tmp_path: Path):
+    def test_existing_db_project_includes_verification(self, tmp_path: Path) -> None:
         """Test that existing DB project includes verification commands when synced."""
         # Create pyproject.toml for verification detection
         pyproject = tmp_path / "pyproject.toml"
@@ -818,7 +821,7 @@ class TestInitializeProject:
                             assert result.verification is not None
                             assert result.verification.type_check == "uv run mypy src/"
 
-    def test_new_project_without_verification_commands(self, tmp_path: Path):
+    def test_new_project_without_verification_commands(self, tmp_path: Path) -> None:
         """Test that new project without recognizable structure has no verification."""
         # No pyproject.toml or package.json
 
@@ -843,7 +846,7 @@ class TestInitializeProject:
                             # No verification since no recognizable project type
                             assert result.verification is None
 
-    def test_path_resolution(self, tmp_path: Path):
+    def test_path_resolution(self, tmp_path: Path) -> None:
         """Test that path is properly resolved."""
         # Create a subdirectory
         subdir = tmp_path / "subdir" / "project"
@@ -861,7 +864,7 @@ class TestInitializeProject:
 
             assert result.project_path == str(subdir.resolve())
 
-    def test_directory_name_used_as_project_name(self, tmp_path: Path):
+    def test_directory_name_used_as_project_name(self, tmp_path: Path) -> None:
         """Test that directory name is used when no name provided."""
         project_dir = tmp_path / "my-awesome-project"
         project_dir.mkdir()
@@ -887,7 +890,7 @@ class TestInitializeProject:
                             call_kwargs = mock_pm_instance.create.call_args
                             assert call_kwargs.kwargs["name"] == "my-awesome-project"
 
-    def test_already_initialized_returns_correct_project_path(self, tmp_path: Path):
+    def test_already_initialized_returns_correct_project_path(self, tmp_path: Path) -> None:
         """Test that project_path from context is used when already initialized."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {
@@ -902,7 +905,7 @@ class TestInitializeProject:
             # Should use project_path from context
             assert result.project_path == "/original/path"
 
-    def test_already_initialized_with_missing_project_path(self, tmp_path: Path):
+    def test_already_initialized_with_missing_project_path(self, tmp_path: Path) -> None:
         """Test when project context exists but project_path is missing."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {
@@ -917,7 +920,7 @@ class TestInitializeProject:
             # Should fall back to cwd
             assert result.project_path == str(tmp_path.resolve())
 
-    def test_already_initialized_with_missing_created_at(self, tmp_path: Path):
+    def test_already_initialized_with_missing_created_at(self, tmp_path: Path) -> None:
         """Test when project context exists but created_at is missing."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {
@@ -932,7 +935,7 @@ class TestInitializeProject:
             # Should use empty string as default
             assert result.created_at == ""
 
-    def test_already_initialized_with_missing_name(self, tmp_path: Path):
+    def test_already_initialized_with_missing_name(self, tmp_path: Path) -> None:
         """Test when project context exists but name is missing."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {

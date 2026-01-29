@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from gobby.servers.routes.admin import create_admin_router
 
+pytestmark = pytest.mark.unit
 
 class TestAdminRoutes:
     @pytest.fixture
@@ -58,7 +59,7 @@ class TestAdminRoutes:
 
     @patch("gobby.servers.routes.admin.psutil")
     @patch("gobby.servers.routes.admin.asyncio.to_thread")
-    def test_status_endpoint(self, mock_to_thread, mock_psutil, client, mock_server):
+    def test_status_endpoint(self, mock_to_thread, mock_psutil, client, mock_server) -> None:
         # Mock psutil
         mock_process = MagicMock()
         mock_process.memory_info.return_value = MagicMock(
@@ -90,7 +91,7 @@ class TestAdminRoutes:
 
     @patch("gobby.servers.routes.admin.get_metrics_collector")
     @patch("gobby.servers.routes.admin.psutil")
-    def test_metrics_endpoint(self, mock_psutil, mock_get_collector, client):
+    def test_metrics_endpoint(self, mock_psutil, mock_get_collector, client) -> None:
         mock_collector = MagicMock()
         mock_collector.export_prometheus.return_value = "metric_name 1.0\n"
         mock_get_collector.return_value = mock_collector
@@ -107,7 +108,7 @@ class TestAdminRoutes:
         assert "text/plain" in response.headers["content-type"]
 
     @patch("gobby.servers.routes.admin.get_version")
-    def test_config_endpoint(self, mock_get_version, client):
+    def test_config_endpoint(self, mock_get_version, client) -> None:
         mock_get_version.return_value = "1.0.0"
 
         response = client.get("/admin/config")
@@ -118,7 +119,7 @@ class TestAdminRoutes:
         assert data["config"]["server"]["version"] == "1.0.0"
         assert data["config"]["features"]["session_manager"] is True
 
-    def test_shutdown_endpoint(self, client, mock_server):
+    def test_shutdown_endpoint(self, client, mock_server) -> None:
         # We don't need to patch shutdown_event, admin.py calls server._process_shutdown()
 
         response = client.post("/admin/shutdown")

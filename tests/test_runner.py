@@ -9,6 +9,7 @@ import pytest
 
 from gobby.runner import GobbyRunner, main, run_gobby
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_config():
@@ -105,7 +106,7 @@ def create_base_patches(
 class TestGobbyRunnerInit:
     """Tests for GobbyRunner initialization."""
 
-    def test_init_creates_components(self, tmp_path, mock_config_with_websocket):
+    def test_init_creates_components(self, tmp_path, mock_config_with_websocket) -> None:
         """Test that init creates all required components."""
         patches = create_base_patches(mock_config=mock_config_with_websocket)
 
@@ -123,7 +124,7 @@ class TestGobbyRunnerInit:
             mock_http_cls.assert_called_once()
             mock_ws_cls.assert_called_once()
 
-    def test_init_without_websocket(self, mock_config):
+    def test_init_without_websocket(self, mock_config) -> None:
         """Test init when WebSocket is disabled."""
         mock_config.websocket = MagicMock()
         mock_config.websocket.enabled = False
@@ -139,7 +140,7 @@ class TestGobbyRunnerInit:
             assert runner.websocket_server is None
             mock_ws_cls.assert_not_called()
 
-    def test_init_websocket_none_config(self, mock_config):
+    def test_init_websocket_none_config(self, mock_config) -> None:
         """Test init when websocket config is None."""
         patches = create_base_patches(mock_config)
 
@@ -154,7 +155,7 @@ class TestGobbyRunnerInit:
 class TestGobbyRunnerSignalHandlers:
     """Tests for signal handler setup."""
 
-    def test_setup_signal_handlers(self, mock_config):
+    def test_setup_signal_handlers(self, mock_config) -> None:
         """Test that signal handlers are registered."""
         patches = create_base_patches(mock_config)
 
@@ -349,7 +350,7 @@ class TestRunGobbyFunction:
 class TestMainFunction:
     """Tests for main synchronous entry point."""
 
-    def test_main_runs_asyncio(self):
+    def test_main_runs_asyncio(self) -> None:
         """Test that main runs the async runner."""
         with patch("asyncio.run") as mock_run:
             with patch("gobby.runner.run_gobby") as mock_run_gobby:
@@ -358,7 +359,7 @@ class TestMainFunction:
 
             mock_run.assert_called_once()
 
-    def test_main_handles_keyboard_interrupt(self):
+    def test_main_handles_keyboard_interrupt(self) -> None:
         """Test that main handles KeyboardInterrupt gracefully."""
         with patch("asyncio.run", side_effect=KeyboardInterrupt()):
             with patch("gobby.runner.run_gobby") as mock_run_gobby:
@@ -368,7 +369,7 @@ class TestMainFunction:
 
             assert exc_info.value.code == 0
 
-    def test_main_handles_exception(self):
+    def test_main_handles_exception(self) -> None:
         """Test that main handles exceptions and exits with code 1."""
         with patch("asyncio.run", side_effect=Exception("Test error")):
             with patch("gobby.runner.run_gobby") as mock_run_gobby:
@@ -382,7 +383,7 @@ class TestMainFunction:
 class TestGobbyRunnerInitialization:
     """Tests for component initialization during GobbyRunner.__init__."""
 
-    def test_init_with_memory_manager(self):
+    def test_init_with_memory_manager(self) -> None:
         """Test that MemoryManager is initialized when memory config exists."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -407,7 +408,7 @@ class TestGobbyRunnerInitialization:
 
             assert runner.memory_manager == mock_memory_manager
 
-    def test_init_memory_manager_exception(self):
+    def test_init_memory_manager_exception(self) -> None:
         """Test that MemoryManager initialization exception is handled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -431,7 +432,7 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
             assert runner.memory_manager is None
 
-    def test_init_with_memory_sync_manager(self):
+    def test_init_with_memory_sync_manager(self) -> None:
         """Test MemorySyncManager initialization when enabled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -462,7 +463,7 @@ class TestGobbyRunnerInitialization:
             assert runner.memory_sync_manager == mock_memory_sync_manager
             mock_memory_manager.storage.add_change_listener.assert_called_once()
 
-    def test_init_memory_sync_manager_exception(self):
+    def test_init_memory_sync_manager_exception(self) -> None:
         """Test MemorySyncManager initialization exception is handled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -490,7 +491,7 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
             assert runner.memory_sync_manager is None
 
-    def test_init_with_message_processor(self):
+    def test_init_with_message_processor(self) -> None:
         """Test SessionMessageProcessor initialization when message_tracking enabled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -517,7 +518,7 @@ class TestGobbyRunnerInitialization:
 
             assert runner.message_processor == mock_message_processor
 
-    def test_init_with_task_validator(self):
+    def test_init_with_task_validator(self) -> None:
         """Test TaskValidator initialization when LLM service and validation enabled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -549,7 +550,7 @@ class TestGobbyRunnerInitialization:
 
             assert runner.task_validator == mock_task_validator
 
-    def test_init_task_validator_exception(self):
+    def test_init_task_validator_exception(self) -> None:
         """Test TaskValidator initialization exception is handled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -581,7 +582,7 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
             assert runner.task_validator is None
 
-    def test_init_agent_runner_exception(self):
+    def test_init_agent_runner_exception(self) -> None:
         """Test AgentRunner initialization exception is handled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -602,7 +603,7 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
             assert runner.agent_runner is None
 
-    def test_init_llm_service_exception(self):
+    def test_init_llm_service_exception(self) -> None:
         """Test LLM service initialization exception is handled."""
         mock_config = MagicMock()
         mock_config.daemon_port = 60887
@@ -628,7 +629,7 @@ class TestGobbyRunnerInitialization:
 class TestAgentEventBroadcasting:
     """Tests for _setup_agent_event_broadcasting method."""
 
-    def test_setup_agent_event_broadcasting_with_websocket(self, mock_config_with_websocket):
+    def test_setup_agent_event_broadcasting_with_websocket(self, mock_config_with_websocket) -> None:
         """Test agent event broadcasting setup when WebSocket is enabled."""
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
@@ -657,7 +658,7 @@ class TestAgentEventBroadcasting:
             # Verify callback was registered
             mock_registry.add_event_callback.assert_called_once()
 
-    def test_setup_agent_event_broadcasting_without_websocket(self, mock_config):
+    def test_setup_agent_event_broadcasting_without_websocket(self, mock_config) -> None:
         """Test agent event broadcasting is skipped without WebSocket."""
         mock_registry = MagicMock()
         mock_registry.add_event_callback = MagicMock()
@@ -679,7 +680,7 @@ class TestAgentEventBroadcasting:
             # Callback should NOT be registered since no websocket
             mock_registry.add_event_callback.assert_not_called()
 
-    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self, mock_config):
+    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self, mock_config) -> None:
         """Test _setup_agent_event_broadcasting returns early when websocket_server is None."""
         mock_registry = MagicMock()
         mock_registry.add_event_callback = MagicMock()
@@ -1112,7 +1113,7 @@ class TestGobbyRunnerShutdown:
 class TestSignalHandlerBehavior:
     """Tests for signal handler behavior."""
 
-    def test_signal_handler_sets_shutdown_flag(self, mock_config):
+    def test_signal_handler_sets_shutdown_flag(self, mock_config) -> None:
         """Test that the signal handler sets the shutdown flag."""
         patches = create_base_patches(mock_config)
 
@@ -1356,7 +1357,7 @@ class TestAgentEventBroadcastingCallback:
 class TestMessageProcessorWebSocketIntegration:
     """Tests for message processor and WebSocket server integration."""
 
-    def test_message_processor_gets_websocket_server(self, mock_config_with_websocket):
+    def test_message_processor_gets_websocket_server(self, mock_config_with_websocket) -> None:
         """Test that message processor receives the WebSocket server reference."""
         mock_config_with_websocket.message_tracking = MagicMock()
         mock_config_with_websocket.message_tracking.enabled = True

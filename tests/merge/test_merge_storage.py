@@ -4,8 +4,12 @@ Tests for MergeResolution and MergeConflict persistence in SQLite database.
 Tests should fail initially as the storage module does not exist yet.
 """
 
+import pytest
+
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
+
+pytestmark = pytest.mark.unit
 
 # =============================================================================
 # Import Tests
@@ -15,25 +19,25 @@ from gobby.storage.migrations import run_migrations
 class TestMergeStorageImport:
     """Tests for merge storage module imports."""
 
-    def test_import_merge_resolution_dataclass(self):
+    def test_import_merge_resolution_dataclass(self) -> None:
         """Test that MergeResolution can be imported."""
         from gobby.storage.merge_resolutions import MergeResolution
 
         assert MergeResolution is not None
 
-    def test_import_merge_conflict_dataclass(self):
+    def test_import_merge_conflict_dataclass(self) -> None:
         """Test that MergeConflict can be imported."""
         from gobby.storage.merge_resolutions import MergeConflict
 
         assert MergeConflict is not None
 
-    def test_import_merge_resolution_manager(self):
+    def test_import_merge_resolution_manager(self) -> None:
         """Test that MergeResolutionManager can be imported."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
         assert MergeResolutionManager is not None
 
-    def test_import_conflict_status_enum(self):
+    def test_import_conflict_status_enum(self) -> None:
         """Test that ConflictStatus enum can be imported."""
         from gobby.storage.merge_resolutions import ConflictStatus
 
@@ -52,7 +56,7 @@ class TestMergeStorageImport:
 class TestMergeResolutionsTableExists:
     """Test that merge_resolutions table is created."""
 
-    def test_merge_resolutions_table_created(self, tmp_path):
+    def test_merge_resolutions_table_created(self, tmp_path) -> None:
         """Test that merge_resolutions table exists after migrations."""
         db_path = tmp_path / "merge.db"
         db = LocalDatabase(db_path)
@@ -69,7 +73,7 @@ class TestMergeResolutionsTableExists:
 class TestMergeResolutionsSchema:
     """Test merge_resolutions table has correct columns."""
 
-    def test_has_required_columns(self, tmp_path):
+    def test_has_required_columns(self, tmp_path) -> None:
         """Test that merge_resolutions has all required columns."""
         db_path = tmp_path / "merge_schema.db"
         db = LocalDatabase(db_path)
@@ -94,7 +98,7 @@ class TestMergeResolutionsSchema:
         for col in expected_columns:
             assert col in columns, f"Column {col} missing from merge_resolutions"
 
-    def test_id_is_primary_key(self, tmp_path):
+    def test_id_is_primary_key(self, tmp_path) -> None:
         """Test that id is the primary key."""
         db_path = tmp_path / "merge_pk.db"
         db = LocalDatabase(db_path)
@@ -106,7 +110,7 @@ class TestMergeResolutionsSchema:
         assert id_col is not None
         assert id_col["pk"] == 1, "id column is not primary key"
 
-    def test_worktree_id_not_null(self, tmp_path):
+    def test_worktree_id_not_null(self, tmp_path) -> None:
         """Test that worktree_id is NOT NULL."""
         db_path = tmp_path / "merge_notnull.db"
         db = LocalDatabase(db_path)
@@ -127,7 +131,7 @@ class TestMergeResolutionsSchema:
 class TestMergeConflictsTableExists:
     """Test that merge_conflicts table is created."""
 
-    def test_merge_conflicts_table_created(self, tmp_path):
+    def test_merge_conflicts_table_created(self, tmp_path) -> None:
         """Test that merge_conflicts table exists after migrations."""
         db_path = tmp_path / "conflicts.db"
         db = LocalDatabase(db_path)
@@ -144,7 +148,7 @@ class TestMergeConflictsTableExists:
 class TestMergeConflictsSchema:
     """Test merge_conflicts table has correct columns."""
 
-    def test_has_required_columns(self, tmp_path):
+    def test_has_required_columns(self, tmp_path) -> None:
         """Test that merge_conflicts has all required columns."""
         db_path = tmp_path / "conflicts_schema.db"
         db = LocalDatabase(db_path)
@@ -170,7 +174,7 @@ class TestMergeConflictsSchema:
         for col in expected_columns:
             assert col in columns, f"Column {col} missing from merge_conflicts"
 
-    def test_foreign_key_to_resolutions(self, tmp_path):
+    def test_foreign_key_to_resolutions(self, tmp_path) -> None:
         """Test that merge_conflicts has foreign key to merge_resolutions."""
         db_path = tmp_path / "conflicts_fk.db"
         db = LocalDatabase(db_path)
@@ -198,7 +202,7 @@ class TestMergeConflictsSchema:
 class TestMergeResolutionDataclass:
     """Tests for MergeResolution dataclass."""
 
-    def test_merge_resolution_has_required_fields(self):
+    def test_merge_resolution_has_required_fields(self) -> None:
         """Test that MergeResolution has all required fields."""
         from gobby.storage.merge_resolutions import MergeResolution
 
@@ -218,7 +222,7 @@ class TestMergeResolutionDataclass:
         assert resolution.target_branch == "main"
         assert resolution.status == "pending"
 
-    def test_merge_resolution_from_row(self, tmp_path):
+    def test_merge_resolution_from_row(self, tmp_path) -> None:
         """Test MergeResolution.from_row() creates instance from database row."""
         from gobby.storage.merge_resolutions import MergeResolution
 
@@ -251,7 +255,7 @@ class TestMergeResolutionDataclass:
         assert resolution.worktree_id == "wt-1"
         assert resolution.source_branch == "feature/test"
 
-    def test_merge_resolution_to_dict(self):
+    def test_merge_resolution_to_dict(self) -> None:
         """Test MergeResolution.to_dict() returns proper dictionary."""
         from gobby.storage.merge_resolutions import MergeResolution
 
@@ -282,7 +286,7 @@ class TestMergeResolutionDataclass:
 class TestMergeConflictDataclass:
     """Tests for MergeConflict dataclass."""
 
-    def test_merge_conflict_has_required_fields(self):
+    def test_merge_conflict_has_required_fields(self) -> None:
         """Test that MergeConflict has all required fields."""
         from gobby.storage.merge_resolutions import MergeConflict
 
@@ -302,7 +306,7 @@ class TestMergeConflictDataclass:
         assert conflict.file_path == "src/main.py"
         assert conflict.status == "pending"
 
-    def test_merge_conflict_from_row(self, tmp_path):
+    def test_merge_conflict_from_row(self, tmp_path) -> None:
         """Test MergeConflict.from_row() creates instance from database row."""
         from gobby.storage.merge_resolutions import MergeConflict
 
@@ -338,7 +342,7 @@ class TestMergeConflictDataclass:
         assert conflict.resolution_id == "mr-1"
         assert conflict.file_path == "src/main.py"
 
-    def test_merge_conflict_to_dict(self):
+    def test_merge_conflict_to_dict(self) -> None:
         """Test MergeConflict.to_dict() returns proper dictionary."""
         from gobby.storage.merge_resolutions import MergeConflict
 
@@ -369,7 +373,7 @@ class TestMergeConflictDataclass:
 class TestMergeResolutionManagerCreate:
     """Tests for MergeResolutionManager.create_resolution()."""
 
-    def test_create_resolution(self, tmp_path):
+    def test_create_resolution(self, tmp_path) -> None:
         """Test create_resolution creates a new merge resolution."""
         from gobby.storage.merge_resolutions import MergeResolution, MergeResolutionManager
 
@@ -402,7 +406,7 @@ class TestMergeResolutionManagerCreate:
         assert resolution.status == "pending"
         assert resolution.id is not None
 
-    def test_create_resolution_persists_to_database(self, tmp_path):
+    def test_create_resolution_persists_to_database(self, tmp_path) -> None:
         """Test that create_resolution saves to database."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -437,7 +441,7 @@ class TestMergeResolutionManagerCreate:
 class TestMergeResolutionManagerGet:
     """Tests for MergeResolutionManager.get_resolution()."""
 
-    def test_get_resolution_by_id(self, tmp_path):
+    def test_get_resolution_by_id(self, tmp_path) -> None:
         """Test get_resolution returns resolution by ID."""
         from gobby.storage.merge_resolutions import MergeResolution, MergeResolutionManager
 
@@ -469,7 +473,7 @@ class TestMergeResolutionManagerGet:
         assert isinstance(retrieved, MergeResolution)
         assert retrieved.id == created.id
 
-    def test_get_resolution_returns_none_for_nonexistent(self, tmp_path):
+    def test_get_resolution_returns_none_for_nonexistent(self, tmp_path) -> None:
         """Test get_resolution returns None for nonexistent ID."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -486,7 +490,7 @@ class TestMergeResolutionManagerGet:
 class TestMergeResolutionManagerUpdate:
     """Tests for MergeResolutionManager.update_resolution()."""
 
-    def test_update_resolution_status(self, tmp_path):
+    def test_update_resolution_status(self, tmp_path) -> None:
         """Test update_resolution changes status."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -522,7 +526,7 @@ class TestMergeResolutionManagerUpdate:
         assert updated.status == "resolved"
         assert updated.tier_used == "conflict_only_ai"
 
-    def test_update_resolution_persists_changes(self, tmp_path):
+    def test_update_resolution_persists_changes(self, tmp_path) -> None:
         """Test that update_resolution saves changes to database."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -558,7 +562,7 @@ class TestMergeResolutionManagerUpdate:
 class TestMergeResolutionManagerDelete:
     """Tests for MergeResolutionManager.delete_resolution()."""
 
-    def test_delete_resolution(self, tmp_path):
+    def test_delete_resolution(self, tmp_path) -> None:
         """Test delete_resolution removes resolution."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -589,7 +593,7 @@ class TestMergeResolutionManagerDelete:
         assert result is True
         assert manager.get_resolution(resolution.id) is None
 
-    def test_delete_nonexistent_resolution(self, tmp_path):
+    def test_delete_nonexistent_resolution(self, tmp_path) -> None:
         """Test delete_resolution returns False for nonexistent ID."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -611,7 +615,7 @@ class TestMergeResolutionManagerDelete:
 class TestMergeResolutionManagerCreateConflict:
     """Tests for MergeResolutionManager.create_conflict()."""
 
-    def test_create_conflict(self, tmp_path):
+    def test_create_conflict(self, tmp_path) -> None:
         """Test create_conflict creates a new merge conflict."""
         from gobby.storage.merge_resolutions import MergeConflict, MergeResolutionManager
 
@@ -653,7 +657,7 @@ class TestMergeResolutionManagerCreateConflict:
 class TestMergeResolutionManagerUpdateConflict:
     """Tests for MergeResolutionManager.update_conflict()."""
 
-    def test_update_conflict_status(self, tmp_path):
+    def test_update_conflict_status(self, tmp_path) -> None:
         """Test update_conflict changes conflict status."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -704,7 +708,7 @@ class TestMergeResolutionManagerUpdateConflict:
 class TestConflictStateTransitions:
     """Tests for conflict state transitions."""
 
-    def test_transition_pending_to_resolved(self, tmp_path):
+    def test_transition_pending_to_resolved(self, tmp_path) -> None:
         """Test conflict can transition from pending to resolved."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -746,7 +750,7 @@ class TestConflictStateTransitions:
 
         assert updated.status == "resolved"
 
-    def test_transition_pending_to_failed(self, tmp_path):
+    def test_transition_pending_to_failed(self, tmp_path) -> None:
         """Test conflict can transition from pending to failed."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -782,7 +786,7 @@ class TestConflictStateTransitions:
 
         assert updated.status == "failed"
 
-    def test_transition_pending_to_human_review(self, tmp_path):
+    def test_transition_pending_to_human_review(self, tmp_path) -> None:
         """Test conflict can transition from pending to human_review."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -827,7 +831,7 @@ class TestConflictStateTransitions:
 class TestQueryResolutionsByFile:
     """Tests for querying resolutions by file."""
 
-    def test_list_conflicts_by_file_path(self, tmp_path):
+    def test_list_conflicts_by_file_path(self, tmp_path) -> None:
         """Test list_conflicts filters by file_path."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -875,7 +879,7 @@ class TestQueryResolutionsByFile:
 class TestQueryResolutionsByBranch:
     """Tests for querying resolutions by branch."""
 
-    def test_list_resolutions_by_source_branch(self, tmp_path):
+    def test_list_resolutions_by_source_branch(self, tmp_path) -> None:
         """Test list_resolutions filters by source_branch."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -911,7 +915,7 @@ class TestQueryResolutionsByBranch:
         assert len(results) == 1
         assert results[0].source_branch == "feature/auth"
 
-    def test_list_resolutions_by_target_branch(self, tmp_path):
+    def test_list_resolutions_by_target_branch(self, tmp_path) -> None:
         """Test list_resolutions filters by target_branch."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -951,7 +955,7 @@ class TestQueryResolutionsByBranch:
 class TestQueryResolutionsByStatus:
     """Tests for querying resolutions by status."""
 
-    def test_list_resolutions_by_status(self, tmp_path):
+    def test_list_resolutions_by_status(self, tmp_path) -> None:
         """Test list_resolutions filters by status."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -989,7 +993,7 @@ class TestQueryResolutionsByStatus:
         assert len(results) == 1
         assert results[0].status == "resolved"
 
-    def test_list_conflicts_by_status(self, tmp_path):
+    def test_list_conflicts_by_status(self, tmp_path) -> None:
         """Test list_conflicts filters by status."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -1044,7 +1048,7 @@ class TestQueryResolutionsByStatus:
 class TestResolutionHistoryTracking:
     """Tests for tracking resolution history."""
 
-    def test_resolution_has_timestamps(self, tmp_path):
+    def test_resolution_has_timestamps(self, tmp_path) -> None:
         """Test that resolutions track created_at and updated_at."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -1073,7 +1077,7 @@ class TestResolutionHistoryTracking:
         assert resolution.created_at is not None
         assert resolution.updated_at is not None
 
-    def test_update_changes_updated_at(self, tmp_path):
+    def test_update_changes_updated_at(self, tmp_path) -> None:
         """Test that updating a resolution changes updated_at."""
         import time
 
@@ -1110,7 +1114,7 @@ class TestResolutionHistoryTracking:
 
         assert updated.updated_at != original_updated_at
 
-    def test_get_conflicts_for_resolution(self, tmp_path):
+    def test_get_conflicts_for_resolution(self, tmp_path) -> None:
         """Test getting all conflicts for a resolution."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 
@@ -1153,7 +1157,7 @@ class TestResolutionHistoryTracking:
 
         assert len(results) == 2
 
-    def test_list_resolutions_by_worktree(self, tmp_path):
+    def test_list_resolutions_by_worktree(self, tmp_path) -> None:
         """Test listing resolutions by worktree."""
         from gobby.storage.merge_resolutions import MergeResolutionManager
 

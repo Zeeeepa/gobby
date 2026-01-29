@@ -6,6 +6,7 @@ from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.validation import TaskValidator, ValidationResult
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():

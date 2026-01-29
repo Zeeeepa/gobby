@@ -8,6 +8,7 @@ from gobby.cli.mcp_proxy import mcp_proxy
 from gobby.config.app import DaemonConfig
 from gobby.utils.daemon_client import DaemonClient
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_daemon_client():
@@ -29,7 +30,7 @@ def mock_config():
     return MagicMock(spec=DaemonConfig, daemon_port=60887)
 
 
-def test_list_servers_success(cli_runner, mock_daemon_client, mock_config):
+def test_list_servers_success(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
         mock_daemon_client.call_http_api.return_value.json.return_value = {
@@ -49,7 +50,7 @@ def test_list_servers_success(cli_runner, mock_daemon_client, mock_config):
         assert "○ server2 (disconnected)" in result.output
 
 
-def test_list_servers_json(cli_runner, mock_daemon_client, mock_config):
+def test_list_servers_json(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_response = {"servers": [{"name": "server1"}], "connected_count": 1, "total_count": 1}
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -64,7 +65,7 @@ def test_list_servers_json(cli_runner, mock_daemon_client, mock_config):
         assert output_json == mock_response
 
 
-def test_list_tools_success(cli_runner, mock_daemon_client, mock_config):
+def test_list_tools_success(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
         mock_daemon_client.call_http_api.return_value.json.return_value = {
@@ -79,7 +80,7 @@ def test_list_tools_success(cli_runner, mock_daemon_client, mock_config):
         assert "A test tool" in result.output
 
 
-def test_get_schema(cli_runner, mock_daemon_client, mock_config):
+def test_get_schema(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_schema = {"name": "tool1", "inputSchema": {}}
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -102,7 +103,7 @@ def test_get_schema(cli_runner, mock_daemon_client, mock_config):
         )
 
 
-def test_call_tool_success(cli_runner, mock_daemon_client, mock_config):
+def test_call_tool_success(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         expected_result = {"result": "success"}
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -132,7 +133,7 @@ def test_call_tool_success(cli_runner, mock_daemon_client, mock_config):
         )
 
 
-def test_daemon_not_running(cli_runner, mock_daemon_client, mock_config):
+def test_daemon_not_running(cli_runner, mock_daemon_client, mock_config) -> None:
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.check_health.return_value = (False, None)
 
@@ -147,7 +148,7 @@ def test_daemon_not_running(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_add_server_http(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_http(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding an HTTP MCP server."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -180,7 +181,7 @@ def test_add_server_http(cli_runner, mock_daemon_client, mock_config):
         )
 
 
-def test_add_server_stdio(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_stdio(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding a stdio MCP server."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -205,7 +206,7 @@ def test_add_server_stdio(cli_runner, mock_daemon_client, mock_config):
         assert "Added MCP server: my-stdio-server" in result.output
 
 
-def test_add_server_http_missing_url(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_http_missing_url(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding HTTP server without URL fails."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         result = cli_runner.invoke(
@@ -218,7 +219,7 @@ def test_add_server_http_missing_url(cli_runner, mock_daemon_client, mock_config
         assert "--url is required" in result.output
 
 
-def test_add_server_stdio_missing_command(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_stdio_missing_command(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding stdio server without command fails."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         result = cli_runner.invoke(
@@ -231,7 +232,7 @@ def test_add_server_stdio_missing_command(cli_runner, mock_daemon_client, mock_c
         assert "--command is required" in result.output
 
 
-def test_add_server_with_env(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_with_env(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding server with environment variables."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -255,7 +256,7 @@ def test_add_server_with_env(cli_runner, mock_daemon_client, mock_config):
         assert result.exit_code == 0
 
 
-def test_add_server_disabled(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_disabled(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding server in disabled state."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -274,7 +275,7 @@ def test_add_server_disabled(cli_runner, mock_daemon_client, mock_config):
         assert call_args[1]["json_data"]["enabled"] is False
 
 
-def test_add_server_invalid_json_args(cli_runner, mock_daemon_client, mock_config):
+def test_add_server_invalid_json_args(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test adding server with invalid JSON args fails."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         result = cli_runner.invoke(
@@ -292,7 +293,7 @@ def test_add_server_invalid_json_args(cli_runner, mock_daemon_client, mock_confi
 # ==============================================================================
 
 
-def test_remove_server_success(cli_runner, mock_daemon_client, mock_config):
+def test_remove_server_success(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test removing an MCP server."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -308,7 +309,7 @@ def test_remove_server_success(cli_runner, mock_daemon_client, mock_config):
         assert "Removed MCP server: old-server" in result.output
 
 
-def test_remove_server_failure(cli_runner, mock_daemon_client, mock_config):
+def test_remove_server_failure(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test remove server failure."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -332,7 +333,7 @@ def test_remove_server_failure(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_recommend_tools_success(cli_runner, mock_daemon_client, mock_config):
+def test_recommend_tools_success(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test getting tool recommendations."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -363,7 +364,7 @@ def test_recommend_tools_success(cli_runner, mock_daemon_client, mock_config):
         assert "Best for database queries" in result.output
 
 
-def test_recommend_tools_no_results(cli_runner, mock_daemon_client, mock_config):
+def test_recommend_tools_no_results(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test recommend-tools with no results."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -379,7 +380,7 @@ def test_recommend_tools_no_results(cli_runner, mock_daemon_client, mock_config)
         assert "No tool recommendations found" in result.output
 
 
-def test_recommend_tools_json_format(cli_runner, mock_daemon_client, mock_config):
+def test_recommend_tools_json_format(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test recommend-tools with JSON output."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_response = {
@@ -399,7 +400,7 @@ def test_recommend_tools_json_format(cli_runner, mock_daemon_client, mock_config
         assert output_json == mock_response
 
 
-def test_recommend_tools_with_agent(cli_runner, mock_daemon_client, mock_config):
+def test_recommend_tools_with_agent(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test recommend-tools filtered by agent."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -423,7 +424,7 @@ def test_recommend_tools_with_agent(cli_runner, mock_daemon_client, mock_config)
 # ==============================================================================
 
 
-def test_search_tools_success(cli_runner, mock_daemon_client, mock_config):
+def test_search_tools_success(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test searching for tools."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -449,7 +450,7 @@ def test_search_tools_success(cli_runner, mock_daemon_client, mock_config):
         assert "95.00%" in result.output
 
 
-def test_search_tools_no_results(cli_runner, mock_daemon_client, mock_config):
+def test_search_tools_no_results(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test search-tools with no results."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -465,7 +466,7 @@ def test_search_tools_no_results(cli_runner, mock_daemon_client, mock_config):
         assert "No matching tools found" in result.output
 
 
-def test_search_tools_with_options(cli_runner, mock_daemon_client, mock_config):
+def test_search_tools_with_options(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test search-tools with custom options."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -500,7 +501,7 @@ def test_search_tools_with_options(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_import_server_from_project(cli_runner, mock_daemon_client, mock_config):
+def test_import_server_from_project(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test importing servers from another project."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -521,7 +522,7 @@ def test_import_server_from_project(cli_runner, mock_daemon_client, mock_config)
         assert "Imported 2 server(s)" in result.output
 
 
-def test_import_server_needs_configuration(cli_runner, mock_daemon_client, mock_config):
+def test_import_server_needs_configuration(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test import that needs additional configuration."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -543,7 +544,7 @@ def test_import_server_needs_configuration(cli_runner, mock_daemon_client, mock_
         assert "API_KEY" in result.output
 
 
-def test_import_server_no_source(cli_runner, mock_daemon_client, mock_config):
+def test_import_server_no_source(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test import without specifying a source."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         result = cli_runner.invoke(
@@ -556,7 +557,7 @@ def test_import_server_no_source(cli_runner, mock_daemon_client, mock_config):
         assert "Specify at least one source" in result.output
 
 
-def test_import_server_with_specific_servers(cli_runner, mock_daemon_client, mock_config):
+def test_import_server_with_specific_servers(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test importing specific servers."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -581,7 +582,7 @@ def test_import_server_with_specific_servers(cli_runner, mock_daemon_client, moc
 # ==============================================================================
 
 
-def test_refresh_success(cli_runner, mock_daemon_client, mock_config):
+def test_refresh_success(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test refreshing MCP tools."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -609,7 +610,7 @@ def test_refresh_success(cli_runner, mock_daemon_client, mock_config):
         assert "New tools: 5" in result.output
 
 
-def test_refresh_with_force(cli_runner, mock_daemon_client, mock_config):
+def test_refresh_with_force(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test refresh with --force flag."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -635,7 +636,7 @@ def test_refresh_with_force(cli_runner, mock_daemon_client, mock_config):
         assert "--force: all tools treated as new" in result.output
 
 
-def test_refresh_specific_server(cli_runner, mock_daemon_client, mock_config):
+def test_refresh_specific_server(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test refresh for specific server."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -663,7 +664,7 @@ def test_refresh_specific_server(cli_runner, mock_daemon_client, mock_config):
         assert call_args[1]["json_data"]["server"] == "context7"
 
 
-def test_refresh_failure(cli_runner, mock_daemon_client, mock_config):
+def test_refresh_failure(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test refresh failure."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -687,7 +688,7 @@ def test_refresh_failure(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_status_success(cli_runner, mock_daemon_client, mock_config):
+def test_status_success(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test MCP proxy status."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -714,7 +715,7 @@ def test_status_success(cli_runner, mock_daemon_client, mock_config):
         assert "context7" in result.output
 
 
-def test_status_json_format(cli_runner, mock_daemon_client, mock_config):
+def test_status_json_format(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test status with JSON output."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_response = {
@@ -742,7 +743,7 @@ def test_status_json_format(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_list_tools_with_server_filter(cli_runner, mock_daemon_client, mock_config):
+def test_list_tools_with_server_filter(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test list-tools with server filter."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -759,7 +760,7 @@ def test_list_tools_with_server_filter(cli_runner, mock_daemon_client, mock_conf
         assert "get-library-docs" in result.output
 
 
-def test_list_tools_no_tools(cli_runner, mock_daemon_client, mock_config):
+def test_list_tools_no_tools(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test list-tools with no tools available."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -776,7 +777,7 @@ def test_list_tools_no_tools(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_call_tool_with_json_args(cli_runner, mock_daemon_client, mock_config):
+def test_call_tool_with_json_args(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test call-tool with JSON arguments."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -798,7 +799,7 @@ def test_call_tool_with_json_args(cli_runner, mock_daemon_client, mock_config):
         assert call_args[1]["json_data"]["arguments"] == {"key": "value", "count": 5}
 
 
-def test_call_tool_invalid_json_args(cli_runner, mock_daemon_client, mock_config):
+def test_call_tool_invalid_json_args(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test call-tool with invalid JSON arguments."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         result = cli_runner.invoke(
@@ -811,7 +812,7 @@ def test_call_tool_invalid_json_args(cli_runner, mock_daemon_client, mock_config
         assert "Invalid JSON arguments" in result.output
 
 
-def test_call_tool_invalid_arg_format(cli_runner, mock_daemon_client, mock_config):
+def test_call_tool_invalid_arg_format(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test call-tool with invalid arg format."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         result = cli_runner.invoke(
@@ -824,7 +825,7 @@ def test_call_tool_invalid_arg_format(cli_runner, mock_daemon_client, mock_confi
         assert "Invalid argument format" in result.output
 
 
-def test_call_tool_raw_output(cli_runner, mock_daemon_client, mock_config):
+def test_call_tool_raw_output(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test call-tool with raw output."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_response = {"success": True, "result": {"nested": {"data": "value"}}}
@@ -842,7 +843,7 @@ def test_call_tool_raw_output(cli_runner, mock_daemon_client, mock_config):
         assert output_json == mock_response
 
 
-def test_call_tool_failure(cli_runner, mock_daemon_client, mock_config):
+def test_call_tool_failure(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test call-tool with tool execution failure."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 200
@@ -866,7 +867,7 @@ def test_call_tool_failure(cli_runner, mock_daemon_client, mock_config):
 # ==============================================================================
 
 
-def test_daemon_connection_error(cli_runner, mock_daemon_client, mock_config):
+def test_daemon_connection_error(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test handling of connection errors."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.check_health.return_value = (False, "Connection refused")
@@ -877,7 +878,7 @@ def test_daemon_connection_error(cli_runner, mock_daemon_client, mock_config):
         assert "Connection refused" in result.output
 
 
-def test_api_error_response(cli_runner, mock_daemon_client, mock_config):
+def test_api_error_response(cli_runner, mock_daemon_client, mock_config) -> None:
     """Test handling of API error responses."""
     with patch("gobby.cli.mcp_proxy.get_daemon_client", return_value=mock_daemon_client):
         mock_daemon_client.call_http_api.return_value.status_code = 500

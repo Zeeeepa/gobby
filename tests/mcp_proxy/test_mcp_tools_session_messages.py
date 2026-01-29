@@ -8,6 +8,7 @@ from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager, Session
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_message_manager():
@@ -38,13 +39,13 @@ def full_sessions_registry(mock_message_manager, mock_session_manager):
     )
 
 
-def test_create_session_messages_registry_returns_registry(session_messages_registry):
+def test_create_session_messages_registry_returns_registry(session_messages_registry) -> None:
     """Test that create_session_messages_registry returns an InternalToolRegistry."""
     assert isinstance(session_messages_registry, InternalToolRegistry)
     assert session_messages_registry.name == "gobby-sessions"
 
 
-def test_session_messages_registry_has_all_tools(session_messages_registry):
+def test_session_messages_registry_has_all_tools(session_messages_registry) -> None:
     """Test that all expected tools are registered."""
     expected_tools = [
         "get_session_messages",
@@ -125,7 +126,7 @@ async def test_search_messages_with_session_filter(mock_message_manager, session
 # --- Session CRUD Tool Tests ---
 
 
-def test_full_registry_has_session_tools(full_sessions_registry):
+def test_full_registry_has_session_tools(full_sessions_registry) -> None:
     """Test that full registry has all session and handoff tools."""
     expected_tools = [
         "get_session_messages",
@@ -145,7 +146,7 @@ def test_full_registry_has_session_tools(full_sessions_registry):
         assert tool_name in tool_names, f"Missing tool: {tool_name}"
 
 
-def test_registry_without_session_manager_lacks_crud_tools(session_messages_registry):
+def test_registry_without_session_manager_lacks_crud_tools(session_messages_registry) -> None:
     """Test that registry without session_manager doesn't have CRUD tools."""
     tools_list = session_messages_registry.list_tools()
     tool_names = [t["name"] for t in tools_list]

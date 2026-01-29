@@ -12,14 +12,14 @@ pytestmark = pytest.mark.unit
 class TestCloneStatus:
     """Tests for CloneStatus enum."""
 
-    def test_values(self):
+    def test_values(self) -> None:
         """CloneStatus has expected values."""
         assert CloneStatus.ACTIVE.value == "active"
         assert CloneStatus.SYNCING.value == "syncing"
         assert CloneStatus.STALE.value == "stale"
         assert CloneStatus.CLEANUP.value == "cleanup"
 
-    def test_is_string_enum(self):
+    def test_is_string_enum(self) -> None:
         """CloneStatus values are strings."""
         for status in CloneStatus:
             assert isinstance(status.value, str)
@@ -28,7 +28,7 @@ class TestCloneStatus:
 class TestClone:
     """Tests for Clone dataclass."""
 
-    def test_from_row(self):
+    def test_from_row(self) -> None:
         """from_row creates Clone from database row."""
         row = {
             "id": "clone-123456",
@@ -60,7 +60,7 @@ class TestClone:
         assert clone.last_sync_at == "2026-01-22T12:00:00+00:00"
         assert clone.cleanup_after == "2026-01-23T12:00:00+00:00"
 
-    def test_from_row_with_nulls(self):
+    def test_from_row_with_nulls(self) -> None:
         """from_row handles NULL values correctly."""
         row = {
             "id": "clone-123456",
@@ -86,7 +86,7 @@ class TestClone:
         assert clone.last_sync_at is None
         assert clone.cleanup_after is None
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """to_dict converts Clone to dictionary."""
         clone = Clone(
             id="clone-123456",
@@ -120,7 +120,7 @@ class TestClone:
 class TestLocalCloneManagerInit:
     """Tests for LocalCloneManager initialization."""
 
-    def test_init_stores_db(self):
+    def test_init_stores_db(self) -> None:
         """Manager stores database reference."""
         mock_db = MagicMock()
 
@@ -142,7 +142,7 @@ class TestLocalCloneManagerCreate:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_create_minimal(self, manager, mock_db):
+    def test_create_minimal(self, manager, mock_db) -> None:
         """Create clone with minimal required fields."""
         clone = manager.create(
             project_id="proj-abc",
@@ -160,7 +160,7 @@ class TestLocalCloneManagerCreate:
         assert clone.id.startswith("clone-")
         mock_db.execute.assert_called_once()
 
-    def test_create_with_all_fields(self, manager, mock_db):
+    def test_create_with_all_fields(self, manager, mock_db) -> None:
         """Create clone with all optional fields."""
         clone = manager.create(
             project_id="proj-abc",
@@ -179,7 +179,7 @@ class TestLocalCloneManagerCreate:
         assert clone.remote_url == "https://github.com/user/repo.git"
         assert clone.cleanup_after == "2026-01-23T12:00:00+00:00"
 
-    def test_create_generates_unique_id(self, manager, mock_db):
+    def test_create_generates_unique_id(self, manager, mock_db) -> None:
         """Create generates unique clone ID."""
         clone1 = manager.create(
             project_id="proj-abc",
@@ -210,7 +210,7 @@ class TestLocalCloneManagerGet:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_get_existing(self, manager, mock_db):
+    def test_get_existing(self, manager, mock_db) -> None:
         """Get returns Clone for existing ID."""
         mock_db.fetchone.return_value = {
             "id": "clone-123456",
@@ -234,7 +234,7 @@ class TestLocalCloneManagerGet:
         assert clone.id == "clone-123456"
         mock_db.fetchone.assert_called_once()
 
-    def test_get_nonexistent(self, manager, mock_db):
+    def test_get_nonexistent(self, manager, mock_db) -> None:
         """Get returns None for nonexistent ID."""
         mock_db.fetchone.return_value = None
 
@@ -256,7 +256,7 @@ class TestLocalCloneManagerGetByTask:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_get_by_task_existing(self, manager, mock_db):
+    def test_get_by_task_existing(self, manager, mock_db) -> None:
         """Get clone linked to task."""
         mock_db.fetchone.return_value = {
             "id": "clone-123456",
@@ -279,7 +279,7 @@ class TestLocalCloneManagerGetByTask:
         assert clone is not None
         assert clone.task_id == "gt-task123"
 
-    def test_get_by_task_nonexistent(self, manager, mock_db):
+    def test_get_by_task_nonexistent(self, manager, mock_db) -> None:
         """Returns None if no clone linked to task."""
         mock_db.fetchone.return_value = None
 
@@ -301,7 +301,7 @@ class TestLocalCloneManagerList:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_list_all(self, manager, mock_db):
+    def test_list_all(self, manager, mock_db) -> None:
         """List returns all clones."""
         mock_db.fetchall.return_value = [
             {
@@ -342,7 +342,7 @@ class TestLocalCloneManagerList:
         assert clones[0].id == "clone-1"
         assert clones[1].id == "clone-2"
 
-    def test_list_with_filters(self, manager, mock_db):
+    def test_list_with_filters(self, manager, mock_db) -> None:
         """List with project_id and status filters."""
         mock_db.fetchall.return_value = []
 
@@ -368,7 +368,7 @@ class TestLocalCloneManagerUpdate:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_update_status(self, manager, mock_db):
+    def test_update_status(self, manager, mock_db) -> None:
         """Update clone status."""
         manager.update("clone-123", status="stale")
 
@@ -378,7 +378,7 @@ class TestLocalCloneManagerUpdate:
         assert "UPDATE clones SET" in query
         assert "status = ?" in query
 
-    def test_update_agent_session(self, manager, mock_db):
+    def test_update_agent_session(self, manager, mock_db) -> None:
         """Update clone agent session."""
         manager.update("clone-123", agent_session_id="sess-new")
 
@@ -387,7 +387,7 @@ class TestLocalCloneManagerUpdate:
         query = call_args[0][0]
         assert "agent_session_id = ?" in query
 
-    def test_update_last_sync(self, manager, mock_db):
+    def test_update_last_sync(self, manager, mock_db) -> None:
         """Update clone last_sync_at."""
         manager.update("clone-123", last_sync_at="2026-01-22T12:00:00+00:00")
 
@@ -407,7 +407,7 @@ class TestLocalCloneManagerDelete:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_delete(self, manager, mock_db):
+    def test_delete(self, manager, mock_db) -> None:
         """Delete removes clone record."""
         # Mock cursor with rowcount
         mock_cursor = MagicMock()
@@ -437,7 +437,7 @@ class TestLocalCloneManagerStatusMethods:
         """Create manager with mock database."""
         return LocalCloneManager(db=mock_db)
 
-    def test_mark_syncing(self, manager, mock_db):
+    def test_mark_syncing(self, manager, mock_db) -> None:
         """mark_syncing updates status to syncing."""
         manager.mark_syncing("clone-123")
 
@@ -446,7 +446,7 @@ class TestLocalCloneManagerStatusMethods:
         params = call_args[0][1]
         assert "syncing" in params
 
-    def test_mark_stale(self, manager, mock_db):
+    def test_mark_stale(self, manager, mock_db) -> None:
         """mark_stale updates status to stale."""
         manager.mark_stale("clone-123")
 
@@ -455,7 +455,7 @@ class TestLocalCloneManagerStatusMethods:
         params = call_args[0][1]
         assert "stale" in params
 
-    def test_mark_cleanup(self, manager, mock_db):
+    def test_mark_cleanup(self, manager, mock_db) -> None:
         """mark_cleanup updates status to cleanup."""
         manager.mark_cleanup("clone-123")
 

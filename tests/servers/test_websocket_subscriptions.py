@@ -6,6 +6,7 @@ import pytest
 
 from gobby.servers.websocket import WebSocketServer
 
+pytestmark = pytest.mark.unit
 
 class MockWebSocket:
     def __init__(self, user_id="test-user"):

@@ -45,7 +45,7 @@ class TestInterAgentMessagingE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test complete parent↔child message exchange via MCP tools.
 
         This test verifies the full messaging flow:
@@ -192,7 +192,7 @@ class TestInterAgentMessagingE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test polling messages returns empty list when no messages."""
         # First, register the project in the database (required for FK constraint)
         project_result = cli_events.register_test_project(
@@ -229,7 +229,7 @@ class TestInterAgentMessagingE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test polling all messages (not just unread)."""
         # First, register the project in the database (required for FK constraint)
         project_result = cli_events.register_test_project(
@@ -265,7 +265,7 @@ class TestInterAgentMessagingE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test send_to_child fails when child has no parent relationship in DB."""
         parent_external_id = f"parent-{uuid.uuid4().hex[:8]}"
         child_external_id = f"child-{uuid.uuid4().hex[:8]}"
@@ -318,7 +318,7 @@ class TestInterAgentMessagingE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test send_to_parent fails gracefully when session has no parent in DB."""
         external_id = f"test-session-{uuid.uuid4().hex[:8]}"
 
@@ -358,7 +358,7 @@ class TestInterAgentMessagingE2E:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test marking nonexistent message as read fails gracefully."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
@@ -375,7 +375,7 @@ class TestInterAgentMessagingE2E:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test broadcasting to children when none exist returns success with zero sent."""
         # First, register the project in the database (required for FK constraint)
         project_result = cli_events.register_test_project(
@@ -417,7 +417,7 @@ class TestMessagingToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify all messaging tools are available on gobby-agents server."""
         tools = mcp_client.list_tools(server="gobby-agents")
         tool_names = [t["name"] for t in tools]
@@ -437,7 +437,7 @@ class TestMessagingToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify send_to_parent tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-agents",
@@ -452,7 +452,7 @@ class TestMessagingToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify poll_messages tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-agents",

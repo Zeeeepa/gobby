@@ -11,6 +11,7 @@ from gobby.tasks.escalation import (
     EscalationSummary,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -50,7 +51,7 @@ def escalation_manager(mock_task_manager, mock_history_manager):
 class TestEscalationManager:
     """Tests for EscalationManager."""
 
-    def test_escalate_sets_task_status(self, escalation_manager, mock_task_manager):
+    def test_escalate_sets_task_status(self, escalation_manager, mock_task_manager) -> None:
         """Test that escalate() sets task status to 'escalated'."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -68,7 +69,7 @@ class TestEscalationManager:
         call_kwargs = mock_task_manager.update_task.call_args.kwargs
         assert call_kwargs["status"] == "escalated"
 
-    def test_escalate_sets_timestamp(self, escalation_manager, mock_task_manager):
+    def test_escalate_sets_timestamp(self, escalation_manager, mock_task_manager) -> None:
         """Test that escalate() sets escalated_at timestamp."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -87,7 +88,7 @@ class TestEscalationManager:
         escalated_at = datetime.fromisoformat(call_kwargs["escalated_at"])
         assert before <= escalated_at <= after
 
-    def test_escalate_sets_reason(self, escalation_manager, mock_task_manager):
+    def test_escalate_sets_reason(self, escalation_manager, mock_task_manager) -> None:
         """Test that escalate() sets escalation_reason."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -102,7 +103,7 @@ class TestEscalationManager:
         call_kwargs = mock_task_manager.update_task.call_args.kwargs
         assert call_kwargs["escalation_reason"] == "recurring_issues"
 
-    def test_escalate_with_feedback(self, escalation_manager, mock_task_manager):
+    def test_escalate_with_feedback(self, escalation_manager, mock_task_manager) -> None:
         """Test escalation with additional feedback."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -117,7 +118,7 @@ class TestEscalationManager:
 
         assert result.feedback == "LLM validation failed repeatedly"
 
-    def test_de_escalate_returns_to_open(self, escalation_manager, mock_task_manager):
+    def test_de_escalate_returns_to_open(self, escalation_manager, mock_task_manager) -> None:
         """Test that de_escalate_task() returns task to open status."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -132,7 +133,7 @@ class TestEscalationManager:
         assert call_kwargs["escalated_at"] is None
         assert call_kwargs["escalation_reason"] is None
 
-    def test_de_escalate_clears_escalation_fields(self, escalation_manager, mock_task_manager):
+    def test_de_escalate_clears_escalation_fields(self, escalation_manager, mock_task_manager) -> None:
         """Test that de_escalate clears escalation metadata."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -148,7 +149,7 @@ class TestEscalationManager:
         assert call_kwargs["escalated_at"] is None
         assert call_kwargs["escalation_reason"] is None
 
-    def test_de_escalate_raises_if_not_escalated(self, escalation_manager, mock_task_manager):
+    def test_de_escalate_raises_if_not_escalated(self, escalation_manager, mock_task_manager) -> None:
         """Test that de_escalate raises if task is not escalated."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -164,7 +165,7 @@ class TestGenerateEscalationSummary:
 
     def test_generates_summary_with_reason(
         self, escalation_manager, mock_task_manager, mock_history_manager
-    ):
+    ) -> None:
         """Test that summary includes escalation reason."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -180,7 +181,7 @@ class TestGenerateEscalationSummary:
 
     def test_summary_includes_iteration_count(
         self, escalation_manager, mock_task_manager, mock_history_manager
-    ):
+    ) -> None:
         """Test that summary includes iteration count."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -198,7 +199,7 @@ class TestGenerateEscalationSummary:
 
     def test_summary_includes_recurring_issues(
         self, escalation_manager, mock_task_manager, mock_history_manager
-    ):
+    ) -> None:
         """Test that summary includes recurring issues when present."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -217,7 +218,7 @@ class TestGenerateEscalationSummary:
         assert len(summary.recurring_issues) == 1
         assert summary.recurring_issues[0]["title"] == "Test failure"
 
-    def test_summary_as_markdown(self, escalation_manager, mock_task_manager, mock_history_manager):
+    def test_summary_as_markdown(self, escalation_manager, mock_task_manager, mock_history_manager) -> None:
         """Test that summary can be rendered as markdown."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"

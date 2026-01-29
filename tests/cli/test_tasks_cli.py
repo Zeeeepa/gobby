@@ -16,6 +16,8 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -87,7 +89,7 @@ class TestListTasksCommand:
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list with no tasks found."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -109,7 +111,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with tasks."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_claimed.return_value = set()
@@ -131,7 +133,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with JSON output."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -154,7 +156,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with status filter."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -176,7 +178,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with comma-separated status filters."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -198,7 +200,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with --active flag."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -212,14 +214,14 @@ class TestListTasksCommand:
         call_kwargs = mock_manager.list_tasks.call_args.kwargs
         assert call_kwargs["status"] == ["open", "in_progress"]
 
-    def test_list_ready_and_blocked_mutually_exclusive(self, runner: CliRunner):
+    def test_list_ready_and_blocked_mutually_exclusive(self, runner: CliRunner) -> None:
         """Test that --ready and --blocked are mutually exclusive."""
         result = runner.invoke(cli, ["tasks", "list", "--ready", "--blocked"])
 
         assert result.exit_code == 0
         assert "--ready and --blocked are mutually exclusive" in result.output
 
-    def test_list_active_and_status_mutually_exclusive(self, runner: CliRunner):
+    def test_list_active_and_status_mutually_exclusive(self, runner: CliRunner) -> None:
         """Test that --active and --status are mutually exclusive."""
         result = runner.invoke(cli, ["tasks", "list", "--active", "--status", "open"])
 
@@ -238,7 +240,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with --ready flag."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_claimed.return_value = set()
@@ -265,7 +267,7 @@ class TestListTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test list with --blocked flag."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_claimed.return_value = set()
@@ -289,7 +291,7 @@ class TestReadyTasksCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test ready with no tasks."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = []
@@ -310,7 +312,7 @@ class TestReadyTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test ready with tasks."""
         mock_claimed.return_value = set()
         mock_manager = MagicMock()
@@ -329,7 +331,7 @@ class TestReadyTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test ready with JSON output."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = [mock_task]
@@ -350,7 +352,7 @@ class TestReadyTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test ready with --flat flag."""
         mock_claimed.return_value = set()
         mock_manager = MagicMock()
@@ -368,7 +370,7 @@ class TestReadyTasksCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test ready with priority and type filters."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = [mock_task]
@@ -393,7 +395,7 @@ class TestBlockedTasksCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test blocked with no tasks."""
         mock_manager = MagicMock()
         mock_manager.list_blocked_tasks.return_value = []
@@ -412,7 +414,7 @@ class TestBlockedTasksCommand:
         mock_dep_cls: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test blocked with tasks."""
         mock_manager = MagicMock()
         mock_manager.list_blocked_tasks.return_value = [mock_task]
@@ -441,7 +443,7 @@ class TestBlockedTasksCommand:
         mock_dep_cls: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test blocked with JSON output."""
         mock_manager = MagicMock()
         mock_manager.list_blocked_tasks.return_value = [mock_task]
@@ -470,7 +472,7 @@ class TestTaskStatsCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stats command."""
         mock_task = MagicMock()
         mock_task.status = "open"
@@ -495,7 +497,7 @@ class TestTaskStatsCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stats with JSON output."""
         mock_manager = MagicMock()
         mock_manager.list_tasks.return_value = []
@@ -528,7 +530,7 @@ class TestCreateTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test creating a task."""
         mock_project_ctx.return_value = {"id": "proj-123", "name": "Test Project"}
         mock_manager = MagicMock()
@@ -549,7 +551,7 @@ class TestCreateTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test creating a task with options."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -585,7 +587,7 @@ class TestCreateTaskCommand:
         self,
         mock_project_ctx: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test creating a task with no project context."""
         mock_project_ctx.return_value = None
 
@@ -606,7 +608,7 @@ class TestShowTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test showing a task."""
         mock_resolve.return_value = mock_task
         mock_get_manager.return_value = MagicMock()
@@ -625,7 +627,7 @@ class TestShowTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test showing a task with labels."""
         mock_task.labels = ["bug", "priority"]
         mock_task.assignee = "john"
@@ -645,7 +647,7 @@ class TestShowTaskCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test showing a non-existent task."""
         mock_resolve.return_value = None
         mock_get_manager.return_value = MagicMock()
@@ -666,7 +668,7 @@ class TestUpdateTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test updating a task."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -686,7 +688,7 @@ class TestUpdateTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test updating multiple task fields."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -726,7 +728,7 @@ class TestUpdateTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test updating task with parent re-assignment."""
         parent_task = MagicMock()
         parent_task.id = "gt-parent"
@@ -756,7 +758,7 @@ class TestCloseTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test closing a task."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -777,7 +779,7 @@ class TestCloseTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test closing a task with a reason."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -799,7 +801,7 @@ class TestCloseTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test closing a task with open children fails."""
         child_task = MagicMock()
         child_task.id = "gt-child1"
@@ -825,7 +827,7 @@ class TestCloseTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test closing a task with --force bypasses child check."""
         child_task = MagicMock()
         child_task.id = "gt-child1"
@@ -854,7 +856,7 @@ class TestReopenTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test reopening a task."""
         mock_task.status = "closed"
         mock_resolve.return_value = mock_task
@@ -875,7 +877,7 @@ class TestReopenTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test reopening a task with a reason."""
         mock_task.status = "closed"
         mock_resolve.return_value = mock_task
@@ -898,7 +900,7 @@ class TestReopenTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test reopening a non-closed task fails."""
         mock_task.status = "open"
         mock_resolve.return_value = mock_task
@@ -920,7 +922,7 @@ class TestDeleteTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test deleting a task with confirmation."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -941,7 +943,7 @@ class TestDeleteTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test deleting a task with cascade."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -960,7 +962,7 @@ class TestDeleteTaskCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test aborting task deletion."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -984,7 +986,7 @@ class TestSuggestCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test suggest with no ready tasks."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = []
@@ -1001,7 +1003,7 @@ class TestSuggestCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test suggest returns best task."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = [mock_task]
@@ -1020,7 +1022,7 @@ class TestSuggestCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test suggest with JSON output."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = [mock_task]
@@ -1040,7 +1042,7 @@ class TestSuggestCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test that suggest prefers leaf tasks by default."""
         leaf_task = MagicMock()
         leaf_task.id = "gt-leaf"
@@ -1086,7 +1088,7 @@ class TestSuggestCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test suggest with --no-prefer-subtasks."""
         task = MagicMock()
         task.id = "gt-abc123"
@@ -1120,7 +1122,7 @@ class TestComplexityCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity analysis for single task."""
         mock_task.description = "Short task"
         mock_resolve.return_value = mock_task
@@ -1142,7 +1144,7 @@ class TestComplexityCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity with JSON output."""
         mock_task.description = "Short task"
         mock_resolve.return_value = mock_task
@@ -1166,7 +1168,7 @@ class TestComplexityCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity analysis for all tasks."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_task.description = "Short task"
@@ -1191,7 +1193,7 @@ class TestComplexityCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity for pending tasks only."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_task.description = "Short task"
@@ -1207,7 +1209,7 @@ class TestComplexityCommand:
         first_call = mock_manager.list_tasks.call_args_list[0]
         assert first_call.kwargs.get("status") == "open"
 
-    def test_complexity_requires_task_id_or_all(self, runner: CliRunner):
+    def test_complexity_requires_task_id_or_all(self, runner: CliRunner) -> None:
         """Test that complexity requires task ID or --all."""
         result = runner.invoke(cli, ["tasks", "complexity"])
 
@@ -1222,7 +1224,7 @@ class TestComplexityCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity scoring for task with subtasks."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1242,7 +1244,7 @@ class TestComplexityCommand:
 class TestGenerateCriteriaCommand:
     """Tests for gobby tasks generate-criteria command."""
 
-    def test_generate_criteria_requires_task_id_or_all(self, runner: CliRunner):
+    def test_generate_criteria_requires_task_id_or_all(self, runner: CliRunner) -> None:
         """Test that generate-criteria requires task ID or --all."""
         result = runner.invoke(cli, ["tasks", "generate-criteria"])
 
@@ -1257,7 +1259,7 @@ class TestGenerateCriteriaCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test generate-criteria when task already has criteria."""
         mock_task.validation_criteria = "Existing criteria"
         mock_resolve.return_value = mock_task
@@ -1277,7 +1279,7 @@ class TestGenerateCriteriaCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test generate-criteria for parent task."""
         mock_task.validation_criteria = None
         mock_resolve.return_value = mock_task
@@ -1303,7 +1305,7 @@ class TestValidateCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate parent task when all children are closed."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1328,7 +1330,7 @@ class TestValidateCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate parent task with open children."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1354,7 +1356,7 @@ class TestValidateCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate leaf task with empty summary."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1379,7 +1381,7 @@ class TestResolveTaskId:
         self,
         mock_get_manager: MagicMock,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test resolve_task_id with exact match."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -1396,7 +1398,7 @@ class TestResolveTaskId:
         self,
         mock_get_manager: MagicMock,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test resolve_task_id with single prefix match."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -1413,7 +1415,7 @@ class TestResolveTaskId:
     def test_resolve_prefix_no_match(
         self,
         mock_get_manager: MagicMock,
-    ):
+    ) -> None:
         """Test resolve_task_id with no match."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -1430,7 +1432,7 @@ class TestResolveTaskId:
     def test_resolve_prefix_ambiguous(
         self,
         mock_get_manager: MagicMock,
-    ):
+    ) -> None:
         """Test resolve_task_id with ambiguous prefix."""
         from gobby.cli.tasks._utils import resolve_task_id
 
@@ -1455,7 +1457,7 @@ class TestResolveTaskId:
 class TestFormatTaskRow:
     """Tests for format_task_row helper."""
 
-    def test_format_task_row_basic(self, mock_task: MagicMock):
+    def test_format_task_row_basic(self, mock_task: MagicMock) -> None:
         """Test basic task row formatting."""
         from gobby.cli.tasks._utils import format_task_row
 
@@ -1464,7 +1466,7 @@ class TestFormatTaskRow:
         assert "#1" in result  # Shows seq_num instead of full task ID
         assert "Test Task" in result
 
-    def test_format_task_row_muted(self, mock_task: MagicMock):
+    def test_format_task_row_muted(self, mock_task: MagicMock) -> None:
         """Test muted task row formatting."""
         from gobby.cli.tasks._utils import format_task_row
 
@@ -1473,7 +1475,7 @@ class TestFormatTaskRow:
         # Should contain ANSI escape codes for dim
         assert "\033[2m" in result or mock_task.title in result
 
-    def test_format_task_row_with_tree_prefix(self, mock_task: MagicMock):
+    def test_format_task_row_with_tree_prefix(self, mock_task: MagicMock) -> None:
         """Test task row with tree prefix."""
         from gobby.cli.tasks._utils import format_task_row
 
@@ -1481,7 +1483,7 @@ class TestFormatTaskRow:
 
         assert "├── " in result
 
-    def test_format_task_row_claimed(self, mock_task: MagicMock):
+    def test_format_task_row_claimed(self, mock_task: MagicMock) -> None:
         """Test task row for claimed task."""
         from gobby.cli.tasks._utils import format_task_row
 
@@ -1506,7 +1508,7 @@ class TestValidateCommandExtended:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test validate when task is not found."""
         mock_resolve.return_value = None
         mock_get_manager.return_value = MagicMock()
@@ -1523,7 +1525,7 @@ class TestValidateCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate parent task with many open children shows truncated list."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1558,7 +1560,7 @@ class TestValidateCommandExtended:
         runner: CliRunner,
         mock_task: MagicMock,
         tmp_path,
-    ):
+    ) -> None:
         """Test validate with --file option for summary."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1584,7 +1586,7 @@ class TestValidateCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate --history."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1611,7 +1613,7 @@ class TestValidateCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate --recurring."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -1642,7 +1644,7 @@ class TestValidateCommandExtended:
         mock_config: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validation failure exceeding max retries."""
         mock_task.validation_fail_count = 2  # Already failed 2 times
         mock_resolve.return_value = mock_task
@@ -1687,7 +1689,7 @@ class TestComplexityCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity for task with medium-length description."""
         mock_task.description = "A" * 300  # Medium length
         mock_resolve.return_value = mock_task
@@ -1711,7 +1713,7 @@ class TestComplexityCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity for task with long description."""
         mock_task.description = "A" * 600  # Long description
         mock_resolve.return_value = mock_task
@@ -1735,7 +1737,7 @@ class TestComplexityCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test complexity --all with JSON output."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_task.description = "Short task"
@@ -1758,7 +1760,7 @@ class TestComplexityCommandExtended:
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test complexity --all with no tasks."""
         mock_project_ctx.return_value = {"id": "proj-123"}
         mock_manager = MagicMock()
@@ -1779,7 +1781,7 @@ class TestSuggestCommandExtended:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test suggest with no ready tasks in JSON mode."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = []
@@ -1798,7 +1800,7 @@ class TestSuggestCommandExtended:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test suggest with type filter."""
         mock_manager = MagicMock()
         mock_manager.list_ready_tasks.return_value = [mock_task]
@@ -1817,7 +1819,7 @@ class TestSuggestCommandExtended:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test that task with test strategy gets bonus score."""
         task_with_strategy = MagicMock()
         task_with_strategy.id = "gt-strat"
@@ -1848,7 +1850,7 @@ class TestSuggestCommandExtended:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test that high priority task is mentioned in reason."""
         high_priority_task = MagicMock()
         high_priority_task.id = "gt-high"
@@ -1888,7 +1890,7 @@ class TestGenerateCriteriaCommandExtended:
         mock_config: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test generate-criteria for leaf task when LLM initialization fails."""
         mock_task.validation_criteria = None
         mock_resolve.return_value = mock_task
@@ -1911,7 +1913,7 @@ class TestGenerateCriteriaCommandExtended:
         mock_get_manager: MagicMock,
         mock_config: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test generate-criteria --all."""
         mock_project_ctx.return_value = {"name": "TestProj"}
         mock_manager = MagicMock()
@@ -1950,7 +1952,7 @@ class TestGenerateCriteriaCommandExtended:
 class TestUtilsHelpers:
     """Additional tests for _utils.py helpers."""
 
-    def test_format_task_row_different_statuses(self, mock_task: MagicMock):
+    def test_format_task_row_different_statuses(self, mock_task: MagicMock) -> None:
         """Test format_task_row with different task statuses."""
         from gobby.cli.tasks._utils import format_task_row
 
@@ -1974,7 +1976,7 @@ class TestUtilsHelpers:
         result = format_task_row(mock_task)
         assert "⚠" in result
 
-    def test_format_task_row_different_priorities(self, mock_task: MagicMock):
+    def test_format_task_row_different_priorities(self, mock_task: MagicMock) -> None:
         """Test format_task_row with different priorities."""
         from gobby.cli.tasks._utils import format_task_row
 
@@ -1999,7 +2001,7 @@ class TestUtilsHelpers:
 class TestFormatTaskHeader:
     """Tests for format_task_header helper."""
 
-    def test_format_task_header_content(self):
+    def test_format_task_header_content(self) -> None:
         """Test task header formatting."""
         from gobby.cli.tasks._utils import format_task_header
 
@@ -2022,7 +2024,7 @@ class TestSyncTasksCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test sync with default behavior (both import and export)."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2039,7 +2041,7 @@ class TestSyncTasksCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test sync with --import flag only."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2055,7 +2057,7 @@ class TestSyncTasksCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test sync with --export flag only."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2071,7 +2073,7 @@ class TestSyncTasksCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test sync with --quiet flag suppresses output."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2096,7 +2098,7 @@ class TestCompactAnalyzeCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test compact analyze with no candidates found."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2116,7 +2118,7 @@ class TestCompactAnalyzeCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test compact analyze with candidates found."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2143,7 +2145,7 @@ class TestCompactAnalyzeCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test compact analyze with custom days threshold."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2167,7 +2169,7 @@ class TestCompactApplyCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test compact apply with direct summary."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2190,7 +2192,7 @@ class TestCompactApplyCommand:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
-    ):
+    ) -> None:
         """Test compact apply with summary from file."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2216,7 +2218,7 @@ class TestCompactApplyCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test compact apply with error."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2242,7 +2244,7 @@ class TestCompactStatsCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test compact stats display."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2278,7 +2280,7 @@ class TestImportGitHubCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test successful GitHub import."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2304,7 +2306,7 @@ class TestImportGitHubCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test GitHub import error handling."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2327,7 +2329,7 @@ class TestImportGitHubCommand:
         self,
         mock_get_sync: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test GitHub import with custom limit."""
         mock_manager = MagicMock()
         mock_get_sync.return_value = mock_manager
@@ -2358,7 +2360,7 @@ class TestDoctorCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test doctor with no issues found."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2384,7 +2386,7 @@ class TestDoctorCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test doctor with orphan dependencies."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2410,7 +2412,7 @@ class TestDoctorCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test doctor with invalid projects."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2436,7 +2438,7 @@ class TestDoctorCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test doctor with dependency cycles."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2469,7 +2471,7 @@ class TestCleanCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test clean removes orphan dependencies."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2490,7 +2492,7 @@ class TestCleanCommand:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test clean with no orphans to remove."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -2514,7 +2516,7 @@ class TestCleanCommand:
 class TestTaskUtilsFunctions:
     """Additional tests for cli/tasks/_utils.py functions."""
 
-    def test_check_tasks_enabled_disabled(self):
+    def test_check_tasks_enabled_disabled(self) -> None:
         """Test check_tasks_enabled when tasks are disabled."""
         from gobby.cli.tasks._utils import check_tasks_enabled
 
@@ -2526,7 +2528,7 @@ class TestTaskUtilsFunctions:
                 check_tasks_enabled()
             assert exc_info.value.code == 1
 
-    def test_check_tasks_enabled_config_error(self):
+    def test_check_tasks_enabled_config_error(self) -> None:
         """Test check_tasks_enabled handles config errors gracefully."""
         from gobby.cli.tasks._utils import check_tasks_enabled
 
@@ -2534,7 +2536,7 @@ class TestTaskUtilsFunctions:
             # Should not raise, fail open
             check_tasks_enabled()
 
-    def test_normalize_status(self):
+    def test_normalize_status(self) -> None:
         """Test status normalization."""
         from gobby.cli.tasks._utils import normalize_status
 
@@ -2542,7 +2544,7 @@ class TestTaskUtilsFunctions:
         assert normalize_status("needs-decomposition") == "needs_decomposition"
         assert normalize_status("open") == "open"
 
-    def test_pad_to_width(self):
+    def test_pad_to_width(self) -> None:
         """Test pad_to_width function."""
         from gobby.cli.tasks._utils import pad_to_width
 
@@ -2550,7 +2552,7 @@ class TestTaskUtilsFunctions:
         assert len(result) == 10
         assert result == "test      "
 
-    def test_pad_to_width_emoji(self):
+    def test_pad_to_width_emoji(self) -> None:
         """Test pad_to_width with emoji."""
         from gobby.cli.tasks._utils import pad_to_width
 
@@ -2558,7 +2560,7 @@ class TestTaskUtilsFunctions:
         # Emoji takes 2 visual chars, so 2 spaces padding
         assert result == "🔴  "
 
-    def test_sort_tasks_for_tree(self, mock_task: MagicMock):
+    def test_sort_tasks_for_tree(self, mock_task: MagicMock) -> None:
         """Test sorting tasks for tree display."""
         from gobby.cli.tasks._utils import sort_tasks_for_tree
 
@@ -2582,7 +2584,7 @@ class TestTaskUtilsFunctions:
         assert result[1].id in ["child-1", "child-2"]
         assert result[2].id in ["child-1", "child-2"]
 
-    def test_parse_task_refs(self):
+    def test_parse_task_refs(self) -> None:
         """Test parse_task_refs function."""
         from gobby.cli.tasks._utils import parse_task_refs
 
@@ -2602,7 +2604,7 @@ class TestTaskUtilsFunctions:
         result = parse_task_refs(("abc123-def",))
         assert result == ["abc123-def"]
 
-    def test_get_all_descendants(self, mock_task: MagicMock):
+    def test_get_all_descendants(self, mock_task: MagicMock) -> None:
         """Test get_all_descendants function."""
         from gobby.cli.tasks._utils import get_all_descendants
 

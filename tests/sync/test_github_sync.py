@@ -12,6 +12,7 @@ import pytest
 
 from gobby.sync.github import GitHubSyncService
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_mcp_manager():
@@ -47,7 +48,7 @@ def sync_service(mock_mcp_manager, mock_task_manager):
 class TestGitHubSyncServiceInit:
     """Test GitHubSyncService initialization."""
 
-    def test_init_with_dependencies(self, mock_mcp_manager, mock_task_manager):
+    def test_init_with_dependencies(self, mock_mcp_manager, mock_task_manager) -> None:
         """GitHubSyncService initializes with mcp_manager and task_manager."""
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -58,7 +59,7 @@ class TestGitHubSyncServiceInit:
         assert service.task_manager is mock_task_manager
         assert service.project_id == "test-project"
 
-    def test_init_creates_github_integration(self, mock_mcp_manager, mock_task_manager):
+    def test_init_creates_github_integration(self, mock_mcp_manager, mock_task_manager) -> None:
         """GitHubSyncService creates GitHubIntegration for availability checks."""
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -71,7 +72,7 @@ class TestGitHubSyncServiceInit:
 
         assert isinstance(service.github, GitHubIntegration)
 
-    def test_init_default_repo_is_none(self, mock_mcp_manager, mock_task_manager):
+    def test_init_default_repo_is_none(self, mock_mcp_manager, mock_task_manager) -> None:
         """Default github_repo is None if not specified."""
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -80,7 +81,7 @@ class TestGitHubSyncServiceInit:
         )
         assert service.github_repo is None
 
-    def test_init_with_github_repo(self, mock_mcp_manager, mock_task_manager):
+    def test_init_with_github_repo(self, mock_mcp_manager, mock_task_manager) -> None:
         """GitHubSyncService accepts github_repo parameter."""
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -94,7 +95,7 @@ class TestGitHubSyncServiceInit:
 class TestGitHubSyncServiceAvailability:
     """Test availability checking."""
 
-    def test_requires_github_available(self, mock_mcp_manager, mock_task_manager):
+    def test_requires_github_available(self, mock_mcp_manager, mock_task_manager) -> None:
         """Operations should check GitHub availability first."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -106,7 +107,7 @@ class TestGitHubSyncServiceAvailability:
 
         assert service.github.is_available() is False
 
-    def test_is_available_proxies_to_integration(self, mock_mcp_manager, mock_task_manager):
+    def test_is_available_proxies_to_integration(self, mock_mcp_manager, mock_task_manager) -> None:
         """is_available() delegates to GitHubIntegration."""
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -276,7 +277,7 @@ class TestGitHubSyncServicePR:
 class TestLabelMapping:
     """Test label mapping functions."""
 
-    def test_map_gobby_labels_to_github_basic(self, sync_service):
+    def test_map_gobby_labels_to_github_basic(self, sync_service) -> None:
         """map_gobby_labels_to_github converts internal labels to GitHub format."""
         gobby_labels = ["bug", "high-priority", "backend"]
         github_labels = sync_service.map_gobby_labels_to_github(gobby_labels)
@@ -284,18 +285,18 @@ class TestLabelMapping:
         assert isinstance(github_labels, list)
         assert len(github_labels) == 3
 
-    def test_map_gobby_labels_to_github_empty(self, sync_service):
+    def test_map_gobby_labels_to_github_empty(self, sync_service) -> None:
         """map_gobby_labels_to_github handles empty labels."""
         github_labels = sync_service.map_gobby_labels_to_github([])
         assert github_labels == []
 
-    def test_map_gobby_labels_to_github_with_prefix(self, sync_service):
+    def test_map_gobby_labels_to_github_with_prefix(self, sync_service) -> None:
         """map_gobby_labels_to_github can add prefix to labels."""
         gobby_labels = ["bug"]
         github_labels = sync_service.map_gobby_labels_to_github(gobby_labels, prefix="gobby:")
         assert "gobby:bug" in github_labels
 
-    def test_map_github_labels_to_gobby_basic(self, sync_service):
+    def test_map_github_labels_to_gobby_basic(self, sync_service) -> None:
         """map_github_labels_to_gobby parses GitHub labels to internal format."""
         github_labels = ["bug", "enhancement", "documentation"]
         gobby_labels = sync_service.map_github_labels_to_gobby(github_labels)
@@ -303,19 +304,19 @@ class TestLabelMapping:
         assert isinstance(gobby_labels, list)
         assert len(gobby_labels) == 3
 
-    def test_map_github_labels_to_gobby_empty(self, sync_service):
+    def test_map_github_labels_to_gobby_empty(self, sync_service) -> None:
         """map_github_labels_to_gobby handles empty labels."""
         gobby_labels = sync_service.map_github_labels_to_gobby([])
         assert gobby_labels == []
 
-    def test_map_github_labels_to_gobby_strips_prefix(self, sync_service):
+    def test_map_github_labels_to_gobby_strips_prefix(self, sync_service) -> None:
         """map_github_labels_to_gobby strips gobby: prefix."""
         github_labels = ["gobby:bug", "gobby:feature"]
         gobby_labels = sync_service.map_github_labels_to_gobby(github_labels, strip_prefix="gobby:")
         assert "bug" in gobby_labels
         assert "feature" in gobby_labels
 
-    def test_map_labels_special_characters(self, sync_service):
+    def test_map_labels_special_characters(self, sync_service) -> None:
         """Label mapping handles special characters in label names."""
         gobby_labels = ["feature/new-ui", "p0:critical"]
         github_labels = sync_service.map_gobby_labels_to_github(gobby_labels)
@@ -449,7 +450,7 @@ class TestGitHubSyncIntegration:
 class TestGitHubSyncExceptions:
     """Test custom exceptions and error handling."""
 
-    def test_github_sync_error_base_exception(self):
+    def test_github_sync_error_base_exception(self) -> None:
         """GitHubSyncError is a base exception for sync errors."""
         from gobby.sync.github import GitHubSyncError
 
@@ -457,7 +458,7 @@ class TestGitHubSyncExceptions:
         assert str(error) == "Something went wrong"
         assert isinstance(error, Exception)
 
-    def test_github_rate_limit_error(self):
+    def test_github_rate_limit_error(self) -> None:
         """GitHubRateLimitError includes rate limit reset time."""
         from gobby.sync.github import GitHubRateLimitError
 
@@ -465,7 +466,7 @@ class TestGitHubSyncExceptions:
         assert "Rate limited" in str(error)
         assert error.reset_at == 1234567890
 
-    def test_github_not_found_error(self):
+    def test_github_not_found_error(self) -> None:
         """GitHubNotFoundError indicates missing resource."""
         from gobby.sync.github import GitHubNotFoundError
 

@@ -46,7 +46,7 @@ class TestAutonomousModeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify budget management tools are available on gobby-metrics server."""
         tools = mcp_client.list_tools(server="gobby-metrics")
         tool_names = [t["name"] for t in tools]
@@ -63,7 +63,7 @@ class TestAutonomousModeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify orchestration tools are available on gobby-tasks server."""
         tools = mcp_client.list_tools(server="gobby-tasks")
         tool_names = [t["name"] for t in tools]
@@ -81,7 +81,7 @@ class TestAutonomousModeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify agent spawning tools are available."""
         # Check gobby-agents tools - spawn_agent is the unified tool that replaces
         # start_agent and spawn_agent_in_clone
@@ -97,7 +97,7 @@ class TestConductorLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test get_budget_status returns correct budget structure."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-metrics",
@@ -121,7 +121,7 @@ class TestConductorLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test list_ready_tasks returns correct structure."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
@@ -144,7 +144,7 @@ class TestAutonomousSpawningGate:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that ready tasks and available budget allow spawning.
 
         This tests the "gate" for autonomous mode:
@@ -246,7 +246,7 @@ class TestAutonomousSpawningGate:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that suggest_next_task returns a task when ready tasks exist."""
         # Setup
         project_result = cli_events.register_test_project(
@@ -321,7 +321,7 @@ class TestAutonomousThrottling:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that exceeding budget would block autonomous spawning.
 
         Config has:
@@ -376,7 +376,7 @@ class TestAutonomousThrottling:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that budget status tools still work when budget is exceeded."""
         # Setup
         project_result = cli_events.register_test_project(
@@ -429,7 +429,7 @@ class TestOrchestrationStatusTracking:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test get_orchestration_status returns summary for an epic."""
         # Setup
         project_result = cli_events.register_test_project(

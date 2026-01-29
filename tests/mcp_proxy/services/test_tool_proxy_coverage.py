@@ -10,32 +10,33 @@ import pytest
 from gobby.mcp_proxy.models import MCPError
 from gobby.mcp_proxy.services.tool_proxy import ToolProxyService, safe_truncate
 
+pytestmark = pytest.mark.unit
 
 class TestSafeTruncate:
     """Tests for safe_truncate helper function."""
 
-    def test_safe_truncate_none(self):
+    def test_safe_truncate_none(self) -> None:
         """Test truncating None returns empty string."""
         assert safe_truncate(None) == ""
 
-    def test_safe_truncate_bytes(self):
+    def test_safe_truncate_bytes(self) -> None:
         """Test truncating bytes converts to string."""
         result = safe_truncate(b"hello world", 100)
         assert result == "hello world"
 
-    def test_safe_truncate_short_text(self):
+    def test_safe_truncate_short_text(self) -> None:
         """Test short text is not truncated."""
         result = safe_truncate("short text", 100)
         assert result == "short text"
 
-    def test_safe_truncate_long_text(self):
+    def test_safe_truncate_long_text(self) -> None:
         """Test long text is truncated with ellipsis."""
         long_text = "a" * 150
         result = safe_truncate(long_text, 100)
         assert len(result) == 103  # 100 chars + "..."
         assert result.endswith("...")
 
-    def test_safe_truncate_unicode_bytes(self):
+    def test_safe_truncate_unicode_bytes(self) -> None:
         """Test truncating bytes with unicode chars."""
         result = safe_truncate("héllo wörld".encode(), 100)
         assert "héllo wörld" in result
@@ -394,7 +395,7 @@ class TestFindToolServer:
         """Create a mock internal registry manager."""
         return MagicMock()
 
-    def test_find_tool_server_internal(self, mock_mcp_manager, mock_internal_manager):
+    def test_find_tool_server_internal(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test finding tool in internal registry."""
         mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
 
@@ -408,7 +409,7 @@ class TestFindToolServer:
         assert result == "gobby-tasks"
         mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
 
-    def test_find_tool_server_external_dict_tools(self, mock_mcp_manager, mock_internal_manager):
+    def test_find_tool_server_external_dict_tools(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test finding tool in external server configs with dict tools."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -428,7 +429,7 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_external_object_tools(self, mock_mcp_manager, mock_internal_manager):
+    def test_find_tool_server_external_object_tools(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test finding tool in external server configs with object tools."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -448,7 +449,7 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_not_found(self, mock_mcp_manager, mock_internal_manager):
+    def test_find_tool_server_not_found(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test when tool is not found anywhere."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -465,7 +466,7 @@ class TestFindToolServer:
 
         assert result is None
 
-    def test_find_tool_server_no_internal_manager(self, mock_mcp_manager):
+    def test_find_tool_server_no_internal_manager(self, mock_mcp_manager) -> None:
         """Test finding tool without internal manager."""
         mock_config = MagicMock()
         mock_config.tools = [{"name": "ext_tool", "description": "Ext"}]
@@ -480,7 +481,7 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_empty_configs(self, mock_mcp_manager, mock_internal_manager):
+    def test_find_tool_server_empty_configs(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test finding tool with no external server configs."""
         mock_internal_manager.find_tool_server.return_value = None
         mock_mcp_manager._configs = {}
@@ -509,7 +510,7 @@ class TestCheckArguments:
             validate_arguments=True,
         )
 
-    def test_check_arguments_valid(self, proxy_service):
+    def test_check_arguments_valid(self, proxy_service) -> None:
         """Test valid arguments pass validation."""
         schema = {
             "properties": {"name": {"type": "string"}, "value": {"type": "number"}},
@@ -518,7 +519,7 @@ class TestCheckArguments:
         errors = proxy_service._check_arguments({"name": "test", "value": 42}, schema)
         assert errors == []
 
-    def test_check_arguments_missing_required(self, proxy_service):
+    def test_check_arguments_missing_required(self, proxy_service) -> None:
         """Test missing required parameter is detected."""
         schema = {
             "properties": {"name": {"type": "string"}, "value": {"type": "number"}},
@@ -528,7 +529,7 @@ class TestCheckArguments:
         assert len(errors) == 1
         assert "Missing required parameter 'value'" in errors[0]
 
-    def test_check_arguments_unknown_with_similar(self, proxy_service):
+    def test_check_arguments_unknown_with_similar(self, proxy_service) -> None:
         """Test unknown parameter suggests similar ones."""
         schema = {
             "properties": {"workflow_name": {"type": "string"}},
@@ -538,7 +539,7 @@ class TestCheckArguments:
         assert len(errors) == 1
         assert "Did you mean 'workflow_name'" in errors[0]
 
-    def test_check_arguments_unknown_no_similar(self, proxy_service):
+    def test_check_arguments_unknown_no_similar(self, proxy_service) -> None:
         """Test unknown parameter shows valid parameters when no similar names."""
         schema = {
             "properties": {"alpha": {"type": "string"}, "beta": {"type": "number"}},

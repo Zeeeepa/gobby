@@ -10,6 +10,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def session_storage(temp_db: LocalDatabase) -> LocalSessionManager:
@@ -46,7 +47,7 @@ class TestSessionManagerRegistration:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test registering a new session."""
         session_id = session_mgr.register_session(
             external_id="test-cli-123",
@@ -62,7 +63,7 @@ class TestSessionManagerRegistration:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test registering session with all optional fields."""
         session_id = session_mgr.register_session(
             external_id="full-cli-123",
@@ -86,7 +87,7 @@ class TestSessionManagerRegistration:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test that registration caches external_id -> session_id mapping."""
         session_id = session_mgr.register_session(
             external_id="cached-cli",
@@ -103,7 +104,7 @@ class TestSessionManagerRegistration:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test git branch is set when provided."""
         session_id = session_mgr.register_session(
             external_id="git-test",
@@ -125,7 +126,7 @@ class TestSessionManagerLookup:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test getting cached session_id."""
         session_id = session_mgr.register_session(
             external_id="lookup-test",
@@ -137,7 +138,7 @@ class TestSessionManagerLookup:
         result = session_mgr.get_session_id("lookup-test", "claude")
         assert result == session_id
 
-    def test_get_session_id_not_cached(self, session_mgr: SessionManager):
+    def test_get_session_id_not_cached(self, session_mgr: SessionManager) -> None:
         """Test getting session_id when not cached returns None."""
         result = session_mgr.get_session_id("nonexistent", "claude")
         assert result is None
@@ -146,7 +147,7 @@ class TestSessionManagerLookup:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test looking up session_id from database."""
         session_id = session_mgr.register_session(
             external_id="db-lookup",
@@ -171,7 +172,7 @@ class TestSessionManagerLookup:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test that lookup caches the result."""
         session_id = session_mgr.register_session(
             external_id="cache-lookup",
@@ -198,7 +199,7 @@ class TestSessionManagerLookup:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test getting full session data."""
         session_id = session_mgr.register_session(
             external_id="full-data",
@@ -215,7 +216,7 @@ class TestSessionManagerLookup:
         assert session["source"] == "gemini"
         assert session["title"] == "Full Data Session"
 
-    def test_get_session_nonexistent(self, session_mgr: SessionManager):
+    def test_get_session_nonexistent(self, session_mgr: SessionManager) -> None:
         """Test getting nonexistent session returns None."""
         result = session_mgr.get_session("nonexistent-uuid")
         assert result is None
@@ -228,7 +229,7 @@ class TestSessionManagerStatus:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test updating session status."""
         session_id = session_mgr.register_session(
             external_id="status-test",
@@ -248,7 +249,7 @@ class TestSessionManagerStatus:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test marking session as expired."""
         session_id = session_mgr.register_session(
             external_id="expire-test",
@@ -264,7 +265,7 @@ class TestSessionManagerStatus:
         assert session is not None
         assert session["status"] == "expired"
 
-    def test_update_nonexistent_session(self, session_mgr: SessionManager):
+    def test_update_nonexistent_session(self, session_mgr: SessionManager) -> None:
         """Test updating status of nonexistent session."""
         result = session_mgr.update_session_status("nonexistent", "active")
         assert result is False
@@ -277,7 +278,7 @@ class TestSessionManagerHandoff:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test finding parent session for handoff."""
         # Create and mark a session as handoff_ready
         parent_id = session_mgr.register_session(
@@ -308,7 +309,7 @@ class TestSessionManagerHandoff:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test finding parent when none marked handoff_ready."""
         # Create an active session
         session_mgr.register_session(
@@ -336,7 +337,7 @@ class TestSessionManagerSummaryFile:
         self,
         session_mgr: SessionManager,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test reading summary from file."""
         # Create summary directory and file
         summary_dir = temp_dir / "session_summaries"
@@ -361,7 +362,7 @@ class TestSessionManagerSummaryFile:
         self,
         session_mgr: SessionManager,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test reading nonexistent summary file returns None."""
         result = session_mgr.read_summary_file("nonexistent-uuid")
         assert result is None
@@ -370,7 +371,7 @@ class TestSessionManagerSummaryFile:
 class TestSessionManagerCaching:
     """Tests for session caching functionality."""
 
-    def test_cache_session_mapping(self, session_mgr: SessionManager):
+    def test_cache_session_mapping(self, session_mgr: SessionManager) -> None:
         """Test manually caching session mapping."""
         session_mgr.cache_session_mapping("manual-cli", "claude", "manual-session-id")
 
@@ -381,7 +382,7 @@ class TestSessionManagerCaching:
         self,
         session_mgr: SessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test that session operations are thread-safe."""
         import threading
 
@@ -441,7 +442,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify generate_handoff_context includes relevant artifacts."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -479,7 +480,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify artifact search uses session lineage (parent sessions)."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -531,7 +532,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify code artifacts have language syntax markers in context."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -567,7 +568,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify artifact metadata is included in context."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -606,7 +607,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify artifact inclusion respects configurable limit."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -645,7 +646,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify context respects size limits."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -683,7 +684,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify error artifacts are included in handoff context."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -716,7 +717,7 @@ class TestHandoffArtifactContext:
         session_storage,
         test_project: dict,
         temp_db: LocalDatabase,
-    ):
+    ) -> None:
         """Verify diff artifacts are included in handoff context."""
         from gobby.storage.artifacts import LocalArtifactManager
 
@@ -749,7 +750,7 @@ class TestHandoffArtifactContext:
         session_mgr: SessionManager,
         session_storage,
         test_project: dict,
-    ):
+    ) -> None:
         """Verify handoff context works when no artifacts exist."""
         session_id = session_mgr.register_session(
             external_id="no-artifacts-session",

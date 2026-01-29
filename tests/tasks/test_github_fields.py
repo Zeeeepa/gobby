@@ -12,6 +12,7 @@ import pytest
 
 from gobby.storage.tasks import LocalTaskManager, Task
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):
@@ -26,23 +27,23 @@ def project_id(sample_project):
 class TestTaskGitHubFields:
     """Test GitHub integration fields on Task dataclass."""
 
-    def test_task_has_github_issue_number_field(self):
+    def test_task_has_github_issue_number_field(self) -> None:
         """Task dataclass should have github_issue_number field."""
         # Check that the field exists on the dataclass
         assert hasattr(Task, "__dataclass_fields__")
         assert "github_issue_number" in Task.__dataclass_fields__
 
-    def test_task_has_github_pr_number_field(self):
+    def test_task_has_github_pr_number_field(self) -> None:
         """Task dataclass should have github_pr_number field."""
         assert hasattr(Task, "__dataclass_fields__")
         assert "github_pr_number" in Task.__dataclass_fields__
 
-    def test_task_has_github_repo_field(self):
+    def test_task_has_github_repo_field(self) -> None:
         """Task dataclass should have github_repo field."""
         assert hasattr(Task, "__dataclass_fields__")
         assert "github_repo" in Task.__dataclass_fields__
 
-    def test_github_fields_default_to_none(self, task_manager, project_id):
+    def test_github_fields_default_to_none(self, task_manager, project_id) -> None:
         """GitHub fields should default to None when creating a task."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -52,7 +53,7 @@ class TestTaskGitHubFields:
         assert task.github_pr_number is None
         assert task.github_repo is None
 
-    def test_github_fields_in_to_dict(self, task_manager, project_id):
+    def test_github_fields_in_to_dict(self, task_manager, project_id) -> None:
         """GitHub fields should appear in to_dict() output."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -63,7 +64,7 @@ class TestTaskGitHubFields:
         assert "github_pr_number" in task_dict
         assert "github_repo" in task_dict
 
-    def test_github_fields_roundtrip(self, temp_db, project_id):
+    def test_github_fields_roundtrip(self, temp_db, project_id) -> None:
         """GitHub fields should survive database roundtrip via from_row()."""
         # Create a task with GitHub fields set via direct SQL
         # (since create_task doesn't support these fields yet)
@@ -106,18 +107,18 @@ class TestTaskGitHubFields:
 class TestTaskGitHubFieldTypes:
     """Test type handling for GitHub fields."""
 
-    def test_github_issue_number_is_optional_int(self):
+    def test_github_issue_number_is_optional_int(self) -> None:
         """github_issue_number should be Optional[int]."""
         field = Task.__dataclass_fields__["github_issue_number"]
         # Default should be None (making it optional)
         assert field.default is None
 
-    def test_github_pr_number_is_optional_int(self):
+    def test_github_pr_number_is_optional_int(self) -> None:
         """github_pr_number should be Optional[int]."""
         field = Task.__dataclass_fields__["github_pr_number"]
         assert field.default is None
 
-    def test_github_repo_is_optional_str(self):
+    def test_github_repo_is_optional_str(self) -> None:
         """github_repo should be Optional[str]."""
         field = Task.__dataclass_fields__["github_repo"]
         assert field.default is None

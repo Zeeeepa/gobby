@@ -6,6 +6,7 @@ from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.templates import TemplateEngine
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_services():
@@ -746,7 +747,7 @@ async def test_git_helpers():
         assert "untracked.py" in changes
 
 
-def test_format_turns():
+def test_format_turns() -> None:
     """Test format_turns_for_llm from summary_actions module."""
     from gobby.workflows.summary_actions import format_turns_for_llm
 

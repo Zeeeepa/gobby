@@ -34,7 +34,7 @@ class TestSessionEndpoint:
 
     def test_sessions_endpoint_returns_data(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify sessions endpoint returns session data."""
         response = daemon_client.get("/sessions")
         assert response.status_code == 200
@@ -47,7 +47,7 @@ class TestSessionEndpoint:
 
     def test_sessions_endpoint_supports_filtering(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify sessions endpoint supports query parameters."""
         # Test with limit parameter
         response = daemon_client.get("/sessions", params={"limit": 10})
@@ -58,7 +58,7 @@ class TestSessionEndpoint:
 
     def test_sessions_response_time_is_included(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify sessions endpoint includes response time metrics."""
         response = daemon_client.get("/sessions")
         assert response.status_code == 200
@@ -72,7 +72,7 @@ class TestHookEvents:
 
     def test_session_start_hook_executes(
         self, daemon_instance: DaemonInstance, cli_events: CLIEventSimulator
-    ):
+    ) -> None:
         """Verify session start hook can be executed."""
         session_id = f"test-session-{uuid.uuid4().hex[:8]}"
 
@@ -87,7 +87,7 @@ class TestHookEvents:
 
     def test_session_end_hook_executes(
         self, daemon_instance: DaemonInstance, cli_events: CLIEventSimulator
-    ):
+    ) -> None:
         """Verify session end hook can be executed."""
         session_id = f"test-session-{uuid.uuid4().hex[:8]}"
 
@@ -109,7 +109,7 @@ class TestHookEvents:
 
     def test_tool_use_hook_executes(
         self, daemon_instance: DaemonInstance, cli_events: CLIEventSimulator
-    ):
+    ) -> None:
         """Verify tool use hook can be executed."""
         session_id = f"test-session-{uuid.uuid4().hex[:8]}"
 
@@ -136,7 +136,7 @@ class TestSessionState:
 
     def test_sessions_endpoint_accessible_after_hooks(
         self, daemon_instance: DaemonInstance, cli_events: CLIEventSimulator
-    ):
+    ) -> None:
         """Verify sessions endpoint works after hook events."""
         session_id = f"test-session-{uuid.uuid4().hex[:8]}"
 
@@ -156,7 +156,7 @@ class TestSessionState:
 
     def test_multiple_hook_events_dont_corrupt_state(
         self, daemon_instance: DaemonInstance, cli_events: CLIEventSimulator
-    ):
+    ) -> None:
         """Verify multiple hook events don't corrupt session state."""
         # Execute multiple session hooks
         for i in range(3):
@@ -183,7 +183,7 @@ class TestSessionPersistence:
         self,
         e2e_project_dir,
         e2e_config,
-    ):
+    ) -> None:
         """Verify sessions endpoint works after daemon restart."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent

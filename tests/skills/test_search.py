@@ -5,6 +5,7 @@ import pytest
 from gobby.skills.search import SearchFilters, SkillSearch, SkillSearchResult
 from gobby.storage.skills import Skill
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def sample_skills():
@@ -64,7 +65,7 @@ def sample_skills():
 class TestSkillSearchResult:
     """Tests for SkillSearchResult dataclass."""
 
-    def test_creation(self):
+    def test_creation(self) -> None:
         """Test creating a search result."""
         result = SkillSearchResult(
             skill_id="skl-test",
@@ -76,7 +77,7 @@ class TestSkillSearchResult:
         assert result.skill_name == "test-skill"
         assert result.similarity == 0.85
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting to dictionary."""
         result = SkillSearchResult(
             skill_id="skl-test",
@@ -93,7 +94,7 @@ class TestSkillSearchResult:
 class TestSkillSearch:
     """Tests for SkillSearch class."""
 
-    def test_index_empty_skills(self):
+    def test_index_empty_skills(self) -> None:
         """Test indexing empty skill list."""
         search = SkillSearch()
         search.index_skills([])
@@ -101,7 +102,7 @@ class TestSkillSearch:
         assert not search._indexed
         assert search.search("query") == []
 
-    def test_index_skills(self, sample_skills):
+    def test_index_skills(self, sample_skills) -> None:
         """Test indexing skills."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -109,7 +110,7 @@ class TestSkillSearch:
         assert search._indexed
         assert len(search._skill_names) == 4
 
-    def test_search_by_name(self, sample_skills):
+    def test_search_by_name(self, sample_skills) -> None:
         """Test searching by skill name."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -120,7 +121,7 @@ class TestSkillSearch:
         assert results[0].skill_name == "commit-message"
         assert results[0].similarity > 0
 
-    def test_search_by_description(self, sample_skills):
+    def test_search_by_description(self, sample_skills) -> None:
         """Test searching by description content."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -132,7 +133,7 @@ class TestSkillSearch:
         skill_names = [r.skill_name for r in results]
         assert "test-writing" in skill_names
 
-    def test_search_by_tags(self, sample_skills):
+    def test_search_by_tags(self, sample_skills) -> None:
         """Test searching by tag content."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -144,7 +145,7 @@ class TestSkillSearch:
         skill_names = [r.skill_name for r in results]
         assert any("workflow" in name or "commit" in name for name in skill_names)
 
-    def test_search_by_category(self, sample_skills):
+    def test_search_by_category(self, sample_skills) -> None:
         """Test searching by category."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -156,7 +157,7 @@ class TestSkillSearch:
         skill_names = [r.skill_name for r in results]
         assert "git-workflow" in skill_names or "commit-message" in skill_names
 
-    def test_search_returns_top_k(self, sample_skills):
+    def test_search_returns_top_k(self, sample_skills) -> None:
         """Test that search respects top_k limit."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -165,7 +166,7 @@ class TestSkillSearch:
 
         assert len(results) <= 2
 
-    def test_search_results_ranked_by_similarity(self, sample_skills):
+    def test_search_results_ranked_by_similarity(self, sample_skills) -> None:
         """Test that results are sorted by similarity descending."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -176,7 +177,7 @@ class TestSkillSearch:
             for i in range(len(results) - 1):
                 assert results[i].similarity >= results[i + 1].similarity
 
-    def test_search_no_results(self, sample_skills):
+    def test_search_no_results(self, sample_skills) -> None:
         """Test search with no matching results."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -186,14 +187,14 @@ class TestSkillSearch:
         # May return empty or low-similarity results
         assert isinstance(results, list)
 
-    def test_search_before_index(self):
+    def test_search_before_index(self) -> None:
         """Test searching before indexing returns empty."""
         search = SkillSearch()
         results = search.search("test")
 
         assert results == []
 
-    def test_add_skill_marks_update(self, sample_skills):
+    def test_add_skill_marks_update(self, sample_skills) -> None:
         """Test that add_skill increments pending updates."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -210,7 +211,7 @@ class TestSkillSearch:
         assert search._pending_updates == 1
         assert search._skill_names["skl-new"] == "new-skill"
 
-    def test_update_skill_marks_update(self, sample_skills):
+    def test_update_skill_marks_update(self, sample_skills) -> None:
         """Test that update_skill increments pending updates."""
         import copy
 
@@ -223,7 +224,7 @@ class TestSkillSearch:
 
         assert search._pending_updates == 1
 
-    def test_remove_skill_marks_update(self, sample_skills):
+    def test_remove_skill_marks_update(self, sample_skills) -> None:
         """Test that remove_skill increments pending updates."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -233,7 +234,7 @@ class TestSkillSearch:
         assert search._pending_updates == 1
         assert "skl-commit" not in search._skill_names
 
-    def test_needs_reindex_after_threshold(self, sample_skills):
+    def test_needs_reindex_after_threshold(self, sample_skills) -> None:
         """Test that needs_reindex returns True after threshold updates."""
         search = SkillSearch(refit_threshold=3)
         search.index_skills(sample_skills)
@@ -250,12 +251,12 @@ class TestSkillSearch:
         search.add_skill(new_skill)
         assert search.needs_reindex()
 
-    def test_needs_reindex_before_indexing(self):
+    def test_needs_reindex_before_indexing(self) -> None:
         """Test that needs_reindex returns True before any indexing."""
         search = SkillSearch()
         assert search.needs_reindex()
 
-    def test_get_stats(self, sample_skills):
+    def test_get_stats(self, sample_skills) -> None:
         """Test getting search statistics."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -267,7 +268,7 @@ class TestSkillSearch:
         assert stats["pending_updates"] == 0
         assert "refit_threshold" in stats
 
-    def test_clear(self, sample_skills):
+    def test_clear(self, sample_skills) -> None:
         """Test clearing the search index."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -279,7 +280,7 @@ class TestSkillSearch:
         assert len(search._skill_names) == 0
         assert search._pending_updates == 0
 
-    def test_custom_parameters(self, sample_skills):
+    def test_custom_parameters(self, sample_skills) -> None:
         """Test creating search with custom parameters."""
         from gobby.search import SearchConfig
 
@@ -298,7 +299,7 @@ class TestSkillSearch:
 class TestSkillSearchIntegration:
     """Integration tests for skill search with realistic scenarios."""
 
-    def test_search_multiple_fields_combined(self, sample_skills):
+    def test_search_multiple_fields_combined(self, sample_skills) -> None:
         """Test that search considers all indexed fields."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -310,7 +311,7 @@ class TestSkillSearchIntegration:
         # commit-message skill matches name, tag, and category
         assert results[0].skill_id == "skl-commit"
 
-    def test_reindex_after_updates(self, sample_skills):
+    def test_reindex_after_updates(self, sample_skills) -> None:
         """Test reindexing after multiple updates."""
         search = SkillSearch(refit_threshold=2)
         search.index_skills(sample_skills)
@@ -347,29 +348,29 @@ class TestSkillSearchIntegration:
 class TestSearchFilters:
     """Tests for SearchFilters dataclass (TDD - written before implementation)."""
 
-    def test_create_empty_filters(self):
+    def test_create_empty_filters(self) -> None:
         """Test creating filters with no constraints."""
         filters = SearchFilters()
         assert filters.category is None
         assert filters.tags_any is None
         assert filters.tags_all is None
 
-    def test_create_with_category(self):
+    def test_create_with_category(self) -> None:
         """Test creating filters with category."""
         filters = SearchFilters(category="git")
         assert filters.category == "git"
 
-    def test_create_with_tags_any(self):
+    def test_create_with_tags_any(self) -> None:
         """Test creating filters with tags_any."""
         filters = SearchFilters(tags_any=["git", "workflow"])
         assert filters.tags_any == ["git", "workflow"]
 
-    def test_create_with_tags_all(self):
+    def test_create_with_tags_all(self) -> None:
         """Test creating filters with tags_all."""
         filters = SearchFilters(tags_all=["git", "workflow"])
         assert filters.tags_all == ["git", "workflow"]
 
-    def test_create_with_all_options(self):
+    def test_create_with_all_options(self) -> None:
         """Test creating filters with all options."""
         filters = SearchFilters(
             category="git",
@@ -384,7 +385,7 @@ class TestSearchFilters:
 class TestSkillSearchFiltering:
     """Tests for skill search filtering (TDD - written before implementation)."""
 
-    def test_filter_by_category(self, sample_skills):
+    def test_filter_by_category(self, sample_skills) -> None:
         """Test filtering search results by category."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -398,7 +399,7 @@ class TestSkillSearchFiltering:
             skill = next(s for s in sample_skills if s.id == result.skill_id)
             assert skill.get_category() == "git"
 
-    def test_filter_by_category_no_matches(self, sample_skills):
+    def test_filter_by_category_no_matches(self, sample_skills) -> None:
         """Test filtering by category with no matches."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -408,7 +409,7 @@ class TestSkillSearchFiltering:
 
         assert results == []
 
-    def test_filter_by_tags_any(self, sample_skills):
+    def test_filter_by_tags_any(self, sample_skills) -> None:
         """Test filtering by any of the specified tags."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -422,7 +423,7 @@ class TestSkillSearchFiltering:
             skill_tags = skill.get_tags()
             assert any(tag in skill_tags for tag in ["quality", "nonexistent"])
 
-    def test_filter_by_tags_all(self, sample_skills):
+    def test_filter_by_tags_all(self, sample_skills) -> None:
         """Test filtering by all of the specified tags."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -436,7 +437,7 @@ class TestSkillSearchFiltering:
             skill_tags = skill.get_tags()
             assert "git" in skill_tags and "workflow" in skill_tags
 
-    def test_filter_combined_category_and_tags(self, sample_skills):
+    def test_filter_combined_category_and_tags(self, sample_skills) -> None:
         """Test filtering by both category and tags."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -450,7 +451,7 @@ class TestSkillSearchFiltering:
             assert skill.get_category() == "git"
             assert "commits" in skill.get_tags()
 
-    def test_filters_applied_after_ranking(self, sample_skills):
+    def test_filters_applied_after_ranking(self, sample_skills) -> None:
         """Test that filters are applied after similarity ranking."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -472,7 +473,7 @@ class TestSkillSearchFiltering:
             for i in range(len(filtered) - 1):
                 assert filtered[i].similarity >= filtered[i + 1].similarity
 
-    def test_search_without_filters(self, sample_skills):
+    def test_search_without_filters(self, sample_skills) -> None:
         """Test that search without filters returns all matching results."""
         search = SkillSearch()
         search.index_skills(sample_skills)
@@ -481,7 +482,7 @@ class TestSkillSearchFiltering:
         results = search.search("git", top_k=10)
         assert len(results) > 0
 
-    def test_empty_filters_same_as_no_filters(self, sample_skills):
+    def test_empty_filters_same_as_no_filters(self, sample_skills) -> None:
         """Test that empty filters behave same as no filters."""
         search = SkillSearch()
         search.index_skills(sample_skills)

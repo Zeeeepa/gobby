@@ -14,6 +14,7 @@ from gobby.workflows.task_actions import (
     update_task_from_workflow,
 )
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path):
@@ -38,7 +39,7 @@ def project_id(db):
 class TestPersistDecomposedTasks:
     """Tests for persist_decomposed_tasks function."""
 
-    def test_persist_basic_tasks(self, db, project_id):
+    def test_persist_basic_tasks(self, db, project_id) -> None:
         """Test persisting a basic list of tasks."""
         tasks_data = [
             {"id": 1, "title": "First task", "verification": "Check logs"},
@@ -64,7 +65,7 @@ class TestPersistDecomposedTasks:
             # Task IDs are now UUIDs (8-4-4-4-12 hex chars with dashes)
             assert "-" in task_id and len(task_id.split("-")) == 5
 
-    def test_persist_with_description_key(self, db, project_id):
+    def test_persist_with_description_key(self, db, project_id) -> None:
         """Test that 'description' key works as title."""
         tasks_data = [
             {"id": 1, "description": "Task using description key"},
@@ -84,7 +85,7 @@ class TestPersistDecomposedTasks:
         task = task_manager.get_task(id_mapping["1"])
         assert task.title == "Task using description key"
 
-    def test_persist_sets_workflow_name(self, db, project_id):
+    def test_persist_sets_workflow_name(self, db, project_id) -> None:
         """Test that tasks are created with workflow_name."""
         tasks_data = [{"id": 1, "title": "Test task"}]
 
@@ -99,7 +100,7 @@ class TestPersistDecomposedTasks:
         task = task_manager.get_task(id_mapping["1"])
         assert task.workflow_name == "my-workflow"
 
-    def test_persist_sets_sequence_order(self, db, project_id):
+    def test_persist_sets_sequence_order(self, db, project_id) -> None:
         """Test that tasks get sequence_order based on position."""
         tasks_data = [
             {"id": "a", "title": "First"},
@@ -123,7 +124,7 @@ class TestPersistDecomposedTasks:
         assert task_b.sequence_order == 1
         assert task_c.sequence_order == 2
 
-    def test_persist_sets_verification(self, db, project_id):
+    def test_persist_sets_verification(self, db, project_id) -> None:
         """Test that verification field is stored."""
         tasks_data = [
             {"id": 1, "title": "Task", "verification": "Run pytest -v"},
@@ -140,7 +141,7 @@ class TestPersistDecomposedTasks:
         task = task_manager.get_task(id_mapping["1"])
         assert task.verification == "Run pytest -v"
 
-    def test_persist_with_parent_task(self, db, project_id):
+    def test_persist_with_parent_task(self, db, project_id) -> None:
         """Test creating tasks under a parent."""
         # Create parent task first
         task_manager = LocalTaskManager(db)
@@ -168,7 +169,7 @@ class TestPersistDecomposedTasks:
         assert child1.parent_task_id == parent.id
         assert child2.parent_task_id == parent.id
 
-    def test_persist_skips_empty_titles(self, db, project_id):
+    def test_persist_skips_empty_titles(self, db, project_id) -> None:
         """Test that tasks without title/description are skipped."""
         tasks_data = [
             {"id": 1, "title": "Valid task"},
@@ -189,7 +190,7 @@ class TestPersistDecomposedTasks:
         assert "1" in id_mapping
         assert "4" in id_mapping
 
-    def test_persist_empty_list_raises(self, db, project_id):
+    def test_persist_empty_list_raises(self, db, project_id) -> None:
         """Test that empty task list raises ValueError."""
         with pytest.raises(ValueError, match="No tasks provided"):
             persist_decomposed_tasks(
@@ -199,7 +200,7 @@ class TestPersistDecomposedTasks:
                 workflow_name="test-workflow",
             )
 
-    def test_persist_uses_index_as_id(self, db, project_id):
+    def test_persist_uses_index_as_id(self, db, project_id) -> None:
         """Test that index is used when id is missing."""
         tasks_data = [
             {"title": "No ID task 1"},
@@ -221,7 +222,7 @@ class TestPersistDecomposedTasks:
 class TestUpdateTaskFromWorkflow:
     """Tests for update_task_from_workflow function."""
 
-    def test_update_status(self, db, project_id):
+    def test_update_status(self, db, project_id) -> None:
         """Test updating task status."""
         task_manager = LocalTaskManager(db)
         task = task_manager.create_task(
@@ -239,7 +240,7 @@ class TestUpdateTaskFromWorkflow:
         assert updated is not None
         assert updated.status == "in_progress"
 
-    def test_update_verification(self, db, project_id):
+    def test_update_verification(self, db, project_id) -> None:
         """Test updating verification field."""
         task_manager = LocalTaskManager(db)
         task = task_manager.create_task(
@@ -257,7 +258,7 @@ class TestUpdateTaskFromWorkflow:
         assert updated is not None
         assert updated.verification == "Completed successfully"
 
-    def test_update_validation_status(self, db, project_id):
+    def test_update_validation_status(self, db, project_id) -> None:
         """Test updating validation status."""
         task_manager = LocalTaskManager(db)
         task = task_manager.create_task(
@@ -277,7 +278,7 @@ class TestUpdateTaskFromWorkflow:
         assert updated.validation_status == "valid"
         assert updated.validation_feedback == "All tests passed"
 
-    def test_update_nonexistent_task(self, db, project_id):
+    def test_update_nonexistent_task(self, db, project_id) -> None:
         """Test updating a task that doesn't exist."""
         result = update_task_from_workflow(
             db=db,
@@ -287,7 +288,7 @@ class TestUpdateTaskFromWorkflow:
 
         assert result is None
 
-    def test_update_no_changes(self, db, project_id):
+    def test_update_no_changes(self, db, project_id) -> None:
         """Test update with no fields returns current task."""
         task_manager = LocalTaskManager(db)
         task = task_manager.create_task(
@@ -308,7 +309,7 @@ class TestUpdateTaskFromWorkflow:
 class TestGetWorkflowTasks:
     """Tests for get_workflow_tasks function."""
 
-    def test_get_tasks_by_workflow(self, db, project_id):
+    def test_get_tasks_by_workflow(self, db, project_id) -> None:
         """Test retrieving tasks by workflow name."""
         # Create tasks for different workflows
         persist_decomposed_tasks(
@@ -337,7 +338,7 @@ class TestGetWorkflowTasks:
         assert len(tasks_b) == 1
         assert all(t.workflow_name == "workflow-a" for t in tasks_a)
 
-    def test_get_tasks_ordered_by_sequence(self, db, project_id):
+    def test_get_tasks_ordered_by_sequence(self, db, project_id) -> None:
         """Test that tasks are returned in sequence order."""
         persist_decomposed_tasks(
             db=db,
@@ -357,7 +358,7 @@ class TestGetWorkflowTasks:
         assert tasks[1].title == "Second"
         assert tasks[2].title == "Third"
 
-    def test_get_tasks_excludes_closed(self, db, project_id):
+    def test_get_tasks_excludes_closed(self, db, project_id) -> None:
         """Test that closed tasks are excluded by default."""
         id_mapping = persist_decomposed_tasks(
             db=db,
@@ -378,7 +379,7 @@ class TestGetWorkflowTasks:
         assert len(tasks) == 1
         assert tasks[0].title == "Open task"
 
-    def test_get_tasks_includes_closed(self, db, project_id):
+    def test_get_tasks_includes_closed(self, db, project_id) -> None:
         """Test include_closed parameter."""
         id_mapping = persist_decomposed_tasks(
             db=db,
@@ -402,7 +403,7 @@ class TestGetWorkflowTasks:
 
         assert len(tasks) == 2
 
-    def test_get_tasks_empty_workflow(self, db, project_id):
+    def test_get_tasks_empty_workflow(self, db, project_id) -> None:
         """Test getting tasks for nonexistent workflow."""
         tasks = get_workflow_tasks(db=db, workflow_name="nonexistent")
         assert tasks == []
@@ -411,7 +412,7 @@ class TestGetWorkflowTasks:
 class TestGetNextWorkflowTask:
     """Tests for get_next_workflow_task function."""
 
-    def test_get_next_task(self, db, project_id):
+    def test_get_next_task(self, db, project_id) -> None:
         """Test getting the next open task."""
         persist_decomposed_tasks(
             db=db,
@@ -428,7 +429,7 @@ class TestGetNextWorkflowTask:
         assert next_task is not None
         assert next_task.title == "First task"
 
-    def test_get_next_skips_closed(self, db, project_id):
+    def test_get_next_skips_closed(self, db, project_id) -> None:
         """Test that next task skips closed tasks."""
         id_mapping = persist_decomposed_tasks(
             db=db,
@@ -449,7 +450,7 @@ class TestGetNextWorkflowTask:
         assert next_task is not None
         assert next_task.title == "Next to do"
 
-    def test_get_next_all_complete(self, db, project_id):
+    def test_get_next_all_complete(self, db, project_id) -> None:
         """Test returns None when all tasks are complete."""
         id_mapping = persist_decomposed_tasks(
             db=db,
@@ -470,7 +471,7 @@ class TestGetNextWorkflowTask:
 class TestMarkWorkflowTaskComplete:
     """Tests for mark_workflow_task_complete function."""
 
-    def test_mark_complete(self, db, project_id):
+    def test_mark_complete(self, db, project_id) -> None:
         """Test marking a task as complete."""
         id_mapping = persist_decomposed_tasks(
             db=db,
@@ -492,7 +493,7 @@ class TestMarkWorkflowTaskComplete:
         assert result.verification == "All tests passed"
         assert result.validation_status == "valid"
 
-    def test_mark_complete_nonexistent(self, db, project_id):
+    def test_mark_complete_nonexistent(self, db, project_id) -> None:
         """Test marking nonexistent task."""
         result = mark_workflow_task_complete(
             db=db,
@@ -504,7 +505,7 @@ class TestMarkWorkflowTaskComplete:
 class TestIntegration:
     """Integration tests for workflow-task cycle."""
 
-    def test_full_workflow_cycle(self, db, project_id):
+    def test_full_workflow_cycle(self, db, project_id) -> None:
         """Test complete workflow: persist -> get -> update -> complete."""
         # 1. Persist decomposed tasks
         id_mapping = persist_decomposed_tasks(

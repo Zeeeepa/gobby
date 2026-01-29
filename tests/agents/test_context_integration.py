@@ -9,6 +9,7 @@ import pytest
 from gobby.agents.context import ContextResolver, format_injected_prompt
 from gobby.mcp_proxy.tools.agents import create_agents_registry
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_runner():
@@ -123,7 +124,7 @@ class TestContextResolverIntegration:
 class TestFormatInjectedPromptIntegration:
     """Integration tests for prompt injection formatting."""
 
-    def test_formats_context_with_prompt(self):
+    def test_formats_context_with_prompt(self) -> None:
         """Context is properly formatted with prompt."""
         context = "# Summary\n\nImportant context."
         prompt = "Do the task"
@@ -135,7 +136,7 @@ class TestFormatInjectedPromptIntegration:
         assert "## Task" in result
         assert "Do the task" in result
 
-    def test_preserves_prompt_when_no_context(self):
+    def test_preserves_prompt_when_no_context(self) -> None:
         """Returns original prompt when context is empty."""
         result = format_injected_prompt("", "Do the task")
 
@@ -147,7 +148,7 @@ class TestFormatInjectedPromptIntegration:
 class TestAgentsRegistryContextIntegration:
     """Integration tests for agents registry creation."""
 
-    def test_registry_creates_with_runner(self, mock_runner):
+    def test_registry_creates_with_runner(self, mock_runner) -> None:
         """Registry is created with just a runner."""
         registry = create_agents_registry(runner=mock_runner)
 

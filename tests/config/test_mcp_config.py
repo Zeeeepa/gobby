@@ -9,11 +9,12 @@ import pytest
 from gobby.config.mcp import MCPConfigManager
 from gobby.mcp_proxy.manager import MCPServerConfig
 
+pytestmark = pytest.mark.unit
 
 class TestMCPConfigManagerInit:
     """Tests for MCPConfigManager initialization."""
 
-    def test_init_creates_config_file_if_not_exists(self, tmp_path):
+    def test_init_creates_config_file_if_not_exists(self, tmp_path) -> None:
         """Test that init creates config file with empty servers if it doesn't exist."""
         config_path = tmp_path / "test_mcp.json"
 
@@ -24,7 +25,7 @@ class TestMCPConfigManagerInit:
             config = json.load(f)
         assert config == {"servers": []}
 
-    def test_init_uses_existing_config_file(self, tmp_path):
+    def test_init_uses_existing_config_file(self, tmp_path) -> None:
         """Test that init doesn't overwrite existing config file."""
         config_path = tmp_path / "test_mcp.json"
         existing_config = {
@@ -38,7 +39,7 @@ class TestMCPConfigManagerInit:
             config = json.load(f)
         assert config == existing_config
 
-    def test_init_creates_parent_directory(self, tmp_path):
+    def test_init_creates_parent_directory(self, tmp_path) -> None:
         """Test that init creates parent directory if it doesn't exist."""
         config_path = tmp_path / "subdir" / "test_mcp.json"
 
@@ -47,7 +48,7 @@ class TestMCPConfigManagerInit:
         assert config_path.parent.exists()
         assert config_path.exists()
 
-    def test_init_with_default_path(self):
+    def test_init_with_default_path(self) -> None:
         """Test that init uses default path when not specified."""
         with patch.object(Path, "expanduser", return_value=Path("/tmp/test/.gobby/.mcp.json")):
             with patch.object(Path, "mkdir"):
@@ -59,7 +60,7 @@ class TestMCPConfigManagerInit:
 class TestMCPConfigManagerReadConfig:
     """Tests for _read_config method."""
 
-    def test_read_config_valid_json(self, tmp_path):
+    def test_read_config_valid_json(self, tmp_path) -> None:
         """Test reading valid JSON config."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -72,7 +73,7 @@ class TestMCPConfigManagerReadConfig:
 
         assert config == config_data
 
-    def test_read_config_empty_file(self, tmp_path):
+    def test_read_config_empty_file(self, tmp_path) -> None:
         """Test reading empty config file returns empty servers list."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text("")
@@ -82,7 +83,7 @@ class TestMCPConfigManagerReadConfig:
 
         assert config == {"servers": []}
 
-    def test_read_config_missing_servers_key(self, tmp_path):
+    def test_read_config_missing_servers_key(self, tmp_path) -> None:
         """Test reading config without servers key adds it."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"other": "value"}))
@@ -93,7 +94,7 @@ class TestMCPConfigManagerReadConfig:
         assert "servers" in config
         assert config["servers"] == []
 
-    def test_read_config_invalid_json(self, tmp_path):
+    def test_read_config_invalid_json(self, tmp_path) -> None:
         """Test reading invalid JSON raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text("not valid json {")
@@ -103,7 +104,7 @@ class TestMCPConfigManagerReadConfig:
         with pytest.raises(ValueError, match="Invalid JSON"):
             manager._read_config()
 
-    def test_read_config_not_object(self, tmp_path):
+    def test_read_config_not_object(self, tmp_path) -> None:
         """Test reading non-object JSON raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps(["array", "not", "object"]))
@@ -113,7 +114,7 @@ class TestMCPConfigManagerReadConfig:
         with pytest.raises(ValueError, match="must be a JSON object"):
             manager._read_config()
 
-    def test_read_config_servers_not_array(self, tmp_path):
+    def test_read_config_servers_not_array(self, tmp_path) -> None:
         """Test reading config where servers is not array raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": "not an array"}))
@@ -127,7 +128,7 @@ class TestMCPConfigManagerReadConfig:
 class TestMCPConfigManagerWriteConfig:
     """Tests for _write_config method."""
 
-    def test_write_config_creates_file(self, tmp_path):
+    def test_write_config_creates_file(self, tmp_path) -> None:
         """Test writing config creates file with correct content."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))  # Initial empty config
@@ -139,7 +140,7 @@ class TestMCPConfigManagerWriteConfig:
             config = json.load(f)
         assert config == {"servers": [{"name": "test"}]}
 
-    def test_write_config_sets_permissions(self, tmp_path):
+    def test_write_config_sets_permissions(self, tmp_path) -> None:
         """Test writing config sets restrictive permissions."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -151,7 +152,7 @@ class TestMCPConfigManagerWriteConfig:
         mode = config_path.stat().st_mode & 0o777
         assert mode == 0o600
 
-    def test_write_config_atomic_write(self, tmp_path):
+    def test_write_config_atomic_write(self, tmp_path) -> None:
         """Test that write uses atomic rename."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -169,7 +170,7 @@ class TestMCPConfigManagerWriteConfig:
 class TestMCPConfigManagerLoadServers:
     """Tests for load_servers method."""
 
-    def test_load_servers_empty(self, tmp_path):
+    def test_load_servers_empty(self, tmp_path) -> None:
         """Test loading empty server list."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -179,7 +180,7 @@ class TestMCPConfigManagerLoadServers:
 
         assert servers == []
 
-    def test_load_servers_http_transport(self, tmp_path):
+    def test_load_servers_http_transport(self, tmp_path) -> None:
         """Test loading server with HTTP transport."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -202,7 +203,7 @@ class TestMCPConfigManagerLoadServers:
         assert servers[0].transport == "http"
         assert servers[0].url == "http://localhost:8080/mcp"
 
-    def test_load_servers_stdio_transport(self, tmp_path):
+    def test_load_servers_stdio_transport(self, tmp_path) -> None:
         """Test loading server with stdio transport."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -227,7 +228,7 @@ class TestMCPConfigManagerLoadServers:
         assert servers[0].command == "uvx"
         assert servers[0].args == ["test-mcp"]
 
-    def test_load_servers_skips_without_name(self, tmp_path):
+    def test_load_servers_skips_without_name(self, tmp_path) -> None:
         """Test that servers without name are skipped."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -244,7 +245,7 @@ class TestMCPConfigManagerLoadServers:
         assert len(servers) == 1
         assert servers[0].name == "valid"
 
-    def test_load_servers_with_oauth(self, tmp_path):
+    def test_load_servers_with_oauth(self, tmp_path) -> None:
         """Test loading server with OAuth configuration."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -271,7 +272,7 @@ class TestMCPConfigManagerLoadServers:
 class TestMCPConfigManagerSaveServers:
     """Tests for save_servers method."""
 
-    def test_save_servers_empty_list(self, tmp_path):
+    def test_save_servers_empty_list(self, tmp_path) -> None:
         """Test saving empty server list."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -283,7 +284,7 @@ class TestMCPConfigManagerSaveServers:
             config = json.load(f)
         assert config == {"servers": []}
 
-    def test_save_servers_http_transport(self, tmp_path):
+    def test_save_servers_http_transport(self, tmp_path) -> None:
         """Test saving HTTP transport server."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -307,7 +308,7 @@ class TestMCPConfigManagerSaveServers:
         assert config["servers"][0]["transport"] == "http"
         assert config["servers"][0]["url"] == "http://localhost:8080/mcp"
 
-    def test_save_servers_stdio_transport(self, tmp_path):
+    def test_save_servers_stdio_transport(self, tmp_path) -> None:
         """Test saving stdio transport server."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -336,7 +337,7 @@ class TestMCPConfigManagerSaveServers:
 class TestMCPConfigManagerAddServer:
     """Tests for add_server method."""
 
-    def test_add_server_success(self, tmp_path):
+    def test_add_server_success(self, tmp_path) -> None:
         """Test adding a server successfully."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -355,7 +356,7 @@ class TestMCPConfigManagerAddServer:
         assert len(servers) == 1
         assert servers[0].name == "new-server"
 
-    def test_add_server_duplicate_name(self, tmp_path):
+    def test_add_server_duplicate_name(self, tmp_path) -> None:
         """Test adding server with duplicate name raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -378,7 +379,7 @@ class TestMCPConfigManagerAddServer:
 class TestMCPConfigManagerRemoveServer:
     """Tests for remove_server method."""
 
-    def test_remove_server_success(self, tmp_path):
+    def test_remove_server_success(self, tmp_path) -> None:
         """Test removing a server successfully."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -394,7 +395,7 @@ class TestMCPConfigManagerRemoveServer:
         servers = manager.load_servers()
         assert len(servers) == 0
 
-    def test_remove_server_not_found(self, tmp_path):
+    def test_remove_server_not_found(self, tmp_path) -> None:
         """Test removing non-existent server raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -408,7 +409,7 @@ class TestMCPConfigManagerRemoveServer:
 class TestMCPConfigManagerUpdateServer:
     """Tests for update_server method."""
 
-    def test_update_server_success(self, tmp_path):
+    def test_update_server_success(self, tmp_path) -> None:
         """Test updating a server successfully."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -432,7 +433,7 @@ class TestMCPConfigManagerUpdateServer:
         assert len(servers) == 1
         assert servers[0].url == "http://localhost:9090/mcp"
 
-    def test_update_server_not_found(self, tmp_path):
+    def test_update_server_not_found(self, tmp_path) -> None:
         """Test updating non-existent server raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -453,7 +454,7 @@ class TestMCPConfigManagerUpdateServer:
 class TestMCPConfigManagerGetServer:
     """Tests for get_server method."""
 
-    def test_get_server_found(self, tmp_path):
+    def test_get_server_found(self, tmp_path) -> None:
         """Test getting an existing server."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
@@ -469,7 +470,7 @@ class TestMCPConfigManagerGetServer:
         assert server is not None
         assert server.name == "test-server"
 
-    def test_get_server_not_found(self, tmp_path):
+    def test_get_server_not_found(self, tmp_path) -> None:
         """Test getting non-existent server returns None."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -483,7 +484,7 @@ class TestMCPConfigManagerGetServer:
 class TestMCPConfigManagerListServers:
     """Tests for list_servers method."""
 
-    def test_list_servers_empty(self, tmp_path):
+    def test_list_servers_empty(self, tmp_path) -> None:
         """Test listing servers when empty."""
         config_path = tmp_path / "test_mcp.json"
         config_path.write_text(json.dumps({"servers": []}))
@@ -493,7 +494,7 @@ class TestMCPConfigManagerListServers:
 
         assert names == []
 
-    def test_list_servers_multiple(self, tmp_path):
+    def test_list_servers_multiple(self, tmp_path) -> None:
         """Test listing multiple servers."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {

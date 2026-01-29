@@ -8,6 +8,7 @@ then will pass once WebSocketSettings and MCPClientProxyConfig are extracted fro
 import pytest
 from pydantic import ValidationError
 
+pytestmark = pytest.mark.unit
 
 class TestWebSocketSettingsImport:
     """Test that WebSocketSettings can be imported from the servers module."""

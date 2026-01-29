@@ -6,6 +6,7 @@ import pytest
 
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_mcp_manager():
@@ -45,7 +46,7 @@ def tools_handler(mock_mcp_manager, mock_internal_manager):
 class TestGobbyDaemonToolsInit:
     """Tests for GobbyDaemonTools initialization."""
 
-    def test_init_creates_services(self, mock_mcp_manager, mock_internal_manager):
+    def test_init_creates_services(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test that all services are initialized."""
         handler = GobbyDaemonTools(
             mcp_manager=mock_mcp_manager,
@@ -60,7 +61,7 @@ class TestGobbyDaemonToolsInit:
         assert handler.server_mgmt is not None
         assert handler.recommendation is not None
 
-    def test_init_stores_mcp_manager(self, mock_mcp_manager, mock_internal_manager):
+    def test_init_stores_mcp_manager(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test that MCP manager is stored for project_id access."""
         handler = GobbyDaemonTools(
             mcp_manager=mock_mcp_manager,
@@ -72,7 +73,7 @@ class TestGobbyDaemonToolsInit:
 
         assert handler._mcp_manager is mock_mcp_manager
 
-    def test_init_with_semantic_search(self, mock_mcp_manager, mock_internal_manager):
+    def test_init_with_semantic_search(self, mock_mcp_manager, mock_internal_manager) -> None:
         """Test initialization with semantic search service."""
         mock_semantic = MagicMock()
 
@@ -488,14 +489,14 @@ class TestGobbyDaemonToolsSemanticSearch:
 class TestCreateMcpServer:
     """Tests for create_mcp_server factory function."""
 
-    def test_create_mcp_server_returns_fastmcp(self, tools_handler):
+    def test_create_mcp_server_returns_fastmcp(self, tools_handler) -> None:
         """Test that create_mcp_server returns a FastMCP instance."""
         mcp = create_mcp_server(tools_handler)
 
         assert mcp is not None
         assert mcp.name == "gobby"
 
-    def test_create_mcp_server_registers_all_tools(self, tools_handler):
+    def test_create_mcp_server_registers_all_tools(self, tools_handler) -> None:
         """Test that all expected tools are registered."""
         mcp = create_mcp_server(tools_handler)
 

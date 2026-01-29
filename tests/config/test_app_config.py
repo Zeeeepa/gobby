@@ -51,23 +51,24 @@ from gobby.config.tasks import (
     WorkflowConfig,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestExpandEnvVars:
     """Tests for expand_env_vars function."""
 
-    def test_expand_simple_env_var(self):
+    def test_expand_simple_env_var(self) -> None:
         """Test simple ${VAR} expansion."""
         with patch.dict(os.environ, {"MY_VAR": "hello"}):
             result = expand_env_vars("value: ${MY_VAR}")
             assert result == "value: hello"
 
-    def test_expand_with_default_when_var_set(self):
+    def test_expand_with_default_when_var_set(self) -> None:
         """Test ${VAR:-default} uses VAR value when set."""
         with patch.dict(os.environ, {"MY_VAR": "actual_value"}):
             result = expand_env_vars("value: ${MY_VAR:-default_value}")
             assert result == "value: actual_value"
 
-    def test_expand_with_default_when_var_unset(self):
+    def test_expand_with_default_when_var_unset(self) -> None:
         """Test ${VAR:-default} uses default when VAR is unset."""
         # Ensure the var is not set
         env = os.environ.copy()
@@ -76,13 +77,13 @@ class TestExpandEnvVars:
             result = expand_env_vars("value: ${UNSET_VAR:-fallback}")
             assert result == "value: fallback"
 
-    def test_expand_with_default_when_var_empty(self):
+    def test_expand_with_default_when_var_empty(self) -> None:
         """Test ${VAR:-default} uses default when VAR is empty string."""
         with patch.dict(os.environ, {"EMPTY_VAR": ""}):
             result = expand_env_vars("value: ${EMPTY_VAR:-fallback}")
             assert result == "value: fallback"
 
-    def test_expand_simple_var_unset_leaves_unchanged(self):
+    def test_expand_simple_var_unset_leaves_unchanged(self) -> None:
         """Test simple ${VAR} is left unchanged when VAR is unset."""
         env = os.environ.copy()
         env.pop("UNDEFINED_VAR", None)
@@ -90,18 +91,18 @@ class TestExpandEnvVars:
             result = expand_env_vars("value: ${UNDEFINED_VAR}")
             assert result == "value: ${UNDEFINED_VAR}"
 
-    def test_expand_multiple_vars(self):
+    def test_expand_multiple_vars(self) -> None:
         """Test expanding multiple variables in one string."""
         with patch.dict(os.environ, {"VAR1": "first", "VAR2": "second"}):
             result = expand_env_vars("a: ${VAR1}, b: ${VAR2:-def}")
             assert result == "a: first, b: second"
 
-    def test_expand_no_vars(self):
+    def test_expand_no_vars(self) -> None:
         """Test string without env vars is unchanged."""
         result = expand_env_vars("plain text without variables")
         assert result == "plain text without variables"
 
-    def test_expand_empty_default(self):
+    def test_expand_empty_default(self) -> None:
         """Test ${VAR:-} uses empty string as default."""
         env = os.environ.copy()
         env.pop("UNSET_VAR", None)
@@ -113,7 +114,7 @@ class TestExpandEnvVars:
 class TestWebSocketSettings:
     """Tests for WebSocketSettings configuration."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default WebSocket settings."""
         settings = WebSocketSettings()
         assert settings.enabled is True
@@ -121,7 +122,7 @@ class TestWebSocketSettings:
         assert settings.ping_interval == 30
         assert settings.ping_timeout == 10
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom WebSocket settings."""
         settings = WebSocketSettings(
             enabled=False,
@@ -134,17 +135,17 @@ class TestWebSocketSettings:
         assert settings.ping_interval == 60
         assert settings.ping_timeout == 20
 
-    def test_port_validation_too_low(self):
+    def test_port_validation_too_low(self) -> None:
         """Test port validation rejects ports below 1024."""
         with pytest.raises(ValidationError):
             WebSocketSettings(port=80)
 
-    def test_port_validation_too_high(self):
+    def test_port_validation_too_high(self) -> None:
         """Test port validation rejects ports above 65535."""
         with pytest.raises(ValidationError):
             WebSocketSettings(port=70000)
 
-    def test_ping_interval_must_be_positive(self):
+    def test_ping_interval_must_be_positive(self) -> None:
         """Test ping_interval must be positive."""
         with pytest.raises(ValidationError):
             WebSocketSettings(ping_interval=0)
@@ -153,7 +154,7 @@ class TestWebSocketSettings:
 class TestLoggingSettings:
     """Tests for LoggingSettings configuration."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default logging settings."""
         settings = LoggingSettings()
         assert settings.level == "info"
@@ -161,18 +162,18 @@ class TestLoggingSettings:
         assert settings.max_size_mb == 10
         assert settings.backup_count == 5
 
-    def test_valid_levels(self):
+    def test_valid_levels(self) -> None:
         """Test valid log levels."""
         for level in ["debug", "info", "warning", "error"]:
             settings = LoggingSettings(level=level)
             assert settings.level == level
 
-    def test_invalid_level(self):
+    def test_invalid_level(self) -> None:
         """Test invalid log level raises error."""
         with pytest.raises(ValidationError):
             LoggingSettings(level="invalid")
 
-    def test_max_size_must_be_positive(self):
+    def test_max_size_must_be_positive(self) -> None:
         """Test max_size_mb must be positive."""
         with pytest.raises(ValidationError):
             LoggingSettings(max_size_mb=0)
@@ -181,7 +182,7 @@ class TestLoggingSettings:
 class TestSessionSummaryConfig:
     """Tests for SessionSummaryConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default session summary config."""
         config = SessionSummaryConfig()
         assert config.enabled is True
@@ -191,7 +192,7 @@ class TestSessionSummaryConfig:
         assert config.prompt is not None
         assert "Generate a concise session summary" in config.prompt
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom session summary config."""
         config = SessionSummaryConfig(
             enabled=False,
@@ -208,7 +209,7 @@ class TestSessionSummaryConfig:
 class TestMCPClientProxyConfig:
     """Tests for MCPClientProxyConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default MCP client proxy config."""
         config = MCPClientProxyConfig()
         assert config.enabled is True
@@ -216,12 +217,12 @@ class TestMCPClientProxyConfig:
         assert config.proxy_timeout == 30
         assert config.tool_timeout == 30
 
-    def test_connect_timeout_custom(self):
+    def test_connect_timeout_custom(self) -> None:
         """Test connect_timeout can be customized."""
         config = MCPClientProxyConfig(connect_timeout=60.0)
         assert config.connect_timeout == 60.0
 
-    def test_connect_timeout_validation(self):
+    def test_connect_timeout_validation(self) -> None:
         """Test connect_timeout must be positive."""
         with pytest.raises(ValidationError):
             MCPClientProxyConfig(connect_timeout=0)
@@ -229,7 +230,7 @@ class TestMCPClientProxyConfig:
         with pytest.raises(ValidationError):
             MCPClientProxyConfig(connect_timeout=-5.0)
 
-    def test_timeout_validation(self):
+    def test_timeout_validation(self) -> None:
         """Test timeouts must be positive."""
         with pytest.raises(ValidationError):
             MCPClientProxyConfig(proxy_timeout=0)
@@ -241,7 +242,7 @@ class TestMCPClientProxyConfig:
 class TestLLMProviderConfig:
     """Tests for LLMProviderConfig."""
 
-    def test_models_list(self):
+    def test_models_list(self) -> None:
         """Test getting models as list."""
         config = LLMProviderConfig(
             models="model-a, model-b, model-c",
@@ -249,7 +250,7 @@ class TestLLMProviderConfig:
         models = config.get_models_list()
         assert models == ["model-a", "model-b", "model-c"]
 
-    def test_empty_models_in_list(self):
+    def test_empty_models_in_list(self) -> None:
         """Test empty model entries are filtered."""
         config = LLMProviderConfig(
             models="model-a, , model-b",
@@ -261,12 +262,12 @@ class TestLLMProviderConfig:
 class TestLLMProvidersConfig:
     """Tests for LLMProvidersConfig."""
 
-    def test_default_empty(self):
+    def test_default_empty(self) -> None:
         """Test default config has no providers."""
         config = LLMProvidersConfig()
         assert config.get_enabled_providers() == []
 
-    def test_enabled_providers(self):
+    def test_enabled_providers(self) -> None:
         """Test listing enabled providers."""
         config = LLMProvidersConfig(
             claude=LLMProviderConfig(models="claude-haiku-4-5"),
@@ -281,25 +282,25 @@ class TestLLMProvidersConfig:
 class TestDaemonConfig:
     """Tests for DaemonConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default daemon config."""
         config = DaemonConfig()
         assert config.daemon_port == 60887
         assert config.daemon_health_check_interval == 10.0
         assert config.database_path == "~/.gobby/gobby-hub.db"
 
-    def test_use_flattened_baseline_default_true(self):
+    def test_use_flattened_baseline_default_true(self) -> None:
         """Test use_flattened_baseline field exists and defaults to True."""
         config = DaemonConfig()
         assert hasattr(config, "use_flattened_baseline")
         assert config.use_flattened_baseline is True
 
-    def test_use_flattened_baseline_can_be_disabled(self):
+    def test_use_flattened_baseline_can_be_disabled(self) -> None:
         """Test use_flattened_baseline can be explicitly set to False."""
         config = DaemonConfig(use_flattened_baseline=False)
         assert config.use_flattened_baseline is False
 
-    def test_port_validation(self):
+    def test_port_validation(self) -> None:
         """Test daemon port validation."""
         with pytest.raises(ValidationError):
             DaemonConfig(daemon_port=80)
@@ -307,7 +308,7 @@ class TestDaemonConfig:
         with pytest.raises(ValidationError):
             DaemonConfig(daemon_port=70000)
 
-    def test_health_check_interval_validation(self):
+    def test_health_check_interval_validation(self) -> None:
         """Test health check interval validation."""
         with pytest.raises(ValidationError):
             DaemonConfig(daemon_health_check_interval=0.5)
@@ -315,13 +316,13 @@ class TestDaemonConfig:
         with pytest.raises(ValidationError):
             DaemonConfig(daemon_health_check_interval=500.0)
 
-    def test_sub_config_access(self):
+    def test_sub_config_access(self) -> None:
         """Test accessing sub-configurations."""
         config = DaemonConfig()
         assert config.get_recommend_tools_config() == config.recommend_tools
         assert config.get_mcp_client_proxy_config() == config.mcp_client_proxy
 
-    def test_get_verification_defaults(self):
+    def test_get_verification_defaults(self) -> None:
         """Test get_verification_defaults returns verification_defaults config."""
         config = DaemonConfig()
         verification_config = config.get_verification_defaults()
@@ -335,7 +336,7 @@ class TestDaemonConfig:
 class TestLoadYaml:
     """Tests for load_yaml function."""
 
-    def test_load_yaml_file(self, temp_dir: Path):
+    def test_load_yaml_file(self, temp_dir: Path) -> None:
         """Test loading YAML file."""
         config_file = temp_dir / "config.yaml"
         config_file.write_text(yaml.dump({"daemon_port": 9000, "logging": {"level": "debug"}}))
@@ -344,7 +345,7 @@ class TestLoadYaml:
         assert data["daemon_port"] == 9000
         assert data["logging"]["level"] == "debug"
 
-    def test_load_json_file(self, temp_dir: Path):
+    def test_load_json_file(self, temp_dir: Path) -> None:
         """Test loading JSON file."""
         config_file = temp_dir / "config.json"
         config_file.write_text(json.dumps({"daemon_port": 9001}))
@@ -352,12 +353,12 @@ class TestLoadYaml:
         data = load_yaml(str(config_file))
         assert data["daemon_port"] == 9001
 
-    def test_load_nonexistent_file(self, temp_dir: Path):
+    def test_load_nonexistent_file(self, temp_dir: Path) -> None:
         """Test loading nonexistent file returns empty dict."""
         data = load_yaml(str(temp_dir / "nonexistent.yaml"))
         assert data == {}
 
-    def test_load_empty_file(self, temp_dir: Path):
+    def test_load_empty_file(self, temp_dir: Path) -> None:
         """Test loading empty file returns empty dict."""
         config_file = temp_dir / "empty.yaml"
         config_file.write_text("")
@@ -365,7 +366,7 @@ class TestLoadYaml:
         data = load_yaml(str(config_file))
         assert data == {}
 
-    def test_invalid_extension(self, temp_dir: Path):
+    def test_invalid_extension(self, temp_dir: Path) -> None:
         """Test invalid file extension raises error."""
         config_file = temp_dir / "config.txt"
         config_file.write_text("key: value")
@@ -373,7 +374,7 @@ class TestLoadYaml:
         with pytest.raises(ValueError, match="extension"):
             load_yaml(str(config_file))
 
-    def test_invalid_yaml(self, temp_dir: Path):
+    def test_invalid_yaml(self, temp_dir: Path) -> None:
         """Test invalid YAML raises error."""
         config_file = temp_dir / "invalid.yaml"
         config_file.write_text("invalid: yaml: content: [")
@@ -381,7 +382,7 @@ class TestLoadYaml:
         with pytest.raises(ValueError, match="Invalid YAML"):
             load_yaml(str(config_file))
 
-    def test_invalid_json(self, temp_dir: Path):
+    def test_invalid_json(self, temp_dir: Path) -> None:
         """Test invalid JSON raises error."""
         config_file = temp_dir / "invalid.json"
         config_file.write_text('{"key": "value"')  # Missing closing brace
@@ -389,7 +390,7 @@ class TestLoadYaml:
         with pytest.raises(ValueError, match="Invalid JSON"):
             load_yaml(str(config_file))
 
-    def test_empty_json_file(self, temp_dir: Path):
+    def test_empty_json_file(self, temp_dir: Path) -> None:
         """Test loading empty JSON file returns empty dict."""
         config_file = temp_dir / "empty.json"
         config_file.write_text("")
@@ -397,7 +398,7 @@ class TestLoadYaml:
         data = load_yaml(str(config_file))
         assert data == {}
 
-    def test_env_var_expansion_in_yaml(self, temp_dir: Path, monkeypatch):
+    def test_env_var_expansion_in_yaml(self, temp_dir: Path, monkeypatch) -> None:
         """Test environment variable expansion in YAML files."""
         monkeypatch.delenv("TEST_PORT", raising=False)
 
@@ -411,7 +412,7 @@ class TestLoadYaml:
 class TestApplyCliOverrides:
     """Tests for apply_cli_overrides function."""
 
-    def test_simple_override(self):
+    def test_simple_override(self) -> None:
         """Test simple key override."""
         config = {"daemon_port": 60887}
         overrides = {"daemon_port": 9000}
@@ -419,7 +420,7 @@ class TestApplyCliOverrides:
         result = apply_cli_overrides(config, overrides)
         assert result["daemon_port"] == 9000
 
-    def test_nested_override(self):
+    def test_nested_override(self) -> None:
         """Test nested key override with dot notation."""
         config = {"logging": {"level": "info"}}
         overrides = {"logging.level": "debug"}
@@ -427,7 +428,7 @@ class TestApplyCliOverrides:
         result = apply_cli_overrides(config, overrides)
         assert result["logging"]["level"] == "debug"
 
-    def test_creates_nested_path(self):
+    def test_creates_nested_path(self) -> None:
         """Test creating nested path that doesn't exist."""
         config = {}
         overrides = {"logging.level": "debug"}
@@ -435,7 +436,7 @@ class TestApplyCliOverrides:
         result = apply_cli_overrides(config, overrides)
         assert result["logging"]["level"] == "debug"
 
-    def test_none_overrides(self):
+    def test_none_overrides(self) -> None:
         """Test None overrides returns config unchanged."""
         config = {"key": "value"}
         result = apply_cli_overrides(config, None)
@@ -446,13 +447,13 @@ class TestApplyCliOverrides:
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    def test_load_default_config(self, temp_dir: Path, monkeypatch):
+    def test_load_default_config(self, temp_dir: Path, monkeypatch) -> None:
         """Test loading default config when no file exists."""
         monkeypatch.chdir(temp_dir)
         config = load_config(config_file=str(temp_dir / "nonexistent.yaml"))
         assert isinstance(config, DaemonConfig)
 
-    def test_load_with_yaml_file(self, temp_dir: Path):
+    def test_load_with_yaml_file(self, temp_dir: Path) -> None:
         """Test loading config from YAML file."""
         config_file = temp_dir / "config.yaml"
         config_file.write_text(yaml.dump({"daemon_port": 9000}))
@@ -460,7 +461,7 @@ class TestLoadConfig:
         config = load_config(config_file=str(config_file))
         assert config.daemon_port == 9000
 
-    def test_load_with_cli_overrides(self, temp_dir: Path):
+    def test_load_with_cli_overrides(self, temp_dir: Path) -> None:
         """Test loading config with CLI overrides."""
         config_file = temp_dir / "config.yaml"
         config_file.write_text(yaml.dump({"daemon_port": 8000}))
@@ -471,7 +472,7 @@ class TestLoadConfig:
         )
         assert config.daemon_port == 9000
 
-    def test_create_default_config(self, temp_dir: Path):
+    def test_create_default_config(self, temp_dir: Path) -> None:
         """Test creating default config file."""
         config_file = temp_dir / "new_config.yaml"
         assert not config_file.exists()
@@ -479,7 +480,7 @@ class TestLoadConfig:
         load_config(config_file=str(config_file), create_default=True)
         assert config_file.exists()
 
-    def test_load_config_with_none_path_uses_default(self, temp_dir: Path, monkeypatch):
+    def test_load_config_with_none_path_uses_default(self, temp_dir: Path, monkeypatch) -> None:
         """Test loading config with config_file=None uses default path."""
         # Mock the default path to point to our temp directory
         default_path = temp_dir / ".gobby" / "config.yaml"
@@ -500,7 +501,7 @@ class TestLoadConfig:
         config = load_config(config_file=None)
         assert config.daemon_port == 7777
 
-    def test_load_config_validation_error(self, temp_dir: Path):
+    def test_load_config_validation_error(self, temp_dir: Path) -> None:
         """Test load_config raises ValueError on invalid configuration."""
         config_file = temp_dir / "invalid_config.yaml"
         # Write invalid port value (out of range)
@@ -509,7 +510,7 @@ class TestLoadConfig:
         with pytest.raises(ValueError, match="Configuration validation failed"):
             load_config(config_file=str(config_file))
 
-    def test_load_config_validation_error_invalid_type(self, temp_dir: Path):
+    def test_load_config_validation_error_invalid_type(self, temp_dir: Path) -> None:
         """Test load_config raises ValueError on invalid type."""
         config_file = temp_dir / "bad_type.yaml"
         # Write string instead of int for port
@@ -522,7 +523,7 @@ class TestLoadConfig:
 class TestGenerateDefaultConfig:
     """Tests for generate_default_config function."""
 
-    def test_generates_file(self, temp_dir: Path):
+    def test_generates_file(self, temp_dir: Path) -> None:
         """Test generating default config file."""
         config_file = temp_dir / "generated.yaml"
         generate_default_config(str(config_file))
@@ -533,7 +534,7 @@ class TestGenerateDefaultConfig:
         assert "websocket" in content
         assert "logging" in content
 
-    def test_creates_parent_directory(self, temp_dir: Path):
+    def test_creates_parent_directory(self, temp_dir: Path) -> None:
         """Test creating parent directory for config file."""
         config_file = temp_dir / "subdir" / "config.yaml"
         generate_default_config(str(config_file))
@@ -544,7 +545,7 @@ class TestGenerateDefaultConfig:
 class TestSaveConfig:
     """Tests for save_config function."""
 
-    def test_saves_config(self, temp_dir: Path, default_config: DaemonConfig):
+    def test_saves_config(self, temp_dir: Path, default_config: DaemonConfig) -> None:
         """Test saving config to file."""
         config_file = temp_dir / "saved.yaml"
         save_config(default_config, str(config_file))
@@ -553,7 +554,7 @@ class TestSaveConfig:
         content = yaml.safe_load(config_file.read_text())
         assert content["daemon_port"] == default_config.daemon_port
 
-    def test_file_permissions(self, temp_dir: Path, default_config: DaemonConfig):
+    def test_file_permissions(self, temp_dir: Path, default_config: DaemonConfig) -> None:
         """Test saved config has restrictive permissions."""
         config_file = temp_dir / "secure.yaml"
         save_config(default_config, str(config_file))
@@ -562,7 +563,7 @@ class TestSaveConfig:
         mode = config_file.stat().st_mode & 0o777
         assert mode == 0o600
 
-    def test_creates_parent_directory(self, temp_dir: Path, default_config: DaemonConfig):
+    def test_creates_parent_directory(self, temp_dir: Path, default_config: DaemonConfig) -> None:
         """Test creating parent directory when saving."""
         config_file = temp_dir / "nested" / "dir" / "config.yaml"
         save_config(default_config, str(config_file))
@@ -571,7 +572,7 @@ class TestSaveConfig:
 
     def test_save_config_with_none_path_uses_default(
         self, temp_dir: Path, default_config: DaemonConfig, monkeypatch
-    ):
+    ) -> None:
         """Test saving config with config_file=None uses default path."""
         # Patch expanduser to redirect ~/.gobby to temp_dir/.gobby
         original_expanduser = Path.expanduser
@@ -594,7 +595,7 @@ class TestSaveConfig:
 class TestRecommendToolsConfig:
     """Tests for RecommendToolsConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default recommend tools config."""
         config = RecommendToolsConfig()
         assert config.enabled is True
@@ -606,7 +607,7 @@ class TestRecommendToolsConfig:
 class TestImportMCPServerConfig:
     """Tests for ImportMCPServerConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default import MCP server config."""
         config = ImportMCPServerConfig()
         assert config.enabled is True
@@ -618,7 +619,7 @@ class TestImportMCPServerConfig:
 class TestTitleSynthesisConfig:
     """Tests for TitleSynthesisConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default title synthesis config."""
         config = TitleSynthesisConfig()
         assert config.enabled is True
@@ -630,7 +631,7 @@ class TestTitleSynthesisConfig:
 class TestWebSocketBroadcastConfig:
     """Tests for WebSocketBroadcastConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default WebSocket broadcast config."""
         config = WebSocketBroadcastConfig()
         assert config.enabled is True
@@ -641,7 +642,7 @@ class TestWebSocketBroadcastConfig:
 class TestHookExtensionsConfig:
     """Tests for HookExtensionsConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default hook extensions config."""
         config = HookExtensionsConfig()
         assert isinstance(config.websocket, WebSocketBroadcastConfig)
@@ -650,7 +651,7 @@ class TestHookExtensionsConfig:
 class TestTaskExpansionConfig:
     """Tests for TaskExpansionConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default task expansion config."""
         config = TaskExpansionConfig()
         assert config.enabled is True
@@ -662,7 +663,7 @@ class TestTaskExpansionConfig:
 class TestTaskValidationConfig:
     """Tests for TaskValidationConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default task validation config."""
         config = TaskValidationConfig()
         assert config.enabled is True
@@ -674,13 +675,13 @@ class TestTaskValidationConfig:
 class TestWorkflowConfig:
     """Tests for WorkflowConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default workflow config."""
         config = WorkflowConfig()
         assert config.enabled is True
         assert config.timeout == 0.0
 
-    def test_timeout_validation(self):
+    def test_timeout_validation(self) -> None:
         """Test timeout must be positive."""
         with pytest.raises(ValidationError):
             WorkflowConfig(timeout=-1)
@@ -689,7 +690,7 @@ class TestWorkflowConfig:
 class TestMessageTrackingConfig:
     """Tests for MessageTrackingConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default message tracking config."""
         config = MessageTrackingConfig()
         assert config.enabled is True
@@ -698,7 +699,7 @@ class TestMessageTrackingConfig:
         assert config.max_message_length == 10000
         assert config.broadcast_enabled is True
 
-    def test_positive_validation(self):
+    def test_positive_validation(self) -> None:
         """Test positive values validation."""
         with pytest.raises(ValidationError):
             MessageTrackingConfig(poll_interval=0)
@@ -709,7 +710,7 @@ class TestMessageTrackingConfig:
 class TestSessionLifecycleConfig:
     """Tests for SessionLifecycleConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default session lifecycle config."""
         config = SessionLifecycleConfig()
         assert config.stale_session_timeout_hours == 24
@@ -717,7 +718,7 @@ class TestSessionLifecycleConfig:
         assert config.transcript_processing_interval_minutes == 5
         assert config.transcript_processing_batch_size == 10
 
-    def test_positive_validation(self):
+    def test_positive_validation(self) -> None:
         """Test positive values validation."""
         with pytest.raises(ValidationError):
             SessionLifecycleConfig(stale_session_timeout_hours=0)
@@ -726,7 +727,7 @@ class TestSessionLifecycleConfig:
 class TestMemoryConfig:
     """Tests for MemoryConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default memory config."""
         config = MemoryConfig()
         assert config.enabled is True
@@ -735,7 +736,7 @@ class TestMemoryConfig:
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1
 
-    def test_probability_validation(self):
+    def test_probability_validation(self) -> None:
         """Test probability fields validation."""
         with pytest.raises(ValidationError):
             MemoryConfig(importance_threshold=1.5)
@@ -752,12 +753,12 @@ class TestMemoryConfig:
 class TestCompactHandoffConfig:
     """Tests for CompactHandoffConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default compact handoff config."""
         config = CompactHandoffConfig()
         assert config.enabled is True
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom compact handoff config."""
         config = CompactHandoffConfig(enabled=False)
         assert config.enabled is False
@@ -766,7 +767,7 @@ class TestCompactHandoffConfig:
 class TestContextInjectionConfig:
     """Tests for ContextInjectionConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default context injection config."""
         config = ContextInjectionConfig()
         assert config.enabled is True
@@ -775,7 +776,7 @@ class TestContextInjectionConfig:
         assert config.max_content_size == 51200
         assert config.max_transcript_messages == 100
 
-    def test_positive_validation(self):
+    def test_positive_validation(self) -> None:
         """Test positive value validation."""
         with pytest.raises(ValidationError):
             ContextInjectionConfig(max_file_size=0)
@@ -788,7 +789,7 @@ class TestContextInjectionConfig:
 class TestToolSummarizerConfig:
     """Tests for ToolSummarizerConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default tool summarizer config."""
         config = ToolSummarizerConfig()
         assert config.enabled is True
@@ -800,7 +801,7 @@ class TestToolSummarizerConfig:
 class TestGobbyTasksConfig:
     """Tests for GobbyTasksConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default gobby tasks config."""
         config = GobbyTasksConfig()
         assert config.enabled is True
@@ -808,7 +809,7 @@ class TestGobbyTasksConfig:
         assert isinstance(config.expansion, TaskExpansionConfig)
         assert isinstance(config.validation, TaskValidationConfig)
 
-    def test_nested_configs(self):
+    def test_nested_configs(self) -> None:
         """Test nested expansion and validation configs."""
         config = GobbyTasksConfig(
             expansion=TaskExpansionConfig(enabled=False),
@@ -821,7 +822,7 @@ class TestGobbyTasksConfig:
 class TestWebhookEndpointConfig:
     """Tests for WebhookEndpointConfig."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         config = WebhookEndpointConfig(name="test", url="https://example.com")
         assert config.name == "test"
@@ -832,7 +833,7 @@ class TestWebhookEndpointConfig:
         assert config.can_block is False
         assert config.enabled is True
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom webhook config."""
         config = WebhookEndpointConfig(
             name="custom",
@@ -851,7 +852,7 @@ class TestWebhookEndpointConfig:
 class TestWebhooksConfig:
     """Tests for WebhooksConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default webhooks config."""
         config = WebhooksConfig()
         assert config.enabled is True
@@ -859,7 +860,7 @@ class TestWebhooksConfig:
         assert config.default_timeout == 10.0
         assert config.async_dispatch is True
 
-    def test_with_endpoints(self):
+    def test_with_endpoints(self) -> None:
         """Test webhooks config with endpoints."""
         config = WebhooksConfig(
             endpoints=[
@@ -873,13 +874,13 @@ class TestWebhooksConfig:
 class TestPluginItemConfig:
     """Tests for PluginItemConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default plugin item config."""
         config = PluginItemConfig()
         assert config.enabled is True
         assert config.config == {}
 
-    def test_with_custom_config(self):
+    def test_with_custom_config(self) -> None:
         """Test plugin item with custom config."""
         config = PluginItemConfig(
             enabled=False,
@@ -893,7 +894,7 @@ class TestPluginItemConfig:
 class TestPluginsConfig:
     """Tests for PluginsConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default plugins config."""
         config = PluginsConfig()
         assert config.enabled is False  # Disabled by default for security
@@ -901,7 +902,7 @@ class TestPluginsConfig:
         assert config.auto_discover is True
         assert config.plugins == {}
 
-    def test_with_plugin_configs(self):
+    def test_with_plugin_configs(self) -> None:
         """Test plugins config with individual plugins."""
         config = PluginsConfig(
             enabled=True,
@@ -919,13 +920,13 @@ class TestPluginsConfig:
 class TestMemorySyncConfig:
     """Tests for MemorySyncConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default memory sync config."""
         config = MemorySyncConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
 
-    def test_debounce_validation(self):
+    def test_debounce_validation(self) -> None:
         """Test export debounce validation."""
         with pytest.raises(ValidationError):
             MemorySyncConfig(export_debounce=-1.0)
@@ -934,12 +935,12 @@ class TestMemorySyncConfig:
 class TestMetricsConfig:
     """Tests for MetricsConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default metrics config."""
         config = MetricsConfig()
         assert config.list_limit == 10000
 
-    def test_list_limit_validation(self):
+    def test_list_limit_validation(self) -> None:
         """Test list_limit must be non-negative."""
         config = MetricsConfig(list_limit=0)  # 0 is valid (unbounded)
         assert config.list_limit == 0
@@ -957,7 +958,7 @@ class TestMetricsConfig:
 class TestDaemonConfigComposition:
     """Tests for DaemonConfig composition with sub-configs."""
 
-    def test_all_sub_configs_accessible(self):
+    def test_all_sub_configs_accessible(self) -> None:
         """Test all sub-configs are accessible from DaemonConfig."""
         config = DaemonConfig()
 
@@ -1001,7 +1002,7 @@ class TestDaemonConfigComposition:
         assert isinstance(config.memory, MemoryConfig)
         assert isinstance(config.memory_sync, MemorySyncConfig)
 
-    def test_getters_return_correct_configs(self):
+    def test_getters_return_correct_configs(self) -> None:
         """Test all getter methods return correct configs."""
         config = DaemonConfig()
 
@@ -1014,7 +1015,7 @@ class TestDaemonConfigComposition:
         assert config.get_gobby_tasks_config() is config.gobby_tasks
         assert config.get_metrics_config() is config.metrics
 
-    def test_yaml_round_trip(self, temp_dir: Path):
+    def test_yaml_round_trip(self, temp_dir: Path) -> None:
         """Test config survives YAML serialization round-trip."""
         config = DaemonConfig(
             daemon_port=9000,
@@ -1037,7 +1038,7 @@ class TestDaemonConfigComposition:
 class TestAllConfigClassesInstantiate:
     """Verify all 30 config classes can be instantiated with defaults."""
 
-    def test_all_classes_instantiate(self):
+    def test_all_classes_instantiate(self) -> None:
         """Test all config classes instantiate without error."""
         # This test ensures the baseline works before extraction
         configs = [

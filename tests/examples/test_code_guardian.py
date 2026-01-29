@@ -15,6 +15,8 @@ from code_guardian import CodeGuardianPlugin
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -79,14 +81,14 @@ def edit_event() -> HookEvent:
 class TestPluginLifecycle:
     """Tests for plugin initialization and lifecycle."""
 
-    def test_plugin_has_required_attributes(self):
+    def test_plugin_has_required_attributes(self) -> None:
         """Test that plugin has required name and version."""
         plugin = CodeGuardianPlugin()
         assert plugin.name == "code-guardian"
         assert plugin.version == "1.0.0"
         assert "quality" in plugin.description.lower() or "guardian" in plugin.description.lower()
 
-    def test_on_load_sets_config(self):
+    def test_on_load_sets_config(self) -> None:
         """Test that on_load configures the plugin."""
         plugin = CodeGuardianPlugin()
         plugin.on_load(
@@ -101,7 +103,7 @@ class TestPluginLifecycle:
         assert plugin.block_on_error is False
         assert plugin.auto_fix is True
 
-    def test_on_load_uses_defaults(self):
+    def test_on_load_uses_defaults(self) -> None:
         """Test that on_load uses defaults for missing config."""
         plugin = CodeGuardianPlugin()
         plugin.on_load({})
@@ -110,7 +112,7 @@ class TestPluginLifecycle:
         assert plugin.block_on_error is True
         assert plugin.auto_fix is True
 
-    def test_registers_actions_and_conditions(self):
+    def test_registers_actions_and_conditions(self) -> None:
         """Test that plugin registers workflow extensions."""
         plugin = CodeGuardianPlugin()
         plugin.on_load({})
@@ -129,7 +131,7 @@ class TestPluginLifecycle:
 class TestPreHandler:
     """Tests for the BEFORE_TOOL handler."""
 
-    def test_ignores_non_edit_write_tools(self, plugin):
+    def test_ignores_non_edit_write_tools(self, plugin) -> None:
         """Test that non-Edit/Write tools are ignored."""
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
@@ -142,7 +144,7 @@ class TestPreHandler:
         result = plugin.check_before_write(event)
         assert result is None
 
-    def test_ignores_non_python_files(self, plugin):
+    def test_ignores_non_python_files(self, plugin) -> None:
         """Test that non-Python files are ignored."""
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
@@ -161,7 +163,7 @@ class TestPreHandler:
         result = plugin.check_before_write(event)
         assert result is None
 
-    def test_ignores_venv_paths(self, plugin):
+    def test_ignores_venv_paths(self, plugin) -> None:
         """Test that .venv paths are ignored."""
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
@@ -180,12 +182,12 @@ class TestPreHandler:
         result = plugin.check_before_write(event)
         assert result is None
 
-    def test_allows_clean_code(self, plugin, write_event):
+    def test_allows_clean_code(self, plugin, write_event) -> None:
         """Test that clean code is allowed."""
         result = plugin.check_before_write(write_event)
         assert result is None
 
-    def test_blocks_code_with_debug_prints(self, plugin):
+    def test_blocks_code_with_debug_prints(self, plugin) -> None:
         """Test that code with debug prints is blocked."""
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
@@ -206,7 +208,7 @@ class TestPreHandler:
         assert result.decision == "deny"
         assert "blocked" in result.reason.lower()
 
-    def test_allows_print_with_noqa(self, plugin):
+    def test_allows_print_with_noqa(self, plugin) -> None:
         """Test that print with noqa comment is allowed."""
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
@@ -225,7 +227,7 @@ class TestPreHandler:
         result = plugin.check_before_write(event)
         assert result is None
 
-    def test_edit_tool_passes_through(self, plugin, edit_event):
+    def test_edit_tool_passes_through(self, plugin, edit_event) -> None:
         """Test that Edit tool is not checked in pre-handler."""
         # Edit tools are checked in post-handler after the edit is applied
         result = plugin.check_before_write(edit_event)
@@ -240,7 +242,7 @@ class TestPreHandler:
 class TestPostHandler:
     """Tests for the AFTER_TOOL handler."""
 
-    def test_ignores_non_edit_write_tools(self, plugin):
+    def test_ignores_non_edit_write_tools(self, plugin) -> None:
         """Test that post-handler ignores non-Edit/Write tools."""
         event = HookEvent(
             event_type=HookEventType.AFTER_TOOL,
@@ -253,7 +255,7 @@ class TestPostHandler:
         # Should not raise, just return None
         plugin.report_after_tool(event, None)
 
-    def test_checks_file_after_edit(self, plugin):
+    def test_checks_file_after_edit(self, plugin) -> None:
         """Test that files are checked after Edit."""
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
             f.write(b"def foo():\n    pass\n")
@@ -320,11 +322,11 @@ class TestWorkflowActions:
 class TestWorkflowConditions:
     """Tests for workflow conditions."""
 
-    def test_passes_lint_no_checks(self, plugin):
+    def test_passes_lint_no_checks(self, plugin) -> None:
         """Test passes_lint when no files have been checked."""
         assert plugin._condition_passes_lint() is True
 
-    def test_passes_lint_after_failure(self, plugin):
+    def test_passes_lint_after_failure(self, plugin) -> None:
         """Test passes_lint after a failed check."""
         plugin._last_check_results["/tmp/test.py"] = {
             "status": "failed",
@@ -332,12 +334,12 @@ class TestWorkflowConditions:
         }
         assert plugin._condition_passes_lint() is False
 
-    def test_passes_lint_after_success(self, plugin):
+    def test_passes_lint_after_success(self, plugin) -> None:
         """Test passes_lint after a successful check."""
         plugin._last_check_results["/tmp/test.py"] = {"status": "passed"}
         assert plugin._condition_passes_lint() is True
 
-    def test_passes_lint_specific_file(self, plugin):
+    def test_passes_lint_specific_file(self, plugin) -> None:
         """Test passes_lint for a specific file."""
         plugin._last_check_results["/tmp/good.py"] = {"status": "passed"}
         plugin._last_check_results["/tmp/bad.py"] = {"status": "failed", "errors": []}
@@ -355,7 +357,7 @@ class TestWorkflowConditions:
 class TestIntegration:
     """Integration tests with the plugin registry."""
 
-    def test_can_be_registered(self, plugin):
+    def test_can_be_registered(self, plugin) -> None:
         """Test that plugin can be registered in a PluginRegistry."""
         from gobby.hooks.plugins import PluginRegistry
 
@@ -374,7 +376,7 @@ class TestIntegration:
         assert len(after_handlers) == 1
         assert after_handlers[0].priority == 60
 
-    def test_handler_signatures_are_correct(self, plugin):
+    def test_handler_signatures_are_correct(self, plugin) -> None:
         """Test that handler method signatures match expectations."""
         import inspect
 

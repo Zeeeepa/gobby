@@ -8,6 +8,7 @@ from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.mcp_proxy.tools.worktrees import create_worktrees_registry
 
+pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_memory_verbosity_reduction():

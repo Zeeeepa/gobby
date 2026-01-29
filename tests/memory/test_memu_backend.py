@@ -19,6 +19,8 @@ import pytest
 
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test: MemUBackend Import and Factory
 # =============================================================================
@@ -27,13 +29,13 @@ from gobby.memory.protocol import MemoryBackendProtocol, MemoryCapability
 class TestMemUBackendImport:
     """Tests for MemUBackend import and factory."""
 
-    def test_memu_backend_importable(self):
+    def test_memu_backend_importable(self) -> None:
         """Test that MemUBackend can be imported from backends module."""
         from gobby.memory.backends.memu import MemUBackend
 
         assert MemUBackend is not None
 
-    def test_get_backend_supports_memu_type(self):
+    def test_get_backend_supports_memu_type(self) -> None:
         """Test that get_backend factory supports 'memu' type."""
         from gobby.memory.backends import get_backend
 
@@ -48,7 +50,7 @@ class TestMemUBackendImport:
 class TestMemUBackendInstantiation:
     """Tests for MemUBackend instantiation."""
 
-    def test_instantiate_with_defaults(self):
+    def test_instantiate_with_defaults(self) -> None:
         """Test that MemUBackend can be instantiated with defaults."""
         from gobby.memory.backends.memu import MemUBackend
 
@@ -57,7 +59,7 @@ class TestMemUBackendInstantiation:
             backend = MemUBackend()
             assert backend is not None
 
-    def test_instantiate_with_config(self):
+    def test_instantiate_with_config(self) -> None:
         """Test that MemUBackend can be instantiated with config dict."""
         from gobby.memory.backends.memu import MemUBackend
 
@@ -70,7 +72,7 @@ class TestMemUBackendInstantiation:
             backend = MemUBackend(**config)
             assert backend is not None
 
-    def test_instantiate_with_sqlite(self):
+    def test_instantiate_with_sqlite(self) -> None:
         """Test MemUBackend with SQLite configuration."""
         from gobby.memory.backends.memu import MemUBackend
 
@@ -90,7 +92,7 @@ class TestMemUBackendInstantiation:
 class TestMemUBackendProtocol:
     """Tests for MemoryBackendProtocol compliance."""
 
-    def test_implements_protocol(self):
+    def test_implements_protocol(self) -> None:
         """Test that MemUBackend implements MemoryBackendProtocol."""
         from gobby.memory.backends.memu import MemUBackend
 
@@ -98,7 +100,7 @@ class TestMemUBackendProtocol:
             backend = MemUBackend()
             assert isinstance(backend, MemoryBackendProtocol)
 
-    def test_capabilities_returns_set(self):
+    def test_capabilities_returns_set(self) -> None:
         """Test that capabilities() returns a set of MemoryCapability."""
         from gobby.memory.backends.memu import MemUBackend
 
@@ -460,7 +462,7 @@ class TestMemUBackendListMemories:
 class TestMemUBackendClose:
     """Tests for MemUBackend.close() method."""
 
-    def test_close_exists(self):
+    def test_close_exists(self) -> None:
         """Test that close() method exists for cleanup."""
         from gobby.memory.backends.memu import MemUBackend
 
@@ -470,7 +472,7 @@ class TestMemUBackendClose:
             # close() should exist and not raise
             assert hasattr(backend, "close")
 
-    def test_close_is_idempotent(self):
+    def test_close_is_idempotent(self) -> None:
         """Test that close() can be called multiple times safely."""
         from gobby.memory.backends.memu import MemUBackend
 

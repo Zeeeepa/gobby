@@ -12,6 +12,7 @@ import pytest
 
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):
@@ -26,7 +27,7 @@ def project_id(sample_project):
 class TestTaskManagerGitHubCreate:
     """Test creating tasks with GitHub fields."""
 
-    def test_create_task_with_github_issue_number(self, task_manager, project_id):
+    def test_create_task_with_github_issue_number(self, task_manager, project_id) -> None:
         """create_task should accept github_issue_number parameter."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -35,7 +36,7 @@ class TestTaskManagerGitHubCreate:
         )
         assert task.github_issue_number == 42
 
-    def test_create_task_with_github_pr_number(self, task_manager, project_id):
+    def test_create_task_with_github_pr_number(self, task_manager, project_id) -> None:
         """create_task should accept github_pr_number parameter."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -44,7 +45,7 @@ class TestTaskManagerGitHubCreate:
         )
         assert task.github_pr_number == 123
 
-    def test_create_task_with_github_repo(self, task_manager, project_id):
+    def test_create_task_with_github_repo(self, task_manager, project_id) -> None:
         """create_task should accept github_repo parameter."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -53,7 +54,7 @@ class TestTaskManagerGitHubCreate:
         )
         assert task.github_repo == "owner/repo"
 
-    def test_create_task_with_all_github_fields(self, task_manager, project_id):
+    def test_create_task_with_all_github_fields(self, task_manager, project_id) -> None:
         """create_task should accept all GitHub fields together."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -66,7 +67,7 @@ class TestTaskManagerGitHubCreate:
         assert task.github_pr_number == 200
         assert task.github_repo == "myorg/myrepo"
 
-    def test_create_task_github_fields_persist_to_db(self, task_manager, project_id):
+    def test_create_task_github_fields_persist_to_db(self, task_manager, project_id) -> None:
         """GitHub fields should persist to database and be retrievable."""
         created = task_manager.create_task(
             project_id=project_id,
@@ -86,25 +87,25 @@ class TestTaskManagerGitHubCreate:
 class TestTaskManagerGitHubUpdate:
     """Test updating tasks with GitHub fields."""
 
-    def test_update_task_github_issue_number(self, task_manager, project_id):
+    def test_update_task_github_issue_number(self, task_manager, project_id) -> None:
         """update_task should accept github_issue_number parameter."""
         task = task_manager.create_task(project_id=project_id, title="To update")
         updated = task_manager.update_task(task.id, github_issue_number=99)
         assert updated.github_issue_number == 99
 
-    def test_update_task_github_pr_number(self, task_manager, project_id):
+    def test_update_task_github_pr_number(self, task_manager, project_id) -> None:
         """update_task should accept github_pr_number parameter."""
         task = task_manager.create_task(project_id=project_id, title="To update")
         updated = task_manager.update_task(task.id, github_pr_number=88)
         assert updated.github_pr_number == 88
 
-    def test_update_task_github_repo(self, task_manager, project_id):
+    def test_update_task_github_repo(self, task_manager, project_id) -> None:
         """update_task should accept github_repo parameter."""
         task = task_manager.create_task(project_id=project_id, title="To update")
         updated = task_manager.update_task(task.id, github_repo="new/repo")
         assert updated.github_repo == "new/repo"
 
-    def test_update_task_all_github_fields(self, task_manager, project_id):
+    def test_update_task_all_github_fields(self, task_manager, project_id) -> None:
         """update_task should accept all GitHub fields together."""
         task = task_manager.create_task(project_id=project_id, title="To update")
         updated = task_manager.update_task(
@@ -117,7 +118,7 @@ class TestTaskManagerGitHubUpdate:
         assert updated.github_pr_number == 222
         assert updated.github_repo == "updated/repo"
 
-    def test_update_task_clear_github_fields(self, task_manager, project_id):
+    def test_update_task_clear_github_fields(self, task_manager, project_id) -> None:
         """update_task should allow clearing GitHub fields by setting to None."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -135,7 +136,7 @@ class TestTaskManagerGitHubUpdate:
         assert updated.github_issue_number is None
         assert updated.github_repo is None
 
-    def test_update_task_github_fields_persist(self, task_manager, project_id):
+    def test_update_task_github_fields_persist(self, task_manager, project_id) -> None:
         """Updated GitHub fields should persist to database."""
         task = task_manager.create_task(project_id=project_id, title="Persist test")
         task_manager.update_task(
@@ -155,7 +156,7 @@ class TestTaskManagerGitHubUpdate:
 class TestTaskManagerGitHubList:
     """Test listing tasks with GitHub fields."""
 
-    def test_list_tasks_includes_github_fields(self, task_manager, project_id):
+    def test_list_tasks_includes_github_fields(self, task_manager, project_id) -> None:
         """list_tasks should return tasks with GitHub fields populated."""
         task_manager.create_task(
             project_id=project_id,

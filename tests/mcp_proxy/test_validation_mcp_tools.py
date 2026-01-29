@@ -20,6 +20,7 @@ from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.validation import TaskValidator
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -662,35 +663,35 @@ class TestValidationToolsRegistration:
     """Tests verifying validation tools are properly registered."""
 
     @pytest.mark.integration
-    def test_get_validation_history_tool_registered(self, registry_with_patches):
+    def test_get_validation_history_tool_registered(self, registry_with_patches) -> None:
         """Test that get_validation_history is registered as an MCP tool."""
         tools = registry_with_patches.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "get_validation_history" in tool_names
 
     @pytest.mark.integration
-    def test_get_recurring_issues_tool_registered(self, registry_with_patches):
+    def test_get_recurring_issues_tool_registered(self, registry_with_patches) -> None:
         """Test that get_recurring_issues is registered as an MCP tool."""
         tools = registry_with_patches.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "get_recurring_issues" in tool_names
 
     @pytest.mark.integration
-    def test_clear_validation_history_tool_registered(self, registry_with_patches):
+    def test_clear_validation_history_tool_registered(self, registry_with_patches) -> None:
         """Test that clear_validation_history is registered as an MCP tool."""
         tools = registry_with_patches.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "clear_validation_history" in tool_names
 
     @pytest.mark.integration
-    def test_de_escalate_task_tool_registered(self, registry_with_patches):
+    def test_de_escalate_task_tool_registered(self, registry_with_patches) -> None:
         """Test that de_escalate_task is registered as an MCP tool."""
         tools = registry_with_patches.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "de_escalate_task" in tool_names
 
     @pytest.mark.integration
-    def test_get_validation_history_tool_schema(self, registry_with_patches):
+    def test_get_validation_history_tool_schema(self, registry_with_patches) -> None:
         """Test that get_validation_history has correct input schema."""
         schema = registry_with_patches.get_schema("get_validation_history")
 
@@ -701,7 +702,7 @@ class TestValidationToolsRegistration:
         assert "task_id" in input_schema.get("required", [])
 
     @pytest.mark.integration
-    def test_get_recurring_issues_tool_schema(self, registry_with_patches):
+    def test_get_recurring_issues_tool_schema(self, registry_with_patches) -> None:
         """Test that get_recurring_issues has correct input schema."""
         schema = registry_with_patches.get_schema("get_recurring_issues")
 
@@ -714,7 +715,7 @@ class TestValidationToolsRegistration:
             assert input_schema["properties"]["threshold"]["type"] == "integer"
 
     @pytest.mark.integration
-    def test_clear_validation_history_tool_schema(self, registry_with_patches):
+    def test_clear_validation_history_tool_schema(self, registry_with_patches) -> None:
         """Test that clear_validation_history has correct input schema."""
         schema = registry_with_patches.get_schema("clear_validation_history")
 
@@ -724,7 +725,7 @@ class TestValidationToolsRegistration:
         assert "task_id" in input_schema["properties"]
 
     @pytest.mark.integration
-    def test_de_escalate_task_tool_schema(self, registry_with_patches):
+    def test_de_escalate_task_tool_schema(self, registry_with_patches) -> None:
         """Test that de_escalate_task has correct input schema."""
         schema = registry_with_patches.get_schema("de_escalate_task")
 

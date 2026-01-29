@@ -12,11 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 class TestListReadyTasks:
     """Tests for list_ready_tasks MCP tool."""
 
-    def test_list_ready_tasks_basic(self, mock_readiness_registry):
+    def test_list_ready_tasks_basic(self, mock_readiness_registry) -> None:
         """Test basic list_ready_tasks call."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -38,7 +39,7 @@ class TestListReadyTasks:
         assert len(result["tasks"]) == 1
         task_manager.list_ready_tasks.assert_called_once()
 
-    def test_list_ready_tasks_with_filters(self, mock_readiness_registry):
+    def test_list_ready_tasks_with_filters(self, mock_readiness_registry) -> None:
         """Test list_ready_tasks with priority and type filters."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -59,7 +60,7 @@ class TestListReadyTasks:
             project_id="test-project-id",
         )
 
-    def test_list_ready_tasks_parent_filter(self, mock_readiness_registry):
+    def test_list_ready_tasks_parent_filter(self, mock_readiness_registry) -> None:
         """Test filtering ready tasks by parent_task_id."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -75,7 +76,7 @@ class TestListReadyTasks:
         call_args = task_manager.list_ready_tasks.call_args
         assert call_args.kwargs["parent_task_id"] == "parent-123"
 
-    def test_list_ready_tasks_all_projects(self, mock_readiness_registry):
+    def test_list_ready_tasks_all_projects(self, mock_readiness_registry) -> None:
         """Test list_ready_tasks with all_projects=True."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -91,7 +92,7 @@ class TestListReadyTasks:
         call_args = task_manager.list_ready_tasks.call_args
         assert call_args.kwargs["project_id"] is None
 
-    def test_list_ready_tasks_empty_result(self, mock_readiness_registry):
+    def test_list_ready_tasks_empty_result(self, mock_readiness_registry) -> None:
         """Test list_ready_tasks when no tasks are ready."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -110,7 +111,7 @@ class TestListReadyTasks:
 class TestListBlockedTasks:
     """Tests for list_blocked_tasks MCP tool."""
 
-    def test_list_blocked_tasks_basic(self, mock_readiness_registry):
+    def test_list_blocked_tasks_basic(self, mock_readiness_registry) -> None:
         """Test basic list_blocked_tasks call."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -132,7 +133,7 @@ class TestListBlockedTasks:
         assert len(result["tasks"]) == 1
         task_manager.list_blocked_tasks.assert_called_once()
 
-    def test_list_blocked_tasks_parent_filter(self, mock_readiness_registry):
+    def test_list_blocked_tasks_parent_filter(self, mock_readiness_registry) -> None:
         """Test list_blocked_tasks with parent_task_id filter."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -150,7 +151,7 @@ class TestListBlockedTasks:
             project_id="test-project-id",
         )
 
-    def test_list_blocked_tasks_all_projects(self, mock_readiness_registry):
+    def test_list_blocked_tasks_all_projects(self, mock_readiness_registry) -> None:
         """Test list_blocked_tasks with all_projects=True."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -166,7 +167,7 @@ class TestListBlockedTasks:
         call_args = task_manager.list_blocked_tasks.call_args
         assert call_args.kwargs["project_id"] is None
 
-    def test_list_blocked_tasks_empty_result(self, mock_readiness_registry):
+    def test_list_blocked_tasks_empty_result(self, mock_readiness_registry) -> None:
         """Test list_blocked_tasks when no tasks are blocked."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -185,7 +186,7 @@ class TestListBlockedTasks:
 class TestSuggestNextTask:
     """Tests for suggest_next_task MCP tool."""
 
-    def test_suggest_next_task_basic(self, mock_readiness_registry):
+    def test_suggest_next_task_basic(self, mock_readiness_registry) -> None:
         """Test basic suggest_next_task call."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -209,7 +210,7 @@ class TestSuggestNextTask:
         assert result["suggestion"]["id"] == "task-1"
         assert "reason" in result
 
-    def test_suggest_next_task_no_ready_tasks(self, mock_readiness_registry):
+    def test_suggest_next_task_no_ready_tasks(self, mock_readiness_registry) -> None:
         """Test suggest_next_task when no tasks are ready."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -224,7 +225,7 @@ class TestSuggestNextTask:
         assert result["suggestion"] is None
         assert "No ready tasks" in result["reason"]
 
-    def test_suggest_next_task_prefers_leaf_tasks(self, mock_readiness_registry):
+    def test_suggest_next_task_prefers_leaf_tasks(self, mock_readiness_registry) -> None:
         """Test that suggest_next_task prefers leaf tasks over parent tasks at same priority."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -264,7 +265,7 @@ class TestSuggestNextTask:
         # At same priority, leaf task wins due to leaf bonus + other bonuses
         assert result["suggestion"]["id"] == "leaf-1"
 
-    def test_suggest_next_task_with_type_filter(self, mock_readiness_registry):
+    def test_suggest_next_task_with_type_filter(self, mock_readiness_registry) -> None:
         """Test suggest_next_task with task_type filter."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -282,7 +283,7 @@ class TestSuggestNextTask:
             project_id="test-project-id",
         )
 
-    def test_suggest_next_task_scoring(self, mock_readiness_registry):
+    def test_suggest_next_task_scoring(self, mock_readiness_registry) -> None:
         """Test that suggest_next_task uses correct scoring algorithm with priority dominance."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -318,7 +319,7 @@ class TestSuggestNextTask:
         # High priority wins despite fewer bonuses
         assert result["suggestion"]["id"] == "high-priority"
 
-    def test_suggest_next_task_includes_recommended_skills(self, mock_readiness_registry):
+    def test_suggest_next_task_includes_recommended_skills(self, mock_readiness_registry) -> None:
         """Test that suggest_next_task includes recommended_skills based on task category."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -349,7 +350,7 @@ class TestSuggestNextTask:
         # Code category should include gobby-tasks
         assert "gobby-tasks" in result["recommended_skills"]
 
-    def test_suggest_next_task_no_skills_when_no_suggestion(self, mock_readiness_registry):
+    def test_suggest_next_task_no_skills_when_no_suggestion(self, mock_readiness_registry) -> None:
         """Test that recommended_skills is not included when no task is suggested."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -368,7 +369,7 @@ class TestSuggestNextTask:
 class TestReadinessEdgeCases:
     """Tests for edge cases in readiness detection."""
 
-    def test_completed_dependencies_make_task_ready(self, mock_readiness_registry):
+    def test_completed_dependencies_make_task_ready(self, mock_readiness_registry) -> None:
         """Test that tasks become ready when all blocking deps are completed."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -387,7 +388,7 @@ class TestReadinessEdgeCases:
         # Task should appear in ready list
         assert result["count"] == 1
 
-    def test_multiple_blockers_all_must_complete(self, mock_readiness_registry):
+    def test_multiple_blockers_all_must_complete(self, mock_readiness_registry) -> None:
         """Test that a task with multiple blockers needs all to complete."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -405,7 +406,7 @@ class TestReadinessEdgeCases:
 
         assert result["count"] == 1
 
-    def test_circular_dependency_handling(self, mock_readiness_registry):
+    def test_circular_dependency_handling(self, mock_readiness_registry) -> None:
         """Test handling of circular dependencies."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -427,7 +428,7 @@ class TestReadinessEdgeCases:
         # Both tasks should appear as blocked
         assert result["count"] == 2
 
-    def test_missing_dependency_task(self, mock_readiness_registry):
+    def test_missing_dependency_task(self, mock_readiness_registry) -> None:
         """Test handling when a dependency references a non-existent task."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -448,7 +449,7 @@ class TestReadinessEdgeCases:
         assert "count" in ready_result
         assert "count" in blocked_result
 
-    def test_default_limit_values(self, mock_readiness_registry):
+    def test_default_limit_values(self, mock_readiness_registry) -> None:
         """Test default limit values for listing functions."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -472,7 +473,7 @@ class TestReadinessEdgeCases:
 class TestSuggestNextTaskWithParentTaskId:
     """Tests for suggest_next_task with parent filter."""
 
-    def test_suggest_next_task_with_parent_task_id(self, mock_readiness_registry):
+    def test_suggest_next_task_with_parent_task_id(self, mock_readiness_registry) -> None:
         """suggest_next_task respects parent_task_id filter."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -523,7 +524,7 @@ class TestSuggestNextTaskWithParentTaskId:
         assert result["suggestion"] is not None
         assert result["suggestion"]["id"] == "child-1"
 
-    def test_suggest_next_task_with_parent_task_id_no_descendants(self, mock_readiness_registry):
+    def test_suggest_next_task_with_parent_task_id_no_descendants(self, mock_readiness_registry) -> None:
         """suggest_next_task returns nothing if parent filters returns no ready tasks."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
@@ -551,7 +552,7 @@ class TestSuggestNextTaskWithSessionId:
 
     def test_suggest_next_task_with_session_id_scopes_to_session_task(
         self, mock_readiness_registry, monkeypatch
-    ):
+    ) -> None:
         """Test suggest_next_task auto-scopes when session_id has session_task variable."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
         from gobby.workflows.definitions import WorkflowState
@@ -612,7 +613,7 @@ class TestSuggestNextTaskWithSessionId:
 
     def test_suggest_next_task_session_id_ignored_if_parent_task_id_set(
         self, mock_readiness_registry, monkeypatch
-    ):
+    ) -> None:
         """If parent_task_id is explicit, session context is ignored."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
         from gobby.workflows.definitions import WorkflowState
@@ -663,7 +664,7 @@ class TestSuggestNextTaskWithSessionId:
 
     def test_suggest_next_task_session_id_star_does_not_scope(
         self, mock_readiness_registry, monkeypatch
-    ):
+    ) -> None:
         """Test session_task='*' does not scope (allows all tasks)."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
         from gobby.workflows.definitions import WorkflowState
@@ -706,7 +707,7 @@ class TestSuggestNextTaskWithSessionId:
 class TestIsDescendantOf:
     """Tests for is_descendant_of helper function."""
 
-    def test_is_descendant_of_direct_child(self):
+    def test_is_descendant_of_direct_child(self) -> None:
         """Test is_descendant_of for direct parent-child relationship."""
         from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
@@ -721,7 +722,7 @@ class TestIsDescendantOf:
         result = is_descendant_of(task_manager, "child-1", "parent-1")
         assert result is True
 
-    def test_is_descendant_of_grandchild(self):
+    def test_is_descendant_of_grandchild(self) -> None:
         """Test is_descendant_of for grandparent-grandchild relationship."""
         from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
@@ -739,7 +740,7 @@ class TestIsDescendantOf:
         result = is_descendant_of(task_manager, "grandchild-1", "parent-1")
         assert result is True
 
-    def test_is_descendant_of_self(self):
+    def test_is_descendant_of_self(self) -> None:
         """Test is_descendant_of returns True for same task."""
         from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
@@ -748,7 +749,7 @@ class TestIsDescendantOf:
         result = is_descendant_of(task_manager, "task-1", "task-1")
         assert result is True
 
-    def test_is_descendant_of_unrelated(self):
+    def test_is_descendant_of_unrelated(self) -> None:
         """Test is_descendant_of returns False for unrelated tasks."""
         from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
@@ -766,7 +767,7 @@ class TestIsDescendantOf:
         result = is_descendant_of(task_manager, "task-1", "not-my-parent")
         assert result is False
 
-    def test_is_descendant_of_not_found(self):
+    def test_is_descendant_of_not_found(self) -> None:
         """Test is_descendant_of returns False when task not found."""
         from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 

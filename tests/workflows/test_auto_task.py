@@ -21,6 +21,8 @@ from gobby.workflows.definitions import (
 from gobby.workflows.evaluator import ConditionEvaluator, task_tree_complete
 from gobby.workflows.loader import WorkflowLoader
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test task_tree_complete() Helper Function
 # =============================================================================
@@ -34,24 +36,24 @@ class TestTaskTreeComplete:
         """Create a mock task manager for testing."""
         return MagicMock()
 
-    def test_returns_true_for_none_task_id(self, mock_task_manager):
+    def test_returns_true_for_none_task_id(self, mock_task_manager) -> None:
         """Returns True when task_id is None (no task to check)."""
         assert task_tree_complete(mock_task_manager, None) is True
 
-    def test_returns_true_for_empty_task_id(self, mock_task_manager):
+    def test_returns_true_for_empty_task_id(self, mock_task_manager) -> None:
         """Returns True when task_id is empty string."""
         assert task_tree_complete(mock_task_manager, "") is True
 
-    def test_returns_false_when_no_task_manager(self):
+    def test_returns_false_when_no_task_manager(self) -> None:
         """Returns False when task_manager is None."""
         assert task_tree_complete(None, "gt-abc123") is False
 
-    def test_returns_false_when_task_not_found(self, mock_task_manager):
+    def test_returns_false_when_task_not_found(self, mock_task_manager) -> None:
         """Returns False when task is not found."""
         mock_task_manager.get_task.return_value = None
         assert task_tree_complete(mock_task_manager, "gt-missing") is False
 
-    def test_returns_false_when_task_not_closed(self, mock_task_manager):
+    def test_returns_false_when_task_not_closed(self, mock_task_manager) -> None:
         """Returns False when main task is not closed."""
         mock_task = MagicMock()
         mock_task.status = "in_progress"
@@ -59,7 +61,7 @@ class TestTaskTreeComplete:
 
         assert task_tree_complete(mock_task_manager, "gt-abc123") is False
 
-    def test_returns_true_when_task_closed_no_subtasks(self, mock_task_manager):
+    def test_returns_true_when_task_closed_no_subtasks(self, mock_task_manager) -> None:
         """Returns True when task is closed and has no subtasks."""
         mock_task = MagicMock()
         mock_task.status = "closed"
@@ -68,7 +70,7 @@ class TestTaskTreeComplete:
 
         assert task_tree_complete(mock_task_manager, "gt-abc123") is True
 
-    def test_returns_false_when_subtask_not_closed(self, mock_task_manager):
+    def test_returns_false_when_subtask_not_closed(self, mock_task_manager) -> None:
         """Returns False when any subtask is not closed."""
         mock_task = MagicMock()
         mock_task.status = "closed"
@@ -93,7 +95,7 @@ class TestTaskTreeComplete:
 
         assert task_tree_complete(mock_task_manager, "gt-abc123") is False
 
-    def test_returns_true_when_all_subtasks_closed(self, mock_task_manager):
+    def test_returns_true_when_all_subtasks_closed(self, mock_task_manager) -> None:
         """Returns True when all subtasks are closed."""
         mock_task = MagicMock()
         mock_task.status = "closed"
@@ -117,7 +119,7 @@ class TestTaskTreeComplete:
 
         assert task_tree_complete(mock_task_manager, "gt-abc123") is True
 
-    def test_handles_list_of_task_ids(self, mock_task_manager):
+    def test_handles_list_of_task_ids(self, mock_task_manager) -> None:
         """Handles list of task IDs - all must be complete."""
         task1 = MagicMock()
         task1.status = "closed"
@@ -133,7 +135,7 @@ class TestTaskTreeComplete:
 
         assert task_tree_complete(mock_task_manager, ["gt-1", "gt-2"]) is True
 
-    def test_list_returns_false_if_any_incomplete(self, mock_task_manager):
+    def test_list_returns_false_if_any_incomplete(self, mock_task_manager) -> None:
         """Returns False if any task in list is incomplete."""
         task1 = MagicMock()
         task1.status = "closed"
@@ -158,7 +160,7 @@ class TestTaskTreeComplete:
 class TestConditionEvaluatorTaskHelpers:
     """Tests for task helpers in ConditionEvaluator."""
 
-    def test_evaluator_without_task_manager_returns_true(self):
+    def test_evaluator_without_task_manager_returns_true(self) -> None:
         """task_tree_complete returns True when no task_manager registered."""
         evaluator = ConditionEvaluator()
         # No task_manager registered
@@ -168,7 +170,7 @@ class TestConditionEvaluatorTaskHelpers:
 
         assert result is True  # No-op when no task_manager
 
-    def test_evaluator_with_task_manager_evaluates_condition(self):
+    def test_evaluator_with_task_manager_evaluates_condition(self) -> None:
         """task_tree_complete uses registered task_manager."""
         evaluator = ConditionEvaluator()
 
@@ -196,14 +198,14 @@ class TestConditionEvaluatorTaskHelpers:
 class TestPrematureStopHandler:
     """Tests for PrematureStopHandler model."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Default action is guide_continuation with default message."""
         handler = PrematureStopHandler()
         assert handler.action == "guide_continuation"
         assert "suggest_next_task()" in handler.message
         assert handler.condition is None
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Custom values are accepted."""
         handler = PrematureStopHandler(
             action="block",
@@ -223,13 +225,13 @@ class TestPrematureStopHandler:
 class TestWorkflowDefinitionPrematureStop:
     """Tests for on_premature_stop in WorkflowDefinition."""
 
-    def test_definition_without_premature_stop(self):
+    def test_definition_without_premature_stop(self) -> None:
         """WorkflowDefinition defaults to None for on_premature_stop."""
         definition = WorkflowDefinition(name="test", steps=[])
         assert definition.on_premature_stop is None
         assert definition.exit_condition is None
 
-    def test_definition_with_premature_stop(self):
+    def test_definition_with_premature_stop(self) -> None:
         """WorkflowDefinition accepts on_premature_stop."""
         definition = WorkflowDefinition(
             name="test",
@@ -254,7 +256,7 @@ class TestWorkflowDefinitionPrematureStop:
 class TestAutonomousTaskWorkflowLoading:
     """Tests for loading the auto-task workflow."""
 
-    def test_workflow_can_be_loaded(self):
+    def test_workflow_can_be_loaded(self) -> None:
         """auto-task.yaml workflow can be loaded."""
         # Use the actual shared workflows directory
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
@@ -266,7 +268,7 @@ class TestAutonomousTaskWorkflowLoading:
         assert workflow.name == "auto-task"
         assert workflow.type == "step"
 
-    def test_workflow_has_expected_steps(self):
+    def test_workflow_has_expected_steps(self) -> None:
         """auto-task workflow has work and complete steps."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
@@ -278,7 +280,7 @@ class TestAutonomousTaskWorkflowLoading:
         assert "work" in step_names
         assert "complete" in step_names
 
-    def test_workflow_has_exit_condition(self):
+    def test_workflow_has_exit_condition(self) -> None:
         """auto-task workflow has exit_condition defined."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
@@ -289,7 +291,7 @@ class TestAutonomousTaskWorkflowLoading:
         assert workflow.exit_condition is not None
         assert "complete" in workflow.exit_condition
 
-    def test_workflow_has_premature_stop_handler(self):
+    def test_workflow_has_premature_stop_handler(self) -> None:
         """auto-task workflow has on_premature_stop defined."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
@@ -300,7 +302,7 @@ class TestAutonomousTaskWorkflowLoading:
         assert workflow.on_premature_stop is not None
         assert workflow.on_premature_stop.action == "guide_continuation"
 
-    def test_work_step_has_transition_to_complete(self):
+    def test_work_step_has_transition_to_complete(self) -> None:
         """Work step has transition to complete with task_tree_complete condition."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
@@ -356,7 +358,7 @@ class TestActivateWorkflowWithVariables:
         )
         return session.id
 
-    def test_requires_session_id(self, temp_db):
+    def test_requires_session_id(self, temp_db) -> None:
         """Tool requires session_id parameter."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.workflows.loader import WorkflowLoader
@@ -375,7 +377,7 @@ class TestActivateWorkflowWithVariables:
         assert result["success"] is False
         assert "session_id is required" in result["error"]
 
-    def test_creates_workflow_state_with_variables(self, temp_db, session_id):
+    def test_creates_workflow_state_with_variables(self, temp_db, session_id) -> None:
         """Tool creates workflow state with variables merged correctly."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -413,7 +415,7 @@ class TestActivateWorkflowWithVariables:
         assert state.workflow_name == "auto-task"
         assert state.variables.get("session_task") == "gt-abc123"
 
-    def test_merges_workflow_defaults_with_passed_variables(self, temp_db, session_id):
+    def test_merges_workflow_defaults_with_passed_variables(self, temp_db, session_id) -> None:
         """Passed variables override workflow defaults."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -443,7 +445,7 @@ class TestActivateWorkflowWithVariables:
         assert result["variables"]["premature_stop_max_attempts"] == 5
         assert result["variables"]["session_task"] == "gt-abc123"
 
-    def test_rejects_existing_step_workflow(self, temp_db, session_id):
+    def test_rejects_existing_step_workflow(self, temp_db, session_id) -> None:
         """Tool rejects activation if step workflow already active."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager

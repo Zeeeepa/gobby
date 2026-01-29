@@ -112,7 +112,7 @@ def cleanup_registry(mock_task_manager, mock_worktree_storage, mock_git_manager)
 class TestRegisterCleanup:
     """Tests for register_cleanup function."""
 
-    def test_registers_approve_and_cleanup_tool(self, cleanup_registry):
+    def test_registers_approve_and_cleanup_tool(self, cleanup_registry) -> None:
         """Test that approve_and_cleanup tool is registered."""
         tools = cleanup_registry.list_tools()
         tool_names = [t["name"] for t in tools]

@@ -5,6 +5,7 @@ import pytest
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_context():

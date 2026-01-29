@@ -18,6 +18,7 @@ from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -342,7 +343,7 @@ class TestClaimTaskTool:
 class TestClaimTaskSchema:
     """Tests for claim_task tool schema."""
 
-    def test_claim_task_registered_in_registry(self, mock_task_manager, mock_sync_manager):
+    def test_claim_task_registered_in_registry(self, mock_task_manager, mock_sync_manager) -> None:
         """Test that claim_task is registered in the task registry."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -351,7 +352,7 @@ class TestClaimTaskSchema:
 
         assert "claim_task" in tool_names, "claim_task tool not registered"
 
-    def test_claim_task_schema_has_required_fields(self, mock_task_manager, mock_sync_manager):
+    def test_claim_task_schema_has_required_fields(self, mock_task_manager, mock_sync_manager) -> None:
         """Test claim_task schema includes required fields."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -372,7 +373,7 @@ class TestClaimTaskSchema:
         assert "task_id" in schema["inputSchema"]["required"]
         assert "session_id" in schema["inputSchema"]["required"]
 
-    def test_claim_task_schema_has_description(self, mock_task_manager, mock_sync_manager):
+    def test_claim_task_schema_has_description(self, mock_task_manager, mock_sync_manager) -> None:
         """Test claim_task has helpful description."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 

@@ -12,11 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 class TestAddDependency:
     """Tests for add_dependency MCP tool."""
 
-    def test_add_dependency_success(self, mock_task_registry):
+    def test_add_dependency_success(self, mock_task_registry) -> None:
         """Test successful dependency addition."""
         # Import from future module location
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
@@ -43,7 +44,7 @@ class TestAddDependency:
         assert result["depends_on"] == "task-2"
         dep_manager.add_dependency.assert_called_once_with("task-1", "task-2", "blocks")
 
-    def test_add_dependency_default_type(self, mock_task_registry):
+    def test_add_dependency_default_type(self, mock_task_registry) -> None:
         """Test add_dependency uses 'blocks' as default dep_type."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -56,7 +57,7 @@ class TestAddDependency:
         # Should default to "blocks"
         dep_manager.add_dependency.assert_called_with("task-1", "task-2", "blocks")
 
-    def test_add_dependency_cycle_error(self, mock_task_registry):
+    def test_add_dependency_cycle_error(self, mock_task_registry) -> None:
         """Test add_dependency returns error on cycle detection."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -71,7 +72,7 @@ class TestAddDependency:
         assert "error" in result
         assert "Cycle" in result["error"]
 
-    def test_add_dependency_self_reference_error(self, mock_task_registry):
+    def test_add_dependency_self_reference_error(self, mock_task_registry) -> None:
         """Test add_dependency rejects self-dependencies."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -89,7 +90,7 @@ class TestAddDependency:
 class TestRemoveDependency:
     """Tests for remove_dependency MCP tool."""
 
-    def test_remove_dependency_success(self, mock_task_registry):
+    def test_remove_dependency_success(self, mock_task_registry) -> None:
         """Test successful dependency removal."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -105,7 +106,7 @@ class TestRemoveDependency:
         assert result["task_id"] == "task-1"
         assert result["depends_on"] == "task-2"
 
-    def test_remove_dependency_not_found(self, mock_task_registry):
+    def test_remove_dependency_not_found(self, mock_task_registry) -> None:
         """Test removing non-existent dependency."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -124,7 +125,7 @@ class TestRemoveDependency:
 class TestGetDependencyTree:
     """Tests for get_dependency_tree MCP tool."""
 
-    def test_get_dependency_tree_both_directions(self, mock_task_registry):
+    def test_get_dependency_tree_both_directions(self, mock_task_registry) -> None:
         """Test getting full dependency tree."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -143,7 +144,7 @@ class TestGetDependencyTree:
         assert "blockers" in result
         assert "blocking" in result
 
-    def test_get_dependency_tree_blockers_only(self, mock_task_registry):
+    def test_get_dependency_tree_blockers_only(self, mock_task_registry) -> None:
         """Test getting only blockers (upstream dependencies)."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -162,7 +163,7 @@ class TestGetDependencyTree:
         assert "blockers" in result
         assert "blocking" not in result
 
-    def test_get_dependency_tree_blocking_only(self, mock_task_registry):
+    def test_get_dependency_tree_blocking_only(self, mock_task_registry) -> None:
         """Test getting only blocking (downstream dependents)."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -181,7 +182,7 @@ class TestGetDependencyTree:
         assert "blocking" in result
         assert "blockers" not in result
 
-    def test_get_dependency_tree_deep_nesting(self, mock_task_registry):
+    def test_get_dependency_tree_deep_nesting(self, mock_task_registry) -> None:
         """Test dependency tree with deep nesting."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -209,7 +210,7 @@ class TestGetDependencyTree:
 class TestCheckDependencyCycles:
     """Tests for check_dependency_cycles MCP tool."""
 
-    def test_check_cycles_none_found(self, mock_task_registry):
+    def test_check_cycles_none_found(self, mock_task_registry) -> None:
         """Test when no cycles exist."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -224,7 +225,7 @@ class TestCheckDependencyCycles:
         assert result["has_cycles"] is False
         assert "cycles" not in result or result.get("cycles") == []
 
-    def test_check_cycles_found(self, mock_task_registry):
+    def test_check_cycles_found(self, mock_task_registry) -> None:
         """Test when cycles are detected."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -240,7 +241,7 @@ class TestCheckDependencyCycles:
         assert "cycles" in result
         assert len(result["cycles"]) == 1
 
-    def test_check_cycles_multiple(self, mock_task_registry):
+    def test_check_cycles_multiple(self, mock_task_registry) -> None:
         """Test detection of multiple cycles."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -262,7 +263,7 @@ class TestCheckDependencyCycles:
 class TestEdgeCases:
     """Tests for edge cases in dependency management."""
 
-    def test_empty_dependency_tree(self, mock_task_registry):
+    def test_empty_dependency_tree(self, mock_task_registry) -> None:
         """Test task with no dependencies."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
@@ -281,7 +282,7 @@ class TestEdgeCases:
         assert result.get("blockers", []) == []
         assert result.get("blocking", []) == []
 
-    def test_dependency_type_variations(self, mock_task_registry):
+    def test_dependency_type_variations(self, mock_task_registry) -> None:
         """Test different dependency types."""
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 

@@ -7,6 +7,7 @@ import pytest
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.database import LocalDatabase
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_db(tmp_path) -> LocalDatabase:

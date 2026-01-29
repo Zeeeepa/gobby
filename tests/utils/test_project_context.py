@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.utils.project_context import (
     find_project_root,
     get_project_context,
@@ -12,11 +14,12 @@ from gobby.utils.project_context import (
     get_verification_config,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestFindProjectRoot:
     """Tests for find_project_root function."""
 
-    def test_find_project_root_from_project_dir(self, tmp_path: Path):
+    def test_find_project_root_from_project_dir(self, tmp_path: Path) -> None:
         """Test finding project root when starting from project directory."""
         # Create project structure
         gobby_dir = tmp_path / ".gobby"
@@ -28,7 +31,7 @@ class TestFindProjectRoot:
         # Handle macOS symlinks (/var -> /private/var)
         assert result.resolve() == tmp_path.resolve()
 
-    def test_find_project_root_from_nested_subdir(self, tmp_path: Path):
+    def test_find_project_root_from_nested_subdir(self, tmp_path: Path) -> None:
         """Test finding project root from deeply nested subdirectory."""
         # Create project structure
         gobby_dir = tmp_path / ".gobby"
@@ -43,7 +46,7 @@ class TestFindProjectRoot:
         assert result is not None
         assert result.resolve() == tmp_path.resolve()
 
-    def test_find_project_root_not_found(self, tmp_path: Path, monkeypatch):
+    def test_find_project_root_not_found(self, tmp_path: Path, monkeypatch) -> None:
         """Test finding project root when no .gobby/project.json exists."""
         # Isolate test from parent directories by making exists() return False for paths outside tmp_path
         original_exists = Path.exists
@@ -60,7 +63,7 @@ class TestFindProjectRoot:
         result = find_project_root(tmp_path)
         assert result is None
 
-    def test_find_project_root_with_none_uses_cwd(self):
+    def test_find_project_root_with_none_uses_cwd(self) -> None:
         """Test that None cwd defaults to current working directory."""
         with patch("pathlib.Path.cwd") as mock_cwd:
             mock_path = MagicMock(spec=Path)
@@ -83,7 +86,7 @@ class TestFindProjectRoot:
 
     def test_find_project_root_gobby_dir_exists_but_no_project_json(
         self, tmp_path: Path, monkeypatch
-    ):
+    ) -> None:
         """Test that .gobby dir without project.json is not considered a project root."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -103,7 +106,7 @@ class TestFindProjectRoot:
         result = find_project_root(tmp_path)
         assert result is None
 
-    def test_find_project_root_at_filesystem_root(self, tmp_path: Path, monkeypatch):
+    def test_find_project_root_at_filesystem_root(self, tmp_path: Path, monkeypatch) -> None:
         """Test finding project root traverses up to filesystem root without error."""
         # Create directory without .gobby
         subdir = tmp_path / "some" / "path"
@@ -128,7 +131,7 @@ class TestFindProjectRoot:
 class TestGetProjectContext:
     """Tests for get_project_context function."""
 
-    def test_get_project_context_success(self, tmp_path: Path):
+    def test_get_project_context_success(self, tmp_path: Path) -> None:
         """Test getting project context with valid project.json."""
         # Create project structure
         gobby_dir = tmp_path / ".gobby"
@@ -150,7 +153,7 @@ class TestGetProjectContext:
         assert "project_path" in result
         assert Path(result["project_path"]).resolve() == tmp_path.resolve()
 
-    def test_get_project_context_not_found(self, tmp_path: Path, monkeypatch):
+    def test_get_project_context_not_found(self, tmp_path: Path, monkeypatch) -> None:
         """Test getting project context when no project exists."""
         # Isolate test from parent directories
         original_exists = Path.exists
@@ -166,7 +169,7 @@ class TestGetProjectContext:
         result = get_project_context(tmp_path)
         assert result is None
 
-    def test_get_project_context_invalid_json(self, tmp_path: Path):
+    def test_get_project_context_invalid_json(self, tmp_path: Path) -> None:
         """Test getting project context with malformed JSON."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -175,7 +178,7 @@ class TestGetProjectContext:
         result = get_project_context(tmp_path)
         assert result is None
 
-    def test_get_project_context_empty_file(self, tmp_path: Path):
+    def test_get_project_context_empty_file(self, tmp_path: Path) -> None:
         """Test getting project context with empty project.json file."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -184,7 +187,7 @@ class TestGetProjectContext:
         result = get_project_context(tmp_path)
         assert result is None
 
-    def test_get_project_context_with_verification(self, tmp_path: Path):
+    def test_get_project_context_with_verification(self, tmp_path: Path) -> None:
         """Test getting project context that includes verification config."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -206,7 +209,7 @@ class TestGetProjectContext:
         assert result["verification"]["unit_tests"] == "pytest tests/"
         assert result["verification"]["type_check"] == "mypy src/"
 
-    def test_get_project_context_permission_error(self, tmp_path: Path):
+    def test_get_project_context_permission_error(self, tmp_path: Path) -> None:
         """Test getting project context when file read fails."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -218,7 +221,7 @@ class TestGetProjectContext:
 
         assert result is None
 
-    def test_get_project_context_from_subdirectory(self, tmp_path: Path):
+    def test_get_project_context_from_subdirectory(self, tmp_path: Path) -> None:
         """Test getting project context from a subdirectory."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -238,43 +241,43 @@ class TestGetProjectContext:
 class TestGetProjectMcpDir:
     """Tests for get_project_mcp_dir function."""
 
-    def test_get_project_mcp_dir_simple_name(self):
+    def test_get_project_mcp_dir_simple_name(self) -> None:
         """Test getting MCP directory with simple project name."""
         result = get_project_mcp_dir("myproject")
         expected = Path.home() / ".gobby" / "projects" / "myproject"
         assert result == expected
 
-    def test_get_project_mcp_dir_with_spaces(self):
+    def test_get_project_mcp_dir_with_spaces(self) -> None:
         """Test that spaces in project name are converted to underscores."""
         result = get_project_mcp_dir("My Project Name")
         expected = Path.home() / ".gobby" / "projects" / "my_project_name"
         assert result == expected
 
-    def test_get_project_mcp_dir_already_lowercase(self):
+    def test_get_project_mcp_dir_already_lowercase(self) -> None:
         """Test that lowercase names remain unchanged except spaces."""
         result = get_project_mcp_dir("test project")
         expected = Path.home() / ".gobby" / "projects" / "test_project"
         assert result == expected
 
-    def test_get_project_mcp_dir_mixed_case(self):
+    def test_get_project_mcp_dir_mixed_case(self) -> None:
         """Test that mixed case is converted to lowercase."""
         result = get_project_mcp_dir("MyProjectName")
         expected = Path.home() / ".gobby" / "projects" / "myprojectname"
         assert result == expected
 
-    def test_get_project_mcp_dir_with_dashes(self):
+    def test_get_project_mcp_dir_with_dashes(self) -> None:
         """Test that dashes are preserved in project name."""
         result = get_project_mcp_dir("my-project")
         expected = Path.home() / ".gobby" / "projects" / "my-project"
         assert result == expected
 
-    def test_get_project_mcp_dir_with_underscores(self):
+    def test_get_project_mcp_dir_with_underscores(self) -> None:
         """Test that underscores are preserved in project name."""
         result = get_project_mcp_dir("my_project")
         expected = Path.home() / ".gobby" / "projects" / "my_project"
         assert result == expected
 
-    def test_get_project_mcp_dir_empty_string(self):
+    def test_get_project_mcp_dir_empty_string(self) -> None:
         """Test handling of empty project name."""
         result = get_project_mcp_dir("")
         expected = Path.home() / ".gobby" / "projects" / ""
@@ -284,19 +287,19 @@ class TestGetProjectMcpDir:
 class TestGetProjectMcpConfigPath:
     """Tests for get_project_mcp_config_path function."""
 
-    def test_get_project_mcp_config_path_simple(self):
+    def test_get_project_mcp_config_path_simple(self) -> None:
         """Test getting MCP config path with simple name."""
         result = get_project_mcp_config_path("test-project")
         expected = Path.home() / ".gobby" / "projects" / "test-project" / ".mcp.json"
         assert result == expected
 
-    def test_get_project_mcp_config_path_with_spaces(self):
+    def test_get_project_mcp_config_path_with_spaces(self) -> None:
         """Test that spaces are handled in config path."""
         result = get_project_mcp_config_path("Test Project")
         expected = Path.home() / ".gobby" / "projects" / "test_project" / ".mcp.json"
         assert result == expected
 
-    def test_get_project_mcp_config_path_uses_get_project_mcp_dir(self):
+    def test_get_project_mcp_config_path_uses_get_project_mcp_dir(self) -> None:
         """Test that config path is built on top of MCP dir."""
         project_name = "sample-project"
         dir_result = get_project_mcp_dir(project_name)
@@ -308,7 +311,7 @@ class TestGetProjectMcpConfigPath:
 class TestGetVerificationConfig:
     """Tests for get_verification_config function."""
 
-    def test_get_verification_config_success(self, tmp_path: Path):
+    def test_get_verification_config_success(self, tmp_path: Path) -> None:
         """Test getting verification config with valid data."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -334,7 +337,7 @@ class TestGetVerificationConfig:
         assert result.integration == "uv run pytest tests/integration/"
         assert result.custom == {"e2e": "playwright test"}
 
-    def test_get_verification_config_partial_fields(self, tmp_path: Path):
+    def test_get_verification_config_partial_fields(self, tmp_path: Path) -> None:
         """Test getting verification config with only some fields populated."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -356,7 +359,7 @@ class TestGetVerificationConfig:
         assert result.integration is None
         assert result.custom == {}
 
-    def test_get_verification_config_empty_verification(self, tmp_path: Path):
+    def test_get_verification_config_empty_verification(self, tmp_path: Path) -> None:
         """Test getting verification config with empty verification section."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -373,7 +376,7 @@ class TestGetVerificationConfig:
         # (the code checks `if not verification_data:`)
         assert result is None
 
-    def test_get_verification_config_no_verification_section(self, tmp_path: Path):
+    def test_get_verification_config_no_verification_section(self, tmp_path: Path) -> None:
         """Test getting verification config when verification key is missing."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -386,12 +389,12 @@ class TestGetVerificationConfig:
         result = get_verification_config(tmp_path)
         assert result is None
 
-    def test_get_verification_config_no_project(self, tmp_path: Path):
+    def test_get_verification_config_no_project(self, tmp_path: Path) -> None:
         """Test getting verification config when no project exists."""
         result = get_verification_config(tmp_path)
         assert result is None
 
-    def test_get_verification_config_invalid_verification_data(self, tmp_path: Path):
+    def test_get_verification_config_invalid_verification_data(self, tmp_path: Path) -> None:
         """Test getting verification config with invalid verification structure."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -409,7 +412,7 @@ class TestGetVerificationConfig:
         # Pydantic validation should fail, returning None
         assert result is None
 
-    def test_get_verification_config_null_verification(self, tmp_path: Path):
+    def test_get_verification_config_null_verification(self, tmp_path: Path) -> None:
         """Test getting verification config when verification is null."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -423,7 +426,7 @@ class TestGetVerificationConfig:
         result = get_verification_config(tmp_path)
         assert result is None
 
-    def test_get_verification_config_with_none_cwd(self):
+    def test_get_verification_config_with_none_cwd(self) -> None:
         """Test get_verification_config with None cwd parameter."""
         with patch(
             "gobby.utils.project_context.get_project_context", return_value=None
@@ -433,7 +436,7 @@ class TestGetVerificationConfig:
             mock_ctx.assert_called_once_with(None)
             assert result is None
 
-    def test_get_verification_config_custom_commands(self, tmp_path: Path):
+    def test_get_verification_config_custom_commands(self, tmp_path: Path) -> None:
         """Test verification config with multiple custom commands."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -462,7 +465,7 @@ class TestGetVerificationConfig:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    def test_project_json_is_directory(self, tmp_path: Path):
+    def test_project_json_is_directory(self, tmp_path: Path) -> None:
         """Test handling when project.json is a directory instead of file."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -473,7 +476,7 @@ class TestEdgeCases:
         result = get_project_context(tmp_path)
         assert result is None
 
-    def test_unicode_project_name(self, tmp_path: Path):
+    def test_unicode_project_name(self, tmp_path: Path) -> None:
         """Test project context with unicode characters in name."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -487,7 +490,7 @@ class TestEdgeCases:
         assert result is not None
         assert "emoji" in result["name"]
 
-    def test_large_project_json(self, tmp_path: Path):
+    def test_large_project_json(self, tmp_path: Path) -> None:
         """Test handling large project.json file."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -502,7 +505,7 @@ class TestEdgeCases:
         assert result is not None
         assert result["id"] == "test-id"
 
-    def test_symlinked_gobby_dir(self, tmp_path: Path):
+    def test_symlinked_gobby_dir(self, tmp_path: Path) -> None:
         """Test finding project root with symlinked .gobby directory."""
         # Create actual .gobby dir elsewhere
         actual_gobby = tmp_path / "actual_gobby"
@@ -519,7 +522,7 @@ class TestEdgeCases:
         assert result is not None
         assert result.resolve() == project_dir.resolve()
 
-    def test_read_reflects_updated_file(self, tmp_path: Path):
+    def test_read_reflects_updated_file(self, tmp_path: Path) -> None:
         """Test that reading project context reflects file updates."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
@@ -539,7 +542,7 @@ class TestEdgeCases:
         assert result2 is not None
         assert result2["id"] == "updated"
 
-    def test_special_characters_in_path(self, tmp_path: Path):
+    def test_special_characters_in_path(self, tmp_path: Path) -> None:
         """Test handling paths with special characters."""
         # Create directory with special characters
         special_dir = tmp_path / "project with spaces & special (chars)"

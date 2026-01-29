@@ -16,6 +16,7 @@ import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
+pytestmark = pytest.mark.unit
 
 class MockInterSessionMessage:
     """Mock inter-session message object for tests."""
@@ -105,7 +106,7 @@ def messaging_registry(mock_message_manager, mock_session_manager):
 class TestAddMessagingTools:
     """Tests for add_messaging_tools function."""
 
-    def test_adds_all_expected_tools(self, messaging_registry):
+    def test_adds_all_expected_tools(self, messaging_registry) -> None:
         """Test that all messaging tools are registered."""
         tools = messaging_registry.list_tools()
         tool_names = [t["name"] for t in tools]

@@ -13,6 +13,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
 from gobby.storage.migrations import run_migrations
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path):
@@ -37,7 +38,7 @@ def memory_manager(db):
 class TestMemoryMediaField:
     """Tests for Memory dataclass media field."""
 
-    def test_memory_has_media_field(self):
+    def test_memory_has_media_field(self) -> None:
         """Test that Memory dataclass has an optional media field."""
         memory = Memory(
             id="mm-test",
@@ -50,7 +51,7 @@ class TestMemoryMediaField:
         assert hasattr(memory, "media")
         assert memory.media is None
 
-    def test_memory_with_media_value(self):
+    def test_memory_with_media_value(self) -> None:
         """Test that Memory can be created with media value."""
         media_data = json.dumps(
             {
@@ -69,7 +70,7 @@ class TestMemoryMediaField:
         )
         assert memory.media == media_data
 
-    def test_memory_to_dict_includes_media(self):
+    def test_memory_to_dict_includes_media(self) -> None:
         """Test that Memory.to_dict() includes media field."""
         media_data = json.dumps({"path": "/img.png", "mime_type": "image/png"})
         memory = Memory(
@@ -84,7 +85,7 @@ class TestMemoryMediaField:
         assert "media" in result
         assert result["media"] == media_data
 
-    def test_memory_to_dict_media_none(self):
+    def test_memory_to_dict_media_none(self) -> None:
         """Test that Memory.to_dict() includes media as None when not set."""
         memory = Memory(
             id="mm-test",
@@ -106,14 +107,14 @@ class TestMemoryMediaField:
 class TestMediaColumnMigration:
     """Tests for media column in database schema."""
 
-    def test_memories_table_has_media_column(self, db):
+    def test_memories_table_has_media_column(self, db) -> None:
         """Test that memories table has a media column after migration."""
         # Query table schema
         cursor = db.execute("PRAGMA table_info(memories)")
         columns = {row[1] for row in cursor.fetchall()}
         assert "media" in columns
 
-    def test_media_column_allows_null(self, db):
+    def test_media_column_allows_null(self, db) -> None:
         """Test that media column allows NULL values."""
         # Insert a memory without media
         db.execute("""
@@ -134,7 +135,7 @@ class TestMediaColumnMigration:
 class TestMemoryFromRowMedia:
     """Tests for Memory.from_row() handling media column."""
 
-    def test_from_row_with_media(self, db):
+    def test_from_row_with_media(self, db) -> None:
         """Test that Memory.from_row() correctly reads media from database row."""
         media_data = json.dumps(
             {
@@ -160,7 +161,7 @@ class TestMemoryFromRowMedia:
         memory = Memory.from_row(row)
         assert memory.media == media_data
 
-    def test_from_row_without_media(self, db):
+    def test_from_row_without_media(self, db) -> None:
         """Test that Memory.from_row() handles NULL media gracefully."""
         db.execute("""
             INSERT INTO memories (id, memory_type, content, created_at, updated_at,
@@ -185,7 +186,7 @@ class TestMemoryFromRowMedia:
 class TestMemoryManagerMedia:
     """Tests for LocalMemoryManager media support."""
 
-    def test_create_memory_with_media(self, memory_manager):
+    def test_create_memory_with_media(self, memory_manager) -> None:
         """Test creating a memory with media attachment."""
         media_data = json.dumps(
             {
@@ -201,7 +202,7 @@ class TestMemoryManagerMedia:
         )
         assert memory.media == media_data
 
-    def test_create_memory_without_media(self, memory_manager):
+    def test_create_memory_without_media(self, memory_manager) -> None:
         """Test creating a memory without media (default behavior)."""
         memory = memory_manager.create_memory(
             content="Simple text memory",
@@ -209,7 +210,7 @@ class TestMemoryManagerMedia:
         )
         assert memory.media is None
 
-    def test_get_memory_returns_media(self, memory_manager):
+    def test_get_memory_returns_media(self, memory_manager) -> None:
         """Test that get_memory returns the media field."""
         media_data = json.dumps({"path": "/img.png"})
         created = memory_manager.create_memory(
@@ -219,7 +220,7 @@ class TestMemoryManagerMedia:
         retrieved = memory_manager.get_memory(created.id)
         assert retrieved.media == media_data
 
-    def test_update_memory_media(self, memory_manager):
+    def test_update_memory_media(self, memory_manager) -> None:
         """Test updating a memory's media field."""
         # Create without media
         created = memory_manager.create_memory(content="No media yet")
@@ -230,7 +231,7 @@ class TestMemoryManagerMedia:
         updated = memory_manager.update_memory(created.id, media=media_data)
         assert updated.media == media_data
 
-    def test_update_memory_remove_media(self, memory_manager):
+    def test_update_memory_remove_media(self, memory_manager) -> None:
         """Test removing media from a memory."""
         media_data = json.dumps({"path": "/img.png"})
         created = memory_manager.create_memory(
@@ -244,7 +245,7 @@ class TestMemoryManagerMedia:
         updated = memory_manager.update_memory(created.id, media=None)
         assert updated.media is None
 
-    def test_list_memories_includes_media(self, memory_manager):
+    def test_list_memories_includes_media(self, memory_manager) -> None:
         """Test that list_memories returns memories with media field."""
         media_data = json.dumps({"path": "/img.png"})
         memory_manager.create_memory(content="With media", media=media_data)

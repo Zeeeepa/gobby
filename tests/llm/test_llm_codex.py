@@ -10,6 +10,7 @@ from gobby.config.app import DaemonConfig
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def codex_config() -> DaemonConfig:
@@ -38,7 +39,7 @@ class TestCodexProviderInit:
 
     def test_init_subscription_mode_missing_auth_json(
         self, codex_config: DaemonConfig, tmp_path: Path
-    ):
+    ) -> None:
         """Test initialization with subscription mode but no auth.json."""
         with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
             from gobby.llm.codex import CodexProvider
@@ -47,7 +48,7 @@ class TestCodexProviderInit:
 
             assert provider._client is None
 
-    def test_init_with_auth_json(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_init_with_auth_json(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test initialization with valid auth.json."""
         # Set up mock auth.json
         codex_dir = tmp_path / ".codex"
@@ -67,7 +68,7 @@ class TestCodexProviderInit:
 class TestCodexProviderProperties:
     """Tests for CodexProvider properties."""
 
-    def test_provider_name(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_provider_name(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test provider_name property."""
         with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
             from gobby.llm.codex import CodexProvider
@@ -75,7 +76,7 @@ class TestCodexProviderProperties:
             provider = CodexProvider(codex_config)
             assert provider.provider_name == "codex"
 
-    def test_get_model_summary(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_get_model_summary(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test _get_model for summary task."""
         with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
             from gobby.llm.codex import CodexProvider
@@ -83,7 +84,7 @@ class TestCodexProviderProperties:
             provider = CodexProvider(codex_config)
             assert provider._get_model("summary") == "gpt-4o"
 
-    def test_get_model_title(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_get_model_title(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test _get_model for title task."""
         with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
             from gobby.llm.codex import CodexProvider
@@ -91,7 +92,7 @@ class TestCodexProviderProperties:
             provider = CodexProvider(codex_config)
             assert provider._get_model("title") == "gpt-4o-mini"
 
-    def test_get_model_unknown(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_get_model_unknown(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test _get_model for unknown task defaults to gpt-4o."""
         with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
             from gobby.llm.codex import CodexProvider
@@ -168,7 +169,7 @@ class TestCodexProviderGetApiKey:
 
     def test_get_api_key_subscription_corrupt_json(
         self, codex_config: DaemonConfig, tmp_path: Path
-    ):
+    ) -> None:
         """Test _get_api_key handles corrupt auth.json."""
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir()
@@ -182,7 +183,7 @@ class TestCodexProviderGetApiKey:
             # Should handle corrupt JSON gracefully
             assert provider._client is None
 
-    def test_get_api_key_subscription_missing_key(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_get_api_key_subscription_missing_key(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
         """Test _get_api_key handles auth.json without OPENAI_API_KEY."""
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir()

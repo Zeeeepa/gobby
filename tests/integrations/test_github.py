@@ -13,6 +13,7 @@ import pytest
 
 from gobby.integrations.github import GitHubIntegration
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_mcp_manager():
@@ -34,7 +35,7 @@ def github_integration(mock_mcp_manager):
 class TestGitHubIntegrationAvailability:
     """Test is_available() method."""
 
-    def test_is_available_returns_true_when_configured_and_connected(self, mock_mcp_manager):
+    def test_is_available_returns_true_when_configured_and_connected(self, mock_mcp_manager) -> None:
         """is_available() returns True when GitHub MCP server is configured and connected."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -42,14 +43,14 @@ class TestGitHubIntegrationAvailability:
         integration = GitHubIntegration(mock_mcp_manager)
         assert integration.is_available() is True
 
-    def test_is_available_returns_false_when_not_configured(self, mock_mcp_manager):
+    def test_is_available_returns_false_when_not_configured(self, mock_mcp_manager) -> None:
         """is_available() returns False when GitHub MCP server is not configured."""
         mock_mcp_manager.has_server.return_value = False
 
         integration = GitHubIntegration(mock_mcp_manager)
         assert integration.is_available() is False
 
-    def test_is_available_returns_false_when_disconnected(self, mock_mcp_manager):
+    def test_is_available_returns_false_when_disconnected(self, mock_mcp_manager) -> None:
         """is_available() returns False when GitHub MCP server is configured but disconnected."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="disconnected")}
@@ -57,7 +58,7 @@ class TestGitHubIntegrationAvailability:
         integration = GitHubIntegration(mock_mcp_manager)
         assert integration.is_available() is False
 
-    def test_is_available_returns_false_when_health_missing(self, mock_mcp_manager):
+    def test_is_available_returns_false_when_health_missing(self, mock_mcp_manager) -> None:
         """is_available() returns False when health info is missing for github server."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {}  # No github entry
@@ -69,7 +70,7 @@ class TestGitHubIntegrationAvailability:
 class TestGitHubIntegrationCaching:
     """Test availability caching behavior."""
 
-    def test_availability_is_cached(self, mock_mcp_manager):
+    def test_availability_is_cached(self, mock_mcp_manager) -> None:
         """Repeated is_available() calls use cached result within cache window."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -86,7 +87,7 @@ class TestGitHubIntegrationCaching:
         # has_server should only be called once due to caching
         assert mock_mcp_manager.has_server.call_count == 1
 
-    def test_cache_expires_after_ttl(self, mock_mcp_manager):
+    def test_cache_expires_after_ttl(self, mock_mcp_manager) -> None:
         """Calls after cache timeout trigger new MCP checks."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -107,7 +108,7 @@ class TestGitHubIntegrationCaching:
 
         assert second_call_count > first_call_count
 
-    def test_cache_can_be_cleared(self, mock_mcp_manager):
+    def test_cache_can_be_cleared(self, mock_mcp_manager) -> None:
         """clear_cache() forces next is_available() to check fresh."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -131,7 +132,7 @@ class TestGitHubIntegrationCaching:
 class TestGitHubIntegrationErrorMessages:
     """Test graceful error message generation."""
 
-    def test_unavailable_reason_when_not_configured(self, mock_mcp_manager):
+    def test_unavailable_reason_when_not_configured(self, mock_mcp_manager) -> None:
         """get_unavailable_reason() explains when server not configured."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -141,7 +142,7 @@ class TestGitHubIntegrationErrorMessages:
         assert reason is not None
         assert "not configured" in reason.lower() or "not found" in reason.lower()
 
-    def test_unavailable_reason_when_disconnected(self, mock_mcp_manager):
+    def test_unavailable_reason_when_disconnected(self, mock_mcp_manager) -> None:
         """get_unavailable_reason() explains when server is disconnected."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="disconnected")}
@@ -152,7 +153,7 @@ class TestGitHubIntegrationErrorMessages:
         assert reason is not None
         assert "disconnected" in reason.lower() or "not connected" in reason.lower()
 
-    def test_unavailable_reason_returns_none_when_available(self, mock_mcp_manager):
+    def test_unavailable_reason_returns_none_when_available(self, mock_mcp_manager) -> None:
         """get_unavailable_reason() returns None when server is available."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -162,7 +163,7 @@ class TestGitHubIntegrationErrorMessages:
 
         assert reason is None
 
-    def test_require_available_raises_when_unavailable(self, mock_mcp_manager):
+    def test_require_available_raises_when_unavailable(self, mock_mcp_manager) -> None:
         """require_available() raises RuntimeError when GitHub MCP unavailable."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -173,7 +174,7 @@ class TestGitHubIntegrationErrorMessages:
 
         assert "github" in str(exc_info.value).lower()
 
-    def test_require_available_succeeds_when_available(self, mock_mcp_manager):
+    def test_require_available_succeeds_when_available(self, mock_mcp_manager) -> None:
         """require_available() returns without error when GitHub MCP available."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -186,12 +187,12 @@ class TestGitHubIntegrationErrorMessages:
 class TestGitHubIntegrationServerName:
     """Test server name configuration."""
 
-    def test_default_server_name_is_github(self, mock_mcp_manager):
+    def test_default_server_name_is_github(self, mock_mcp_manager) -> None:
         """Default server name should be 'github'."""
         integration = GitHubIntegration(mock_mcp_manager)
         assert integration.server_name == "github"
 
-    def test_custom_server_name(self, mock_mcp_manager):
+    def test_custom_server_name(self, mock_mcp_manager) -> None:
         """Server name can be customized."""
         integration = GitHubIntegration(mock_mcp_manager, server_name="github-custom")
         assert integration.server_name == "github-custom"

@@ -6,11 +6,12 @@ import pytest
 
 from gobby.memory.extractor import MemoryCandidate, SessionContext, SessionMemoryExtractor
 
+pytestmark = pytest.mark.unit
 
 class TestMemoryCandidate:
     """Tests for MemoryCandidate dataclass."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test conversion to dictionary."""
         candidate = MemoryCandidate(
             content="Test memory content",
@@ -87,7 +88,7 @@ class TestSessionMemoryExtractor:
             llm_service=mock_llm_service,
         )
 
-    def test_parse_llm_response_valid(self, extractor):
+    def test_parse_llm_response_valid(self, extractor) -> None:
         """Test parsing valid LLM response."""
         response = """
 ```json
@@ -103,26 +104,26 @@ class TestSessionMemoryExtractor:
         assert candidates[0].importance == 0.8
         assert candidates[0].tags == ["test"]
 
-    def test_parse_llm_response_empty_array(self, extractor):
+    def test_parse_llm_response_empty_array(self, extractor) -> None:
         """Test parsing empty array response."""
         response = "[]"
         candidates = extractor._parse_llm_response(response)
         assert len(candidates) == 0
 
-    def test_parse_llm_response_invalid_json(self, extractor):
+    def test_parse_llm_response_invalid_json(self, extractor) -> None:
         """Test parsing invalid JSON gracefully."""
         response = "Not valid JSON at all"
         candidates = extractor._parse_llm_response(response)
         assert len(candidates) == 0
 
-    def test_parse_llm_response_normalizes_types(self, extractor):
+    def test_parse_llm_response_normalizes_types(self, extractor) -> None:
         """Test that invalid memory types are normalized to 'fact'."""
         response = '[{"content": "Test", "memory_type": "invalid", "importance": 0.5}]'
         candidates = extractor._parse_llm_response(response)
         assert len(candidates) == 1
         assert candidates[0].memory_type == "fact"
 
-    def test_parse_llm_response_clamps_importance(self, extractor):
+    def test_parse_llm_response_clamps_importance(self, extractor) -> None:
         """Test that importance values are clamped to [0, 1]."""
         response = """[
             {"content": "High", "importance": 1.5},
@@ -133,7 +134,7 @@ class TestSessionMemoryExtractor:
         assert candidates[0].importance == 1.0
         assert candidates[1].importance == 0.0
 
-    def test_is_similar_high_overlap(self, extractor):
+    def test_is_similar_high_overlap(self, extractor) -> None:
         """Test similarity detection with high overlap."""
         # Use almost identical content for high similarity (Jaccard > 0.8)
         content1 = "The project uses pytest for testing"
@@ -146,7 +147,7 @@ class TestSessionMemoryExtractor:
         # Still not quite 0.8, use threshold parameter
         assert extractor._is_similar(content1, content2, threshold=0.7) is True
 
-    def test_is_similar_low_overlap(self, extractor):
+    def test_is_similar_low_overlap(self, extractor) -> None:
         """Test similarity detection with low overlap."""
         content1 = "The project uses pytest for testing"
         content2 = "User prefers explicit type hints in code"

@@ -10,6 +10,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.skills import LocalSkillManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path: Path) -> Iterator[LocalDatabase]:
@@ -48,14 +49,14 @@ Original content.
 class TestSkillUpdaterCreation:
     """Tests for SkillUpdater initialization."""
 
-    def test_create_updater(self, storage):
+    def test_create_updater(self, storage) -> None:
         """Test creating a SkillUpdater instance."""
         from gobby.skills.updater import SkillUpdater
 
         updater = SkillUpdater(storage)
         assert updater is not None
 
-    def test_updater_has_storage(self, storage):
+    def test_updater_has_storage(self, storage) -> None:
         """Test that updater has access to storage."""
         from gobby.skills.updater import SkillUpdater
 
@@ -66,7 +67,7 @@ class TestSkillUpdaterCreation:
 class TestSkillUpdaterLocalUpdate:
     """Tests for updating skills from local filesystem."""
 
-    def test_update_local_skill(self, storage, skill_dir):
+    def test_update_local_skill(self, storage, skill_dir) -> None:
         """Test updating a skill from local filesystem."""
         from gobby.skills.updater import SkillUpdater
 
@@ -103,7 +104,7 @@ Updated content.
         assert updated_skill.description == "A local skill v2.0"
         assert "Updated content" in updated_skill.content
 
-    def test_update_local_skill_no_changes(self, storage, tmp_path):
+    def test_update_local_skill_no_changes(self, storage, tmp_path) -> None:
         """Test updating a skill that hasn't changed returns updated=False."""
         from gobby.skills.parser import parse_skill_file
         from gobby.skills.updater import SkillUpdater
@@ -142,7 +143,7 @@ Same content.
         assert result.success is True
         assert result.updated is False
 
-    def test_update_local_skill_source_not_found(self, storage, tmp_path):
+    def test_update_local_skill_source_not_found(self, storage, tmp_path) -> None:
         """Test updating a skill when source is missing."""
         from gobby.skills.updater import SkillUpdater
 
@@ -164,7 +165,7 @@ Same content.
 class TestSkillUpdaterGitHubUpdate:
     """Tests for updating skills from GitHub."""
 
-    def test_update_github_skill(self, storage, tmp_path):
+    def test_update_github_skill(self, storage, tmp_path) -> None:
         """Test updating a skill from GitHub."""
         from gobby.skills.updater import SkillUpdater
 
@@ -216,7 +217,7 @@ Updated from GitHub.
 class TestSkillUpdaterBackupRestore:
     """Tests for backup and restore on update failure."""
 
-    def test_backup_created_on_update(self, storage, skill_dir):
+    def test_backup_created_on_update(self, storage, skill_dir) -> None:
         """Test that a backup is created before updating."""
         from gobby.skills.updater import SkillUpdater
 
@@ -234,7 +235,7 @@ class TestSkillUpdaterBackupRestore:
         # Should have created a backup
         assert result.backup_created is True
 
-    def test_rollback_on_validation_failure(self, storage, tmp_path):
+    def test_rollback_on_validation_failure(self, storage, tmp_path) -> None:
         """Test rollback when updated skill fails validation."""
         from gobby.skills.updater import SkillUpdater
 
@@ -277,7 +278,7 @@ Content
         current = storage.get_skill(skill.id)
         assert current.description == "Valid skill"
 
-    def test_rollback_on_parse_failure(self, storage, tmp_path):
+    def test_rollback_on_parse_failure(self, storage, tmp_path) -> None:
         """Test rollback when updated skill fails to parse."""
         from gobby.skills.updater import SkillUpdater
 
@@ -317,7 +318,7 @@ Content
 class TestSkillUpdaterUpdateAll:
     """Tests for update_all() method."""
 
-    def test_update_all_skills(self, storage, tmp_path):
+    def test_update_all_skills(self, storage, tmp_path) -> None:
         """Test updating all skills with sources."""
         from gobby.skills.updater import SkillUpdater
 
@@ -356,7 +357,7 @@ Updated content for {name}
         assert all(r.success for r in results)
         assert all(r.updated for r in results)
 
-    def test_update_all_continues_on_failure(self, storage, tmp_path):
+    def test_update_all_continues_on_failure(self, storage, tmp_path) -> None:
         """Test that update_all continues even if one skill fails."""
         from gobby.skills.updater import SkillUpdater
 
@@ -400,7 +401,7 @@ Updated
         assert len(successes) == 1
         assert len(failures) == 1
 
-    def test_update_all_empty(self, storage):
+    def test_update_all_empty(self, storage) -> None:
         """Test update_all with no sourceable skills."""
         from gobby.skills.updater import SkillUpdater
 
@@ -425,7 +426,7 @@ Updated
 class TestSkillUpdateResult:
     """Tests for SkillUpdateResult dataclass."""
 
-    def test_result_success_properties(self, storage, skill_dir):
+    def test_result_success_properties(self, storage, skill_dir) -> None:
         """Test SkillUpdateResult on successful update."""
         from gobby.skills.updater import SkillUpdater
 
@@ -445,7 +446,7 @@ class TestSkillUpdateResult:
         assert result.success is True
         assert result.error is None
 
-    def test_result_failure_properties(self, storage, tmp_path):
+    def test_result_failure_properties(self, storage, tmp_path) -> None:
         """Test SkillUpdateResult on failed update."""
         from gobby.skills.updater import SkillUpdater
 
@@ -470,7 +471,7 @@ class TestSkillUpdateResult:
 class TestSkillUpdaterSkipNoSource:
     """Tests for handling skills without source information."""
 
-    def test_update_skill_no_source_path(self, storage):
+    def test_update_skill_no_source_path(self, storage) -> None:
         """Test updating skill with no source_path skips update."""
         from gobby.skills.updater import SkillUpdater
 
