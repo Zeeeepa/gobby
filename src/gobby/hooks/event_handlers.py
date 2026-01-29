@@ -168,12 +168,34 @@ class EventHandlers:
             )
             if result.get("success"):
                 self.logger.info(
-                    f"Auto-activated workflow '{workflow_name}' for session {session_id}"
+                    "Auto-activated workflow for session",
+                    extra={
+                        "workflow_name": workflow_name,
+                        "session_id": session_id,
+                        "project_path": project_path,
+                    },
                 )
             else:
-                self.logger.warning(f"Failed to auto-activate workflow: {result.get('error')}")
+                self.logger.warning(
+                    "Failed to auto-activate workflow",
+                    extra={
+                        "workflow_name": workflow_name,
+                        "session_id": session_id,
+                        "project_path": project_path,
+                        "error": result.get("error"),
+                    },
+                )
         except Exception as e:
-            self.logger.warning(f"Failed to auto-activate workflow: {e}")
+            self.logger.warning(
+                "Failed to auto-activate workflow",
+                extra={
+                    "workflow_name": workflow_name,
+                    "session_id": session_id,
+                    "project_path": project_path,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
 
     # ==================== SESSION HANDLERS ====================
 
