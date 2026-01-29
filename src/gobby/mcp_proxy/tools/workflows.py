@@ -113,11 +113,19 @@ def create_workflows_registry(
     Returns:
         InternalToolRegistry with workflow tools registered
     """
+    from gobby.utils.project_context import get_project_context
+
     # Create defaults if not provided
     _db = db or LocalDatabase()
     _loader = loader or WorkflowLoader()
     _state_manager = state_manager or WorkflowStateManager(_db)
     _session_manager = session_manager or LocalSessionManager(_db)
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+        return _session_manager.resolve_session_reference(ref, project_id)
 
     registry = InternalToolRegistry(
         name="gobby-workflows",
@@ -264,7 +272,7 @@ def create_workflows_registry(
 
     @registry.tool(
         name="activate_workflow",
-        description="Activate a step-based workflow for the current session.",
+        description="Activate a step-based workflow for the current session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def activate_workflow(
         name: str,
@@ -278,7 +286,7 @@ def create_workflows_registry(
 
         Args:
             name: Workflow name (e.g., "plan-act-reflect", "auto-task")
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
             initial_step: Optional starting step (defaults to first step)
             variables: Optional initial variables to set (merged with workflow defaults)
             project_path: Project directory path. Auto-discovered from cwd if not provided.
@@ -290,7 +298,7 @@ def create_workflows_registry(
             activate_workflow(
                 name="auto-task",
                 variables={"session_task": "#47"},
-                session_id="..."
+                session_id="#5"
             )
 
         Errors if:
@@ -325,12 +333,18 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
         # Check for existing workflow
         # Allow if:
         # - No existing state
         # - Existing is __lifecycle__ placeholder
         # - Existing is a lifecycle-type workflow (they run concurrently with step workflows)
-        existing = _state_manager.get_state(session_id)
+        existing = _state_manager.get_state(resolved_session_id)
         if existing and existing.workflow_name != "__lifecycle__":
             # Check if existing workflow is a lifecycle type
             existing_def = _loader.load_workflow(existing.workflow_name, proj)
@@ -366,12 +380,12 @@ def create_workflows_registry(
             session_task_val = merged_variables["session_task"]
             if isinstance(session_task_val, str):
                 merged_variables["session_task"] = _resolve_session_task_value(
-                    session_task_val, session_id, _session_manager, _db
+                    session_task_val, resolved_session_id, _session_manager, _db
                 )
 
         # Create state
         state = WorkflowState(
-            session_id=session_id,
+            session_id=resolved_session_id,
             workflow_name=name,
             step=step,
             step_entered_at=datetime.now(UTC),
@@ -391,7 +405,7 @@ def create_workflows_registry(
 
         return {
             "success": True,
-            "session_id": session_id,
+            "session_id": resolved_session_id,
             "workflow": name,
             "step": step,
             "steps": [s.name for s in definition.steps],
@@ -400,7 +414,7 @@ def create_workflows_registry(
 
     @registry.tool(
         name="end_workflow",
-        description="End the currently active step-based workflow.",
+        description="End the currently active step-based workflow. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def end_workflow(
         session_id: str | None = None,
@@ -413,7 +427,7 @@ def create_workflows_registry(
         Does not affect lifecycle workflows (they continue running).
 
         Args:
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
             reason: Optional reason for ending
 
         Returns:
@@ -426,24 +440,30 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
-        state = _state_manager.get_state(session_id)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        state = _state_manager.get_state(resolved_session_id)
         if not state:
             return {"error": "No workflow active for session"}
 
-        _state_manager.delete_state(session_id)
+        _state_manager.delete_state(resolved_session_id)
 
         return {}
 
     @registry.tool(
         name="get_workflow_status",
-        description="Get current workflow step and state.",
+        description="Get current workflow step and state. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
         """
         Get current workflow step and state.
 
         Args:
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
 
         Returns:
             Workflow state including step, action counts, artifacts
@@ -455,13 +475,19 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
-        state = _state_manager.get_state(session_id)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"has_workflow": False, "error": str(e)}
+
+        state = _state_manager.get_state(resolved_session_id)
         if not state:
-            return {"has_workflow": False, "session_id": session_id}
+            return {"has_workflow": False, "session_id": resolved_session_id}
 
         return {
             "has_workflow": True,
-            "session_id": session_id,
+            "session_id": resolved_session_id,
             "workflow_name": state.workflow_name,
             "step": state.step,
             "step_action_count": state.step_action_count,
@@ -479,7 +505,7 @@ def create_workflows_registry(
 
     @registry.tool(
         name="request_step_transition",
-        description="Request transition to a different step.",
+        description="Request transition to a different step. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def request_step_transition(
         to_step: str,
@@ -494,7 +520,7 @@ def create_workflows_registry(
         Args:
             to_step: Target step name
             reason: Reason for transition
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
             force: Skip exit condition checks
             project_path: Project directory path. Auto-discovered from cwd if not provided.
 
@@ -516,7 +542,13 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
-        state = _state_manager.get_state(session_id)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        state = _state_manager.get_state(resolved_session_id)
         if not state:
             return {"success": False, "error": "No workflow active for session"}
 
@@ -565,7 +597,7 @@ def create_workflows_registry(
 
     @registry.tool(
         name="mark_artifact_complete",
-        description="Register an artifact as complete (plan, spec, etc.).",
+        description="Register an artifact as complete (plan, spec, etc.). Accepts #N, N, UUID, or prefix for session_id.",
     )
     def mark_artifact_complete(
         artifact_type: str,
@@ -578,7 +610,7 @@ def create_workflows_registry(
         Args:
             artifact_type: Type of artifact (e.g., "plan", "spec", "test")
             file_path: Path to the artifact file
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
 
         Returns:
             Success status
@@ -590,7 +622,13 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
-        state = _state_manager.get_state(session_id)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        state = _state_manager.get_state(resolved_session_id)
         if not state:
             return {"error": "No workflow active for session"}
 
@@ -602,7 +640,7 @@ def create_workflows_registry(
 
     @registry.tool(
         name="set_variable",
-        description="Set a workflow variable for the current session (session-scoped, not persisted to YAML).",
+        description="Set a workflow variable for the current session (session-scoped, not persisted to YAML). Accepts #N, N, UUID, or prefix for session_id.",
     )
     def set_variable(
         name: str,
@@ -623,7 +661,7 @@ def create_workflows_registry(
         Args:
             name: Variable name (e.g., "session_epic", "is_worktree")
             value: Variable value (string, number, boolean, or null)
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
 
         Returns:
             Success status and updated variables
@@ -635,12 +673,18 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
         # Get or create state
-        state = _state_manager.get_state(session_id)
+        state = _state_manager.get_state(resolved_session_id)
         if not state:
             # Create a minimal lifecycle state for variable storage
             state = WorkflowState(
-                session_id=session_id,
+                session_id=resolved_session_id,
                 workflow_name="__lifecycle__",
                 step="",
                 step_entered_at=datetime.now(UTC),
@@ -664,7 +708,7 @@ def create_workflows_registry(
         # Resolve session_task references (#N or N) to UUIDs upfront
         # This prevents repeated resolution failures in condition evaluation
         if name == "session_task" and isinstance(value, str):
-            value = _resolve_session_task_value(value, session_id, _session_manager, _db)
+            value = _resolve_session_task_value(value, resolved_session_id, _session_manager, _db)
 
         # Set the variable
         state.variables[name] = value
@@ -684,7 +728,7 @@ def create_workflows_registry(
 
     @registry.tool(
         name="get_variable",
-        description="Get workflow variable(s) for the current session.",
+        description="Get workflow variable(s) for the current session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def get_variable(
         name: str | None = None,
@@ -695,7 +739,7 @@ def create_workflows_registry(
 
         Args:
             name: Variable name to get (if None, returns all variables)
-            session_id: Required session ID (must be provided to prevent cross-session bleed)
+            session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
 
         Returns:
             Variable value(s) and session info
@@ -707,19 +751,25 @@ def create_workflows_registry(
                 "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
             }
 
-        state = _state_manager.get_state(session_id)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        state = _state_manager.get_state(resolved_session_id)
         if not state:
             if name:
                 return {
                     "success": True,
-                    "session_id": session_id,
+                    "session_id": resolved_session_id,
                     "variable": name,
                     "value": None,
                     "exists": False,
                 }
             return {
                 "success": True,
-                "session_id": session_id,
+                "session_id": resolved_session_id,
                 "variables": {},
             }
 
@@ -727,7 +777,7 @@ def create_workflows_registry(
             value = state.variables.get(name)
             return {
                 "success": True,
-                "session_id": session_id,
+                "session_id": resolved_session_id,
                 "variable": name,
                 "value": value,
                 "exists": name in state.variables,
@@ -735,7 +785,7 @@ def create_workflows_registry(
 
         return {
             "success": True,
-            "session_id": session_id,
+            "session_id": resolved_session_id,
             "variables": state.variables,
         }
 

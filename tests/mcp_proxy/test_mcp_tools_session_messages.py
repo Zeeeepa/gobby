@@ -18,6 +18,8 @@ def mock_message_manager():
 @pytest.fixture
 def mock_session_manager():
     manager = MagicMock(spec=LocalSessionManager)
+    # resolve_session_reference returns input unchanged by default
+    manager.resolve_session_reference = MagicMock(side_effect=lambda ref, project_id=None: ref)
     return manager
 
 
@@ -518,7 +520,7 @@ async def test_get_session_commits_not_found(mock_session_manager, full_sessions
 
 @pytest.mark.asyncio
 async def test_get_session_commits_prefix_match(mock_session_manager, full_sessions_registry):
-    """Test get_session_commits supports prefix matching."""
+    """Test get_session_commits supports prefix matching via resolve_session_reference."""
     from datetime import datetime
     from unittest.mock import patch
 
@@ -527,8 +529,9 @@ async def test_get_session_commits_prefix_match(mock_session_manager, full_sessi
     mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
     mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
 
-    mock_session_manager.get.return_value = None  # Direct lookup fails
-    mock_session_manager.list.return_value = [mock_session]  # Prefix match works
+    # resolve_session_reference resolves prefix to full ID
+    mock_session_manager.resolve_session_reference.return_value = "sess-abc123"
+    mock_session_manager.get.return_value = mock_session
 
     mock_result = MagicMock()
     mock_result.returncode = 0

@@ -27,9 +27,18 @@ def register_commits_tools(
         session_manager: LocalSessionManager instance for session operations
     """
 
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        from gobby.utils.project_context import get_project_context
+
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+
+        return session_manager.resolve_session_reference(ref, project_id)
+
     @registry.tool(
         name="get_session_commits",
-        description="Get git commits made during a session timeframe.",
+        description="Get git commits made during a session timeframe. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def get_session_commits(
         session_id: str,
@@ -42,7 +51,7 @@ def register_commits_tools(
         git log within that timeframe.
 
         Args:
-            session_id: Session ID
+            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix
             max_commits: Maximum commits to return (default 20)
 
         Returns:
@@ -55,21 +64,15 @@ def register_commits_tools(
         if session_manager is None:
             return {"error": "Session manager not available"}
 
-        # Get session
-        session = session_manager.get(session_id)
+        # Resolve session reference (#N, N, UUID, or prefix)
+        try:
+            resolved_id = _resolve_session_id(session_id)
+            session = session_manager.get(resolved_id)
+        except ValueError as e:
+            return {"error": str(e)}
+
         if not session:
-            # Try prefix match
-            sessions = session_manager.list(limit=100)
-            matches = [s for s in sessions if s.id.startswith(session_id)]
-            if len(matches) == 1:
-                session = matches[0]
-            elif len(matches) > 1:
-                return {
-                    "error": f"Ambiguous session ID prefix '{session_id}'",
-                    "matches": [s.id for s in matches[:5]],
-                }
-            else:
-                return {"error": f"Session {session_id} not found"}
+            return {"error": f"Session {session_id} not found"}
 
         # Get working directory from transcript path or project
         cwd = None
@@ -163,11 +166,11 @@ def register_commits_tools(
 
     @registry.tool(
         name="mark_loop_complete",
-        description="""Mark the autonomous loop as complete, preventing session chaining.
+        description="""Mark the autonomous loop as complete, preventing session chaining. Accepts #N, N, UUID, or prefix for session_id.
 
 Args:
-    session_id: (REQUIRED) Your session ID. Get it from:
-        1. Your injected context (look for 'session_id: xxx')
+    session_id: (REQUIRED) Your session ID. Accepts #N, N, UUID, or prefix. Get it from:
+        1. Your injected context (look for 'Session Ref: #N' or 'session_id: xxx')
         2. Or call get_current(external_id, source) first""",
     )
     def mark_loop_complete(session_id: str) -> dict[str, Any]:
@@ -184,7 +187,7 @@ Args:
         - The user has explicitly asked to stop
 
         Args:
-            session_id: Session ID (REQUIRED)
+            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix (REQUIRED)
 
         Returns:
             Success status and session details
@@ -192,8 +195,12 @@ Args:
         if not session_manager:
             raise RuntimeError("Session manager not available")
 
-        # Find session - session_id is now required
-        session = session_manager.get(session_id)
+        # Resolve session reference (#N, N, UUID, or prefix)
+        try:
+            resolved_id = _resolve_session_id(session_id)
+            session = session_manager.get(resolved_id)
+        except ValueError as e:
+            return {"error": str(e), "session_id": session_id}
 
         if not session:
             return {"error": f"Session {session_id} not found", "session_id": session_id}

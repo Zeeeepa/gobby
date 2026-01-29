@@ -31,7 +31,10 @@ def mock_state_manager():
 @pytest.fixture
 def mock_session_manager():
     """Create a mock session manager."""
-    return MagicMock()
+    manager = MagicMock()
+    # Make resolve_session_reference return the input unchanged (for testing)
+    manager.resolve_session_reference.side_effect = lambda ref, project_id=None: ref
+    return manager
 
 
 @pytest.fixture

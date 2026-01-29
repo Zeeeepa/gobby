@@ -313,6 +313,7 @@ def create_spawn_agent_registry(
     git_manager: Any | None = None,
     clone_storage: Any | None = None,
     clone_manager: Any | None = None,
+    session_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a spawn_agent tool registry with the unified spawn_agent tool.
@@ -325,10 +326,20 @@ def create_spawn_agent_registry(
         git_manager: Git manager for worktree operations.
         clone_storage: Storage for clone records.
         clone_manager: Git manager for clone operations.
+        session_manager: Session manager for resolving session references.
 
     Returns:
         InternalToolRegistry with spawn_agent tool registered.
     """
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if session_manager is None:
+            return ref  # No resolution available, return as-is
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+        return session_manager.resolve_session_reference(ref, project_id)
+
     registry = InternalToolRegistry(
         name="gobby-spawn-agent",
         description="Unified agent spawning with isolation support",
@@ -342,7 +353,8 @@ def create_spawn_agent_registry(
         description=(
             "Spawn a subagent to execute a task. Supports isolation modes: "
             "'current' (work in current directory), 'worktree' (create git worktree), "
-            "'clone' (create shallow clone). Can use named agent definitions or raw parameters."
+            "'clone' (create shallow clone). Can use named agent definitions or raw parameters. "
+            "Accepts #N, N, UUID, or prefix for parent_session_id."
         ),
     )
     async def spawn_agent(
@@ -392,12 +404,20 @@ def create_spawn_agent_registry(
             sandbox_mode: Sandbox mode (permissive/restrictive). Overrides agent_def.
             sandbox_allow_network: Allow network access. Overrides agent_def.
             sandbox_extra_paths: Extra paths for sandbox write access.
-            parent_session_id: Parent session ID
+            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent session
             project_path: Project path override
 
         Returns:
             Dict with success status, run_id, child_session_id, isolation metadata
         """
+        # Resolve parent_session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_parent_session_id = parent_session_id
+        if parent_session_id:
+            try:
+                resolved_parent_session_id = _resolve_session_id(parent_session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
         # Load agent definition (defaults to "generic")
         agent_def = loader.load(agent)
         if agent_def is None and agent != "generic":
@@ -428,7 +448,7 @@ def create_spawn_agent_registry(
             sandbox_mode=sandbox_mode,
             sandbox_allow_network=sandbox_allow_network,
             sandbox_extra_paths=sandbox_extra_paths,
-            parent_session_id=parent_session_id,
+            parent_session_id=resolved_parent_session_id,
             project_path=project_path,
         )
 

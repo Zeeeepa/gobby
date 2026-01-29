@@ -18,8 +18,10 @@ Survives session compaction - spec is saved before execution.
 
 **IMPORTANT**: Use the `session_id` from your SessionStart hook context:
 ```
-session_id: fd59c8fc-...
+session_id: #5  (or full UUID)
 ```
+
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
 ## Workflow
 

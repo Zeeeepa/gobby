@@ -90,6 +90,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if effective_category is None:
             effective_category = _infer_category(title, description)
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = session_id
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError:
+            pass  # Fall back to raw value if resolution fails
+
         # Create task
         create_result = ctx.task_manager.create_task_with_decomposition(
             project_id=project_id,
@@ -101,14 +108,14 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             labels=labels,
             category=effective_category,
             validation_criteria=validation_criteria,
-            created_in_session_id=session_id,
+            created_in_session_id=resolved_session_id,
         )
 
         task = ctx.task_manager.get_task(create_result["task"]["id"])
 
         # Link task to session (best-effort) - tracks which session created the task
         try:
-            ctx.session_task_manager.link_task(session_id, task.id, "created")
+            ctx.session_task_manager.link_task(resolved_session_id, task.id, "created")
         except Exception:
             pass  # nosec B110 - best-effort linking
 
@@ -116,7 +123,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if claim:
             updated_task = ctx.task_manager.update_task(
                 task.id,
-                assignee=session_id,
+                assignee=resolved_session_id,
                 status="in_progress",
             )
             if updated_task is None:
@@ -125,14 +132,14 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 task = updated_task
                 # Link task to session with "claimed" action (best-effort)
                 try:
-                    ctx.session_task_manager.link_task(session_id, task.id, "claimed")
+                    ctx.session_task_manager.link_task(resolved_session_id, task.id, "claimed")
                 except Exception:
                     pass  # nosec B110 - best-effort linking
 
             # Set workflow state for Claude Code (CC doesn't include tool results in PostToolUse)
             # This mirrors close_task behavior in _lifecycle.py:196-207
             try:
-                state = ctx.workflow_state_manager.get_state(session_id)
+                state = ctx.workflow_state_manager.get_state(resolved_session_id)
                 if state:
                     state.variables["task_claimed"] = True
                     state.variables["claimed_task_id"] = task.id  # Always use UUID
@@ -248,7 +255,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (from system context). Required to track which session created the task.",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Required to track which session created the task.",
                 },
                 "claim": {
                     "type": "boolean",

@@ -112,8 +112,10 @@ call_tool("gobby-tasks", "close_task", {
 Your `session_id` is injected at session start. Look for:
 
 ```
-session_id: fd59c8fc-...
+session_id: #5  (or full UUID)
 ```
+
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
 If not present, use `get_current`:
 

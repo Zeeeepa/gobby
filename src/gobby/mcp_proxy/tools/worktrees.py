@@ -287,6 +287,7 @@ def create_worktrees_registry(
     worktree_storage: LocalWorktreeManager,
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
+    session_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a worktree tool registry with all worktree-related tools.
@@ -295,10 +296,20 @@ def create_worktrees_registry(
         worktree_storage: LocalWorktreeManager for database operations.
         git_manager: WorktreeGitManager for git operations.
         project_id: Default project ID for operations.
+        session_manager: Session manager for resolving session references.
 
     Returns:
         InternalToolRegistry with all worktree tools registered.
     """
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if session_manager is None:
+            return ref  # No resolution available, return as-is
+        ctx = get_project_context()
+        proj_id = ctx.get("id") if ctx else project_id
+        return session_manager.resolve_session_reference(ref, proj_id)
+
     registry = InternalToolRegistry(
         name="gobby-worktrees",
         description="Git worktree management - create, manage, and cleanup isolated development directories",
@@ -435,7 +446,7 @@ def create_worktrees_registry(
 
     @registry.tool(
         name="list_worktrees",
-        description="List worktrees with optional filters.",
+        description="List worktrees with optional filters. Accepts #N, N, UUID, or prefix for agent_session_id.",
     )
     async def list_worktrees(
         status: str | None = None,
@@ -447,16 +458,24 @@ def create_worktrees_registry(
 
         Args:
             status: Filter by status (active, stale, merged, abandoned).
-            agent_session_id: Filter by owning session.
+            agent_session_id: Session reference (accepts #N, N, UUID, or prefix) to filter by owning session.
             limit: Maximum results (default: 50).
 
         Returns:
             Dict with list of worktrees.
         """
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = agent_session_id
+        if agent_session_id:
+            try:
+                resolved_session_id = _resolve_session_id(agent_session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
         worktrees = worktree_storage.list_worktrees(
             project_id=project_id,
             status=status,
-            agent_session_id=agent_session_id,
+            agent_session_id=resolved_session_id,
             limit=limit,
         )
 
@@ -479,7 +498,7 @@ def create_worktrees_registry(
 
     @registry.tool(
         name="claim_worktree",
-        description="Claim ownership of a worktree for an agent session.",
+        description="Claim ownership of a worktree for an agent session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def claim_worktree(
         worktree_id: str,
@@ -490,11 +509,17 @@ def create_worktrees_registry(
 
         Args:
             worktree_id: The worktree ID to claim.
-            session_id: The session ID claiming ownership.
+            session_id: Session reference (accepts #N, N, UUID, or prefix) claiming ownership.
 
         Returns:
             Dict with success status.
         """
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
             return {
@@ -502,13 +527,13 @@ def create_worktrees_registry(
                 "error": f"Worktree '{worktree_id}' not found",
             }
 
-        if worktree.agent_session_id and worktree.agent_session_id != session_id:
+        if worktree.agent_session_id and worktree.agent_session_id != resolved_session_id:
             return {
                 "success": False,
                 "error": f"Worktree already claimed by session '{worktree.agent_session_id}'",
             }
 
-        updated = worktree_storage.claim(worktree_id, session_id)
+        updated = worktree_storage.claim(worktree_id, resolved_session_id)
         if not updated:
             return {"error": "Failed to claim worktree"}
 

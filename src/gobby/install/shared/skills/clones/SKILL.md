@@ -34,8 +34,10 @@ This skill manages git clones via the gobby-clones MCP server. Clones are full r
 
 **IMPORTANT**: Use the `session_id` from your SessionStart hook context:
 ```
-session_id: fd59c8fc-...
+session_id: #5  (or full UUID)
 ```
+
+**Note**: All `session_id` and `parent_session_id` parameters accept #N, N, UUID, or prefix formats.
 
 ## Subcommands
 

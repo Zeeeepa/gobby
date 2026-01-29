@@ -79,6 +79,8 @@ def mock_session_manager():
     manager.get = MagicMock(return_value=None)
     # Default: return empty list for find_children()
     manager.find_children = MagicMock(return_value=[])
+    # resolve_session_reference returns input unchanged by default
+    manager.resolve_session_reference = MagicMock(side_effect=lambda ref, project_id=None: ref)
     return manager
 
 

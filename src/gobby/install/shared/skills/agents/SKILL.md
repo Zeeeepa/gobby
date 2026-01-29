@@ -12,8 +12,10 @@ This skill manages subagent spawning via the gobby-agents MCP server. Parse the 
 
 **IMPORTANT**: Use the `session_id` from your SessionStart hook context for agent calls. Look for it in your system context:
 ```
-session_id: fd59c8fc-...
+session_id: #5  (or full UUID)
 ```
+
+**Note**: All `session_id` and `parent_session_id` parameters accept #N, N, UUID, or prefix formats.
 
 ## Subcommands
 

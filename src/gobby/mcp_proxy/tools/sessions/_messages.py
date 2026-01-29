@@ -12,11 +12,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from gobby.mcp_proxy.tools.internal import InternalToolRegistry
     from gobby.storage.session_messages import LocalSessionMessageManager
+    from gobby.storage.sessions import LocalSessionManager
 
 
 def register_message_tools(
     registry: InternalToolRegistry,
     message_manager: LocalSessionMessageManager,
+    session_manager: LocalSessionManager | None = None,
 ) -> None:
     """
     Register message retrieval and search tools with a registry.
@@ -24,11 +26,27 @@ def register_message_tools(
     Args:
         registry: The InternalToolRegistry to register tools with
         message_manager: LocalSessionMessageManager instance for message operations
+        session_manager: LocalSessionManager for resolving session references
     """
+
+    def _resolve_session_id(session_id: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if not session_manager:
+            return session_id  # Fall back to raw value if no manager
+
+        from gobby.utils.project_context import get_project_context
+
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+
+        try:
+            return session_manager.resolve_session_reference(session_id, project_id)
+        except ValueError:
+            return session_id  # Fall back to raw value if resolution fails
 
     @registry.tool(
         name="get_session_messages",
-        description="Get messages for a session.",
+        description="Get messages for a session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def get_session_messages(
         session_id: str,
@@ -40,7 +58,7 @@ def register_message_tools(
         Get messages for a session.
 
         Args:
-            session_id: The session ID
+            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix
             limit: Max messages to return
             offset: Offset for pagination
             full_content: If True, returns full content. If False (default), truncates large content.
@@ -48,8 +66,10 @@ def register_message_tools(
         try:
             if not message_manager:
                 raise RuntimeError("Message manager not available")
+
+            resolved_id = _resolve_session_id(session_id)
             messages = await message_manager.get_messages(
-                session_id=session_id,
+                session_id=resolved_id,
                 limit=limit,
                 offset=offset,
             )
@@ -79,7 +99,7 @@ def register_message_tools(
                         ):
                             tr["content"] = tr["content"][:200] + "... (truncated)"
 
-            session_total = await message_manager.count_messages(session_id)
+            session_total = await message_manager.count_messages(resolved_id)
 
             return {
                 "success": True,
@@ -95,7 +115,7 @@ def register_message_tools(
 
     @registry.tool(
         name="search_messages",
-        description="Search messages using Full Text Search (FTS).",
+        description="Search messages using Full Text Search (FTS). Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def search_messages(
         query: str,
@@ -108,16 +128,18 @@ def register_message_tools(
 
         Args:
             query: Search query
-            session_id: Optional session filter
+            session_id: Optional session filter - supports #N, N (seq_num), UUID, or prefix
             limit: Max results
             full_content: If True, returns full content. If False (default), truncates large content.
         """
         try:
             if not message_manager:
                 raise RuntimeError("Message manager not available")
+
+            resolved_session_id = _resolve_session_id(session_id) if session_id else None
             results = await message_manager.search_messages(
                 query_text=query,
-                session_id=session_id,
+                session_id=resolved_session_id,
                 limit=limit,
             )
 

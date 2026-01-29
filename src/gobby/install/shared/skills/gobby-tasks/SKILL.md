@@ -13,8 +13,10 @@ This skill manages tasks via the gobby-tasks MCP server. Parse the user's input 
 
 **IMPORTANT**: Pass your `session_id` from SessionStart context when creating or closing tasks for tracking:
 ```
-session_id: fd59c8fc-...
+session_id: #5  (or full UUID from SessionStart context)
 ```
+
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
 ## Task ID Formats
 

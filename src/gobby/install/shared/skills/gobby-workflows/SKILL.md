@@ -12,8 +12,10 @@ This skill manages step-based workflows via the gobby-workflows MCP server. Pars
 
 **IMPORTANT**: Use the `session_id` from your SessionStart hook context (injected at session start) for all workflow calls. Look for it in your system context - it looks like:
 ```
-session_id: fd59c8fc-...
+session_id: #5  (or full UUID)
 ```
+
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
 Do NOT call `list_sessions` to look it up - you already have it.
 

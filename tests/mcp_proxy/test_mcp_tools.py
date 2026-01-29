@@ -75,8 +75,6 @@ def test_task_registry_get_schema(task_registry):
 @pytest.mark.asyncio
 async def test_create_task(mock_task_manager, mock_sync_manager):
     """Test create_task tool execution."""
-    registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
     # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
@@ -87,9 +85,18 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     }
     mock_task_manager.get_task.return_value = mock_task
 
-    # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+    # Mock get_project_context and LocalSessionManager
+    with (
+        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+    ):
         mock_ctx.return_value = {"id": "test-project-id"}
+        # Mock session manager to resolve session_id as-is
+        mock_session_manager = MagicMock()
+        mock_session_manager.resolve_session_reference.return_value = "test-session"
+        MockSessionManager.return_value = mock_session_manager
+
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call(
             "create_task", {"title": "Test Task", "priority": 1, "session_id": "test-session"}
@@ -113,8 +120,6 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
 @pytest.mark.asyncio
 async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager):
     """Test create_task tool captures session_id as created_in_session_id."""
-    registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
     # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
@@ -125,9 +130,18 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     }
     mock_task_manager.get_task.return_value = mock_task
 
-    # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+    # Mock get_project_context and LocalSessionManager
+    with (
+        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+    ):
         mock_ctx.return_value = {"id": "test-project-id"}
+        # Mock session manager to resolve session_id as-is
+        mock_session_manager = MagicMock()
+        mock_session_manager.resolve_session_reference.return_value = "session-abc123"
+        MockSessionManager.return_value = mock_session_manager
+
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call(
             "create_task",

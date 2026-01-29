@@ -638,14 +638,10 @@ class TestPickup:
     def test_pickup_ambiguous_prefix(self):
         """Test pickup with ambiguous session ID prefix."""
         session_manager = MagicMock()
-        session_manager.get.return_value = None
-
-        mock_session1 = MagicMock()
-        mock_session1.id = "sess-123-a"
-        mock_session2 = MagicMock()
-        mock_session2.id = "sess-123-b"
-
-        session_manager.list.return_value = [mock_session1, mock_session2]
+        # resolve_session_reference raises ValueError for ambiguous prefix
+        session_manager.resolve_session_reference.side_effect = ValueError(
+            "Ambiguous session reference 'sess-123': matches sess-123-a, sess-123-b"
+        )
 
         registry = create_test_registry(session_manager=session_manager)
         pickup = registry.get_tool("pickup")
@@ -654,7 +650,6 @@ class TestPickup:
 
         assert "error" in result
         assert "Ambiguous" in result["error"]
-        assert "matches" in result
 
     @patch("gobby.utils.machine_id.get_machine_id")
     def test_pickup_by_project_id(self, mock_get_machine_id):
@@ -746,6 +741,8 @@ class TestPickup:
         mock_session.title = "Parent"
         mock_session.status = "handoff_ready"
         session_manager.get.return_value = mock_session
+        # Mock resolve_session_reference to return the input as-is
+        session_manager.resolve_session_reference.side_effect = lambda ref, project_id=None: ref
 
         registry = create_test_registry(session_manager=session_manager)
         pickup = registry.get_tool("pickup")
@@ -1050,7 +1047,6 @@ class TestGetSessionCommits:
     def test_get_session_commits_by_prefix(self):
         """Test commit retrieval by session ID prefix."""
         session_manager = MagicMock()
-        session_manager.get.return_value = None
 
         mock_session = MagicMock()
         mock_session.id = "sess-123-full"
@@ -1058,7 +1054,9 @@ class TestGetSessionCommits:
         mock_session.created_at = "2024-01-01T10:00:00+00:00"
         mock_session.updated_at = "2024-01-01T12:00:00+00:00"
 
-        session_manager.list.return_value = [mock_session]
+        # resolve_session_reference resolves prefix to full ID
+        session_manager.resolve_session_reference.return_value = "sess-123-full"
+        session_manager.get.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
         get_commits = registry.get_tool("get_session_commits")
@@ -1262,13 +1260,14 @@ class TestCreateHandoff:
                 f.write(json.dumps({"type": "user", "message": {"content": "Test"}}) + "\n")
 
             session_manager = MagicMock()
-            session_manager.get.return_value = None
 
             mock_session = MagicMock()
             mock_session.id = "sess-123-full-id"
             mock_session.jsonl_path = str(transcript_path)
 
-            session_manager.list.return_value = [mock_session]
+            # resolve_session_reference resolves prefix to full ID
+            session_manager.resolve_session_reference.return_value = "sess-123-full-id"
+            session_manager.get.return_value = mock_session
 
             registry = create_test_registry(session_manager=session_manager)
             create_handoff = registry.get_tool("create_handoff")
@@ -1289,14 +1288,10 @@ class TestCreateHandoff:
     async def test_create_handoff_ambiguous_prefix(self):
         """Test ambiguous session ID prefix."""
         session_manager = MagicMock()
-        session_manager.get.return_value = None
-
-        mock_session1 = MagicMock()
-        mock_session1.id = "sess-abc-1"
-        mock_session2 = MagicMock()
-        mock_session2.id = "sess-abc-2"
-
-        session_manager.list.return_value = [mock_session1, mock_session2]
+        # resolve_session_reference raises ValueError for ambiguous prefix
+        session_manager.resolve_session_reference.side_effect = ValueError(
+            "Ambiguous session reference 'sess-abc': matches sess-abc-1, sess-abc-2"
+        )
 
         registry = create_test_registry(session_manager=session_manager)
         create_handoff = registry.get_tool("create_handoff")
