@@ -19,7 +19,6 @@ from gobby.agents.spawn import (
     build_cli_command,
     build_codex_command_with_resume,
     prepare_codex_spawn_with_preflight,
-    prepare_terminal_spawn,
 )
 from gobby.agents.spawners.embedded import EmbeddedSpawner
 from gobby.agents.spawners.headless import HeadlessSpawner
@@ -63,7 +62,7 @@ class SpawnResult:
 
     success: bool
     run_id: str
-    child_session_id: str
+    child_session_id: str | None
     status: str
 
     # Optional result fields
@@ -219,73 +218,42 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     """
     Spawn Gemini agent in terminal.
 
-    Session ID is injected by Gobby startup hooks, so no preflight is needed.
-    The hook system handles session registration when Gemini starts up.
+    Session is registered by Gemini's startup hook - no pre-creation needed.
+    The hook captures Gemini's native session ID and registers it with Gobby,
+    ensuring external_id differs from id.
     """
-    if request.session_manager is None:
-        return SpawnResult(
-            success=False,
-            run_id=request.run_id,
-            child_session_id=request.session_id,
-            status="failed",
-            error="session_manager is required for Gemini spawn",
-        )
-
-    try:
-        # Prepare spawn context (creates child session in database)
-        spawn_context = prepare_terminal_spawn(
-            session_manager=cast("ChildSessionManager", request.session_manager),
-            parent_session_id=request.parent_session_id,
-            project_id=request.project_id,
-            machine_id=request.machine_id or "unknown",
-            source="gemini",
-            workflow_name=request.workflow,
-            git_branch=None,  # Will be detected by hook
-            prompt=request.prompt,
-        )
-    except Exception as e:
-        logger.error(f"Gemini spawn preparation failed: {e}", exc_info=True)
-        return SpawnResult(
-            success=False,
-            run_id=request.run_id,
-            child_session_id=request.session_id,
-            status="failed",
-            error=f"Gemini spawn preparation failed: {e}",
-        )
-
-    # Build command (fresh session, no resume needed)
+    # Build command (fresh session, hooks handle registration)
     cmd = build_cli_command(
         cli="gemini",
         prompt=request.prompt,
-        session_id=None,  # Let Gemini create its own session, hooks will link it
-        auto_approve=True,  # Subagents need to work autonomously
+        session_id=None,
+        auto_approve=True,
     )
 
-    # Spawn in terminal with env vars for hook session linking
+    # Spawn in terminal (no pre-created session, no special env vars needed)
     terminal_spawner = TerminalSpawner()
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
         terminal=request.terminal,
-        env=spawn_context.env_vars,
     )
 
     if not terminal_result.success:
         return SpawnResult(
             success=False,
             run_id=request.run_id,
-            child_session_id=spawn_context.session_id,
+            child_session_id=None,
             status="failed",
             error=terminal_result.error or terminal_result.message,
         )
 
     return SpawnResult(
         success=True,
-        run_id=spawn_context.agent_run_id,
-        child_session_id=spawn_context.session_id,
+        run_id=request.run_id,
+        child_session_id=None,  # Will be set by startup hook
         status="pending",
         pid=terminal_result.pid,
-        message=f"Gemini agent spawned in terminal with session {spawn_context.session_id}",
+        message="Gemini agent spawned - session will register via startup hook",
     )
 
 
