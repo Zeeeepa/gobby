@@ -14,7 +14,7 @@ description: |
 
 mode: terminal
 provider: gemini
-model: gemini-3-pro
+model: gemini-3-pro-preview
 isolation: worktree
 base_branch: main
 workflow: work-task-gemini
