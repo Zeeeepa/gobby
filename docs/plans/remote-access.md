@@ -12,9 +12,9 @@
 
 Before exposing Gobby remotely, we need authentication.
 
-### Files to Create
+### Files to Create (Auth)
 
-```
+```text
 src/gobby/auth/
   __init__.py           # Module exports
   config.py             # AuthConfig, TLSConfig models
@@ -26,17 +26,17 @@ src/gobby/auth/
     tailscale.py        # Tailscale identity header auth
 ```
 
-### Files to Modify
+### Files to Modify (Auth)
 
 | File | Changes |
-|------|---------|
+| ---- | ------- |
 | `src/gobby/config/app.py` | Add `RemoteAccessConfig`, `AuthConfig`, `TLSConfig` |
 | `src/gobby/servers/http.py` | Add auth middleware, localhost bypass |
 | `src/gobby/servers/websocket.py` | Wire up `auth_callback` with token validation |
 | `src/gobby/runner.py` | Integrate auth config into server startup |
 | `src/gobby/cli/daemon.py` | Add `gobby auth` commands |
 
-### Configuration
+### Configuration (Auth)
 
 ```yaml
 remote_access:
@@ -50,7 +50,7 @@ remote_access:
     auto_generate: true  # Self-signed cert in ~/.gobby/certs/
 ```
 
-### CLI Commands
+### CLI Commands (Auth)
 
 - `gobby auth enable` - Enable auth, generate token
 - `gobby auth token` - Show/regenerate token
@@ -68,9 +68,9 @@ Browser-based interface for full session interaction.
 - WebSocket connection for real-time updates
 - REST API fallbacks for initial data loading
 
-### Files to Create
+### Files to Create (Web UI)
 
-```
+```text
 src/gobby/web/
   __init__.py
   routes.py             # FastAPI routes for UI
@@ -113,10 +113,10 @@ Add message types to `src/gobby/servers/websocket.py`:
 5. **Task Board**: View/manage Gobby tasks
 6. **Status**: Daemon health, connected MCPs, metrics
 
-### Files to Modify
+### Files to Modify (Web UI)
 
 | File | Changes |
-|------|---------|
+| ---- | ------- |
 | `src/gobby/servers/http.py` | Mount web routes, add SPA fallback |
 | `src/gobby/servers/websocket.py` | Add UI-specific message handlers |
 | `src/gobby/runner.py` | Include web routes in startup |
@@ -127,9 +127,9 @@ Add message types to `src/gobby/servers/websocket.py`:
 
 Secure remote access without port exposure.
 
-### Files to Create
+### Files to Create (Tailscale)
 
-```
+```text
 src/gobby/remote/
   __init__.py
   tailscale.py          # TailscaleManager class
@@ -148,7 +148,7 @@ class TailscaleManager:
     def serve_stop(self) -> bool: ...
 ```
 
-### CLI Commands
+### CLI Commands (Tailscale)
 
 Add to `src/gobby/cli/remote.py`:
 
@@ -157,7 +157,7 @@ Add to `src/gobby/cli/remote.py`:
 - `gobby remote stop` - Stop remote exposure
 - `gobby remote status` - Show Tailscale status and URLs
 
-### Configuration
+### Configuration (Tailscale)
 
 ```yaml
 remote_access:
@@ -170,6 +170,7 @@ remote_access:
 ### Auth Integration
 
 When Tailscale Serve/Funnel is active:
+
 - Extract user from `Tailscale-User-Login` header
 - Skip token auth for verified tailnet users
 - Map tailnet identity to Gobby user
@@ -180,9 +181,9 @@ When Tailscale Serve/Funnel is active:
 
 Mobile access via Telegram.
 
-### Files to Create
+### Files to Create (Telegram)
 
-```
+```text
 src/gobby/channels/
   __init__.py
   base.py               # Abstract ChannelAdapter
@@ -198,7 +199,7 @@ src/gobby/channels/
 ### Bot Commands
 
 | Command | Action |
-|---------|--------|
+| ------- | ------ |
 | `/start` | Initialize, link Telegram account |
 | `/status` | Daemon status, active sessions |
 | `/sessions` | List sessions (buttons to connect) |
@@ -207,7 +208,7 @@ src/gobby/channels/
 | `/stop` | Stop running agent |
 | `/prompt <text>` | Send prompt (or just type without command) |
 
-### Configuration
+### Configuration (Telegram)
 
 ```yaml
 channels:
@@ -218,10 +219,10 @@ channels:
     default_project: "gobby"
 ```
 
-### Files to Modify
+### Files to Modify (Telegram)
 
 | File | Changes |
-|------|---------|
+| ---- | ------- |
 | `src/gobby/config/app.py` | Add `ChannelsConfig`, `TelegramConfig` |
 | `src/gobby/runner.py` | Start Telegram bot as background task |
 
@@ -231,16 +232,16 @@ channels:
 
 Documentation and helper scripts for SSH access.
 
-### Files to Create
+### Files to Create (SSH)
 
-```
+```text
 src/gobby/remote/
   ssh.py                # SSH tunnel helpers
 
 docs/remote-access.md   # User documentation
 ```
 
-### CLI Commands
+### CLI Commands (SSH)
 
 - `gobby remote ssh-command` - Print SSH tunnel command for copy/paste
 - `gobby remote ssh-config` - Generate SSH config snippet
@@ -262,7 +263,7 @@ ssh -N -L 60887:127.0.0.1:60887 -L 60888:127.0.0.1:60888 user@your-machine
 ## Implementation Order
 
 | Phase | Effort | Dependencies | Priority |
-|-------|--------|--------------|----------|
+| ----- | ------ | ------------ | -------- |
 | 1. Auth Foundation | Medium | None | Required first |
 | 2. Web UI | High | Phase 1 | High |
 | 3. Tailscale | Low | Phase 1 | High |
@@ -276,6 +277,7 @@ ssh -N -L 60887:127.0.0.1:60887 -L 60888:127.0.0.1:60888 user@your-machine
 ## Verification
 
 ### Phase 1 (Auth)
+
 ```bash
 # Test token auth
 curl -H "Authorization: Bearer $(gobby auth token)" http://localhost:60887/admin/status
@@ -285,18 +287,21 @@ curl http://localhost:60887/admin/status  # Should work without token
 ```
 
 ### Phase 2 (Web UI)
+
 1. Open `http://localhost:60887/` in browser
 2. List sessions, connect to one
 3. Send a prompt, verify streaming response
 4. Stop an agent mid-execution
 
 ### Phase 3 (Tailscale)
+
 ```bash
 gobby remote serve
 # Access from another tailnet device at https://<machine>.<tailnet>.ts.net/
 ```
 
 ### Phase 4 (Telegram)
+
 1. Start chat with bot
 2. `/status` - verify daemon connection
 3. `/sessions` - list active sessions
