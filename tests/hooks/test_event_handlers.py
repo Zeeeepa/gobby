@@ -1256,6 +1256,57 @@ class TestToolHandlerEdgeCases:
 
         assert response.decision == "allow"
 
+    def test_after_tool_edit_marks_had_edits(self, mock_dependencies: dict) -> None:
+        """Test AFTER_TOOL marks had_edits for edit tools on regular files."""
+        mock_dependencies["task_manager"].list_tasks.return_value = [MagicMock()]  # Has claimed task
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Write",
+                "tool_input": {"file_path": "/path/to/regular/file.py"},
+            },
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        handlers.handle_after_tool(event)
+
+        mock_dependencies["session_storage"].mark_had_edits.assert_called_once_with("sess-123")
+
+    def test_after_tool_edit_skips_gobby_internal_files(self, mock_dependencies: dict) -> None:
+        """Test AFTER_TOOL does NOT mark had_edits for .gobby/ internal files."""
+        mock_dependencies["task_manager"].list_tasks.return_value = [MagicMock()]  # Has claimed task
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Write",
+                "tool_input": {"file_path": "/path/to/project/.gobby/tasks.jsonl"},
+            },
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        handlers.handle_after_tool(event)
+
+        mock_dependencies["session_storage"].mark_had_edits.assert_not_called()
+
+    def test_after_tool_edit_skips_relative_gobby_path(self, mock_dependencies: dict) -> None:
+        """Test AFTER_TOOL does NOT mark had_edits for relative .gobby/ paths."""
+        mock_dependencies["task_manager"].list_tasks.return_value = [MagicMock()]  # Has claimed task
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "Edit",
+                "tool_input": {"file_path": ".gobby/memories.jsonl"},
+            },
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        handlers.handle_after_tool(event)
+
+        mock_dependencies["session_storage"].mark_had_edits.assert_not_called()
+
 
 class TestStopHandlerEdgeCases:
     """Test STOP handler edge cases."""

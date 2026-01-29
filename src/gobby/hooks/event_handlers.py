@@ -790,10 +790,16 @@ class EventHandlers:
 
             # Track edits for session high-water mark
             # Only if tool succeeded, matches edit tools, and session has claimed a task
+            # Skip .gobby/ internal files (tasks.jsonl, memories.jsonl, etc.)
+            tool_input = input_data.get("tool_input", {})
+            file_path = tool_input.get("file_path", "")
+            is_gobby_internal = "/.gobby/" in file_path or file_path.startswith(".gobby/")
+
             if (
                 not is_failure
                 and tool_name
                 and tool_name.lower() in EDIT_TOOLS
+                and not is_gobby_internal
                 and self._session_storage
                 and self._task_manager
             ):
