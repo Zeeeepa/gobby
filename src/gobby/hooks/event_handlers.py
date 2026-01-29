@@ -147,6 +147,34 @@ class EventHandlers:
         """
         return dict(self._handler_map)
 
+    def _auto_activate_workflow(
+        self, workflow_name: str, session_id: str, project_path: str | None
+    ) -> None:
+        """Auto-activate a workflow for a session.
+
+        Args:
+            workflow_name: Name of the workflow to activate
+            session_id: Session ID to activate workflow for
+            project_path: Project path for workflow context
+        """
+        if not self._workflow_handler:
+            return
+
+        try:
+            result = self._workflow_handler.activate_workflow(
+                workflow_name=workflow_name,
+                session_id=session_id,
+                project_path=project_path,
+            )
+            if result.get("success"):
+                self.logger.info(
+                    f"Auto-activated workflow '{workflow_name}' for session {session_id}"
+                )
+            else:
+                self.logger.warning(f"Failed to auto-activate workflow: {result.get('error')}")
+        except Exception as e:
+            self.logger.warning(f"Failed to auto-activate workflow: {e}")
+
     # ==================== SESSION HANDLERS ====================
 
     def handle_session_start(self, event: HookEvent) -> HookResponse:
@@ -208,24 +236,10 @@ class EventHandlers:
                             self.logger.warning(f"Failed to start agent run: {e}")
 
                     # Auto-activate workflow if specified for this session
-                    if existing_session.workflow_name and self._workflow_handler and session_id:
-                        try:
-                            result = self._workflow_handler.activate_workflow(
-                                workflow_name=existing_session.workflow_name,
-                                session_id=session_id,
-                                project_path=cwd,
-                            )
-                            if result.get("success"):
-                                self.logger.info(
-                                    f"Auto-activated workflow '{existing_session.workflow_name}' "
-                                    f"for session {session_id}"
-                                )
-                            else:
-                                self.logger.warning(
-                                    f"Failed to auto-activate workflow: {result.get('error')}"
-                                )
-                        except Exception as e:
-                            self.logger.warning(f"Failed to auto-activate workflow: {e}")
+                    if existing_session.workflow_name and session_id:
+                        self._auto_activate_workflow(
+                            existing_session.workflow_name, session_id, cwd
+                        )
 
                     # Update event metadata
                     event.metadata["_platform_session_id"] = session_id
@@ -347,21 +361,8 @@ class EventHandlers:
                 self.logger.warning(f"Failed to mark parent session as expired: {e}")
 
         # Step 2c: Auto-activate workflow if specified (for spawned agents)
-        if workflow_name and self._workflow_handler and session_id:
-            try:
-                result = self._workflow_handler.activate_workflow(
-                    workflow_name=workflow_name,
-                    session_id=session_id,
-                    project_path=cwd,
-                )
-                if result.get("success"):
-                    self.logger.info(
-                        f"Auto-activated workflow '{workflow_name}' for session {session_id}"
-                    )
-                else:
-                    self.logger.warning(f"Failed to auto-activate workflow: {result.get('error')}")
-            except Exception as e:
-                self.logger.warning(f"Failed to auto-activate workflow: {e}")
+        if workflow_name and session_id:
+            self._auto_activate_workflow(workflow_name, session_id, cwd)
 
         # Step 3: Track registered session
         if transcript_path and self._session_coordinator:
