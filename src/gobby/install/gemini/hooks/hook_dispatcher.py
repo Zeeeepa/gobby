@@ -244,50 +244,105 @@ def main() -> int:
                     input_data["gobby_context"] = filtered_ctx
 
         # Log what Gemini CLI sends us (for debugging hook data issues)
-        logger.info(f"[{hook_type}] Received input keys: {list(input_data.keys())}")
+        # Extract common context fields for structured logging
+        session_id = input_data.get("session_id")
+        task_id = input_data.get("task_id")
+        project_id = input_data.get("project_id")
+        base_context = {
+            "hook_type": hook_type,
+            "session_id": session_id,
+            "task_id": task_id,
+            "project_id": project_id,
+        }
+
+        logger.info(
+            "[%s] Received input keys: %s",
+            hook_type,
+            list(input_data.keys()),
+            extra=base_context,
+        )
 
         # Log hook-specific critical fields
         if hook_type == "SessionStart":
-            logger.info(f"[SessionStart] session_id={input_data.get('session_id')}")
-        elif hook_type == "SessionEnd":
             logger.info(
-                f"[SessionEnd] session_id={input_data.get('session_id')}, "
-                f"reason={input_data.get('reason')}"
+                "[SessionStart] session_id=%s",
+                session_id,
+                extra=base_context,
+            )
+        elif hook_type == "SessionEnd":
+            reason = input_data.get("reason")
+            logger.info(
+                "[SessionEnd] session_id=%s, reason=%s",
+                session_id,
+                reason,
+                extra={**base_context, "reason": reason},
             )
         elif hook_type == "BeforeAgent":
             prompt = input_data.get("prompt", "")
             prompt_preview = prompt[:100] + "..." if len(prompt) > 100 else prompt
             logger.info(
-                f"[BeforeAgent] session_id={input_data.get('session_id')}, prompt={prompt_preview}"
+                "[BeforeAgent] session_id=%s, prompt=%s",
+                session_id,
+                prompt_preview,
+                extra={**base_context, "prompt_preview": prompt_preview},
             )
         elif hook_type == "BeforeTool":
             tool_name = input_data.get("tool_name") or input_data.get("function_name", "unknown")
             logger.info(
-                f"[BeforeTool] tool_name={tool_name}, session_id={input_data.get('session_id')}"
+                "[BeforeTool] tool_name=%s, session_id=%s",
+                tool_name,
+                session_id,
+                extra={**base_context, "tool_name": tool_name},
             )
         elif hook_type == "AfterTool":
             tool_name = input_data.get("tool_name") or input_data.get("function_name", "unknown")
+            error = input_data.get("error")
             logger.info(
-                f"[AfterTool] tool_name={tool_name}, session_id={input_data.get('session_id')}"
+                "[AfterTool] tool_name=%s, session_id=%s",
+                tool_name,
+                session_id,
+                extra={**base_context, "tool_name": tool_name, "error": error},
             )
         elif hook_type == "BeforeToolSelection":
-            logger.info(f"[BeforeToolSelection] session_id={input_data.get('session_id')}")
-        elif hook_type == "BeforeModel":
             logger.info(
-                f"[BeforeModel] session_id={input_data.get('session_id')}, "
-                f"model={input_data.get('model', 'unknown')}"
+                "[BeforeToolSelection] session_id=%s",
+                session_id,
+                extra=base_context,
+            )
+        elif hook_type == "BeforeModel":
+            model = input_data.get("model", "unknown")
+            logger.info(
+                "[BeforeModel] session_id=%s, model=%s",
+                session_id,
+                model,
+                extra={**base_context, "model": model},
             )
         elif hook_type == "AfterModel":
-            logger.info(f"[AfterModel] session_id={input_data.get('session_id')}")
-        elif hook_type == "PreCompress":
-            logger.info(f"[PreCompress] session_id={input_data.get('session_id')}")
-        elif hook_type == "Notification":
             logger.info(
-                f"[Notification] session_id={input_data.get('session_id')}, "
-                f"message={input_data.get('message')}"
+                "[AfterModel] session_id=%s",
+                session_id,
+                extra=base_context,
+            )
+        elif hook_type == "PreCompress":
+            logger.info(
+                "[PreCompress] session_id=%s",
+                session_id,
+                extra=base_context,
+            )
+        elif hook_type == "Notification":
+            message = input_data.get("message")
+            logger.info(
+                "[Notification] session_id=%s, message=%s",
+                session_id,
+                message,
+                extra={**base_context, "notification_message": message},
             )
         elif hook_type == "AfterAgent":
-            logger.info(f"[AfterAgent] session_id={input_data.get('session_id')}")
+            logger.info(
+                "[AfterAgent] session_id=%s",
+                session_id,
+                extra=base_context,
+            )
 
         if debug_mode:
             logger.debug(f"Input data: {input_data}")
