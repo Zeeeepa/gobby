@@ -150,6 +150,8 @@ class SessionManager:
                     "project_id": project_id,
                     "title": title,
                     "git_branch": git_branch,
+                    "workflow_name": workflow_name,
+                    "agent_depth": agent_depth,
                 }
 
             self.logger.debug(f"Registered session {session_id} (external_id={external_id})")
