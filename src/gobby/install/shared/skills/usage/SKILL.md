@@ -19,21 +19,21 @@ Display available options and current budget status.
 Show token usage and costs for today only.
 
 ```python
-call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 1})
+await call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 1})
 ```
 
 ### `/gobby usage --week` - Weekly usage summary
 Show token usage and costs for the last 7 days.
 
 ```python
-call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 7})
+await call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 7})
 ```
 
 ### `/gobby usage --budget` - Budget status only
 Show current daily budget status without usage breakdown.
 
 ```python
-call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
+await call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
 ```
 
 ## Output Format
@@ -64,7 +64,7 @@ Daily Budget Status:
 
 ### get_usage_report
 ```python
-call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": N})
+await call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": N})
 ```
 Returns token counts and cost estimates for the specified period.
 
@@ -73,7 +73,7 @@ Parameters:
 
 ### get_budget_status
 ```python
-call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
+await call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
 ```
 Returns current daily budget configuration and usage.
 

@@ -546,7 +546,7 @@ class WebSocketServer:
             # or if agent just died.
             return
 
-        if not agent.master_fd:
+        if agent.master_fd is None:
             logger.warning(f"Agent {run_id} has no PTY master_fd")
             return
 
