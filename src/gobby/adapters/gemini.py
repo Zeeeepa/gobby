@@ -76,21 +76,39 @@ class GeminiAdapter(BaseAdapter):
 
     # Tool name mapping: Gemini tool names -> normalized names
     # Gemini uses different tool names than Claude Code
+    # This enables workflows to use Claude Code naming conventions
     TOOL_MAP: dict[str, str] = {
+        # Shell/Bash
         "run_shell_command": "Bash",
         "RunShellCommand": "Bash",
+        "ShellTool": "Bash",
+        # File read
         "read_file": "Read",
         "ReadFile": "Read",
         "ReadFileTool": "Read",
+        # File write
         "write_file": "Write",
         "WriteFile": "Write",
         "WriteFileTool": "Write",
+        # File edit
         "edit_file": "Edit",
         "EditFile": "Edit",
         "EditFileTool": "Edit",
+        # Search/Glob/Grep
         "GlobTool": "Glob",
         "GrepTool": "Grep",
-        "ShellTool": "Bash",
+        "search_file_content": "Grep",
+        "SearchText": "Grep",
+        # MCP tools (Gobby MCP server)
+        "call_tool": "mcp__gobby__call_tool",
+        "list_mcp_servers": "mcp__gobby__list_mcp_servers",
+        "list_tools": "mcp__gobby__list_tools",
+        "get_tool_schema": "mcp__gobby__get_tool_schema",
+        "search_tools": "mcp__gobby__search_tools",
+        "recommend_tools": "mcp__gobby__recommend_tools",
+        # Skill and agent tools
+        "activate_skill": "Skill",
+        "delegate_to_agent": "Task",
     }
 
     def __init__(self, hook_manager: "HookManager | None" = None):

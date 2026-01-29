@@ -234,10 +234,14 @@ def main() -> int:
         if hook_type == "SessionStart":
             input_data["terminal_context"] = get_terminal_context()
             # Inject gobby context (parent_session_id, workflow, etc.) for spawned agents
+            # Use namespaced key to avoid silent overwrites of top-level keys
             gobby_ctx = get_gobby_context()
-            for key, value in gobby_ctx.items():
-                if value is not None:
-                    input_data[key] = value
+            filtered_ctx = {k: v for k, v in gobby_ctx.items() if v is not None}
+            if filtered_ctx:
+                if "gobby_context" in input_data:
+                    input_data["gobby_context"].update(filtered_ctx)
+                else:
+                    input_data["gobby_context"] = filtered_ctx
 
         # Log what Gemini CLI sends us (for debugging hook data issues)
         logger.info(f"[{hook_type}] Received input keys: {list(input_data.keys())}")
