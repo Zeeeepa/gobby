@@ -39,10 +39,17 @@ def add_messaging_tools(
         session_manager: LocalSessionManager for resolving parent/child relationships
             (database is the authoritative source for session relationships)
     """
+    from gobby.utils.project_context import get_project_context
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+        return session_manager.resolve_session_reference(ref, project_id)
 
     @registry.tool(
         name="send_to_parent",
-        description="Send a message from a child session to its parent session.",
+        description="Send a message from a child session to its parent session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def send_to_parent(
         session_id: str,
@@ -56,7 +63,7 @@ def add_messaging_tools(
         or requests back to its parent session.
 
         Args:
-            session_id: The current (child) session ID
+            session_id: Session reference (accepts #N, N, UUID, or prefix) for the current (child) session
             content: Message content to send
             priority: Message priority ("normal" or "urgent")
 
@@ -64,12 +71,18 @@ def add_messaging_tools(
             Dict with success status and message details
         """
         try:
+            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+            try:
+                resolved_session_id = _resolve_session_id(session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
             # Look up session in database (authoritative source for relationships)
-            session = session_manager.get(session_id)
+            session = session_manager.get(resolved_session_id)
             if not session:
                 return {
                     "success": False,
-                    "error": f"Session {session_id} not found",
+                    "error": f"Session {resolved_session_id} not found",
                 }
 
             parent_session_id = session.parent_session_id
@@ -81,14 +94,17 @@ def add_messaging_tools(
 
             # Create the message
             msg = message_manager.create_message(
-                from_session=session_id,
+                from_session=resolved_session_id,
                 to_session=parent_session_id,
                 content=content,
                 priority=priority,
             )
 
             logger.info(
-                "Message sent from %s to parent %s: %s", session_id, parent_session_id, msg.id
+                "Message sent from %s to parent %s: %s",
+                resolved_session_id,
+                parent_session_id,
+                msg.id,
             )
 
             return {
@@ -106,7 +122,7 @@ def add_messaging_tools(
 
     @registry.tool(
         name="send_to_child",
-        description="Send a message from a parent session to a specific child session.",
+        description="Send a message from a parent session to a specific child session. Accepts #N, N, UUID, or prefix for session IDs.",
     )
     async def send_to_child(
         parent_session_id: str,
@@ -121,8 +137,8 @@ def add_messaging_tools(
         updates, or coordination messages to a spawned child.
 
         Args:
-            parent_session_id: The parent session ID (sender)
-            child_session_id: The child session ID (recipient)
+            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent (sender)
+            child_session_id: Session reference (accepts #N, N, UUID, or prefix) for the child (recipient)
             content: Message content to send
             priority: Message priority ("normal" or "urgent")
 
@@ -130,33 +146,43 @@ def add_messaging_tools(
             Dict with success status and message details
         """
         try:
+            # Resolve session IDs to UUIDs (accepts #N, N, UUID, or prefix)
+            try:
+                resolved_parent_id = _resolve_session_id(parent_session_id)
+                resolved_child_id = _resolve_session_id(child_session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
             # Verify the child exists in database and belongs to this parent
-            child_session = session_manager.get(child_session_id)
+            child_session = session_manager.get(resolved_child_id)
             if not child_session:
                 return {
                     "success": False,
-                    "error": f"Child session {child_session_id} not found",
+                    "error": f"Child session {resolved_child_id} not found",
                 }
 
-            if child_session.parent_session_id != parent_session_id:
+            if child_session.parent_session_id != resolved_parent_id:
                 return {
                     "success": False,
                     "error": (
-                        f"Session {child_session_id} is not a child of {parent_session_id}. "
+                        f"Session {resolved_child_id} is not a child of {resolved_parent_id}. "
                         f"Actual parent: {child_session.parent_session_id}"
                     ),
                 }
 
             # Create the message
             msg = message_manager.create_message(
-                from_session=parent_session_id,
-                to_session=child_session_id,
+                from_session=resolved_parent_id,
+                to_session=resolved_child_id,
                 content=content,
                 priority=priority,
             )
 
             logger.info(
-                "Message sent from %s to child %s: %s", parent_session_id, child_session_id, msg.id
+                "Message sent from %s to child %s: %s",
+                resolved_parent_id,
+                resolved_child_id,
+                msg.id,
             )
 
             return {
@@ -173,7 +199,7 @@ def add_messaging_tools(
 
     @registry.tool(
         name="poll_messages",
-        description="Poll for messages sent to this session.",
+        description="Poll for messages sent to this session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def poll_messages(
         session_id: str,
@@ -186,15 +212,21 @@ def add_messaging_tools(
         By default, returns only unread messages.
 
         Args:
-            session_id: The session ID to check messages for
+            session_id: Session reference (accepts #N, N, UUID, or prefix) to check messages for
             unread_only: If True, only return unread messages (default: True)
 
         Returns:
             Dict with success status and list of messages
         """
         try:
+            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+            try:
+                resolved_session_id = _resolve_session_id(session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
             messages = message_manager.get_messages(
-                to_session=session_id,
+                to_session=resolved_session_id,
                 unread_only=unread_only,
             )
 
@@ -252,7 +284,7 @@ def add_messaging_tools(
 
     @registry.tool(
         name="broadcast_to_children",
-        description="Broadcast a message to all active child sessions.",
+        description="Broadcast a message to all active child sessions. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def broadcast_to_children(
         parent_session_id: str,
@@ -267,7 +299,7 @@ def add_messaging_tools(
         Useful for coordination or shutdown signals.
 
         Args:
-            parent_session_id: The parent session ID
+            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent
             content: Message content to broadcast
             priority: Message priority ("normal" or "urgent")
 
@@ -275,8 +307,14 @@ def add_messaging_tools(
             Dict with success status and count of messages sent
         """
         try:
+            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+            try:
+                resolved_parent_id = _resolve_session_id(parent_session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
             # Get all children from database
-            all_children = session_manager.find_children(parent_session_id)
+            all_children = session_manager.find_children(resolved_parent_id)
             # Filter to active children only
             children = [c for c in all_children if c.status == "active"]
 
@@ -293,7 +331,7 @@ def add_messaging_tools(
             for child in children:
                 try:
                     message_manager.create_message(
-                        from_session=parent_session_id,
+                        from_session=resolved_parent_id,
                         to_session=child.id,
                         content=content,
                         priority=priority,
@@ -313,7 +351,7 @@ def add_messaging_tools(
 
             logger.info(
                 "Broadcast from %s sent to %d/%d children",
-                parent_session_id,
+                resolved_parent_id,
                 sent_count,
                 len(children),
             )

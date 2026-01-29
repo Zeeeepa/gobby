@@ -52,11 +52,11 @@ Example: `/gobby metrics failing 0.05` → `get_failing_tools(threshold=0.05)`
 Call `get_tool_success_rate` with:
 - `server_name`: (required) Server name
 - `tool_name`: (required) Tool name
-- `project_id`: (required) Project ID
+- `project_id`: (optional) Project ID - automatically inferred from current session context if not provided
 
-Returns detailed success rate for a specific tool.
+Returns detailed success rate for a specific tool. The project_id is optional because it can be inferred from the current working directory's `.gobby/project.json` file.
 
-Example: `/gobby metrics success gobby-tasks create_task` → `get_tool_success_rate(server_name="gobby-tasks", tool_name="create_task", project_id="<project_id>")`
+Example: `/gobby metrics success gobby-tasks create_task` → `get_tool_success_rate(server_name="gobby-tasks", tool_name="create_task")`
 
 ### `/gobby metrics reset` - Reset metrics
 Call `reset_metrics` with:

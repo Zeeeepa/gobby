@@ -97,7 +97,7 @@ steps:
 
           IMPORTANT: You are in a git worktree. After completing your work:
           1. Stage your changes: git add <files>
-          2. Commit with task reference: git commit -m "[#{{ variables.assigned_task_id }}] Description"
+          2. Commit with task reference: git commit -m "[#{{ variables.sequence_order }}] Description"
           3. Close the task with the commit SHA:
 
              mcp__gobby__call_tool(

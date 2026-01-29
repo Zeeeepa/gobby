@@ -238,8 +238,9 @@ def main() -> int:
             gobby_ctx = get_gobby_context()
             filtered_ctx = {k: v for k, v in gobby_ctx.items() if v is not None}
             if filtered_ctx:
-                if "gobby_context" in input_data:
-                    input_data["gobby_context"].update(filtered_ctx)
+                existing = input_data.get("gobby_context")
+                if isinstance(existing, dict):
+                    existing.update(filtered_ctx)
                 else:
                     input_data["gobby_context"] = filtered_ctx
 

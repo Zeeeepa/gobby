@@ -433,44 +433,52 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_all_optional_fields(self, mock_task_manager, mock_sync_manager):
         """Test create_task with all optional fields."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
+        ) as MockSessionManager:
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "sess-123"
+            MockSessionManager.return_value = mock_session_manager
 
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
-        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
-        mock_task_manager.create_task_with_decomposition.return_value = {
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
-        }
-        mock_task_manager.get_task.return_value = mock_task
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
-            mock_ctx.return_value = {"id": "proj-1"}
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
+            mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
 
-            await registry.call(
-                "create_task",
-                {
-                    "title": "Full Task",
-                    "description": "Detailed description",
-                    "priority": 1,
-                    "task_type": "feature",
-                    "parent_task_id": "550e8400-e29b-41d4-a716-446655440009",
-                    "labels": ["important"],
-                    "category": "automated",
-                    "validation_criteria": "Must pass tests",
-                    "session_id": "sess-123",
-                },
-            )
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
 
-            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
-            assert call_kwargs["title"] == "Full Task"
-            assert call_kwargs["description"] == "Detailed description"
-            assert call_kwargs["priority"] == 1
-            assert call_kwargs["task_type"] == "feature"
-            assert call_kwargs["parent_task_id"] == "550e8400-e29b-41d4-a716-446655440009"
-            assert call_kwargs["labels"] == ["important"]
-            assert call_kwargs["category"] == "automated"
-            assert call_kwargs["validation_criteria"] == "Must pass tests"
-            assert call_kwargs["created_in_session_id"] == "sess-123"
+                await registry.call(
+                    "create_task",
+                    {
+                        "title": "Full Task",
+                        "description": "Detailed description",
+                        "priority": 1,
+                        "task_type": "feature",
+                        "parent_task_id": "550e8400-e29b-41d4-a716-446655440009",
+                        "labels": ["important"],
+                        "category": "automated",
+                        "validation_criteria": "Must pass tests",
+                        "session_id": "sess-123",
+                    },
+                )
+
+                call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
+                assert call_kwargs["title"] == "Full Task"
+                assert call_kwargs["description"] == "Detailed description"
+                assert call_kwargs["priority"] == 1
+                assert call_kwargs["task_type"] == "feature"
+                assert call_kwargs["parent_task_id"] == "550e8400-e29b-41d4-a716-446655440009"
+                assert call_kwargs["labels"] == ["important"]
+                assert call_kwargs["category"] == "automated"
+                assert call_kwargs["validation_criteria"] == "Must pass tests"
+                assert call_kwargs["created_in_session_id"] == "sess-123"
 
     @pytest.mark.asyncio
     async def test_create_task_initializes_project(self, mock_task_manager, mock_sync_manager):
@@ -576,11 +584,19 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_default_no_claim(self, mock_task_manager, mock_sync_manager):
         """Test create_task without claim parameter does NOT auto-claim."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -621,11 +637,19 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_claim_true(self, mock_task_manager, mock_sync_manager):
         """Test create_task with claim=True auto-claims the task."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -1439,11 +1463,19 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_success(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session creates a link."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "sess-123"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -1496,14 +1528,22 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_session_tasks(self, mock_task_manager, mock_sync_manager):
         """Test get_session_tasks returns tasks for a session."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             mock_st_instance.get_session_tasks.return_value = [
                 {"task_id": "t1", "action": "worked_on"}
             ]
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "sess-123"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 

@@ -35,11 +35,27 @@ from __future__ import annotations
 import asyncio
 import shutil
 import subprocess  # nosec B404 - subprocess needed for code linting commands
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.plugins import HookPlugin, hook_handler
+
+
+class BoundedCache(OrderedDict):
+    """LRU-style bounded cache with configurable max size."""
+
+    def __init__(self, max_size: int = 100) -> None:
+        super().__init__()
+        self.max_size = max_size
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        while len(self) > self.max_size:
+            self.popitem(last=False)
 
 
 class CodeGuardianPlugin(HookPlugin):
@@ -65,10 +81,12 @@ class CodeGuardianPlugin(HookPlugin):
         # Rules to exclude from auto-fix (F401=unused imports, F811=redefinition)
         # These are commonly "wrong" during multi-step refactoring
         self.auto_fix_exclude_rules: list[str] = ["F401", "F811"]
+        # Max cache size for bounded caches (configurable via on_load)
+        self.max_cache_size: int = 100
 
-        # State tracking
-        self._last_check_results: dict[str, Any] = {}
-        self._mypy_results_by_path: dict[str, list[str]] = {}  # Cache for mypy results
+        # State tracking with bounded caches to prevent unbounded growth
+        self._last_check_results: BoundedCache = BoundedCache(max_size=self.max_cache_size)
+        self._mypy_results_by_path: BoundedCache = BoundedCache(max_size=self.max_cache_size)
         self._files_checked: int = 0
         self._files_blocked: int = 0
 
@@ -82,6 +100,12 @@ class CodeGuardianPlugin(HookPlugin):
         self.auto_fix_exclude_rules = config.get(
             "auto_fix_exclude_rules", self.auto_fix_exclude_rules
         )
+        # Update cache sizes if configured
+        new_cache_size = config.get("max_cache_size", self.max_cache_size)
+        if new_cache_size != self.max_cache_size:
+            self.max_cache_size = new_cache_size
+            self._last_check_results = BoundedCache(max_size=new_cache_size)
+            self._mypy_results_by_path = BoundedCache(max_size=new_cache_size)
 
         self.logger.info(
             f"Code Guardian loaded: checks={self.checks}, "
@@ -167,12 +191,8 @@ class CodeGuardianPlugin(HookPlugin):
         # For Edit tool, run checks on the modified file
         if tool_name == "Edit" and path.exists():
             self._files_checked += 1
+            # _run_checks populates _mypy_results_by_path internally when mypy is enabled
             errors = self._run_checks(path)
-
-            # Cache mypy results separately for condition checks
-            if "mypy" in self.checks:
-                mypy_errors = self._run_mypy_check(path)
-                self._mypy_results_by_path[str(path)] = mypy_errors
 
             if errors:
                 self._last_check_results[str(path)] = {
@@ -244,14 +264,20 @@ class CodeGuardianPlugin(HookPlugin):
         return None
 
     def _run_checks(self, path: Path) -> list[str]:
-        """Run configured checkers on a file."""
+        """Run configured checkers on a file.
+
+        Also populates _mypy_results_by_path when mypy is enabled.
+        """
         errors: list[str] = []
 
         if "ruff" in self.checks:
             errors.extend(self._run_ruff_check(path))
 
         if "mypy" in self.checks:
-            errors.extend(self._run_mypy_check(path))
+            mypy_errors = self._run_mypy_check(path)
+            # Cache mypy results for condition checks (single source of truth)
+            self._mypy_results_by_path[str(path)] = mypy_errors
+            errors.extend(mypy_errors)
 
         return errors
 
@@ -407,7 +433,9 @@ class CodeGuardianPlugin(HookPlugin):
             path = Path(file_path)
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "ruff", "format", str(path),
+                    "ruff",
+                    "format",
+                    str(path),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )

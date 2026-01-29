@@ -7,7 +7,7 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 ## Skill Hub Ecosystem (2026)
 
 | Hub | CLI | Skills | Notes |
-|-----|-----|--------|-------|
+| ----- | ----- | -------- | ------- |
 | [ClawdHub](https://clawdhub.com) | `npx clawdhub` | 500+ | Moltbot's registry, REST API |
 | [SkillHub](https://skillhub.club) | `npx @skill-hub/cli` | 7,000+ | AI-evaluated, S/A rankings |
 | [SkillCreator.ai](https://skillcreator.ai) | `npx ai-agent-skills` | Dynamic | Creates skills from URLs/docs |
@@ -23,16 +23,30 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 ## API Reference
 
 ### ClawdHub API
-> **Note**: These endpoints are proposed/aspirational — pending official documentation from ClawdHub.
 
+> **Warning**: These endpoints are **speculative** and undocumented. The implementation approach below should be followed.
+
+**Recommended Implementation Approach:**
+1. **Primary**: Use the official `npx clawdhub` CLI tool for all operations (search, install, publish)
+2. **Fallback**: If CLI integration is insufficient, contact ClawdHub maintainers for official API documentation
+
+**Speculative Endpoints (DO NOT implement without verification):**
 - **Base**: `https://clawdhub.com`
-- **Discovery**: `GET /.well-known/clawdhub.json` → `{apiBase, authBase}` (proposed)
-- **Search**: `GET /api/v1/search?q=<query>&limit=<n>` → `{results: [{slug, displayName, version, score}]}` (proposed)
-- **Details**: `GET /api/v1/skills/<slug>` (proposed)
-- **Download**: `GET /api/v1/download?slug=<slug>&version=<version>` → ZIP (proposed)
-- **Auth**: Bearer token (optional for read, required for publish)
+- **Discovery**: `GET /.well-known/clawdhub.json` → `{apiBase, authBase}` (speculative)
+- **Search**: `GET /api/v1/search?q=<query>&limit=<n>` → `{results: [{slug, displayName, version, score}]}` (speculative)
+- **Details**: `GET /api/v1/skills/<slug>` (speculative)
+- **Download**: `GET /api/v1/download?slug=<slug>&version=<version>` → ZIP (speculative)
+- **Auth**: Bearer token (speculative)
+
+**Risks & Assumptions:**
+- All endpoint paths, request/response formats, and auth mechanisms are unverified guesses
+- ClawdHub may not expose a public REST API at all
+- Endpoints may require authentication even for read operations
+- Response schemas are assumed and may differ significantly
+- Rate limiting, error formats, and pagination are unknown
 
 ### SkillHub API
+
 - **Base**: `https://www.skillhub.club/api/v1`
 - **Search**: `POST /skills/search` body: `{query, limit, category, method}` → `{skills: [...]}`
 - **Catalog**: `GET /skills/catalog?limit=<n>&sort=score|stars|recent`
@@ -99,7 +113,7 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 ## Files to Create
 
 | Path | Purpose |
-|------|---------|
+| ------ | --------- |
 | `src/gobby/skills/hubs/__init__.py` | Module exports |
 | `src/gobby/skills/hubs/base.py` | `HubProvider` ABC, data classes |
 | `src/gobby/skills/hubs/manager.py` | `HubManager` (multi-hub orchestration) |
@@ -110,7 +124,7 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 ## Files to Modify
 
 | Path | Changes |
-|------|---------|
+| ------ | --------- |
 | `src/gobby/config/app.py` | Add `HubConfig` model, extend `SkillsConfig` |
 | `src/gobby/storage/skills.py` | Add hub tracking fields to `Skill` dataclass |
 | `src/gobby/mcp_proxy/tools/skills/__init__.py` | Add `search_hub`, `list_hubs` tools; update `install_skill` |
@@ -119,35 +133,42 @@ gobby skills hub add enterprise --type clawdhub --url https://skills.company.com
 ## Implementation Phases
 
 ### Phase 1: Configuration & Data Models
+
 - Add `HubConfig` pydantic model
 - Add hub tracking fields: `hub_name`, `hub_slug`, `hub_version`
 - Update `SkillSourceType` to include `"hub"`
 
 ### Phase 2: Provider Abstraction
+
 - Create `HubProvider` ABC with data classes
 - Create `HubManager` for multi-hub orchestration
 
 ### Phase 3: ClawdHub Provider
+
 - Implement well-known discovery (`/.well-known/clawdhub.json`)
 - Implement search, details, download endpoints
 - Handle auth tokens
 
 ### Phase 4: SkillHub Provider
+
 - Implement search (`POST /skills/search`)
 - Implement catalog listing (`GET /skills/catalog`)
 - Handle API key authentication (`x-api-key` header)
 
 ### Phase 5: GitHub Collection Provider
+
 - Parse repo structure for skills
 - Use existing `clone_skill_repo()` for downloads
 - Client-side search via listing + filtering
 
 ### Phase 6: MCP Tools
+
 - `search_hub(query, hub?, limit)` - Cross-hub search
 - `list_hubs()` - Show configured hubs and health
 - Update `install_skill` for hub references
 
 ### Phase 7: CLI Commands
+
 - `gobby skills search <query> [--hub NAME]`
 - `gobby skills hub list|add|remove`
 - Update `gobby skills install` for `hubname:slug` syntax

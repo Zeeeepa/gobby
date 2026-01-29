@@ -75,11 +75,19 @@ class TestClaimTaskTool:
     @pytest.mark.asyncio
     async def test_claim_task_success(self, mock_task_manager, mock_sync_manager, sample_task):
         """Test successfully claiming an unclaimed task."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -142,11 +150,19 @@ class TestClaimTaskTool:
         self, mock_task_manager, mock_sync_manager, claimed_task
     ):
         """Test claiming a task with force=True overrides existing claim."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -191,11 +207,19 @@ class TestClaimTaskTool:
             assignee="my-session-id",  # Same session
         )
 
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -370,11 +394,19 @@ class TestClaimTaskVsUpdateTask:
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
         """Test that claim_task atomically sets assignee and status together."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 

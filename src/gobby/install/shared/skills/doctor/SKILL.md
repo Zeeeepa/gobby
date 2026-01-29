@@ -241,7 +241,7 @@ Store returned `worktree_id`.
 
 **Verify:** Call `get_worktree(worktree_id=<id>)` - should return worktree.
 
-**Delete:** Call `delete_worktree(worktree_id=<id>, force=true)`
+**Delete:** Call `delete_worktree(worktree_id=<id>, force=True)`
 
 **Verify deletion:** Call `get_worktree(worktree_id=<id>)` - should return error/not found.
 
@@ -269,7 +269,7 @@ Store returned `clone_id`.
 
 **Verify:** Call `get_clone(clone_id=<id>)` - should return clone.
 
-**Delete:** Call `delete_clone(clone_id=<id>, force=true)`
+**Delete:** Call `delete_clone(clone_id=<id>, force=True)`
 
 **Verify deletion:** Call `get_clone(clone_id=<id>)` - should return error/not found.
 
@@ -426,7 +426,7 @@ For each clone with name starting with `__diag__`:
 
 ```python
 # gobby-clones server:
-delete_clone(clone_id=<id>, force=true)
+delete_clone(clone_id=<id>, force=True)
 ```
 
 ### Step 2: Clean Worktrees
@@ -442,7 +442,7 @@ For each worktree with branch starting with `__diag__`:
 
 ```python
 # gobby-worktrees server:
-delete_worktree(worktree_id=<id>, force=true)
+delete_worktree(worktree_id=<id>, force=True)
 ```
 
 ### Step 3: Clean Tasks

@@ -234,11 +234,10 @@ class ExampleNotifyPlugin(HookPlugin):
             "session_id": context.session_id if context else None,
         }
 
-        # Ensure log directory exists
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
-
         # Append to log file in JSON Lines format (non-blocking)
         def _write_metric() -> None:
+            # Ensure log directory exists (inside try for error handling)
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.log_file, "a") as f:
                 f.write(json.dumps(metric_entry) + "\n")
 
