@@ -166,6 +166,7 @@ class LocalSessionManager:
         agent_depth: int = 0,
         spawned_by_agent_id: str | None = None,
         terminal_context: dict[str, Any] | None = None,
+        workflow_name: str | None = None,
     ) -> Session:
         """
         Register a new session or return existing one.
@@ -241,9 +242,9 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        status, created_at, updated_at, seq_num, had_edits
+                        workflow_name, status, created_at, updated_at, seq_num, had_edits
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
                     """,
                     (
                         session_id,
@@ -258,6 +259,7 @@ class LocalSessionManager:
                         agent_depth,
                         spawned_by_agent_id,
                         json.dumps(terminal_context) if terminal_context else None,
+                        workflow_name,
                         now,
                         now,
                         next_seq_num,
