@@ -167,3 +167,44 @@ class WorkflowHookHandler:
         except Exception as e:
             logger.error(f"Error handling lifecycle workflow: {e}", exc_info=True)
             return HookResponse(decision="allow")
+
+    def activate_workflow(
+        self,
+        workflow_name: str,
+        session_id: str,
+        project_path: str | None = None,
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Activate a step-based workflow for a session.
+
+        This is used during session startup for terminal-mode agents that have
+        a workflow_name set. It's a synchronous wrapper around the engine's
+        activate_workflow method.
+
+        Args:
+            workflow_name: Name of the workflow to activate
+            session_id: Session ID to activate for
+            project_path: Optional project path for workflow discovery
+            variables: Optional initial variables to merge with workflow defaults
+
+        Returns:
+            Dict with success status and workflow info
+        """
+        if not self._enabled:
+            return {"success": False, "error": "Workflow engine is disabled"}
+
+        from pathlib import Path
+
+        path = Path(project_path) if project_path else None
+
+        try:
+            return self.engine.activate_workflow(
+                workflow_name=workflow_name,
+                session_id=session_id,
+                project_path=path,
+                variables=variables,
+            )
+        except Exception as e:
+            logger.error(f"Error activating workflow: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}

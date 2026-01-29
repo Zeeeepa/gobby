@@ -168,11 +168,28 @@ def setup_internal_registries(
 
     # Initialize agents registry if agent_runner is available
     if agent_runner is not None:
+        from gobby.agents.definitions import AgentDefinitionLoader
         from gobby.agents.registry import get_running_agent_registry
         from gobby.mcp_proxy.tools.agents import create_agents_registry
 
+        # Create clone git manager if we have a git manager
+        clone_git_manager = None
+        if git_manager is not None:
+            try:
+                from gobby.clones.git import CloneGitManager
+
+                clone_git_manager = CloneGitManager(git_manager.repo_path)
+            except Exception as e:
+                logger.debug(f"CloneGitManager not available for spawn_agent: {e}")
+
         agents_registry = create_agents_registry(
             runner=agent_runner,
+            agent_loader=AgentDefinitionLoader(),
+            task_manager=task_manager,
+            worktree_storage=worktree_storage,
+            git_manager=git_manager,
+            clone_storage=clone_storage,
+            clone_manager=clone_git_manager,
         )
 
         # Add inter-agent messaging tools if message manager is available

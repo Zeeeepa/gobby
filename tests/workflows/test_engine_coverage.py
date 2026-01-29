@@ -771,6 +771,8 @@ class TestCloseTaskClearsTaskClaimed:
             event_type=HookEventType.AFTER_TOOL,
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",  # Normalized MCP fields
+                "mcp_tool": "close_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "close_task",
@@ -884,6 +886,8 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
             metadata={"_platform_session_id": "sess1"},
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",  # Normalized MCP fields
+                "mcp_tool": "create_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "create_task",

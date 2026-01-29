@@ -207,6 +207,26 @@ class EventHandlers:
                         except Exception as e:
                             self.logger.warning(f"Failed to start agent run: {e}")
 
+                    # Auto-activate workflow if specified for this session
+                    if existing_session.workflow_name and self._workflow_handler and session_id:
+                        try:
+                            result = self._workflow_handler.activate_workflow(
+                                workflow_name=existing_session.workflow_name,
+                                session_id=session_id,
+                                project_path=cwd,
+                            )
+                            if result.get("success"):
+                                self.logger.info(
+                                    f"Auto-activated workflow '{existing_session.workflow_name}' "
+                                    f"for session {session_id}"
+                                )
+                            else:
+                                self.logger.warning(
+                                    f"Failed to auto-activate workflow: {result.get('error')}"
+                                )
+                        except Exception as e:
+                            self.logger.warning(f"Failed to auto-activate workflow: {e}")
+
                     # Update event metadata
                     event.metadata["_platform_session_id"] = session_id
 
