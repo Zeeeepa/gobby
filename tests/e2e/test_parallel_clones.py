@@ -434,12 +434,15 @@ class TestSpawnAgentWithCloneIsolation:
         assert result.get("success") is False
         # Error may be about invalid mode OR about missing clone infrastructure
         # (clone_manager/clone_storage may not be wired in e2e test environment)
+        # OR about missing remote URL (e2e test repo has no remote configured)
         error_msg = result.get("error", "").lower()
         assert (
             "invalid" in error_msg
             or "mode" in error_msg
             or "clone_manager" in error_msg
             or "clone_storage" in error_msg
+            or "remote" in error_msg
+            or "url" in error_msg
         )
 
 

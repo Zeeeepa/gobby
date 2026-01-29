@@ -378,6 +378,7 @@ class TestActivateWorkflowWithVariables:
     def test_creates_workflow_state_with_variables(self, temp_db, session_id):
         """Tool creates workflow state with variables merged correctly."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.storage.sessions import LocalSessionManager
         from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -385,8 +386,12 @@ class TestActivateWorkflowWithVariables:
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         state_manager = WorkflowStateManager(temp_db)
+        session_manager = LocalSessionManager(temp_db)
 
-        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
+        # Pass db and session_manager so the registry uses the same database
+        registry = create_workflows_registry(
+            loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
+        )
         tool_func = registry._tools["activate_workflow"].func
 
         result = tool_func(
@@ -395,7 +400,7 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert result["success"] is True
+        assert result["success"] is True, f"activate_workflow failed: {result}"
         assert result["workflow"] == "auto-task"
         # Note: This test loads the shared workflow from src/gobby/install/shared/workflows
         # which defines "work" as the first step
@@ -411,14 +416,19 @@ class TestActivateWorkflowWithVariables:
     def test_merges_workflow_defaults_with_passed_variables(self, temp_db, session_id):
         """Passed variables override workflow defaults."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.storage.sessions import LocalSessionManager
         from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         state_manager = WorkflowStateManager(temp_db)
+        session_manager = LocalSessionManager(temp_db)
 
-        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
+        # Pass db and session_manager so the registry uses the same database
+        registry = create_workflows_registry(
+            loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
+        )
         tool_func = registry._tools["activate_workflow"].func
 
         # Override the default premature_stop_max_attempts
@@ -428,7 +438,7 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert result["success"] is True
+        assert result["success"] is True, f"activate_workflow failed: {result}"
         # Verify override worked
         assert result["variables"]["premature_stop_max_attempts"] == 5
         assert result["variables"]["session_task"] == "gt-abc123"
@@ -436,12 +446,14 @@ class TestActivateWorkflowWithVariables:
     def test_rejects_existing_step_workflow(self, temp_db, session_id):
         """Tool rejects activation if step workflow already active."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.storage.sessions import LocalSessionManager
         from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         state_manager = WorkflowStateManager(temp_db)
+        session_manager = LocalSessionManager(temp_db)
 
         # Create existing workflow state
         existing_state = WorkflowState(
@@ -451,7 +463,10 @@ class TestActivateWorkflowWithVariables:
         )
         state_manager.save_state(existing_state)
 
-        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
+        # Pass db and session_manager so the registry uses the same database
+        registry = create_workflows_registry(
+            loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
+        )
         tool_func = registry._tools["activate_workflow"].func
 
         result = tool_func(

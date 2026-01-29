@@ -422,6 +422,78 @@ class CloneGitManager:
             logger.error(f"Error getting clone status: {e}")
             return None
 
+    def create_clone(
+        self,
+        clone_path: str | Path,
+        branch_name: str,
+        base_branch: str = "main",
+        shallow: bool = True,
+    ) -> GitOperationResult:
+        """
+        Create a clone for isolated work.
+
+        This is the high-level API used by CloneIsolationHandler.
+        It gets the remote URL from the current repository and creates
+        a shallow clone at the specified path.
+
+        Args:
+            clone_path: Path where clone will be created
+            branch_name: Branch to create/checkout in the clone
+            base_branch: Base branch to clone from (default: main)
+            shallow: Whether to create a shallow clone (default: True)
+
+        Returns:
+            GitOperationResult with success status and message
+        """
+        # Get remote URL from current repo
+        remote_url = self.get_remote_url()
+        if not remote_url:
+            return GitOperationResult(
+                success=False,
+                message="Could not get remote URL from repository",
+                error="no_remote_url",
+            )
+
+        # Create shallow clone
+        depth = 1 if shallow else 0
+        result = self.shallow_clone(
+            remote_url=remote_url,
+            clone_path=clone_path,
+            branch=base_branch,
+            depth=depth if depth > 0 else 1,  # shallow_clone requires depth >= 1
+        )
+
+        if not result.success:
+            return result
+
+        # If branch_name differs from base_branch, create and checkout the new branch
+        if branch_name != base_branch:
+            try:
+                # Create new branch from base
+                create_result = self._run_git(
+                    ["checkout", "-b", branch_name],
+                    cwd=clone_path,
+                    timeout=30,
+                )
+                if create_result.returncode != 0:
+                    return GitOperationResult(
+                        success=False,
+                        message=f"Failed to create branch {branch_name}: {create_result.stderr}",
+                        error=create_result.stderr,
+                    )
+            except Exception as e:
+                return GitOperationResult(
+                    success=False,
+                    message=f"Error creating branch: {e}",
+                    error=str(e),
+                )
+
+        return GitOperationResult(
+            success=True,
+            message=f"Successfully created clone at {clone_path} on branch {branch_name}",
+            output=result.output,
+        )
+
     def merge_branch(
         self,
         source_branch: str,

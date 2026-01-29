@@ -194,13 +194,23 @@ class TestInterAgentMessagingE2E:
         cli_events: CLIEventSimulator,
     ):
         """Test polling messages returns empty list when no messages."""
-        # Register a session
-        session_id = f"test-session-{uuid.uuid4().hex[:8]}"
-        cli_events.session_start(
-            session_id=session_id,
-            machine_id="test-machine",
-            source="claude",
+        # First, register the project in the database (required for FK constraint)
+        project_result = cli_events.register_test_project(
+            project_id="e2e-test-project",
+            name="E2E Test Project",
+            repo_path=str(daemon_instance.project_dir),
         )
+        assert project_result["status"] in ["success", "already_exists"]
+
+        # Register a session via register_session to get internal ID
+        external_id = f"test-session-{uuid.uuid4().hex[:8]}"
+        session_result = cli_events.register_session(
+            external_id=external_id,
+            machine_id="test-machine",
+            source="Claude Code",
+            cwd=str(daemon_instance.project_dir),
+        )
+        session_id = session_result["id"]
 
         # Poll messages should return empty
         raw_result = mcp_client.call_tool(
@@ -221,12 +231,23 @@ class TestInterAgentMessagingE2E:
         cli_events: CLIEventSimulator,
     ):
         """Test polling all messages (not just unread)."""
-        session_id = f"test-session-{uuid.uuid4().hex[:8]}"
-        cli_events.session_start(
-            session_id=session_id,
-            machine_id="test-machine",
-            source="claude",
+        # First, register the project in the database (required for FK constraint)
+        project_result = cli_events.register_test_project(
+            project_id="e2e-test-project",
+            name="E2E Test Project",
+            repo_path=str(daemon_instance.project_dir),
         )
+        assert project_result["status"] in ["success", "already_exists"]
+
+        # Register a session via register_session to get internal ID
+        external_id = f"test-session-{uuid.uuid4().hex[:8]}"
+        session_result = cli_events.register_session(
+            external_id=external_id,
+            machine_id="test-machine",
+            source="Claude Code",
+            cwd=str(daemon_instance.project_dir),
+        )
+        session_id = session_result["id"]
 
         # Poll all messages
         raw_result = mcp_client.call_tool(
@@ -356,13 +377,23 @@ class TestInterAgentMessagingE2E:
         cli_events: CLIEventSimulator,
     ):
         """Test broadcasting to children when none exist returns success with zero sent."""
-        parent_session_id = f"parent-{uuid.uuid4().hex[:8]}"
-
-        cli_events.session_start(
-            session_id=parent_session_id,
-            machine_id="test-machine",
-            source="claude",
+        # First, register the project in the database (required for FK constraint)
+        project_result = cli_events.register_test_project(
+            project_id="e2e-test-project",
+            name="E2E Test Project",
+            repo_path=str(daemon_instance.project_dir),
         )
+        assert project_result["status"] in ["success", "already_exists"]
+
+        # Register parent session via register_session to get internal ID
+        parent_external_id = f"parent-{uuid.uuid4().hex[:8]}"
+        parent_result = cli_events.register_session(
+            external_id=parent_external_id,
+            machine_id="test-machine",
+            source="Claude Code",
+            cwd=str(daemon_instance.project_dir),
+        )
+        parent_session_id = parent_result["id"]
 
         # Broadcast - should succeed with 0 sent
         raw_result = mcp_client.call_tool(
