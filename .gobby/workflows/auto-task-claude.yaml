@@ -36,16 +36,19 @@ steps:
           ORCHESTRATOR: Finding next task.
           Session task: {{ variables.session_task }}
 
-          Call suggest_next_task to find available work:
+          Call suggest_next_task to find available work under session_task:
 
           mcp__gobby__call_tool(
             server_name="gobby-tasks",
             tool_name="suggest_next_task",
-            arguments={"session_id": "<your_session_id>"}
+            arguments={
+              "session_id": "<your_session_id>",
+              "parent_task_id": "{{ variables.session_task }}"
+            }
           )
 
           If a task is returned, proceed to spawn a worker.
-          If no tasks are available, check if work is complete.
+          If no tasks are available (null result), check if work is complete.
 
     allowed_tools:
       - mcp__gobby__call_tool
