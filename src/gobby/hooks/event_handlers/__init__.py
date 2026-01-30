@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 from gobby.hooks.event_handlers._agent import AgentEventHandlerMixin
 from gobby.hooks.event_handlers._misc import MiscEventHandlerMixin
 from gobby.hooks.event_handlers._session import SessionEventHandlerMixin
-from gobby.hooks.event_handlers._tool import ToolEventHandlerMixin
+from gobby.hooks.event_handlers._tool import EDIT_TOOLS, ToolEventHandlerMixin
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
