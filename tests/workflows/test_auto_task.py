@@ -361,6 +361,7 @@ class TestActivateWorkflowWithVariables:
     def test_requires_session_id(self, temp_db) -> None:
         """Tool requires session_id parameter."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.storage.sessions import LocalSessionManager
         from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -368,8 +369,11 @@ class TestActivateWorkflowWithVariables:
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         state_manager = WorkflowStateManager(temp_db)
+        session_manager = LocalSessionManager(temp_db)
 
-        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
+        registry = create_workflows_registry(
+            loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
+        )
         tool_func = registry._tools["activate_workflow"].func
 
         result = tool_func(name="auto-task", variables={"session_task": "gt-abc123"})
@@ -479,3 +483,54 @@ class TestActivateWorkflowWithVariables:
 
         assert result["success"] is False
         assert "already has step workflow" in result["error"]
+
+    def test_preserves_lifecycle_variables_when_activating(self, temp_db, session_id) -> None:
+        """Lifecycle variables are preserved when activating a step workflow."""
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.storage.sessions import LocalSessionManager
+        from gobby.workflows.loader import WorkflowLoader
+        from gobby.workflows.state_manager import WorkflowStateManager
+
+        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        state_manager = WorkflowStateManager(temp_db)
+        session_manager = LocalSessionManager(temp_db)
+
+        # Create existing __lifecycle__ state with variables
+        existing_state = WorkflowState(
+            session_id=session_id,
+            workflow_name="__lifecycle__",
+            step="",
+            variables={
+                "unlocked_tools": ["gobby-tasks:create_task"],
+                "task_claimed": True,
+                "custom_var": "should_be_preserved",
+            },
+        )
+        state_manager.save_state(existing_state)
+
+        registry = create_workflows_registry(
+            loader=loader, state_manager=state_manager, session_manager=session_manager, db=temp_db
+        )
+        tool_func = registry._tools["activate_workflow"].func
+
+        result = tool_func(
+            name="auto-task",
+            variables={"session_task": "gt-abc123"},
+            session_id=session_id,
+        )
+
+        assert result["success"] is True, f"activate_workflow failed: {result}"
+
+        # Verify lifecycle variables were preserved
+        assert result["variables"]["unlocked_tools"] == ["gobby-tasks:create_task"]
+        assert result["variables"]["task_claimed"] is True
+        assert result["variables"]["custom_var"] == "should_be_preserved"
+
+        # And new variables were set
+        assert result["variables"]["session_task"] == "gt-abc123"
+
+        # Verify in state
+        state = state_manager.get_state(session_id)
+        assert state.variables["unlocked_tools"] == ["gobby-tasks:create_task"]
+        assert state.variables["custom_var"] == "should_be_preserved"

@@ -113,8 +113,11 @@ def activate_workflow(
             }
         step = definition.steps[0].name
 
-    # Merge workflow default variables with passed-in variables
-    merged_variables = dict(definition.variables)  # Start with workflow defaults
+    # Merge variables: preserve existing lifecycle variables, then apply workflow declarations
+    # Priority: existing state < workflow defaults < passed-in variables
+    # This preserves lifecycle variables (like unlocked_tools) that the step workflow doesn't declare
+    merged_variables = dict(existing.variables) if existing else {}
+    merged_variables.update(definition.variables)  # Override with workflow-declared defaults
     if variables:
         merged_variables.update(variables)  # Override with passed-in values
 
