@@ -291,8 +291,9 @@ class EventHandlers:
                     session_ref = (
                         f"#{existing_session.seq_num}" if existing_session.seq_num else session_id
                     )
-                    system_message = f"\nGobby Session ID: {session_ref} (or {session_id})"
-                    system_message += f"\nCLI-Specific Session ID (external_id): {external_id}"
+                    system_message = f"\nGobby Session ID: {session_ref}"
+                    system_message += " <- Use this for MCP tool calls (session_id parameter)"
+                    system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
                     if parent_session_id:
                         context_parts.append(f"Parent session: {parent_session_id}")
 
@@ -428,12 +429,13 @@ class EventHandlers:
             session_obj = self._session_storage.get(session_id)
             if session_obj and session_obj.seq_num:
                 session_ref = f"#{session_obj.seq_num}"
-        # Format: "Gobby Session ID: #N (or UUID)" so agents know both work
+        # Format: "Gobby Session ID: #N" with usage hint
         if session_ref and session_ref != session_id:
-            system_message = f"\nGobby Session ID: {session_ref} (or {session_id})"
+            system_message = f"\nGobby Session ID: {session_ref}"
         else:
             system_message = f"\nGobby Session ID: {session_id}"
-        system_message += f"\nCLI-Specific Session ID (external_id): {external_id}"
+        system_message += " <- Use this for MCP tool calls (session_id parameter)"
+        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
         # Add active lifecycle workflows
         if wf_response.metadata and "discovered_workflows" in wf_response.metadata:

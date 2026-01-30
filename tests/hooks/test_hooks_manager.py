@@ -255,7 +255,7 @@ class TestHookManagerSessionStart:
         # Response should include system message indicating session enhancement
         assert response.system_message is not None
         assert "Gobby Session ID:" in response.system_message
-        assert "CLI-Specific Session ID (external_id):" in response.system_message
+        assert "External ID:" in response.system_message
 
     def test_session_resume_no_handoff_message(
         self,
@@ -290,7 +290,7 @@ class TestHookManagerSessionStart:
         # Parent finding only runs on source='clear'
         assert response.system_message is not None
         assert "Gobby Session ID:" in response.system_message
-        assert "CLI-Specific Session ID (external_id):" in response.system_message
+        assert "External ID:" in response.system_message
         assert "Context restored" not in (response.system_message or "")
 
 

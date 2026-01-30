@@ -130,7 +130,10 @@ steps:
           Send a completion message to your parent session using the send_to_parent tool:
           - server_name: "gobby-agents"
           - tool_name: "send_to_parent"
-          - arguments: {"session_id": "<your_session_id>", "content": "Task {{ variables.assigned_task_id }} completed. <brief summary>"}
+          - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "content": "Task {{ variables.assigned_task_id }} completed. <brief summary>"}
+
+          NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
+          Do NOT use the CLI-specific external_id. The Gobby Session ID is what MCP tools expect.
 
           If send_to_parent fails (no parent found), that's okay - proceed to shutdown.
 
@@ -174,9 +177,10 @@ steps:
           Update your session status to completed using the update_session tool:
           - server_name: "gobby-sessions"
           - tool_name: "update_session"
-          - arguments: {"session_id": "<your_gobby_session_id>", "status": "completed"}
+          - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "status": "completed"}
 
-          Note: Use the Gobby session ID from your session context.
+          NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
+          Do NOT use the CLI-specific external_id or call get_current_session - you already have the ID.
 
           Then run the shutdown script (if available):
           ~/.gobby/scripts/agent_shutdown.sh
