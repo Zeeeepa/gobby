@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from gobby.hooks.event_handlers._base import EventHandlersBase
 from gobby.hooks.events import HookEvent, HookResponse
 
@@ -126,7 +128,9 @@ class ToolEventHandlerMixin(EventHandlersBase):
 
         return HookResponse(decision="allow")
 
-    def _capture_tool_artifact(self, session_id: str, tool_name: str, tool_input: dict) -> None:
+    def _capture_tool_artifact(
+        self, session_id: str, tool_name: str, tool_input: dict[str, Any]
+    ) -> None:
         """Capture artifacts from tool inputs for edit/write tools.
 
         Args:

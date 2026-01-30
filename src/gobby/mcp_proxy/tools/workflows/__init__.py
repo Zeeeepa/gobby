@@ -82,14 +82,14 @@ def create_workflows_registry(
     elif _db is not None:
         _state_manager = WorkflowStateManager(_db)
     else:
-        _state_manager = None  # type: ignore[assignment]
+        _state_manager = None
 
     if session_manager is not None:
         _session_manager = session_manager
     elif _db is not None:
         _session_manager = LocalSessionManager(_db)
     else:
-        _session_manager = None  # type: ignore[assignment]
+        _session_manager = None
 
     registry = InternalToolRegistry(
         name="gobby-workflows",

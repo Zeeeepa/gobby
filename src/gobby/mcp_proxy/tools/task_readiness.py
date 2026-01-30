@@ -406,6 +406,19 @@ def create_readiness_registry(
             ready_tasks = _get_ready_descendants(
                 task_manager, parent_task_id, task_type, project_id
             )
+            # If no ready descendants, check if the parent task itself is ready
+            # This handles the case where session_task is a leaf task with no children
+            if not ready_tasks:
+                parent_task = task_manager.get_task(parent_task_id)
+                if parent_task and parent_task.status == "open":
+                    # Check if it matches task_type filter
+                    if task_type is None or parent_task.task_type == task_type:
+                        # Check if task is ready by seeing if it appears in ready list
+                        ready_check = task_manager.list_ready_tasks(
+                            project_id=project_id, limit=200
+                        )
+                        if any(t.id == parent_task_id for t in ready_check):
+                            ready_tasks = [parent_task]
         else:
             ready_tasks = task_manager.list_ready_tasks(
                 task_type=task_type, limit=50, project_id=project_id
@@ -503,7 +516,7 @@ def create_readiness_registry(
             "score": best_score,
             "reason": f"Selected because: {', '.join(reasons) if reasons else 'best available option'}",
             "alternatives": [
-                {"ref": t.to_brief()["ref"], "title": t.title, "score": s}
+                {"ref": t.to_brief().get("ref", t.id), "title": t.title, "score": s}
                 for t, s, _, _ in scored[1:4]  # Show top 3 alternatives
             ],
             "recommended_skills": recommended_skills,
@@ -536,10 +549,9 @@ def create_readiness_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (from system context). Used to auto-scope suggestions based on workflow's session_task variable.",
+                    "description": "Your session ID (from system context). When provided, auto-scopes suggestions based on workflow's session_task variable.",
                 },
             },
-            "required": ["session_id"],
         },
         func=suggest_next_task,
     )
