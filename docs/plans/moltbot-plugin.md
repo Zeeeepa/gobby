@@ -61,10 +61,13 @@ Single tool with action dispatch:
   name: "gobby",
   description: "Access Gobby daemon tools...",
   parameters: Type.Object({
-    action: Type.Unsafe<"status" | "list_servers" | "list_tools" | "get_schema" | "call">({
-      type: "string",
-      enum: ["status", "list_servers", "list_tools", "get_schema", "call"]
-    }),
+    action: Type.Union([
+      Type.Literal("status"),
+      Type.Literal("list_servers"),
+      Type.Literal("list_tools"),
+      Type.Literal("get_schema"),
+      Type.Literal("call")
+    ]),
     server: Type.Optional(Type.String()),
     tool: Type.Optional(Type.String()),
     args: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
@@ -88,6 +91,36 @@ Returns `{ content: [...], details: ... }` format matching Pi agent expectations
 | Tool registration | Single meta-tool | Avoids 50+ tool bloat, matches Gobby's progressive disclosure |
 | Transport | HTTP fetch | Simpler than stdio, Gobby already exposes HTTP |
 | Schema handling | Pass-through via `Type.Unsafe()` | TypeBox accepts raw JSON Schema |
+| Security model | Trusted localhost | Daemon on localhost:60887 is a trusted local service |
+| Schema validation | Lightweight at boundaries | Validate action enum; sanitize args keys before callTool |
+
+## Security Considerations
+
+### Trust Model
+
+The Gobby daemon at `localhost:60887/mcp` is treated as a **trusted local service**:
+
+- **Assumption**: Only the local user can access the daemon (no network exposure)
+- **Risk**: If the daemon is compromised, an attacker gains full access to all Gobby tools (tasks, sessions, memory, workflows)
+- **Mitigation**: The daemon binds to localhost only; no authentication is required for local-only access
+
+### Schema Pass-Through
+
+Using `Type.Unsafe()` for dynamic schema pass-through bypasses TypeBox validation:
+
+- **Trade-off**: Flexibility vs. type safety—allows Gobby tools to define their own schemas without plugin updates
+- **Recommendation**: Add lightweight validation at plugin boundaries:
+  1. Validate `action` parameter against the known enum before dispatch
+  2. Validate `server` and `tool` are non-empty strings when required
+  3. Sanitize `args` keys (reject or escape special characters) before passing to `callTool`
+
+### Input Sanitization
+
+Arguments passed to `callTool` should be sanitized:
+
+- **Keys**: Validate arg keys are alphanumeric with underscores (reject `__proto__`, `constructor`, etc.)
+- **Values**: Pass values as-is to Gobby (Gobby's MCP tools handle their own validation)
+- **Errors**: Return structured error responses; never expose internal stack traces
 
 ## Files to Create
 

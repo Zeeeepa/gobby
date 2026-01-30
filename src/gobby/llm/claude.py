@@ -766,13 +766,9 @@ class ClaudeLLMProvider(LLMProvider):
             mime_type = "image/png"
 
         # Build prompt with image
-        prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
+        text_prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
         if context:
-            prompt = f"{context}\n\n{prompt}"
-
-        # Use generate_text with image content embedded
-        # The SDK supports vision via the prompt - we pass the base64 image inline
-        image_prompt = f"{prompt}\n\n[Image data: data:{mime_type};base64,{image_base64}]"
+            text_prompt = f"{context}\n\n{text_prompt}"
 
         # Configure Claude Agent SDK
         options = ClaudeAgentOptions(
@@ -785,9 +781,27 @@ class ClaudeLLMProvider(LLMProvider):
             cli_path=cli_path,
         )
 
+        # Build async generator yielding structured message with image content
+        # The SDK accepts AsyncIterable[dict] for multimodal input
+        async def _message_generator() -> Any:
+            yield {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_prompt},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime_type,
+                            "data": image_base64,
+                        },
+                    },
+                ],
+            }
+
         async def _run_query() -> str:
             result_text = ""
-            async for message in query(prompt=image_prompt, options=options):
+            async for message in query(prompt=_message_generator(), options=options):
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
