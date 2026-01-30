@@ -149,10 +149,13 @@ def create_workflows_registry(
     def _end_workflow(
         session_id: str | None = None,
         reason: str | None = None,
+        project_path: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
             return {"success": False, "error": "Workflow tools require database connection"}
-        return end_workflow(_state_manager, _session_manager, session_id, reason)
+        return end_workflow(
+            _loader, _state_manager, _session_manager, session_id, reason, project_path
+        )
 
     @registry.tool(
         name="get_workflow_status",

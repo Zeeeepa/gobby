@@ -158,10 +158,12 @@ def activate_workflow(
 
 
 def end_workflow(
+    loader: WorkflowLoader,
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
     session_id: str | None = None,
     reason: str | None = None,
+    project_path: str | None = None,
 ) -> dict[str, Any]:
     """
     End the currently active step-based workflow.
@@ -170,10 +172,12 @@ def end_workflow(
     Does not affect lifecycle workflows (they continue running).
 
     Args:
+        loader: WorkflowLoader instance
         state_manager: WorkflowStateManager instance
         session_manager: LocalSessionManager instance
         session_id: Session reference (accepts #N, N, UUID, or prefix) - required to prevent cross-session bleed
         reason: Optional reason for ending
+        project_path: Project directory path. Auto-discovered from cwd if not provided.
 
     Returns:
         Success status
@@ -196,12 +200,13 @@ def end_workflow(
         return {"success": False, "error": "No workflow active for session"}
 
     # Check if this is a lifecycle workflow - those cannot be ended manually
-    # Auto-discover project path if not provided (needed to load workflow definition)
-    discovered = get_workflow_project_path()
-    proj = Path(discovered) if discovered else None
+    # Auto-discover project path if not provided
+    if not project_path:
+        discovered = get_workflow_project_path()
+        if discovered:
+            project_path = str(discovered)
 
-    # We need a loader to check the workflow type
-    loader = WorkflowLoader()
+    proj = Path(project_path) if project_path else None
     definition = loader.load_workflow(state.workflow_name, proj)
 
     # If definition exists and is lifecycle type, block manual ending
