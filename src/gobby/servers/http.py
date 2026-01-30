@@ -10,7 +10,7 @@ import logging
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +27,7 @@ from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 from gobby.utils.metrics import get_metrics_collector
 from gobby.utils.version import get_version
 
-if True:  # Type checking hack or just import
+if TYPE_CHECKING:
     from gobby.app_context import ServiceContainer
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class HTTPServer:
         self.test_mode = test_mode
         self.codex_client = codex_client
 
-        # Unpack commonly used services for easier access and backward compat
+        # Unpack commonly used services for easier access
         self.config = services.config
         self.session_manager = services.session_manager
         self.task_manager = services.task_manager
