@@ -146,16 +146,6 @@ def set_variable(
     state.variables[name] = value
     state_manager.save_state(state)
 
-    # Add deprecation warning for session_task variable (when no workflow active)
-    if name == "session_task" and value and state.workflow_name == "__lifecycle__":
-        return {
-            "warning": (
-                "DEPRECATED: Setting session_task directly is deprecated. "
-                "Use activate_workflow(name='auto-task', variables={'session_task': ...}) instead "
-                "for proper state machine semantics and on_premature_stop handling."
-            ),
-        }
-
     return {}
 
 
