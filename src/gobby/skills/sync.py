@@ -23,10 +23,9 @@ def get_bundled_skills_path() -> Path:
     Returns:
         Path to src/gobby/install/shared/skills/
     """
-    # Navigate from this file to install/shared/skills/
-    # This file: src/gobby/skills/sync.py
-    # Target: src/gobby/install/shared/skills/
-    return Path(__file__).parent.parent / "install" / "shared" / "skills"
+    from gobby.paths import get_install_dir
+
+    return get_install_dir() / "shared" / "skills"
 
 
 def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
@@ -101,6 +100,8 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
                 source_ref=None,
                 project_id=None,  # Global scope
                 enabled=True,
+                always_apply=parsed.always_apply,
+                injection_format=parsed.injection_format,
             )
 
             logger.info(f"Synced bundled skill: {parsed.name}")

@@ -23,25 +23,6 @@ MAX_DESCRIPTION_LENGTH = 200
 _config: ToolSummarizerConfig | None = None
 _loader: PromptLoader | None = None
 
-DEFAULT_SUMMARY_PROMPT = """Summarize this MCP tool description in 180 characters or less.
-Keep it to three sentences or less. Be concise and preserve the key functionality.
-Do not add quotes, extra formatting, or code examples.
-
-Description: {description}
-
-Summary:"""
-
-DEFAULT_SUMMARY_SYSTEM_PROMPT = "You are a technical summarizer. Create concise tool descriptions."
-
-DEFAULT_SERVER_DESC_PROMPT = """Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
-
-Tools:
-{tools_list}
-
-Description (1 sentence, try to keep under 100 characters):"""
-
-DEFAULT_SERVER_DESC_SYSTEM_PROMPT = "You write concise technical descriptions."
-
 
 def init_summarizer_config(config: ToolSummarizerConfig, project_dir: str | None = None) -> None:
     """Initialize the summarizer with configuration."""
@@ -50,13 +31,6 @@ def init_summarizer_config(config: ToolSummarizerConfig, project_dir: str | None
     global _config, _loader
     _config = config
     _loader = PromptLoader(project_dir=Path(project_dir) if project_dir else None)
-    # Register fallbacks
-    _loader.register_fallback("features/tool_summary", lambda: DEFAULT_SUMMARY_PROMPT)
-    _loader.register_fallback("features/tool_summary_system", lambda: DEFAULT_SUMMARY_SYSTEM_PROMPT)
-    _loader.register_fallback("features/server_description", lambda: DEFAULT_SERVER_DESC_PROMPT)
-    _loader.register_fallback(
-        "features/server_description_system", lambda: DEFAULT_SERVER_DESC_SYSTEM_PROMPT
-    )
 
 
 def _get_config() -> ToolSummarizerConfig:
@@ -96,9 +70,9 @@ async def _summarize_description_with_claude(description: str) -> str:
             if _loader is None:
                 raise RuntimeError("Summarizer not initialized")
             prompt = _loader.render(prompt_path, {"description": description})
-        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
-            logger.debug(f"Failed to load prompt from {prompt_path}: {e}, using default")
-            prompt = DEFAULT_SUMMARY_PROMPT.format(description=description)
+        except (OSError, KeyError, ValueError, RuntimeError) as e:
+            logger.debug(f"Failed to load prompt from {prompt_path}: {e}")
+            raise
 
         # Get system prompt
         sys_prompt_path = config.system_prompt_path or "features/tool_summary_system"
@@ -106,9 +80,9 @@ async def _summarize_description_with_claude(description: str) -> str:
             if _loader is None:
                 raise RuntimeError("Summarizer not initialized")
             system_prompt = _loader.render(sys_prompt_path, {})
-        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
-            logger.debug(f"Failed to load system prompt from {sys_prompt_path}: {e}, using default")
-            system_prompt = DEFAULT_SUMMARY_SYSTEM_PROMPT
+        except (OSError, KeyError, ValueError, RuntimeError) as e:
+            logger.debug(f"Failed to load system prompt from {sys_prompt_path}: {e}")
+            system_prompt = "You are a technical summarizer."
 
         # Configure for single-turn completion
         options = ClaudeAgentOptions(
@@ -198,30 +172,23 @@ async def generate_server_description(
             "server_name": server_name,
             "tools_list": tools_list,
         }
-        try:
-            if _loader is None:
-                _get_config()  # force init
-            if _loader is None:
-                # Still None after _get_config, use default
-                prompt = DEFAULT_SERVER_DESC_PROMPT.format(**context)
-            else:
-                prompt = _loader.render(prompt_path, context)
-        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
-            logger.debug(f"Failed to load prompt from {prompt_path}: {e}, using default")
-            prompt = DEFAULT_SERVER_DESC_PROMPT.format(**context)
+        if _loader is None:
+            _get_config()  # force init
+        if _loader is None:
+            # Still None after _get_config, use default
+            raise RuntimeError("Summarizer not initialized")
+        else:
+            prompt = _loader.render(prompt_path, context)
 
         # Get system prompt
         sys_prompt_path = (
             config.server_description_system_prompt_path or "features/server_description_system"
         )
-        try:
-            if _loader is None:
-                system_prompt = DEFAULT_SERVER_DESC_SYSTEM_PROMPT
-            else:
-                system_prompt = _loader.render(sys_prompt_path, {})
-        except (FileNotFoundError, OSError, KeyError, ValueError, RuntimeError) as e:
-            logger.debug(f"Failed to load system prompt from {sys_prompt_path}: {e}, using default")
-            system_prompt = DEFAULT_SERVER_DESC_SYSTEM_PROMPT
+
+        if _loader is None:
+            system_prompt = "You write concise technical descriptions."
+        else:
+            system_prompt = _loader.render(sys_prompt_path, {})
 
         # Configure for single-turn completion
         options = ClaudeAgentOptions(

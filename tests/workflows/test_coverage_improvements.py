@@ -60,6 +60,8 @@ def mock_config():
     config.code_execution.model = "claude-3-haiku"
     config.session_summary.model = "claude-3-haiku"
     config.title_synthesis.model = "claude-3-haiku"
+    # Set llm_providers to None to prevent MagicMock from being truthy
+    config.llm_providers = None
     return config
 
 

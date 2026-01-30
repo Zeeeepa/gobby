@@ -15,22 +15,6 @@ logger = logging.getLogger("gobby.mcp.server")
 # Search mode type
 SearchMode = Literal["llm", "semantic", "hybrid"]
 
-DEFAULT_HYBRID_RERANK_PROMPT = """Re-rank the following tools for the task: "{task_description}"
-
-Candidates:
-{candidate_list}
-
-Select the best {top_k} tools. Return JSON:
-{{"recommendations": [{{"server": "...", "tool": "...", "reason": "..."}}]}}"""
-
-DEFAULT_LLM_PROMPT = """Recommend tools for the task: "{task_description}"
-
-Available Servers:
-{available_servers}
-
-Return JSON:
-{{"recommendations": [{{"server": "...", "tool": "...", "reason": "..."}}]}}"""
-
 
 class RecommendationService:
     """Service for recommending tools."""
@@ -49,10 +33,6 @@ class RecommendationService:
         self._project_id = project_id
         self._config = config
         self._loader = PromptLoader()
-        self._loader.register_fallback(
-            "features/recommend_hybrid", lambda: DEFAULT_HYBRID_RERANK_PROMPT
-        )
-        self._loader.register_fallback("features/recommend_llm", lambda: DEFAULT_LLM_PROMPT)
 
     def _get_config(self) -> RecommendToolsConfig:
         """Get config with fallback to defaults."""
@@ -181,10 +161,7 @@ class RecommendationService:
                 "candidate_list": candidate_list,
                 "top_k": top_k,
             }
-            try:
-                prompt = self._loader.render(prompt_path, context)
-            except Exception:
-                prompt = DEFAULT_HYBRID_RERANK_PROMPT.format(**context)
+            prompt = self._loader.render(prompt_path, context)
 
             provider = self._llm_service.get_default_provider()
             response = await provider.generate_text(prompt)
@@ -223,10 +200,7 @@ class RecommendationService:
                 "task_description": task_description,
                 "available_servers": ", ".join(available_servers),
             }
-            try:
-                prompt = self._loader.render(prompt_path, context)
-            except Exception:
-                prompt = DEFAULT_LLM_PROMPT.format(**context)
+            prompt = self._loader.render(prompt_path, context)
 
             provider = self._llm_service.get_default_provider()
             response = await provider.generate_text(prompt)

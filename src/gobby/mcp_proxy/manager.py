@@ -684,6 +684,12 @@ class MCPClientManager:
 
     async def get_tool_input_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get full inputSchema for a specific tool."""
+        tool_info = await self.get_tool_info(server_name, tool_name)
+        input_schema = tool_info.get("inputSchema", {})
+        return cast(dict[str, Any], input_schema)
+
+    async def get_tool_info(self, server_name: str, tool_name: str) -> dict[str, Any]:
+        """Get full tool info including name, description, and inputSchema."""
 
         # This is an optimization. Instead of calling list_tools again,
         # we try to fetch it. But standard MCP list_tools returns everything.
@@ -696,9 +702,13 @@ class MCPClientManager:
             # tool might be an object or dict
             t_name = getattr(tool, "name", tool.get("name") if isinstance(tool, dict) else None)
             if t_name == tool_name:
-                # Return schema
-                if isinstance(tool, dict) and "inputSchema" in tool:
-                    return cast(dict[str, Any], tool["inputSchema"])
+                if isinstance(tool, dict):
+                    result: dict[str, Any] = {"name": t_name}
+                    if "description" in tool and tool["description"]:
+                        result["description"] = tool["description"]
+                    if "inputSchema" in tool:
+                        result["inputSchema"] = tool["inputSchema"]
+                    return result
 
         raise MCPError(f"Tool {tool_name} not found on server {server_name}")
 

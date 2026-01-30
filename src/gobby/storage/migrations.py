@@ -43,9 +43,9 @@ class MigrationUnsupportedError(Exception):
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
 
-# Baseline version - the schema state at v78 (flattened)
+# Baseline version - the schema state at v79 (flattened)
 # This is applied for new databases directly
-BASELINE_VERSION = 78
+BASELINE_VERSION = 79
 
 # Baseline schema - flattened from v78 production state, includes hub tracking fields
 # This is applied for new databases directly
@@ -587,6 +587,8 @@ CREATE TABLE skills (
     hub_slug TEXT,
     hub_version TEXT,
     enabled INTEGER DEFAULT 1,
+    always_apply INTEGER DEFAULT 0,
+    injection_format TEXT DEFAULT 'summary',
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -594,6 +596,7 @@ CREATE TABLE skills (
 CREATE INDEX idx_skills_name ON skills(name);
 CREATE INDEX idx_skills_project_id ON skills(project_id);
 CREATE INDEX idx_skills_enabled ON skills(enabled);
+CREATE INDEX idx_skills_always_apply ON skills(always_apply);
 CREATE UNIQUE INDEX idx_skills_name_project ON skills(name, project_id);
 CREATE UNIQUE INDEX idx_skills_name_global ON skills(name) WHERE project_id IS NULL;
 
@@ -709,6 +712,24 @@ def _migrate_add_hub_tracking_to_skills(db: LocalDatabase) -> None:
     logger.info("Added hub tracking fields to skills table")
 
 
+def _migrate_add_skill_injection_columns(db: LocalDatabase) -> None:
+    """Add always_apply and injection_format columns to skills table.
+
+    These columns enable per-skill control over:
+    - always_apply: Whether skill should always be injected at session start
+    - injection_format: How to inject the skill (summary, full, content)
+
+    The values are extracted from SKILL.md frontmatter during sync and stored
+    as columns for efficient querying.
+    """
+    with db.transaction() as conn:
+        conn.execute("ALTER TABLE skills ADD COLUMN always_apply INTEGER DEFAULT 0")
+        conn.execute("ALTER TABLE skills ADD COLUMN injection_format TEXT DEFAULT 'summary'")
+        conn.execute("CREATE INDEX idx_skills_always_apply ON skills(always_apply)")
+
+    logger.info("Added always_apply and injection_format columns to skills table")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # Project-scoped session refs: Change seq_num index from global to project-scoped
     (76, "Make sessions.seq_num project-scoped", _migrate_session_seq_num_project_scoped),
@@ -716,6 +737,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (77, "Backfill sessions.seq_num per project", _migrate_backfill_session_seq_num_per_project),
     # Hub tracking: Add hub_name, hub_slug, hub_version to skills table
     (78, "Add hub tracking fields to skills", _migrate_add_hub_tracking_to_skills),
+    # Skill injection: Add always_apply and injection_format columns
+    (79, "Add skill injection columns", _migrate_add_skill_injection_columns),
 ]
 
 

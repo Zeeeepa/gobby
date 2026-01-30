@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -227,6 +228,7 @@ def create_readiness_registry(
 
     # Create workflow state manager for session_task scoping
     workflow_state_manager = WorkflowStateManager(task_manager.db)
+    session_manager = LocalSessionManager(task_manager.db)
 
     # --- list_ready_tasks ---
 
@@ -376,7 +378,16 @@ def create_readiness_registry(
 
         # Auto-scope to session_task if session_id is provided and parent_task_id is not set
         if session_id and not parent_task_id:
-            workflow_state = workflow_state_manager.get_state(session_id)
+            # Resolve session_id from #N format to UUID
+            try:
+                resolved_session_id = session_manager.resolve_session_reference(
+                    session_id, project_id
+                )
+            except Exception as e:
+                logger.warning(f"Could not resolve session_id '{session_id}': {e}")
+                resolved_session_id = session_id
+
+            workflow_state = workflow_state_manager.get_state(resolved_session_id)
             if workflow_state:
                 session_task = workflow_state.variables.get("session_task")
                 if session_task and session_task != "*":
@@ -395,6 +406,19 @@ def create_readiness_registry(
             ready_tasks = _get_ready_descendants(
                 task_manager, parent_task_id, task_type, project_id
             )
+            # If no ready descendants, check if the parent task itself is ready
+            # This handles the case where session_task is a leaf task with no children
+            if not ready_tasks:
+                parent_task = task_manager.get_task(parent_task_id)
+                if parent_task and parent_task.status == "open":
+                    # Check if it matches task_type filter
+                    if task_type is None or parent_task.task_type == task_type:
+                        # Check if task is ready by seeing if it appears in ready list
+                        ready_check = task_manager.list_ready_tasks(
+                            project_id=project_id, limit=200
+                        )
+                        if any(t.id == parent_task_id for t in ready_check):
+                            ready_tasks = [parent_task]
         else:
             ready_tasks = task_manager.list_ready_tasks(
                 task_type=task_type, limit=50, project_id=project_id
@@ -492,7 +516,7 @@ def create_readiness_registry(
             "score": best_score,
             "reason": f"Selected because: {', '.join(reasons) if reasons else 'best available option'}",
             "alternatives": [
-                {"ref": t.to_brief()["ref"], "title": t.title, "score": s}
+                {"ref": t.to_brief().get("ref", t.id), "title": t.title, "score": s}
                 for t, s, _, _ in scored[1:4]  # Show top 3 alternatives
             ],
             "recommended_skills": recommended_skills,
@@ -525,10 +549,9 @@ def create_readiness_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (from system context). Used to auto-scope suggestions based on workflow's session_task variable.",
+                    "description": "Your session ID (from system context). When provided, auto-scopes suggestions based on workflow's session_task variable.",
                 },
             },
-            "required": ["session_id"],
         },
         func=suggest_next_task,
     )

@@ -19,11 +19,11 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 if TYPE_CHECKING:
     from gobby.storage.artifacts import LocalArtifactManager
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 
 def create_artifacts_registry(
-    db: LocalDatabase | None = None,
+    db: DatabaseProtocol | None = None,
     artifact_manager: LocalArtifactManager | None = None,
     session_manager: Any | None = None,
 ) -> InternalToolRegistry:
@@ -31,7 +31,7 @@ def create_artifacts_registry(
     Create an artifacts tool registry with all artifact-related tools.
 
     Args:
-        db: LocalDatabase instance (used to create artifact_manager if not provided)
+        db: DatabaseProtocol instance (used to create artifact_manager if not provided)
         artifact_manager: LocalArtifactManager instance
         session_manager: Session manager for resolving session references
 

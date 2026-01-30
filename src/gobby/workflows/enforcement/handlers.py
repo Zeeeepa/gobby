@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from gobby.workflows.enforcement.blocking import block_tools
+from gobby.workflows.enforcement.blocking import block_tools, track_schema_lookup
 from gobby.workflows.enforcement.commit_policy import (
     capture_baseline_dirty_files,
     require_commit_before_stop,
@@ -33,6 +33,7 @@ __all__ = [
     "handle_require_commit_before_stop",
     "handle_require_task_complete",
     "handle_require_task_review_or_close_before_stop",
+    "handle_track_schema_lookup",
     "handle_validate_session_task_scope",
 ]
 
@@ -265,5 +266,38 @@ async def handle_require_task_complete(
         task_ids=task_ids,
         event_data=context.event_data,
         project_id=project_id,
+        workflow_state=context.state,
+    )
+
+
+async def handle_track_schema_lookup(
+    context: Any,
+    task_manager: LocalTaskManager | None = None,
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """ActionHandler wrapper for track_schema_lookup.
+
+    Tracks successful get_tool_schema calls to unlock tools for call_tool.
+    Should be triggered on on_after_tool when the tool is get_tool_schema.
+    """
+    if not context.event_data:
+        return None
+
+    tool_name = context.event_data.get("tool_name", "")
+    is_failure = context.event_data.get("is_failure", False)
+
+    # Only track successful get_tool_schema calls
+    # Handle both native MCP format and Gobby proxy format
+    if tool_name not in ("get_tool_schema", "mcp__gobby__get_tool_schema"):
+        return None
+
+    if is_failure:
+        return None
+
+    # Extract tool_input - for MCP proxy, it's in tool_input directly
+    tool_input = context.event_data.get("tool_input", {}) or {}
+
+    return track_schema_lookup(
+        tool_input=tool_input,
         workflow_state=context.state,
     )

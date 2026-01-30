@@ -8,6 +8,9 @@ settings:
 # Session-scoped variables (can be overridden per session)
 # These provide runtime control over behavior settings
 variables:
+  # Debug: echo additionalContext to system_message for terminal visibility
+  debug_echo_context: true
+
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
 
@@ -16,6 +19,13 @@ variables:
   require_commit_before_close: true
   # Clear task_claimed variable on successful close_task
   clear_task_on_close: true
+
+  # Progressive tool discovery - require get_tool_schema before call_tool
+  # Set to false to disable this enforcement
+  enforce_tool_schema_check: true
+  # List of server:tool combos that have been unlocked via get_tool_schema
+  # Reset on compact/clear since context is lost
+  unlocked_tools: []
 
 triggers:
   on_stop:
@@ -33,6 +43,13 @@ triggers:
       when: "event.data.get('source') in ['clear', 'compact', 'startup']"
       name: plan_mode
       value: false
+
+    # Reset unlocked_tools on compact/clear since context is lost
+    # Agent must re-learn schemas after context compaction
+    - action: set_variable
+      when: "event.data.get('source') in ['clear', 'compact']"
+      name: unlocked_tools
+      value: []
 
     # Capture baseline dirty files for session-aware commit detection
     # Must run FIRST so baseline is captured before any modifications
@@ -138,6 +155,22 @@ triggers:
             - Task duplicates another: reason="duplicate"
             - Decided not to do it: reason="wont_fix"
 
+        # Block call_tool if schema wasn't fetched first (progressive disclosure)
+        # Skip for discovery tools (list_tools, get_tool_schema, etc.)
+        # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
+        - tools: ["mcp__gobby__call_tool"]
+          when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+          reason: |
+
+            Schema required before calling call_tool("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}").
+
+            Run first:
+              get_tool_schema("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}")
+
+  on_after_tool:
+    # Track successful get_tool_schema calls to unlock tools for call_tool
+    - action: track_schema_lookup
+
   on_session_end:
     # Session summary generation - always runs on session end
     # Uses external prompt from prompts collection: handoff/session_end.md
@@ -159,19 +192,30 @@ triggers:
     - action: task_sync_export
 
   on_pre_compact:
+    # Run compact handoff for:
+    # - Claude/other sources: always (single compact event)
+    # - Gemini: only on manual /compress (skip auto triggers which fire constantly)
+    #
+    # Condition: "not gemini" OR "gemini with manual trigger"
+    # Equivalent: skip only for "gemini with auto trigger"
+
     # Extract structured context before compaction
     # Saves formatted markdown to session.compact_markdown
     - action: extract_handoff_context
-    
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
+
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
 
     # Task sync - export to JSONL for Git persistence
     - action: task_sync_export
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
 
     # Generate LLM summary with cumulative compression
     # Each compact builds on previous summary, weighting recent work higher
     # Uses external prompt from prompts collection: handoff/compact.md
     - action: generate_handoff
+      when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
       mode: compact
       prompt: handoff/compact

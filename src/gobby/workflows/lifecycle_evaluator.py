@@ -636,6 +636,7 @@ async def evaluate_all_lifecycle_workflows(
                     "path": str(w.path),
                 }
                 for w in workflows
-            ]
+            ],
+            "workflow_variables": context_data,
         },
     )

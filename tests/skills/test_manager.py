@@ -275,25 +275,27 @@ class TestSkillManagerCoreSkills:
         assert core == []
 
     def test_list_core_skills(self, db) -> None:
-        """Test listing core skills with alwaysApply=true."""
+        """Test listing core skills with always_apply=True."""
         from gobby.skills.manager import SkillManager
 
         manager = SkillManager(db)
 
-        # Create a core skill (alwaysApply=true)
-        manager.create_skill(
+        # Create a core skill (always_apply=True) - use storage directly to set the column
+        manager._storage.create_skill(
             name="core-skill",
             description="Always applied",
             content="Core content",
             metadata={"skillport": {"alwaysApply": True}},
+            always_apply=True,
         )
 
         # Create a non-core skill
-        manager.create_skill(
+        manager._storage.create_skill(
             name="regular-skill",
             description="Not always applied",
             content="Regular content",
             metadata={"skillport": {"alwaysApply": False}},
+            always_apply=False,
         )
 
         core = manager.list_core_skills()

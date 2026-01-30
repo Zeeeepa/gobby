@@ -143,6 +143,7 @@ def setup_internal_registries(
 
     workflows_registry = create_workflows_registry(
         session_manager=local_session_manager,
+        db=getattr(local_session_manager, "db", None) if local_session_manager else None,
     )
     manager.add_registry(workflows_registry)
     logger.debug("Workflows registry initialized")
@@ -280,6 +281,19 @@ def setup_internal_registries(
         logger.debug("Skills registry initialized")
     else:
         logger.debug("Skills registry not initialized: task_manager is None")
+
+    # Initialize artifacts registry using the existing database from task_manager
+    if task_manager is not None:
+        from gobby.mcp_proxy.tools.artifacts import create_artifacts_registry
+
+        artifacts_registry = create_artifacts_registry(
+            db=task_manager.db,
+            session_manager=local_session_manager,
+        )
+        manager.add_registry(artifacts_registry)
+        logger.debug("Artifacts registry initialized")
+    else:
+        logger.debug("Artifacts registry not initialized: task_manager is None")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager

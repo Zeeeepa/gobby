@@ -91,6 +91,8 @@ class Skill:
 
     # Gobby-specific
     enabled: bool = True
+    always_apply: bool = False
+    injection_format: str = "summary"  # "summary", "full", "content"
     project_id: str | None = None
 
     # Timestamps
@@ -131,6 +133,10 @@ class Skill:
             hub_slug=row["hub_slug"] if "hub_slug" in row.keys() else None,
             hub_version=row["hub_version"] if "hub_version" in row.keys() else None,
             enabled=bool(row["enabled"]),
+            always_apply=bool(row["always_apply"]) if "always_apply" in row.keys() else False,
+            injection_format=row["injection_format"]
+            if "injection_format" in row.keys()
+            else "summary",
             project_id=row["project_id"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -159,6 +165,8 @@ class Skill:
             "hub_slug": self.hub_slug,
             "hub_version": self.hub_version,
             "enabled": self.enabled,
+            "always_apply": self.always_apply,
+            "injection_format": self.injection_format,
             "project_id": self.project_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -192,9 +200,13 @@ class Skill:
     def is_always_apply(self) -> bool:
         """Check if this is a core skill that should always be applied.
 
-        Supports both top-level alwaysApply and nested metadata.skillport.alwaysApply.
-        Top-level takes precedence.
+        Reads from the always_apply column first (set during sync from frontmatter).
+        Falls back to metadata for backwards compatibility with older records.
         """
+        # Primary: read from column (set during sync)
+        if self.always_apply:
+            return True
+        # Fallback: check metadata for backwards compatibility
         if not self.metadata:
             return False
         # Check top-level first
@@ -407,6 +419,8 @@ class LocalSkillManager:
         hub_slug: str | None = None,
         hub_version: str | None = None,
         enabled: bool = True,
+        always_apply: bool = False,
+        injection_format: str = "summary",
         project_id: str | None = None,
     ) -> Skill:
         """Create a new skill.
@@ -427,6 +441,8 @@ class LocalSkillManager:
             hub_slug: Optional hub slug
             hub_version: Optional hub version
             enabled: Whether skill is active
+            always_apply: Whether skill should always be injected at session start
+            injection_format: How to inject skill (summary, full, content)
             project_id: Project scope (None for global)
 
         Returns:
@@ -457,8 +473,9 @@ class LocalSkillManager:
                     id, name, description, content, version, license,
                     compatibility, allowed_tools, metadata, source_path,
                     source_type, source_ref, hub_name, hub_slug, hub_version,
-                    enabled, project_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    enabled, always_apply, injection_format, project_id,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     skill_id,
@@ -477,6 +494,8 @@ class LocalSkillManager:
                     hub_slug,
                     hub_version,
                     enabled,
+                    always_apply,
+                    injection_format,
                     project_id,
                     now,
                     now,
@@ -559,6 +578,8 @@ class LocalSkillManager:
         hub_slug: str | None = _UNSET,
         hub_version: str | None = _UNSET,
         enabled: bool | None = None,
+        always_apply: bool | None = None,
+        injection_format: str | None = None,
     ) -> Skill:
         """Update an existing skill.
 
@@ -579,6 +600,8 @@ class LocalSkillManager:
             hub_slug: New hub slug (use _UNSET to leave unchanged, None to clear)
             hub_version: New hub version (use _UNSET to leave unchanged, None to clear)
             enabled: New enabled state (optional)
+            always_apply: New always_apply state (optional)
+            injection_format: New injection format (optional)
 
         Returns:
             The updated Skill
@@ -634,6 +657,12 @@ class LocalSkillManager:
         if enabled is not None:
             updates.append("enabled = ?")
             params.append(enabled)
+        if always_apply is not None:
+            updates.append("always_apply = ?")
+            params.append(always_apply)
+        if injection_format is not None:
+            updates.append("injection_format = ?")
+            params.append(injection_format)
 
         if not updates:
             return self.get_skill(skill_id)
@@ -770,7 +799,7 @@ class LocalSkillManager:
         return [Skill.from_row(row) for row in rows]
 
     def list_core_skills(self, project_id: str | None = None) -> list[Skill]:
-        """List skills with alwaysApply=true.
+        """List skills with always_apply=true (efficiently via column query).
 
         Args:
             project_id: Optional project scope
@@ -778,8 +807,19 @@ class LocalSkillManager:
         Returns:
             List of core skills (always-apply skills)
         """
-        skills = self.list_skills(project_id=project_id, enabled=True, limit=1000)
-        return [s for s in skills if s.is_always_apply()]
+        query = "SELECT * FROM skills WHERE always_apply = 1 AND enabled = 1"
+        params: list[Any] = []
+
+        if project_id:
+            query += " AND (project_id = ? OR project_id IS NULL)"
+            params.append(project_id)
+        else:
+            query += " AND project_id IS NULL"
+
+        query += " ORDER BY name ASC"
+
+        rows = self.db.fetchall(query, tuple(params))
+        return [Skill.from_row(row) for row in rows]
 
     def skill_exists(self, skill_id: str) -> bool:
         """Check if a skill with the given ID exists.

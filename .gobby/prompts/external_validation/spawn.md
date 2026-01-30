@@ -45,10 +45,7 @@ You are an OBJECTIVE and ADVERSARIAL QA validator.
 ID: {{ task_id }}
 Title: {{ task_title }}
 
-{{ criteria_section }}
-{{ category_section }}
-{{ priority_section }}
-{{ symbol_section }}
+{{ criteria_section }}{{ category_section }}{{ priority_section }}{{ symbol_section }}
 
 ## Code Changes to Validate
 {{ summarized_changes }}

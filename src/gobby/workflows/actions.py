@@ -32,6 +32,7 @@ from gobby.workflows.enforcement import (
     handle_require_commit_before_stop,
     handle_require_task_complete,
     handle_require_task_review_or_close_before_stop,
+    handle_track_schema_lookup,
     handle_validate_session_task_scope,
 )
 from gobby.workflows.llm_actions import handle_call_llm
@@ -283,6 +284,9 @@ class ActionExecutor:
         async def capture_baseline(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_capture_baseline_dirty_files(context, task_manager=tm, **kw)
 
+        async def track_schema(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            return await handle_track_schema_lookup(context, task_manager=tm, **kw)
+
         self.register("block_tools", block_tools)
         self.register("require_active_task", require_active)
         self.register("require_task_complete", require_complete)
@@ -290,6 +294,7 @@ class ActionExecutor:
         self.register("require_task_review_or_close_before_stop", require_review)
         self.register("validate_session_task_scope", validate_scope)
         self.register("capture_baseline_dirty_files", capture_baseline)
+        self.register("track_schema_lookup", track_schema)
 
     def _register_webhook_action(self) -> None:
         """Register webhook action with config closure."""

@@ -1,13 +1,16 @@
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
+from gobby.app_context import ServiceContainer
 from gobby.servers.http import HTTPServer
 from gobby.sessions.transcripts.base import ParsedMessage
 from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.unit
 
@@ -103,9 +106,20 @@ def mock_db():
 def server(mock_db):
     session_manager = LocalSessionManager(mock_db)
     message_manager = LocalSessionMessageManager(mock_db)
-    server = HTTPServer(
-        port=0, test_mode=True, session_manager=session_manager, message_manager=message_manager
+    task_manager = LocalTaskManager(mock_db)
+
+    # Create minimal config mock
+    mock_config = MagicMock()
+    mock_config.websocket = None
+
+    services = ServiceContainer(
+        config=mock_config,
+        database=mock_db,
+        session_manager=session_manager,
+        task_manager=task_manager,
+        message_manager=message_manager,
     )
+    server = HTTPServer(services=services, port=0, test_mode=True)
     return server
 
 

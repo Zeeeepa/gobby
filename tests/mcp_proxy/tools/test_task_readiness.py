@@ -524,27 +524,48 @@ class TestSuggestNextTaskWithParentTaskId:
         assert result["suggestion"] is not None
         assert result["suggestion"]["id"] == "child-1"
 
-    def test_suggest_next_task_with_parent_task_id_no_descendants(self, mock_readiness_registry) -> None:
-        """suggest_next_task returns nothing if parent filters returns no ready tasks."""
+    def test_suggest_next_task_with_parent_task_id_no_descendants(
+        self, mock_readiness_registry, monkeypatch
+    ) -> None:
+        """suggest_next_task returns parent task itself when it's a ready leaf task."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
         task_manager = MagicMock()
+
+        # Create the parent task as a ready leaf task
+        parent_task = MagicMock()
+        parent_task.id = "epic-1"
+        parent_task.status = "open"
+        parent_task.type = "task"
+        parent_task.priority = 2
+        parent_task.configure_mock(complexity_score=None, category=None)
+        parent_task.to_brief.return_value = {"ref": "#1", "id": "epic-1", "title": "Parent task"}
 
         # No ready tasks are descendants of the specified parent
         other_task = MagicMock()
         other_task.id = "other-1"
         other_task.parent_task_id = "other-epic"
 
-        task_manager.list_ready_tasks.return_value = [other_task]
+        # Parent task must appear in list_ready_tasks for it to be considered ready
+        task_manager.list_ready_tasks.return_value = [other_task, parent_task]
         task_manager.list_tasks.return_value = []  # No children of epic-1
+        task_manager.get_task.return_value = parent_task
+        task_manager.get_blocking_tasks.return_value = []  # No blockers
+
+        # Monkeypatch resolve_task_id_for_mcp to pass through unchanged
+        monkeypatch.setattr(
+            "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp",
+            lambda tm, tid, pid: tid,
+        )
 
         registry = create_readiness_registry(task_manager=task_manager)
         suggest = registry.get_tool("suggest_next_task")
 
         result = suggest(parent_task_id="epic-1")
 
-        assert result["suggestion"] is None
-        assert "No ready tasks" in result["reason"]
+        # Should return the parent task itself since it's a ready leaf task
+        assert result["suggestion"] is not None
+        assert result["suggestion"]["id"] == "epic-1"
 
 
 class TestSuggestNextTaskWithSessionId:
@@ -566,7 +587,7 @@ class TestSuggestNextTaskWithSessionId:
         child_task.priority = 2
         child_task.status = "open"
         child_task.configure_mock(complexity_score=None, category=None)
-        child_task.to_brief.return_value = {"id": "child-1", "title": "Child task"}
+        child_task.to_brief.return_value = {"ref": "#1", "id": "child-1", "title": "Child task"}
 
         # Create unrelated task (not a descendant)
         other_task = MagicMock()
@@ -575,7 +596,7 @@ class TestSuggestNextTaskWithSessionId:
         other_task.priority = 1  # Higher priority but outside scope
         other_task.status = "open"
         other_task.configure_mock(complexity_score=None, category=None)
-        other_task.to_brief.return_value = {"id": "other-1"}
+        other_task.to_brief.return_value = {"ref": "#2", "id": "other-1"}
 
         # list_ready_tasks returns both tasks
         task_manager.list_ready_tasks.return_value = [child_task, other_task]
@@ -601,6 +622,18 @@ class TestSuggestNextTaskWithSessionId:
         monkeypatch.setattr(
             "gobby.workflows.state_manager.WorkflowStateManager.get_state",
             lambda self, sid: mock_workflow_state if sid == "test-session-123" else None,
+        )
+
+        # Monkeypatch resolve_task_id_for_mcp to pass through unchanged
+        monkeypatch.setattr(
+            "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp",
+            lambda tm, tid, pid: tid,
+        )
+
+        # Monkeypatch session_manager.resolve_session_reference to pass through unchanged
+        monkeypatch.setattr(
+            "gobby.storage.sessions.LocalSessionManager.resolve_session_reference",
+            lambda self, sid, pid: sid,
         )
 
         registry = create_readiness_registry(task_manager=task_manager)

@@ -1,5 +1,9 @@
 """
 Claude implementation of LLMProvider.
+
+Supports two authentication modes:
+- subscription: Uses Claude Agent SDK via Claude CLI (requires CLI installed)
+- api_key: Uses LiteLLM with anthropic/ prefix (BYOK, no CLI needed)
 """
 
 import asyncio
@@ -9,7 +13,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -25,6 +29,9 @@ from claude_agent_sdk import (
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
+
+# Type alias for auth mode
+AuthMode = Literal["subscription", "api_key"]
 
 
 @dataclass
@@ -60,9 +67,16 @@ logger = logging.getLogger(__name__)
 
 class ClaudeLLMProvider(LLMProvider):
     """
-    Claude implementation of LLMProvider using claude_agent_sdk.
+    Claude implementation of LLMProvider.
 
-    Uses subscription-based authentication through Claude CLI.
+    Supports two authentication modes:
+    - subscription (default): Uses Claude Agent SDK via Claude CLI
+    - api_key: Uses LiteLLM with anthropic/ prefix (BYOK, no CLI needed)
+
+    The auth_mode is determined by:
+    1. Constructor parameter (highest priority)
+    2. Config file: llm_providers.claude.auth_mode
+    3. Default: "subscription"
     """
 
     @property
@@ -70,16 +84,40 @@ class ClaudeLLMProvider(LLMProvider):
         """Return provider name."""
         return "claude"
 
-    def __init__(self, config: DaemonConfig):
+    @property
+    def auth_mode(self) -> AuthMode:
+        """Return current authentication mode."""
+        return self._auth_mode
+
+    def __init__(
+        self,
+        config: DaemonConfig,
+        auth_mode: AuthMode | None = None,
+    ):
         """
         Initialize ClaudeLLMProvider.
 
         Args:
             config: Client configuration.
+            auth_mode: Authentication mode override. If None, uses config or default.
         """
         self.config = config
         self.logger = logger
-        self._claude_cli_path = self._find_cli_path()
+        self._litellm: Any = None
+
+        # Determine auth mode from param -> config -> default
+        self._auth_mode: AuthMode = "subscription"
+        if auth_mode:
+            self._auth_mode = auth_mode
+        elif config.llm_providers and config.llm_providers.claude:
+            self._auth_mode = config.llm_providers.claude.auth_mode  # type: ignore[assignment]
+
+        # Set up based on auth mode
+        if self._auth_mode == "subscription":
+            self._claude_cli_path = self._find_cli_path()
+        else:  # api_key
+            self._claude_cli_path = None
+            self._setup_litellm()
 
     def _find_cli_path(self) -> str | None:
         """
@@ -147,17 +185,37 @@ class ClaudeLLMProvider(LLMProvider):
 
         return cli_path
 
-    async def generate_summary(
-        self, context: dict[str, Any], prompt_template: str | None = None
-    ) -> str:
+    def _setup_litellm(self) -> None:
         """
-        Generate session summary using Claude.
-        """
-        cli_path = self._verify_cli_path()
-        if not cli_path:
-            return "Session summary unavailable (Claude CLI not found)"
+        Initialize LiteLLM for api_key mode.
 
-        # Build formatted context for prompt template
+        LiteLLM reads ANTHROPIC_API_KEY from the environment automatically.
+        """
+        try:
+            import litellm
+
+            self._litellm = litellm
+            self.logger.debug("LiteLLM initialized for Claude api_key mode")
+        except ImportError:
+            self.logger.error("litellm package required for api_key mode")
+
+    def _format_summary_context(self, context: dict[str, Any], prompt_template: str | None) -> str:
+        """
+        Format context and validate prompt template for summary generation.
+
+        Transforms list/dict values to strings for template substitution
+        and validates that a prompt template is provided.
+
+        Args:
+            context: Raw context dict with transcript_summary, last_messages, etc.
+            prompt_template: Template string with placeholders for context values.
+
+        Returns:
+            Formatted prompt string ready for LLM consumption.
+
+        Raises:
+            ValueError: If prompt_template is None.
+        """
         # Transform list/dict values to strings for template substitution
         formatted_context = {
             "transcript_summary": context.get("transcript_summary", ""),
@@ -171,13 +229,68 @@ class ClaudeLLMProvider(LLMProvider):
             },
         }
 
-        # Build prompt - prompt_template is required
+        # Validate prompt_template is provided
         if not prompt_template:
             raise ValueError(
                 "prompt_template is required for generate_summary. "
                 "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
             )
-        prompt = prompt_template.format(**formatted_context)
+
+        return prompt_template.format(**formatted_context)
+
+    async def _retry_async(
+        self,
+        operation: Any,
+        max_retries: int = 3,
+        delay: float = 1.0,
+        on_retry: Any | None = None,
+    ) -> Any:
+        """
+        Execute an async operation with retry logic.
+
+        Args:
+            operation: Callable that returns an awaitable (coroutine factory).
+            max_retries: Maximum number of attempts (default: 3).
+            delay: Delay in seconds between retries (default: 1.0).
+            on_retry: Optional callback(attempt: int, error: Exception) called on retry.
+
+        Returns:
+            Result of the operation if successful.
+
+        Raises:
+            Exception: The last exception if all retries fail.
+        """
+        for attempt in range(max_retries):
+            try:
+                return await operation()
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    if on_retry:
+                        on_retry(attempt, e)
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+
+    async def generate_summary(
+        self, context: dict[str, Any], prompt_template: str | None = None
+    ) -> str:
+        """
+        Generate session summary using Claude.
+        """
+        if self._auth_mode == "subscription":
+            return await self._generate_summary_sdk(context, prompt_template)
+        else:
+            return await self._generate_summary_litellm(context, prompt_template)
+
+    async def _generate_summary_sdk(
+        self, context: dict[str, Any], prompt_template: str | None = None
+    ) -> str:
+        """Generate session summary using Claude Agent SDK (subscription mode)."""
+        cli_path = self._verify_cli_path()
+        if not cli_path:
+            return "Session summary unavailable (Claude CLI not found)"
+
+        prompt = self._format_summary_context(context, prompt_template)
 
         # Configure Claude Agent SDK
         options = ClaudeAgentOptions(
@@ -205,7 +318,44 @@ class ClaudeLLMProvider(LLMProvider):
             self.logger.error(f"Failed to generate summary with Claude: {e}")
             return f"Session summary generation failed: {e}"
 
+    async def _generate_summary_litellm(
+        self, context: dict[str, Any], prompt_template: str | None = None
+    ) -> str:
+        """Generate session summary using LiteLLM (api_key mode)."""
+        if not self._litellm:
+            return "Session summary unavailable (LiteLLM not initialized)"
+
+        prompt = self._format_summary_context(context, prompt_template)
+
+        try:
+            response = await self._litellm.acompletion(
+                model=f"anthropic/{self.config.session_summary.model}",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a session summary generator. Create comprehensive, actionable summaries.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=4000,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            self.logger.error(f"Failed to generate summary with LiteLLM: {e}")
+            return f"Session summary generation failed: {e}"
+
     async def synthesize_title(
+        self, user_prompt: str, prompt_template: str | None = None
+    ) -> str | None:
+        """
+        Synthesize session title using Claude.
+        """
+        if self._auth_mode == "subscription":
+            return await self._synthesize_title_sdk(user_prompt, prompt_template)
+        else:
+            return await self._synthesize_title_litellm(user_prompt, prompt_template)
+
+    async def _synthesize_title_sdk(
         self, user_prompt: str, prompt_template: str | None = None
     ) -> str | None:
         """
@@ -243,24 +393,61 @@ class ClaudeLLMProvider(LLMProvider):
                             title_text = block.text
             return title_text.strip()
 
+        def _on_retry(attempt: int, error: Exception) -> None:
+            self.logger.warning(
+                f"Title synthesis failed (attempt {attempt + 1}), retrying: {error}"
+            )
+
         try:
-            # Retry logic for title synthesis
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    return await _run_query()
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        self.logger.warning(
-                            f"Title synthesis failed (attempt {attempt + 1}), retrying: {e}"
-                        )
-                        await asyncio.sleep(1)
-                    else:
-                        raise e
-            # This should be unreachable, but mypy can't prove it
-            return None  # pragma: no cover
+            result = await self._retry_async(
+                _run_query, max_retries=3, delay=1.0, on_retry=_on_retry
+            )
+            return cast(str, result)
         except Exception as e:
             self.logger.error(f"Failed to synthesize title with Claude: {e}")
+            return None
+
+    async def _synthesize_title_litellm(
+        self, user_prompt: str, prompt_template: str | None = None
+    ) -> str | None:
+        """Synthesize session title using LiteLLM (api_key mode)."""
+        if not self._litellm:
+            return None
+
+        # Build prompt - prompt_template is required
+        if not prompt_template:
+            raise ValueError(
+                "prompt_template is required for synthesize_title. "
+                "Configure 'title_synthesis.prompt' in ~/.gobby/config.yaml"
+            )
+        prompt = prompt_template.format(user_prompt=user_prompt)
+
+        async def _run_query() -> str:
+            response = await self._litellm.acompletion(
+                model=f"anthropic/{self.config.title_synthesis.model}",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a session title generator. Create concise, descriptive titles.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=100,
+            )
+            return (response.choices[0].message.content or "").strip()
+
+        def _on_retry(attempt: int, error: Exception) -> None:
+            self.logger.warning(
+                f"Title synthesis failed (attempt {attempt + 1}), retrying: {error}"
+            )
+
+        try:
+            result = await self._retry_async(
+                _run_query, max_retries=3, delay=1.0, on_retry=_on_retry
+            )
+            return cast(str, result)
+        except Exception as e:
+            self.logger.error(f"Failed to synthesize title with LiteLLM: {e}")
             return None
 
     async def generate_text(
@@ -272,6 +459,18 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate text using Claude.
         """
+        if self._auth_mode == "subscription":
+            return await self._generate_text_sdk(prompt, system_prompt, model)
+        else:
+            return await self._generate_text_litellm(prompt, system_prompt, model)
+
+    async def _generate_text_sdk(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        """Generate text using Claude Agent SDK (subscription mode)."""
         cli_path = self._verify_cli_path()
         if not cli_path:
             return "Generation unavailable (Claude CLI not found)"
@@ -323,6 +522,36 @@ class ClaudeLLMProvider(LLMProvider):
             self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
             return f"Generation failed: {e}"
 
+    async def _generate_text_litellm(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        """Generate text using LiteLLM (api_key mode)."""
+        if not self._litellm:
+            return "Generation unavailable (LiteLLM not initialized)"
+
+        model = model or "claude-haiku-4-5"
+        litellm_model = f"anthropic/{model}"
+
+        try:
+            response = await self._litellm.acompletion(
+                model=litellm_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt or "You are a helpful assistant.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=4000,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            self.logger.error(f"Failed to generate text with LiteLLM: {e}", exc_info=True)
+            return f"Generation failed: {e}"
+
     async def generate_with_mcp_tools(
         self,
         prompt: str,
@@ -337,6 +566,9 @@ class ClaudeLLMProvider(LLMProvider):
 
         This method enables the agent to call MCP tools during generation,
         tracking all tool calls made and returning them alongside the final text.
+
+        Note: This method requires subscription mode (Claude Agent SDK).
+        In api_key mode, returns an error message.
 
         Args:
             prompt: User prompt to process.
@@ -364,6 +596,14 @@ class ClaudeLLMProvider(LLMProvider):
             >>> for call in result.tool_calls:
             ...     print(f"Called {call.tool_name} with {call.arguments}")
         """
+        # MCP tools require subscription mode (Claude Agent SDK)
+        if self._auth_mode == "api_key":
+            return MCPToolResult(
+                text="MCP tools require subscription mode. "
+                "Set auth_mode: subscription in llm_providers.claude config.",
+                tool_calls=[],
+            )
+
         cli_path = self._verify_cli_path()
         if not cli_path:
             return MCPToolResult(
@@ -495,7 +735,8 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate a text description of an image using Claude's vision capabilities.
 
-        Uses LiteLLM for unified cost tracking with anthropic/claude-haiku-4-5 model.
+        In subscription mode, uses Claude Agent SDK.
+        In api_key mode, uses LiteLLM with anthropic/ prefix.
 
         Args:
             image_path: Path to the image file to describe
@@ -503,6 +744,21 @@ class ClaudeLLMProvider(LLMProvider):
 
         Returns:
             Text description of the image
+        """
+        if self._auth_mode == "subscription":
+            return await self._describe_image_sdk(image_path, context)
+        else:
+            return await self._describe_image_litellm(image_path, context)
+
+    def _prepare_image_data(self, image_path: str) -> tuple[str, str] | str:
+        """
+        Validate and prepare image data for API calls.
+
+        Args:
+            image_path: Path to the image file.
+
+        Returns:
+            Tuple of (image_base64, mime_type) on success, or error string on failure.
         """
         import base64
         import mimetypes
@@ -524,21 +780,103 @@ class ClaudeLLMProvider(LLMProvider):
         # Determine media type
         mime_type, _ = mimetypes.guess_type(str(path))
         if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
-            # Default to png for unknown types
             mime_type = "image/png"
+
+        return (image_base64, mime_type)
+
+    async def _describe_image_sdk(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """Describe image using Claude Agent SDK (subscription mode)."""
+        cli_path = self._verify_cli_path()
+        if not cli_path:
+            return "Image description unavailable (Claude CLI not found)"
+
+        # Prepare image data
+        result = self._prepare_image_data(image_path)
+        if isinstance(result, str):
+            return result
+        image_base64, mime_type = result
+
+        # Build prompt with image
+        text_prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
+        if context:
+            text_prompt = f"{context}\n\n{text_prompt}"
+
+        # Configure Claude Agent SDK
+        options = ClaudeAgentOptions(
+            system_prompt="You are a vision assistant that describes images in detail.",
+            max_turns=1,
+            model="claude-haiku-4-5",
+            tools=[],
+            allowed_tools=[],
+            permission_mode="default",
+            cli_path=cli_path,
+        )
+
+        # Build async generator yielding structured message with image content
+        # The SDK accepts AsyncIterable[dict] for multimodal input
+        async def _message_generator() -> Any:
+            yield {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_prompt},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime_type,
+                            "data": image_base64,
+                        },
+                    },
+                ],
+            }
+
+        async def _run_query() -> str:
+            result_text = ""
+            async for message in query(prompt=_message_generator(), options=options):
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            result_text += block.text
+                elif isinstance(message, ResultMessage):
+                    if message.result:
+                        result_text = message.result
+            return result_text
+
+        try:
+            return await _run_query()
+        except Exception as e:
+            self.logger.error(f"Failed to describe image with Claude SDK: {e}")
+            return f"Image description failed: {e}"
+
+    async def _describe_image_litellm(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """Describe image using LiteLLM (api_key mode)."""
+        if not self._litellm:
+            return "Image description unavailable (LiteLLM not initialized)"
+
+        # Prepare image data
+        result = self._prepare_image_data(image_path)
+        if isinstance(result, str):
+            return result
+        image_base64, mime_type = result
 
         # Build prompt
         prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
         if context:
             prompt = f"{context}\n\n{prompt}"
 
-        # Use LiteLLM for unified cost tracking
         try:
-            import litellm
-
-            # Route through LiteLLM with anthropic prefix for cost tracking
-            response = await litellm.acompletion(
-                model="anthropic/claude-haiku-4-5-20251001",  # Use haiku for cost efficiency
+            # Route through LiteLLM with anthropic prefix
+            # Use same model as SDK path for consistency
+            response = await self._litellm.acompletion(
+                model="anthropic/claude-haiku-4-5",
                 messages=[
                     {
                         "role": "user",
@@ -558,9 +896,6 @@ class ClaudeLLMProvider(LLMProvider):
                 return "No description generated"
             return response.choices[0].message.content or "No description generated"
 
-        except ImportError:
-            self.logger.error("LiteLLM not installed, falling back to unavailable")
-            return "Image description unavailable (LiteLLM not installed)"
         except Exception as e:
-            self.logger.error(f"Failed to describe image with Claude via LiteLLM: {e}")
+            self.logger.error(f"Failed to describe image with LiteLLM: {e}")
             return f"Image description failed: {e}"

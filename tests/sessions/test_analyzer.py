@@ -2,7 +2,6 @@
 Tests for TranscriptAnalyzer in gobby.sessions.analyzer.
 """
 
-from dataclasses import fields
 from unittest.mock import Mock
 
 import pytest
@@ -12,29 +11,9 @@ from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 
 pytestmark = pytest.mark.unit
 
-class TestHandoffContextActiveSkills:
-    """Tests for active_skills field in HandoffContext."""
 
-    def test_handoff_context_has_active_skills_field(self) -> None:
-        """Test that HandoffContext has active_skills field."""
-        ctx = HandoffContext()
-        assert hasattr(ctx, "active_skills")
-        assert isinstance(ctx.active_skills, list)
-
-    def test_active_skills_defaults_to_empty_list(self) -> None:
-        """Test that active_skills defaults to empty list."""
-        ctx = HandoffContext()
-        assert ctx.active_skills == []
-
-    def test_active_skills_can_be_set(self) -> None:
-        """Test that active_skills can be set with skill names."""
-        ctx = HandoffContext(active_skills=["gobby-tasks", "gobby-sessions"])
-        assert ctx.active_skills == ["gobby-tasks", "gobby-sessions"]
-
-    def test_active_skills_field_is_in_dataclass_fields(self) -> None:
-        """Test that active_skills is a proper dataclass field."""
-        field_names = [f.name for f in fields(HandoffContext)]
-        assert "active_skills" in field_names
+# Note: TestHandoffContextActiveSkills removed - active_skills field was removed from HandoffContext
+# as it was redundant with _build_skill_injection_context() which handles skill restoration on session start
 
 
 @pytest.fixture

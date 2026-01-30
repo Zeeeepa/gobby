@@ -591,6 +591,258 @@ Look at `allowed_tools` and `blocked_tools` for the current step.
 | `~/.gobby/workflows/templates/` | Built-in templates |
 | Session record (SQLite) | Workflow state |
 
+## Lifecycle Workflows Deep Dive
+
+This section covers advanced lifecycle workflow concepts including blocking rules, condition evaluation, and hook payloads.
+
+### Session Lifecycle Flow
+
+The default `session-lifecycle.yaml` workflow orchestrates session events:
+
+```mermaid
+flowchart TB
+    subgraph SessionStart["on_session_start"]
+        SS1[Clear plan_mode if new session]
+        SS2[Reset unlocked_tools on compact/clear]
+        SS3[Capture baseline dirty files]
+        SS4[Inject handoff context]
+        SS5[memory_sync_import]
+        SS6[task_sync_import]
+        SS7[Inject plan mode prompt]
+        SS1 --> SS2 --> SS3 --> SS4 --> SS5 --> SS6 --> SS7
+    end
+
+    subgraph BeforeAgent["on_before_agent"]
+        BA1[Synthesize session title]
+        BA2[Memory recall relevant]
+        BA1 --> BA2
+    end
+
+    subgraph BeforeTool["on_before_tool"]
+        BT1{block_tools rules}
+        BT1 -->|"TaskCreate/Update/Get/List"| Block1[Block: Use gobby-tasks]
+        BT1 -->|"Edit/Write without task"| Block2[Block: Claim task first]
+        BT1 -->|"close_task without commit"| Block3[Block: Commit required]
+        BT1 -->|"call_tool without schema"| Block4[Block: Get schema first]
+        BT1 -->|Pass| Allow[Allow tool]
+    end
+
+    subgraph AfterTool["on_after_tool"]
+        AT1[Track schema lookups]
+    end
+
+    subgraph OnStop["on_stop"]
+        OS1{Task in_progress?}
+        OS1 -->|Yes| Block5[Block: Close task first]
+        OS1 -->|No| AllowStop[Allow stop]
+    end
+
+    subgraph SessionEnd["on_session_end"]
+        SE1[Generate handoff summary]
+        SE2[Extract memories]
+        SE3[memory_sync_export]
+        SE4[task_sync_export]
+        SE1 --> SE2 --> SE3 --> SE4
+    end
+
+    subgraph PreCompact["on_pre_compact"]
+        PC1[Extract handoff context]
+        PC2[memory_sync_export]
+        PC3[task_sync_export]
+        PC4[Generate compact handoff]
+        PC1 --> PC2 --> PC3 --> PC4
+    end
+
+    Start((Session Start)) --> SessionStart
+    SessionStart --> Loop
+    Loop((Event Loop)) --> BeforeAgent
+    BeforeAgent --> BeforeTool
+    BeforeTool --> AfterTool
+    AfterTool --> Loop
+    Loop --> OnStop
+    OnStop --> SessionEnd
+    Loop --> PreCompact
+    PreCompact --> Loop
+    SessionEnd --> End((Session End))
+```
+
+### Blocking Rule Syntax
+
+The `block_tools` action supports two matching patterns:
+
+#### `tools:` - Match upstream tool names
+
+Matches the tool name as seen by the AI agent (before MCP translation):
+
+```yaml
+- action: block_tools
+  rules:
+    # Block Claude Code's native task tools
+    - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList]
+      reason: "Use gobby-tasks instead"
+
+    # Block file editing tools
+    - tools: [Edit, Write, NotebookEdit]
+      when: "not task_claimed"
+      reason: "Claim a task first"
+
+    # Block the MCP call_tool wrapper (for progressive disclosure)
+    - tools: ["mcp__gobby__call_tool"]
+      when: "not is_tool_unlocked(tool_input)"
+      reason: "Get schema first"
+```
+
+#### `mcp_tools:` - Match downstream server:tool targets
+
+Matches the `server_name:tool_name` combination for MCP tools after translation:
+
+```yaml
+- action: block_tools
+  rules:
+    # Block close_task specifically
+    - mcp_tools: ["gobby-tasks:close_task"]
+      when: "not task_has_commits"
+      reason: "Commit your changes first"
+
+    # Block multiple tools from a server
+    - mcp_tools: ["gobby-memory:delete_memory", "gobby-memory:clear_all"]
+      reason: "Memory deletion disabled"
+```
+
+#### When to use each
+
+| Pattern | Use when... | Example |
+|---------|-------------|---------|
+| `tools:` | Blocking native CLI tools | `[Edit, Write, Bash]` |
+| `tools:` | Blocking the MCP wrapper | `[mcp__gobby__call_tool]` |
+| `mcp_tools:` | Blocking specific MCP tool calls | `[gobby-tasks:close_task]` |
+
+### Condition Evaluation Context
+
+The `when` expressions in blocking rules have access to these variables:
+
+#### Built-in Variables
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `tool_input` | `dict` | Arguments passed to the tool |
+| `variables` | `dict` | All workflow variables |
+| `task_claimed` | `bool` | Shortcut for `variables.get('task_claimed')` |
+| `plan_mode` | `bool` | Shortcut for `variables.get('plan_mode')` |
+| `task_has_commits` | `bool` | Whether claimed task has linked commits |
+| `source` | `str` | CLI source (`claude`, `gemini`, `codex`) |
+
+#### Built-in Functions
+
+| Function | Description |
+|----------|-------------|
+| `is_plan_file(path, source)` | Returns True if path is a plan file (e.g., `.claude/plans/*.md`) |
+| `is_discovery_tool(tool_name)` | Returns True for discovery tools (`list_tools`, `get_tool_schema`, etc.) |
+| `is_tool_unlocked(tool_input)` | Returns True if schema was fetched for this server:tool |
+
+#### Example Conditions
+
+```yaml
+# Block unless task is claimed OR in plan mode OR editing a plan file
+when: "not task_claimed and not plan_mode and not is_plan_file(tool_input.get('file_path', ''), source)"
+
+# Block close_task unless commit linked or using special close reasons
+when: "not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix']"
+
+# Block call_tool unless it's a discovery tool or schema was fetched
+when: "not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+```
+
+### Session-Lifecycle Variables Reference
+
+These variables are defined in `session-lifecycle.yaml`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `require_task_before_edit` | `true` | Block Edit/Write without active task |
+| `require_commit_before_close` | `true` | Block close_task without linked commit |
+| `clear_task_on_close` | `true` | Reset task_claimed on successful close |
+| `enforce_tool_schema_check` | `true` | Require get_tool_schema before call_tool |
+| `unlocked_tools` | `[]` | Server:tool combos unlocked via get_tool_schema |
+| `task_claimed` | `false` | Set automatically when task is claimed |
+| `plan_mode` | `false` | Set when entering plan mode |
+
+### Hook Payload Reference
+
+Each CLI sends different data with hook events. The `event.data` dict contains CLI-specific payload:
+
+#### session-start (`on_session_start`)
+
+| Field | Claude | Gemini | Codex |
+|-------|--------|--------|-------|
+| `source` | `"startup"`, `"clear"`, `"compact"` | `"startup"` | `"startup"` |
+| `cwd` | Current directory | Current directory | Current directory |
+| `session_id` | External session ID | Thread ID | Thread ID |
+| `machine_id` | Machine identifier | - | - |
+
+#### pre-tool-use (`on_before_tool`)
+
+| Field | Claude | Gemini | Codex |
+|-------|--------|--------|-------|
+| `tool_name` | Tool name | Tool name | Tool name |
+| `tool_input` | Tool arguments | Tool arguments | Tool arguments |
+
+#### post-tool-use (`on_after_tool`)
+
+| Field | Claude | Gemini | Codex |
+|-------|--------|--------|-------|
+| `tool_name` | Tool name | Tool name | Tool name |
+| `tool_input` | Tool arguments | Tool arguments | - |
+| `tool_result` | Tool output | Tool output | - |
+| `tool_error` | Error if failed | Error if failed | - |
+
+#### pre-compact (`on_pre_compact`)
+
+| Field | Claude | Gemini | Codex |
+|-------|--------|--------|-------|
+| `trigger` | - | `"auto"` or `"manual"` | - |
+| `summary_so_far` | Previous summary | - | - |
+
+#### stop (`on_stop`)
+
+| Field | Claude | Gemini | Codex |
+|-------|--------|--------|-------|
+| `reason` | Stop reason | - | - |
+
+### Hook Event Type Mapping
+
+| Gobby Event | Claude Code | Gemini CLI | Codex CLI |
+|-------------|-------------|------------|-----------|
+| `session_start` | SessionStart | SessionStart | thread/started |
+| `session_end` | SessionEnd | SessionEnd | thread/archive |
+| `before_agent` | UserPromptSubmit | BeforeAgent | turn/started |
+| `after_agent` | Stop | AfterAgent | turn/completed |
+| `stop` | Stop | - | - |
+| `before_tool` | PreToolUse | BeforeTool | requestApproval |
+| `after_tool` | PostToolUse | AfterTool | item/completed |
+| `pre_compact` | PreCompact | PreCompress | - |
+| `subagent_start` | SubagentStart | - | - |
+| `subagent_stop` | SubagentStop | - | - |
+
+### Available Lifecycle Actions
+
+| Action | Triggers | Description |
+|--------|----------|-------------|
+| `set_variable` | Any | Set a workflow variable |
+| `capture_baseline_dirty_files` | session_start | Record uncommitted files for commit detection |
+| `inject_context` | session_start, before_agent | Inject text into agent context |
+| `memory_sync_import` | session_start | Import memories from .gobby/memories.jsonl |
+| `memory_sync_export` | session_end, pre_compact | Export memories to .gobby/memories.jsonl |
+| `task_sync_import` | session_start | Import tasks from .gobby/tasks.jsonl |
+| `task_sync_export` | session_end, pre_compact | Export tasks to .gobby/tasks.jsonl |
+| `memory_recall_relevant` | before_agent | Inject relevant memories for user prompt |
+| `synthesize_title` | before_agent | Generate session title from first prompt |
+| `block_tools` | before_tool | Evaluate blocking rules |
+| `track_schema_lookup` | after_tool | Track get_tool_schema calls for progressive disclosure |
+| `require_task_review_or_close_before_stop` | stop | Block stop if task still in_progress |
+| `generate_handoff` | session_end, pre_compact | Generate LLM summary for handoff |
+| `extract_handoff_context` | pre_compact | Extract structured context before compaction |
+
 ## See Also
 
 - [Workflow Actions Reference](../architecture/workflow-actions.md)

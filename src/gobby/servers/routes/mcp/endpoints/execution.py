@@ -318,12 +318,16 @@ async def get_tool_schema(
                 schema = registry.get_schema(tool_name)
                 if schema:
                     response_time_ms = (time.perf_counter() - start_time) * 1000
-                    return {
-                        "name": tool_name,
+                    # Build response with description only if present
+                    result: dict[str, Any] = {
+                        "name": schema.get("name", tool_name),
+                        "inputSchema": schema.get("inputSchema"),
                         "server": server_name,
-                        "inputSchema": schema,
                         "response_time_ms": response_time_ms,
                     }
+                    if schema.get("description"):
+                        result["description"] = schema["description"]
+                    return result
                 raise HTTPException(
                     status_code=404,
                     detail={
@@ -340,15 +344,19 @@ async def get_tool_schema(
 
         # Get from external MCP server
         try:
-            schema = await server.mcp_manager.get_tool_input_schema(server_name, tool_name)
+            tool_info = await server.mcp_manager.get_tool_info(server_name, tool_name)
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
-            return {
-                "name": tool_name,
+            # Build response with description only if present
+            response: dict[str, Any] = {
+                "name": tool_info.get("name", tool_name),
+                "inputSchema": tool_info.get("inputSchema"),
                 "server": server_name,
-                "inputSchema": schema,
                 "response_time_ms": response_time_ms,
             }
+            if tool_info.get("description"):
+                response["description"] = tool_info["description"]
+            return response
 
         except (KeyError, ValueError) as e:
             # Tool or server not found - 404

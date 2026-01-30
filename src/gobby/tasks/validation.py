@@ -27,51 +27,6 @@ from gobby.utils.json_helpers import extract_json_object
 
 logger = logging.getLogger(__name__)
 
-# Default prompts (fallbacks for strangler fig pattern)
-DEFAULT_VALIDATE_PROMPT = """Validate if the following changes satisfy the requirements.
-
-Task: {title}
-{category_section}{criteria_text}
-
-{changes_section}
-IMPORTANT: Return ONLY a JSON object, nothing else. No explanation, no preamble.
-Format: {{"status": "valid", "feedback": "..."}} or {{"status": "invalid", "feedback": "..."}}
-"""
-
-DEFAULT_CRITERIA_PROMPT = """Generate validation criteria for this task.
-
-Task: {title}
-Description: {description}
-
-CRITICAL RULES - You MUST follow these:
-1. **Only stated requirements** - Include ONLY requirements explicitly written in the title or description
-2. **No invented values** - Do NOT invent specific numbers, timeouts, thresholds, or limits unless they appear in the task
-3. **No invented edge cases** - Do NOT add edge cases, error scenarios, or boundary conditions beyond what's described
-4. **Proportional detail** - Vague tasks get vague criteria; detailed tasks get detailed criteria
-5. **When in doubt, leave it out** - If something isn't mentioned, don't include it
-
-For vague requirements like "fix X" or "add Y", use criteria like:
-- "X no longer produces the reported error/warning"
-- "Y functionality works as expected"
-- "Existing tests continue to pass"
-- "No regressions introduced"
-
-DO NOT generate criteria like:
-- "timeout defaults to 30 seconds" (unless 30 seconds is in the task description)
-- "handles edge case Z" (unless Z is mentioned in the task)
-- "logs with format X" (unless that format is specified)
-
-Format as markdown checkboxes:
-## Deliverable
-- [ ] What the task explicitly asks for
-
-## Functional Requirements
-- [ ] Only requirements stated in the description
-
-## Verification
-- [ ] Tests pass (if applicable)
-- [ ] No regressions
-"""
 
 # Default number of commits to look back when gathering context
 DEFAULT_COMMIT_WINDOW = 10
@@ -490,10 +445,6 @@ class TaskValidator:
         self.llm_service = llm_service
         self._loader = PromptLoader(project_dir=project_dir)
 
-        # Register fallbacks for strangler fig pattern
-        self._loader.register_fallback("validation/validate", lambda: DEFAULT_VALIDATE_PROMPT)
-        self._loader.register_fallback("validation/criteria", lambda: DEFAULT_CRITERIA_PROMPT)
-
     async def gather_validation_context(self, file_paths: list[str]) -> str:
         """
         Gather context for validation from files.
@@ -588,35 +539,16 @@ class TaskValidator:
             else:
                 category_section += "\n"
 
-        # Build prompt using PromptLoader or legacy config
-        if self.config.prompt_path:
-            prompt_path = self.config.prompt_path
-            template_context = {
-                "title": title,
-                "category_section": category_section,
-                "criteria_text": criteria_text,
-                "changes_section": changes_section,
-                "file_context": file_context[:50000] if file_context else "",
-            }
-            try:
-                prompt = self._loader.render(prompt_path, template_context)
-            except FileNotFoundError:
-                logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
-                prompt = DEFAULT_VALIDATE_PROMPT.format(**template_context)
-                if file_context:
-                    prompt += f"\nFile Context:\n{file_context[:50000]}\n"
-        else:
-            # Default behavior
-            template_context = {
-                "title": title,
-                "category_section": category_section,
-                "criteria_text": criteria_text,
-                "changes_section": changes_section,
-                "file_context": file_context[:50000] if file_context else "",
-            }
-            prompt = DEFAULT_VALIDATE_PROMPT.format(**template_context)
-            if file_context:
-                prompt += f"\nFile Context:\n{file_context[:50000]}\n"
+        # Build prompt using PromptLoader
+        prompt_path = self.config.prompt_path or "validation/validate"
+        template_context = {
+            "title": title,
+            "category_section": category_section,
+            "criteria_text": criteria_text,
+            "changes_section": changes_section,
+            "file_context": file_context[:50000] if file_context else "",
+        }
+        prompt = self._loader.render(prompt_path, template_context)
 
         try:
             provider = self.llm_service.get_provider(self.config.provider)
@@ -670,19 +602,13 @@ class TaskValidator:
         if not self.config.enabled:
             return None
 
-        # Build prompt using PromptLoader or legacy config
+        # Use PromptLoader
+        prompt_path = self.config.criteria_prompt_path or "validation/criteria"
         template_context = {
             "title": title,
             "description": description or "(no description)",
         }
-
-        # Use PromptLoader
-        prompt_path = self.config.criteria_prompt_path or "validation/criteria"
-        try:
-            prompt = self._loader.render(prompt_path, template_context)
-        except FileNotFoundError:
-            logger.debug(f"Prompt template '{prompt_path}' not found, using fallback")
-            prompt = DEFAULT_CRITERIA_PROMPT.format(**template_context)
+        prompt = self._loader.render(prompt_path, template_context)
 
         try:
             provider = self.llm_service.get_provider(self.config.provider)

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from gobby.app_context import ServiceContainer
 from gobby.servers.http import HTTPServer
 from gobby.servers.models import SessionRegisterRequest
 from gobby.storage.database import LocalDatabase
@@ -16,6 +17,7 @@ from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def session_storage(temp_db: LocalDatabase) -> LocalSessionManager:
@@ -48,19 +50,28 @@ def http_server(
     temp_dir: Path,
 ) -> HTTPServer:
     """Create an HTTP server instance for testing."""
+    services = ServiceContainer(
+        config=None,
+        database=session_storage.db,
+        session_manager=session_storage,
+        task_manager=MagicMock(),
+    )
     return HTTPServer(
+        services=services,
         port=60887,
         test_mode=True,
-        mcp_manager=None,
-        config=None,
-        session_manager=session_storage,
     )
 
 
 @pytest.fixture
-def client(http_server: HTTPServer) -> TestClient:
+def client(http_server: HTTPServer) -> Iterator[TestClient]:
     """Create a test client for the HTTP server."""
-    return TestClient(http_server.app)
+    with patch("gobby.servers.http.HookManager") as MockHM:
+        mock_instance = MockHM.return_value
+        mock_instance._stop_registry = MagicMock()
+        mock_instance.shutdown = MagicMock()
+        with TestClient(http_server.app) as client:
+            yield client
 
 
 class TestSessionRegisterRequest:
@@ -456,22 +467,34 @@ class TestSessionEndpoints:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test listing sessions when session manager is None returns 503."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=None,  # type: ignore
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=None,  # No session manager
         )
         client = TestClient(server.app)
         response = client.get("/sessions")
         assert response.status_code == 503
         assert "Session manager not available" in response.json()["detail"]
 
-    def test_register_without_manager(self) -> None:
+    def test_register_without_manager(self, session_storage: LocalSessionManager) -> None:
         """Test registering when session manager is None returns 503."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=None,  # type: ignore
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=None,
         )
         client = TestClient(server.app)
         response = client.post(
@@ -783,12 +806,17 @@ class TestMCPEndpointsWithManager:
         mock_mcp_manager: FakeMCPManager,
     ) -> HTTPServer:
         """Create HTTP server with mock MCP manager."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+            mcp_manager=mock_mcp_manager,
+        )
         return HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            mcp_manager=mock_mcp_manager,
-            config=None,
-            session_manager=session_storage,
         )
 
     @pytest.fixture
@@ -902,10 +930,16 @@ class TestExceptionHandling:
     ) -> None:
         """Test that global exception handler returns 200 to prevent hook failures."""
         # Create server that will raise an exception
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         # Mock to raise exception
@@ -997,6 +1031,9 @@ class FakeHookManager:
     def __init__(self) -> None:
         self._stop_registry = FakeStopRegistry()
 
+    def shutdown(self) -> None:
+        pass
+
 
 class TestStopSignalEndpoints:
     """Tests for stop signal HTTP endpoints."""
@@ -1007,21 +1044,29 @@ class TestStopSignalEndpoints:
         session_storage: LocalSessionManager,
     ) -> HTTPServer:
         """Create HTTP server with mock stop registry."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+            mcp_manager=None,
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            mcp_manager=None,
-            config=None,
-            session_manager=session_storage,
         )
         # Mock the hook_manager in app state
         server.app.state.hook_manager = FakeHookManager()
         return server
 
     @pytest.fixture
-    def stop_client(self, server_with_stop_registry: HTTPServer) -> TestClient:
+    def stop_client(self, server_with_stop_registry: HTTPServer) -> Iterator[TestClient]:
         """Create test client with stop registry."""
-        return TestClient(server_with_stop_registry.app)
+        with TestClient(server_with_stop_registry.app) as client:
+            # Re-apply FakeHookManager after lifespan initialization
+            client.app.state.hook_manager = FakeHookManager()
+            yield client
 
     def test_post_stop_signal(self, stop_client: TestClient) -> None:
         """Test sending a stop signal to a session."""
@@ -1109,17 +1154,25 @@ class TestStopSignalEndpoints:
 
     def test_stop_signal_without_stop_registry(self, session_storage: LocalSessionManager) -> None:
         """Test stop signal endpoints when stop registry not available."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         # Set hook_manager without stop_registry
-        server.app.state.hook_manager = MagicMock()
-        server.app.state.hook_manager._stop_registry = None
+        with TestClient(server.app) as client:
+            # Overwrite after lifespan
+            mock_hm = MagicMock()
+            mock_hm._stop_registry = None
+            client.app.state.hook_manager = mock_hm
 
-        client = TestClient(server.app)
-        response = client.post("/sessions/test-session/stop")
+            response = client.post("/sessions/test-session/stop")
 
         assert response.status_code == 503
         assert "Stop registry not available" in response.json()["detail"]

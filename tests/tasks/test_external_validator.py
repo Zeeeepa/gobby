@@ -7,7 +7,7 @@ which does not yet exist.
 Task: gt-14b076
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -15,6 +15,29 @@ from gobby.config.tasks import TaskValidationConfig
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def mock_prompt_loader():
+    """Mock PromptLoader for all tests to avoid file system lookups."""
+    # We mock the internal _loader variable directly
+    with patch("gobby.tasks.external_validator._loader", new=MagicMock()) as mock:
+        # Default behavior for render
+        def render_side_effect(path, context):
+            if path == "external_validation/system":
+                # Must contain keywords required by tests
+                return "You are an objective validator. output valid json with status and issues fields."
+            if path in ["validation/validate", "external_validation/validate"]:
+                # Must contain keywords required by tests (json, status, issues, etc)
+                return f"Validate this task: {context.get('title')}. Return JSON with status and issues."
+            return f"Mock prompt for {path}"
+
+        mock.render.side_effect = render_side_effect
+        yield mock
+
+
+pytestmark = pytest.mark.unit
+
 
 class TestRunExternalValidation:
     """Tests for external validation with a separate LLM agent."""

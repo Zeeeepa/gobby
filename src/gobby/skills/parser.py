@@ -64,6 +64,8 @@ class ParsedSkill:
         scripts: List of script file paths (relative to skill dir)
         references: List of reference file paths (relative to skill dir)
         assets: List of asset file paths (relative to skill dir)
+        always_apply: Whether skill should always be injected at session start
+        injection_format: How to inject skill (summary, full, content)
     """
 
     name: str
@@ -80,6 +82,8 @@ class ParsedSkill:
     scripts: list[str] | None = None
     references: list[str] | None = None
     assets: list[str] | None = None
+    always_apply: bool = False
+    injection_format: str = "summary"
 
     def get_category(self) -> str | None:
         """Get category from top-level or metadata.skillport.category."""
@@ -139,6 +143,8 @@ class ParsedSkill:
             "scripts": self.scripts,
             "references": self.references,
             "assets": self.assets,
+            "always_apply": self.always_apply,
+            "injection_format": self.injection_format,
         }
 
 
@@ -232,6 +238,7 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
     # This allows both top-level and nested formats to work
     top_level_always_apply = frontmatter.get("alwaysApply")
     top_level_category = frontmatter.get("category")
+    top_level_injection_format = frontmatter.get("injectionFormat")
 
     if top_level_always_apply is not None or top_level_category is not None:
         if metadata is None:
@@ -251,6 +258,20 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
     if version is not None:
         version = str(version)
 
+    # Extract always_apply: check top-level first, then metadata.skillport.alwaysApply
+    always_apply = False
+    if top_level_always_apply is not None:
+        always_apply = bool(top_level_always_apply)
+    elif metadata and isinstance(metadata, dict):
+        skillport = metadata.get("skillport", {})
+        if isinstance(skillport, dict) and skillport.get("alwaysApply"):
+            always_apply = bool(skillport["alwaysApply"])
+
+    # Extract injection_format: check top-level first, default to "summary"
+    injection_format = "summary"
+    if top_level_injection_format is not None:
+        injection_format = str(top_level_injection_format)
+
     return ParsedSkill(
         name=name,
         description=description,
@@ -261,6 +282,8 @@ def parse_skill_text(text: str, source_path: str | None = None) -> ParsedSkill:
         allowed_tools=allowed_tools,
         metadata=metadata,
         source_path=source_path,
+        always_apply=always_apply,
+        injection_format=injection_format,
     )
 
 

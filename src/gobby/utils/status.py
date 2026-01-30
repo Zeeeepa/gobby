@@ -84,6 +84,11 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
         if skills_data:
             status_kwargs["skills_total"] = skills_data.get("total", 0)
 
+        # Artifacts
+        artifacts_data = data.get("artifacts", {})
+        if artifacts_data and artifacts_data.get("count", 0) > 0:
+            status_kwargs["artifacts_count"] = artifacts_data.get("count", 0)
+
     except (httpx.ConnectError, httpx.TimeoutException):
         # Daemon not responding - return empty
         pass
@@ -124,6 +129,8 @@ def format_status_message(
     memories_avg_importance: float | None = None,
     # Skills
     skills_total: int | None = None,
+    # Artifacts
+    artifacts_count: int | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -252,6 +259,12 @@ def format_status_message(
         if memories_avg_importance is not None:
             mem_str += f" (avg importance: {memories_avg_importance:.2f})"
         lines.append(f"  {mem_str}")
+        lines.append("")
+
+    # Artifacts section (only show if we have data)
+    if artifacts_count is not None:
+        lines.append("Artifacts:")
+        lines.append(f"  Captured: {artifacts_count}")
         lines.append("")
 
     # Paths section (only when running)
