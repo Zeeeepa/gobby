@@ -10,6 +10,7 @@ from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.mark.asyncio
 async def test_broadcaster_broadcasts_session_start_event():
     """Test that HookEventBroadcaster correctly broadcasts session-start events."""

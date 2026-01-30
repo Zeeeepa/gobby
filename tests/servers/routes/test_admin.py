@@ -7,6 +7,7 @@ from gobby.servers.routes.admin import create_admin_router
 
 pytestmark = pytest.mark.unit
 
+
 class TestAdminRoutes:
     @pytest.fixture
     def mock_server(self):

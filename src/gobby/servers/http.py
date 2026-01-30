@@ -62,32 +62,16 @@ class HTTPServer:
         self.test_mode = test_mode
         self.codex_client = codex_client
 
-        # Unpack commonly used services for easier access
-        self.config = services.config
-        self.session_manager = services.session_manager
-        self.task_manager = services.task_manager
-        self.mcp_manager = services.mcp_manager
-        self.llm_service = services.llm_service
-        self.websocket_server = services.websocket_server
-        self.task_sync_manager = services.task_sync_manager
-        self.message_processor = services.message_processor
-        self.message_manager = services.message_manager
-        self.memory_manager = services.memory_manager
-        self.memory_sync_manager = services.memory_sync_manager
-        self.metrics_manager = services.metrics_manager
-
-        self.broadcaster = HookEventBroadcaster(self.websocket_server, self.config)
+        self.broadcaster = HookEventBroadcaster(services.websocket_server, services.config)
 
         self._start_time: float = time.time()
 
         # Create LLM service if not provided in container (fallback)
-        if not self.llm_service and self.config:
+        if not services.llm_service and services.config:
             try:
-                self.llm_service = create_llm_service(self.config)
-                # Update container
-                self.services.llm_service = self.llm_service
+                services.llm_service = create_llm_service(services.config)
                 logger.debug(
-                    f"LLM service initialized with providers: {self.llm_service.enabled_providers}"
+                    f"LLM service initialized with providers: {services.llm_service.enabled_providers}"
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize LLM service: {e}")
@@ -96,13 +80,13 @@ class HTTPServer:
         self._mcp_server = None
         self._internal_manager = None
         self._tools_handler = None
-        self._mcp_db_manager = self.services.mcp_db_manager
 
-        if self.mcp_manager:
+        if services.mcp_manager:
             # Determine WebSocket port
             ws_port = 60888
-            if self.config and hasattr(self.config, "websocket") and self.config.websocket:
-                ws_port = self.config.websocket.port
+            cfg = services.config
+            if cfg and hasattr(cfg, "websocket") and cfg.websocket:
+                ws_port = cfg.websocket.port
 
             # Create a lazy getter for tool_proxy that will be available after
             # GobbyDaemonTools is created. This allows in-process agents to route
@@ -121,33 +105,33 @@ class HTTPServer:
                 from gobby.storage.merge_resolutions import MergeResolutionManager
                 from gobby.worktrees.merge.resolver import MergeResolver
 
-                merge_storage = MergeResolutionManager(self.services.mcp_db_manager.db)
+                merge_storage = MergeResolutionManager(services.mcp_db_manager.db)
                 merge_resolver = MergeResolver()
-                merge_resolver._llm_service = self.llm_service
+                merge_resolver._llm_service = services.llm_service
                 inter_session_message_manager = InterSessionMessageManager(
-                    self.services.mcp_db_manager.db
+                    services.mcp_db_manager.db
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
             # Setup internal registries (gobby-tasks, gobby-memory, etc.)
             self._internal_manager = setup_internal_registries(
-                _config=self.config,
+                _config=services.config,
                 _session_manager=None,  # Not needed for internal registries
-                memory_manager=self.memory_manager,
-                task_manager=self.task_manager,
-                sync_manager=self.task_sync_manager,
-                task_validator=self.services.task_validator,
-                message_manager=self.services.message_manager,
-                local_session_manager=self.session_manager,
-                metrics_manager=self.metrics_manager,
-                llm_service=self.llm_service,
-                agent_runner=self.services.agent_runner,
-                worktree_storage=self.services.worktree_storage,
-                clone_storage=self.services.clone_storage,
-                git_manager=self.services.git_manager,
+                memory_manager=services.memory_manager,
+                task_manager=services.task_manager,
+                sync_manager=services.task_sync_manager,
+                task_validator=services.task_validator,
+                message_manager=services.message_manager,
+                local_session_manager=services.session_manager,
+                metrics_manager=services.metrics_manager,
+                llm_service=services.llm_service,
+                agent_runner=services.agent_runner,
+                worktree_storage=services.worktree_storage,
+                clone_storage=services.clone_storage,
+                git_manager=services.git_manager,
                 merge_storage=merge_storage,
                 merge_resolver=merge_resolver,
-                project_id=self.services.project_id,
+                project_id=services.project_id,
                 tool_proxy_getter=tool_proxy_getter,
                 inter_session_message_manager=inter_session_message_manager,
             )
@@ -155,47 +139,47 @@ class HTTPServer:
             logger.debug(f"Internal registries initialized: {registry_count} registries")
 
             # Initialize tool summarizer config
-            if self.config:
+            if services.config:
                 from gobby.tools.summarizer import init_summarizer_config
 
-                init_summarizer_config(self.config.tool_summarizer)
+                init_summarizer_config(services.config.tool_summarizer)
                 logger.debug("Tool summarizer config initialized")
 
             # Create semantic search instance if db available
             semantic_search = None
-            if self.services.mcp_db_manager:
-                semantic_search = SemanticToolSearch(db=self.services.mcp_db_manager.db)
+            if services.mcp_db_manager:
+                semantic_search = SemanticToolSearch(db=services.mcp_db_manager.db)
                 logger.debug("Semantic tool search initialized")
 
             # Create tool filter for workflow phase restrictions
             tool_filter = None
-            if self.services.mcp_db_manager:
-                tool_filter = ToolFilterService(db=self.services.mcp_db_manager.db)
+            if services.mcp_db_manager:
+                tool_filter = ToolFilterService(db=services.mcp_db_manager.db)
                 logger.debug("Tool filter service initialized")
 
             # Create fallback resolver for alternative tool suggestions on error
             fallback_resolver = None
-            if semantic_search and self.metrics_manager:
+            if semantic_search and services.metrics_manager:
                 from gobby.mcp_proxy.services.fallback import ToolFallbackResolver
 
                 fallback_resolver = ToolFallbackResolver(
                     semantic_search=semantic_search,
-                    metrics_manager=self.metrics_manager,
+                    metrics_manager=services.metrics_manager,
                 )
                 logger.debug("Fallback resolver initialized")
 
             # Create tools handler
             self._tools_handler = GobbyDaemonTools(
-                mcp_manager=self.mcp_manager,
+                mcp_manager=services.mcp_manager,
                 daemon_port=port,
                 websocket_port=ws_port,
                 start_time=self._start_time,
                 internal_manager=self._internal_manager,
-                config=self.config,
-                llm_service=self.llm_service,
-                session_manager=self.session_manager,
-                memory_manager=self.memory_manager,
-                config_manager=self.services.mcp_db_manager,
+                config=services.config,
+                llm_service=services.llm_service,
+                session_manager=services.session_manager,
+                memory_manager=services.memory_manager,
+                config_manager=services.mcp_db_manager,
                 semantic_search=semantic_search,
                 tool_filter=tool_filter,
                 fallback_resolver=fallback_resolver,
@@ -208,6 +192,75 @@ class HTTPServer:
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._metrics = get_metrics_collector()
         self._daemon: Any = None  # Set externally by daemon
+
+    # Property accessors for services (delegate to container)
+    @property
+    def config(self) -> Any:
+        return self.services.config
+
+    @property
+    def session_manager(self) -> Any:
+        return self.services.session_manager
+
+    @session_manager.setter
+    def session_manager(self, value: Any) -> None:
+        self.services.session_manager = value
+
+    @property
+    def task_manager(self) -> Any:
+        return self.services.task_manager
+
+    @task_manager.setter
+    def task_manager(self, value: Any) -> None:
+        self.services.task_manager = value
+
+    @property
+    def mcp_manager(self) -> Any:
+        return self.services.mcp_manager
+
+    @mcp_manager.setter
+    def mcp_manager(self, value: Any) -> None:
+        self.services.mcp_manager = value
+
+    @property
+    def llm_service(self) -> Any:
+        return self.services.llm_service
+
+    @llm_service.setter
+    def llm_service(self, value: Any) -> None:
+        self.services.llm_service = value
+
+    @property
+    def memory_manager(self) -> Any:
+        return self.services.memory_manager
+
+    @memory_manager.setter
+    def memory_manager(self, value: Any) -> None:
+        self.services.memory_manager = value
+
+    @property
+    def message_manager(self) -> Any:
+        return self.services.message_manager
+
+    @message_manager.setter
+    def message_manager(self, value: Any) -> None:
+        self.services.message_manager = value
+
+    @property
+    def message_processor(self) -> Any:
+        return self.services.message_processor
+
+    @message_processor.setter
+    def message_processor(self, value: Any) -> None:
+        self.services.message_processor = value
+
+    @property
+    def metrics_manager(self) -> Any:
+        return self.services.metrics_manager
+
+    @metrics_manager.setter
+    def metrics_manager(self, value: Any) -> None:
+        self.services.metrics_manager = value
 
     @property
     def tool_proxy(self) -> Any:
@@ -283,30 +336,32 @@ class HTTPServer:
             hook_manager_kwargs: dict[str, Any] = {
                 "daemon_host": "localhost",
                 "daemon_port": self.port,
-                "llm_service": self.llm_service,
-                "config": self.config,
+                "llm_service": self.services.llm_service,
+                "config": self.services.config,
                 "broadcaster": self.broadcaster,
-                "mcp_manager": self.mcp_manager,
-                "message_processor": self.message_processor,
-                "memory_sync_manager": self.memory_sync_manager,
-                "task_sync_manager": self.task_sync_manager,
+                "mcp_manager": self.services.mcp_manager,
+                "message_processor": self.services.message_processor,
+                "memory_sync_manager": self.services.memory_sync_manager,
+                "task_sync_manager": self.services.task_sync_manager,
             }
-            if self.config:
+            if self.services.config:
                 # Pass full log file path from config
-                hook_manager_kwargs["log_file"] = self.config.logging.hook_manager
-                hook_manager_kwargs["log_max_bytes"] = self.config.logging.max_size_mb * 1024 * 1024
-                hook_manager_kwargs["log_backup_count"] = self.config.logging.backup_count
+                hook_manager_kwargs["log_file"] = self.services.config.logging.hook_manager
+                hook_manager_kwargs["log_max_bytes"] = (
+                    self.services.config.logging.max_size_mb * 1024 * 1024
+                )
+                hook_manager_kwargs["log_backup_count"] = self.services.config.logging.backup_count
 
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
             logger.debug("HookManager initialized in daemon")
 
             # Wire up stop_registry to WebSocket server for stop_request handling
             if (
-                self.websocket_server
+                self.services.websocket_server
                 and hasattr(app.state, "hook_manager")
                 and hasattr(app.state.hook_manager, "_stop_registry")
             ):
-                self.websocket_server.stop_registry = app.state.hook_manager._stop_registry
+                self.services.websocket_server.stop_registry = app.state.hook_manager._stop_registry
                 logger.debug("Stop registry connected to WebSocket server")
 
             # Store server instance for dependency injection
@@ -503,10 +558,10 @@ class HTTPServer:
                         )
 
             # Disconnect all MCP servers
-            if self.mcp_manager:
+            if self.services.mcp_manager:
                 logger.debug("Disconnecting MCP servers...")
                 try:
-                    await self.mcp_manager.disconnect_all()
+                    await self.services.mcp_manager.disconnect_all()
                     logger.debug("MCP servers disconnected")
                 except Exception as e:
                     logger.warning(f"Error disconnecting MCP servers: {e}")

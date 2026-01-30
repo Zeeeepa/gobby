@@ -13,10 +13,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from gobby.app_context import ServiceContainer
 from gobby.servers.http import HTTPServer
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
+from tests.servers.conftest import create_http_server
 
 pytestmark = pytest.mark.unit
 
@@ -56,12 +58,24 @@ def http_server(
     temp_dir: Path,
 ) -> HTTPServer:
     """Create an HTTP server instance for testing."""
+    mock_config = MagicMock()
+    mock_config.logging.max_size_mb = 10
+    mock_config.logging.backup_count = 3
+    mock_config.memory.backend = "null"
+    mock_config.workflow.timeout = 30
+    mock_config.workflow.enabled = True
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+
+    services = ServiceContainer(
+        config=mock_config,
+        database=session_storage.db,
+        session_manager=session_storage,
+        task_manager=MagicMock(),
+    )
     return HTTPServer(
+        services=services,
         port=60887,
         test_mode=True,
-        mcp_manager=None,
-        config=None,
-        session_manager=session_storage,
     )
 
 
@@ -166,7 +180,7 @@ class TestRegisterSessionEdgeCases:
         temp_dir: Path,
     ) -> None:
         """Test that internal errors during registration return 500."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -234,7 +248,7 @@ class TestListSessionsEdgeCases:
         )
 
         # Create server with mock message manager that fails
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -263,7 +277,7 @@ class TestListSessionsEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test that internal errors during list return 500."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -289,7 +303,7 @@ class TestGetSessionEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test that internal errors during get return 500."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -303,7 +317,7 @@ class TestGetSessionEdgeCases:
 
     def test_get_session_without_session_manager(self) -> None:
         """Test getting session when session manager is None returns 503."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=None,
@@ -337,7 +351,7 @@ class TestGetMessagesEdgeCases:
             project_id=test_project["id"],
         )
 
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -378,7 +392,7 @@ class TestGetMessagesEdgeCases:
             project_id=test_project["id"],
         )
 
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -405,7 +419,7 @@ class TestFindCurrentSessionEdgeCases:
 
     def test_find_current_session_without_session_manager(self) -> None:
         """Test find_current when session manager is None returns 503."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=None,
@@ -429,7 +443,7 @@ class TestFindCurrentSessionEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test find_current without project_id or cwd returns 400."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -452,7 +466,7 @@ class TestFindCurrentSessionEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test that internal errors during find_by_external_id return 500."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -485,7 +499,7 @@ class TestFindParentSessionEdgeCases:
 
     def test_find_parent_without_session_manager(self) -> None:
         """Test find_parent when session manager is None returns 503."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=None,
@@ -559,7 +573,7 @@ class TestFindParentSessionEdgeCases:
         test_project: dict[str, Any],
     ) -> None:
         """Test that internal errors during find_parent return 500."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -591,7 +605,7 @@ class TestUpdateStatusEdgeCases:
 
     def test_update_status_without_session_manager(self) -> None:
         """Test update_status when session manager is None returns 503."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=None,
@@ -621,7 +635,7 @@ class TestUpdateStatusEdgeCases:
             project_id=test_project["id"],
         )
 
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -652,7 +666,7 @@ class TestUpdateSummaryEdgeCases:
 
     def test_update_summary_without_session_manager(self) -> None:
         """Test update_summary when session manager is None returns 503."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=None,
@@ -682,7 +696,7 @@ class TestUpdateSummaryEdgeCases:
             project_id=test_project["id"],
         )
 
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -764,7 +778,7 @@ class TestStopSignalEdgeCases:
         session_storage: LocalSessionManager,
     ) -> HTTPServer:
         """Create HTTP server with mock stop registry."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -830,7 +844,7 @@ class TestStopSignalEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test GET stop signal when hook manager not available."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -848,7 +862,7 @@ class TestStopSignalEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test DELETE stop signal when hook manager not available."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -866,7 +880,7 @@ class TestStopSignalEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test GET stop signal when stop registry not available."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
@@ -886,7 +900,7 @@ class TestStopSignalEdgeCases:
         session_storage: LocalSessionManager,
     ) -> None:
         """Test DELETE stop signal when stop registry not available."""
-        server = HTTPServer(
+        server = create_http_server(
             port=60887,
             test_mode=True,
             session_manager=session_storage,
