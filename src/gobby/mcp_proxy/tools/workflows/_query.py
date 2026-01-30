@@ -2,14 +2,19 @@
 Query tools for workflows.
 """
 
+import logging
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from gobby.mcp_proxy.tools.workflows._types import resolve_session_id
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
+
+logger = logging.getLogger(__name__)
 
 
 def get_workflow(
@@ -89,7 +94,6 @@ def list_workflows(
     Returns:
         List of workflows with name, type, description, and source
     """
-    import yaml
 
     # Auto-discover project path if not provided
     if not project_path:
@@ -142,8 +146,13 @@ def list_workflows(
                 )
                 seen_names.add(name)
 
-            except Exception:
-                pass  # nosec B110 - skip invalid workflow files
+            except Exception as e:
+                logger.debug(
+                    "Skipping invalid workflow file %s: %s",
+                    yaml_path,
+                    e,
+                    exc_info=True,
+                )  # nosec B110
 
     return {"workflows": workflows, "count": len(workflows)}
 
