@@ -325,55 +325,77 @@ class GeminiAdapter(BaseAdapter):
         if response.context:
             hook_specific["additionalContext"] = response.context
 
-        # Add session/terminal context for SessionStart only
-        if hook_type == "SessionStart" and response.metadata:
+        # Add session/terminal context for hooks that support additionalContext
+        # Parity with Claude Code: inject on SessionStart, BeforeAgent, BeforeTool, AfterTool
+        hooks_with_context = {"SessionStart", "BeforeAgent", "BeforeTool", "AfterTool"}
+        if hook_type in hooks_with_context and response.metadata:
             session_id = response.metadata.get("session_id")
             session_ref = response.metadata.get("session_ref")
             external_id = response.metadata.get("external_id")
+            is_first_hook = response.metadata.get("_first_hook_for_session", False)
+
             if session_id:
                 hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type, "Unknown")
-                # Format: "Gobby Session ID: #N (or UUID)" so agents know both work
-                context_lines = []
-                if session_ref:
-                    context_lines.append(f"Gobby Session ID: {session_ref} (or {session_id})")
-                else:
-                    context_lines.append(f"Gobby Session ID: {session_id}")
-                if external_id:
-                    context_lines.append(f"CLI-Specific Session ID (external_id): {external_id}")
-                if response.metadata.get("parent_session_id"):
-                    context_lines.append(
-                        f"parent_session_id: {response.metadata['parent_session_id']}"
+
+                if is_first_hook:
+                    # First hook: inject full metadata (~60-100 tokens)
+                    context_lines = []
+                    if session_ref:
+                        context_lines.append(f"Gobby Session ID: {session_ref} (or {session_id})")
+                    else:
+                        context_lines.append(f"Gobby Session ID: {session_id}")
+                    if external_id:
+                        context_lines.append(
+                            f"CLI-Specific Session ID (external_id): {external_id}"
+                        )
+                    if response.metadata.get("parent_session_id"):
+                        context_lines.append(
+                            f"parent_session_id: {response.metadata['parent_session_id']}"
+                        )
+                    if response.metadata.get("machine_id"):
+                        context_lines.append(f"machine_id: {response.metadata['machine_id']}")
+                    if response.metadata.get("project_id"):
+                        context_lines.append(f"project_id: {response.metadata['project_id']}")
+                    # Add terminal context (non-null values only)
+                    if response.metadata.get("terminal_term_program"):
+                        context_lines.append(
+                            f"terminal: {response.metadata['terminal_term_program']}"
+                        )
+                    if response.metadata.get("terminal_tty"):
+                        context_lines.append(f"tty: {response.metadata['terminal_tty']}")
+                    if response.metadata.get("terminal_parent_pid"):
+                        context_lines.append(
+                            f"parent_pid: {response.metadata['terminal_parent_pid']}"
+                        )
+                    # Add terminal-specific session IDs
+                    for key in [
+                        "terminal_iterm_session_id",
+                        "terminal_term_session_id",
+                        "terminal_kitty_window_id",
+                        "terminal_tmux_pane",
+                        "terminal_vscode_terminal_id",
+                        "terminal_alacritty_socket",
+                    ]:
+                        if response.metadata.get(key):
+                            friendly_name = key.replace("terminal_", "").replace("_", " ")
+                            context_lines.append(f"{friendly_name}: {response.metadata[key]}")
+
+                    hook_specific["hookEventName"] = hook_event_name
+                    # Append to existing additionalContext if present
+                    existing = hook_specific.get("additionalContext", "")
+                    new_context = "\n".join(context_lines)
+                    hook_specific["additionalContext"] = (
+                        f"{existing}\n{new_context}" if existing else new_context
                     )
-                if response.metadata.get("machine_id"):
-                    context_lines.append(f"machine_id: {response.metadata['machine_id']}")
-                if response.metadata.get("project_id"):
-                    context_lines.append(f"project_id: {response.metadata['project_id']}")
-                # Add terminal context (non-null values only)
-                if response.metadata.get("terminal_term_program"):
-                    context_lines.append(f"terminal: {response.metadata['terminal_term_program']}")
-                if response.metadata.get("terminal_tty"):
-                    context_lines.append(f"tty: {response.metadata['terminal_tty']}")
-                if response.metadata.get("terminal_parent_pid"):
-                    context_lines.append(f"parent_pid: {response.metadata['terminal_parent_pid']}")
-                # Add terminal-specific session IDs
-                for key in [
-                    "terminal_iterm_session_id",
-                    "terminal_term_session_id",
-                    "terminal_kitty_window_id",
-                    "terminal_tmux_pane",
-                    "terminal_vscode_terminal_id",
-                    "terminal_alacritty_socket",
-                ]:
-                    if response.metadata.get(key):
-                        friendly_name = key.replace("terminal_", "").replace("_", " ")
-                        context_lines.append(f"{friendly_name}: {response.metadata[key]}")
-                hook_specific["hookEventName"] = hook_event_name
-                # Append to existing additionalContext if present
-                existing = hook_specific.get("additionalContext", "")
-                new_context = "\n".join(context_lines)
-                hook_specific["additionalContext"] = (
-                    f"{existing}\n{new_context}" if existing else new_context
-                )
+                else:
+                    # Subsequent hooks: inject minimal session ref only (~8 tokens)
+                    if session_ref:
+                        hook_specific["hookEventName"] = hook_event_name
+                        existing = hook_specific.get("additionalContext", "")
+                        minimal_context = f"Gobby Session ID: {session_ref}"
+                        hook_specific["additionalContext"] = (
+                            f"{existing}\n{minimal_context}" if existing else minimal_context
+                        )
 
         # Handle BeforeModel-specific output (llm_request modification)
         if hook_type == "BeforeModel" and response.modify_args:

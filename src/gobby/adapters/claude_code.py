@@ -234,49 +234,64 @@ class ClaudeCodeAdapter(BaseAdapter):
         # Note: "session_id" in metadata is Gobby's internal platform session ID
         #       "external_id" in metadata is the CLI's session UUID
         #       "session_ref" is the short #N format for easier reference
+        # Token optimization: Only inject full metadata on first hook per session
         if response.metadata:
             gobby_session_id = response.metadata.get("session_id")
             session_ref = response.metadata.get("session_ref")
             external_id = response.metadata.get("external_id")
+            is_first_hook = response.metadata.get("_first_hook_for_session", False)
+
             if gobby_session_id:
-                # Build context with all available identifiers
-                # Format: "Gobby Session ID: #N (or UUID)" so agents know both work
-                context_lines = []
-                if session_ref:
-                    context_lines.append(f"Gobby Session ID: {session_ref} (or {gobby_session_id})")
+                if is_first_hook:
+                    # First hook: inject full metadata (~60-100 tokens)
+                    context_lines = []
+                    if session_ref:
+                        context_lines.append(
+                            f"Gobby Session ID: {session_ref} (or {gobby_session_id})"
+                        )
+                    else:
+                        context_lines.append(f"Gobby Session ID: {gobby_session_id}")
+                    if external_id:
+                        context_lines.append(
+                            f"CLI-Specific Session ID (external_id): {external_id}"
+                        )
+                    if response.metadata.get("parent_session_id"):
+                        context_lines.append(
+                            f"parent_session_id: {response.metadata['parent_session_id']}"
+                        )
+                    if response.metadata.get("machine_id"):
+                        context_lines.append(f"machine_id: {response.metadata['machine_id']}")
+                    if response.metadata.get("project_id"):
+                        context_lines.append(f"project_id: {response.metadata['project_id']}")
+                    # Add terminal context (non-null values only)
+                    if response.metadata.get("terminal_term_program"):
+                        context_lines.append(
+                            f"terminal: {response.metadata['terminal_term_program']}"
+                        )
+                    if response.metadata.get("terminal_tty"):
+                        context_lines.append(f"tty: {response.metadata['terminal_tty']}")
+                    if response.metadata.get("terminal_parent_pid"):
+                        context_lines.append(
+                            f"parent_pid: {response.metadata['terminal_parent_pid']}"
+                        )
+                    # Add terminal-specific session IDs (only one will be present)
+                    for key in [
+                        "terminal_iterm_session_id",
+                        "terminal_term_session_id",
+                        "terminal_kitty_window_id",
+                        "terminal_tmux_pane",
+                        "terminal_vscode_terminal_id",
+                        "terminal_alacritty_socket",
+                    ]:
+                        if response.metadata.get(key):
+                            # Use friendlier names in output
+                            friendly_name = key.replace("terminal_", "").replace("_", " ")
+                            context_lines.append(f"{friendly_name}: {response.metadata[key]}")
+                    additional_context_parts.append("\n".join(context_lines))
                 else:
-                    context_lines.append(f"Gobby Session ID: {gobby_session_id}")
-                if external_id:
-                    context_lines.append(f"CLI-Specific Session ID (external_id): {external_id}")
-                if response.metadata.get("parent_session_id"):
-                    context_lines.append(
-                        f"parent_session_id: {response.metadata['parent_session_id']}"
-                    )
-                if response.metadata.get("machine_id"):
-                    context_lines.append(f"machine_id: {response.metadata['machine_id']}")
-                if response.metadata.get("project_id"):
-                    context_lines.append(f"project_id: {response.metadata['project_id']}")
-                # Add terminal context (non-null values only)
-                if response.metadata.get("terminal_term_program"):
-                    context_lines.append(f"terminal: {response.metadata['terminal_term_program']}")
-                if response.metadata.get("terminal_tty"):
-                    context_lines.append(f"tty: {response.metadata['terminal_tty']}")
-                if response.metadata.get("terminal_parent_pid"):
-                    context_lines.append(f"parent_pid: {response.metadata['terminal_parent_pid']}")
-                # Add terminal-specific session IDs (only one will be present)
-                for key in [
-                    "terminal_iterm_session_id",
-                    "terminal_term_session_id",
-                    "terminal_kitty_window_id",
-                    "terminal_tmux_pane",
-                    "terminal_vscode_terminal_id",
-                    "terminal_alacritty_socket",
-                ]:
-                    if response.metadata.get(key):
-                        # Use friendlier names in output
-                        friendly_name = key.replace("terminal_", "").replace("_", " ")
-                        context_lines.append(f"{friendly_name}: {response.metadata[key]}")
-                additional_context_parts.append("\n".join(context_lines))
+                    # Subsequent hooks: inject minimal session ref only (~8 tokens)
+                    if session_ref:
+                        additional_context_parts.append(f"Gobby Session ID: {session_ref}")
 
         # Build hookSpecificOutput if we have any context to inject
         # Only include hookSpecificOutput for hook types that Claude Code's schema accepts
