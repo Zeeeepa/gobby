@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.event_handlers._base import EventHandlersBase
 from gobby.hooks.events import HookEvent, HookResponse
+
+if TYPE_CHECKING:
+    from gobby.storage.sessions import Session
 
 
 class SessionEventHandlerMixin(EventHandlersBase):
@@ -40,101 +43,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 # Try to find by internal ID first (terminal mode case)
                 existing_session = self._session_storage.get(external_id)
                 if existing_session:
-                    self.logger.info(
-                        f"Found pre-created session {external_id}, updating instead of creating"
-                    )
-                    # Update the session with actual runtime info
-                    self._session_storage.update(
-                        session_id=existing_session.id,
-                        jsonl_path=transcript_path,
-                        status="active",
-                    )
-                    # Return early with the pre-created session's context
-                    session_id: str | None = existing_session.id
-                    parent_session_id = existing_session.parent_session_id
-
-                    # Track registered session
-                    if transcript_path and self._session_coordinator:
-                        try:
-                            self._session_coordinator.register_session(external_id)
-                        except Exception as e:
-                            self.logger.error(f"Failed to setup session tracking: {e}")
-
-                    # Start the agent run if this is a terminal-mode agent session
-                    if existing_session.agent_run_id and self._session_coordinator:
-                        try:
-                            self._session_coordinator.start_agent_run(existing_session.agent_run_id)
-                        except Exception as e:
-                            self.logger.warning(f"Failed to start agent run: {e}")
-
-                    # Auto-activate workflow if specified for this session
-                    if existing_session.workflow_name and session_id:
-                        self._auto_activate_workflow(
-                            existing_session.workflow_name, session_id, cwd
-                        )
-
-                    # Update event metadata
-                    event.metadata["_platform_session_id"] = session_id
-
-                    # Register with Message Processor
-                    if self._message_processor and transcript_path:
-                        try:
-                            self._message_processor.register_session(
-                                session_id, transcript_path, source=cli_source
-                            )
-                        except Exception as e:
-                            self.logger.warning(f"Failed to register with message processor: {e}")
-
-                    # Execute lifecycle workflows
-                    context_parts = []
-                    wf_response = HookResponse(decision="allow", context="")
-                    if self._workflow_handler:
-                        try:
-                            wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                            if wf_response.context:
-                                context_parts.append(wf_response.context)
-                        except Exception as e:
-                            self.logger.warning(f"Workflow error: {e}")
-
-                    # Build system message (terminal display only)
-                    # Display #N format if seq_num available, fallback to UUID
-                    session_ref = (
-                        f"#{existing_session.seq_num}" if existing_session.seq_num else session_id
-                    )
-                    system_message = f"\nGobby Session ID: {session_ref}"
-                    system_message += " <- Use this for MCP tool calls (session_id parameter)"
-                    system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
-                    if parent_session_id:
-                        context_parts.append(f"Parent session: {parent_session_id}")
-
-                    # Add active lifecycle workflows
-                    if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
-                        wf_list = wf_response.metadata["discovered_workflows"]
-                        if wf_list:
-                            system_message += "\nActive workflows:"
-                            for w in wf_list:
-                                source = "project" if w["is_project"] else "global"
-                                system_message += (
-                                    f"\n  - {w['name']} ({source}, priority={w['priority']})"
-                                )
-
-                    if wf_response.system_message:
-                        system_message += f"\n\n{wf_response.system_message}"
-
-                    return HookResponse(
-                        decision="allow",
-                        context="\n".join(context_parts) if context_parts else None,
-                        system_message=system_message,
-                        metadata={
-                            "session_id": session_id,
-                            "session_ref": session_ref,
-                            "parent_session_id": parent_session_id,
-                            "machine_id": machine_id,
-                            "project_id": existing_session.project_id,
-                            "external_id": external_id,
-                            "task_id": event.task_id,
-                            "is_pre_created": True,
-                        },
+                    return self._handle_pre_created_session(
+                        existing_session=existing_session,
+                        external_id=external_id,
+                        transcript_path=transcript_path,
+                        cli_source=cli_source,
+                        event=event,
+                        cwd=cwd,
                     )
             except Exception as e:
                 self.logger.debug(f"No pre-created session found: {e}")
@@ -219,78 +134,40 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
         # Step 6: Execute lifecycle workflows
-        context_parts = []
         wf_response = HookResponse(decision="allow", context="")
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.context:
-                    context_parts.append(wf_response.context)
             except Exception as e:
                 self.logger.warning(f"Workflow error: {e}")
 
-        if parent_session_id:
-            context_parts.append(f"Parent session: {parent_session_id}")
-
-        # Build system message (terminal display only)
-        # Fetch session to get seq_num for #N display
-        session_ref = session_id  # fallback
-        if session_id and self._session_storage:
-            session_obj = self._session_storage.get(session_id)
-            if session_obj and session_obj.seq_num:
-                session_ref = f"#{session_obj.seq_num}"
-        # Format: "Gobby Session ID: #N" with usage hint
-        if session_ref and session_ref != session_id:
-            system_message = f"\nGobby Session ID: {session_ref}"
-        else:
-            system_message = f"\nGobby Session ID: {session_id}"
-        system_message += " <- Use this for MCP tool calls (session_id parameter)"
-        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
-
-        # Add active lifecycle workflows
-        if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
-            wf_list = wf_response.metadata["discovered_workflows"]
-            if wf_list:
-                system_message += "\nActive workflows:"
-                for w in wf_list:
-                    source = "project" if w["is_project"] else "global"
-                    system_message += f"\n  - {w['name']} ({source}, priority={w['priority']})"
-
-        if wf_response.system_message:
-            system_message += f"\n\n{wf_response.system_message}"
-
-        # Inject active task context if available
+        # Build additional context (task and skill injection)
+        additional_context: list[str] = []
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
-            context_parts.append("\n## Active Task Context\n")
-            context_parts.append(f"You are working on task: {task_title} ({event.task_id})")
+            additional_context.append("\n## Active Task Context\n")
+            additional_context.append(f"You are working on task: {task_title} ({event.task_id})")
 
-        # Inject core skills if enabled (restoring from parent session if available)
         skill_context = self._build_skill_injection_context(parent_session_id)
         if skill_context:
-            context_parts.append(skill_context)
+            additional_context.append(skill_context)
 
-        # Build metadata with terminal context (filter out nulls)
-        metadata: dict[str, Any] = {
-            "session_id": session_id,
-            "session_ref": session_ref,
-            "parent_session_id": parent_session_id,
-            "machine_id": machine_id,
-            "project_id": project_id,
-            "external_id": external_id,
-            "task_id": event.task_id,
-        }
-        if terminal_context:
-            # Only include non-null terminal values
-            for key, value in terminal_context.items():
-                if value is not None:
-                    metadata[f"terminal_{key}"] = value
+        # Fetch session to get seq_num for #N display
+        session_obj = None
+        if session_id and self._session_storage:
+            session_obj = self._session_storage.get(session_id)
 
-        return HookResponse(
-            decision="allow",
-            context="\n".join(context_parts) if context_parts else None,
-            system_message=system_message,
-            metadata=metadata,
+        return self._compose_session_response(
+            session=session_obj,
+            wf_response=wf_response,
+            session_id=session_id,
+            external_id=external_id,
+            parent_session_id=parent_session_id,
+            machine_id=machine_id,
+            project_id=project_id,
+            task_id=event.task_id,
+            additional_context=additional_context,
+            terminal_context=terminal_context,
         )
 
     def handle_session_end(self, event: HookEvent) -> HookResponse:
@@ -382,6 +259,186 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Failed to unregister session from message processor: {e}")
 
         return HookResponse(decision="allow")
+
+    def _handle_pre_created_session(
+        self,
+        existing_session: Session,
+        external_id: str,
+        transcript_path: str | None,
+        cli_source: str,
+        event: HookEvent,
+        cwd: str | None,
+    ) -> HookResponse:
+        """Handle session start for a pre-created session (terminal mode agent).
+
+        Args:
+            existing_session: Pre-created session object
+            external_id: External (CLI-native) session ID
+            transcript_path: Path to transcript file
+            cli_source: CLI source (e.g., "claude-code")
+            event: Hook event
+            cwd: Current working directory
+
+        Returns:
+            HookResponse for the pre-created session
+        """
+        self.logger.info(f"Found pre-created session {external_id}, updating instead of creating")
+
+        # Update the session with actual runtime info
+        if self._session_storage:
+            self._session_storage.update(
+                session_id=existing_session.id,
+                jsonl_path=transcript_path,
+                status="active",
+            )
+
+        session_id = existing_session.id
+        parent_session_id = existing_session.parent_session_id
+        machine_id = self._get_machine_id()
+
+        # Track registered session
+        if transcript_path and self._session_coordinator:
+            try:
+                self._session_coordinator.register_session(external_id)
+            except Exception as e:
+                self.logger.error(f"Failed to setup session tracking: {e}")
+
+        # Start the agent run if this is a terminal-mode agent session
+        if existing_session.agent_run_id and self._session_coordinator:
+            try:
+                self._session_coordinator.start_agent_run(existing_session.agent_run_id)
+            except Exception as e:
+                self.logger.warning(f"Failed to start agent run: {e}")
+
+        # Auto-activate workflow if specified for this session
+        if existing_session.workflow_name and session_id:
+            self._auto_activate_workflow(existing_session.workflow_name, session_id, cwd)
+
+        # Update event metadata
+        event.metadata["_platform_session_id"] = session_id
+
+        # Register with Message Processor
+        if self._message_processor and transcript_path:
+            try:
+                self._message_processor.register_session(
+                    session_id, transcript_path, source=cli_source
+                )
+            except Exception as e:
+                self.logger.warning(f"Failed to register with message processor: {e}")
+
+        # Execute lifecycle workflows
+        wf_response = HookResponse(decision="allow", context="")
+        if self._workflow_handler:
+            try:
+                wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            except Exception as e:
+                self.logger.warning(f"Workflow error: {e}")
+
+        return self._compose_session_response(
+            session=existing_session,
+            wf_response=wf_response,
+            session_id=session_id,
+            external_id=external_id,
+            parent_session_id=parent_session_id,
+            machine_id=machine_id,
+            project_id=existing_session.project_id,
+            task_id=event.task_id,
+            is_pre_created=True,
+        )
+
+    def _compose_session_response(
+        self,
+        session: Session | None,
+        wf_response: HookResponse,
+        session_id: str | None,
+        external_id: str,
+        parent_session_id: str | None,
+        machine_id: str,
+        project_id: str | None = None,
+        task_id: str | None = None,
+        additional_context: list[str] | None = None,
+        is_pre_created: bool = False,
+        terminal_context: dict[str, Any] | None = None,
+    ) -> HookResponse:
+        """Build HookResponse for session start.
+
+        Shared helper that builds the system message, context, and metadata
+        for both pre-created and newly-created sessions.
+
+        Args:
+            session: Session object (used for seq_num)
+            wf_response: Response from workflow handler
+            session_id: Session ID
+            external_id: External (CLI-native) session ID
+            parent_session_id: Parent session ID if any
+            machine_id: Machine ID
+            project_id: Project ID
+            task_id: Task ID if any
+            additional_context: Additional context strings to append (e.g., task/skill context)
+            is_pre_created: Whether this is a pre-created session
+            terminal_context: Terminal context dict to add to metadata
+
+        Returns:
+            HookResponse with system_message, context, and metadata
+        """
+        # Build context_parts
+        context_parts: list[str] = []
+        if wf_response.context:
+            context_parts.append(wf_response.context)
+        if parent_session_id:
+            context_parts.append(f"Parent session: {parent_session_id}")
+        if additional_context:
+            context_parts.extend(additional_context)
+
+        # Compute session_ref from session object or fallback to session_id
+        session_ref = session_id
+        if session and session.seq_num:
+            session_ref = f"#{session.seq_num}"
+
+        # Build system message (terminal display only)
+        if session_ref and session_ref != session_id:
+            system_message = f"\nGobby Session ID: {session_ref}"
+        else:
+            system_message = f"\nGobby Session ID: {session_id}"
+        system_message += " <- Use this for MCP tool calls (session_id parameter)"
+        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
+
+        # Add active lifecycle workflows
+        if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
+            wf_list = wf_response.metadata["discovered_workflows"]
+            if wf_list:
+                system_message += "\nActive workflows:"
+                for w in wf_list:
+                    source = "project" if w["is_project"] else "global"
+                    system_message += f"\n  - {w['name']} ({source}, priority={w['priority']})"
+
+        if wf_response.system_message:
+            system_message += f"\n\n{wf_response.system_message}"
+
+        # Build metadata
+        metadata: dict[str, Any] = {
+            "session_id": session_id,
+            "session_ref": session_ref,
+            "parent_session_id": parent_session_id,
+            "machine_id": machine_id,
+            "project_id": project_id,
+            "external_id": external_id,
+            "task_id": task_id,
+        }
+        if is_pre_created:
+            metadata["is_pre_created"] = True
+        if terminal_context:
+            # Only include non-null terminal values
+            for key, value in terminal_context.items():
+                if value is not None:
+                    metadata[f"terminal_{key}"] = value
+
+        return HookResponse(
+            decision="allow",
+            context="\n".join(context_parts) if context_parts else None,
+            system_message=system_message,
+            metadata=metadata,
+        )
 
     def _build_skill_injection_context(self, parent_session_id: str | None = None) -> str | None:
         """Build skill injection context for session-start.
