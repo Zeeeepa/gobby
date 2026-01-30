@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.git_utils import get_dirty_files
 from gobby.workflows.safe_evaluator import LazyBool, SafeExpressionEvaluator
+from gobby.workflows.templates import TemplateEngine
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
@@ -360,6 +361,16 @@ async def block_tools(
                 continue
 
         reason = rule.get("reason", f"Tool '{tool_name}' is blocked.")
+
+        # Render Jinja2 template variables in reason message
+        if "{{" in reason:
+            try:
+                engine = TemplateEngine()
+                reason = engine.render(reason, {"tool_input": tool_input})
+            except Exception as e:
+                logger.warning(f"Failed to render reason template: {e}")
+                # Keep original reason on failure
+
         logger.info(f"block_tools: Blocking '{tool_name}' - {reason[:100]}")
         return {"decision": "block", "reason": reason}
 

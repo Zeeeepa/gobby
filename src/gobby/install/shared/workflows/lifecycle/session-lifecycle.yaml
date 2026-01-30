@@ -154,7 +154,8 @@ triggers:
 
         # Block call_tool if schema wasn't fetched first (progressive disclosure)
         # Skip for discovery tools (list_tools, get_tool_schema, etc.)
-        - mcp_tools: ["gobby:call_tool"]
+        # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
+        - tools: ["mcp__gobby__call_tool"]
           when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
           reason: |
 
