@@ -6,6 +6,7 @@ from gobby.storage.migrations import run_migrations
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path):
     database = LocalDatabase(tmp_path / "gobby-hub.db")
@@ -189,8 +190,9 @@ def test_content_exists_with_project(memory_manager, db) -> None:
     # Same content with same project should exist
     assert memory_manager.content_exists("Project content", project_id="proj1") is True
 
-    # Same content with different project should not exist
-    assert memory_manager.content_exists("Project content", project_id="other-proj") is False
+    # Same content with different project should ALSO exist (global deduplication)
+    # This prevents duplicates when same content is stored with different project_ids
+    assert memory_manager.content_exists("Project content", project_id="other-proj") is True
 
     # Different content should not exist
     assert memory_manager.content_exists("Other content", project_id="proj1") is False

@@ -471,6 +471,19 @@ class GobbyRunner:
                 except (asyncio.CancelledError, TimeoutError):
                     pass
 
+            # Export memories to JSONL backup on shutdown
+            if self.memory_sync_manager:
+                try:
+                    count = await asyncio.wait_for(
+                        self.memory_sync_manager.export_to_files(), timeout=5.0
+                    )
+                    if count > 0:
+                        logger.info(f"Shutdown memory backup: exported {count} memories")
+                except TimeoutError:
+                    logger.warning("Memory backup on shutdown timed out")
+                except Exception as e:
+                    logger.warning(f"Memory backup on shutdown failed: {e}")
+
             try:
                 await asyncio.wait_for(self.mcp_proxy.disconnect_all(), timeout=3.0)
             except TimeoutError:
