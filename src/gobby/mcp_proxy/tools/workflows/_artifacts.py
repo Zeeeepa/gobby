@@ -2,6 +2,7 @@
 Artifact and variable tools for workflows.
 """
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,6 +14,8 @@ from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.state_manager import WorkflowStateManager
+
+logger = logging.getLogger(__name__)
 
 
 def mark_artifact_complete(
@@ -56,7 +59,7 @@ def mark_artifact_complete(
     state.artifacts[artifact_type] = file_path
     state_manager.save_state(state)
 
-    return {}
+    return {"success": True}
 
 
 def set_variable(
@@ -133,12 +136,9 @@ def set_variable(
     if name == "session_task" and isinstance(value, str):
         try:
             value = resolve_session_task_value(value, resolved_session_id, session_manager, db)
-        except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                f"Failed to resolve session_task value '{value}' for session {resolved_session_id} "
-                f"in resolve_session_task_value: {e}"
+        except (ValueError, KeyError) as e:
+            logger.warning(
+                f"Failed to resolve session_task value '{value}' for session {resolved_session_id}: {e}"
             )
             value = None
 
