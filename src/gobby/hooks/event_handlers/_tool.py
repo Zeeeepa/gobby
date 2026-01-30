@@ -67,7 +67,7 @@ class ToolEventHandlerMixin(EventHandlersBase):
             # For complex tools (multi_replace, etc), check if they modify files
             # This logic could be expanded, but for now stick to the basic set
 
-            if not is_failure and is_edit and self._session_task_manager:
+            if not is_failure and is_edit and self._session_storage:
                 try:
                     # Check if file is internal .gobby file
                     file_path = (
@@ -78,12 +78,20 @@ class ToolEventHandlerMixin(EventHandlersBase):
                     is_internal = file_path and ".gobby/" in str(file_path)
 
                     if not is_internal:
-                        # Update task files_modified count via session_task_manager
-                        # This automatically increments the counter for the claimed task
-                        self._session_task_manager.track_file_edit(session_id)
+                        # Check if session has any claimed tasks before marking had_edits
+                        has_claimed_task = False
+                        if self._task_manager:
+                            try:
+                                claimed_tasks = self._task_manager.list_tasks(assignee=session_id)
+                                has_claimed_task = len(claimed_tasks) > 0
+                            except Exception:
+                                pass
+
+                        if has_claimed_task:
+                            self._session_storage.mark_had_edits(session_id)
                 except Exception as e:
                     # Don't fail the event if tracking fails
-                    self.logger.warning(f"Failed to track file edit: {e}")
+                    self.logger.warning(f"Failed to process file edit: {e}")
 
         else:
             self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")

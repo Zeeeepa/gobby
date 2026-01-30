@@ -4,7 +4,7 @@ Common type definitions for workflow tools.
 
 import logging
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks._id import resolve_task_reference
 from gobby.storage.tasks._models import TaskNotFoundError
@@ -24,7 +24,7 @@ def resolve_session_task_value(
     value: str,
     session_id: str | None,
     session_manager: LocalSessionManager,
-    db: LocalDatabase,
+    db: DatabaseProtocol,
 ) -> str:
     """
     Resolve a session_task value from seq_num reference (#N or N) to UUID.

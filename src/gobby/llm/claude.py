@@ -841,8 +841,9 @@ class ClaudeLLMProvider(LLMProvider):
 
         try:
             # Route through LiteLLM with anthropic prefix
+            # Use same model as SDK path for consistency
             response = await self._litellm.acompletion(
-                model="anthropic/claude-haiku-4-5-20251001",
+                model="anthropic/claude-haiku-4-5",
                 messages=[
                     {
                         "role": "user",

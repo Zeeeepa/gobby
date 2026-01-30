@@ -9,7 +9,7 @@ from gobby.mcp_proxy.tools.workflows._types import (
     resolve_session_id,
     resolve_session_task_value,
 )
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -62,7 +62,7 @@ def mark_artifact_complete(
 def set_variable(
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     name: str,
     value: str | int | float | bool | None,
     session_id: str | None = None,
@@ -131,7 +131,16 @@ def set_variable(
     # Resolve session_task references (#N or N) to UUIDs upfront
     # This prevents repeated resolution failures in condition evaluation
     if name == "session_task" and isinstance(value, str):
-        value = resolve_session_task_value(value, resolved_session_id, session_manager, db)
+        try:
+            value = resolve_session_task_value(value, resolved_session_id, session_manager, db)
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Failed to resolve session_task value '{value}' for session {resolved_session_id} "
+                f"in resolve_session_task_value: {e}"
+            )
+            value = None
 
     # Set the variable
     state.variables[name] = value

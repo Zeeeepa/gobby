@@ -83,7 +83,16 @@ async def close_terminal(
                     f"Shutdown script version mismatch: installed={installed_version}, source={source_version}"
                 )
 
-        if needs_rebuild and source_content:
+        if needs_rebuild:
+            if not source_content:
+                logger.error(
+                    f"Cannot rebuild shutdown script at {script_path}: "
+                    f"source script not found at {source_script_path}"
+                )
+                return {
+                    "success": False,
+                    "error": f"Source shutdown script not found at {source_script_path}",
+                }
             script_path.write_text(source_content)
             # Make executable
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)

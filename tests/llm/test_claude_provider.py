@@ -237,8 +237,9 @@ def test_auth_mode_default_is_subscription(claude_config):
     """Test default auth_mode is subscription."""
 
     async def mock_query(prompt, options):
-        return
-        yield  # Make this an async generator that yields nothing
+        # Empty async generator - yields nothing but maintains async generator signature
+        if False:
+            yield  # pragma: no cover
 
     with mock_claude_sdk(mock_query):
         provider = ClaudeLLMProvider(claude_config)

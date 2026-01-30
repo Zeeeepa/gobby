@@ -39,43 +39,57 @@ from gobby.mcp_proxy.tools.workflows._query import (
     list_workflows,
 )
 from gobby.mcp_proxy.tools.workflows._terminal import close_terminal
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
+from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
+
+__all__ = [
+    "create_workflows_registry",
+    "get_workflow_project_path",
+]
 
 
 def create_workflows_registry(
     loader: WorkflowLoader | None = None,
     state_manager: WorkflowStateManager | None = None,
     session_manager: LocalSessionManager | None = None,
-    db: LocalDatabase | None = None,
+    db: DatabaseProtocol | None = None,
 ) -> InternalToolRegistry:
     """
     Create a workflow tool registry with all workflow-related tools.
 
     Args:
         loader: WorkflowLoader instance
-        state_manager: WorkflowStateManager instance
-        session_manager: LocalSessionManager instance
-        db: LocalDatabase instance (required - caller owns lifecycle)
+        state_manager: WorkflowStateManager instance (created from db if not provided)
+        session_manager: LocalSessionManager instance (created from db if not provided)
+        db: Database instance for creating default managers
 
     Returns:
         InternalToolRegistry with workflow tools registered
 
-    Raises:
-        ValueError: If db is not provided
+    Note:
+        If db is None and state_manager/session_manager are not provided,
+        tools requiring database access will return errors when called.
     """
-    if db is None:
-        raise ValueError(
-            "db is required. Caller must provide a LocalDatabase instance "
-            "and is responsible for its lifecycle (closing when done)."
-        )
-
     _db = db
     _loader = loader or WorkflowLoader()
-    _state_manager = state_manager or WorkflowStateManager(_db)
-    _session_manager = session_manager or LocalSessionManager(_db)
+
+    # Create default managers only if db is provided
+    if state_manager is not None:
+        _state_manager = state_manager
+    elif _db is not None:
+        _state_manager = WorkflowStateManager(_db)
+    else:
+        _state_manager = None  # type: ignore[assignment]
+
+    if session_manager is not None:
+        _session_manager = session_manager
+    elif _db is not None:
+        _session_manager = LocalSessionManager(_db)
+    else:
+        _session_manager = None  # type: ignore[assignment]
 
     registry = InternalToolRegistry(
         name="gobby-workflows",
@@ -114,6 +128,8 @@ def create_workflows_registry(
         variables: dict[str, Any] | None = None,
         project_path: str | None = None,
     ) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None or _db is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return activate_workflow(
             _loader,
             _state_manager,
@@ -134,6 +150,8 @@ def create_workflows_registry(
         session_id: str | None = None,
         reason: str | None = None,
     ) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return end_workflow(_state_manager, _session_manager, session_id, reason)
 
     @registry.tool(
@@ -141,6 +159,8 @@ def create_workflows_registry(
         description="Get current workflow step and state. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def _get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return get_workflow_status(_state_manager, _session_manager, session_id)
 
     @registry.tool(
@@ -154,6 +174,8 @@ def create_workflows_registry(
         force: bool = False,
         project_path: str | None = None,
     ) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return request_step_transition(
             _loader,
             _state_manager,
@@ -174,6 +196,8 @@ def create_workflows_registry(
         file_path: str,
         session_id: str | None = None,
     ) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return mark_artifact_complete(
             _state_manager, _session_manager, artifact_type, file_path, session_id
         )
@@ -187,6 +211,8 @@ def create_workflows_registry(
         value: str | int | float | bool | None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None or _db is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return set_variable(_state_manager, _session_manager, _db, name, value, session_id)
 
     @registry.tool(
@@ -197,6 +223,8 @@ def create_workflows_registry(
         name: str | None = None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
+        if _state_manager is None or _session_manager is None:
+            return {"success": False, "error": "Workflow tools require database connection"}
         return get_variable(_state_manager, _session_manager, name, session_id)
 
     @registry.tool(
