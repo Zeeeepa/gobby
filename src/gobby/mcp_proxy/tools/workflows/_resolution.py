@@ -1,5 +1,8 @@
 """
-Common type definitions for workflow tools.
+Resolution utilities for workflow tools.
+
+Provides functions to resolve session and task references from various
+formats (#N, N, UUID, prefix) to canonical UUIDs.
 """
 
 import logging

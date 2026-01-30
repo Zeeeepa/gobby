@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.mcp_proxy.tools.workflows._types import (
+from gobby.mcp_proxy.tools.workflows._resolution import (
     resolve_session_id,
     resolve_session_task_value,
 )
@@ -140,7 +140,10 @@ def set_variable(
             logger.warning(
                 f"Failed to resolve session_task value '{value}' for session {resolved_session_id}: {e}"
             )
-            value = None
+            return {
+                "success": False,
+                "error": f"Failed to resolve session_task value '{value}': {e}",
+            }
 
     # Set the variable
     state.variables[name] = value

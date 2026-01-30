@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from gobby.mcp_proxy.tools.workflows._types import (
+from gobby.mcp_proxy.tools.workflows._resolution import (
     resolve_session_id,
     resolve_session_task_value,
 )

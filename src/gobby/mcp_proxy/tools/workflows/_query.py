@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from gobby.mcp_proxy.tools.workflows._types import resolve_session_id
+from gobby.mcp_proxy.tools.workflows._resolution import resolve_session_id
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.loader import WorkflowLoader
