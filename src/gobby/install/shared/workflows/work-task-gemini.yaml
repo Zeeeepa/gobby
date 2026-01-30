@@ -36,24 +36,15 @@ steps:
 
           Assigned task: {{ variables.assigned_task_id }}
 
-          First, claim the task by setting it to in_progress:
+          First, claim the task by calling the gobby-tasks server's update_task tool:
+          - server_name: "gobby-tasks"
+          - tool_name: "update_task"
+          - arguments: {"task_id": "{{ variables.assigned_task_id }}", "status": "in_progress"}
 
-          mcp__gobby__call_tool(
-            server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={
-              "task_id": "{{ variables.assigned_task_id }}",
-              "status": "in_progress"
-            }
-          )
-
-          Then read the task details to understand what needs to be done:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-tasks",
-            tool_name="get_task",
-            arguments={"task_id": "{{ variables.assigned_task_id }}"}
-          )
+          Then read the task details using the get_task tool:
+          - server_name: "gobby-tasks"
+          - tool_name: "get_task"
+          - arguments: {"task_id": "{{ variables.assigned_task_id }}"}
 
     allowed_tools:
       - mcp__gobby__call_tool
@@ -100,26 +91,16 @@ steps:
           **If you made file changes:**
           1. Stage your changes: git add <files>
           2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
-          3. Close the task WITH commit_sha:
-             mcp__gobby__call_tool(
-               server_name="gobby-tasks",
-               tool_name="close_task",
-               arguments={
-                 "task_id": "{{ variables.assigned_task_id }}",
-                 "commit_sha": "<commit_sha_from_git_commit>"
-               }
-             )
+          3. Close the task WITH commit_sha using the close_task tool:
+             - server_name: "gobby-tasks"
+             - tool_name: "close_task"
+             - arguments: {"task_id": "{{ variables.assigned_task_id }}", "commit_sha": "<sha_from_git_commit>"}
 
           **If NO file changes (e.g., research, messaging, information gathering):**
           Close the task WITHOUT commit_sha:
-             mcp__gobby__call_tool(
-               server_name="gobby-tasks",
-               tool_name="close_task",
-               arguments={
-                 "task_id": "{{ variables.assigned_task_id }}",
-                 "changes_summary": "<brief summary of what you did>"
-               }
-             )
+             - server_name: "gobby-tasks"
+             - tool_name: "close_task"
+             - arguments: {"task_id": "{{ variables.assigned_task_id }}", "changes_summary": "<brief summary>"}
 
           Do NOT push - the parent orchestrator will handle merging.
 
@@ -146,16 +127,10 @@ steps:
         content: |
           WORKER: Reporting completion to parent.
 
-          Send a completion message to your parent session:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-agents",
-            tool_name="send_to_parent",
-            arguments={
-              "session_id": "<your_session_id>",
-              "content": "Task {{ variables.assigned_task_id }} completed. <brief summary of what you did>"
-            }
-          )
+          Send a completion message to your parent session using the send_to_parent tool:
+          - server_name: "gobby-agents"
+          - tool_name: "send_to_parent"
+          - arguments: {"session_id": "<your_session_id>", "content": "Task {{ variables.assigned_task_id }} completed. <brief summary>"}
 
           If send_to_parent fails (no parent found), that's okay - proceed to shutdown.
 
@@ -196,18 +171,12 @@ steps:
         content: |
           WORKER: Shutdown sequence.
 
-          Update your session status to completed:
+          Update your session status to completed using the update_session tool:
+          - server_name: "gobby-sessions"
+          - tool_name: "update_session"
+          - arguments: {"session_id": "<your_gobby_session_id>", "status": "completed"}
 
-          mcp__gobby__call_tool(
-            server_name="gobby-sessions",
-            tool_name="update_session",
-            arguments={
-              "session_id": "$GOBBY_SESSION_ID",
-              "status": "completed"
-            }
-          )
-
-          Note: Replace $GOBBY_SESSION_ID with the value from environment variable GOBBY_SESSION_ID.
+          Note: Use the Gobby session ID from your session context.
 
           Then run the shutdown script (if available):
           ~/.gobby/scripts/agent_shutdown.sh
@@ -240,7 +209,7 @@ on_premature_stop:
     You must:
     1. Complete your work
     2. If you made file changes: commit them (git add && git commit)
-    3. Close the task with close_task() (commit_sha optional if no file changes)
-    4. Report to parent with send_to_parent()
+    3. Close the task using the close_task tool (include commit_sha if you made file changes)
+    4. Report to parent using the send_to_parent tool
 
-    If you're stuck, check the task details with get_task().
+    If you're stuck, check the task details using the get_task tool.
