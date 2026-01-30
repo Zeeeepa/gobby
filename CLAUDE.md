@@ -12,6 +12,10 @@ This file provides guidance for developing the Gobby codebase.
 
 See skill: **claiming-tasks** for quick reference when blocked.
 
+## Plan Mode
+
+Task management MCP calls (gobby-tasks) are allowed during plan mode. Planning includes organizing work, not just designing it.
+
 ## Project Overview
 
 Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) under one persistent, extensible platform. It provides:
