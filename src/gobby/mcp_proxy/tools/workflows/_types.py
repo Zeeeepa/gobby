@@ -3,6 +3,7 @@ Common type definitions for workflow tools.
 """
 
 import logging
+from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
@@ -21,11 +22,11 @@ def resolve_session_id(session_manager: LocalSessionManager, ref: str) -> str:
 
 
 def resolve_session_task_value(
-    value: str,
+    value: Any,
     session_id: str | None,
     session_manager: LocalSessionManager,
     db: DatabaseProtocol,
-) -> str:
+) -> Any:
     """
     Resolve a session_task value from seq_num reference (#N or N) to UUID.
 
