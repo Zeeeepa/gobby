@@ -199,6 +199,45 @@ class ClaudeLLMProvider(LLMProvider):
         except ImportError:
             self.logger.error("litellm package required for api_key mode")
 
+    def _format_summary_context(self, context: dict[str, Any], prompt_template: str | None) -> str:
+        """
+        Format context and validate prompt template for summary generation.
+
+        Transforms list/dict values to strings for template substitution
+        and validates that a prompt template is provided.
+
+        Args:
+            context: Raw context dict with transcript_summary, last_messages, etc.
+            prompt_template: Template string with placeholders for context values.
+
+        Returns:
+            Formatted prompt string ready for LLM consumption.
+
+        Raises:
+            ValueError: If prompt_template is None.
+        """
+        # Transform list/dict values to strings for template substitution
+        formatted_context = {
+            "transcript_summary": context.get("transcript_summary", ""),
+            "last_messages": json.dumps(context.get("last_messages", []), indent=2),
+            "git_status": context.get("git_status", ""),
+            "file_changes": context.get("file_changes", ""),
+            **{
+                k: v
+                for k, v in context.items()
+                if k not in ["transcript_summary", "last_messages", "git_status", "file_changes"]
+            },
+        }
+
+        # Validate prompt_template is provided
+        if not prompt_template:
+            raise ValueError(
+                "prompt_template is required for generate_summary. "
+                "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
+            )
+
+        return prompt_template.format(**formatted_context)
+
     async def generate_summary(
         self, context: dict[str, Any], prompt_template: str | None = None
     ) -> str:
@@ -218,27 +257,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not cli_path:
             return "Session summary unavailable (Claude CLI not found)"
 
-        # Build formatted context for prompt template
-        # Transform list/dict values to strings for template substitution
-        formatted_context = {
-            "transcript_summary": context.get("transcript_summary", ""),
-            "last_messages": json.dumps(context.get("last_messages", []), indent=2),
-            "git_status": context.get("git_status", ""),
-            "file_changes": context.get("file_changes", ""),
-            **{
-                k: v
-                for k, v in context.items()
-                if k not in ["transcript_summary", "last_messages", "git_status", "file_changes"]
-            },
-        }
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for generate_summary. "
-                "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(**formatted_context)
+        prompt = self._format_summary_context(context, prompt_template)
 
         # Configure Claude Agent SDK
         options = ClaudeAgentOptions(
@@ -273,26 +292,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             return "Session summary unavailable (LiteLLM not initialized)"
 
-        # Build formatted context for prompt template
-        formatted_context = {
-            "transcript_summary": context.get("transcript_summary", ""),
-            "last_messages": json.dumps(context.get("last_messages", []), indent=2),
-            "git_status": context.get("git_status", ""),
-            "file_changes": context.get("file_changes", ""),
-            **{
-                k: v
-                for k, v in context.items()
-                if k not in ["transcript_summary", "last_messages", "git_status", "file_changes"]
-            },
-        }
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for generate_summary. "
-                "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(**formatted_context)
+        prompt = self._format_summary_context(context, prompt_template)
 
         try:
             response = await self._litellm.acompletion(
