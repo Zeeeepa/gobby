@@ -283,3 +283,22 @@ class LocalArtifactManager:
 
         rows = self.db.fetchall(sql, tuple(params))
         return [Artifact.from_row(row) for row in rows]
+
+    def count_artifacts(self, session_id: str | None = None) -> int:
+        """Count total artifacts, optionally filtered by session.
+
+        Args:
+            session_id: Optional session ID to filter by
+
+        Returns:
+            Total artifact count
+        """
+        if session_id:
+            row = self.db.fetchone(
+                "SELECT COUNT(*) FROM session_artifacts WHERE session_id = ?",
+                (session_id,),
+            )
+        else:
+            row = self.db.fetchone("SELECT COUNT(*) FROM session_artifacts")
+
+        return row[0] if row else 0

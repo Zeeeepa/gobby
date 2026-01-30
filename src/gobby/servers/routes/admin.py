@@ -175,6 +175,17 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get memory stats: {e}")
 
+        # Get artifact statistics
+        artifact_stats = {"count": 0}
+        if server.session_manager is not None:
+            try:
+                from gobby.storage.artifacts import LocalArtifactManager
+
+                artifact_manager = LocalArtifactManager(server.session_manager.db)
+                artifact_stats["count"] = artifact_manager.count_artifacts()
+            except Exception as e:
+                logger.warning(f"Failed to get artifact stats: {e}")
+
         # Get skills statistics
         skills_stats: dict[str, Any] = {"total": 0}
         if server._internal_manager:
@@ -231,6 +242,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             "sessions": session_stats,
             "tasks": task_stats,
             "memory": memory_stats,
+            "artifacts": artifact_stats,
             "skills": skills_stats,
             "plugins": plugin_stats,
             "response_time_ms": response_time_ms,
