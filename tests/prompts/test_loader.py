@@ -305,11 +305,11 @@ class TestBundledTemplates:
             "features/task_description",
             "features/task_description_system",
             "features/recommend_tools",
-            "features/recommend_tools_hybrid",
-            "features/recommend_tools_llm",
-            "features/import_mcp",
-            "features/import_mcp_github",
-            "features/import_mcp_search",
+            "features/recommend_hybrid",
+            "features/recommend_llm",
+            "import/system",
+            "import/github_fetch",
+            "import/search_fetch",
         ],
     )
     def test_bundled_template_loads(self, template_path: str) -> None:
