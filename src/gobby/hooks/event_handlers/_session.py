@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.event_handlers._base import EventHandlersBase
@@ -433,9 +434,23 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 if value is not None:
                     metadata[f"terminal_{key}"] = value
 
+        final_context = "\n".join(context_parts) if context_parts else None
+
+        # Debug: echo additionalContext to system_message if enabled
+        # Workflow variable takes precedence over config
+        debug_echo = False
+        workflow_vars = (wf_response.metadata or {}).get("workflow_variables", {})
+        if workflow_vars.get("debug_echo_context") is not None:
+            debug_echo = bool(workflow_vars.get("debug_echo_context"))
+        elif self._workflow_config and self._workflow_config.debug_echo_context:
+            debug_echo = True
+
+        if debug_echo and final_context:
+            system_message += f"\n\n[DEBUG additionalContext]\n{final_context}"
+
         return HookResponse(
             decision="allow",
-            context="\n".join(context_parts) if context_parts else None,
+            context=final_context,
             system_message=system_message,
             metadata=metadata,
         )
@@ -543,7 +558,6 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
             # Parse active skills from markdown
             # Format: "### Active Skills\nSkills available: skill1, skill2, skill3"
-            import re
 
             match = re.search(r"### Active Skills\s*\nSkills available:\s*([^\n]+)", compact_md)
             if match:

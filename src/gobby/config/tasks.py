@@ -669,6 +669,10 @@ class WorkflowConfig(BaseModel):
         default_factory=lambda: ["Edit", "Write", "Update", "NotebookEdit"],
         description="Tools that require an active task when require_task_before_edit is enabled",
     )
+    debug_echo_context: bool = Field(
+        default=False,
+        description="Debug: echo additionalContext to system_message for terminal visibility",
+    )
 
     @field_validator("timeout")
     @classmethod

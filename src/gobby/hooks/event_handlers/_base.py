@@ -8,6 +8,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
     from gobby.config.skills import SkillsConfig
+    from gobby.config.tasks import WorkflowConfig
     from gobby.hooks.artifact_capture import ArtifactCaptureHook
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
@@ -25,6 +26,7 @@ class EventHandlersBase:
 
     _session_manager: SessionManager | None
     _workflow_handler: WorkflowHookHandler | None
+    _workflow_config: WorkflowConfig | None
     _session_storage: LocalSessionManager | None
     _session_task_manager: SessionTaskManager | None
     _message_processor: Any | None
