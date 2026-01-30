@@ -88,8 +88,10 @@ class ToolEventHandlerMixin(EventHandlersBase):
                             try:
                                 claimed_tasks = self._task_manager.list_tasks(assignee=session_id)
                                 has_claimed_task = len(claimed_tasks) > 0
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                self.logger.debug(
+                                    f"Failed to check claimed tasks for session {session_id}: {e}"
+                                )
 
                         if has_claimed_task:
                             self._session_storage.mark_had_edits(session_id)
