@@ -427,18 +427,20 @@ class TestLocalSkillManager:
         assert results[0].name == "code-reviewer"
 
     def test_list_core_skills(self, skill_manager) -> None:
-        """Test listing core skills (alwaysApply=true)."""
+        """Test listing core skills (always_apply=True)."""
         skill_manager.create_skill(
             name="core-skill",
             description="Core",
             content="Content",
             metadata={"skillport": {"alwaysApply": True}},
+            always_apply=True,
         )
         skill_manager.create_skill(
             name="normal-skill",
             description="Normal",
             content="Content",
             metadata={"skillport": {"alwaysApply": False}},
+            always_apply=False,
         )
 
         core = skill_manager.list_core_skills()

@@ -10,6 +10,8 @@ import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
+from gobby.paths import get_install_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,13 +42,7 @@ async def close_terminal(
     script_path = scripts_dir / "agent_shutdown.sh"
 
     # Source script from the install directory (single source of truth)
-    source_script_path = (
-        Path(__file__).parent.parent.parent.parent.parent
-        / "install"
-        / "shared"
-        / "scripts"
-        / "agent_shutdown.sh"
-    )
+    source_script_path = get_install_dir() / "shared" / "scripts" / "agent_shutdown.sh"
 
     def get_script_version(script_content: str) -> str | None:
         """Extract VERSION marker from script content."""
@@ -136,7 +132,7 @@ async def close_terminal(
             "script_rebuilt": script_rebuilt,
             "signal": signal.upper(),
         }
-    except Exception as e:
+    except OSError as e:
         return {
             "success": False,
             "error": f"Failed to launch shutdown script: {e}",

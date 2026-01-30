@@ -394,23 +394,10 @@ def get_install_dir() -> Path:
     Returns:
         Path to the install directory
     """
-    import gobby
+    # Import from centralized paths module to avoid duplication
+    from gobby.paths import get_install_dir as _get_install_dir
 
-    package_install_dir = Path(gobby.__file__).parent / "install"
-
-    # Try to find source directory (project root)
-    current = Path(gobby.__file__).resolve()
-    source_install_dir = None
-
-    for parent in current.parents:
-        potential_source = parent / "src" / "gobby" / "install"
-        if potential_source.exists():
-            source_install_dir = potential_source
-            break
-
-    if source_install_dir and source_install_dir.exists():
-        return source_install_dir
-    return package_install_dir
+    return _get_install_dir()
 
 
 def _is_process_alive(pid: int) -> bool:

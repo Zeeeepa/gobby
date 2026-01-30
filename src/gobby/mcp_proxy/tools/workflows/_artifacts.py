@@ -146,6 +146,15 @@ def set_variable(
     state.variables[name] = value
     state_manager.save_state(state)
 
+    # Add deprecation warning for session_task on __lifecycle__ workflow
+    if name == "session_task" and state.workflow_name == "__lifecycle__":
+        return {
+            "warning": (
+                "DEPRECATED: Setting session_task via set_variable on __lifecycle__ workflow. "
+                "Prefer using activate_workflow(variables={session_task: ...}) instead."
+            )
+        }
+
     return {}
 
 
