@@ -263,6 +263,14 @@ class HTTPServer:
         self.services.metrics_manager = value
 
     @property
+    def _mcp_db_manager(self) -> Any:
+        return self.services.mcp_db_manager
+
+    @_mcp_db_manager.setter
+    def _mcp_db_manager(self, value: Any) -> None:
+        self.services.mcp_db_manager = value
+
+    @property
     def tool_proxy(self) -> Any:
         """Get the ToolProxyService instance for routing tool calls with error enrichment."""
         if self._tools_handler is not None:

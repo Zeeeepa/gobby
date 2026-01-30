@@ -1999,12 +1999,21 @@ class TestHooksEndpoints:
         assert response.status_code == 400
         assert "Unsupported source" in response.json()["detail"]
 
-    def test_execute_hook_no_hook_manager(self, client: TestClient) -> None:
+    def test_execute_hook_no_hook_manager(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook when hook manager not initialized."""
-        response = client.post(
-            "/hooks/execute",
-            json={"hook_type": "session-start", "source": "claude"},
+        # Create server without HookManager patch so hook_manager is not set
+        server = create_http_server(
+            port=60887,
+            test_mode=True,
+            session_manager=session_storage,
+            config=None,  # No config means HookManager won't be initialized
         )
+
+        with TestClient(server.app) as client:
+            response = client.post(
+                "/hooks/execute",
+                json={"hook_type": "session-start", "source": "claude"},
+            )
         assert response.status_code == 503
         assert "HookManager not initialized" in response.json()["detail"]
 
