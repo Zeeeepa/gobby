@@ -50,6 +50,128 @@ spawned → running → completed/failed/cancelled
 - **cancelled**: Agent stopped by user
 - **killed**: Agent process terminated
 
+### Detailed Worker Lifecycle
+
+When an agent is spawned with a workflow (e.g., `work-task-gemini`), it follows these stages:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    AGENT WORKER LIFECYCLE                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. SPAWN          2. CLAIM           3. WORK                   │
+│  ┌────────┐       ┌────────┐        ┌────────┐                  │
+│  │ Parent │──────▶│ Claim  │───────▶│ Do the │                  │
+│  │ spawns │       │ task   │        │ work   │                  │
+│  │ agent  │       │        │        │        │                  │
+│  └────────┘       └────────┘        └────────┘                  │
+│                                          │                      │
+│                                          ▼                      │
+│  6. TERMINATE     5. SHUTDOWN      4. REPORT                    │
+│  ┌────────┐       ┌────────┐        ┌────────┐                  │
+│  │ Exit   │◀──────│ Update │◀───────│ Notify │                  │
+│  │ process│       │ session│        │ parent │                  │
+│  │        │       │ status │        │        │                  │
+│  └────────┘       └────────┘        └────────┘                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Stage Details
+
+| Stage | Actions | Failures Handled |
+|-------|---------|------------------|
+| **1. Spawn** | Parent calls `spawn_agent`, terminal opens, session created | Parent retries or reports error |
+| **2. Claim** | Agent calls `update_task(status="in_progress")` | Agent retries or exits |
+| **3. Work** | Agent reads task, makes changes, commits code | Normal error handling |
+| **4. Report** | Agent calls `send_to_parent` with results | See "Fallback Reporting" below |
+| **5. Shutdown** | Agent calls `update_session(status="completed")` | Session expires automatically |
+| **6. Terminate** | Agent runs shutdown script or exits naturally | Process cleaned up by OS |
+
+### Shutdown Mechanisms
+
+Agents can terminate in several ways:
+
+#### 1. Clean Shutdown (Preferred)
+
+The agent completes its workflow and shuts down cleanly:
+
+```python
+# 1. Close the task with commit reference
+call_tool("gobby-tasks", "close_task", {
+    "task_id": "#123",
+    "commit_sha": "abc123",
+    "changes_summary": "Implemented feature X"
+})
+
+# 2. Report to parent (may fail if parent gone - that's OK)
+call_tool("gobby-agents", "send_to_parent", {
+    "session_id": "<your_session_id>",
+    "content": "Task #123 completed. Implemented feature X."
+})
+
+# 3. Mark session completed
+call_tool("gobby-sessions", "update_session", {
+    "session_id": "<your_session_id>",
+    "status": "completed"
+})
+
+# 4. Exit the terminal (optional - runs shutdown script)
+# bash: ~/.gobby/scripts/agent_shutdown.sh
+```
+
+#### 2. Natural Exit
+
+If the agent simply stops (e.g., user closes terminal, process ends):
+- Session status changes to `expired` via heartbeat timeout
+- Parent sees agent as completed/failed when polling
+- No explicit cleanup needed - Gobby handles this automatically
+
+#### 3. Forced Termination
+
+Parent or user can forcefully terminate an agent:
+
+```python
+# Stop the agent (marks as cancelled, doesn't kill process)
+call_tool("gobby-agents", "stop_agent", {"run_id": "<run_id>"})
+
+# Kill the agent process
+call_tool("gobby-agents", "kill_agent", {"run_id": "<run_id>"})
+```
+
+### Fallback Reporting
+
+When `send_to_parent` fails (parent session closed, network error):
+
+1. **It's OK to continue** - The parent will discover completion via polling
+2. **Close your task anyway** - Task closure is the source of truth
+3. **Update session status** - Allows cleanup to proceed
+
+```python
+# send_to_parent failed? That's fine.
+# Just close task and update session:
+try:
+    call_tool("gobby-agents", "send_to_parent", {...})
+except:
+    pass  # Parent will poll for results
+
+call_tool("gobby-tasks", "close_task", {...})  # Always close task
+call_tool("gobby-sessions", "update_session", {...})  # Always update session
+```
+
+### Self-Termination
+
+Agents not registered in the in-memory registry can still terminate cleanly:
+
+| Scenario | What Happens | Agent Action |
+|----------|--------------|--------------|
+| `kill_agent` not available | Agent not in registry | Just exit - process terminates |
+| `send_to_parent` fails | Parent session closed | Continue with shutdown |
+| Session not found | Database issue | Exit - session expires automatically |
+| Workflow error | Unexpected state | Close task if possible, then exit |
+
+**Key insight**: Agents don't need explicit termination tools. Simply exiting the process is sufficient - Gobby's session heartbeat and task system handle the rest.
+
 ### Isolation Modes
 
 Agents can run in different isolation modes:
