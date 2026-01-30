@@ -54,6 +54,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
         session_id = event.metadata.get("_platform_session_id")
         cli_source = event.source.value
 
+        context_parts = []
+
         if session_id:
             self.logger.debug(f"AFTER_AGENT: session {session_id}, cli={cli_source}")
             if self._session_manager:
@@ -68,14 +70,17 @@ class AgentEventHandlerMixin(EventHandlersBase):
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
                 if wf_response.context:
+                    context_parts.append(wf_response.context)
+                if wf_response.decision != "allow":
                     return wf_response
             except Exception as e:
                 self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
-        return HookResponse(decision="allow")
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     def handle_stop(self, event: HookEvent) -> HookResponse:
         """Handle STOP event (Claude Code only)."""

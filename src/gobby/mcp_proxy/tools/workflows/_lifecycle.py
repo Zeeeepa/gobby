@@ -259,20 +259,22 @@ def request_step_transition(
 
     # Block manual transitions to steps that have conditional auto-transitions
     # These steps should only be reached when their conditions are met
-    current_step_def = next((s for s in definition.steps if s.name == state.step), None)
-    if current_step_def and current_step_def.transitions:
-        for transition in current_step_def.transitions:
-            if transition.to == to_step and transition.when:
-                # This step has a conditional transition - block manual transition
-                return {
-                    "success": False,
-                    "error": (
-                        f"Step '{to_step}' has a conditional auto-transition "
-                        f"(when: {transition.when}). Manual transitions to this step "
-                        f"are blocked to prevent workflow circumvention. "
-                        f"The transition will occur automatically when the condition is met."
-                    ),
-                }
+    # Skip this check when force=True to allow bypassing workflow guards
+    if not force:
+        current_step_def = next((s for s in definition.steps if s.name == state.step), None)
+        if current_step_def and current_step_def.transitions:
+            for transition in current_step_def.transitions:
+                if transition.to == to_step and transition.when:
+                    # This step has a conditional transition - block manual transition
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Step '{to_step}' has a conditional auto-transition "
+                            f"(when: {transition.when}). Manual transitions to this step "
+                            f"are blocked to prevent workflow circumvention. "
+                            f"The transition will occur automatically when the condition is met."
+                        ),
+                    }
 
     old_step = state.step
     state.step = to_step

@@ -58,13 +58,21 @@ def create_workflows_registry(
         loader: WorkflowLoader instance
         state_manager: WorkflowStateManager instance
         session_manager: LocalSessionManager instance
-        db: LocalDatabase instance
+        db: LocalDatabase instance (required - caller owns lifecycle)
 
     Returns:
         InternalToolRegistry with workflow tools registered
+
+    Raises:
+        ValueError: If db is not provided
     """
-    # Create defaults if not provided
-    _db = db or LocalDatabase()
+    if db is None:
+        raise ValueError(
+            "db is required. Caller must provide a LocalDatabase instance "
+            "and is responsible for its lifecycle (closing when done)."
+        )
+
+    _db = db
     _loader = loader or WorkflowLoader()
     _state_manager = state_manager or WorkflowStateManager(_db)
     _session_manager = session_manager or LocalSessionManager(_db)
