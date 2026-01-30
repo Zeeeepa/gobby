@@ -189,16 +189,8 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Initialize LiteLLM for api_key mode.
 
-        Sets ANTHROPIC_API_KEY from config if not already in environment.
+        LiteLLM reads ANTHROPIC_API_KEY from the environment automatically.
         """
-        # Set ANTHROPIC_API_KEY from config if not in environment
-        if "ANTHROPIC_API_KEY" not in os.environ:
-            if self.config.llm_providers and self.config.llm_providers.api_keys:
-                api_key = self.config.llm_providers.api_keys.get("ANTHROPIC_API_KEY")
-                if api_key:
-                    os.environ["ANTHROPIC_API_KEY"] = api_key
-                    self.logger.debug("Set ANTHROPIC_API_KEY from config")
-
         try:
             import litellm
 
