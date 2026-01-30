@@ -465,39 +465,42 @@ class HTTPServer:
         try:
             logger.debug("Processing graceful shutdown")
 
-            # Wait for pending background tasks to complete
+            # Cancel pending background tasks immediately instead of polling
             pending_tasks_count = len(self._background_tasks)
             if pending_tasks_count > 0:
                 logger.debug(
-                    "Waiting for pending background tasks to complete",
+                    "Cancelling pending background tasks",
                     extra={"pending_tasks": pending_tasks_count},
                 )
 
-                max_wait = 30.0
-                wait_start = time.perf_counter()
+                # Cancel all tasks
+                for task in self._background_tasks:
+                    task.cancel()
 
-                while (
-                    len(self._background_tasks) > 0
-                    and (time.perf_counter() - wait_start) < max_wait
-                ):
-                    await asyncio.sleep(0.5)
-
-                completed_wait = time.perf_counter() - wait_start
-                remaining_tasks = len(self._background_tasks)
-
-                if remaining_tasks > 0:
-                    logger.warning(
-                        "Shutdown timeout - some background tasks still pending",
-                        extra={
-                            "remaining_tasks": remaining_tasks,
-                            "wait_seconds": completed_wait,
-                        },
+                # Wait for cancellation to complete with a short timeout
+                if self._background_tasks:
+                    done, pending = await asyncio.wait(
+                        self._background_tasks,
+                        timeout=5.0,
+                        return_when=asyncio.ALL_COMPLETED,
                     )
-                else:
-                    logger.debug(
-                        "All background tasks completed",
-                        extra={"wait_seconds": completed_wait},
-                    )
+
+                    completed_count = len(done)
+                    remaining_count = len(pending)
+
+                    if remaining_count > 0:
+                        logger.warning(
+                            "Some background tasks did not cancel in time",
+                            extra={
+                                "completed": completed_count,
+                                "remaining": remaining_count,
+                            },
+                        )
+                    else:
+                        logger.debug(
+                            "All background tasks cancelled",
+                            extra={"completed": completed_count},
+                        )
 
             # Disconnect all MCP servers
             if self.mcp_manager:

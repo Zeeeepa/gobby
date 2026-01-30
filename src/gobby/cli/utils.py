@@ -459,7 +459,8 @@ def stop_daemon(quiet: bool = False) -> bool:
             click.echo(f"Sent shutdown signal to Gobby daemon (PID {pid})")
 
         # Wait for graceful shutdown
-        max_wait = 5
+        # Match daemon's uvicorn timeout_graceful_shutdown (15s) + buffer
+        max_wait = 20
         for _ in range(max_wait * 10):
             time.sleep(0.1)
             if not _is_process_alive(pid):

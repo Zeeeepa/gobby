@@ -434,12 +434,14 @@ class GobbyRunner:
 
             # Start HTTP server
             # nosec B104: 0.0.0.0 binding is intentional - daemon serves local network
+            graceful_shutdown_timeout = 15
             config = uvicorn.Config(
                 self.http_server.app,
                 host="0.0.0.0",  # nosec B104 - local daemon needs network access
                 port=self.http_server.port,
                 log_level="warning",
                 access_log=False,
+                timeout_graceful_shutdown=graceful_shutdown_timeout,
             )
             server = uvicorn.Server(config)
             server_task = asyncio.create_task(server.serve())
@@ -449,9 +451,10 @@ class GobbyRunner:
                 await asyncio.sleep(0.5)
 
             # Cleanup with timeouts to prevent hanging
+            # Use timeout slightly longer than uvicorn's graceful shutdown to let it finish
             server.should_exit = True
             try:
-                await asyncio.wait_for(server_task, timeout=3.0)
+                await asyncio.wait_for(server_task, timeout=graceful_shutdown_timeout + 5)
             except TimeoutError:
                 logger.warning("HTTP server shutdown timed out")
 
