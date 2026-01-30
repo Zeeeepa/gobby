@@ -695,3 +695,63 @@ class TestExecuteSpawnSandbox:
             assert "sandbox_config" in call_kwargs
             assert call_kwargs["sandbox_config"].enabled is False
             assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_gemini_terminal_spawn_with_sandbox_config(self) -> None:
+        """Test that Gemini terminal spawn applies sandbox config correctly."""
+        sandbox_config = SandboxConfig(enabled=True, mode="permissive")
+        mock_session_manager = MagicMock()
+        request = SpawnRequest(
+            prompt="Test with sandbox",
+            cwd="/path",
+            mode="terminal",
+            provider="gemini",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+            session_manager=mock_session_manager,
+            sandbox_config=sandbox_config,
+        )
+
+        mock_preflight = AsyncMock(
+            return_value=MagicMock(
+                session_id="gobby-sess-123",
+                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-789"},
+            )
+        )
+
+        mock_spawner = MagicMock()
+        mock_spawner.spawn.return_value = MagicMock(
+            success=True,
+            pid=12345,
+        )
+
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
+                mock_preflight,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
+                return_value=["gemini", "-r", "gemini-ext-789"],
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
+        ):
+            result = await execute_spawn(request)
+
+            mock_spawner.spawn.assert_called_once()
+            call_kwargs = mock_spawner.spawn.call_args.kwargs
+            # Sandbox env should be passed with SEATBELT_PROFILE
+            assert call_kwargs.get("env") is not None
+            assert "SEATBELT_PROFILE" in call_kwargs["env"]
+            assert call_kwargs["env"]["SEATBELT_PROFILE"] == "permissive-open"
+            # Command should include -s flag (passed as keyword arg)
+            command = call_kwargs.get("command")
+            assert command is not None
+            assert "-s" in command
+            assert result.success is True

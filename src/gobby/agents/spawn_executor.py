@@ -10,7 +10,11 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from gobby.agents.sandbox import SandboxConfig
+from gobby.agents.sandbox import (
+    GeminiSandboxResolver,
+    SandboxConfig,
+    compute_sandbox_paths,
+)
 
 if TYPE_CHECKING:
     from gobby.agents.session import ChildSessionManager
@@ -286,12 +290,25 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         gobby_session_id=gobby_session_id,
     )
 
-    # Spawn in terminal (no env vars passed - session linkage is in the database)
+    # Resolve sandbox config if provided
+    sandbox_env: dict[str, str] = {}
+    if request.sandbox_config and request.sandbox_config.enabled:
+        resolver = GeminiSandboxResolver()
+        paths = compute_sandbox_paths(
+            config=request.sandbox_config,
+            workspace_path=request.cwd,
+        )
+        sandbox_args, sandbox_env = resolver.resolve(request.sandbox_config, paths)
+        # Append sandbox args to command (e.g., -s flag)
+        cmd.extend(sandbox_args)
+
+    # Spawn in terminal
     terminal_spawner = TerminalSpawner()
     terminal_result = terminal_spawner.spawn(
         command=cmd,
         cwd=request.cwd,
         terminal=request.terminal,
+        env=sandbox_env if sandbox_env else None,
     )
 
     if not terminal_result.success:
