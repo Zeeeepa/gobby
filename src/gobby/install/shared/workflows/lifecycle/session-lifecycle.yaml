@@ -159,7 +159,7 @@ triggers:
           when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
           reason: |
 
-            Schema required before calling {{ tool_input.get('server_name') }}:{{ tool_input.get('tool_name') }}.
+            Schema required before calling call_tool("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}").
 
             Run first:
               get_tool_schema("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}")
