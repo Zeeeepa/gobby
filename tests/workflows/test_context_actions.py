@@ -1357,21 +1357,88 @@ class TestFormatHandoffAsMarkdown:
         assert "```\nM src/file.py\nA new_file.py\n```" in result
 
     def test_formats_files_modified(self) -> None:
-        """Should format files modified section."""
-        ctx = self.MockHandoffContext(files_modified=["src/auth.py", "tests/test_auth.py"])
+        """Should format files modified section only for uncommitted files."""
+        # Files only shown if they appear in git_status (still uncommitted)
+        ctx = self.MockHandoffContext(
+            files_modified=["src/auth.py", "tests/test_auth.py"],
+            git_status="M src/auth.py\nM tests/test_auth.py",
+        )
         result = format_handoff_as_markdown(ctx)
 
         assert "### Files Being Modified" in result
         assert "- src/auth.py" in result
         assert "- tests/test_auth.py" in result
 
+    def test_files_modified_filters_committed_files(self) -> None:
+        """Should not show files that are no longer in git status (committed)."""
+        # auth.py was committed, test_auth.py still dirty
+        ctx = self.MockHandoffContext(
+            files_modified=["src/auth.py", "tests/test_auth.py"],
+            git_status="M tests/test_auth.py",
+        )
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Files Being Modified" in result
+        assert "- src/auth.py" not in result  # Committed, not in git_status
+        assert "- tests/test_auth.py" in result
+
+    def test_files_modified_not_shown_without_git_status(self) -> None:
+        """Should not show files modified section if git_status is empty."""
+        ctx = self.MockHandoffContext(
+            files_modified=["src/auth.py", "tests/test_auth.py"],
+            git_status="",  # No git status means can't verify dirty files
+        )
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Files Being Modified" not in result
+
     def test_formats_initial_goal(self) -> None:
-        """Should format initial goal section."""
+        """Should format initial goal section when no task or task is active."""
         ctx = self.MockHandoffContext(initial_goal="Implement user authentication")
         result = format_handoff_as_markdown(ctx)
 
         assert "### Original Goal" in result
         assert "Implement user authentication" in result
+
+    def test_initial_goal_shown_for_open_task(self) -> None:
+        """Should show initial goal when task status is open."""
+        ctx = self.MockHandoffContext(
+            initial_goal="Fix the bug",
+            active_gobby_task={"id": "gt-123", "title": "Fix bug", "status": "open"},
+        )
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Original Goal" in result
+
+    def test_initial_goal_shown_for_in_progress_task(self) -> None:
+        """Should show initial goal when task status is in_progress."""
+        ctx = self.MockHandoffContext(
+            initial_goal="Fix the bug",
+            active_gobby_task={"id": "gt-123", "title": "Fix bug", "status": "in_progress"},
+        )
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Original Goal" in result
+
+    def test_initial_goal_hidden_for_closed_task(self) -> None:
+        """Should not show initial goal when task is closed."""
+        ctx = self.MockHandoffContext(
+            initial_goal="Fix the bug",
+            active_gobby_task={"id": "gt-123", "title": "Fix bug", "status": "closed"},
+        )
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Original Goal" not in result
+
+    def test_initial_goal_hidden_for_completed_task(self) -> None:
+        """Should not show initial goal when task is completed."""
+        ctx = self.MockHandoffContext(
+            initial_goal="Fix the bug",
+            active_gobby_task={"id": "gt-123", "title": "Fix bug", "status": "completed"},
+        )
+        result = format_handoff_as_markdown(ctx)
+
+        assert "### Original Goal" not in result
 
     def test_formats_recent_activity(self) -> None:
         """Should format recent activity section with max 5 items."""
@@ -1437,21 +1504,16 @@ class TestFormatHandoffAsMarkdown:
         assert "### Commits This Session" in result
         assert "- `` test commit" in result
 
-    def test_formats_active_skills(self) -> None:
-        """Should format active skills section."""
+    def test_active_skills_section_removed(self) -> None:
+        """Active skills section was removed - redundant with _build_skill_injection_context()."""
+        # Even with active_skills set, the section should not appear
+        # Skills are now only injected via _build_skill_injection_context() on session start
         ctx = self.MockHandoffContext(active_skills=["gobby-tasks", "gobby-sessions"])
         result = format_handoff_as_markdown(ctx)
 
-        assert "### Active Skills" in result
-        assert "gobby-tasks" in result
-        assert "gobby-sessions" in result
-
-    def test_empty_active_skills_not_included(self) -> None:
-        """Should not include active skills section when list is empty."""
-        ctx = self.MockHandoffContext(active_skills=[])
-        result = format_handoff_as_markdown(ctx)
-
         assert "### Active Skills" not in result
+        # The skills should not appear in the output at all
+        assert "Skills available:" not in result
 
 
 # --- Tests for recommend_skills_for_task ---

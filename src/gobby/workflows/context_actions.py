@@ -308,16 +308,8 @@ def extract_handoff_context(
         except Exception as wt_err:
             logger.debug(f"Failed to get worktree context: {wt_err}")
 
-        # Add active skills from HookSkillManager
-        try:
-            from gobby.hooks.skill_manager import HookSkillManager
-
-            skill_manager = HookSkillManager()
-            core_skills = skill_manager.discover_core_skills()
-            always_apply_skills = [s.name for s in core_skills if s.is_always_apply()]
-            handoff_ctx.active_skills = always_apply_skills
-        except Exception as skill_err:
-            logger.debug(f"Failed to get active skills: {skill_err}")
+        # Note: active_skills population removed - redundant with _build_skill_injection_context()
+        # which already handles skill restoration on session start
 
         # Format as markdown (like /clear stores formatted summary)
         markdown = format_handoff_as_markdown(handoff_ctx)
@@ -414,16 +406,24 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
     if ctx.git_status:
         sections.append(f"### Uncommitted Changes\n```\n{ctx.git_status}\n```")
 
-    # Files modified section
-    if ctx.files_modified:
-        lines = ["### Files Being Modified"]
-        for f in ctx.files_modified:
-            lines.append(f"- {f}")
-        sections.append("\n".join(lines))
+    # Files modified section - only show files still dirty (not yet committed)
+    if ctx.files_modified and ctx.git_status:
+        # Filter to files that appear in git status (still uncommitted)
+        dirty_files = [f for f in ctx.files_modified if f in ctx.git_status]
+        if dirty_files:
+            lines = ["### Files Being Modified"]
+            for f in dirty_files:
+                lines.append(f"- {f}")
+            sections.append("\n".join(lines))
 
-    # Initial goal section
+    # Initial goal section - only if task is still active (not closed/completed)
     if ctx.initial_goal:
-        sections.append(f"### Original Goal\n{ctx.initial_goal}")
+        task_status = None
+        if ctx.active_gobby_task:
+            task_status = ctx.active_gobby_task.get("status")
+        # Only include if no task or task is still open/in_progress
+        if task_status in (None, "open", "in_progress"):
+            sections.append(f"### Original Goal\n{ctx.initial_goal}")
 
     # Recent activity section
     if ctx.recent_activity:
@@ -432,11 +432,8 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
             lines.append(f"- {activity}")
         sections.append("\n".join(lines))
 
-    # Active skills section
-    if hasattr(ctx, "active_skills") and ctx.active_skills:
-        lines = ["### Active Skills"]
-        lines.append(f"Skills available: {', '.join(ctx.active_skills)}")
-        sections.append("\n".join(lines))
+    # Note: Active Skills section removed - redundant with _build_skill_injection_context()
+    # which already handles skill restoration on session start
 
     return "\n\n".join(sections)
 
