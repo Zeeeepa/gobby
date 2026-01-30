@@ -8,6 +8,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
     from gobby.config.skills import SkillsConfig
+    from gobby.hooks.artifact_capture import ArtifactCaptureHook
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
@@ -33,6 +34,7 @@ class EventHandlersBase:
     _message_manager: LocalSessionMessageManager | None
     _skill_manager: HookSkillManager | None
     _skills_config: SkillsConfig | None
+    _artifact_capture_hook: ArtifactCaptureHook | None
     _get_machine_id: Callable[[], str]
     _resolve_project_id: Callable[[str | None, str | None], str]
     logger: logging.Logger

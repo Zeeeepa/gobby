@@ -22,6 +22,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
     from gobby.config.skills import SkillsConfig
+    from gobby.hooks.artifact_capture import ArtifactCaptureHook
     from gobby.hooks.session_coordinator import SessionCoordinator
     from gobby.hooks.skill_manager import HookSkillManager
     from gobby.sessions.manager import SessionManager
@@ -61,6 +62,7 @@ class EventHandlers(
         message_manager: LocalSessionMessageManager | None = None,
         skill_manager: HookSkillManager | None = None,
         skills_config: SkillsConfig | None = None,
+        artifact_capture_hook: ArtifactCaptureHook | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
         logger: logging.Logger | None = None,
@@ -80,6 +82,7 @@ class EventHandlers(
             message_manager: LocalSessionMessageManager for messages
             skill_manager: HookSkillManager for skill discovery
             skills_config: SkillsConfig for skill injection settings
+            artifact_capture_hook: ArtifactCaptureHook for capturing artifacts
             get_machine_id: Function to get machine ID
             resolve_project_id: Function to resolve project ID from cwd
             logger: Optional logger instance
@@ -95,6 +98,7 @@ class EventHandlers(
         self._message_manager = message_manager
         self._skill_manager = skill_manager
         self._skills_config = skills_config
+        self._artifact_capture_hook = artifact_capture_hook
         self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
         self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
         self.logger = logger or logging.getLogger(__name__)

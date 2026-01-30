@@ -386,6 +386,7 @@ class HookManager:
             message_manager=self._message_manager,
             skill_manager=self._skill_manager,
             skills_config=self._config.skills if self._config else None,
+            artifact_capture_hook=self._artifact_capture_hook,
             get_machine_id=self.get_machine_id,
             resolve_project_id=self._resolve_project_id,
             logger=self.logger,
