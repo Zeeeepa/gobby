@@ -644,7 +644,13 @@ class HookManager:
             # Copy session metadata from event to response for adapter injection
             # The adapter reads response.metadata to inject session info into agent context
             if event.metadata.get("_platform_session_id"):
-                response.metadata["session_id"] = event.metadata["_platform_session_id"]
+                platform_session_id = event.metadata["_platform_session_id"]
+                response.metadata["session_id"] = platform_session_id
+                # Look up seq_num for session_ref (#N format)
+                if self._session_storage:
+                    session_obj = self._session_storage.get(platform_session_id)
+                    if session_obj and session_obj.seq_num:
+                        response.metadata["session_ref"] = f"#{session_obj.seq_num}"
             if event.session_id:  # external_id (e.g., Claude Code's session UUID)
                 response.metadata["external_id"] = event.session_id
             if event.machine_id:
