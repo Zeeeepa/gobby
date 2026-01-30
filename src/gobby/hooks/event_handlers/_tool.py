@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+from gobby.hooks.event_handlers._base import EventHandlersBase
+from gobby.hooks.events import HookEvent, HookResponse
+
+EDIT_TOOLS = {
+    "write_file",
+    "replace",
+    "edit_file",
+    "notebook_edit",
+    "edit",
+    "write",
+}
+
+
+class ToolEventHandlerMixin(EventHandlersBase):
+    """Mixin for handling tool-related events."""
+
+    def handle_before_tool(self, event: HookEvent) -> HookResponse:
+        """Handle BEFORE_TOOL event."""
+        input_data = event.data
+        tool_name = input_data.get("tool_name", "unknown")
+        session_id = event.metadata.get("_platform_session_id")
+
+        if session_id:
+            self.logger.debug(f"BEFORE_TOOL: {tool_name}, session {session_id}")
+        else:
+            self.logger.debug(f"BEFORE_TOOL: {tool_name}")
+
+        context_parts = []
+
+        # Execute lifecycle workflow triggers
+        if self._workflow_handler:
+            try:
+                wf_response = self._workflow_handler.handle_all_lifecycles(event)
+                if wf_response.context:
+                    context_parts.append(wf_response.context)
+                if wf_response.decision != "allow":
+                    return wf_response
+            except Exception as e:
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
+
+    def handle_after_tool(self, event: HookEvent) -> HookResponse:
+        """Handle AFTER_TOOL event."""
+        input_data = event.data
+        tool_name = input_data.get("tool_name", "unknown")
+        session_id = event.metadata.get("_platform_session_id")
+        is_failure = event.metadata.get("is_failure", False)
+
+        status = "FAIL" if is_failure else "OK"
+        if session_id:
+            self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}, session {session_id}")
+
+            # Track edits for session high-water mark
+            # Only if tool succeeded, matches edit tools, and session has claimed a task
+            # Skip .gobby/ internal files (tasks.jsonl, memories.jsonl, etc.)
+            tool_input = input_data.get("tool_input", {})
+
+            # Simple check for edit tools
+            is_edit = tool_name in EDIT_TOOLS
+
+            # For complex tools (multi_replace, etc), check if they modify files
+            # This logic could be expanded, but for now stick to the basic set
+
+            if not is_failure and is_edit and self._session_task_manager:
+                try:
+                    # Check if file is internal .gobby file
+                    file_path = (
+                        tool_input.get("file_path")
+                        or tool_input.get("target_file")
+                        or tool_input.get("path")
+                    )
+                    is_internal = file_path and ".gobby/" in str(file_path)
+
+                    if not is_internal:
+                        # Update task files_modified count via session_task_manager
+                        # This automatically increments the counter for the claimed task
+                        self._session_task_manager.track_file_edit(session_id)
+                except Exception as e:
+                    # Don't fail the event if tracking fails
+                    self.logger.warning(f"Failed to track file edit: {e}")
+
+        else:
+            self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
+
+        # Execute lifecycle workflow triggers
+        if self._workflow_handler:
+            try:
+                wf_response = self._workflow_handler.handle_all_lifecycles(event)
+                if wf_response.decision != "allow":
+                    return wf_response
+                if wf_response.context:
+                    return wf_response
+            except Exception as e:
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+
+        return HookResponse(decision="allow")
+
+    def handle_before_tool_selection(self, event: HookEvent) -> HookResponse:
+        """Handle BEFORE_TOOL_SELECTION event (Gemini only)."""
+        session_id = event.metadata.get("_platform_session_id")
+
+        if session_id:
+            self.logger.debug(f"BEFORE_TOOL_SELECTION: session {session_id}")
+        else:
+            self.logger.debug("BEFORE_TOOL_SELECTION")
+
+        return HookResponse(decision="allow")
