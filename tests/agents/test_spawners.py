@@ -993,7 +993,7 @@ class TestGhosttySpawner:
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.macos.get_tty_config")
     def test_spawn_macos(self, mock_config, mock_popen, mock_system) -> None:
-        """Spawn on macOS uses 'open -na' command."""
+        """Spawn on macOS uses 'open -na' when Ghostty is already running."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, app_path="/Applications/Ghostty.app", command=None, options=[]
         )
@@ -1002,7 +1002,9 @@ class TestGhosttySpawner:
         mock_popen.return_value = mock_process
 
         spawner = GhosttySpawner()
-        result = spawner.spawn(["echo", "test"], cwd="/tmp", title="Test")
+        # Mock _is_ghostty_running to return True (Ghostty already running)
+        with patch.object(spawner, "_is_ghostty_running", return_value=True):
+            result = spawner.spawn(["echo", "test"], cwd="/tmp", title="Test")
 
         assert result.success is True
         assert result.pid == 12345
@@ -1013,6 +1015,37 @@ class TestGhosttySpawner:
         assert "/Applications/Ghostty.app" in call_args
         assert "--args" in call_args
         # Ghostty uses --key=value syntax
+        assert "--working-directory=/tmp" in call_args
+        assert "--title=Test" in call_args
+        assert "-e" in call_args
+
+    @patch("platform.system", return_value="Darwin")
+    @patch("subprocess.Popen")
+    @patch("gobby.agents.spawners.macos.get_tty_config")
+    def test_spawn_macos_ghostty_not_running(self, mock_config, mock_popen, mock_system) -> None:
+        """Spawn on macOS uses 'open -a' (no -n) when Ghostty is not running to avoid double window."""
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(
+            enabled=True, app_path="/Applications/Ghostty.app", command=None, options=[]
+        )
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_popen.return_value = mock_process
+
+        spawner = GhosttySpawner()
+        # Mock _is_ghostty_running to return False (Ghostty not running)
+        with patch.object(spawner, "_is_ghostty_running", return_value=False):
+            result = spawner.spawn(["echo", "test"], cwd="/tmp", title="Test")
+
+        assert result.success is True
+        assert result.pid == 12345
+
+        call_args = mock_popen.call_args[0][0]
+        assert call_args[0] == "open"
+        # Should use -a without -n to avoid double window on first launch
+        assert "-a" in call_args
+        assert "-na" not in call_args
+        assert "/Applications/Ghostty.app" in call_args
+        assert "--args" in call_args
         assert "--working-directory=/tmp" in call_args
         assert "--title=Test" in call_args
         assert "-e" in call_args
@@ -1072,6 +1105,27 @@ class TestGhosttySpawner:
 
         assert result.success is False
         assert "Spawn failed" in result.error
+
+    @patch("subprocess.run")
+    def test_is_ghostty_running_true(self, mock_run) -> None:
+        """_is_ghostty_running returns True when Ghostty is running."""
+        mock_run.return_value = MagicMock(stdout="true\n")
+        spawner = GhosttySpawner()
+        assert spawner._is_ghostty_running() is True
+
+    @patch("subprocess.run")
+    def test_is_ghostty_running_false(self, mock_run) -> None:
+        """_is_ghostty_running returns False when Ghostty is not running."""
+        mock_run.return_value = MagicMock(stdout="false\n")
+        spawner = GhosttySpawner()
+        assert spawner._is_ghostty_running() is False
+
+    @patch("subprocess.run", side_effect=Exception("osascript failed"))
+    def test_is_ghostty_running_error_defaults_true(self, mock_run) -> None:
+        """_is_ghostty_running defaults to True on error (safer behavior)."""
+        spawner = GhosttySpawner()
+        # On error, default to True so we use -n flag (safer existing behavior)
+        assert spawner._is_ghostty_running() is True
 
 
 # =============================================================================

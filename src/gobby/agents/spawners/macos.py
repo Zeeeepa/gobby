@@ -31,6 +31,24 @@ class GhosttySpawner(TerminalSpawnerBase):
     def terminal_type(self) -> TerminalType:
         return TerminalType.GHOSTTY
 
+    def _is_ghostty_running(self) -> bool:
+        """Check if Ghostty is currently running on macOS."""
+        try:
+            result = subprocess.run(  # nosec B603, B607 - osascript is safe
+                [
+                    "/usr/bin/osascript",
+                    "-e",
+                    'tell application "System Events" to (name of processes) contains "Ghostty"',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.stdout.strip().lower() == "true"
+        except Exception:
+            # If we can't determine, assume running to use safer -n behavior
+            return True
+
     def is_available(self) -> bool:
         config = get_tty_config().get_terminal_config("ghostty")
         if not config.enabled:
@@ -66,7 +84,14 @@ class GhosttySpawner(TerminalSpawnerBase):
                 ghostty_args.extend(tty_config.options)
                 ghostty_args.extend(["-e"] + command)
 
-                args = ["open", "-na", app_path, "--args"] + ghostty_args
+                # Check if Ghostty is already running
+                # If running: use -n to open a new window
+                # If not running: omit -n to avoid double window on first launch
+                ghostty_running = self._is_ghostty_running()
+                if ghostty_running:
+                    args = ["open", "-na", app_path, "--args"] + ghostty_args
+                else:
+                    args = ["open", "-a", app_path, "--args"] + ghostty_args
             else:
                 # On Linux/other platforms, use ghostty CLI directly
                 cli_command = tty_config.command or "ghostty"
