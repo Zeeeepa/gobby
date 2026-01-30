@@ -5,6 +5,65 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9] - 2025-01-30
+
+### Improvements
+
+- Skip CI on dev branch pushes - only run full CI on main and PRs (#6615)
+- Add `debug_echo_context` toggle to echo additionalContext to terminal (#6606, #6607)
+- Add artifact stats to `gobby status` display (#6585)
+- Wire up artifact capture in hook manager (#6581)
+- Wire up `gobby-artifacts` in internal registry (#1)
+- Add `api_key` auth mode to `ClaudeLLMProvider` (#6568)
+- Allow task management MCP calls in plan mode (#6592)
+- Add trigger-based filtering to Gemini `on_pre_compact` (#6588)
+- Add centralized `paths.py` utility for stable path resolution (#6598)
+
+### Bug Fixes
+
+- Fix hook validation order - schema check before commit check (#6614)
+- Fix daemon stop/restart timeout by implementing proper shutdown (#6609)
+- Fix mypy errors and test failures (#6613, #6605)
+- Fix TYPE_CHECKING import and remove test_output.txt (#6610)
+- Fix progressive disclosure enforcement for `call_tool` (#6576)
+- Fix response consistency in `get_tool_schema` (#6586)
+- Fix `session_id` resolution, schema nesting, and worker model (#6578)
+- Fix return value and exception handling in `_artifacts.py` (#6577)
+- Fix TypeBox syntax, add security section, and fix SDK image content (#6575)
+- Fix model consistency, error handling, and encoding issues (#6571)
+- Fix workflow lifecycle safety and test async generator (#6570)
+- Fix context accumulation, db lifecycle, and force parameter issues (#6566)
+- Fix security and consistency issues in event handlers and workflow tools (#6556)
+- Preserve lifecycle variables when activating step workflows (#6591)
+- Fix test for `suggest_next_task` leaf task support (#6590)
+- Fix type annotation inconsistency in `resolve_session_task_value` (#6595)
+- Fix bandit B110 try-except-pass in `_tool.py` (#6593)
+- Fix colon syntax in progressive disclosure error message (#6579)
+- Remove `os.environ` mutation from `_setup_litellm` (#6584)
+- Fix bundled template test paths (#6616)
+
+### Documentation
+
+- Document lifecycle workflow blocking and hook data (#6589)
+- Update artifacts docs to use `gobby-artifacts` server (#6580)
+
+### Internal
+
+- Remove service unpacking in HTTPServer, use ServiceContainer (#6611)
+- Add `_mcp_db_manager` property and fix hook test (#6612)
+- Legacy cleanup, Memory decomposition, and Runner DI
+- Remove redundant context from compact handoff (#6608)
+- Rename `_types.py` to `_resolution.py` in workflows (#6604)
+- Add debug logging for invalid workflow files (#6603)
+- Extract pre-created session and response composition helpers (#6602)
+- Extract `_prepare_image_data` helper in `claude.py` (#6600)
+- Extract `_format_summary_context` helper in `claude.py` (#6599)
+- Refactor `end_workflow` to accept loader parameter (#6596)
+- Update db docstring to match DatabaseProtocol type annotation (#6594)
+- Remove `worker_model` from `auto-task-claude` workflow (#6582)
+- Export `EDIT_TOOLS` from `event_handlers` package (#6569)
+- Decompose `workflows.py` and `event_handlers.py` packages
+
 ## [0.2.8] - 2025-01-29
 
 ### Improvements
