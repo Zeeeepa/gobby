@@ -148,14 +148,14 @@ Session #42 Timeline
 
 ## MCP Tools
 
-Artifact tools are accessed via the `gobby-sessions` server or dedicated artifact endpoints.
+Artifact tools are accessed via the `gobby-artifacts` server.
 
 ### search_artifacts
 
 Search artifacts by content.
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="search_artifacts", arguments={
+call_tool(server_name="gobby-artifacts", tool_name="search_artifacts", arguments={
     "query": "authentication",
     "session_id": "#42",  # optional
     "artifact_type": "code",  # optional
@@ -168,7 +168,7 @@ call_tool(server_name="gobby-sessions", tool_name="search_artifacts", arguments=
 List artifacts with filters.
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="list_artifacts", arguments={
+call_tool(server_name="gobby-artifacts", tool_name="list_artifacts", arguments={
     "session_id": "#42",
     "artifact_type": "error",
     "limit": 10
@@ -180,7 +180,7 @@ call_tool(server_name="gobby-sessions", tool_name="list_artifacts", arguments={
 Get a specific artifact by ID.
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="get_artifact", arguments={
+call_tool(server_name="gobby-artifacts", tool_name="get_artifact", arguments={
     "artifact_id": "<artifact_id>"
 })
 ```
@@ -190,7 +190,7 @@ call_tool(server_name="gobby-sessions", tool_name="get_artifact", arguments={
 Get artifacts for a session in chronological order.
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="get_timeline", arguments={
+call_tool(server_name="gobby-artifacts", tool_name="get_timeline", arguments={
     "session_id": "#42"
 })
 ```
