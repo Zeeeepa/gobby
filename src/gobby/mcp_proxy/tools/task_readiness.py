@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -227,6 +228,7 @@ def create_readiness_registry(
 
     # Create workflow state manager for session_task scoping
     workflow_state_manager = WorkflowStateManager(task_manager.db)
+    session_manager = LocalSessionManager(task_manager.db)
 
     # --- list_ready_tasks ---
 
@@ -376,7 +378,16 @@ def create_readiness_registry(
 
         # Auto-scope to session_task if session_id is provided and parent_task_id is not set
         if session_id and not parent_task_id:
-            workflow_state = workflow_state_manager.get_state(session_id)
+            # Resolve session_id from #N format to UUID
+            try:
+                resolved_session_id = session_manager.resolve_session_reference(
+                    session_id, project_id
+                )
+            except Exception as e:
+                logger.warning(f"Could not resolve session_id '{session_id}': {e}")
+                resolved_session_id = session_id
+
+            workflow_state = workflow_state_manager.get_state(resolved_session_id)
             if workflow_state:
                 session_task = workflow_state.variables.get("session_task")
                 if session_task and session_task != "*":

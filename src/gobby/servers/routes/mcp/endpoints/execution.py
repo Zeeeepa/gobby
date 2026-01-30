@@ -318,10 +318,11 @@ async def get_tool_schema(
                 schema = registry.get_schema(tool_name)
                 if schema:
                     response_time_ms = (time.perf_counter() - start_time) * 1000
+                    # schema = {name, description, inputSchema} from registry.get_schema()
+                    # Return it directly with server and response_time added
                     return {
-                        "name": tool_name,
+                        **schema,
                         "server": server_name,
-                        "inputSchema": schema,
                         "response_time_ms": response_time_ms,
                     }
                 raise HTTPException(
