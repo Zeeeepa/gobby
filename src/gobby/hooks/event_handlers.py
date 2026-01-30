@@ -317,6 +317,7 @@ class EventHandlers:
                         system_message=system_message,
                         metadata={
                             "session_id": session_id,
+                            "session_ref": session_ref,
                             "parent_session_id": parent_session_id,
                             "machine_id": machine_id,
                             "project_id": existing_session.project_id,
@@ -458,6 +459,7 @@ class EventHandlers:
         # Build metadata with terminal context (filter out nulls)
         metadata: dict[str, Any] = {
             "session_id": session_id,
+            "session_ref": session_ref,
             "parent_session_id": parent_session_id,
             "machine_id": machine_id,
             "project_id": project_id,

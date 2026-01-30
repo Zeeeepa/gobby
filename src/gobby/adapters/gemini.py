@@ -328,9 +328,15 @@ class GeminiAdapter(BaseAdapter):
         # Add session/terminal context for SessionStart only
         if hook_type == "SessionStart" and response.metadata:
             session_id = response.metadata.get("session_id")
+            session_ref = response.metadata.get("session_ref")
             if session_id:
                 hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type, "Unknown")
-                context_lines = [f"session_id: {session_id}"]
+                context_lines = []
+                if session_ref:
+                    context_lines.append(f"Gobby Session Ref: {session_ref}")
+                context_lines.append(f"Gobby Session ID: {session_id}")
+                if response.metadata.get("external_id"):
+                    context_lines.append(f"External ID: {response.metadata['external_id']}")
                 if response.metadata.get("parent_session_id"):
                     context_lines.append(
                         f"parent_session_id: {response.metadata['parent_session_id']}"
