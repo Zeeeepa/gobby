@@ -6,6 +6,7 @@ import pytest
 
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
 
+pytestmark = pytest.mark.unit
 
 class TestServerManagementServiceImport:
     """Tests for ServerManagementService.import_server()."""

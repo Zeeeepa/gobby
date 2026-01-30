@@ -40,15 +40,21 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
         except (TaskNotFoundError, ValueError) as e:
             return {"error": str(e)}
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         try:
-            ctx.session_task_manager.link_task(session_id, resolved_id, action)
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError as e:
+            return {"error": f"Invalid session_id '{session_id}': {e}"}
+
+        try:
+            ctx.session_task_manager.link_task(resolved_session_id, resolved_id, action)
             return {}
         except ValueError as e:
             return {"error": str(e)}
 
     registry.register(
         name="link_task_to_session",
-        description="Link a task to a session.",
+        description="Link a task to a session. Accepts #N, N, UUID, or prefix for session_id.",
         input_schema={
             "type": "object",
             "properties": {
@@ -58,7 +64,7 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Session ID (optional, defaults to linking context if available)",
+                    "description": "Session reference (accepts #N, N, UUID, or prefix)",
                     "default": None,
                 },
                 "action": {
@@ -74,16 +80,25 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     def get_session_tasks(session_id: str) -> dict[str, Any]:
         """Get all tasks associated with a session."""
-        tasks = ctx.session_task_manager.get_session_tasks(session_id)
-        return {"session_id": session_id, "tasks": tasks}
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError as e:
+            return {"error": f"Invalid session_id '{session_id}': {e}"}
+
+        tasks = ctx.session_task_manager.get_session_tasks(resolved_session_id)
+        return {"session_id": resolved_session_id, "tasks": tasks}
 
     registry.register(
         name="get_session_tasks",
-        description="Get all tasks associated with a session.",
+        description="Get all tasks associated with a session. Accepts #N, N, UUID, or prefix for session_id.",
         input_schema={
             "type": "object",
             "properties": {
-                "session_id": {"type": "string", "description": "Session ID"},
+                "session_id": {
+                    "type": "string",
+                    "description": "Session reference (accepts #N, N, UUID, or prefix)",
+                },
             },
             "required": ["session_id"],
         },

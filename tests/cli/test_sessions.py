@@ -7,6 +7,8 @@ from click.testing import CliRunner
 from gobby.cli.sessions import sessions
 from gobby.storage.sessions import Session
 
+pytestmark = pytest.mark.unit
+
 # Mock session data
 MOCK_SESSION = Session(
     id="019bbaea-3e0f-7d61-afc4-56a9456c2c7d",
@@ -41,7 +43,7 @@ def mock_message_manager():
         yield mock.return_value
 
 
-def test_list_sessions_empty(mock_session_manager):
+def test_list_sessions_empty(mock_session_manager) -> None:
     """Test 'sessions list' with no sessions."""
     mock_session_manager.list.return_value = []
 
@@ -53,7 +55,7 @@ def test_list_sessions_empty(mock_session_manager):
     mock_session_manager.list.assert_called_once()
 
 
-def test_list_sessions_populated(mock_session_manager):
+def test_list_sessions_populated(mock_session_manager) -> None:
     """Test 'sessions list' with active sessions."""
     mock_session_manager.list.return_value = [MOCK_SESSION]
 
@@ -68,7 +70,7 @@ def test_list_sessions_populated(mock_session_manager):
     assert "$0.02" in result.output  # formatted cost
 
 
-def test_show_session_found(mock_session_manager):
+def test_show_session_found(mock_session_manager) -> None:
     """Test 'sessions show' with valid ID."""
     mock_session_manager.get.return_value = MOCK_SESSION
 
@@ -82,7 +84,7 @@ def test_show_session_found(mock_session_manager):
     assert "Title: Test Session" in result.output
 
 
-def test_show_session_not_found(mock_session_manager):
+def test_show_session_not_found(mock_session_manager) -> None:
     """Test 'sessions show' with invalid ID."""
     mock_session_manager.get.return_value = None
 
@@ -95,7 +97,7 @@ def test_show_session_not_found(mock_session_manager):
     assert "Session not found: invalid-id" in result.output
 
 
-def test_delete_session_success(mock_session_manager):
+def test_delete_session_success(mock_session_manager) -> None:
     """Test 'sessions delete' with confirmation."""
     mock_session_manager.get.return_value = MOCK_SESSION
     mock_session_manager.delete.return_value = True
@@ -110,7 +112,7 @@ def test_delete_session_success(mock_session_manager):
     mock_session_manager.delete.assert_called_once_with(MOCK_SESSION.id)
 
 
-def test_session_stats(mock_session_manager, mock_message_manager):
+def test_session_stats(mock_session_manager, mock_message_manager) -> None:
     """Test 'sessions stats' command."""
     mock_session_manager.list.return_value = [MOCK_SESSION]
 

@@ -7,6 +7,7 @@ import pytest
 
 from gobby.cli.installers.antigravity import install_antigravity
 
+pytestmark = pytest.mark.unit
 
 class TestInstallAntigravity:
     """Tests for the install_antigravity function."""
@@ -23,7 +24,7 @@ class TestInstallAntigravity:
         self,
         mock_mcp: MagicMock,
         temp_project: Path,
-    ):
+    ) -> None:
         """Test successful Antigravity installation."""
         mock_mcp.return_value = {"success": True, "added": True, "already_configured": False}
 
@@ -43,7 +44,7 @@ class TestInstallAntigravity:
         self,
         mock_mcp: MagicMock,
         temp_project: Path,
-    ):
+    ) -> None:
         """Test handling when MCP is already configured."""
         mock_mcp.return_value = {"success": True, "added": False, "already_configured": True}
 
@@ -58,7 +59,7 @@ class TestInstallAntigravity:
         self,
         mock_mcp: MagicMock,
         temp_project: Path,
-    ):
+    ) -> None:
         """Test that MCP configuration failure is fatal (unlike hooks which are optional)."""
         mock_mcp.return_value = {"success": False, "error": "Permission denied"}
 
@@ -77,7 +78,7 @@ class TestInstallAntigravityMCPPath:
         self,
         mock_mcp: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that MCP config uses correct path."""
         project_path = temp_dir / "project"
         project_path.mkdir()

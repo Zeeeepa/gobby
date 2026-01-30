@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 class TestConductorLoopTick:
     """Tests for ConductorLoop.tick() method."""
 
-    def test_tick_runs_task_monitor(self):
+    def test_tick_runs_task_monitor(self) -> None:
         """ConductorLoop.tick() runs TaskMonitor.check()."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -56,7 +56,7 @@ class TestConductorLoopTick:
         assert result["success"] is True
         mock_task_monitor.check.assert_called_once()
 
-    def test_tick_runs_agent_watcher(self):
+    def test_tick_runs_agent_watcher(self) -> None:
         """ConductorLoop.tick() runs AgentWatcher.check()."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -98,7 +98,7 @@ class TestConductorLoopTick:
 class TestConductorLoopAlerts:
     """Tests for alert dispatching."""
 
-    def test_tick_dispatches_alert_for_stale_tasks(self):
+    def test_tick_dispatches_alert_for_stale_tasks(self) -> None:
         """ConductorLoop.tick() dispatches urgent alert for stale tasks."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -140,7 +140,7 @@ class TestConductorLoopAlerts:
         assert call_args[1]["priority"] == "urgent"
         assert "stale" in call_args[1]["message"].lower()
 
-    def test_tick_dispatches_alert_for_stuck_agents(self):
+    def test_tick_dispatches_alert_for_stuck_agents(self) -> None:
         """ConductorLoop.tick() dispatches urgent alert for stuck agents."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -182,7 +182,7 @@ class TestConductorLoopAlerts:
         assert call_args[1]["priority"] == "urgent"
         assert "stuck" in call_args[1]["message"].lower()
 
-    def test_tick_no_alerts_when_healthy(self):
+    def test_tick_no_alerts_when_healthy(self) -> None:
         """ConductorLoop.tick() dispatches no alerts when all is healthy."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -224,7 +224,7 @@ class TestConductorLoopAlerts:
 class TestConductorLoopBudget:
     """Tests for budget checking."""
 
-    def test_tick_throttles_when_budget_exceeded(self):
+    def test_tick_throttles_when_budget_exceeded(self) -> None:
         """ConductorLoop.tick() throttles when budget is exceeded."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -249,7 +249,7 @@ class TestConductorLoopBudget:
         mock_task_monitor.check.assert_not_called()
         mock_agent_watcher.check.assert_not_called()
 
-    def test_tick_runs_when_budget_ok(self):
+    def test_tick_runs_when_budget_ok(self) -> None:
         """ConductorLoop.tick() runs monitors when budget is OK."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -295,7 +295,7 @@ class TestConductorLoopBudget:
 class TestConductorLoopAutonomousMode:
     """Tests for autonomous agent spawning."""
 
-    def test_tick_can_spawn_agent_in_autonomous_mode(self):
+    def test_tick_can_spawn_agent_in_autonomous_mode(self) -> None:
         """ConductorLoop.tick() can spawn agents when autonomous_mode enabled."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -337,7 +337,7 @@ class TestConductorLoopAutonomousMode:
         assert result["success"] is True
         assert "autonomous_mode" in result
 
-    def test_tick_does_not_spawn_without_autonomous_mode(self):
+    def test_tick_does_not_spawn_without_autonomous_mode(self) -> None:
         """ConductorLoop.tick() does not auto-spawn without autonomous_mode."""
         from gobby.conductor.loop import ConductorLoop
 
@@ -382,7 +382,7 @@ class TestConductorLoopAutonomousMode:
 class TestConductorLoopSummary:
     """Tests for tick summary."""
 
-    def test_tick_returns_summary(self):
+    def test_tick_returns_summary(self) -> None:
         """ConductorLoop.tick() returns summary of all checks."""
         from gobby.conductor.loop import ConductorLoop
 

@@ -6,11 +6,12 @@ import pytest
 
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
+pytestmark = pytest.mark.unit
 
 class TestIssueType:
     """Tests for IssueType enum."""
 
-    def test_valid_issue_types(self):
+    def test_valid_issue_types(self) -> None:
         """Test all valid issue types are defined."""
         assert IssueType.TEST_FAILURE.value == "test_failure"
         assert IssueType.LINT_ERROR.value == "lint_error"
@@ -18,7 +19,7 @@ class TestIssueType:
         assert IssueType.TYPE_ERROR.value == "type_error"
         assert IssueType.SECURITY.value == "security"
 
-    def test_issue_type_from_string(self):
+    def test_issue_type_from_string(self) -> None:
         """Test creating IssueType from string value."""
         assert IssueType("test_failure") == IssueType.TEST_FAILURE
         assert IssueType("lint_error") == IssueType.LINT_ERROR
@@ -27,13 +28,13 @@ class TestIssueType:
 class TestIssueSeverity:
     """Tests for IssueSeverity enum."""
 
-    def test_valid_severities(self):
+    def test_valid_severities(self) -> None:
         """Test all valid severities are defined."""
         assert IssueSeverity.BLOCKER.value == "blocker"
         assert IssueSeverity.MAJOR.value == "major"
         assert IssueSeverity.MINOR.value == "minor"
 
-    def test_severity_from_string(self):
+    def test_severity_from_string(self) -> None:
         """Test creating IssueSeverity from string value."""
         assert IssueSeverity("blocker") == IssueSeverity.BLOCKER
         assert IssueSeverity("minor") == IssueSeverity.MINOR
@@ -42,7 +43,7 @@ class TestIssueSeverity:
 class TestIssue:
     """Tests for Issue dataclass."""
 
-    def test_create_issue_with_required_fields(self):
+    def test_create_issue_with_required_fields(self) -> None:
         """Test creating an Issue with required fields only."""
         issue = Issue(
             issue_type=IssueType.TEST_FAILURE,
@@ -58,7 +59,7 @@ class TestIssue:
         assert issue.suggested_fix is None
         assert issue.recurring_count == 0
 
-    def test_create_issue_with_all_fields(self):
+    def test_create_issue_with_all_fields(self) -> None:
         """Test creating an Issue with all fields."""
         issue = Issue(
             issue_type=IssueType.LINT_ERROR,
@@ -78,7 +79,7 @@ class TestIssue:
         assert issue.suggested_fix == "Add semicolon"
         assert issue.recurring_count == 3
 
-    def test_issue_to_dict(self):
+    def test_issue_to_dict(self) -> None:
         """Test Issue serialization to dictionary."""
         issue = Issue(
             issue_type=IssueType.SECURITY,
@@ -100,7 +101,7 @@ class TestIssue:
         assert d["suggested_fix"] == "Use parameterized queries"
         assert d["recurring_count"] == 1
 
-    def test_issue_from_dict(self):
+    def test_issue_from_dict(self) -> None:
         """Test Issue deserialization from dictionary."""
         d = {
             "type": "type_error",
@@ -122,7 +123,7 @@ class TestIssue:
         assert issue.suggested_fix == "Convert type before assignment"
         assert issue.recurring_count == 2
 
-    def test_issue_from_dict_minimal(self):
+    def test_issue_from_dict_minimal(self) -> None:
         """Test Issue deserialization with minimal fields."""
         d = {
             "type": "acceptance_gap",
@@ -138,7 +139,7 @@ class TestIssue:
         assert issue.location is None
         assert issue.recurring_count == 0
 
-    def test_issue_json_round_trip(self):
+    def test_issue_json_round_trip(self) -> None:
         """Test Issue JSON serialization round trip."""
         original = Issue(
             issue_type=IssueType.TEST_FAILURE,
@@ -162,7 +163,7 @@ class TestIssue:
         assert restored.details == original.details
         assert restored.recurring_count == original.recurring_count
 
-    def test_issue_list_serialization(self):
+    def test_issue_list_serialization(self) -> None:
         """Test serializing a list of Issues."""
         issues = [
             Issue(
@@ -187,7 +188,7 @@ class TestIssue:
         assert restored[0].title == "Test 1 failed"
         assert restored[1].title == "Unused import"
 
-    def test_issue_invalid_type_raises(self):
+    def test_issue_invalid_type_raises(self) -> None:
         """Test that invalid issue type raises ValueError."""
         with pytest.raises(ValueError):
             Issue.from_dict(
@@ -198,7 +199,7 @@ class TestIssue:
                 }
             )
 
-    def test_issue_invalid_severity_raises(self):
+    def test_issue_invalid_severity_raises(self) -> None:
         """Test that invalid severity raises ValueError."""
         with pytest.raises(ValueError):
             Issue.from_dict(

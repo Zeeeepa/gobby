@@ -17,11 +17,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "examples" / "plugins"))
 from example_notify import HTTP_NOTIFY_SCHEMA, LOG_METRIC_SCHEMA, ExampleNotifyPlugin
 
+pytestmark = pytest.mark.unit
 
 class TestPluginLoading:
     """Tests for plugin initialization and loading."""
 
-    def test_plugin_has_required_attributes(self):
+    def test_plugin_has_required_attributes(self) -> None:
         """Plugin should have name, version, and description."""
         plugin = ExampleNotifyPlugin()
 
@@ -29,7 +30,7 @@ class TestPluginLoading:
         assert plugin.version == "1.0.0"
         assert plugin.description != ""
 
-    def test_on_load_registers_actions(self):
+    def test_on_load_registers_actions(self) -> None:
         """on_load should register http_notify and log_metric actions."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -37,7 +38,7 @@ class TestPluginLoading:
         assert "http_notify" in plugin._actions
         assert "log_metric" in plugin._actions
 
-    def test_on_load_with_custom_config(self):
+    def test_on_load_with_custom_config(self) -> None:
         """on_load should apply custom configuration."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load(
@@ -50,7 +51,7 @@ class TestPluginLoading:
         assert plugin.default_channel == "#alerts"
         assert plugin.log_file == Path("/tmp/custom_metrics.log")
 
-    def test_actions_have_schemas(self):
+    def test_actions_have_schemas(self) -> None:
         """Registered actions should have non-empty schemas."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -67,7 +68,7 @@ class TestPluginLoading:
 class TestSchemaValidation:
     """Tests for input schema validation."""
 
-    def test_http_notify_validates_required_url(self):
+    def test_http_notify_validates_required_url(self) -> None:
         """http_notify should require url parameter."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -84,7 +85,7 @@ class TestSchemaValidation:
         assert is_valid
         assert error is None
 
-    def test_log_metric_validates_required_fields(self):
+    def test_log_metric_validates_required_fields(self) -> None:
         """log_metric should require metric_name and value."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -109,7 +110,7 @@ class TestSchemaValidation:
         )
         assert is_valid
 
-    def test_validates_type_mismatch(self):
+    def test_validates_type_mismatch(self) -> None:
         """Schema validation should catch type mismatches."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -126,7 +127,7 @@ class TestSchemaValidation:
         assert not is_valid
         assert "type" in error.lower()
 
-    def test_validates_optional_fields(self):
+    def test_validates_optional_fields(self) -> None:
         """Optional fields should validate when provided."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -316,7 +317,7 @@ class TestLogMetricAction:
 class TestWorkflowIntegration:
     """Tests for integration with the workflow engine."""
 
-    def test_actions_accessible_via_get_action(self):
+    def test_actions_accessible_via_get_action(self) -> None:
         """Actions should be retrievable via get_action()."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -331,7 +332,7 @@ class TestWorkflowIntegration:
         assert log_action.name == "log_metric"
         assert missing_action is None
 
-    def test_action_has_correct_plugin_name(self):
+    def test_action_has_correct_plugin_name(self) -> None:
         """Actions should reference their parent plugin."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -362,7 +363,7 @@ class TestWorkflowIntegration:
 class TestPluginLifecycle:
     """Tests for plugin lifecycle management."""
 
-    def test_on_unload_logs_stats(self, caplog):
+    def test_on_unload_logs_stats(self, caplog) -> None:
         """on_unload should log statistics."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -377,7 +378,7 @@ class TestPluginLifecycle:
         assert "notifications_sent=5" in caplog.text
         assert "metrics_logged=10" in caplog.text
 
-    def test_register_duplicate_action_raises(self):
+    def test_register_duplicate_action_raises(self) -> None:
         """Registering duplicate action should raise ValueError."""
         plugin = ExampleNotifyPlugin()
         plugin.on_load({})
@@ -394,7 +395,7 @@ class TestPluginLifecycle:
 class TestSchemaDefinitions:
     """Tests for the schema constants."""
 
-    def test_http_notify_schema_structure(self):
+    def test_http_notify_schema_structure(self) -> None:
         """HTTP_NOTIFY_SCHEMA should have correct structure."""
         assert HTTP_NOTIFY_SCHEMA["type"] == "object"
         assert "properties" in HTTP_NOTIFY_SCHEMA
@@ -408,7 +409,7 @@ class TestSchemaDefinitions:
         assert "headers" in props
         assert "channel" in props
 
-    def test_log_metric_schema_structure(self):
+    def test_log_metric_schema_structure(self) -> None:
         """LOG_METRIC_SCHEMA should have correct structure."""
         assert LOG_METRIC_SCHEMA["type"] == "object"
         assert "properties" in LOG_METRIC_SCHEMA

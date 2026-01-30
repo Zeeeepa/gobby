@@ -7,6 +7,7 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.skills import LocalSkillManager
 
+pytestmark = pytest.mark.unit
 
 class TestSyncBundledSkills:
     """Test sync_bundled_skills function."""
@@ -62,14 +63,14 @@ class TestSyncBundledSkills:
 
         sync_bundled_skills(db)
 
-        # Check for known core skills
-        gobby_tasks = skill_manager.get_by_name("gobby-tasks")
-        assert gobby_tasks is not None
-        assert gobby_tasks.name == "gobby-tasks"
-        assert len(gobby_tasks.content) > 0
+        # Check for known core skills (names match SKILL.md frontmatter)
+        tasks_skill = skill_manager.get_by_name("tasks")
+        assert tasks_skill is not None
+        assert tasks_skill.name == "tasks"
+        assert len(tasks_skill.content) > 0
 
-        gobby_workflows = skill_manager.get_by_name("gobby-workflows")
-        assert gobby_workflows is not None
+        workflows_skill = skill_manager.get_by_name("workflows")
+        assert workflows_skill is not None
 
     def test_sync_bundled_skills_is_idempotent(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
@@ -97,7 +98,7 @@ class TestSyncBundledSkills:
 
         sync_bundled_skills(db)
 
-        skill = skill_manager.get_by_name("gobby-tasks")
+        skill = skill_manager.get_by_name("tasks")
         assert skill is not None
         assert skill.source_type == "filesystem"
 
@@ -109,6 +110,6 @@ class TestSyncBundledSkills:
 
         sync_bundled_skills(db)
 
-        skill = skill_manager.get_by_name("gobby-tasks")
+        skill = skill_manager.get_by_name("tasks")
         assert skill is not None
         assert skill.project_id is None

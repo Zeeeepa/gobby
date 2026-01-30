@@ -74,7 +74,8 @@ List all configured MCP servers and their connection status.
 Execute a tool on a connected MCP server or internal registry.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `server_name` | string | Yes | Server name (e.g., "context7", "gobby-tasks") |
 | `tool_name` | string | Yes | Name of the tool to execute |
 | `arguments` | object | No | Tool-specific arguments |
@@ -103,7 +104,8 @@ call_tool("gobby-tasks", "create_task", {
 List tools with lightweight metadata for progressive disclosure.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `server` | string | No | Server name. If omitted, returns all servers. |
 
 **Returns:**
@@ -125,7 +127,8 @@ List tools with lightweight metadata for progressive disclosure.
 Get full inputSchema for a specific tool.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `server_name` | string | Yes | Server name |
 | `tool_name` | string | Yes | Tool name |
 
@@ -156,7 +159,8 @@ Get full inputSchema for a specific tool.
 Add a new MCP server to the current project.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `name` | string | Yes | Unique server name |
 | `transport` | string | Yes | "http", "stdio", or "websocket" |
 | `url` | string | For http/ws | Server URL |
@@ -196,7 +200,8 @@ Remove an MCP server from the current project.
 Import MCP servers from various sources.
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
+| :--- | :--- | :--- |
+
 | `from_project` | string | Source project name to import from |
 | `servers` | array | Specific server names (all if omitted) |
 | `github_url` | string | GitHub repository URL |
@@ -209,7 +214,8 @@ Import MCP servers from various sources.
 Get intelligent tool recommendations for a task.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `task_description` | string | Yes | What you're trying to accomplish |
 | `agent_id` | string | No | Agent profile ID for filtering |
 | `search_mode` | string | No | "llm" (default), "semantic", or "hybrid" |
@@ -219,7 +225,8 @@ Get intelligent tool recommendations for a task.
 Search for tools using semantic similarity.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `query` | string | Yes | Natural language description |
 | `top_k` | integer | No | Max results (default: 10) |
 | `min_similarity` | float | No | Minimum threshold 0-1 |
@@ -232,7 +239,8 @@ Search for tools using semantic similarity.
 Trigger session hooks for non-Claude-Code CLIs.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+| :--- | :--- | :--- | :--- |
+
 | `hook_type` | string | Yes | Hook type (see below) |
 | `params` | object | No | Hook-specific parameters |
 | `source` | string | No | CLI source (e.g., "Codex", "Gemini") |
@@ -253,7 +261,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Quick Reference
 
 | Registry | Tools | Purpose |
-|----------|-------|---------|
+| :--- | :--- | :--- |
+
 | `gobby-tasks` | 52 | Task management, dependencies, validation, orchestration |
 | `gobby-sessions` | 11 | Session lifecycle, handoffs, messages |
 | `gobby-memory` | 11 | Persistent memory storage and retrieval |
@@ -275,7 +284,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### CRUD Operations
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `create_task` | Create a new task. Use `claim=true` to auto-assign. |
 | `get_task` | Get task details. Accepts `#N`, path, or UUID. |
 | `update_task` | Update task fields |
@@ -288,14 +298,16 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Labels
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `add_label` | Add a label to a task |
 | `remove_label` | Remove a label from a task |
 
 ### Dependencies
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `add_dependency` | Add dependency between tasks |
 | `remove_dependency` | Remove a dependency |
 | `get_dependency_tree` | Get blockers/blocking tree |
@@ -304,7 +316,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Ready Work
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `list_ready_tasks` | Tasks with no unresolved blockers |
 | `list_blocked_tasks` | Tasks waiting on others |
 | `suggest_next_task` | AI suggests best next task |
@@ -312,7 +325,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Session Integration
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `link_task_to_session` | Associate task with session |
 | `get_session_tasks` | Tasks linked to a session |
 | `get_task_sessions` | Sessions that touched a task |
@@ -320,7 +334,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Expansion
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `save_expansion_spec` | Save expansion spec for later execution |
 | `execute_expansion` | Execute saved expansion atomically |
 | `get_expansion_spec` | Check for pending expansion |
@@ -328,7 +343,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Validation
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `validate_task` | Validate task completion (auto-gathers git context) |
 | `get_validation_status` | Get validation details |
 | `reset_validation_count` | Reset failure count for retry |
@@ -343,7 +359,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Git Integration
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `sync_tasks` | Import/export tasks to JSONL |
 | `get_sync_status` | Get sync status |
 | `link_commit` | Link git commit to task |
@@ -354,14 +371,16 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Search
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `search_tasks` | TF-IDF semantic search |
 | `reindex_tasks` | Rebuild search index |
 
 ### Orchestration
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `orchestrate_ready_tasks` | Spawn agents for ready subtasks |
 | `get_orchestration_status` | Get orchestration status for parent |
 | `poll_agent_status` | Poll running agents, update tracking |
@@ -374,7 +393,8 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 ### Waiting
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `wait_for_task` | Block until task completes |
 | `wait_for_any_task` | Wait for first of multiple tasks |
 | `wait_for_all_tasks` | Wait for all tasks to complete |
@@ -414,8 +434,9 @@ call_tool("gobby-tasks", "close_task", {
 11 tools for session lifecycle and context management.
 
 | Tool | Description |
-|------|-------------|
-| `get_current` | Get YOUR current session ID (correct way to look up session) |
+| :--- | :--- |
+
+| `get_current_session` | Get YOUR current session ID (correct way to look up session) |
 | `get_session` | Get session details by ID. Accepts `#N`, UUID, or prefix. |
 | `list_sessions` | List sessions with filters (NOT for finding your session) |
 | `session_stats` | Get session statistics for project |
@@ -448,7 +469,8 @@ call_tool("gobby-sessions", "pickup", {
 11 tools for persistent knowledge across sessions.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `create_memory` | Create a new memory |
 | `search_memories` | Search with query and tag filters |
 | `list_memories` | List all memories with filters |
@@ -487,7 +509,8 @@ call_tool("gobby-memory", "search_memories", {
 12 tools for step-based workflow management.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `list_workflows` | List available workflow definitions |
 | `get_workflow` | Get workflow details |
 | `activate_workflow` | Activate workflow for session |
@@ -529,7 +552,8 @@ call_tool("gobby-workflows", "request_step_transition", {
 15 tools for subagent spawning and management.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `spawn_agent` | Spawn subagent with isolation options |
 | `get_agent_result` | Get result of completed agent |
 | `list_agents` | List agent runs for session |
@@ -571,7 +595,8 @@ call_tool("gobby-agents", "can_spawn_agent", {
 13 tools for git worktree parallel development.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `create_worktree` | Create new git worktree |
 | `get_worktree` | Get worktree details |
 | `list_worktrees` | List worktrees with filters |
@@ -593,7 +618,8 @@ call_tool("gobby-agents", "can_spawn_agent", {
 5 tools for AI-powered merge conflict resolution.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `merge_start` | Start merge with AI conflict resolution |
 | `merge_status` | Get merge status and conflict details |
 | `merge_resolve` | Resolve specific conflict (optionally with AI) |
@@ -629,7 +655,8 @@ call_tool("gobby-merge", "merge_apply", {})
 6 tools for git clone-based parallel development.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `create_clone` | Create new git clone |
 | `get_clone` | Get clone by ID |
 | `list_clones` | List clones with status filter |
@@ -644,7 +671,8 @@ call_tool("gobby-merge", "merge_apply", {})
 6 tools for skill discovery and management.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `list_skills` | List skills with filters |
 | `get_skill` | Get full skill content |
 | `search_skills` | Search skills by query |
@@ -659,7 +687,8 @@ call_tool("gobby-merge", "merge_apply", {})
 10 tools for tool usage and budget tracking.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `get_tool_metrics` | Get call count, success rate, latency |
 | `get_top_tools` | Top tools by usage/success/latency |
 | `get_failing_tools` | Tools with high failure rates |
@@ -678,7 +707,8 @@ call_tool("gobby-merge", "merge_apply", {})
 4 tools for cross-project queries.
 
 | Tool | Description |
-|------|-------------|
+| :--- | :--- |
+
 | `list_all_projects` | List all unique projects |
 | `list_cross_project_tasks` | Query tasks across all projects |
 | `list_cross_project_sessions` | List sessions across all projects |

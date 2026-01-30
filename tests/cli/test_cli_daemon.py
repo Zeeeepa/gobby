@@ -18,6 +18,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
 
 class TestStartCommand:
     """Tests for the 'start' command."""
@@ -37,7 +38,7 @@ class TestStartCommand:
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
 
-    def test_start_help(self, runner: CliRunner):
+    def test_start_help(self, runner: CliRunner) -> None:
         """Test start --help displays help text."""
         result = runner.invoke(cli, ["start", "--help"])
         assert result.exit_code == 0
@@ -67,7 +68,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test successful daemon start."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -124,7 +125,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start with --verbose flag adds verbose argument to command."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -165,7 +166,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start when daemon is already running."""
         mock_load_config.return_value = mock_config
 
@@ -197,7 +198,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start removes stale PID file when process not running."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -251,7 +252,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start fails when HTTP port never becomes available."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -286,7 +287,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start fails when WebSocket port never becomes available."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -330,7 +331,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start handles process that exits immediately."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -376,7 +377,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start continues with warning when health check fails."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -416,7 +417,7 @@ class TestStartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test start kills existing gobby daemon processes."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 2  # Two processes killed
@@ -457,7 +458,7 @@ class TestStopCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_stop_help(self, runner: CliRunner):
+    def test_stop_help(self, runner: CliRunner) -> None:
         """Test stop --help displays help text."""
         result = runner.invoke(cli, ["stop", "--help"])
         assert result.exit_code == 0
@@ -470,7 +471,7 @@ class TestStopCommand:
         mock_load_config: MagicMock,
         mock_stop_daemon: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test successful daemon stop."""
         mock_load_config.return_value = MagicMock()
         mock_stop_daemon.return_value = True
@@ -487,7 +488,7 @@ class TestStopCommand:
         mock_load_config: MagicMock,
         mock_stop_daemon: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test stop command fails when stop_daemon returns False."""
         mock_load_config.return_value = MagicMock()
         mock_stop_daemon.return_value = False
@@ -516,7 +517,7 @@ class TestRestartCommand:
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
 
-    def test_restart_help(self, runner: CliRunner):
+    def test_restart_help(self, runner: CliRunner) -> None:
         """Test restart --help displays help text."""
         result = runner.invoke(cli, ["restart", "--help"])
         assert result.exit_code == 0
@@ -548,7 +549,7 @@ class TestRestartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test successful daemon restart."""
         mock_load_config.return_value = mock_config
         mock_stop_daemon.return_value = True
@@ -589,7 +590,7 @@ class TestRestartCommand:
         mock_setup_logging: MagicMock,
         mock_stop_daemon: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test restart aborts when stop fails."""
         mock_load_config.return_value = MagicMock()
         mock_stop_daemon.return_value = False
@@ -624,7 +625,7 @@ class TestRestartCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test restart with --verbose flag."""
         mock_load_config.return_value = mock_config
         mock_stop_daemon.return_value = True
@@ -673,7 +674,7 @@ class TestStatusCommand:
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         return config
 
-    def test_status_help(self, runner: CliRunner):
+    def test_status_help(self, runner: CliRunner) -> None:
         """Test status --help displays help text."""
         result = runner.invoke(cli, ["status", "--help"])
         assert result.exit_code == 0
@@ -688,7 +689,7 @@ class TestStatusCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status when no PID file exists."""
         mock_load_config.return_value = mock_config
 
@@ -712,7 +713,7 @@ class TestStatusCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status with invalid PID file content."""
         mock_load_config.return_value = mock_config
 
@@ -739,7 +740,7 @@ class TestStatusCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status with stale PID file (process not running)."""
         mock_load_config.return_value = mock_config
 
@@ -772,7 +773,7 @@ class TestStatusCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status when daemon is running."""
         mock_load_config.return_value = mock_config
         mock_fetch_status.return_value = {
@@ -813,7 +814,7 @@ class TestStatusCommand:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status handles psutil errors gracefully."""
         mock_load_config.return_value = mock_config
         mock_fetch_status.return_value = {}
@@ -891,7 +892,7 @@ class TestDaemonCommandsIntegration:
         mock_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
-    ):
+    ) -> None:
         """Test that start command displays status message."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -922,7 +923,7 @@ class TestDaemonCommandsIntegration:
             assert "STATUS MESSAGE" in result.output
             mock_format_status.assert_called()
 
-    def test_cli_has_all_daemon_commands(self, runner: CliRunner):
+    def test_cli_has_all_daemon_commands(self, runner: CliRunner) -> None:
         """Test that CLI has all daemon management commands."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
@@ -986,7 +987,7 @@ class TestEdgeCases:
         mock_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
-    ):
+    ) -> None:
         """Test start handles health check timeout gracefully."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -1037,7 +1038,7 @@ class TestEdgeCases:
         mock_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
-    ):
+    ) -> None:
         """Test start retries when health check returns non-200."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -1089,7 +1090,7 @@ class TestEdgeCases:
         mock_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
-    ):
+    ) -> None:
         """Test start handles Popen exception."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -1122,7 +1123,7 @@ class TestEdgeCases:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status command with rich daemon data."""
         mock_load_config.return_value = mock_config
         mock_format_status.return_value = "FULL STATUS"
@@ -1211,7 +1212,7 @@ class TestCommandBuilding:
         mock_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
-    ):
+    ) -> None:
         """Test that start command builds correct subprocess command."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0
@@ -1267,7 +1268,7 @@ class TestCommandBuilding:
         mock_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
-    ):
+    ) -> None:
         """Test that start command uses correct subprocess options."""
         mock_load_config.return_value = mock_config
         mock_kill_daemons.return_value = 0

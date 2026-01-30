@@ -123,23 +123,29 @@ def register_handoff_tools(
         registry: The InternalToolRegistry to register tools with
         session_manager: LocalSessionManager instance for session operations
     """
+    from gobby.utils.project_context import get_project_context
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+
+        return session_manager.resolve_session_reference(ref, project_id)
 
     @registry.tool(
         name="get_handoff_context",
-        description="Get the handoff context (compact_markdown) for a session. Accepts #N, UUID, or prefix.",
+        description="Get the handoff context (compact_markdown) for a session. Accepts #N, N, UUID, or prefix.",
     )
     def get_handoff_context(session_id: str) -> dict[str, Any]:
         """
         Retrieve stored handoff context.
 
         Args:
-            session_id: Session reference - supports #N (project-scoped), UUID, or prefix
+            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix
 
         Returns:
             Session ID, compact_markdown, and whether context exists
         """
-        from gobby.utils.project_context import get_project_context
-
         if not session_manager:
             raise RuntimeError("Session manager not available")
 
@@ -165,12 +171,12 @@ def register_handoff_tools(
 
     @registry.tool(
         name="create_handoff",
-        description="""Create handoff context by extracting structured data from the session transcript.
+        description="""Create handoff context by extracting structured data from the session transcript. Accepts #N, N, UUID, or prefix for session_id.
 
 Args:
-    session_id: (REQUIRED) Your session ID. Get it from:
-        1. Your injected context (look for 'session_id: xxx')
-        2. Or call get_current(external_id, source) first""",
+    session_id: (REQUIRED) Your session ID. Accepts #N, N, UUID, or prefix. Get it from:
+        1. Your injected context (look for 'Session Ref: #N' or 'session_id: xxx')
+        2. Or call get_current_session(external_id, source) first""",
     )
     async def create_handoff(
         session_id: str,
@@ -187,7 +193,7 @@ Args:
         Always saves to database. Optionally writes to file.
 
         Args:
-            session_id: Session ID (REQUIRED)
+            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix (REQUIRED)
             notes: Additional notes to include in handoff
             compact: Generate compact summary only (default: False, neither = both)
             full: Generate full LLM summary only (default: False, neither = both)
@@ -207,19 +213,12 @@ Args:
         if session_manager is None:
             return {"success": False, "error": "Session manager not available"}
 
-        # Find session - session_id is now required
-        session = session_manager.get(session_id)
-        if not session:
-            # Try prefix match
-            sessions = session_manager.list(limit=100)
-            matches = [s for s in sessions if s.id.startswith(session_id)]
-            if len(matches) == 1:
-                session = matches[0]
-            elif len(matches) > 1:
-                return {
-                    "error": f"Ambiguous session ID prefix '{session_id}'",
-                    "matches": [s.id for s in matches[:5]],
-                }
+        # Resolve session reference (#N, N, UUID, or prefix)
+        try:
+            resolved_id = _resolve_session_id(session_id)
+            session = session_manager.get(resolved_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e), "session_id": session_id}
 
         if not session:
             return {"success": False, "error": "No session found", "session_id": session_id}
@@ -397,7 +396,7 @@ Args:
 
     @registry.tool(
         name="pickup",
-        description="Restore context from a previous session's handoff. For CLIs/IDEs without hooks.",
+        description="Restore context from a previous session's handoff. For CLIs/IDEs without hooks. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def pickup(
         session_id: str | None = None,
@@ -413,10 +412,10 @@ Args:
         for injection into a new session.
 
         Args:
-            session_id: Specific session ID to pickup from (optional)
+            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix (optional)
             project_id: Project ID to find parent session in (optional)
             source: Filter by CLI source - claude_code, gemini, codex (optional)
-            link_child_session_id: If provided, links this session as a child
+            link_child_session_id: Session to link as child - supports #N, N, UUID, or prefix (optional)
 
         Returns:
             Handoff context markdown and session metadata
@@ -428,20 +427,13 @@ Args:
 
         parent_session = None
 
-        # Option 1: Direct session_id lookup
+        # Option 1: Direct session_id lookup with resolution
         if session_id:
-            parent_session = session_manager.get(session_id)
-            if not parent_session:
-                # Try prefix match
-                sessions = session_manager.list(limit=100)
-                matches = [s for s in sessions if s.id.startswith(session_id)]
-                if len(matches) == 1:
-                    parent_session = matches[0]
-                elif len(matches) > 1:
-                    return {
-                        "error": f"Ambiguous session ID prefix '{session_id}'",
-                        "matches": [s.id for s in matches[:5]],
-                    }
+            try:
+                resolved_id = _resolve_session_id(session_id)
+                parent_session = session_manager.get(resolved_id)
+            except ValueError as e:
+                return {"error": str(e)}
 
         # Option 2: Find parent by project_id and source
         if not parent_session and project_id:
@@ -481,9 +473,21 @@ Args:
                 "message": "Session found but has no handoff context",
             }
 
-        # Optionally link child session
+        # Optionally link child session (resolve if using #N format)
+        resolved_child_id = None
         if link_child_session_id:
-            session_manager.update_parent_session_id(link_child_session_id, parent_session.id)
+            try:
+                resolved_child_id = _resolve_session_id(link_child_session_id)
+                session_manager.update_parent_session_id(resolved_child_id, parent_session.id)
+            except ValueError as e:
+                # Do not fallback to raw reference - propagate the error
+                return {
+                    "found": True,
+                    "session_id": parent_session.id,
+                    "has_context": True,
+                    "error": f"Failed to resolve child session '{link_child_session_id}': {e}",
+                    "context": context,
+                }
 
         return {
             "found": True,
@@ -495,5 +499,5 @@ Args:
             ),
             "parent_title": parent_session.title,
             "parent_status": parent_session.status,
-            "linked_child": link_child_session_id,
+            "linked_child": resolved_child_id or link_child_session_id,
         }

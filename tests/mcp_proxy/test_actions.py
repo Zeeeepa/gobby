@@ -19,6 +19,8 @@ from gobby.mcp_proxy.actions import (
 )
 from gobby.mcp_proxy.manager import MCPServerConfig
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================

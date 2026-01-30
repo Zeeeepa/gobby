@@ -4,6 +4,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db_path(tmp_path):

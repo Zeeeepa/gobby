@@ -15,6 +15,7 @@ from gobby.search import (
     UnifiedSearcher,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestSearchConfig:
     """Tests for SearchConfig."""

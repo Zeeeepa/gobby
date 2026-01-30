@@ -10,11 +10,12 @@ from gobby.skills.parser import (
     parse_skill_text,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestParseFrontmatter:
     """Tests for parse_frontmatter function."""
 
-    def test_basic_frontmatter(self):
+    def test_basic_frontmatter(self) -> None:
         """Test parsing basic frontmatter."""
         text = """---
 name: test-skill
@@ -29,7 +30,7 @@ description: A test skill
         assert frontmatter["description"] == "A test skill"
         assert content == "# Content here"
 
-    def test_complex_frontmatter(self):
+    def test_complex_frontmatter(self) -> None:
         """Test parsing complex nested frontmatter."""
         text = """---
 name: commit-message
@@ -58,13 +59,13 @@ Body content
         assert frontmatter["metadata"]["gobby"]["triggers"] == ["/commit"]
         assert content == "Body content"
 
-    def test_missing_frontmatter(self):
+    def test_missing_frontmatter(self) -> None:
         """Test that missing frontmatter raises error."""
         text = "# Just content, no frontmatter"
         with pytest.raises(SkillParseError, match="Missing"):
             parse_frontmatter(text)
 
-    def test_invalid_yaml(self):
+    def test_invalid_yaml(self) -> None:
         """Test that invalid YAML raises error."""
         text = """---
 name: test
@@ -76,7 +77,7 @@ Content
         with pytest.raises(SkillParseError, match="Invalid YAML"):
             parse_frontmatter(text)
 
-    def test_empty_frontmatter(self):
+    def test_empty_frontmatter(self) -> None:
         """Test parsing empty frontmatter."""
         text = """---
 ---
@@ -87,7 +88,7 @@ Content
         assert frontmatter == {}
         assert content == "Content"
 
-    def test_frontmatter_must_be_mapping(self):
+    def test_frontmatter_must_be_mapping(self) -> None:
         """Test that non-mapping frontmatter raises error."""
         text = """---
 - list
@@ -103,7 +104,7 @@ Content
 class TestParseSkillText:
     """Tests for parse_skill_text function."""
 
-    def test_minimal_skill(self):
+    def test_minimal_skill(self) -> None:
         """Test parsing minimal valid skill."""
         text = """---
 name: minimal-skill
@@ -123,7 +124,7 @@ Instructions here.
         assert skill.license is None
         assert skill.metadata is None
 
-    def test_full_skill(self):
+    def test_full_skill(self) -> None:
         """Test parsing skill with all fields."""
         text = """---
 name: full-skill
@@ -158,7 +159,7 @@ Complete instructions.
         assert skill.metadata["skillport"]["category"] == "testing"
         assert skill.metadata["skillport"]["tags"] == ["test", "example"]
 
-    def test_version_in_metadata(self):
+    def test_version_in_metadata(self) -> None:
         """Test that version can be in metadata."""
         text = """---
 name: version-test
@@ -172,7 +173,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.version == "1.5.0"
 
-    def test_version_at_top_level_takes_precedence(self):
+    def test_version_at_top_level_takes_precedence(self) -> None:
         """Test that top-level version overrides metadata version."""
         text = """---
 name: version-test
@@ -187,7 +188,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.version == "2.0.0"
 
-    def test_numeric_version_converted_to_string(self):
+    def test_numeric_version_converted_to_string(self) -> None:
         """Test that numeric versions are converted to strings."""
         text = """---
 name: numeric-version
@@ -201,7 +202,7 @@ Content
         assert skill.version == "1.0"
         assert isinstance(skill.version, str)
 
-    def test_allowed_tools_as_list(self):
+    def test_allowed_tools_as_list(self) -> None:
         """Test allowed-tools as YAML list."""
         text = """---
 name: tools-list
@@ -217,7 +218,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.allowed_tools == ["Bash", "Read", "Write"]
 
-    def test_allowed_tools_underscore(self):
+    def test_allowed_tools_underscore(self) -> None:
         """Test allowed_tools (underscore variant)."""
         text = """---
 name: tools-underscore
@@ -230,7 +231,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.allowed_tools == ["Bash", "Read"]
 
-    def test_missing_name_raises_error(self):
+    def test_missing_name_raises_error(self) -> None:
         """Test that missing name raises error."""
         text = """---
 description: Has description but no name
@@ -241,7 +242,7 @@ Content
         with pytest.raises(SkillParseError, match="name"):
             parse_skill_text(text)
 
-    def test_missing_description_raises_error(self):
+    def test_missing_description_raises_error(self) -> None:
         """Test that missing description raises error."""
         text = """---
 name: has-name-no-description
@@ -252,7 +253,7 @@ Content
         with pytest.raises(SkillParseError, match="description"):
             parse_skill_text(text)
 
-    def test_source_path_preserved(self):
+    def test_source_path_preserved(self) -> None:
         """Test that source path is preserved."""
         text = """---
 name: path-test
@@ -268,7 +269,7 @@ Content
 class TestParsedSkillHelpers:
     """Tests for ParsedSkill helper methods."""
 
-    def test_get_category(self):
+    def test_get_category(self) -> None:
         """Test get_category extracts from metadata.skillport."""
         skill = ParsedSkill(
             name="test",
@@ -278,12 +279,12 @@ class TestParsedSkillHelpers:
         )
         assert skill.get_category() == "git"
 
-    def test_get_category_none(self):
+    def test_get_category_none(self) -> None:
         """Test get_category returns None when not set."""
         skill = ParsedSkill(name="test", description="Test", content="Content")
         assert skill.get_category() is None
 
-    def test_get_tags(self):
+    def test_get_tags(self) -> None:
         """Test get_tags extracts from metadata.skillport."""
         skill = ParsedSkill(
             name="test",
@@ -293,12 +294,12 @@ class TestParsedSkillHelpers:
         )
         assert skill.get_tags() == ["git", "commits"]
 
-    def test_get_tags_empty(self):
+    def test_get_tags_empty(self) -> None:
         """Test get_tags returns empty list when not set."""
         skill = ParsedSkill(name="test", description="Test", content="Content")
         assert skill.get_tags() == []
 
-    def test_is_always_apply(self):
+    def test_is_always_apply(self) -> None:
         """Test is_always_apply checks alwaysApply flag."""
         skill_true = ParsedSkill(
             name="test",
@@ -316,7 +317,7 @@ class TestParsedSkillHelpers:
         )
         assert skill_false.is_always_apply() is False
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test to_dict conversion."""
         skill = ParsedSkill(
             name="test",
@@ -333,7 +334,7 @@ class TestParsedSkillHelpers:
         assert d["version"] == "1.0.0"
         assert d["license"] == "MIT"
 
-    def test_is_always_apply_top_level(self):
+    def test_is_always_apply_top_level(self) -> None:
         """Test is_always_apply with top-level alwaysApply field."""
         text = """---
 name: core-skill
@@ -346,7 +347,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.is_always_apply() is True
 
-    def test_is_always_apply_top_level_false(self):
+    def test_is_always_apply_top_level_false(self) -> None:
         """Test is_always_apply with top-level alwaysApply: false."""
         text = """---
 name: optional-skill
@@ -359,7 +360,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.is_always_apply() is False
 
-    def test_is_always_apply_nested_still_works(self):
+    def test_is_always_apply_nested_still_works(self) -> None:
         """Test is_always_apply still works with nested metadata.skillport.alwaysApply."""
         text = """---
 name: nested-skill
@@ -374,7 +375,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.is_always_apply() is True
 
-    def test_get_category_top_level(self):
+    def test_get_category_top_level(self) -> None:
         """Test get_category with top-level category field."""
         text = """---
 name: core-skill
@@ -387,7 +388,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.get_category() == "core"
 
-    def test_get_category_nested_still_works(self):
+    def test_get_category_nested_still_works(self) -> None:
         """Test get_category still works with nested metadata.skillport.category."""
         text = """---
 name: nested-skill
@@ -402,7 +403,7 @@ Content
         skill = parse_skill_text(text)
         assert skill.get_category() == "git"
 
-    def test_top_level_takes_precedence_over_nested(self):
+    def test_top_level_takes_precedence_over_nested(self) -> None:
         """Test that top-level alwaysApply/category takes precedence over nested."""
         text = """---
 name: precedence-test
@@ -426,7 +427,7 @@ Content
 class TestParseSkillFile:
     """Tests for parse_skill_file function."""
 
-    def test_parse_existing_file(self, tmp_path):
+    def test_parse_existing_file(self, tmp_path) -> None:
         """Test parsing an existing skill file."""
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text("""---
@@ -446,12 +447,12 @@ Content here.
         assert "# File Test Skill" in skill.content
         assert skill.source_path == str(skill_file)
 
-    def test_parse_nonexistent_file(self, tmp_path):
+    def test_parse_nonexistent_file(self, tmp_path) -> None:
         """Test that nonexistent file raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError):
             parse_skill_file(tmp_path / "nonexistent.md")
 
-    def test_parse_real_skill_format(self, tmp_path):
+    def test_parse_real_skill_format(self, tmp_path) -> None:
         """Test parsing a skill in the full expected format."""
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text("""---

@@ -7,6 +7,7 @@ import pytest
 from gobby.storage.compaction import TaskCompactor
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def manager(temp_db):

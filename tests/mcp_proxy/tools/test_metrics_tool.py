@@ -5,6 +5,7 @@ import pytest
 from gobby.mcp_proxy.metrics import ToolMetricsManager
 from gobby.mcp_proxy.tools.metrics import create_metrics_registry
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_metrics_manager():
@@ -17,7 +18,7 @@ def metrics_tools(mock_metrics_manager):
 
 
 class TestMetricsTools:
-    def test_get_tool_metrics(self, metrics_tools, mock_metrics_manager):
+    def test_get_tool_metrics(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["get_tool_metrics"]
 
         expected_metrics = {
@@ -35,7 +36,7 @@ class TestMetricsTools:
             project_id="test-proj", server_name=None, tool_name=None
         )
 
-    def test_get_tool_metrics_error(self, metrics_tools, mock_metrics_manager):
+    def test_get_tool_metrics_error(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["get_tool_metrics"]
         mock_metrics_manager.get_metrics.side_effect = Exception("DB error")
 
@@ -44,7 +45,7 @@ class TestMetricsTools:
         assert result["success"] is False
         assert "DB error" in result["error"]
 
-    def test_get_top_tools(self, metrics_tools, mock_metrics_manager):
+    def test_get_top_tools(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["get_top_tools"]
         expected_tools = [{"name": "tool1", "call_count": 100}]
         mock_metrics_manager.get_top_tools.return_value = expected_tools
@@ -58,7 +59,7 @@ class TestMetricsTools:
             project_id="p1", limit=5, order_by="success_count"
         )
 
-    def test_get_failing_tools(self, metrics_tools, mock_metrics_manager):
+    def test_get_failing_tools(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["get_failing_tools"]
         expected_tools = [{"name": "bad_tool", "failure_rate": 0.8}]
         mock_metrics_manager.get_failing_tools.return_value = expected_tools
@@ -72,7 +73,7 @@ class TestMetricsTools:
             project_id="p1", threshold=0.7, limit=10
         )
 
-    def test_get_tool_success_rate(self, metrics_tools, mock_metrics_manager):
+    def test_get_tool_success_rate(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["get_tool_success_rate"]
         mock_metrics_manager.get_tool_success_rate.return_value = 0.95
 
@@ -84,7 +85,7 @@ class TestMetricsTools:
             server_name="srv", tool_name="tool", project_id="p1"
         )
 
-    def test_reset_metrics(self, metrics_tools, mock_metrics_manager):
+    def test_reset_metrics(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["reset_metrics"]
         mock_metrics_manager.reset_metrics.return_value = 5
 
@@ -96,7 +97,7 @@ class TestMetricsTools:
             project_id="p1", server_name="s1", tool_name=None
         )
 
-    def test_reset_tool_metrics(self, metrics_tools, mock_metrics_manager):
+    def test_reset_tool_metrics(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["reset_tool_metrics"]
         mock_metrics_manager.reset_metrics.return_value = 2
 
@@ -106,7 +107,7 @@ class TestMetricsTools:
         assert result["deleted_count"] == 2
         mock_metrics_manager.reset_metrics.assert_called_with(server_name="s1", tool_name="t1")
 
-    def test_cleanup_old_metrics(self, metrics_tools, mock_metrics_manager):
+    def test_cleanup_old_metrics(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["cleanup_old_metrics"]
         mock_metrics_manager.cleanup_old_metrics.return_value = 100
 
@@ -116,7 +117,7 @@ class TestMetricsTools:
         assert result["deleted_count"] == 100
         mock_metrics_manager.cleanup_old_metrics.assert_called_with(retention_days=30)
 
-    def test_get_retention_stats(self, metrics_tools, mock_metrics_manager):
+    def test_get_retention_stats(self, metrics_tools, mock_metrics_manager) -> None:
         tool = metrics_tools._tools["get_retention_stats"]
         expected_stats = {"total_rows": 1000, "oldest_entry": "2023-01-01"}
         mock_metrics_manager.get_retention_stats.return_value = expected_stats
@@ -174,7 +175,7 @@ class TestTokenMetricsTools:
             daily_budget_usd=10.0,
         )
 
-    def test_get_usage_report(self, token_metrics_tools, mock_session_storage):
+    def test_get_usage_report(self, token_metrics_tools, mock_session_storage) -> None:
         """get_usage_report returns usage summary for specified days."""
         tool = token_metrics_tools._tools["get_usage_report"]
 
@@ -188,7 +189,7 @@ class TestTokenMetricsTools:
         assert result["usage"]["session_count"] == 2
         mock_session_storage.get_sessions_since.assert_called_once()
 
-    def test_get_usage_report_default_days(self, token_metrics_tools, mock_session_storage):
+    def test_get_usage_report_default_days(self, token_metrics_tools, mock_session_storage) -> None:
         """get_usage_report defaults to 1 day."""
         tool = token_metrics_tools._tools["get_usage_report"]
 
@@ -198,7 +199,7 @@ class TestTokenMetricsTools:
         # Verify it was called (days=1 default)
         mock_session_storage.get_sessions_since.assert_called_once()
 
-    def test_get_usage_report_error(self, token_metrics_tools, mock_session_storage):
+    def test_get_usage_report_error(self, token_metrics_tools, mock_session_storage) -> None:
         """get_usage_report handles errors gracefully."""
         tool = token_metrics_tools._tools["get_usage_report"]
         mock_session_storage.get_sessions_since.side_effect = Exception("DB error")
@@ -208,7 +209,7 @@ class TestTokenMetricsTools:
         assert result["success"] is False
         assert "DB error" in result["error"]
 
-    def test_get_budget_status(self, token_metrics_tools, mock_session_storage):
+    def test_get_budget_status(self, token_metrics_tools, mock_session_storage) -> None:
         """get_budget_status returns current budget info."""
         tool = token_metrics_tools._tools["get_budget_status"]
 
@@ -222,7 +223,7 @@ class TestTokenMetricsTools:
         assert result["budget"]["over_budget"] is False
         mock_session_storage.get_sessions_since.assert_called_once()
 
-    def test_get_budget_status_over_budget(self, mock_metrics_manager):
+    def test_get_budget_status_over_budget(self, mock_metrics_manager) -> None:
         """get_budget_status shows over_budget when exceeded."""
         from datetime import UTC, datetime, timedelta
 
@@ -256,7 +257,7 @@ class TestTokenMetricsTools:
         assert result["budget"]["used_today_usd"] == pytest.approx(5.0)
         assert result["budget"]["remaining_usd"] == pytest.approx(-4.0)
 
-    def test_get_budget_status_error(self, token_metrics_tools, mock_session_storage):
+    def test_get_budget_status_error(self, token_metrics_tools, mock_session_storage) -> None:
         """get_budget_status handles errors gracefully."""
         tool = token_metrics_tools._tools["get_budget_status"]
         mock_session_storage.get_sessions_since.side_effect = Exception("DB error")

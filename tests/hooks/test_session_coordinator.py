@@ -22,8 +22,12 @@ import time
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # This import should fail initially (red phase) - module doesn't exist yet
 from gobby.hooks.session_coordinator import SessionCoordinator
+
+pytestmark = pytest.mark.unit
 
 if TYPE_CHECKING:
     pass

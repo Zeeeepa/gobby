@@ -24,7 +24,7 @@ def db(tmp_path: Path) -> Generator[LocalDatabase]:
 class TestCreateSkillsRegistry:
     """Tests for create_skills_registry factory function."""
 
-    def test_create_skills_registry_returns_registry(self, db):
+    def test_create_skills_registry_returns_registry(self, db) -> None:
         """Test that create_skills_registry returns an InternalToolRegistry."""
         from gobby.mcp_proxy.tools.internal import InternalToolRegistry
         from gobby.mcp_proxy.tools.skills import create_skills_registry
@@ -33,7 +33,7 @@ class TestCreateSkillsRegistry:
 
         assert isinstance(registry, InternalToolRegistry)
 
-    def test_skills_registry_has_correct_name(self, db):
+    def test_skills_registry_has_correct_name(self, db) -> None:
         """Test that registry has server name 'gobby-skills'."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -41,7 +41,7 @@ class TestCreateSkillsRegistry:
 
         assert registry.name == "gobby-skills"
 
-    def test_skills_registry_has_description(self, db):
+    def test_skills_registry_has_description(self, db) -> None:
         """Test that registry has a description."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -50,7 +50,7 @@ class TestCreateSkillsRegistry:
         assert registry.description is not None
         assert len(registry.description) > 0
 
-    def test_skills_registry_class_is_custom(self, db):
+    def test_skills_registry_class_is_custom(self, db) -> None:
         """Test that SkillsToolRegistry extends InternalToolRegistry."""
         from gobby.mcp_proxy.tools.skills import SkillsToolRegistry, create_skills_registry
 
@@ -58,7 +58,7 @@ class TestCreateSkillsRegistry:
 
         assert isinstance(registry, SkillsToolRegistry)
 
-    def test_skills_registry_has_get_tool_method(self, db):
+    def test_skills_registry_has_get_tool_method(self, db) -> None:
         """Test that registry has get_tool method for testing."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -68,7 +68,7 @@ class TestCreateSkillsRegistry:
         assert hasattr(registry, "get_tool")
         assert callable(registry.get_tool)
 
-    def test_create_skills_registry_accepts_project_id(self, db):
+    def test_create_skills_registry_accepts_project_id(self, db) -> None:
         """Test that factory accepts optional project_id parameter."""
         from gobby.mcp_proxy.tools.skills import create_skills_registry
 
@@ -81,13 +81,13 @@ class TestCreateSkillsRegistry:
 class TestSkillsToolRegistry:
     """Tests for SkillsToolRegistry class."""
 
-    def test_registry_class_exported(self):
+    def test_registry_class_exported(self) -> None:
         """Test that SkillsToolRegistry is exported from module."""
         from gobby.mcp_proxy.tools.skills import SkillsToolRegistry
 
         assert SkillsToolRegistry is not None
 
-    def test_registry_inherits_from_internal_registry(self, db):
+    def test_registry_inherits_from_internal_registry(self, db) -> None:
         """Test that SkillsToolRegistry inherits correctly."""
         from gobby.mcp_proxy.tools.internal import InternalToolRegistry
         from gobby.mcp_proxy.tools.skills import SkillsToolRegistry

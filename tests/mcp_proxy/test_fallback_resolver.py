@@ -6,11 +6,12 @@ import pytest
 
 from gobby.mcp_proxy.services.fallback import FallbackSuggestion, ToolFallbackResolver
 
+pytestmark = pytest.mark.unit
 
 class TestFallbackSuggestion:
     """Tests for FallbackSuggestion dataclass."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test conversion to dictionary."""
         suggestion = FallbackSuggestion(
             server_name="test-server",
@@ -30,7 +31,7 @@ class TestFallbackSuggestion:
         assert result["success_rate"] == 0.92
         assert result["score"] == 0.87
 
-    def test_to_dict_with_none_success_rate(self):
+    def test_to_dict_with_none_success_rate(self) -> None:
         """Test conversion with None success_rate."""
         suggestion = FallbackSuggestion(
             server_name="test-server",
@@ -165,7 +166,7 @@ class TestToolFallbackResolver:
         assert len(result) == 1
         assert result[0].tool_name == "test_tool"
 
-    def test_compute_score_with_success_rate(self, fallback_resolver):
+    def test_compute_score_with_success_rate(self, fallback_resolver) -> None:
         """Test score computation with success rate."""
         score = fallback_resolver._compute_score(
             similarity=0.8,
@@ -176,7 +177,7 @@ class TestToolFallbackResolver:
         expected = 0.8 * 0.7 + 0.9 * 0.3
         assert abs(score - expected) < 0.001
 
-    def test_compute_score_without_success_rate(self, fallback_resolver):
+    def test_compute_score_without_success_rate(self, fallback_resolver) -> None:
         """Test score computation with None success rate uses default."""
         score = fallback_resolver._compute_score(
             similarity=0.8,
@@ -187,7 +188,7 @@ class TestToolFallbackResolver:
         expected = 0.8 * 0.7 + 0.5 * 0.3
         assert abs(score - expected) < 0.001
 
-    def test_build_search_query_basic(self, fallback_resolver):
+    def test_build_search_query_basic(self, fallback_resolver) -> None:
         """Test building search query with just tool name."""
         query = fallback_resolver._build_search_query(
             tool_name="test_tool",
@@ -197,7 +198,7 @@ class TestToolFallbackResolver:
 
         assert "test_tool" in query
 
-    def test_build_search_query_with_description(self, fallback_resolver):
+    def test_build_search_query_with_description(self, fallback_resolver) -> None:
         """Test building search query with description."""
         query = fallback_resolver._build_search_query(
             tool_name="test_tool",
@@ -208,7 +209,7 @@ class TestToolFallbackResolver:
         assert "test_tool" in query
         assert "A tool for testing" in query
 
-    def test_build_search_query_with_error_context(self, fallback_resolver):
+    def test_build_search_query_with_error_context(self, fallback_resolver) -> None:
         """Test building search query with error context."""
         query = fallback_resolver._build_search_query(
             tool_name="test_tool",
@@ -254,7 +255,7 @@ class TestToolFallbackResolver:
 
         assert result == []
 
-    def test_get_success_rate_returns_none_without_metrics(self, mock_semantic_search):
+    def test_get_success_rate_returns_none_without_metrics(self, mock_semantic_search) -> None:
         """Test that success rate returns None without metrics manager."""
         resolver = ToolFallbackResolver(
             semantic_search=mock_semantic_search,
@@ -265,7 +266,7 @@ class TestToolFallbackResolver:
 
         assert rate is None
 
-    def test_get_success_rate_handles_error(self, fallback_resolver, mock_metrics_manager):
+    def test_get_success_rate_handles_error(self, fallback_resolver, mock_metrics_manager) -> None:
         """Test graceful handling of metrics lookup errors."""
         mock_metrics_manager.get_tool_success_rate = MagicMock(side_effect=Exception("DB error"))
 

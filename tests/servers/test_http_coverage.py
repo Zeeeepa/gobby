@@ -24,6 +24,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
+pytestmark = pytest.mark.unit
+
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -825,6 +827,89 @@ class TestHooksEndpoints:
 
             assert response.status_code == 200
             assert response.json()["continue"] is True
+
+    def test_execute_hook_graceful_error_on_adapter_exception(
+        self, session_storage: LocalSessionManager
+    ) -> None:
+        """Test hook returns graceful response when adapter throws exception.
+
+        Instead of returning HTTP 500 (which causes Claude Code to show confusing
+        "hook failed" warnings), the endpoint should return 200 with continue=True
+        and helpful additionalContext.
+        """
+        server = HTTPServer(
+            port=60887,
+            test_mode=True,
+            session_manager=session_storage,
+        )
+
+        mock_hook_manager = MagicMock()
+        server.app.state.hook_manager = mock_hook_manager
+
+        # Mock adapter to throw an exception
+        with patch("gobby.adapters.claude_code.ClaudeCodeAdapter") as MockAdapter:
+            mock_adapter_instance = MagicMock()
+            mock_adapter_instance.handle_native.side_effect = RuntimeError(
+                "Database connection failed"
+            )
+            MockAdapter.return_value = mock_adapter_instance
+
+            client = TestClient(server.app)
+            response = client.post(
+                "/hooks/execute",
+                json={
+                    "hook_type": "pre-tool-use",
+                    "source": "claude",
+                    "input_data": {"tool_name": "Read"},
+                },
+            )
+
+            # Should return 200 OK with graceful response, not 500
+            assert response.status_code == 200
+            data = response.json()
+            assert data["continue"] is True
+            assert data["decision"] == "approve"
+            # Should include helpful context for supported hook types
+            assert "hookSpecificOutput" in data
+            assert data["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+            assert "non-fatal" in data["hookSpecificOutput"]["additionalContext"]
+            assert "Database connection failed" in data["hookSpecificOutput"]["additionalContext"]
+
+    def test_execute_hook_graceful_error_for_unsupported_hook_type(
+        self, session_storage: LocalSessionManager
+    ) -> None:
+        """Test graceful error response for hook types that don't support additionalContext."""
+        server = HTTPServer(
+            port=60887,
+            test_mode=True,
+            session_manager=session_storage,
+        )
+
+        mock_hook_manager = MagicMock()
+        server.app.state.hook_manager = mock_hook_manager
+
+        with patch("gobby.adapters.claude_code.ClaudeCodeAdapter") as MockAdapter:
+            mock_adapter_instance = MagicMock()
+            mock_adapter_instance.handle_native.side_effect = RuntimeError("Some error")
+            MockAdapter.return_value = mock_adapter_instance
+
+            client = TestClient(server.app)
+            response = client.post(
+                "/hooks/execute",
+                json={
+                    "hook_type": "session-start",  # Doesn't support hookSpecificOutput
+                    "source": "claude",
+                    "input_data": {},
+                },
+            )
+
+            # Should still return 200 with continue=True
+            assert response.status_code == 200
+            data = response.json()
+            assert data["continue"] is True
+            assert data["decision"] == "approve"
+            # session-start doesn't support hookSpecificOutput, so no additionalContext
+            assert "hookSpecificOutput" not in data
 
 
 # ============================================================================

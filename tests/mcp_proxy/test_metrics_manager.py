@@ -10,6 +10,7 @@ from gobby.mcp_proxy.metrics import ToolMetrics, ToolMetricsManager
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def metrics_manager(temp_db: "LocalDatabase") -> ToolMetricsManager:
@@ -35,7 +36,7 @@ def metrics_manager(temp_db: "LocalDatabase") -> ToolMetricsManager:
 class TestToolMetrics:
     """Tests for ToolMetrics dataclass."""
 
-    def test_from_row(self):
+    def test_from_row(self) -> None:
         """Test creating ToolMetrics from database row."""
         row = {
             "id": "tm-123",
@@ -63,7 +64,7 @@ class TestToolMetrics:
         assert metrics.total_latency_ms == 1000.0
         assert metrics.avg_latency_ms == 100.0
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting ToolMetrics to dictionary."""
         metrics = ToolMetrics(
             id="tm-123",
@@ -90,7 +91,7 @@ class TestToolMetrics:
         assert result["failure_count"] == 2
         assert result["success_rate"] == 0.8
 
-    def test_to_dict_success_rate_zero_calls(self):
+    def test_to_dict_success_rate_zero_calls(self) -> None:
         """Test success_rate is None when call_count is 0."""
         metrics = ToolMetrics(
             id="tm-123",
@@ -113,7 +114,7 @@ class TestToolMetrics:
 class TestRecordCall:
     """Tests for record_call method."""
 
-    def test_record_first_call_success(self, metrics_manager: ToolMetricsManager):
+    def test_record_first_call_success(self, metrics_manager: ToolMetricsManager) -> None:
         """Test recording first successful call creates new record."""
         metrics_manager.record_call(
             server_name="test-server",
@@ -128,7 +129,7 @@ class TestRecordCall:
         assert result["summary"]["total_success"] == 1
         assert result["summary"]["total_failure"] == 0
 
-    def test_record_first_call_failure(self, metrics_manager: ToolMetricsManager):
+    def test_record_first_call_failure(self, metrics_manager: ToolMetricsManager) -> None:
         """Test recording first failed call creates new record."""
         metrics_manager.record_call(
             server_name="test-server",
@@ -143,7 +144,7 @@ class TestRecordCall:
         assert result["summary"]["total_success"] == 0
         assert result["summary"]["total_failure"] == 1
 
-    def test_record_multiple_calls_increments(self, metrics_manager: ToolMetricsManager):
+    def test_record_multiple_calls_increments(self, metrics_manager: ToolMetricsManager) -> None:
         """Test multiple calls increment counters correctly."""
         # Record 3 successes and 2 failures
         for _ in range(3):
@@ -172,13 +173,13 @@ class TestRecordCall:
 class TestGetMetrics:
     """Tests for get_metrics method."""
 
-    def test_get_metrics_empty_database(self, metrics_manager: ToolMetricsManager):
+    def test_get_metrics_empty_database(self, metrics_manager: ToolMetricsManager) -> None:
         """Test get_metrics returns empty result for empty database."""
         result = metrics_manager.get_metrics()
         assert result["tools"] == []
         assert result["summary"]["total_calls"] == 0
 
-    def test_get_metrics_filter_by_project(self, metrics_manager: ToolMetricsManager):
+    def test_get_metrics_filter_by_project(self, metrics_manager: ToolMetricsManager) -> None:
         """Test filtering metrics by project_id."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server1", "tool1", "proj-2", 100.0, True)
@@ -188,7 +189,7 @@ class TestGetMetrics:
         assert len(result["tools"]) == 1
         assert result["tools"][0]["project_id"] == "proj-1"
 
-    def test_get_metrics_filter_by_server(self, metrics_manager: ToolMetricsManager):
+    def test_get_metrics_filter_by_server(self, metrics_manager: ToolMetricsManager) -> None:
         """Test filtering metrics by server_name."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server2", "tool2", "proj-1", 100.0, True)
@@ -197,7 +198,7 @@ class TestGetMetrics:
         assert result["summary"]["total_calls"] == 1
         assert result["tools"][0]["server_name"] == "server1"
 
-    def test_get_metrics_filter_by_tool(self, metrics_manager: ToolMetricsManager):
+    def test_get_metrics_filter_by_tool(self, metrics_manager: ToolMetricsManager) -> None:
         """Test filtering metrics by tool_name."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server1", "tool2", "proj-1", 100.0, True)
@@ -206,7 +207,7 @@ class TestGetMetrics:
         assert result["summary"]["total_calls"] == 1
         assert result["tools"][0]["tool_name"] == "tool1"
 
-    def test_get_metrics_aggregates(self, metrics_manager: ToolMetricsManager):
+    def test_get_metrics_aggregates(self, metrics_manager: ToolMetricsManager) -> None:
         """Test aggregate calculations in get_metrics."""
         # Record calls with different latencies
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
@@ -225,12 +226,12 @@ class TestGetMetrics:
 class TestGetTopTools:
     """Tests for get_top_tools method."""
 
-    def test_get_top_tools_empty_database(self, metrics_manager: ToolMetricsManager):
+    def test_get_top_tools_empty_database(self, metrics_manager: ToolMetricsManager) -> None:
         """Test get_top_tools returns empty list for empty database."""
         result = metrics_manager.get_top_tools()
         assert result == []
 
-    def test_get_top_tools_by_call_count(self, metrics_manager: ToolMetricsManager):
+    def test_get_top_tools_by_call_count(self, metrics_manager: ToolMetricsManager) -> None:
         """Test ordering tools by call_count."""
         # Record different numbers of calls for different tools
         for _ in range(5):
@@ -243,7 +244,7 @@ class TestGetTopTools:
         assert result[0]["tool_name"] == "popular_tool"
         assert result[0]["call_count"] == 5
 
-    def test_get_top_tools_with_limit(self, metrics_manager: ToolMetricsManager):
+    def test_get_top_tools_with_limit(self, metrics_manager: ToolMetricsManager) -> None:
         """Test limit parameter works correctly."""
         for i in range(5):
             metrics_manager.record_call("server1", f"tool{i}", "proj-1", 100.0, True)
@@ -251,7 +252,7 @@ class TestGetTopTools:
         result = metrics_manager.get_top_tools(limit=3)
         assert len(result) == 3
 
-    def test_get_top_tools_invalid_order_falls_back(self, metrics_manager: ToolMetricsManager):
+    def test_get_top_tools_invalid_order_falls_back(self, metrics_manager: ToolMetricsManager) -> None:
         """Test invalid order_by falls back to call_count."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
 
@@ -259,7 +260,7 @@ class TestGetTopTools:
         result = metrics_manager.get_top_tools(order_by="invalid_column")
         assert len(result) == 1
 
-    def test_get_top_tools_filter_by_project(self, metrics_manager: ToolMetricsManager):
+    def test_get_top_tools_filter_by_project(self, metrics_manager: ToolMetricsManager) -> None:
         """Test filtering by project_id."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server1", "tool2", "proj-2", 100.0, True)
@@ -272,7 +273,7 @@ class TestGetTopTools:
 class TestGetToolSuccessRate:
     """Tests for get_tool_success_rate method."""
 
-    def test_success_rate_nonexistent_tool(self, metrics_manager: ToolMetricsManager):
+    def test_success_rate_nonexistent_tool(self, metrics_manager: ToolMetricsManager) -> None:
         """Test success rate returns None for nonexistent tool."""
         result = metrics_manager.get_tool_success_rate(
             server_name="server1",
@@ -281,7 +282,7 @@ class TestGetToolSuccessRate:
         )
         assert result is None
 
-    def test_success_rate_calculation(self, metrics_manager: ToolMetricsManager):
+    def test_success_rate_calculation(self, metrics_manager: ToolMetricsManager) -> None:
         """Test success rate calculation."""
         # Record 8 successes and 2 failures
         for _ in range(8):
@@ -296,7 +297,7 @@ class TestGetToolSuccessRate:
         )
         assert result == pytest.approx(0.8, rel=0.01)
 
-    def test_success_rate_all_success(self, metrics_manager: ToolMetricsManager):
+    def test_success_rate_all_success(self, metrics_manager: ToolMetricsManager) -> None:
         """Test success rate with all successes."""
         for _ in range(5):
             metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
@@ -308,7 +309,7 @@ class TestGetToolSuccessRate:
         )
         assert result == 1.0
 
-    def test_success_rate_all_failures(self, metrics_manager: ToolMetricsManager):
+    def test_success_rate_all_failures(self, metrics_manager: ToolMetricsManager) -> None:
         """Test success rate with all failures."""
         for _ in range(5):
             metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, False)
@@ -324,12 +325,12 @@ class TestGetToolSuccessRate:
 class TestGetFailingTools:
     """Tests for get_failing_tools method."""
 
-    def test_get_failing_tools_empty(self, metrics_manager: ToolMetricsManager):
+    def test_get_failing_tools_empty(self, metrics_manager: ToolMetricsManager) -> None:
         """Test get_failing_tools returns empty list when no failures."""
         result = metrics_manager.get_failing_tools()
         assert result == []
 
-    def test_get_failing_tools_above_threshold(self, metrics_manager: ToolMetricsManager):
+    def test_get_failing_tools_above_threshold(self, metrics_manager: ToolMetricsManager) -> None:
         """Test get_failing_tools filters by threshold."""
         # Tool with 60% failure rate (above default 50% threshold)
         for _ in range(4):
@@ -348,7 +349,7 @@ class TestGetFailingTools:
         assert result[0]["tool_name"] == "failing_tool"
         assert result[0]["failure_rate"] == pytest.approx(0.4, rel=0.01)
 
-    def test_get_failing_tools_filter_by_project(self, metrics_manager: ToolMetricsManager):
+    def test_get_failing_tools_filter_by_project(self, metrics_manager: ToolMetricsManager) -> None:
         """Test filtering failing tools by project."""
         for _ in range(5):
             metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, False)
@@ -360,7 +361,7 @@ class TestGetFailingTools:
         assert result[0]["project_id"] == "proj-1"
 
     @pytest.mark.integration
-    def test_get_failing_tools_respects_limit(self, metrics_manager: ToolMetricsManager):
+    def test_get_failing_tools_respects_limit(self, metrics_manager: ToolMetricsManager) -> None:
         """Test limit parameter works correctly."""
         for i in range(5):
             for _ in range(5):
@@ -373,7 +374,7 @@ class TestGetFailingTools:
 class TestResetMetrics:
     """Tests for reset_metrics method."""
 
-    def test_reset_all_metrics(self, metrics_manager: ToolMetricsManager):
+    def test_reset_all_metrics(self, metrics_manager: ToolMetricsManager) -> None:
         """Test resetting all metrics."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server2", "tool2", "proj-2", 100.0, True)
@@ -384,7 +385,7 @@ class TestResetMetrics:
         result = metrics_manager.get_metrics()
         assert result["summary"]["total_calls"] == 0
 
-    def test_reset_by_project(self, metrics_manager: ToolMetricsManager):
+    def test_reset_by_project(self, metrics_manager: ToolMetricsManager) -> None:
         """Test resetting metrics for specific project."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server1", "tool2", "proj-2", 100.0, True)
@@ -396,7 +397,7 @@ class TestResetMetrics:
         assert result["summary"]["total_calls"] == 1
         assert result["tools"][0]["project_id"] == "proj-2"
 
-    def test_reset_by_server(self, metrics_manager: ToolMetricsManager):
+    def test_reset_by_server(self, metrics_manager: ToolMetricsManager) -> None:
         """Test resetting metrics for specific server."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
         metrics_manager.record_call("server2", "tool2", "proj-1", 100.0, True)
@@ -413,7 +414,7 @@ class TestCleanupOldMetrics:
 
     def test_cleanup_old_metrics(
         self, metrics_manager: ToolMetricsManager, temp_db: "LocalDatabase"
-    ):
+    ) -> None:
         """Test cleanup deletes old metrics."""
         # Insert a metric with old timestamp
         old_time = (datetime.now(UTC) - timedelta(days=10)).isoformat()
@@ -458,7 +459,7 @@ class TestCleanupOldMetrics:
 class TestGetRetentionStats:
     """Tests for get_retention_stats method."""
 
-    def test_retention_stats_empty(self, metrics_manager: ToolMetricsManager):
+    def test_retention_stats_empty(self, metrics_manager: ToolMetricsManager) -> None:
         """Test retention stats for empty database."""
         result = metrics_manager.get_retention_stats()
         assert result["total_metrics"] == 0
@@ -466,7 +467,7 @@ class TestGetRetentionStats:
         assert result["newest_metric"] is None
         assert result["total_calls_recorded"] is None or result["total_calls_recorded"] == 0
 
-    def test_retention_stats_with_data(self, metrics_manager: ToolMetricsManager):
+    def test_retention_stats_with_data(self, metrics_manager: ToolMetricsManager) -> None:
         """Test retention stats with data."""
         # Record some calls
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
@@ -483,7 +484,7 @@ class TestGetRetentionStats:
 class TestGetDailyMetrics:
     """Tests for get_daily_metrics method."""
 
-    def test_get_daily_metrics_empty(self, metrics_manager: ToolMetricsManager):
+    def test_get_daily_metrics_empty(self, metrics_manager: ToolMetricsManager) -> None:
         """Test get_daily_metrics returns empty for no daily data."""
         result = metrics_manager.get_daily_metrics()
         assert result["daily"] == []
@@ -491,7 +492,7 @@ class TestGetDailyMetrics:
 
     def test_get_daily_metrics_with_filters(
         self, metrics_manager: ToolMetricsManager, temp_db: "LocalDatabase"
-    ):
+    ) -> None:
         """Test get_daily_metrics with filters."""
         # Insert daily metrics directly
         temp_db.execute(

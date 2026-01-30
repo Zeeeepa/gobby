@@ -18,29 +18,30 @@ from gobby.cli.utils import (
     wait_for_port_available,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestFormatUptime:
     """Tests for format_uptime function."""
 
-    def test_seconds_only(self):
+    def test_seconds_only(self) -> None:
         """Test formatting seconds only."""
         assert format_uptime(45) == "45s"
         assert format_uptime(1) == "1s"
         assert format_uptime(0) == "0s"
 
-    def test_minutes_and_seconds(self):
+    def test_minutes_and_seconds(self) -> None:
         """Test formatting minutes and seconds."""
         assert format_uptime(90) == "1m 30s"
         assert format_uptime(125) == "2m 5s"
         assert format_uptime(60) == "1m"
 
-    def test_hours_minutes_seconds(self):
+    def test_hours_minutes_seconds(self) -> None:
         """Test formatting hours, minutes, and seconds."""
         assert format_uptime(3661) == "1h 1m 1s"
         assert format_uptime(7200) == "2h"
         assert format_uptime(3720) == "1h 2m"
 
-    def test_hours_and_seconds_no_minutes(self):
+    def test_hours_and_seconds_no_minutes(self) -> None:
         """Test hours with seconds but no minutes."""
         assert format_uptime(3605) == "1h 5s"
 
@@ -48,7 +49,7 @@ class TestFormatUptime:
 class TestIsPortAvailable:
     """Tests for is_port_available function."""
 
-    def test_available_port(self):
+    def test_available_port(self) -> None:
         """Test checking an available port."""
         # Port 0 always finds an available port
         import socket
@@ -61,7 +62,7 @@ class TestIsPortAvailable:
         # After closing, the port should be available
         assert is_port_available(port) is True
 
-    def test_unavailable_port(self):
+    def test_unavailable_port(self) -> None:
         """Test that is_port_available returns False when port is used."""
         import socket
 
@@ -86,7 +87,7 @@ class TestIsPortAvailable:
 class TestWaitForPortAvailable:
     """Tests for wait_for_port_available function."""
 
-    def test_port_immediately_available(self):
+    def test_port_immediately_available(self) -> None:
         """Test waiting for a port that's already available."""
         # Use port 0 to get an available port
         import socket
@@ -100,7 +101,7 @@ class TestWaitForPortAvailable:
         result = wait_for_port_available(port, timeout=0.5)
         assert result is True
 
-    def test_port_never_available_timeout(self):
+    def test_port_never_available_timeout(self) -> None:
         """Test that wait_for_port_available returns False on timeout."""
         import socket
 
@@ -121,40 +122,40 @@ class TestCLIDetection:
     """Tests for CLI detection functions."""
 
     @patch("shutil.which")
-    def test_is_claude_code_installed_found(self, mock_which: MagicMock):
+    def test_is_claude_code_installed_found(self, mock_which: MagicMock) -> None:
         """Test Claude Code detection when installed."""
         mock_which.return_value = "/usr/local/bin/claude"
         assert _is_claude_code_installed() is True
         mock_which.assert_called_once_with("claude")
 
     @patch("shutil.which")
-    def test_is_claude_code_installed_not_found(self, mock_which: MagicMock):
+    def test_is_claude_code_installed_not_found(self, mock_which: MagicMock) -> None:
         """Test Claude Code detection when not installed."""
         mock_which.return_value = None
         assert _is_claude_code_installed() is False
 
     @patch("shutil.which")
-    def test_is_gemini_cli_installed_found(self, mock_which: MagicMock):
+    def test_is_gemini_cli_installed_found(self, mock_which: MagicMock) -> None:
         """Test Gemini CLI detection when installed."""
         mock_which.return_value = "/usr/local/bin/gemini"
         assert _is_gemini_cli_installed() is True
         mock_which.assert_called_once_with("gemini")
 
     @patch("shutil.which")
-    def test_is_gemini_cli_installed_not_found(self, mock_which: MagicMock):
+    def test_is_gemini_cli_installed_not_found(self, mock_which: MagicMock) -> None:
         """Test Gemini CLI detection when not installed."""
         mock_which.return_value = None
         assert _is_gemini_cli_installed() is False
 
     @patch("shutil.which")
-    def test_is_codex_cli_installed_found(self, mock_which: MagicMock):
+    def test_is_codex_cli_installed_found(self, mock_which: MagicMock) -> None:
         """Test Codex CLI detection when installed."""
         mock_which.return_value = "/usr/local/bin/codex"
         assert _is_codex_cli_installed() is True
         mock_which.assert_called_once_with("codex")
 
     @patch("shutil.which")
-    def test_is_codex_cli_installed_not_found(self, mock_which: MagicMock):
+    def test_is_codex_cli_installed_not_found(self, mock_which: MagicMock) -> None:
         """Test Codex CLI detection when not installed."""
         mock_which.return_value = None
         assert _is_codex_cli_installed() is False
@@ -168,55 +169,55 @@ class TestCLICommands:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_cli_help(self, runner: CliRunner):
+    def test_cli_help(self, runner: CliRunner) -> None:
         """Test --help displays help text."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
         assert "Gobby" in result.output
 
-    def test_start_help(self, runner: CliRunner):
+    def test_start_help(self, runner: CliRunner) -> None:
         """Test start --help displays help."""
         result = runner.invoke(cli, ["start", "--help"])
         assert result.exit_code == 0
         assert "Start the Gobby daemon" in result.output
 
-    def test_stop_help(self, runner: CliRunner):
+    def test_stop_help(self, runner: CliRunner) -> None:
         """Test stop --help displays help."""
         result = runner.invoke(cli, ["stop", "--help"])
         assert result.exit_code == 0
         assert "Stop the Gobby daemon" in result.output
 
-    def test_status_help(self, runner: CliRunner):
+    def test_status_help(self, runner: CliRunner) -> None:
         """Test status --help displays help."""
         result = runner.invoke(cli, ["status", "--help"])
         assert result.exit_code == 0
         assert "Show Gobby daemon status" in result.output
 
-    def test_restart_help(self, runner: CliRunner):
+    def test_restart_help(self, runner: CliRunner) -> None:
         """Test restart --help displays help."""
         result = runner.invoke(cli, ["restart", "--help"])
         assert result.exit_code == 0
         assert "Restart the Gobby daemon" in result.output
 
-    def test_init_help(self, runner: CliRunner):
+    def test_init_help(self, runner: CliRunner) -> None:
         """Test init --help displays help."""
         result = runner.invoke(cli, ["init", "--help"])
         assert result.exit_code == 0
         assert "Initialize a new Gobby project" in result.output
 
-    def test_install_help(self, runner: CliRunner):
+    def test_install_help(self, runner: CliRunner) -> None:
         """Test install --help displays help."""
         result = runner.invoke(cli, ["install", "--help"])
         assert result.exit_code == 0
         assert "Install Gobby hooks" in result.output
 
-    def test_uninstall_help(self, runner: CliRunner):
+    def test_uninstall_help(self, runner: CliRunner) -> None:
         """Test uninstall --help displays help."""
         result = runner.invoke(cli, ["uninstall", "--help"])
         assert result.exit_code == 0
         assert "Uninstall Gobby hooks" in result.output
 
-    def test_mcp_server_help(self, runner: CliRunner):
+    def test_mcp_server_help(self, runner: CliRunner) -> None:
         """Test mcp-server --help displays help."""
         result = runner.invoke(cli, ["mcp-server", "--help"])
         assert result.exit_code == 0
@@ -239,7 +240,7 @@ class TestStatusCommand:
         mock_load_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test status when no PID file exists."""
         mock_config = MagicMock()
         mock_config.logging.client = str(temp_dir / "logs" / "client.log")
@@ -271,7 +272,7 @@ class TestInitCommand:
         mock_init: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initializing a new project."""
         mock_load_config.return_value = MagicMock()
 
@@ -297,7 +298,7 @@ class TestInitCommand:
         mock_init: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initializing when project already exists."""
         mock_load_config.return_value = MagicMock()
 
@@ -334,7 +335,7 @@ class TestInstallCommand:
         mock_claude: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test install when no CLIs are detected."""
         mock_load_config.return_value = MagicMock()
         mock_claude.return_value = False
@@ -356,15 +357,19 @@ class TestUninstallCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
+    @patch("gobby.cli.install.Path.home")
     @patch("gobby.cli.load_config")
     def test_uninstall_no_hooks_found(
         self,
         mock_load_config: MagicMock,
+        mock_path_home: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test uninstall when no hooks are found."""
         mock_load_config.return_value = MagicMock()
+        # Mock home directory to prevent finding actual hooks on dev machine
+        mock_path_home.return_value = temp_dir
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             # Confirm the uninstall

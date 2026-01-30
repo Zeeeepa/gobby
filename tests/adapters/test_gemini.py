@@ -20,23 +20,24 @@ import pytest
 from gobby.adapters.gemini import GeminiAdapter
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 
+pytestmark = pytest.mark.unit
 
 class TestGeminiAdapterInit:
     """Tests for GeminiAdapter initialization."""
 
-    def test_init_without_hook_manager(self):
+    def test_init_without_hook_manager(self) -> None:
         """GeminiAdapter initializes without hook_manager."""
         adapter = GeminiAdapter()
         assert adapter._hook_manager is None
         assert adapter._machine_id is None
 
-    def test_init_with_hook_manager(self):
+    def test_init_with_hook_manager(self) -> None:
         """GeminiAdapter stores hook_manager reference."""
         mock_manager = MagicMock()
         adapter = GeminiAdapter(hook_manager=mock_manager)
         assert adapter._hook_manager is mock_manager
 
-    def test_source_is_gemini(self):
+    def test_source_is_gemini(self) -> None:
         """GeminiAdapter reports GEMINI as source."""
         adapter = GeminiAdapter()
         assert adapter.source == SessionSource.GEMINI
@@ -66,11 +67,11 @@ class TestEventTypeMapping:
             ("Notification", HookEventType.NOTIFICATION),
         ],
     )
-    def test_event_map_coverage(self, adapter, gemini_type, expected_type):
+    def test_event_map_coverage(self, adapter, gemini_type, expected_type) -> None:
         """EVENT_MAP maps all Gemini hook types correctly."""
         assert adapter.EVENT_MAP[gemini_type] == expected_type
 
-    def test_event_map_has_all_gemini_types(self, adapter):
+    def test_event_map_has_all_gemini_types(self, adapter) -> None:
         """EVENT_MAP contains exactly 11 Gemini hook types."""
         assert len(adapter.EVENT_MAP) == 11
 
@@ -90,11 +91,12 @@ class TestEventTypeMapping:
             ("notification", "Notification"),
         ],
     )
-    def test_hook_event_name_map_coverage(self, adapter, event_type_value, expected_gemini_name):
+    def test_hook_event_name_map_coverage(self, adapter, event_type_value, expected_gemini_name) -> None:
         """HOOK_EVENT_NAME_MAP reverse maps all event types correctly."""
         assert adapter.HOOK_EVENT_NAME_MAP[event_type_value] == expected_gemini_name
 
 
+@pytest.mark.unit
 class TestToolNameNormalization:
     """Tests for Gemini tool name normalization."""
 
@@ -106,32 +108,49 @@ class TestToolNameNormalization:
     @pytest.mark.parametrize(
         "gemini_tool,expected_tool",
         [
+            # Shell/Bash
             ("run_shell_command", "Bash"),
             ("RunShellCommand", "Bash"),
+            ("ShellTool", "Bash"),
+            # File read
             ("read_file", "Read"),
             ("ReadFile", "Read"),
             ("ReadFileTool", "Read"),
+            # File write
             ("write_file", "Write"),
             ("WriteFile", "Write"),
             ("WriteFileTool", "Write"),
+            # File edit
             ("edit_file", "Edit"),
             ("EditFile", "Edit"),
             ("EditFileTool", "Edit"),
+            # Search/Glob/Grep
             ("GlobTool", "Glob"),
             ("GrepTool", "Grep"),
-            ("ShellTool", "Bash"),
+            ("search_file_content", "Grep"),
+            ("SearchText", "Grep"),
+            # MCP tools (Gobby MCP server)
+            ("call_tool", "mcp__gobby__call_tool"),
+            ("list_mcp_servers", "mcp__gobby__list_mcp_servers"),
+            ("list_tools", "mcp__gobby__list_tools"),
+            ("get_tool_schema", "mcp__gobby__get_tool_schema"),
+            ("search_tools", "mcp__gobby__search_tools"),
+            ("recommend_tools", "mcp__gobby__recommend_tools"),
+            # Skill and agent tools
+            ("activate_skill", "Skill"),
+            ("delegate_to_agent", "Task"),
         ],
     )
-    def test_tool_map_coverage(self, adapter, gemini_tool, expected_tool):
+    def test_tool_map_coverage(self, adapter, gemini_tool, expected_tool) -> None:
         """TOOL_MAP normalizes all known Gemini tool names."""
         assert adapter.normalize_tool_name(gemini_tool) == expected_tool
 
-    def test_unknown_tool_passes_through(self, adapter):
+    def test_unknown_tool_passes_through(self, adapter) -> None:
         """Unknown tool names pass through unchanged."""
         assert adapter.normalize_tool_name("CustomTool") == "CustomTool"
         assert adapter.normalize_tool_name("mcp_server_tool") == "mcp_server_tool"
 
-    def test_empty_tool_name(self, adapter):
+    def test_empty_tool_name(self, adapter) -> None:
         """Empty tool name passes through unchanged."""
         assert adapter.normalize_tool_name("") == ""
 
@@ -139,7 +158,7 @@ class TestToolNameNormalization:
 class TestMachineId:
     """Tests for machine ID generation and caching."""
 
-    def test_get_machine_id_uses_platform_node(self):
+    def test_get_machine_id_uses_platform_node(self) -> None:
         """Machine ID is derived from platform.node()."""
         adapter = GeminiAdapter()
         with patch.object(platform, "node", return_value="test-hostname"):
@@ -149,7 +168,7 @@ class TestMachineId:
             expected = str(uuid.uuid5(uuid.NAMESPACE_DNS, "test-hostname"))
             assert machine_id == expected
 
-    def test_get_machine_id_caches_result(self):
+    def test_get_machine_id_caches_result(self) -> None:
         """Machine ID is cached after first generation."""
         adapter = GeminiAdapter()
         with patch.object(platform, "node", return_value="hostname1") as mock_node:
@@ -160,7 +179,7 @@ class TestMachineId:
             # platform.node() should only be called once
             assert mock_node.call_count == 1
 
-    def test_get_machine_id_fallback_on_empty_node(self):
+    def test_get_machine_id_fallback_on_empty_node(self) -> None:
         """Machine ID falls back to UUID4 when platform.node() is empty."""
         adapter = GeminiAdapter()
         with patch.object(platform, "node", return_value=""):
@@ -169,7 +188,7 @@ class TestMachineId:
             # Should be a valid UUID
             uuid.UUID(machine_id)  # Will raise if invalid
 
-    def test_machine_id_respects_cached_value(self):
+    def test_machine_id_respects_cached_value(self) -> None:
         """Pre-cached machine_id is returned without regeneration."""
         adapter = GeminiAdapter()
         adapter._machine_id = "pre-cached-id"
@@ -189,7 +208,7 @@ class TestTranslateToHookEvent:
         """Create a GeminiAdapter instance."""
         return GeminiAdapter()
 
-    def test_session_start_with_dispatcher_wrapper(self, adapter):
+    def test_session_start_with_dispatcher_wrapper(self, adapter) -> None:
         """Translates SessionStart event with dispatcher wrapper format."""
         native_event = {
             "source": "gemini",
@@ -210,7 +229,7 @@ class TestTranslateToHookEvent:
         assert event.cwd == "/home/user/project"
         assert event.data == native_event["input_data"]
 
-    def test_session_start_without_wrapper(self, adapter):
+    def test_session_start_without_wrapper(self, adapter) -> None:
         """Translates SessionStart event without dispatcher wrapper."""
         native_event = {
             "hook_event_name": "SessionStart",
@@ -225,7 +244,7 @@ class TestTranslateToHookEvent:
         assert event.session_id == "gemini-sess-456"
         assert event.cwd == "/tmp/project"
 
-    def test_before_tool_with_tool_name(self, adapter):
+    def test_before_tool_with_tool_name(self, adapter) -> None:
         """Translates BeforeTool event and normalizes tool name."""
         native_event = {
             "hook_type": "BeforeTool",
@@ -243,7 +262,7 @@ class TestTranslateToHookEvent:
         assert event.metadata["original_tool_name"] == "RunShellCommand"
         assert event.metadata["normalized_tool_name"] == "Bash"
 
-    def test_after_tool_with_tool_name(self, adapter):
+    def test_after_tool_with_tool_name(self, adapter) -> None:
         """Translates AfterTool event and normalizes tool name."""
         native_event = {
             "hook_type": "AfterTool",
@@ -261,7 +280,7 @@ class TestTranslateToHookEvent:
         assert event.metadata["original_tool_name"] == "ReadFileTool"
         assert event.metadata["normalized_tool_name"] == "Read"
 
-    def test_before_model_event(self, adapter):
+    def test_before_model_event(self, adapter) -> None:
         """Translates BeforeModel event (Gemini-specific)."""
         native_event = {
             "hook_type": "BeforeModel",
@@ -278,7 +297,7 @@ class TestTranslateToHookEvent:
         assert event.event_type == HookEventType.BEFORE_MODEL
         assert event.data["model"] == "gemini-2.0-flash-exp"
 
-    def test_after_model_event(self, adapter):
+    def test_after_model_event(self, adapter) -> None:
         """Translates AfterModel event (Gemini-specific)."""
         native_event = {
             "hook_type": "AfterModel",
@@ -293,7 +312,7 @@ class TestTranslateToHookEvent:
 
         assert event.event_type == HookEventType.AFTER_MODEL
 
-    def test_before_tool_selection_event(self, adapter):
+    def test_before_tool_selection_event(self, adapter) -> None:
         """Translates BeforeToolSelection event (Gemini-specific)."""
         native_event = {
             "hook_type": "BeforeToolSelection",
@@ -308,7 +327,7 @@ class TestTranslateToHookEvent:
 
         assert event.event_type == HookEventType.BEFORE_TOOL_SELECTION
 
-    def test_pre_compress_event(self, adapter):
+    def test_pre_compress_event(self, adapter) -> None:
         """Translates PreCompress to PRE_COMPACT."""
         native_event = {
             "hook_type": "PreCompress",
@@ -323,7 +342,7 @@ class TestTranslateToHookEvent:
 
         assert event.event_type == HookEventType.PRE_COMPACT
 
-    def test_notification_event(self, adapter):
+    def test_notification_event(self, adapter) -> None:
         """Translates Notification event."""
         native_event = {
             "hook_type": "Notification",
@@ -339,7 +358,7 @@ class TestTranslateToHookEvent:
 
         assert event.event_type == HookEventType.NOTIFICATION
 
-    def test_unknown_event_type_defaults_to_notification(self, adapter):
+    def test_unknown_event_type_defaults_to_notification(self, adapter) -> None:
         """Unknown event types default to NOTIFICATION (fail-open)."""
         native_event = {
             "hook_type": "UnknownHookType",
@@ -353,7 +372,7 @@ class TestTranslateToHookEvent:
 
         assert event.event_type == HookEventType.NOTIFICATION
 
-    def test_timestamp_parsing_iso_with_z(self, adapter):
+    def test_timestamp_parsing_iso_with_z(self, adapter) -> None:
         """Parses ISO timestamp with Z suffix."""
         native_event = {
             "hook_type": "SessionStart",
@@ -371,7 +390,7 @@ class TestTranslateToHookEvent:
         assert event.timestamp.hour == 10
         assert event.timestamp.minute == 30
 
-    def test_timestamp_parsing_iso_with_offset(self, adapter):
+    def test_timestamp_parsing_iso_with_offset(self, adapter) -> None:
         """Parses ISO timestamp with timezone offset."""
         native_event = {
             "hook_type": "SessionStart",
@@ -386,7 +405,7 @@ class TestTranslateToHookEvent:
         assert event.timestamp.year == 2025
         assert event.timestamp.hour == 15
 
-    def test_timestamp_missing_uses_current_time(self, adapter):
+    def test_timestamp_missing_uses_current_time(self, adapter) -> None:
         """Missing timestamp uses current time."""
         native_event = {
             "hook_type": "SessionStart",
@@ -401,7 +420,7 @@ class TestTranslateToHookEvent:
 
         assert before <= event.timestamp <= after
 
-    def test_timestamp_invalid_uses_current_time(self, adapter):
+    def test_timestamp_invalid_uses_current_time(self, adapter) -> None:
         """Invalid timestamp format uses current time."""
         native_event = {
             "hook_type": "SessionStart",
@@ -417,7 +436,7 @@ class TestTranslateToHookEvent:
 
         assert before <= event.timestamp <= after
 
-    def test_machine_id_from_payload(self, adapter):
+    def test_machine_id_from_payload(self, adapter) -> None:
         """Uses machine_id from payload if provided."""
         native_event = {
             "hook_type": "SessionStart",
@@ -431,7 +450,7 @@ class TestTranslateToHookEvent:
 
         assert event.machine_id == "provided-machine-id"
 
-    def test_machine_id_generated_when_missing(self, adapter):
+    def test_machine_id_generated_when_missing(self, adapter) -> None:
         """Generates machine_id when not in payload."""
         native_event = {
             "hook_type": "SessionStart",
@@ -446,7 +465,7 @@ class TestTranslateToHookEvent:
             expected_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, "test-host"))
             assert event.machine_id == expected_id
 
-    def test_empty_session_id(self, adapter):
+    def test_empty_session_id(self, adapter) -> None:
         """Handles empty session_id."""
         native_event = {
             "hook_type": "SessionStart",
@@ -457,7 +476,7 @@ class TestTranslateToHookEvent:
 
         assert event.session_id == ""
 
-    def test_cwd_extracted_from_input_data(self, adapter):
+    def test_cwd_extracted_from_input_data(self, adapter) -> None:
         """Extracts cwd from input_data."""
         native_event = {
             "hook_type": "SessionStart",
@@ -471,7 +490,7 @@ class TestTranslateToHookEvent:
 
         assert event.cwd == "/path/to/project"
 
-    def test_cwd_none_when_missing(self, adapter):
+    def test_cwd_none_when_missing(self, adapter) -> None:
         """cwd is None when not in payload."""
         native_event = {
             "hook_type": "SessionStart",
@@ -484,7 +503,7 @@ class TestTranslateToHookEvent:
 
         assert event.cwd is None
 
-    def test_no_metadata_when_no_tool_name(self, adapter):
+    def test_no_metadata_when_no_tool_name(self, adapter) -> None:
         """Metadata is empty when no tool_name in event."""
         native_event = {
             "hook_type": "SessionStart",
@@ -506,7 +525,7 @@ class TestTranslateFromHookResponse:
         """Create a GeminiAdapter instance."""
         return GeminiAdapter()
 
-    def test_allow_decision(self, adapter):
+    def test_allow_decision(self, adapter) -> None:
         """Translates allow decision."""
         response = HookResponse(decision="allow")
 
@@ -516,7 +535,7 @@ class TestTranslateFromHookResponse:
         assert "reason" not in result
         assert "hookSpecificOutput" not in result
 
-    def test_deny_decision_with_reason(self, adapter):
+    def test_deny_decision_with_reason(self, adapter) -> None:
         """Translates deny decision with reason."""
         response = HookResponse(decision="deny", reason="Policy violation")
 
@@ -525,7 +544,7 @@ class TestTranslateFromHookResponse:
         assert result["decision"] == "deny"
         assert result["reason"] == "Policy violation"
 
-    def test_block_decision(self, adapter):
+    def test_block_decision(self, adapter) -> None:
         """Translates block decision."""
         response = HookResponse(decision="block", reason="Blocked by workflow")
 
@@ -534,7 +553,7 @@ class TestTranslateFromHookResponse:
         assert result["decision"] == "block"
         assert result["reason"] == "Blocked by workflow"
 
-    def test_context_injection(self, adapter):
+    def test_context_injection(self, adapter) -> None:
         """Translates context to hookSpecificOutput.additionalContext."""
         response = HookResponse(
             decision="allow",
@@ -548,7 +567,7 @@ class TestTranslateFromHookResponse:
             "Remember to follow coding standards."
         )
 
-    def test_system_message(self, adapter):
+    def test_system_message(self, adapter) -> None:
         """Translates system_message to systemMessage."""
         response = HookResponse(
             decision="allow",
@@ -559,7 +578,7 @@ class TestTranslateFromHookResponse:
 
         assert result["systemMessage"] == "Session handoff in progress"
 
-    def test_before_model_modify_args(self, adapter):
+    def test_before_model_modify_args(self, adapter) -> None:
         """Translates modify_args for BeforeModel hook."""
         response = HookResponse(
             decision="allow",
@@ -573,7 +592,7 @@ class TestTranslateFromHookResponse:
             "max_tokens": 1000,
         }
 
-    def test_before_tool_selection_modify_args(self, adapter):
+    def test_before_tool_selection_modify_args(self, adapter) -> None:
         """Translates modify_args for BeforeToolSelection hook."""
         response = HookResponse(
             decision="allow",
@@ -586,7 +605,7 @@ class TestTranslateFromHookResponse:
             "allowed_tools": ["read_file", "write_file"]
         }
 
-    def test_modify_args_ignored_for_other_hooks(self, adapter):
+    def test_modify_args_ignored_for_other_hooks(self, adapter) -> None:
         """modify_args is ignored for non-BeforeModel/BeforeToolSelection hooks."""
         response = HookResponse(
             decision="allow",
@@ -597,7 +616,7 @@ class TestTranslateFromHookResponse:
 
         assert "hookSpecificOutput" not in result
 
-    def test_no_hook_specific_output_when_empty(self, adapter):
+    def test_no_hook_specific_output_when_empty(self, adapter) -> None:
         """hookSpecificOutput is not included when empty."""
         response = HookResponse(decision="allow")
 
@@ -605,7 +624,7 @@ class TestTranslateFromHookResponse:
 
         assert "hookSpecificOutput" not in result
 
-    def test_combined_context_and_modify_args(self, adapter):
+    def test_combined_context_and_modify_args(self, adapter) -> None:
         """Translates both context and modify_args together."""
         response = HookResponse(
             decision="allow",
@@ -618,7 +637,7 @@ class TestTranslateFromHookResponse:
         assert result["hookSpecificOutput"]["additionalContext"] == "Use JSON format"
         assert result["hookSpecificOutput"]["llm_request"]["temperature"] == 0.7
 
-    def test_all_fields_combined(self, adapter):
+    def test_all_fields_combined(self, adapter) -> None:
         """Translates response with all fields populated."""
         response = HookResponse(
             decision="allow",
@@ -636,7 +655,7 @@ class TestTranslateFromHookResponse:
         assert result["hookSpecificOutput"]["additionalContext"] == "Context text"
         assert result["hookSpecificOutput"]["llm_request"] == {"key": "value"}
 
-    def test_none_hook_type(self, adapter):
+    def test_none_hook_type(self, adapter) -> None:
         """Handles None hook_type gracefully."""
         response = HookResponse(
             decision="allow",
@@ -664,7 +683,7 @@ class TestHandleNative:
         manager.handle.return_value = HookResponse(decision="allow")
         return manager
 
-    def test_handle_native_translates_and_processes(self, adapter, mock_hook_manager):
+    def test_handle_native_translates_and_processes(self, adapter, mock_hook_manager) -> None:
         """handle_native() translates event, processes, and returns response."""
         native_event = {
             "hook_type": "SessionStart",
@@ -685,7 +704,7 @@ class TestHandleNative:
         # Verify response format
         assert result["decision"] == "allow"
 
-    def test_handle_native_preserves_hook_type_for_response(self, adapter, mock_hook_manager):
+    def test_handle_native_preserves_hook_type_for_response(self, adapter, mock_hook_manager) -> None:
         """handle_native() uses original hook_type for response formatting."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="allow",
@@ -704,7 +723,7 @@ class TestHandleNative:
         # BeforeModel-specific formatting should apply
         assert result["hookSpecificOutput"]["llm_request"]["temperature"] == 0.5
 
-    def test_handle_native_extracts_hook_type_from_input_data(self, adapter, mock_hook_manager):
+    def test_handle_native_extracts_hook_type_from_input_data(self, adapter, mock_hook_manager) -> None:
         """handle_native() extracts hook_type from input_data if not in wrapper."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="allow",
@@ -723,7 +742,7 @@ class TestHandleNative:
         # BeforeToolSelection-specific formatting should apply
         assert result["hookSpecificOutput"]["toolConfig"]["tool_filter"] == ["read"]
 
-    def test_handle_native_deny_response(self, adapter, mock_hook_manager):
+    def test_handle_native_deny_response(self, adapter, mock_hook_manager) -> None:
         """handle_native() correctly formats deny responses."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="deny",
@@ -743,7 +762,7 @@ class TestHandleNative:
         assert result["decision"] == "deny"
         assert result["reason"] == "Task not claimed"
 
-    def test_handle_native_with_context_injection(self, adapter, mock_hook_manager):
+    def test_handle_native_with_context_injection(self, adapter, mock_hook_manager) -> None:
         """handle_native() includes context injection in response."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="allow",
@@ -762,7 +781,7 @@ class TestHandleNative:
         assert "hookSpecificOutput" in result
         assert "## Continuation Context" in result["hookSpecificOutput"]["additionalContext"]
 
-    def test_handle_native_empty_hook_type(self, adapter, mock_hook_manager):
+    def test_handle_native_empty_hook_type(self, adapter, mock_hook_manager) -> None:
         """handle_native() handles empty hook_type gracefully."""
         native_event = {
             "hook_type": "",
@@ -785,7 +804,7 @@ class TestEdgeCases:
         """Create a GeminiAdapter instance."""
         return GeminiAdapter()
 
-    def test_translate_empty_event(self, adapter):
+    def test_translate_empty_event(self, adapter) -> None:
         """Handles empty event gracefully."""
         native_event = {}
 
@@ -795,7 +814,7 @@ class TestEdgeCases:
         assert event.session_id == ""
         assert event.data == {}
 
-    def test_translate_none_values_in_event(self, adapter):
+    def test_translate_none_values_in_event(self, adapter) -> None:
         """Handles None values in event data."""
         native_event = {
             "hook_type": "SessionStart",
@@ -815,7 +834,7 @@ class TestEdgeCases:
         # This test documents current behavior - session_id would be None
         # since dict.get returns None for existing key with None value
 
-    def test_translate_nested_data_preserved(self, adapter):
+    def test_translate_nested_data_preserved(self, adapter) -> None:
         """Complex nested data in input_data is preserved."""
         nested_data = {
             "tool_input": {
@@ -839,7 +858,7 @@ class TestEdgeCases:
 
         assert event.data["tool_input"]["nested"]["deeply"]["value"] == 42
 
-    def test_response_with_empty_reason(self, adapter):
+    def test_response_with_empty_reason(self, adapter) -> None:
         """Empty reason string is not included in response."""
         response = HookResponse(decision="allow", reason="")
 
@@ -848,7 +867,7 @@ class TestEdgeCases:
         # Empty string is falsy, so reason should not be included
         assert "reason" not in result
 
-    def test_response_with_empty_context(self, adapter):
+    def test_response_with_empty_context(self, adapter) -> None:
         """Empty context string does not create hookSpecificOutput."""
         response = HookResponse(decision="allow", context="")
 
@@ -856,7 +875,7 @@ class TestEdgeCases:
 
         assert "hookSpecificOutput" not in result
 
-    def test_response_with_empty_system_message(self, adapter):
+    def test_response_with_empty_system_message(self, adapter) -> None:
         """Empty system_message is not included in response."""
         response = HookResponse(decision="allow", system_message="")
 
@@ -864,7 +883,7 @@ class TestEdgeCases:
 
         assert "systemMessage" not in result
 
-    def test_timestamp_with_none_replace_attribute(self, adapter):
+    def test_timestamp_with_none_replace_attribute(self, adapter) -> None:
         """Handles timestamp that can't be processed (non-string)."""
         native_event = {
             "hook_type": "SessionStart",
@@ -895,7 +914,7 @@ class TestIntegration:
         """Create a mock HookManager."""
         return MagicMock()
 
-    def test_session_lifecycle_roundtrip(self, adapter, mock_hook_manager):
+    def test_session_lifecycle_roundtrip(self, adapter, mock_hook_manager) -> None:
         """Tests full session start/end lifecycle."""
         # Session start
         mock_hook_manager.handle.return_value = HookResponse(
@@ -932,7 +951,7 @@ class TestIntegration:
 
         assert end_result["decision"] == "allow"
 
-    def test_tool_execution_roundtrip(self, adapter, mock_hook_manager):
+    def test_tool_execution_roundtrip(self, adapter, mock_hook_manager) -> None:
         """Tests full tool execution lifecycle."""
         # Before tool
         mock_hook_manager.handle.return_value = HookResponse(decision="allow")
@@ -973,7 +992,7 @@ class TestIntegration:
 
         assert after_result["decision"] == "allow"
 
-    def test_tool_denied_by_workflow(self, adapter, mock_hook_manager):
+    def test_tool_denied_by_workflow(self, adapter, mock_hook_manager) -> None:
         """Tests tool denial scenario."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="deny",

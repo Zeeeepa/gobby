@@ -23,6 +23,8 @@ from gobby.mcp_proxy.tools.tasks import (
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -97,52 +99,52 @@ def sample_task():
 class TestInferTestStrategy:
     """Tests for _infer_category helper function."""
 
-    def test_infer_manual_from_verify_that(self):
+    def test_infer_manual_from_verify_that(self) -> None:
         """Test inferring manual strategy from 'verify that' pattern."""
         result = _infer_category("Verify that the feature works", None)
         assert result == "manual"
 
-    def test_infer_manual_from_check_the(self):
+    def test_infer_manual_from_check_the(self) -> None:
         """Test inferring manual strategy from 'check the' pattern."""
         result = _infer_category("Check the output format", None)
         assert result == "manual"
 
-    def test_infer_manual_from_functional_test(self):
+    def test_infer_manual_from_functional_test(self) -> None:
         """Test inferring manual strategy from 'functional test' pattern."""
         result = _infer_category("Run functional testing on auth", None)
         assert result == "manual"
 
-    def test_infer_manual_from_smoke_test(self):
+    def test_infer_manual_from_smoke_test(self) -> None:
         """Test inferring manual strategy from 'smoke test' pattern."""
         result = _infer_category("Perform smoke test", None)
         assert result == "manual"
 
-    def test_infer_manual_from_manually_verify(self):
+    def test_infer_manual_from_manually_verify(self) -> None:
         """Test inferring manual strategy from 'manually verify' pattern."""
         result = _infer_category("Manually verify the changes", None)
         assert result == "manual"
 
-    def test_infer_manual_from_description(self):
+    def test_infer_manual_from_description(self) -> None:
         """Test inferring from description when title doesn't match."""
         result = _infer_category("Task title", "Need to verify that it works")
         assert result == "manual"
 
-    def test_infer_none_for_generic_task(self):
+    def test_infer_none_for_generic_task(self) -> None:
         """Test returning None for generic task without patterns."""
         result = _infer_category("Deploy to staging", "Push to staging environment")
         assert result is None
 
-    def test_infer_code_from_implement_pattern(self):
+    def test_infer_code_from_implement_pattern(self) -> None:
         """Test inferring code category from 'implement' pattern."""
         result = _infer_category("Implement new feature", "Add the feature")
         assert result == "code"
 
-    def test_infer_manual_from_run_and_check(self):
+    def test_infer_manual_from_run_and_check(self) -> None:
         """Test inferring manual strategy from 'run and check' pattern."""
         result = _infer_category("Run and check output", None)
         assert result == "manual"
 
-    def test_infer_manual_case_insensitive(self):
+    def test_infer_manual_case_insensitive(self) -> None:
         """Test that pattern matching is case insensitive."""
         result = _infer_category("VERIFY THAT it works", None)
         assert result == "manual"
@@ -151,14 +153,14 @@ class TestInferTestStrategy:
 class TestSkipReasons:
     """Tests for SKIP_REASONS constant."""
 
-    def test_skip_reasons_contains_expected_values(self):
+    def test_skip_reasons_contains_expected_values(self) -> None:
         """Test that SKIP_REASONS contains all expected values."""
         assert "duplicate" in SKIP_REASONS
         assert "already_implemented" in SKIP_REASONS
         assert "wont_fix" in SKIP_REASONS
         assert "obsolete" in SKIP_REASONS
 
-    def test_skip_reasons_is_frozenset(self):
+    def test_skip_reasons_is_frozenset(self) -> None:
         """Test that SKIP_REASONS is immutable."""
         assert isinstance(SKIP_REASONS, frozenset)
 
@@ -433,44 +435,52 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_all_optional_fields(self, mock_task_manager, mock_sync_manager):
         """Test create_task with all optional fields."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._context.LocalSessionManager"
+        ) as MockSessionManager:
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "sess-123"
+            MockSessionManager.return_value = mock_session_manager
 
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
-        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
-        mock_task_manager.create_task_with_decomposition.return_value = {
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
-        }
-        mock_task_manager.get_task.return_value = mock_task
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
-            mock_ctx.return_value = {"id": "proj-1"}
+            mock_task = MagicMock()
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
+            mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
 
-            await registry.call(
-                "create_task",
-                {
-                    "title": "Full Task",
-                    "description": "Detailed description",
-                    "priority": 1,
-                    "task_type": "feature",
-                    "parent_task_id": "550e8400-e29b-41d4-a716-446655440009",
-                    "labels": ["important"],
-                    "category": "automated",
-                    "validation_criteria": "Must pass tests",
-                    "session_id": "sess-123",
-                },
-            )
+            with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": "proj-1"}
 
-            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
-            assert call_kwargs["title"] == "Full Task"
-            assert call_kwargs["description"] == "Detailed description"
-            assert call_kwargs["priority"] == 1
-            assert call_kwargs["task_type"] == "feature"
-            assert call_kwargs["parent_task_id"] == "550e8400-e29b-41d4-a716-446655440009"
-            assert call_kwargs["labels"] == ["important"]
-            assert call_kwargs["category"] == "automated"
-            assert call_kwargs["validation_criteria"] == "Must pass tests"
-            assert call_kwargs["created_in_session_id"] == "sess-123"
+                await registry.call(
+                    "create_task",
+                    {
+                        "title": "Full Task",
+                        "description": "Detailed description",
+                        "priority": 1,
+                        "task_type": "feature",
+                        "parent_task_id": "550e8400-e29b-41d4-a716-446655440009",
+                        "labels": ["important"],
+                        "category": "automated",
+                        "validation_criteria": "Must pass tests",
+                        "session_id": "sess-123",
+                    },
+                )
+
+                call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
+                assert call_kwargs["title"] == "Full Task"
+                assert call_kwargs["description"] == "Detailed description"
+                assert call_kwargs["priority"] == 1
+                assert call_kwargs["task_type"] == "feature"
+                assert call_kwargs["parent_task_id"] == "550e8400-e29b-41d4-a716-446655440009"
+                assert call_kwargs["labels"] == ["important"]
+                assert call_kwargs["category"] == "automated"
+                assert call_kwargs["validation_criteria"] == "Must pass tests"
+                assert call_kwargs["created_in_session_id"] == "sess-123"
 
     @pytest.mark.asyncio
     async def test_create_task_initializes_project(self, mock_task_manager, mock_sync_manager):
@@ -576,11 +586,19 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_default_no_claim(self, mock_task_manager, mock_sync_manager):
         """Test create_task without claim parameter does NOT auto-claim."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -621,11 +639,19 @@ class TestCreateTaskTool:
     @pytest.mark.asyncio
     async def test_create_task_with_claim_true(self, mock_task_manager, mock_sync_manager):
         """Test create_task with claim=True auto-claims the task."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "test-session"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -1439,11 +1465,19 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_success(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session creates a link."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "sess-123"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -1496,14 +1530,22 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_session_tasks(self, mock_task_manager, mock_sync_manager):
         """Test get_session_tasks returns tasks for a session."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             mock_st_instance.get_session_tasks.return_value = [
                 {"task_id": "t1", "action": "worked_on"}
             ]
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "sess-123"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -1542,12 +1584,12 @@ class TestSessionIntegrationTools:
 class TestRegistryIntegration:
     """Tests for registry merging and tool availability."""
 
-    def test_registry_name_and_description(self, task_registry):
+    def test_registry_name_and_description(self, task_registry) -> None:
         """Test registry has correct name and description."""
         assert task_registry.name == "gobby-tasks"
         assert "Task management" in task_registry.description
 
-    def test_crud_tools_registered(self, task_registry):
+    def test_crud_tools_registered(self, task_registry) -> None:
         """Test all CRUD tools are registered."""
         crud_tools = [
             "create_task",
@@ -1564,7 +1606,7 @@ class TestRegistryIntegration:
         for tool_name in crud_tools:
             assert tool_name in tool_names, f"Missing CRUD tool: {tool_name}"
 
-    def test_label_tools_registered(self, task_registry):
+    def test_label_tools_registered(self, task_registry) -> None:
         """Test label tools are registered."""
         label_tools = ["add_label", "remove_label"]
 
@@ -1574,7 +1616,7 @@ class TestRegistryIntegration:
         for tool_name in label_tools:
             assert tool_name in tool_names, f"Missing label tool: {tool_name}"
 
-    def test_session_tools_registered(self, task_registry):
+    def test_session_tools_registered(self, task_registry) -> None:
         """Test session integration tools are registered."""
         session_tools = ["link_task_to_session", "get_session_tasks", "get_task_sessions"]
 
@@ -1584,14 +1626,14 @@ class TestRegistryIntegration:
         for tool_name in session_tools:
             assert tool_name in tool_names, f"Missing session tool: {tool_name}"
 
-    def test_reopen_task_registered(self, task_registry):
+    def test_reopen_task_registered(self, task_registry) -> None:
         """Test reopen_task is registered."""
         tools_list = task_registry.list_tools()
         tool_names = [t["name"] for t in tools_list]
 
         assert "reopen_task" in tool_names
 
-    def test_merged_registries_available(self, task_registry):
+    def test_merged_registries_available(self, task_registry) -> None:
         """Test tools from merged registries are available."""
         merged_tools = [
             # From task_validation
@@ -1626,7 +1668,7 @@ class TestRegistryIntegration:
 class TestToolSchemas:
     """Tests for tool input schemas."""
 
-    def test_create_task_schema_has_required_fields(self, task_registry):
+    def test_create_task_schema_has_required_fields(self, task_registry) -> None:
         """Test create_task schema has required title field."""
         schema = task_registry.get_schema("create_task")
 
@@ -1634,7 +1676,7 @@ class TestToolSchemas:
         assert "title" in schema["inputSchema"]["properties"]
         assert "title" in schema["inputSchema"]["required"]
 
-    def test_create_task_schema_has_claim_parameter(self, task_registry):
+    def test_create_task_schema_has_claim_parameter(self, task_registry) -> None:
         """Test create_task schema includes optional claim parameter."""
         schema = task_registry.get_schema("create_task")
 
@@ -1647,7 +1689,7 @@ class TestToolSchemas:
         # claim should NOT be in required
         assert "claim" not in schema["inputSchema"]["required"]
 
-    def test_update_task_schema_has_all_fields(self, task_registry):
+    def test_update_task_schema_has_all_fields(self, task_registry) -> None:
         """Test update_task schema includes all updatable fields."""
         schema = task_registry.get_schema("update_task")
 
@@ -1673,7 +1715,7 @@ class TestToolSchemas:
         for prop in expected_props:
             assert prop in props, f"Missing property: {prop}"
 
-    def test_close_task_schema_has_all_fields(self, task_registry):
+    def test_close_task_schema_has_all_fields(self, task_registry) -> None:
         """Test close_task schema includes all options."""
         schema = task_registry.get_schema("close_task")
 
@@ -1693,7 +1735,7 @@ class TestToolSchemas:
         for prop in expected_props:
             assert prop in props, f"Missing property: {prop}"
 
-    def test_list_tasks_schema_has_filters(self, task_registry):
+    def test_list_tasks_schema_has_filters(self, task_registry) -> None:
         """Test list_tasks schema includes filter options."""
         schema = task_registry.get_schema("list_tasks")
 

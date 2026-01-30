@@ -11,6 +11,7 @@ from gobby.tasks.enhanced_validator import (
 )
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -236,7 +237,7 @@ class TestEnhancedTaskValidator:
 class TestValidationResult:
     """Tests for ValidationResult dataclass."""
 
-    def test_validation_result_valid(self):
+    def test_validation_result_valid(self) -> None:
         """Test creating a valid ValidationResult."""
         result = ValidationResult(
             valid=True,
@@ -248,7 +249,7 @@ class TestValidationResult:
         assert result.escalated is False
         assert result.escalation_reason is None
 
-    def test_validation_result_escalated(self):
+    def test_validation_result_escalated(self) -> None:
         """Test creating an escalated ValidationResult."""
         result = ValidationResult(
             valid=False,
@@ -262,7 +263,7 @@ class TestValidationResult:
         assert result.escalated is True
         assert result.escalation_reason == EscalationReason.MAX_ITERATIONS
 
-    def test_validation_result_with_issues(self):
+    def test_validation_result_with_issues(self) -> None:
         """Test ValidationResult with issues list."""
         issues = [
             Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test failed"),

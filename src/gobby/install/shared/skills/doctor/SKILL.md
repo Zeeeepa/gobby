@@ -62,7 +62,7 @@ Expected: Returns list of servers. Check that core servers are connected:
 
 ### 1.3 Database Connectivity
 
-Call `gobby-sessions.list_sessions(limit=1)`
+Call `list_sessions(limit=1)`
 
 Expected: Returns without error (empty list is OK).
 
@@ -141,7 +141,8 @@ cleanup_tracker = {
 **Create:**
 
 ```python
-gobby-memory.create_memory(
+# gobby-memory server:
+create_memory(
     content="__diag__ diagnostic test memory - safe to delete",
     tags="__diag__,test",
     importance=0.1
@@ -150,53 +151,69 @@ gobby-memory.create_memory(
 
 Store returned `memory_id` in `cleanup_tracker["memories"]`.
 
-**Verify:** Call `gobby-memory.get_memory(memory_id=<id>)` - should return the memory.
+**Verify:** Call `get_memory(memory_id=<id>)` - should return the memory.
 
-**Delete:** Call `gobby-memory.delete_memory(memory_id=<id>)`
+**Delete:** Call `delete_memory(memory_id=<id>)`
 
-**Verify deletion:** Call `gobby-memory.get_memory(memory_id=<id>)` - should return error/not found.
+**Verify deletion:** Call `get_memory(memory_id=<id>)` - should return error/not found.
 
 ### 3.2 Task Create/Close Cycle
 
 **Get session ID first:**
-Call `gobby-sessions.get_current_session()` to retrieve the current session object.
+Call `get_current_session()` to retrieve the current session object.
 Use the returned `id` field as the `session_id` parameter below.
 
 **Create:**
 
 ```python
-gobby-tasks.create_task(
+# gobby-tasks server:
+create_task(
     title="__diag__ diagnostic test task",
     description="Diagnostic test task - safe to delete",
     task_type="chore",
-    session_id=<id from gobby-sessions.get_current_session()>
+    session_id=<id>  # from gobby-sessions get_current_session()
 )
 ```
 
 Store returned `task_id` in `cleanup_tracker["tasks"]`.
 
-**Verify:** Call `gobby-tasks.get_task(task_id=<id>)` - should return the task.
+**Verify:** Call `get_task(task_id=<id>)` - should return the task.
 
-**Update:** Call `gobby-tasks.update_task(task_id=<id>, status="completed")`
+**Update:** Call `update_task(task_id=<id>, status="completed")`
 
-**Verify update:** Call `gobby-tasks.get_task(task_id=<id>)` - status should be "completed".
+**Verify update:** Call `get_task(task_id=<id>)` - status should be "completed".
 
-**Close:** Call `gobby-tasks.close_task(task_id=<id>, reason="completed")`
+**Close:** Call `close_task(task_id=<id>, reason="completed")`
 
 ### 3.3 Workflow Variable Cycle (session-scoped, auto-cleaned on session termination)
 
 **Note:** Workflow variables are session-scoped and automatically cleaned up when the session ends. No `__diag__` prefix needed since they don't persist beyond the session.
 
+**Get session ID first:**
+Use the same session ID obtained in Phase 3.2 from `get_current_session()`.
+
 **Set:**
 
 ```python
-gobby-workflows.set_variable(
+# gobby-workflows server:
+set_variable(
+    session_id=<id>,  # from gobby-sessions get_current_session()
     name="diag_test_var",
     value="diagnostic_value"
 )
 ```
 
-**Get:** Call `gobby-workflows.get_variable(name="diag_test_var")` - should return "diagnostic_value".
+**Get:**
+
+```python
+# gobby-workflows server:
+get_variable(
+    session_id=<id>,  # from gobby-sessions get_current_session()
+    name="diag_test_var"
+)
+```
+
+Expected return: `"diagnostic_value"`
 
 Report summary: "Write+Cleanup: X/3 PASS"
 
@@ -211,7 +228,8 @@ Only run with `--all` flag. These create filesystem resources.
 **Check spawn capability:**
 
 ```python
-gobby-worktrees.can_spawn_worktree()
+# gobby-worktrees server:
+can_spawn_worktree()
 ```
 
 If false, skip with note "Worktree spawn not available".
@@ -219,7 +237,8 @@ If false, skip with note "Worktree spawn not available".
 **Create:**
 
 ```python
-gobby-worktrees.create_worktree(
+# gobby-worktrees server:
+create_worktree(
     branch="__diag__/test-branch",
     base_branch="HEAD"
 )
@@ -227,18 +246,19 @@ gobby-worktrees.create_worktree(
 
 Store returned `worktree_id`.
 
-**Verify:** Call `gobby-worktrees.get_worktree(worktree_id=<id>)` - should return worktree.
+**Verify:** Call `get_worktree(worktree_id=<id>)` - should return worktree.
 
-**Delete:** Call `gobby-worktrees.delete_worktree(worktree_id=<id>, force=true)`
+**Delete:** Call `delete_worktree(worktree_id=<id>, force=True)`
 
-**Verify deletion:** Call `gobby-worktrees.get_worktree(worktree_id=<id>)` - should return error/not found.
+**Verify deletion:** Call `get_worktree(worktree_id=<id>)` - should return error/not found.
 
 ### 4.2 Clone Cycle
 
 **Check spawn capability:**
 
 ```python
-gobby-clones.can_spawn_clone()
+# gobby-clones server:
+can_spawn_clone()
 ```
 
 If false, skip with note "Clone spawn not available".
@@ -246,25 +266,27 @@ If false, skip with note "Clone spawn not available".
 **Create:**
 
 ```python
-gobby-clones.create_clone(
+# gobby-clones server:
+create_clone(
     name="__diag__-test-clone"
 )
 ```
 
 Store returned `clone_id`.
 
-**Verify:** Call `gobby-clones.get_clone(clone_id=<id>)` - should return clone.
+**Verify:** Call `get_clone(clone_id=<id>)` - should return clone.
 
-**Delete:** Call `gobby-clones.delete_clone(clone_id=<id>, force=true)`
+**Delete:** Call `delete_clone(clone_id=<id>, force=True)`
 
-**Verify deletion:** Call `gobby-clones.get_clone(clone_id=<id>)` - should return error/not found.
+**Verify deletion:** Call `get_clone(clone_id=<id>)` - should return error/not found.
 
 ### 4.3 Agent Spawn Check (read-only)
 
 **Check capability:**
 
 ```python
-gobby-agents.can_spawn_agent()
+# gobby-agents server:
+can_spawn_agent()
 ```
 
 Report result (PASS if returns true/false without error, capability status is informational).
@@ -403,13 +425,15 @@ Run cleanup in this order (reverse dependency):
 Search for clones with `__diag__` prefix:
 
 ```python
-gobby-clones.list_clones()
+# gobby-clones server:
+list_clones()
 ```
 
 For each clone with name starting with `__diag__`:
 
 ```python
-gobby-clones.delete_clone(clone_id=<id>, force=true)
+# gobby-clones server:
+delete_clone(clone_id=<id>, force=True)
 ```
 
 ### Step 2: Clean Worktrees
@@ -417,13 +441,15 @@ gobby-clones.delete_clone(clone_id=<id>, force=true)
 Search for worktrees with `__diag__` prefix:
 
 ```python
-gobby-worktrees.list_worktrees()
+# gobby-worktrees server:
+list_worktrees()
 ```
 
 For each worktree with branch starting with `__diag__`:
 
 ```python
-gobby-worktrees.delete_worktree(worktree_id=<id>, force=true)
+# gobby-worktrees server:
+delete_worktree(worktree_id=<id>, force=True)
 ```
 
 ### Step 3: Clean Tasks
@@ -431,13 +457,15 @@ gobby-worktrees.delete_worktree(worktree_id=<id>, force=true)
 Search for tasks with `__diag__` prefix:
 
 ```python
-gobby-tasks.list_tasks()
+# gobby-tasks server:
+list_tasks()
 ```
 
 For each task with title starting with `__diag__`:
 
 ```python
-gobby-tasks.close_task(task_id=<id>, reason="obsolete")
+# gobby-tasks server:
+close_task(task_id=<id>, reason="obsolete")
 ```
 
 ### Step 4: Clean Memories
@@ -445,13 +473,15 @@ gobby-tasks.close_task(task_id=<id>, reason="obsolete")
 Search for memories with `__diag__` tag:
 
 ```python
-gobby-memory.list_memories(tags_any="__diag__")
+# gobby-memory server:
+list_memories(tags_any="__diag__")
 ```
 
 For each memory:
 
 ```python
-gobby-memory.delete_memory(memory_id=<id>)
+# gobby-memory server:
+delete_memory(memory_id=<id>)
 ```
 
 ---
@@ -460,10 +490,10 @@ gobby-memory.delete_memory(memory_id=<id>)
 
 Before running tests, check for orphaned `__diag__` artifacts:
 
-1. Call `gobby-memory.list_memories(tags_any="__diag__")`
-2. Call `gobby-tasks.list_tasks()` and filter for `__diag__` prefix
-3. Call `gobby-worktrees.list_worktrees()` and filter for `__diag__` prefix
-4. Call `gobby-clones.list_clones()` and filter for `__diag__` prefix
+1. Call `list_memories(tags_any="__diag__")`
+2. Call `list_tasks()` and filter for `__diag__` prefix
+3. Call `list_worktrees()` and filter for `__diag__` prefix
+4. Call `list_clones()` and filter for `__diag__` prefix
 
 If any found, report:
 

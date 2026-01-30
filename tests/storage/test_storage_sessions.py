@@ -6,6 +6,7 @@ import pytest
 
 from gobby.storage.sessions import LocalSessionManager, Session
 
+pytestmark = pytest.mark.unit
 
 class TestSession:
     """Tests for Session dataclass."""
@@ -14,7 +15,7 @@ class TestSession:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test creating Session from database row."""
         session = session_manager.register(
             external_id="test-cli-key",
@@ -35,7 +36,7 @@ class TestSession:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test converting Session to dictionary."""
         session = session_manager.register(
             external_id="dict-test",
@@ -61,7 +62,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test registering a new session."""
         session = session_manager.register(
             external_id="session-123",
@@ -87,7 +88,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that register updates existing session on conflict."""
         # First registration
         session1 = session_manager.register(
@@ -115,7 +116,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting a session by ID."""
         created = session_manager.register(
             external_id="get-test",
@@ -129,7 +130,7 @@ class TestLocalSessionManager:
         assert retrieved.id == created.id
         assert retrieved.external_id == "get-test"
 
-    def test_get_nonexistent(self, session_manager: LocalSessionManager):
+    def test_get_nonexistent(self, session_manager: LocalSessionManager) -> None:
         """Test getting nonexistent session returns None."""
         result = session_manager.get("nonexistent-id")
         assert result is None
@@ -138,7 +139,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test finding session by external_id, machine_id, project_id, source."""
         session = session_manager.register(
             external_id="findable",
@@ -157,7 +158,7 @@ class TestLocalSessionManager:
         assert found is not None
         assert found.id == session.id
 
-    def test_find_by_external_id_not_found(self, session_manager: LocalSessionManager):
+    def test_find_by_external_id_not_found(self, session_manager: LocalSessionManager) -> None:
         """Test find_by_external_id returns None when not found."""
         result = session_manager.find_by_external_id(
             external_id="nonexistent",
@@ -167,36 +168,11 @@ class TestLocalSessionManager:
         )
         assert result is None
 
-    def test_find_parent(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ):
-        """Test finding parent session for handoff."""
-        # Create a session marked as handoff_ready
-        session = session_manager.register(
-            external_id="parent-session",
-            machine_id="handoff-machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-        session_manager.update_status(session.id, "handoff_ready")
-
-        # Find parent
-        parent = session_manager.find_parent(
-            machine_id="handoff-machine",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
-        assert parent is not None
-        assert parent.id == session.id
-
     def test_find_parent_no_handoff_ready(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test find_parent returns None when no handoff_ready session."""
         # Create an active session (not handoff_ready)
         session_manager.register(
@@ -217,7 +193,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating session status."""
         session = session_manager.register(
             external_id="status-test",
@@ -235,7 +211,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating session title."""
         session = session_manager.register(
             external_id="title-test",
@@ -273,7 +249,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating session summary."""
         session = session_manager.register(
             external_id="summary-test",
@@ -296,7 +272,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing sessions."""
         session_manager.register(
             external_id="list-1",
@@ -318,7 +294,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing sessions with filters."""
         s1 = session_manager.register(
             external_id="filter-1",
@@ -348,7 +324,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing sessions with limit."""
         for i in range(5):
             session_manager.register(
@@ -365,7 +341,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test deleting a session."""
         session = session_manager.register(
             external_id="delete-me",
@@ -378,7 +354,7 @@ class TestLocalSessionManager:
         assert result is True
         assert session_manager.get(session.id) is None
 
-    def test_delete_nonexistent(self, session_manager: LocalSessionManager):
+    def test_delete_nonexistent(self, session_manager: LocalSessionManager) -> None:
         """Test deleting nonexistent session returns False."""
         result = session_manager.delete("nonexistent-id")
         assert result is False
@@ -387,7 +363,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test expiring stale sessions."""
         # Create a stale session (simulated by mocking updated_at in query or just rely on db time)
         # Since we use SQLite datetime('now') in queries, we can't easily mock time without
@@ -417,7 +393,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test pausing inactive active sessions."""
         session = session_manager.register(
             external_id="active-idle",
@@ -442,7 +418,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test transcript processing lifecycle methods."""
         # Create expired session with jsonl_path
         session = session_manager.register(
@@ -478,7 +454,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating compact markdown."""
         session = session_manager.register(
             external_id="compact-test",
@@ -495,7 +471,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating parent session ID."""
         session = session_manager.register(
             external_id="child",
@@ -519,7 +495,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """
         Test that storage layer allows setting a session as its own parent.
 
@@ -565,48 +541,11 @@ class TestLocalSessionManager:
         # This test proves the storage layer has no guard, validating the
         # architecture decision to handle this at the hook_manager level.
 
-    def test_find_by_external_id(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ):
-        """Test finding session by external_id, machine_id, project_id, and source."""
-        session = session_manager.register(
-            external_id="ext-123",
-            machine_id="machine-abc",
-            source="claude",
-            project_id=sample_project["id"],
-        )
-
-        found = session_manager.find_by_external_id(
-            external_id="ext-123",
-            machine_id="machine-abc",
-            project_id=sample_project["id"],
-            source="claude",
-        )
-
-        assert found is not None
-        assert found.id == session.id
-
-    def test_find_by_external_id_not_found(
-        self,
-        session_manager: LocalSessionManager,
-        sample_project: dict,
-    ):
-        """Test find_by_external_id returns None when not found."""
-        result = session_manager.find_by_external_id(
-            external_id="nonexistent",
-            machine_id="machine",
-            project_id=sample_project["id"],
-            source="claude",
-        )
-        assert result is None
-
     def test_find_parent_without_source_filter(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test find_parent without source filter finds any source."""
         session = session_manager.register(
             external_id="parent-any",
@@ -630,7 +569,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test finding child sessions of a parent."""
         parent = session_manager.register(
             external_id="parent-session",
@@ -666,7 +605,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test find_children returns empty list when no children."""
         session = session_manager.register(
             external_id="no-children",
@@ -682,7 +621,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating multiple session fields at once."""
         session = session_manager.register(
             external_id="multi-update",
@@ -712,7 +651,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating a single field."""
         session = session_manager.register(
             external_id="single-update",
@@ -730,7 +669,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test update with no fields returns session unchanged."""
         session = session_manager.register(
             external_id="no-update",
@@ -748,7 +687,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating just external_id."""
         session = session_manager.register(
             external_id="old-ext",
@@ -766,7 +705,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating just jsonl_path."""
         session = session_manager.register(
             external_id="jsonl-test",
@@ -784,7 +723,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating just git_branch."""
         session = session_manager.register(
             external_id="branch-test",
@@ -802,7 +741,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test counting sessions."""
         session_manager.register(
             external_id="count-1",
@@ -824,7 +763,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test counting sessions with filters."""
         s1 = session_manager.register(
             external_id="count-filter-1",
@@ -848,7 +787,7 @@ class TestLocalSessionManager:
         paused_count = session_manager.count(status="paused")
         assert paused_count == 1
 
-    def test_count_no_results(self, session_manager: LocalSessionManager):
+    def test_count_no_results(self, session_manager: LocalSessionManager) -> None:
         """Test count returns 0 when no sessions match."""
         count = session_manager.count(project_id="nonexistent-project")
         assert count == 0
@@ -857,7 +796,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test counting sessions grouped by status."""
         s1 = session_manager.register(
             external_id="status-count-1",
@@ -885,7 +824,7 @@ class TestLocalSessionManager:
         assert counts.get("active") == 1
         assert counts.get("paused") == 2
 
-    def test_count_by_status_empty(self, session_manager: LocalSessionManager):
+    def test_count_by_status_empty(self, session_manager: LocalSessionManager) -> None:
         """Test count_by_status returns empty dict when no sessions."""
         counts = session_manager.count_by_status()
         assert counts == {}
@@ -894,7 +833,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating terminal pickup metadata."""
         session = session_manager.register(
             external_id="pickup-test",
@@ -921,7 +860,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating terminal pickup metadata with partial fields."""
         session = session_manager.register(
             external_id="partial-pickup",
@@ -944,7 +883,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test update_terminal_pickup_metadata with no fields returns session unchanged."""
         session = session_manager.register(
             external_id="no-pickup-update",
@@ -962,7 +901,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating context_injected to False."""
         session = session_manager.register(
             external_id="context-false",
@@ -990,7 +929,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test expire_stale_sessions returns 0 when no stale sessions."""
         session_manager.register(
             external_id="fresh-session",
@@ -1006,7 +945,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test pause_inactive_active_sessions returns 0 when no inactive sessions."""
         session_manager.register(
             external_id="active-session",
@@ -1022,7 +961,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test registering session with agent depth and spawned_by_agent_id."""
         session = session_manager.register(
             external_id="agent-session",
@@ -1040,7 +979,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating summary with only summary_path."""
         session = session_manager.register(
             external_id="summary-partial",
@@ -1062,7 +1001,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating summary with only summary_markdown."""
         session = session_manager.register(
             external_id="summary-md-only",
@@ -1084,7 +1023,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that to_dict includes all session fields."""
         session = session_manager.register(
             external_id="dict-complete",
@@ -1141,7 +1080,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test get_pending_transcript_sessions respects limit."""
         # Create multiple expired sessions with jsonl_path
         for i in range(5):
@@ -1161,7 +1100,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that get_pending_transcript_sessions excludes processed sessions."""
         session = session_manager.register(
             external_id="processed-session",
@@ -1180,7 +1119,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that get_pending_transcript_sessions excludes sessions without jsonl_path."""
         session = session_manager.register(
             external_id="no-jsonl-session",
@@ -1198,7 +1137,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that register updates metadata when session exists."""
         # Create a parent session first for the foreign key
         parent = session_manager.register(
@@ -1244,7 +1183,7 @@ class TestLocalSessionManager:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test listing all sessions without filters."""
         session_manager.register(
             external_id="list-all-1",
@@ -1270,7 +1209,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that register raises RuntimeError if session disappears during update."""
         # Create initial session
         session_manager.register(
@@ -1302,7 +1241,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that register raises RuntimeError if session not found after creation."""
         # Mock get to return None after insert
         with patch.object(session_manager, "get", return_value=None):
@@ -1319,7 +1258,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that expire_stale_sessions logs when sessions are expired."""
         # Create a stale session
         session = session_manager.register(
@@ -1345,7 +1284,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that pause_inactive_active_sessions logs when sessions are paused."""
         # Create an active session
         session = session_manager.register(
@@ -1371,7 +1310,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that register logs when creating a new session."""
         with patch("gobby.storage.sessions.logger") as mock_logger:
             session_manager.register(
@@ -1388,7 +1327,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that register logs when reusing an existing session."""
         # Create initial session (without mocking logger)
         session_manager.register(
@@ -1415,7 +1354,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test Session.from_row handles NULL agent_depth by defaulting to 0."""
         session = session_manager.register(
             external_id="null-depth",
@@ -1439,7 +1378,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating just title via update method."""
         session = session_manager.register(
             external_id="title-only-update",
@@ -1458,7 +1397,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test that find_parent returns the most recently updated session."""
         # Create first handoff_ready session
         session1 = session_manager.register(
@@ -1498,7 +1437,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test count with all three filters (project_id, status, source)."""
         s1 = session_manager.register(
             external_id="all-filters-1",
@@ -1527,7 +1466,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test list with all three filters (project_id, status, source)."""
         s1 = session_manager.register(
             external_id="list-all-filters-1",
@@ -1557,7 +1496,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating just agent_run_id in terminal pickup metadata.
 
         Note: agent_run_id has a foreign key constraint to agent_runs table.
@@ -1597,7 +1536,7 @@ class TestSessionEdgeCases:
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test updating just original_prompt in terminal pickup metadata."""
         session = session_manager.register(
             external_id="prompt-only",

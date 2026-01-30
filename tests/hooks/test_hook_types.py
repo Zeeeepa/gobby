@@ -47,11 +47,12 @@ from gobby.hooks.hook_types import (
     UserPromptSubmitOutput,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestHookTypeEnum:
     """Tests for HookType enum."""
 
-    def test_all_hook_types_defined(self):
+    def test_all_hook_types_defined(self) -> None:
         """Test that all expected hook types are defined."""
         expected_types = {
             "SESSION_START",
@@ -71,7 +72,7 @@ class TestHookTypeEnum:
         actual_types = {t.name for t in HookType}
         assert actual_types == expected_types
 
-    def test_hook_type_values(self):
+    def test_hook_type_values(self) -> None:
         """Test that hook type values use kebab-case."""
         assert HookType.SESSION_START.value == "session-start"
         assert HookType.SESSION_END.value == "session-end"
@@ -91,13 +92,13 @@ class TestHookTypeEnum:
 class TestSessionStartSourceEnum:
     """Tests for SessionStartSource enum."""
 
-    def test_all_sources_defined(self):
+    def test_all_sources_defined(self) -> None:
         """Test that all session start sources are defined."""
         expected = {"STARTUP", "RESUME", "CLEAR", "COMPACT"}
         actual = {s.name for s in SessionStartSource}
         assert actual == expected
 
-    def test_source_values(self):
+    def test_source_values(self) -> None:
         """Test source enum values."""
         assert SessionStartSource.STARTUP.value == "startup"
         assert SessionStartSource.RESUME.value == "resume"
@@ -108,7 +109,7 @@ class TestSessionStartSourceEnum:
 class TestSessionEndReasonEnum:
     """Tests for SessionEndReason enum."""
 
-    def test_all_reasons_defined(self):
+    def test_all_reasons_defined(self) -> None:
         """Test that all session end reasons are defined."""
         expected = {"CLEAR", "LOGOUT", "PROMPT_INPUT_EXIT", "OTHER"}
         actual = {r.name for r in SessionEndReason}
@@ -118,7 +119,7 @@ class TestSessionEndReasonEnum:
 class TestCompactTriggerEnum:
     """Tests for CompactTrigger enum."""
 
-    def test_trigger_values(self):
+    def test_trigger_values(self) -> None:
         """Test compact trigger values."""
         assert CompactTrigger.AUTO.value == "auto"
         assert CompactTrigger.MANUAL.value == "manual"
@@ -127,7 +128,7 @@ class TestCompactTriggerEnum:
 class TestNotificationSeverityEnum:
     """Tests for NotificationSeverity enum."""
 
-    def test_severity_values(self):
+    def test_severity_values(self) -> None:
         """Test notification severity values."""
         assert NotificationSeverity.INFO.value == "info"
         assert NotificationSeverity.WARNING.value == "warning"
@@ -137,12 +138,12 @@ class TestNotificationSeverityEnum:
 class TestHookInput:
     """Tests for HookInput base model."""
 
-    def test_allows_extra_fields(self):
+    def test_allows_extra_fields(self) -> None:
         """Test that extra fields are allowed."""
         input_data = HookInput(extra_field="value")
         assert input_data.extra_field == "value"
 
-    def test_strips_whitespace(self):
+    def test_strips_whitespace(self) -> None:
         """Test that string whitespace is stripped."""
 
         class TestModel(HookInput):
@@ -155,13 +156,13 @@ class TestHookInput:
 class TestHookOutput:
     """Tests for HookOutput base model."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default output values."""
         output = HookOutput()
         assert output.status == "success"
         assert output.message is None
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom output values."""
         output = HookOutput(status="error", message="Something went wrong")
         assert output.status == "error"
@@ -171,12 +172,12 @@ class TestHookOutput:
 class TestSessionStartInput:
     """Tests for SessionStartInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test that required fields are enforced."""
         with pytest.raises(ValidationError):
             SessionStartInput()  # Missing external_id and transcript_path
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test creating valid session start input."""
         input_data = SessionStartInput(
             external_id="test-key-123", transcript_path="/path/to/transcript.jsonl"
@@ -185,7 +186,7 @@ class TestSessionStartInput:
         assert input_data.transcript_path == "/path/to/transcript.jsonl"
         assert input_data.source == SessionStartSource.STARTUP  # Default
 
-    def test_all_fields(self):
+    def test_all_fields(self) -> None:
         """Test with all fields specified."""
         input_data = SessionStartInput(
             external_id="key",
@@ -198,7 +199,7 @@ class TestSessionStartInput:
         assert input_data.machine_id == "machine-123"
         assert input_data.cwd == "/home/user/project"
 
-    def test_empty_external_id_rejected(self):
+    def test_empty_external_id_rejected(self) -> None:
         """Test that empty external_id is rejected."""
         with pytest.raises(ValidationError):
             SessionStartInput(external_id="", transcript_path="/path")
@@ -207,13 +208,13 @@ class TestSessionStartInput:
 class TestSessionStartOutput:
     """Tests for SessionStartOutput model."""
 
-    def test_default_context(self):
+    def test_default_context(self) -> None:
         """Test default empty context."""
         output = SessionStartOutput()
         assert output.context == {}
         assert output.status == "success"
 
-    def test_custom_context(self):
+    def test_custom_context(self) -> None:
         """Test with custom context."""
         output = SessionStartOutput(context={"key": "value", "nested": {"a": 1}})
         assert output.context == {"key": "value", "nested": {"a": 1}}
@@ -222,17 +223,17 @@ class TestSessionStartOutput:
 class TestSessionEndInput:
     """Tests for SessionEndInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required external_id field."""
         with pytest.raises(ValidationError):
             SessionEndInput()
 
-    def test_default_reason(self):
+    def test_default_reason(self) -> None:
         """Test default reason is OTHER."""
         input_data = SessionEndInput(external_id="key")
         assert input_data.reason == SessionEndReason.OTHER
 
-    def test_custom_reason(self):
+    def test_custom_reason(self) -> None:
         """Test custom reason."""
         input_data = SessionEndInput(external_id="key", reason=SessionEndReason.LOGOUT)
         assert input_data.reason == SessionEndReason.LOGOUT
@@ -241,19 +242,19 @@ class TestSessionEndInput:
 class TestUserPromptSubmitInput:
     """Tests for UserPromptSubmitInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         with pytest.raises(ValidationError):
             UserPromptSubmitInput(external_id="key")  # Missing prompt_text
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid input."""
         input_data = UserPromptSubmitInput(external_id="key", prompt_text="What is the weather?")
         assert input_data.prompt_text == "What is the weather?"
         assert input_data.estimated_tokens is None
         assert input_data.metadata == {}
 
-    def test_with_metadata(self):
+    def test_with_metadata(self) -> None:
         """Test with metadata."""
         input_data = UserPromptSubmitInput(
             external_id="key", prompt_text="test", metadata={"source": "web", "user_id": 123}
@@ -264,13 +265,13 @@ class TestUserPromptSubmitInput:
 class TestUserPromptSubmitOutput:
     """Tests for UserPromptSubmitOutput model."""
 
-    def test_default_allowed(self):
+    def test_default_allowed(self) -> None:
         """Test default is allowed."""
         output = UserPromptSubmitOutput()
         assert output.allowed is True
         assert output.block_message is None
 
-    def test_blocked_output(self):
+    def test_blocked_output(self) -> None:
         """Test blocked output."""
         output = UserPromptSubmitOutput(allowed=False, block_message="This prompt violates policy")
         assert output.allowed is False
@@ -280,18 +281,18 @@ class TestUserPromptSubmitOutput:
 class TestPreToolUseInput:
     """Tests for PreToolUseInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         with pytest.raises(ValidationError):
             PreToolUseInput(external_id="key")  # Missing tool_name
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid input."""
         input_data = PreToolUseInput(external_id="key", tool_name="Bash")
         assert input_data.tool_name == "Bash"
         assert input_data.tool_input == {}
 
-    def test_with_tool_input(self):
+    def test_with_tool_input(self) -> None:
         """Test with tool input parameters."""
         input_data = PreToolUseInput(
             external_id="key", tool_name="Read", tool_input={"file_path": "/etc/passwd"}
@@ -302,19 +303,19 @@ class TestPreToolUseInput:
 class TestContextItem:
     """Tests for ContextItem model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         with pytest.raises(ValidationError):
             ContextItem()
 
-    def test_valid_item(self):
+    def test_valid_item(self) -> None:
         """Test valid context item."""
         item = ContextItem(type="text", content="Important context")
         assert item.type == "text"
         assert item.content == "Important context"
         assert item.metadata == {}
 
-    def test_with_metadata(self):
+    def test_with_metadata(self) -> None:
         """Test with metadata."""
         item = ContextItem(
             type="memory", content="Previous conversation about X", metadata={"relevance": 0.95}
@@ -325,12 +326,12 @@ class TestContextItem:
 class TestPreToolUseOutput:
     """Tests for PreToolUseOutput model."""
 
-    def test_default_empty_items(self):
+    def test_default_empty_items(self) -> None:
         """Test default empty items list."""
         output = PreToolUseOutput()
         assert output.items == []
 
-    def test_with_items(self):
+    def test_with_items(self) -> None:
         """Test with context items."""
         output = PreToolUseOutput(
             items=[
@@ -345,7 +346,7 @@ class TestPreToolUseOutput:
 class TestPostToolUseInput:
     """Tests for PostToolUseInput model."""
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid input."""
         input_data = PostToolUseInput(
             external_id="key",
@@ -360,17 +361,17 @@ class TestPostToolUseInput:
 class TestPreCompactInput:
     """Tests for PreCompactInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         with pytest.raises(ValidationError):
             PreCompactInput(external_id="key")  # Missing transcript_path
 
-    def test_default_trigger(self):
+    def test_default_trigger(self) -> None:
         """Test default trigger is AUTO."""
         input_data = PreCompactInput(external_id="key", transcript_path="/path")
         assert input_data.trigger == CompactTrigger.AUTO
 
-    def test_manual_trigger(self):
+    def test_manual_trigger(self) -> None:
         """Test manual trigger with custom instructions."""
         input_data = PreCompactInput(
             external_id="key",
@@ -385,12 +386,12 @@ class TestPreCompactInput:
 class TestPreCompactOutput:
     """Tests for PreCompactOutput model."""
 
-    def test_default_summary(self):
+    def test_default_summary(self) -> None:
         """Test default empty summary."""
         output = PreCompactOutput()
         assert output.summary == {}
 
-    def test_with_summary(self):
+    def test_with_summary(self) -> None:
         """Test with summary data."""
         output = PreCompactOutput(
             summary={"key_decisions": ["Use PostgreSQL"], "files_modified": ["src/main.py"]}
@@ -401,7 +402,7 @@ class TestPreCompactOutput:
 class TestStopInput:
     """Tests for StopInput model."""
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid stop input."""
         input_data = StopInput(external_id="key", reason="User requested stop")
         assert input_data.reason == "User requested stop"
@@ -411,12 +412,12 @@ class TestStopInput:
 class TestSubagentStartInput:
     """Tests for SubagentStartInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         with pytest.raises(ValidationError):
             SubagentStartInput(external_id="key")  # Missing subagent_id
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid input."""
         input_data = SubagentStartInput(
             external_id="key",
@@ -431,7 +432,7 @@ class TestSubagentStartInput:
 class TestSubagentStopInput:
     """Tests for SubagentStopInput model."""
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid input."""
         input_data = SubagentStopInput(
             external_id="key", subagent_id="subagent-123", reason="Task completed"
@@ -443,12 +444,12 @@ class TestSubagentStopInput:
 class TestNotificationInput:
     """Tests for NotificationInput model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test required fields."""
         with pytest.raises(ValidationError):
             NotificationInput(external_id="key")  # Missing notification_type and message
 
-    def test_valid_input(self):
+    def test_valid_input(self) -> None:
         """Test valid notification input."""
         input_data = NotificationInput(
             external_id="key",
@@ -458,7 +459,7 @@ class TestNotificationInput:
         assert input_data.notification_type == "build_complete"
         assert input_data.severity == NotificationSeverity.INFO  # Default
 
-    def test_error_severity(self):
+    def test_error_severity(self) -> None:
         """Test error severity notification."""
         input_data = NotificationInput(
             external_id="key",
@@ -472,17 +473,17 @@ class TestNotificationInput:
 class TestHookMappings:
     """Tests for HOOK_INPUT_MODELS and HOOK_OUTPUT_MODELS mappings."""
 
-    def test_all_hook_types_have_input_models(self):
+    def test_all_hook_types_have_input_models(self) -> None:
         """Test that all hook types have input model mappings."""
         for hook_type in HookType:
             assert hook_type in HOOK_INPUT_MODELS, f"Missing input model for {hook_type}"
 
-    def test_all_hook_types_have_output_models(self):
+    def test_all_hook_types_have_output_models(self) -> None:
         """Test that all hook types have output model mappings."""
         for hook_type in HookType:
             assert hook_type in HOOK_OUTPUT_MODELS, f"Missing output model for {hook_type}"
 
-    def test_input_model_mapping_correct(self):
+    def test_input_model_mapping_correct(self) -> None:
         """Test that input model mapping returns correct types."""
         assert HOOK_INPUT_MODELS[HookType.SESSION_START] == SessionStartInput
         assert HOOK_INPUT_MODELS[HookType.SESSION_END] == SessionEndInput
@@ -495,7 +496,7 @@ class TestHookMappings:
         assert HOOK_INPUT_MODELS[HookType.SUBAGENT_STOP] == SubagentStopInput
         assert HOOK_INPUT_MODELS[HookType.NOTIFICATION] == NotificationInput
 
-    def test_output_model_mapping_correct(self):
+    def test_output_model_mapping_correct(self) -> None:
         """Test that output model mapping returns correct types."""
         assert HOOK_OUTPUT_MODELS[HookType.SESSION_START] == SessionStartOutput
         assert HOOK_OUTPUT_MODELS[HookType.SESSION_END] == SessionEndOutput

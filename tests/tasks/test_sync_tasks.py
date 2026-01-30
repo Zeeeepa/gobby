@@ -8,6 +8,7 @@ import pytest
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def sync_manager(temp_db, tmp_path):
@@ -26,7 +27,7 @@ def task_manager(temp_db):
 class TestTaskSyncManager:
     @pytest.mark.integration
     @pytest.mark.slow
-    def test_export_to_jsonl(self, sync_manager, task_manager, sample_project):
+    def test_export_to_jsonl(self, sync_manager, task_manager, sample_project) -> None:
         # Create tasks
         t1 = task_manager.create_task(sample_project["id"], "Task 1")
         t2 = task_manager.create_task(sample_project["id"], "Task 2")
@@ -82,7 +83,7 @@ class TestTaskSyncManager:
             assert mock_export.call_count == 1
 
     @pytest.mark.integration
-    def test_mutation_triggers_export(self, task_manager, tmp_path, sample_project):
+    def test_mutation_triggers_export(self, task_manager, tmp_path, sample_project) -> None:
         """Test that task mutations trigger export."""
         export_path = tmp_path / "tasks.jsonl"
         sync_manager = TaskSyncManager(task_manager, str(export_path))
@@ -113,7 +114,7 @@ class TestTaskSyncManager:
             sync_manager.stop()
 
     @pytest.mark.integration
-    def test_import_from_jsonl(self, sync_manager, task_manager, sample_project):
+    def test_import_from_jsonl(self, sync_manager, task_manager, sample_project) -> None:
         """Test importing tasks from JSONL."""
         # Create JSONL file content
         now = "2023-01-02T00:00:00+00:00"
@@ -170,7 +171,7 @@ class TestTaskSyncManager:
         assert deps[0]["depends_on"] == t1.id
 
     @pytest.mark.integration
-    def test_import_conflict_resolution(self, sync_manager, task_manager, sample_project):
+    def test_import_conflict_resolution(self, sync_manager, task_manager, sample_project) -> None:
         """Test LWW conflict resolution during import."""
         # 1. Local Task is NEWER (should keep local)
         t1 = task_manager.create_task(sample_project["id"], "Local Newer")
@@ -230,7 +231,7 @@ class TestTaskSyncManager:
         assert t2_fresh.title == "File Newer"
 
     @pytest.mark.integration
-    def test_export_skips_when_unchanged(self, sync_manager, task_manager, sample_project):
+    def test_export_skips_when_unchanged(self, sync_manager, task_manager, sample_project) -> None:
         """Test that export doesn't update meta file when content unchanged."""
         # Create a task and export
         task_manager.create_task(sample_project["id"], "Task 1")
@@ -262,7 +263,7 @@ class TestGetSyncStatus:
     """Tests for the get_sync_status method."""
 
     @pytest.mark.integration
-    def test_get_sync_status_no_file(self, sync_manager):
+    def test_get_sync_status_no_file(self, sync_manager) -> None:
         """Test sync status when export file doesn't exist."""
         result = sync_manager.get_sync_status()
 
@@ -270,7 +271,7 @@ class TestGetSyncStatus:
         assert result["synced"] is False
 
     @pytest.mark.integration
-    def test_get_sync_status_no_meta_file(self, sync_manager):
+    def test_get_sync_status_no_meta_file(self, sync_manager) -> None:
         """Test sync status when export file exists but meta file doesn't."""
         # Create export file without meta
         sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -282,7 +283,7 @@ class TestGetSyncStatus:
         assert result["synced"] is False
 
     @pytest.mark.integration
-    def test_get_sync_status_available(self, sync_manager, task_manager, sample_project):
+    def test_get_sync_status_available(self, sync_manager, task_manager, sample_project) -> None:
         """Test sync status when both files exist."""
         # Create and export a task
         task_manager.create_task(sample_project["id"], "Test Task")
@@ -297,7 +298,7 @@ class TestGetSyncStatus:
         assert result["hash"] is not None
 
     @pytest.mark.integration
-    def test_get_sync_status_error_on_corrupt_meta(self, sync_manager):
+    def test_get_sync_status_error_on_corrupt_meta(self, sync_manager) -> None:
         """Test sync status when meta file is corrupted."""
         # Create export file
         sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -317,7 +318,7 @@ class TestImportEdgeCases:
     """Tests for import edge cases and error handling."""
 
     @pytest.mark.integration
-    def test_import_no_file_exists(self, sync_manager):
+    def test_import_no_file_exists(self, sync_manager) -> None:
         """Test import when file doesn't exist - should just return."""
         # Ensure file doesn't exist
         assert not sync_manager.export_path.exists()
@@ -326,7 +327,7 @@ class TestImportEdgeCases:
         sync_manager.import_from_jsonl()
 
     @pytest.mark.integration
-    def test_import_with_empty_lines(self, sync_manager, task_manager, sample_project):
+    def test_import_with_empty_lines(self, sync_manager, task_manager, sample_project) -> None:
         """Test import handles empty lines in JSONL file."""
         now = "2023-01-02T00:00:00+00:00"
 
@@ -356,7 +357,7 @@ class TestImportEdgeCases:
         assert task.title == "Test Task"
 
     @pytest.mark.integration
-    def test_import_with_validation_data(self, sync_manager, task_manager, sample_project):
+    def test_import_with_validation_data(self, sync_manager, task_manager, sample_project) -> None:
         """Test import handles validation object."""
         now = "2023-01-02T00:00:00+00:00"
 
@@ -392,7 +393,7 @@ class TestImportEdgeCases:
         assert task.validation_criteria == "Must pass unit tests"
 
     @pytest.mark.integration
-    def test_import_with_commits(self, sync_manager, task_manager, sample_project):
+    def test_import_with_commits(self, sync_manager, task_manager, sample_project) -> None:
         """Test import handles commits array."""
         now = "2023-01-02T00:00:00+00:00"
 
@@ -420,7 +421,7 @@ class TestImportEdgeCases:
         assert task.commits == ["abc123", "def456"]
 
     @pytest.mark.integration
-    def test_import_with_escalation_data(self, sync_manager, task_manager, sample_project):
+    def test_import_with_escalation_data(self, sync_manager, task_manager, sample_project) -> None:
         """Test import handles escalation fields."""
         now = "2023-01-02T00:00:00+00:00"
 
@@ -450,7 +451,7 @@ class TestImportEdgeCases:
         assert task.escalation_reason == "Blocked by external dependency"
 
     @pytest.mark.integration
-    def test_import_with_null_validation(self, sync_manager, task_manager, sample_project):
+    def test_import_with_null_validation(self, sync_manager, task_manager, sample_project) -> None:
         """Test import handles null validation object."""
         now = "2023-01-02T00:00:00+00:00"
 
@@ -478,7 +479,7 @@ class TestImportEdgeCases:
         assert task.validation_status is None
 
     @pytest.mark.integration
-    def test_import_error_handling(self, sync_manager, task_manager, sample_project):
+    def test_import_error_handling(self, sync_manager, task_manager, sample_project) -> None:
         """Test import raises exception on invalid JSON."""
         sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
         with open(sync_manager.export_path, "w") as f:
@@ -492,7 +493,7 @@ class TestExportEdgeCases:
     """Tests for export edge cases and error handling."""
 
     @pytest.mark.integration
-    def test_export_multiple_dependencies(self, sync_manager, task_manager, sample_project):
+    def test_export_multiple_dependencies(self, sync_manager, task_manager, sample_project) -> None:
         """Test export with task having multiple dependencies."""
         t1 = task_manager.create_task(sample_project["id"], "Dependency 1")
         t2 = task_manager.create_task(sample_project["id"], "Dependency 2")
@@ -519,7 +520,7 @@ class TestExportEdgeCases:
         assert sorted(task3_data["deps_on"]) == sorted([t1.id, t2.id])
 
     @pytest.mark.integration
-    def test_export_with_validation_data(self, sync_manager, task_manager, sample_project):
+    def test_export_with_validation_data(self, sync_manager, task_manager, sample_project) -> None:
         """Test export includes validation data."""
         task = task_manager.create_task(sample_project["id"], "Task with validation")
 
@@ -546,7 +547,7 @@ class TestExportEdgeCases:
         assert data["validation"]["criteria"] == "Must pass CI"
 
     @pytest.mark.integration
-    def test_export_with_commits(self, sync_manager, task_manager, sample_project):
+    def test_export_with_commits(self, sync_manager, task_manager, sample_project) -> None:
         """Test export includes commits array."""
         task = task_manager.create_task(sample_project["id"], "Task with commits")
 
@@ -565,7 +566,7 @@ class TestExportEdgeCases:
         assert data["commits"] == ["commit1", "commit2"]
 
     @pytest.mark.integration
-    def test_export_with_corrupted_meta_file(self, sync_manager, task_manager, sample_project):
+    def test_export_with_corrupted_meta_file(self, sync_manager, task_manager, sample_project) -> None:
         """Test export handles corrupted meta file."""
         task_manager.create_task(sample_project["id"], "Task 1")
 
@@ -586,7 +587,7 @@ class TestExportEdgeCases:
         assert "last_exported" in meta
 
     @pytest.mark.integration
-    def test_export_error_propagates(self, sync_manager, task_manager, sample_project):
+    def test_export_error_propagates(self, sync_manager, task_manager, sample_project) -> None:
         """Test that export errors are propagated."""
         task_manager.create_task(sample_project["id"], "Task 1")
 
@@ -598,7 +599,7 @@ class TestExportEdgeCases:
             sync_manager.export_to_jsonl()
 
     @pytest.mark.integration
-    def test_export_empty_tasks(self, sync_manager):
+    def test_export_empty_tasks(self, sync_manager) -> None:
         """Test export with no tasks creates empty file."""
         sync_manager.export_to_jsonl()
 
@@ -630,7 +631,7 @@ class TestStopMethod:
             assert sync_manager._shutdown_requested is True
 
     @pytest.mark.integration
-    def test_stop_without_export_task(self, sync_manager):
+    def test_stop_without_export_task(self, sync_manager) -> None:
         """Test stop when no export task is running."""
         assert sync_manager._export_task is None
 

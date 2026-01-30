@@ -1,6 +1,6 @@
 ---
 name: usage
-description: This skill should be used when the user asks to "/gobby usage", "show usage", "token usage", "cost report", "budget status". Display token usage, costs, and budget status from gobby-metrics.
+description: This skill should be used when the user asks to "/gobby usage", "show usage", "token usage", "cost report", "budget status". Display token usage, costs, and budget status from the gobby-metrics MCP server.
 category: core
 ---
 
@@ -10,23 +10,31 @@ This skill displays token usage, costs, and budget status by querying the gobby-
 
 ## Subcommands
 
+> **Note**: All tool calls below are executed against `server_name="gobby-metrics"`.
+
 ### `/gobby usage` - Show help
 Display available options and current budget status.
 
 ### `/gobby usage --today` - Today's usage summary
 Show token usage and costs for today only.
 
-Call `gobby-metrics.get_usage_report(days=1)`
+```python
+await call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 1})
+```
 
 ### `/gobby usage --week` - Weekly usage summary
 Show token usage and costs for the last 7 days.
 
-Call `gobby-metrics.get_usage_report(days=7)`
+```python
+await call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": 7})
+```
 
 ### `/gobby usage --budget` - Budget status only
 Show current daily budget status without usage breakdown.
 
-Call `gobby-metrics.get_budget_status()`
+```python
+await call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
+```
 
 ## Output Format
 
@@ -56,7 +64,7 @@ Daily Budget Status:
 
 ### get_usage_report
 ```python
-gobby-metrics.get_usage_report(days=N)
+await call_tool(server_name="gobby-metrics", tool_name="get_usage_report", arguments={"days": N})
 ```
 Returns token counts and cost estimates for the specified period.
 
@@ -65,7 +73,7 @@ Parameters:
 
 ### get_budget_status
 ```python
-gobby-metrics.get_budget_status()
+await call_tool(server_name="gobby-metrics", tool_name="get_budget_status", arguments={})
 ```
 Returns current daily budget configuration and usage.
 

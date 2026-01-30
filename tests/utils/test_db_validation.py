@@ -6,6 +6,7 @@ from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.validation import TaskValidator
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def manager(temp_db):

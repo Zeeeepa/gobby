@@ -11,6 +11,7 @@ from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.storage.worktrees import LocalWorktreeManager, Worktree
 from gobby.worktrees.git import GitOperationResult, WorktreeGitManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():

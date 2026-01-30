@@ -7,6 +7,7 @@ from click.testing import CliRunner
 
 from gobby.cli.tasks.main import tasks
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def runner():
@@ -29,7 +30,7 @@ def mock_task_manager():
 class TestCommitLink:
     """Tests for 'gobby tasks commit link' command."""
 
-    def test_link_commit_success(self, runner, mock_task_manager):
+    def test_link_commit_success(self, runner, mock_task_manager) -> None:
         """Test linking a commit to a task."""
         mock_task = MagicMock()
         mock_task.id = "gt-abc123"
@@ -44,7 +45,7 @@ class TestCommitLink:
             mock_task_manager.link_commit.assert_called_with("gt-abc123", "abc123")
             assert "abc123" in result.output
 
-    def test_link_commit_task_not_found(self, runner, mock_task_manager):
+    def test_link_commit_task_not_found(self, runner, mock_task_manager) -> None:
         """Test error when task not found."""
         mock_task_manager.link_commit.side_effect = ValueError("Task not found")
 
@@ -54,13 +55,13 @@ class TestCommitLink:
             assert result.exit_code != 0
             assert "not found" in result.output.lower() or "error" in result.output.lower()
 
-    def test_link_commit_requires_task_id(self, runner):
+    def test_link_commit_requires_task_id(self, runner) -> None:
         """Test that task_id argument is required."""
         result = runner.invoke(tasks, ["commit", "link"])
 
         assert result.exit_code != 0
 
-    def test_link_commit_requires_commit_sha(self, runner):
+    def test_link_commit_requires_commit_sha(self, runner) -> None:
         """Test that commit_sha argument is required."""
         result = runner.invoke(tasks, ["commit", "link", "gt-abc123"])
 
@@ -75,7 +76,7 @@ class TestCommitLink:
 class TestCommitUnlink:
     """Tests for 'gobby tasks commit unlink' command."""
 
-    def test_unlink_commit_success(self, runner, mock_task_manager):
+    def test_unlink_commit_success(self, runner, mock_task_manager) -> None:
         """Test unlinking a commit from a task."""
         mock_task = MagicMock()
         mock_task.id = "gt-abc123"
@@ -89,7 +90,7 @@ class TestCommitUnlink:
             assert result.exit_code == 0
             mock_task_manager.unlink_commit.assert_called_with("gt-abc123", "abc123")
 
-    def test_unlink_commit_task_not_found(self, runner, mock_task_manager):
+    def test_unlink_commit_task_not_found(self, runner, mock_task_manager) -> None:
         """Test error when task not found."""
         mock_task_manager.unlink_commit.side_effect = ValueError("Task not found")
 
@@ -107,7 +108,7 @@ class TestCommitUnlink:
 class TestCommitList:
     """Tests for 'gobby tasks commit list' command."""
 
-    def test_list_commits_success(self, runner, mock_task_manager):
+    def test_list_commits_success(self, runner, mock_task_manager) -> None:
         """Test listing commits linked to a task."""
         mock_task = MagicMock()
         mock_task.id = "gt-abc123"
@@ -122,7 +123,7 @@ class TestCommitList:
             assert "def456" in result.output
             assert "ghi789" in result.output
 
-    def test_list_commits_empty(self, runner, mock_task_manager):
+    def test_list_commits_empty(self, runner, mock_task_manager) -> None:
         """Test listing commits when task has none."""
         mock_task = MagicMock()
         mock_task.id = "gt-abc123"
@@ -135,7 +136,7 @@ class TestCommitList:
             assert result.exit_code == 0
             assert "no commit" in result.output.lower() or "0" in result.output
 
-    def test_list_commits_task_not_found(self, runner, mock_task_manager):
+    def test_list_commits_task_not_found(self, runner, mock_task_manager) -> None:
         """Test error when task not found."""
         mock_task_manager.get_task.return_value = None
 
@@ -153,7 +154,7 @@ class TestCommitList:
 class TestCommitAuto:
     """Tests for 'gobby tasks commit auto' command."""
 
-    def test_auto_link_commits_success(self, runner, mock_task_manager):
+    def test_auto_link_commits_success(self, runner, mock_task_manager) -> None:
         """Test auto-linking commits."""
         from gobby.tasks.commits import AutoLinkResult
 
@@ -171,7 +172,7 @@ class TestCommitAuto:
                 assert "2" in result.output  # Total linked
                 mock_auto_link.assert_called_once()
 
-    def test_auto_link_commits_with_since(self, runner, mock_task_manager):
+    def test_auto_link_commits_with_since(self, runner, mock_task_manager) -> None:
         """Test auto-linking commits with --since option."""
         from gobby.tasks.commits import AutoLinkResult
 
@@ -189,7 +190,7 @@ class TestCommitAuto:
                 call_kwargs = mock_auto_link.call_args.kwargs
                 assert call_kwargs.get("since") == "1 week ago"
 
-    def test_auto_link_commits_with_task_id(self, runner, mock_task_manager):
+    def test_auto_link_commits_with_task_id(self, runner, mock_task_manager) -> None:
         """Test auto-linking commits for specific task."""
         from gobby.tasks.commits import AutoLinkResult
 
@@ -207,7 +208,7 @@ class TestCommitAuto:
                 call_kwargs = mock_auto_link.call_args.kwargs
                 assert call_kwargs.get("task_id") == "gt-abc123"
 
-    def test_auto_link_commits_no_matches(self, runner, mock_task_manager):
+    def test_auto_link_commits_no_matches(self, runner, mock_task_manager) -> None:
         """Test auto-linking when no commits match."""
         from gobby.tasks.commits import AutoLinkResult
 
@@ -233,7 +234,7 @@ class TestCommitAuto:
 class TestTaskDiff:
     """Tests for 'gobby tasks diff' command."""
 
-    def test_diff_success(self, runner, mock_task_manager):
+    def test_diff_success(self, runner, mock_task_manager) -> None:
         """Test getting diff for a task."""
         from gobby.tasks.commits import TaskDiffResult
 
@@ -256,7 +257,7 @@ class TestTaskDiff:
                 assert result.exit_code == 0
                 assert "diff --git" in result.output or "+new line" in result.output
 
-    def test_diff_with_uncommitted(self, runner, mock_task_manager):
+    def test_diff_with_uncommitted(self, runner, mock_task_manager) -> None:
         """Test getting diff with uncommitted changes."""
         from gobby.tasks.commits import TaskDiffResult
 
@@ -280,7 +281,7 @@ class TestTaskDiff:
                 call_kwargs = mock_diff.call_args.kwargs
                 assert call_kwargs.get("include_uncommitted") is True
 
-    def test_diff_task_not_found(self, runner, mock_task_manager):
+    def test_diff_task_not_found(self, runner, mock_task_manager) -> None:
         """Test error when task not found."""
         mock_task_manager.get_task.return_value = None
 
@@ -289,7 +290,7 @@ class TestTaskDiff:
 
             assert result.exit_code != 0
 
-    def test_diff_no_commits(self, runner, mock_task_manager):
+    def test_diff_no_commits(self, runner, mock_task_manager) -> None:
         """Test diff when task has no commits."""
         from gobby.tasks.commits import TaskDiffResult
 
@@ -316,7 +317,7 @@ class TestTaskDiff:
                     or result.output.strip() == ""
                 )
 
-    def test_diff_stats_only(self, runner, mock_task_manager):
+    def test_diff_stats_only(self, runner, mock_task_manager) -> None:
         """Test showing diff stats only."""
         from gobby.tasks.commits import TaskDiffResult
 

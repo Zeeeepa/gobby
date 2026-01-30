@@ -11,6 +11,7 @@ import pytest
 
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):
@@ -28,7 +29,7 @@ def project_id(sample_project):
 class TestCompleteIDGenerationFlow:
     """Integration tests for the complete ID generation flow."""
 
-    def test_full_task_lifecycle(self, task_manager, project_id):
+    def test_full_task_lifecycle(self, task_manager, project_id) -> None:
         """Test complete lifecycle: create -> verify ID/seq/path -> update -> close."""
         # Create a task
         task = task_manager.create_task(
@@ -62,7 +63,7 @@ class TestCompleteIDGenerationFlow:
         assert updated.seq_num == task.seq_num
         assert updated.path_cache == task.path_cache
 
-    def test_multiple_projects_independent_sequences(self, task_manager, temp_db):
+    def test_multiple_projects_independent_sequences(self, task_manager, temp_db) -> None:
         """Test that each project has independent ID sequences."""
         # Create two projects
         temp_db.execute(
@@ -92,7 +93,7 @@ class TestCompleteIDGenerationFlow:
         all_ids = {alpha_task1.id, alpha_task2.id, beta_task1.id, beta_task2.id}
         assert len(all_ids) == 4, "All task IDs should be unique"
 
-    def test_nested_task_hierarchy(self, task_manager, project_id):
+    def test_nested_task_hierarchy(self, task_manager, project_id) -> None:
         """Test creating a nested task hierarchy with proper paths."""
         # Create hierarchy:
         #   root (seq=1, path=1)
@@ -133,7 +134,7 @@ class TestCompleteIDGenerationFlow:
         assert child2.path_cache == "1.5"
         assert root2.path_cache == "6"
 
-    def test_reparent_updates_subtree_paths(self, task_manager, project_id):
+    def test_reparent_updates_subtree_paths(self, task_manager, project_id) -> None:
         """Test that reparenting a task updates all descendant paths."""
         # Create initial hierarchy under root1
         root1 = task_manager.create_task(project_id=project_id, title="Root 1")
@@ -159,7 +160,7 @@ class TestCompleteIDGenerationFlow:
         assert branch.path_cache == "2.3"
         assert leaf.path_cache == "2.3.4"
 
-    def test_reparent_to_root(self, task_manager, project_id):
+    def test_reparent_to_root(self, task_manager, project_id) -> None:
         """Test reparenting a task to become a root task."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
@@ -183,7 +184,7 @@ class TestCompleteIDGenerationFlow:
         assert child.path_cache == "2"
         assert grandchild.path_cache == "2.3"
 
-    def test_seq_num_gaps_preserved(self, task_manager, project_id):
+    def test_seq_num_gaps_preserved(self, task_manager, project_id) -> None:
         """Test that seq_num gaps are preserved after deletion."""
         task1 = task_manager.create_task(project_id=project_id, title="Task 1")
         task2 = task_manager.create_task(project_id=project_id, title="Task 2")
@@ -200,7 +201,7 @@ class TestCompleteIDGenerationFlow:
         task4 = task_manager.create_task(project_id=project_id, title="Task 4")
         assert task4.seq_num == 4
 
-    def test_deep_hierarchy(self, task_manager, project_id):
+    def test_deep_hierarchy(self, task_manager, project_id) -> None:
         """Test creating and reparenting a deep task hierarchy."""
         tasks = []
         parent_id = None
@@ -220,7 +221,7 @@ class TestCompleteIDGenerationFlow:
         assert tasks[1].path_cache == "1.2"
         assert tasks[9].path_cache == "1.2.3.4.5.6.7.8.9.10"
 
-    def test_to_dict_and_to_brief_include_all_fields(self, task_manager, project_id):
+    def test_to_dict_and_to_brief_include_all_fields(self, task_manager, project_id) -> None:
         """Test that to_dict and to_brief include ID, seq_num, and path_cache."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
@@ -245,7 +246,7 @@ class TestCompleteIDGenerationFlow:
         assert "path_cache" in brief_data
         assert brief_data["path_cache"] == "1.2"
 
-    def test_many_tasks_sequential_ids(self, task_manager, project_id):
+    def test_many_tasks_sequential_ids(self, task_manager, project_id) -> None:
         """Test creating many tasks with sequential IDs."""
         tasks = []
         for i in range(50):
@@ -264,7 +265,7 @@ class TestCompleteIDGenerationFlow:
         ids = {task.id for task in tasks}
         assert len(ids) == 50
 
-    def test_uuid_format_valid(self, task_manager, project_id):
+    def test_uuid_format_valid(self, task_manager, project_id) -> None:
         """Test that generated task IDs are valid UUIDs."""
         import uuid
 

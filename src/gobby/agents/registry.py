@@ -137,6 +137,17 @@ class RunningAgentRegistry:
         with self._event_callbacks_lock:
             self._event_callbacks.append(callback)
 
+    def emit_event(self, event_type: str, run_id: str, data: dict[str, Any]) -> None:
+        """
+        Emit a custom event to all registered callbacks.
+
+        Args:
+            event_type: Type of event (e.g., terminal_output)
+            run_id: Agent run ID
+            data: Additional event data
+        """
+        self._emit_event(event_type, run_id, data)
+
     def _emit_event(self, event_type: str, run_id: str, data: dict[str, Any]) -> None:
         """
         Emit an event to all registered callbacks.

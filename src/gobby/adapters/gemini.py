@@ -76,21 +76,39 @@ class GeminiAdapter(BaseAdapter):
 
     # Tool name mapping: Gemini tool names -> normalized names
     # Gemini uses different tool names than Claude Code
+    # This enables workflows to use Claude Code naming conventions
     TOOL_MAP: dict[str, str] = {
+        # Shell/Bash
         "run_shell_command": "Bash",
         "RunShellCommand": "Bash",
+        "ShellTool": "Bash",
+        # File read
         "read_file": "Read",
         "ReadFile": "Read",
         "ReadFileTool": "Read",
+        # File write
         "write_file": "Write",
         "WriteFile": "Write",
         "WriteFileTool": "Write",
+        # File edit
         "edit_file": "Edit",
         "EditFile": "Edit",
         "EditFileTool": "Edit",
+        # Search/Glob/Grep
         "GlobTool": "Glob",
         "GrepTool": "Grep",
-        "ShellTool": "Bash",
+        "search_file_content": "Grep",
+        "SearchText": "Grep",
+        # MCP tools (Gobby MCP server)
+        "call_tool": "mcp__gobby__call_tool",
+        "list_mcp_servers": "mcp__gobby__list_mcp_servers",
+        "list_tools": "mcp__gobby__list_tools",
+        "get_tool_schema": "mcp__gobby__get_tool_schema",
+        "search_tools": "mcp__gobby__search_tools",
+        "recommend_tools": "mcp__gobby__recommend_tools",
+        # Skill and agent tools
+        "activate_skill": "Skill",
+        "delegate_to_agent": "Task",
     }
 
     def __init__(self, hook_manager: "HookManager | None" = None):
@@ -134,6 +152,55 @@ class GeminiAdapter(BaseAdapter):
             Normalized tool name (e.g., "Bash", "Read", "Write").
         """
         return self.TOOL_MAP.get(gemini_tool_name, gemini_tool_name)
+
+    def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Normalize Gemini event data for CLI-agnostic processing.
+
+        This method enriches the input_data with normalized fields so downstream
+        code doesn't need to handle Gemini-specific formats.
+
+        Normalizations performed:
+        1. mcp_context.server_name/tool_name → mcp_server/mcp_tool (top-level)
+        2. tool_response → tool_output
+        3. function_name → tool_name (if not already present)
+        4. parameters/args → tool_input (if not already present)
+
+        Args:
+            input_data: Raw input data from Gemini CLI
+
+        Returns:
+            Enriched data dict with normalized fields added
+        """
+        # Start with a copy to avoid mutating original
+        data = dict(input_data)
+
+        # 1. Flatten mcp_context to top-level mcp_server/mcp_tool
+        mcp_context = data.get("mcp_context")
+        if mcp_context and isinstance(mcp_context, dict):
+            if "mcp_server" not in data:
+                data["mcp_server"] = mcp_context.get("server_name")
+            if "mcp_tool" not in data:
+                data["mcp_tool"] = mcp_context.get("tool_name")
+
+        # 2. Normalize tool_response → tool_output
+        if "tool_response" in data and "tool_output" not in data:
+            data["tool_output"] = data["tool_response"]
+
+        # 3. Normalize function_name → tool_name
+        if "function_name" in data and "tool_name" not in data:
+            data["tool_name"] = self.normalize_tool_name(data["function_name"])
+        elif "tool_name" in data:
+            # Normalize existing tool_name
+            data["tool_name"] = self.normalize_tool_name(data["tool_name"])
+
+        # 4. Normalize parameters/args → tool_input
+        if "tool_input" not in data:
+            if "parameters" in data:
+                data["tool_input"] = data["parameters"]
+            elif "args" in data:
+                data["tool_input"] = data["args"]
+
+        return data
 
     def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent:
         """Convert Gemini CLI native event to unified HookEvent.
@@ -202,6 +269,10 @@ class GeminiAdapter(BaseAdapter):
         else:
             metadata = {}
 
+        # Normalize event data for CLI-agnostic processing
+        # This allows downstream code to use consistent field names
+        normalized_data = self._normalize_event_data(input_data)
+
         return HookEvent(
             event_type=event_type,
             session_id=session_id,
@@ -209,7 +280,7 @@ class GeminiAdapter(BaseAdapter):
             timestamp=timestamp,
             machine_id=machine_id,
             cwd=input_data.get("cwd"),
-            data=input_data,
+            data=normalized_data,
             metadata=metadata,
         )
 
@@ -254,46 +325,77 @@ class GeminiAdapter(BaseAdapter):
         if response.context:
             hook_specific["additionalContext"] = response.context
 
-        # Add session/terminal context for SessionStart only
-        if hook_type == "SessionStart" and response.metadata:
+        # Add session/terminal context for hooks that support additionalContext
+        # Parity with Claude Code: inject on SessionStart, BeforeAgent, BeforeTool, AfterTool
+        hooks_with_context = {"SessionStart", "BeforeAgent", "BeforeTool", "AfterTool"}
+        if hook_type in hooks_with_context and response.metadata:
             session_id = response.metadata.get("session_id")
+            session_ref = response.metadata.get("session_ref")
+            external_id = response.metadata.get("external_id")
+            is_first_hook = response.metadata.get("_first_hook_for_session", False)
+
             if session_id:
                 hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type, "Unknown")
-                context_lines = [f"session_id: {session_id}"]
-                if response.metadata.get("parent_session_id"):
-                    context_lines.append(
-                        f"parent_session_id: {response.metadata['parent_session_id']}"
+
+                if is_first_hook:
+                    # First hook: inject full metadata (~60-100 tokens)
+                    context_lines = []
+                    if session_ref:
+                        context_lines.append(f"Gobby Session ID: {session_ref} (or {session_id})")
+                    else:
+                        context_lines.append(f"Gobby Session ID: {session_id}")
+                    if external_id:
+                        context_lines.append(
+                            f"CLI-Specific Session ID (external_id): {external_id}"
+                        )
+                    if response.metadata.get("parent_session_id"):
+                        context_lines.append(
+                            f"parent_session_id: {response.metadata['parent_session_id']}"
+                        )
+                    if response.metadata.get("machine_id"):
+                        context_lines.append(f"machine_id: {response.metadata['machine_id']}")
+                    if response.metadata.get("project_id"):
+                        context_lines.append(f"project_id: {response.metadata['project_id']}")
+                    # Add terminal context (non-null values only)
+                    if response.metadata.get("terminal_term_program"):
+                        context_lines.append(
+                            f"terminal: {response.metadata['terminal_term_program']}"
+                        )
+                    if response.metadata.get("terminal_tty"):
+                        context_lines.append(f"tty: {response.metadata['terminal_tty']}")
+                    if response.metadata.get("terminal_parent_pid"):
+                        context_lines.append(
+                            f"parent_pid: {response.metadata['terminal_parent_pid']}"
+                        )
+                    # Add terminal-specific session IDs
+                    for key in [
+                        "terminal_iterm_session_id",
+                        "terminal_term_session_id",
+                        "terminal_kitty_window_id",
+                        "terminal_tmux_pane",
+                        "terminal_vscode_terminal_id",
+                        "terminal_alacritty_socket",
+                    ]:
+                        if response.metadata.get(key):
+                            friendly_name = key.replace("terminal_", "").replace("_", " ")
+                            context_lines.append(f"{friendly_name}: {response.metadata[key]}")
+
+                    hook_specific["hookEventName"] = hook_event_name
+                    # Append to existing additionalContext if present
+                    existing = hook_specific.get("additionalContext", "")
+                    new_context = "\n".join(context_lines)
+                    hook_specific["additionalContext"] = (
+                        f"{existing}\n{new_context}" if existing else new_context
                     )
-                if response.metadata.get("machine_id"):
-                    context_lines.append(f"machine_id: {response.metadata['machine_id']}")
-                if response.metadata.get("project_id"):
-                    context_lines.append(f"project_id: {response.metadata['project_id']}")
-                # Add terminal context (non-null values only)
-                if response.metadata.get("terminal_term_program"):
-                    context_lines.append(f"terminal: {response.metadata['terminal_term_program']}")
-                if response.metadata.get("terminal_tty"):
-                    context_lines.append(f"tty: {response.metadata['terminal_tty']}")
-                if response.metadata.get("terminal_parent_pid"):
-                    context_lines.append(f"parent_pid: {response.metadata['terminal_parent_pid']}")
-                # Add terminal-specific session IDs
-                for key in [
-                    "terminal_iterm_session_id",
-                    "terminal_term_session_id",
-                    "terminal_kitty_window_id",
-                    "terminal_tmux_pane",
-                    "terminal_vscode_terminal_id",
-                    "terminal_alacritty_socket",
-                ]:
-                    if response.metadata.get(key):
-                        friendly_name = key.replace("terminal_", "").replace("_", " ")
-                        context_lines.append(f"{friendly_name}: {response.metadata[key]}")
-                hook_specific["hookEventName"] = hook_event_name
-                # Append to existing additionalContext if present
-                existing = hook_specific.get("additionalContext", "")
-                new_context = "\n".join(context_lines)
-                hook_specific["additionalContext"] = (
-                    f"{existing}\n{new_context}" if existing else new_context
-                )
+                else:
+                    # Subsequent hooks: inject minimal session ref only (~8 tokens)
+                    if session_ref:
+                        hook_specific["hookEventName"] = hook_event_name
+                        existing = hook_specific.get("additionalContext", "")
+                        minimal_context = f"Gobby Session ID: {session_ref}"
+                        hook_specific["additionalContext"] = (
+                            f"{existing}\n{minimal_context}" if existing else minimal_context
+                        )
 
         # Handle BeforeModel-specific output (llm_request modification)
         if hook_type == "BeforeModel" and response.modify_args:

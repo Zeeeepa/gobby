@@ -91,7 +91,7 @@ def task(task_manager, project):
 class TestWorktreeCreation:
     """Integration tests for worktree creation."""
 
-    def test_create_minimal_worktree(self, worktree_manager, project):
+    def test_create_minimal_worktree(self, worktree_manager, project) -> None:
         """Create a worktree with minimal required fields."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -108,7 +108,7 @@ class TestWorktreeCreation:
         assert worktree.task_id is None
         assert worktree.agent_session_id is None
 
-    def test_create_worktree_with_all_fields(self, worktree_manager, project, session, task):
+    def test_create_worktree_with_all_fields(self, worktree_manager, project, session, task) -> None:
         """Create a worktree with all optional fields."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -123,7 +123,7 @@ class TestWorktreeCreation:
         assert worktree.task_id == task.id
         assert worktree.agent_session_id == session.id
 
-    def test_create_multiple_worktrees(self, worktree_manager, project):
+    def test_create_multiple_worktrees(self, worktree_manager, project) -> None:
         """Create multiple worktrees for the same project."""
         worktree1 = worktree_manager.create(
             project_id=project.id,
@@ -151,7 +151,7 @@ class TestWorktreeCreation:
 class TestWorktreeRetrieval:
     """Integration tests for worktree retrieval."""
 
-    def test_get_by_id(self, worktree_manager, project):
+    def test_get_by_id(self, worktree_manager, project) -> None:
         """Retrieve worktree by ID."""
         created = worktree_manager.create(
             project_id=project.id,
@@ -165,12 +165,12 @@ class TestWorktreeRetrieval:
         assert retrieved.id == created.id
         assert retrieved.branch_name == created.branch_name
 
-    def test_get_nonexistent(self, worktree_manager):
+    def test_get_nonexistent(self, worktree_manager) -> None:
         """Get returns None for nonexistent worktree."""
         result = worktree_manager.get("wt-nonexistent")
         assert result is None
 
-    def test_get_by_path(self, worktree_manager, project):
+    def test_get_by_path(self, worktree_manager, project) -> None:
         """Retrieve worktree by path."""
         created = worktree_manager.create(
             project_id=project.id,
@@ -183,7 +183,7 @@ class TestWorktreeRetrieval:
         assert retrieved is not None
         assert retrieved.id == created.id
 
-    def test_get_by_branch(self, worktree_manager, project):
+    def test_get_by_branch(self, worktree_manager, project) -> None:
         """Retrieve worktree by project and branch."""
         created = worktree_manager.create(
             project_id=project.id,
@@ -196,7 +196,7 @@ class TestWorktreeRetrieval:
         assert retrieved is not None
         assert retrieved.id == created.id
 
-    def test_get_by_task(self, worktree_manager, project, task):
+    def test_get_by_task(self, worktree_manager, project, task) -> None:
         """Retrieve worktree by task ID."""
         created = worktree_manager.create(
             project_id=project.id,
@@ -253,19 +253,19 @@ class TestWorktreeListing:
 
         return {"worktrees": worktrees, "project2": project2}
 
-    def test_list_all(self, worktree_manager, setup_worktrees):
+    def test_list_all(self, worktree_manager, setup_worktrees) -> None:
         """List all worktrees without filters."""
         worktrees = worktree_manager.list_worktrees()
         assert len(worktrees) == 3
 
-    def test_list_by_project(self, worktree_manager, project, setup_worktrees):
+    def test_list_by_project(self, worktree_manager, project, setup_worktrees) -> None:
         """List worktrees filtered by project."""
         worktrees = worktree_manager.list_worktrees(project_id=project.id)
         assert len(worktrees) == 2
         for wt in worktrees:
             assert wt.project_id == project.id
 
-    def test_list_by_status(self, worktree_manager, project, setup_worktrees):
+    def test_list_by_status(self, worktree_manager, project, setup_worktrees) -> None:
         """List worktrees filtered by status."""
         # Mark one as stale
         wt = setup_worktrees["worktrees"][0]
@@ -278,18 +278,18 @@ class TestWorktreeListing:
         assert len(stale) == 1
         assert stale[0].id == wt.id
 
-    def test_list_by_session(self, worktree_manager, session, setup_worktrees):
+    def test_list_by_session(self, worktree_manager, session, setup_worktrees) -> None:
         """List worktrees filtered by agent session."""
         worktrees = worktree_manager.list_worktrees(agent_session_id=session.id)
         assert len(worktrees) == 1
         assert worktrees[0].agent_session_id == session.id
 
-    def test_list_with_limit(self, worktree_manager, setup_worktrees):
+    def test_list_with_limit(self, worktree_manager, setup_worktrees) -> None:
         """List worktrees with limit."""
         worktrees = worktree_manager.list_worktrees(limit=2)
         assert len(worktrees) == 2
 
-    def test_list_combined_filters(self, worktree_manager, project, session, setup_worktrees):
+    def test_list_combined_filters(self, worktree_manager, project, session, setup_worktrees) -> None:
         """List worktrees with multiple filters."""
         worktrees = worktree_manager.list_worktrees(
             project_id=project.id,
@@ -302,7 +302,7 @@ class TestWorktreeListing:
 class TestWorktreeStatusTransitions:
     """Integration tests for worktree status transitions."""
 
-    def test_claim_and_release(self, worktree_manager, project, session_manager, project_manager):
+    def test_claim_and_release(self, worktree_manager, project, session_manager, project_manager) -> None:
         """Test claiming and releasing a worktree."""
         # Create a fresh project and session for this test
         proj = project_manager.create(
@@ -344,7 +344,7 @@ class TestWorktreeStatusTransitions:
         retrieved = worktree_manager.get(worktree.id)
         assert retrieved.agent_session_id is None
 
-    def test_mark_stale(self, worktree_manager, project):
+    def test_mark_stale(self, worktree_manager, project) -> None:
         """Test marking a worktree as stale."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -362,7 +362,7 @@ class TestWorktreeStatusTransitions:
         retrieved = worktree_manager.get(worktree.id)
         assert retrieved.status == WorktreeStatus.STALE.value
 
-    def test_mark_merged(self, worktree_manager, project):
+    def test_mark_merged(self, worktree_manager, project) -> None:
         """Test marking a worktree as merged."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -380,7 +380,7 @@ class TestWorktreeStatusTransitions:
         assert retrieved.status == WorktreeStatus.MERGED.value
         assert retrieved.merged_at is not None
 
-    def test_mark_abandoned(self, worktree_manager, project):
+    def test_mark_abandoned(self, worktree_manager, project) -> None:
         """Test marking a worktree as abandoned."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -396,7 +396,7 @@ class TestWorktreeStatusTransitions:
         retrieved = worktree_manager.get(worktree.id)
         assert retrieved.status == WorktreeStatus.ABANDONED.value
 
-    def test_full_lifecycle(self, worktree_manager, project, session_manager, project_manager):
+    def test_full_lifecycle(self, worktree_manager, project, session_manager, project_manager) -> None:
         """Test complete worktree lifecycle: active → claimed → released → merged."""
         # Create a fresh project and session for this test
         proj = project_manager.create(
@@ -436,7 +436,7 @@ class TestWorktreeStatusTransitions:
 class TestWorktreeUpdate:
     """Integration tests for worktree updates."""
 
-    def test_update_single_field(self, worktree_manager, project):
+    def test_update_single_field(self, worktree_manager, project) -> None:
         """Update a single field."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -452,7 +452,7 @@ class TestWorktreeUpdate:
         retrieved = worktree_manager.get(worktree.id)
         assert retrieved.status == WorktreeStatus.STALE.value
 
-    def test_update_multiple_fields(self, worktree_manager, project, session, task):
+    def test_update_multiple_fields(self, worktree_manager, project, session, task) -> None:
         """Update multiple fields at once."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -471,12 +471,12 @@ class TestWorktreeUpdate:
         assert updated.agent_session_id == session.id
         assert updated.status == WorktreeStatus.STALE.value
 
-    def test_update_nonexistent(self, worktree_manager):
+    def test_update_nonexistent(self, worktree_manager) -> None:
         """Update returns None for nonexistent worktree."""
         result = worktree_manager.update("wt-nonexistent", status="stale")
         assert result is None
 
-    def test_update_updates_timestamp(self, worktree_manager, project):
+    def test_update_updates_timestamp(self, worktree_manager, project) -> None:
         """Update modifies updated_at timestamp."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -497,7 +497,7 @@ class TestWorktreeUpdate:
 class TestWorktreeDeletion:
     """Integration tests for worktree deletion."""
 
-    def test_delete_existing(self, worktree_manager, project):
+    def test_delete_existing(self, worktree_manager, project) -> None:
         """Delete an existing worktree."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -512,7 +512,7 @@ class TestWorktreeDeletion:
         retrieved = worktree_manager.get(worktree.id)
         assert retrieved is None
 
-    def test_delete_nonexistent(self, worktree_manager):
+    def test_delete_nonexistent(self, worktree_manager) -> None:
         """Delete returns False for nonexistent worktree."""
         result = worktree_manager.delete("wt-nonexistent")
         assert result is False
@@ -521,7 +521,7 @@ class TestWorktreeDeletion:
 class TestStaleWorktreeDetection:
     """Integration tests for stale worktree detection and cleanup."""
 
-    def test_find_stale_worktrees(self, temp_db, project_manager):
+    def test_find_stale_worktrees(self, temp_db, project_manager) -> None:
         """Find worktrees that haven't been updated recently."""
         # Need fresh managers to manipulate timestamps
         wm = LocalWorktreeManager(temp_db)
@@ -556,7 +556,7 @@ class TestStaleWorktreeDetection:
         assert len(stale) == 1
         assert stale[0].id == old.id
 
-    def test_find_stale_custom_hours(self, temp_db, project_manager):
+    def test_find_stale_custom_hours(self, temp_db, project_manager) -> None:
         """Find stale worktrees with custom hours threshold."""
         wm = LocalWorktreeManager(temp_db)
         proj = project_manager.create(
@@ -585,7 +585,7 @@ class TestStaleWorktreeDetection:
         stale_6 = wm.find_stale(proj.id, hours=6)
         assert len(stale_6) == 1
 
-    def test_cleanup_stale_dry_run(self, temp_db, project_manager):
+    def test_cleanup_stale_dry_run(self, temp_db, project_manager) -> None:
         """Cleanup stale in dry run mode doesn't modify worktrees."""
         wm = LocalWorktreeManager(temp_db)
         proj = project_manager.create(
@@ -614,7 +614,7 @@ class TestStaleWorktreeDetection:
         retrieved = wm.get(worktree.id)
         assert retrieved.status == WorktreeStatus.ACTIVE.value
 
-    def test_cleanup_stale_marks_abandoned(self, temp_db, project_manager):
+    def test_cleanup_stale_marks_abandoned(self, temp_db, project_manager) -> None:
         """Cleanup stale marks worktrees as abandoned."""
         wm = LocalWorktreeManager(temp_db)
         proj = project_manager.create(
@@ -647,12 +647,12 @@ class TestStaleWorktreeDetection:
 class TestWorktreeStatistics:
     """Integration tests for worktree statistics."""
 
-    def test_count_by_status_empty(self, worktree_manager, project):
+    def test_count_by_status_empty(self, worktree_manager, project) -> None:
         """Count by status returns empty dict for no worktrees."""
         counts = worktree_manager.count_by_status(project.id)
         assert counts == {}
 
-    def test_count_by_status_with_data(self, worktree_manager, project):
+    def test_count_by_status_with_data(self, worktree_manager, project) -> None:
         """Count by status returns correct counts."""
         # Create worktrees with different statuses
         worktree_manager.create(
@@ -685,7 +685,7 @@ class TestWorktreeStatistics:
 class TestWorktreeDataIntegrity:
     """Integration tests for worktree data integrity."""
 
-    def test_worktree_to_dict(self, worktree_manager, project, session, task):
+    def test_worktree_to_dict(self, worktree_manager, project, session, task) -> None:
         """Worktree.to_dict returns complete data."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -710,7 +710,7 @@ class TestWorktreeDataIntegrity:
         assert data["updated_at"] is not None
         assert data["merged_at"] is None
 
-    def test_worktree_timestamps_are_strings(self, worktree_manager, project):
+    def test_worktree_timestamps_are_strings(self, worktree_manager, project) -> None:
         """Worktree timestamps are stored as ISO strings."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -727,7 +727,7 @@ class TestWorktreeDataIntegrity:
         datetime.fromisoformat(worktree.created_at.replace("Z", "+00:00"))
         datetime.fromisoformat(worktree.updated_at.replace("Z", "+00:00"))
 
-    def test_merged_at_only_set_on_merge(self, worktree_manager, project):
+    def test_merged_at_only_set_on_merge(self, worktree_manager, project) -> None:
         """merged_at is only set when marking as merged."""
         worktree = worktree_manager.create(
             project_id=project.id,

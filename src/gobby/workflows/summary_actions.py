@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
     """Format transcript turns for LLM analysis.
 
+    Handles both Claude Code format (nested message.role/content) and
+    Gemini CLI format (flat type/role/content).
+
     Args:
         turns: List of transcript turn dicts
 
@@ -30,43 +33,97 @@ def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
     """
     formatted: list[str] = []
     for i, turn in enumerate(turns):
-        message = turn.get("message", {})
-        role = message.get("role", "unknown")
-        content = message.get("content", "")
+        # Detect format: Gemini CLI uses "type" field, Claude uses nested "message"
+        event_type = turn.get("type")
 
-        # Assistant messages have content as array of blocks
-        if isinstance(content, list):
-            text_parts: list[str] = []
-            for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") == "text":
-                        text_parts.append(block.get("text", ""))
-                    elif block.get("type") == "thinking":
-                        text_parts.append(f"[Thinking: {block.get('thinking', '')}]")
-                    elif block.get("type") == "tool_use":
-                        text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
-                    elif block.get("type") == "tool_result":
-                        result_content = block.get("content", "")
-                        # Extract text from list of content blocks if needed
-                        if isinstance(result_content, list):
-                            extracted = []
-                            for item in result_content:
-                                if isinstance(item, dict):
-                                    extracted.append(
-                                        item.get("text", "") or item.get("content", "")
-                                    )
-                                else:
-                                    extracted.append(str(item))
-                            result_content = " ".join(extracted)
-                        content_str = str(result_content)
-                        preview = content_str[:100]
-                        suffix = "..." if len(content_str) > 100 else ""
-                        text_parts.append(f"[Result: {preview}{suffix}]")
-            content = " ".join(text_parts)
+        if event_type:
+            # Gemini CLI format: flat structure with type field
+            role, content = _format_gemini_turn(turn, event_type)
+            if role is None:
+                continue  # Skip non-displayable events
+        else:
+            # Claude Code format: nested message structure
+            role, content = _format_claude_turn(turn)
 
         formatted.append(f"[Turn {i + 1} - {role}]: {content}")
 
     return "\n\n".join(formatted)
+
+
+def _format_gemini_turn(turn: dict[str, Any], event_type: str) -> tuple[str | None, str]:
+    """Format a Gemini CLI turn.
+
+    Returns:
+        Tuple of (role, formatted_content) or (None, "") if should skip
+    """
+    if event_type == "message":
+        role = turn.get("role", "unknown")
+        if role == "model":
+            role = "assistant"
+        content = turn.get("content", "")
+        if isinstance(content, list):
+            content = " ".join(str(part) for part in content)
+        return role, str(content)
+
+    elif event_type == "tool_use":
+        tool_name = turn.get("tool_name") or turn.get("function_name", "unknown")
+        params = turn.get("parameters") or turn.get("args", {})
+        param_preview = str(params)[:100] if params else ""
+        return "assistant", f"[Tool: {tool_name}] {param_preview}"
+
+    elif event_type == "tool_result":
+        tool_name = turn.get("tool_name", "")
+        output = turn.get("output") or turn.get("result", "")
+        output_str = str(output)
+        preview = output_str[:100]
+        suffix = "..." if len(output_str) > 100 else ""
+        return "tool", f"[Result{' from ' + tool_name if tool_name else ''}]: {preview}{suffix}"
+
+    elif event_type in ("init", "result"):
+        # Skip initialization and final result events
+        return None, ""
+
+    else:
+        # Unknown type, try to extract something
+        content = turn.get("content", turn.get("message", ""))
+        return "unknown", str(content)[:200]
+
+
+def _format_claude_turn(turn: dict[str, Any]) -> tuple[str, str]:
+    """Format a Claude Code turn with nested message structure."""
+    message = turn.get("message", {})
+    role = message.get("role", "unknown")
+    content = message.get("content", "")
+
+    # Assistant messages have content as array of blocks
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                if block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif block.get("type") == "thinking":
+                    text_parts.append(f"[Thinking: {block.get('thinking', '')}]")
+                elif block.get("type") == "tool_use":
+                    text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+                elif block.get("type") == "tool_result":
+                    result_content = block.get("content", "")
+                    # Extract text from list of content blocks if needed
+                    if isinstance(result_content, list):
+                        extracted = []
+                        for item in result_content:
+                            if isinstance(item, dict):
+                                extracted.append(item.get("text", "") or item.get("content", ""))
+                            else:
+                                extracted.append(str(item))
+                        result_content = " ".join(extracted)
+                    content_str = str(result_content)
+                    preview = content_str[:100]
+                    suffix = "..." if len(content_str) > 100 else ""
+                    text_parts.append(f"[Result: {preview}{suffix}]")
+        content = " ".join(text_parts)
+
+    return role, str(content)
 
 
 def extract_todowrite_state(turns: list[dict[str, Any]]) -> str:
@@ -75,6 +132,9 @@ def extract_todowrite_state(turns: list[dict[str, Any]]) -> str:
     Scans turns in reverse to find the most recent TodoWrite tool call
     and formats it as a markdown checklist.
 
+    Handles both Claude Code format (nested message.content) and
+    Gemini CLI format (flat type/tool_name/parameters).
+
     Args:
         turns: List of transcript turns
 
@@ -82,6 +142,16 @@ def extract_todowrite_state(turns: list[dict[str, Any]]) -> str:
         Formatted markdown string with todo list, or empty string if not found
     """
     for turn in reversed(turns):
+        # Check Gemini CLI format: flat structure with type="tool_use"
+        event_type = turn.get("type")
+        if event_type == "tool_use":
+            tool_name = turn.get("tool_name") or turn.get("function_name", "")
+            if tool_name == "TodoWrite":
+                tool_input = turn.get("parameters") or turn.get("args") or turn.get("input", {})
+                todos = tool_input.get("todos", [])
+                return _format_todos(todos)
+
+        # Check Claude Code format: nested message.content
         message = turn.get("message", {})
         content = message.get("content", [])
 
@@ -91,29 +161,32 @@ def extract_todowrite_state(turns: list[dict[str, Any]]) -> str:
                     if block.get("name") == "TodoWrite":
                         tool_input = block.get("input", {})
                         todos = tool_input.get("todos", [])
-
-                        if not todos:
-                            return ""
-
-                        # Format as markdown checklist
-                        lines: list[str] = []
-                        for todo in todos:
-                            content_text = todo.get("content", "")
-                            status = todo.get("status", "pending")
-
-                            # Map status to checkbox style
-                            if status == "completed":
-                                checkbox = "[x]"
-                            elif status == "in_progress":
-                                checkbox = "[>]"
-                            else:
-                                checkbox = "[ ]"
-
-                            lines.append(f"- {checkbox} {content_text}")
-
-                        return "\n".join(lines)
+                        return _format_todos(todos)
 
     return ""
+
+
+def _format_todos(todos: list[dict[str, Any]]) -> str:
+    """Format todos list as markdown checklist."""
+    if not todos:
+        return ""
+
+    lines: list[str] = []
+    for todo in todos:
+        content_text = todo.get("content", "")
+        status = todo.get("status", "pending")
+
+        # Map status to checkbox style
+        if status == "completed":
+            checkbox = "[x]"
+        elif status == "in_progress":
+            checkbox = "[>]"
+        else:
+            checkbox = "[ ]"
+
+        lines.append(f"- {checkbox} {content_text}")
+
+    return "\n".join(lines)
 
 
 async def synthesize_title(

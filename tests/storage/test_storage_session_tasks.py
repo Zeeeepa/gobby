@@ -4,6 +4,7 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def session_task_manager(temp_db):
@@ -37,7 +38,7 @@ def sample_session(session_manager, sample_project):
 
 
 class TestSessionTaskManager:
-    def test_link_task(self, session_task_manager, sample_task, sample_session):
+    def test_link_task(self, session_task_manager, sample_task, sample_session) -> None:
         session_id = sample_session.id
         session_task_manager.link_task(session_id, sample_task.id, "worked_on")
 
@@ -46,7 +47,7 @@ class TestSessionTaskManager:
         assert tasks[0]["task"].id == sample_task.id
         assert tasks[0]["action"] == "worked_on"
 
-    def test_link_duplicate_ignored(self, session_task_manager, sample_task, sample_session):
+    def test_link_duplicate_ignored(self, session_task_manager, sample_task, sample_session) -> None:
         session_id = sample_session.id
         session_task_manager.link_task(session_id, sample_task.id, "worked_on")
         session_task_manager.link_task(session_id, sample_task.id, "worked_on")
@@ -54,12 +55,12 @@ class TestSessionTaskManager:
         tasks = session_task_manager.get_session_tasks(session_id)
         assert len(tasks) == 1
 
-    def test_link_invalid_action(self, session_task_manager, sample_task, sample_session):
+    def test_link_invalid_action(self, session_task_manager, sample_task, sample_session) -> None:
         session_id = sample_session.id
         with pytest.raises(ValueError, match="Invalid action"):
             session_task_manager.link_task(session_id, sample_task.id, "invalid_action")
 
-    def test_unlink_task(self, session_task_manager, sample_task, sample_session):
+    def test_unlink_task(self, session_task_manager, sample_task, sample_session) -> None:
         session_id = sample_session.id
         session_task_manager.link_task(session_id, sample_task.id, "worked_on")
         session_task_manager.unlink_task(session_id, sample_task.id, "worked_on")
@@ -69,7 +70,7 @@ class TestSessionTaskManager:
 
     def test_get_task_sessions(
         self, session_task_manager, sample_task, session_manager, sample_project
-    ):
+    ) -> None:
         # Create two distinct sessions
         s1 = session_manager.register(
             external_id="ext-1", machine_id="m1", source="s1", project_id=sample_project["id"]
@@ -89,7 +90,7 @@ class TestSessionTaskManager:
         assert (s1.id, "worked_on") in found_links
         assert (s2.id, "mentioned") in found_links
 
-    def test_multiple_actions_same_session(self, session_task_manager, sample_task, sample_session):
+    def test_multiple_actions_same_session(self, session_task_manager, sample_task, sample_session) -> None:
         session_id = sample_session.id
         # A task can be both mentioned and worked on in the same session
         session_task_manager.link_task(session_id, sample_task.id, "mentioned")

@@ -205,6 +205,17 @@ async def memory_recall_relevant(
         # Filter out memories that have already been injected in this session
         new_memories = [m for m in memories if m.id not in injected_ids]
 
+        # Deduplicate by content to avoid showing same content with different IDs
+        # (can happen when same content was stored with different project_ids)
+        seen_content: set[str] = set()
+        unique_memories = []
+        for m in new_memories:
+            normalized = m.content.strip()
+            if normalized not in seen_content:
+                seen_content.add(normalized)
+                unique_memories.append(m)
+        new_memories = unique_memories
+
         if not new_memories:
             logger.debug(
                 f"memory_recall_relevant: All {len(memories)} memories already injected, skipping"

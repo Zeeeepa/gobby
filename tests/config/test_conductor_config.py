@@ -6,11 +6,12 @@ settings for agent spawning decisions.
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 class TestConductorConfigDefaults:
     """Tests for ConductorConfig default values."""
 
-    def test_conductor_config_defaults(self):
+    def test_conductor_config_defaults(self) -> None:
         """ConductorConfig has correct default values."""
         from gobby.config.app import ConductorConfig
 
@@ -21,7 +22,7 @@ class TestConductorConfigDefaults:
         assert config.throttle_threshold == 0.9
         assert config.tracking_window_days == 7
 
-    def test_conductor_config_unlimited_budget(self):
+    def test_conductor_config_unlimited_budget(self) -> None:
         """ConductorConfig with 0 daily_budget_usd means unlimited."""
         from gobby.config.app import ConductorConfig
 
@@ -29,7 +30,7 @@ class TestConductorConfigDefaults:
 
         assert config.daily_budget_usd == 0.0
 
-    def test_conductor_config_custom_values(self):
+    def test_conductor_config_custom_values(self) -> None:
         """ConductorConfig accepts custom values."""
         from gobby.config.app import ConductorConfig
 
@@ -49,7 +50,7 @@ class TestConductorConfigDefaults:
 class TestConductorConfigValidation:
     """Tests for ConductorConfig validation."""
 
-    def test_warning_threshold_must_be_between_0_and_1(self):
+    def test_warning_threshold_must_be_between_0_and_1(self) -> None:
         """warning_threshold must be between 0 and 1."""
         from pydantic import ValidationError
 
@@ -61,7 +62,7 @@ class TestConductorConfigValidation:
         with pytest.raises(ValidationError):
             ConductorConfig(warning_threshold=-0.1)
 
-    def test_throttle_threshold_must_be_between_0_and_1(self):
+    def test_throttle_threshold_must_be_between_0_and_1(self) -> None:
         """throttle_threshold must be between 0 and 1."""
         from pydantic import ValidationError
 
@@ -73,7 +74,7 @@ class TestConductorConfigValidation:
         with pytest.raises(ValidationError):
             ConductorConfig(throttle_threshold=-0.1)
 
-    def test_daily_budget_cannot_be_negative(self):
+    def test_daily_budget_cannot_be_negative(self) -> None:
         """daily_budget_usd cannot be negative."""
         from pydantic import ValidationError
 
@@ -82,7 +83,7 @@ class TestConductorConfigValidation:
         with pytest.raises(ValidationError):
             ConductorConfig(daily_budget_usd=-10.0)
 
-    def test_tracking_window_days_must_be_positive(self):
+    def test_tracking_window_days_must_be_positive(self) -> None:
         """tracking_window_days must be positive."""
         from pydantic import ValidationError
 
@@ -98,7 +99,7 @@ class TestConductorConfigValidation:
 class TestDaemonConfigConductorSection:
     """Tests for conductor section in DaemonConfig."""
 
-    def test_daemon_config_has_conductor_section(self):
+    def test_daemon_config_has_conductor_section(self) -> None:
         """DaemonConfig includes conductor section."""
         from gobby.config.app import DaemonConfig
 
@@ -107,7 +108,7 @@ class TestDaemonConfigConductorSection:
         assert hasattr(config, "conductor")
         assert config.conductor is not None
 
-    def test_daemon_config_conductor_defaults(self):
+    def test_daemon_config_conductor_defaults(self) -> None:
         """DaemonConfig conductor section has correct defaults."""
         from gobby.config.app import DaemonConfig
 
@@ -118,7 +119,7 @@ class TestDaemonConfigConductorSection:
         assert config.conductor.throttle_threshold == 0.9
         assert config.conductor.tracking_window_days == 7
 
-    def test_daemon_config_from_dict_with_conductor(self):
+    def test_daemon_config_from_dict_with_conductor(self) -> None:
         """DaemonConfig parses conductor section from dict."""
         from gobby.config.app import DaemonConfig
 
@@ -138,7 +139,7 @@ class TestDaemonConfigConductorSection:
         assert config.conductor.throttle_threshold == 0.95
         assert config.conductor.tracking_window_days == 30
 
-    def test_daemon_config_partial_conductor_override(self):
+    def test_daemon_config_partial_conductor_override(self) -> None:
         """DaemonConfig allows partial conductor overrides."""
         from gobby.config.app import DaemonConfig
 

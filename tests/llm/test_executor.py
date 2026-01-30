@@ -11,11 +11,12 @@ from gobby.llm.executor import (
     ToolSchema,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestToolSchema:
     """Tests for ToolSchema dataclass."""
 
-    def test_create_with_required_fields(self):
+    def test_create_with_required_fields(self) -> None:
         """ToolSchema can be created with required fields."""
         schema = ToolSchema(
             name="test_tool",
@@ -28,7 +29,7 @@ class TestToolSchema:
         assert schema.input_schema == {"type": "object", "properties": {}}
         assert schema.server_name is None
 
-    def test_create_with_all_fields(self):
+    def test_create_with_all_fields(self) -> None:
         """ToolSchema can be created with all fields including server_name."""
         schema = ToolSchema(
             name="create_task",
@@ -48,7 +49,7 @@ class TestToolSchema:
         assert schema.server_name == "gobby-tasks"
         assert schema.input_schema["required"] == ["title"]
 
-    def test_complex_input_schema(self):
+    def test_complex_input_schema(self) -> None:
         """ToolSchema handles complex input schemas."""
         schema = ToolSchema(
             name="complex_tool",
@@ -78,7 +79,7 @@ class TestToolSchema:
 class TestToolResult:
     """Tests for ToolResult dataclass."""
 
-    def test_create_success_result(self):
+    def test_create_success_result(self) -> None:
         """ToolResult can represent a successful call."""
         result = ToolResult(
             tool_name="test_tool",
@@ -91,7 +92,7 @@ class TestToolResult:
         assert result.result == {"data": "value"}
         assert result.error is None
 
-    def test_create_error_result(self):
+    def test_create_error_result(self) -> None:
         """ToolResult can represent a failed call."""
         result = ToolResult(
             tool_name="test_tool",
@@ -104,7 +105,7 @@ class TestToolResult:
         assert result.result is None
         assert result.error == "Something went wrong"
 
-    def test_success_with_none_result(self):
+    def test_success_with_none_result(self) -> None:
         """ToolResult can succeed with None result."""
         result = ToolResult(
             tool_name="void_tool",
@@ -115,7 +116,7 @@ class TestToolResult:
         assert result.result is None
         assert result.error is None
 
-    def test_result_with_complex_data(self):
+    def test_result_with_complex_data(self) -> None:
         """ToolResult handles complex result data."""
         result = ToolResult(
             tool_name="data_tool",
@@ -134,7 +135,7 @@ class TestToolResult:
 class TestToolCallRecord:
     """Tests for ToolCallRecord dataclass."""
 
-    def test_create_without_result(self):
+    def test_create_without_result(self) -> None:
         """ToolCallRecord can be created without result."""
         record = ToolCallRecord(
             tool_name="test_tool",
@@ -145,7 +146,7 @@ class TestToolCallRecord:
         assert record.arguments == {"arg1": "value1"}
         assert record.result is None
 
-    def test_create_with_result(self):
+    def test_create_with_result(self) -> None:
         """ToolCallRecord can be created with result."""
         result = ToolResult(tool_name="test_tool", success=True, result={"ok": True})
 
@@ -159,7 +160,7 @@ class TestToolCallRecord:
         assert record.result is result
         assert record.result.success is True
 
-    def test_empty_arguments(self):
+    def test_empty_arguments(self) -> None:
         """ToolCallRecord handles empty arguments."""
         record = ToolCallRecord(
             tool_name="no_args_tool",
@@ -172,7 +173,7 @@ class TestToolCallRecord:
 class TestAgentResult:
     """Tests for AgentResult dataclass."""
 
-    def test_create_success_result(self):
+    def test_create_success_result(self) -> None:
         """AgentResult can represent successful execution."""
         result = AgentResult(
             output="Task completed successfully.",
@@ -190,7 +191,7 @@ class TestAgentResult:
         assert result.error is None
         assert result.run_id is None
 
-    def test_create_with_all_fields(self):
+    def test_create_with_all_fields(self) -> None:
         """AgentResult can be created with all fields."""
         tool_call = ToolCallRecord(
             tool_name="edit",
@@ -217,7 +218,7 @@ class TestAgentResult:
         assert len(result.next_steps) == 2
         assert result.run_id == "run-abc123"
 
-    def test_create_error_result(self):
+    def test_create_error_result(self) -> None:
         """AgentResult can represent error."""
         result = AgentResult(
             output="",
@@ -230,7 +231,7 @@ class TestAgentResult:
         assert result.error == "Connection refused"
         assert result.output == ""
 
-    def test_create_timeout_result(self):
+    def test_create_timeout_result(self) -> None:
         """AgentResult can represent timeout."""
         result = AgentResult(
             output="",
@@ -242,7 +243,7 @@ class TestAgentResult:
         assert result.status == "timeout"
         assert "timed out" in result.error
 
-    def test_create_partial_result(self):
+    def test_create_partial_result(self) -> None:
         """AgentResult can represent partial completion."""
         result = AgentResult(
             output="Completed 3 of 5 tasks.",
@@ -252,7 +253,7 @@ class TestAgentResult:
 
         assert result.status == "partial"
 
-    def test_create_blocked_result(self):
+    def test_create_blocked_result(self) -> None:
         """AgentResult can represent blocked status."""
         result = AgentResult(
             output="Blocked by missing dependency.",
@@ -262,7 +263,7 @@ class TestAgentResult:
 
         assert result.status == "blocked"
 
-    def test_valid_status_values(self):
+    def test_valid_status_values(self) -> None:
         """AgentResult accepts all valid status values."""
         valid_statuses = ["success", "partial", "blocked", "timeout", "error"]
 

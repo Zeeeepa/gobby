@@ -196,6 +196,7 @@ class ChildSessionManager:
             parent_session_id=config.parent_session_id,
             agent_depth=child_depth,
             spawned_by_agent_id=config.agent_id,
+            workflow_name=config.workflow_name,
         )
 
         child_id = child.id

@@ -25,6 +25,8 @@ from gobby.memory.protocol import (
     MemoryRecord,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test: MemoryCapability Enum
 # =============================================================================
@@ -33,7 +35,7 @@ from gobby.memory.protocol import (
 class TestMemoryCapability:
     """Tests for MemoryCapability enum."""
 
-    def test_basic_capabilities_exist(self):
+    def test_basic_capabilities_exist(self) -> None:
         """Test that core capabilities are defined."""
         # Basic CRUD
         assert MemoryCapability.CREATE is not None
@@ -41,13 +43,13 @@ class TestMemoryCapability:
         assert MemoryCapability.UPDATE is not None
         assert MemoryCapability.DELETE is not None
 
-    def test_search_capabilities_exist(self):
+    def test_search_capabilities_exist(self) -> None:
         """Test that search-related capabilities are defined."""
         assert MemoryCapability.SEARCH_TEXT is not None
         assert MemoryCapability.SEARCH_SEMANTIC is not None
         assert MemoryCapability.SEARCH_HYBRID is not None
 
-    def test_advanced_capabilities_exist(self):
+    def test_advanced_capabilities_exist(self) -> None:
         """Test that advanced capabilities are defined."""
         assert MemoryCapability.TAGS is not None
         assert MemoryCapability.IMPORTANCE is not None
@@ -55,13 +57,13 @@ class TestMemoryCapability:
         assert MemoryCapability.MEDIA is not None
         assert MemoryCapability.DECAY is not None
 
-    def test_capability_is_enum_member(self):
+    def test_capability_is_enum_member(self) -> None:
         """Test that capabilities are proper enum members."""
         from enum import Enum
 
         assert isinstance(MemoryCapability.CREATE, Enum)
 
-    def test_capabilities_are_unique(self):
+    def test_capabilities_are_unique(self) -> None:
         """Test that all capability values are unique."""
         values = [cap.value for cap in MemoryCapability]
         assert len(values) == len(set(values))
@@ -75,12 +77,12 @@ class TestMemoryCapability:
 class TestMemoryQuery:
     """Tests for MemoryQuery dataclass."""
 
-    def test_create_minimal_query(self):
+    def test_create_minimal_query(self) -> None:
         """Test creating a query with just text."""
         query = MemoryQuery(text="search term")
         assert query.text == "search term"
 
-    def test_create_query_with_all_fields(self):
+    def test_create_query_with_all_fields(self) -> None:
         """Test creating a query with all parameters."""
         query = MemoryQuery(
             text="search term",
@@ -105,7 +107,7 @@ class TestMemoryQuery:
         assert query.tags_none == ["archived"]
         assert query.search_mode == "semantic"
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that optional fields have sensible defaults."""
         query = MemoryQuery(text="test")
         assert query.project_id is None
@@ -118,7 +120,7 @@ class TestMemoryQuery:
         assert query.tags_none is None
         assert query.search_mode == "auto"
 
-    def test_query_is_immutable(self):
+    def test_query_is_immutable(self) -> None:
         """Test that query is a frozen dataclass."""
         query = MemoryQuery(text="test")
         with pytest.raises((AttributeError, TypeError)):
@@ -133,7 +135,7 @@ class TestMemoryQuery:
 class TestMediaAttachment:
     """Tests for MediaAttachment dataclass."""
 
-    def test_create_image_attachment(self):
+    def test_create_image_attachment(self) -> None:
         """Test creating an image attachment."""
         attachment = MediaAttachment(
             media_type="image",
@@ -144,7 +146,7 @@ class TestMediaAttachment:
         assert attachment.content_path == "/path/to/image.png"
         assert attachment.mime_type == "image/png"
 
-    def test_attachment_with_description(self):
+    def test_attachment_with_description(self) -> None:
         """Test attachment with LLM-generated description."""
         attachment = MediaAttachment(
             media_type="image",
@@ -156,7 +158,7 @@ class TestMediaAttachment:
         assert attachment.description == "Architecture diagram showing microservices layout"
         assert attachment.description_model == "claude-3-haiku"
 
-    def test_attachment_with_metadata(self):
+    def test_attachment_with_metadata(self) -> None:
         """Test attachment with additional metadata."""
         attachment = MediaAttachment(
             media_type="image",
@@ -167,7 +169,7 @@ class TestMediaAttachment:
         assert attachment.metadata["width"] == 1920
         assert attachment.metadata["source"] == "screenshot"
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that optional fields have sensible defaults."""
         attachment = MediaAttachment(
             media_type="image",
@@ -187,7 +189,7 @@ class TestMediaAttachment:
 class TestMemoryRecord:
     """Tests for MemoryRecord dataclass."""
 
-    def test_create_minimal_record(self):
+    def test_create_minimal_record(self) -> None:
         """Test creating a record with required fields only."""
         record = MemoryRecord(
             id="mem-123",
@@ -198,7 +200,7 @@ class TestMemoryRecord:
         assert record.content == "This is a memory"
         assert record.created_at is not None
 
-    def test_create_full_record(self):
+    def test_create_full_record(self) -> None:
         """Test creating a record with all fields."""
         now = datetime.now(UTC)
         attachment = MediaAttachment(
@@ -230,7 +232,7 @@ class TestMemoryRecord:
         assert len(record.media) == 1
         assert record.metadata["custom"] == "data"
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that optional fields have sensible defaults."""
         record = MemoryRecord(
             id="mem-test",
@@ -243,7 +245,7 @@ class TestMemoryRecord:
         assert record.access_count == 0
         assert record.media == [] or record.media is None
 
-    def test_record_to_dict(self):
+    def test_record_to_dict(self) -> None:
         """Test converting record to dictionary."""
         now = datetime.now(UTC)
         record = MemoryRecord(
@@ -256,7 +258,7 @@ class TestMemoryRecord:
         assert data["content"] == "Dict test"
         assert "created_at" in data
 
-    def test_record_from_dict(self):
+    def test_record_from_dict(self) -> None:
         """Test creating record from dictionary."""
         data = {
             "id": "mem-from-dict",
@@ -279,38 +281,38 @@ class TestMemoryRecord:
 class TestMemoryBackendProtocol:
     """Tests for MemoryBackendProtocol interface."""
 
-    def test_protocol_is_runtime_checkable(self):
+    def test_protocol_is_runtime_checkable(self) -> None:
         """Test that protocol can be checked at runtime."""
         # The protocol should be decorated with @runtime_checkable
         assert hasattr(MemoryBackendProtocol, "__protocol_attrs__") or isinstance(
             MemoryBackendProtocol, type
         )
 
-    def test_protocol_defines_capabilities_method(self):
+    def test_protocol_defines_capabilities_method(self) -> None:
         """Test that protocol defines capabilities() method."""
         assert hasattr(MemoryBackendProtocol, "capabilities")
 
-    def test_protocol_defines_create_method(self):
+    def test_protocol_defines_create_method(self) -> None:
         """Test that protocol defines create() method."""
         assert hasattr(MemoryBackendProtocol, "create")
 
-    def test_protocol_defines_get_method(self):
+    def test_protocol_defines_get_method(self) -> None:
         """Test that protocol defines get() method."""
         assert hasattr(MemoryBackendProtocol, "get")
 
-    def test_protocol_defines_update_method(self):
+    def test_protocol_defines_update_method(self) -> None:
         """Test that protocol defines update() method."""
         assert hasattr(MemoryBackendProtocol, "update")
 
-    def test_protocol_defines_delete_method(self):
+    def test_protocol_defines_delete_method(self) -> None:
         """Test that protocol defines delete() method."""
         assert hasattr(MemoryBackendProtocol, "delete")
 
-    def test_protocol_defines_search_method(self):
+    def test_protocol_defines_search_method(self) -> None:
         """Test that protocol defines search() method."""
         assert hasattr(MemoryBackendProtocol, "search")
 
-    def test_protocol_defines_list_method(self):
+    def test_protocol_defines_list_method(self) -> None:
         """Test that protocol defines list_memories() method."""
         assert hasattr(MemoryBackendProtocol, "list_memories")
 
@@ -379,7 +381,7 @@ class TestMemoryBackendProtocolCompliance:
 
         return MockBackend()
 
-    def test_mock_satisfies_protocol(self, mock_backend):
+    def test_mock_satisfies_protocol(self, mock_backend) -> None:
         """Test that mock backend is recognized as implementing the protocol."""
         assert isinstance(mock_backend, MemoryBackendProtocol)
 
@@ -397,7 +399,7 @@ class TestMemoryBackendProtocolCompliance:
         results = await mock_backend.search(query)
         assert isinstance(results, list)
 
-    def test_capabilities_returns_set(self, mock_backend):
+    def test_capabilities_returns_set(self, mock_backend) -> None:
         """Test that capabilities returns a set of MemoryCapability."""
         caps = mock_backend.capabilities()
         assert isinstance(caps, set)
@@ -412,7 +414,7 @@ class TestMemoryBackendProtocolCompliance:
 class TestModuleExports:
     """Tests for module __all__ exports."""
 
-    def test_all_types_exported(self):
+    def test_all_types_exported(self) -> None:
         """Test that all public types are in __all__."""
         from gobby.memory import protocol
 

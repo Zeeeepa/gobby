@@ -16,6 +16,7 @@ from gobby.mcp_proxy.tools.tasks._expansion import create_expansion_registry
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):

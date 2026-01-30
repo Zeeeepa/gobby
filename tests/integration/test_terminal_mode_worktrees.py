@@ -40,6 +40,7 @@ from gobby.storage.migrations import run_migrations
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
+pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def temp_db():
@@ -101,7 +102,7 @@ def worktree_dir():
 class TestGetTerminalEnvVars:
     """Tests for get_terminal_env_vars function."""
 
-    def test_basic_env_vars(self):
+    def test_basic_env_vars(self) -> None:
         """Test basic environment variable generation."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -117,7 +118,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_DEPTH] == "1"
         assert result[GOBBY_MAX_AGENT_DEPTH] == "3"
 
-    def test_with_workflow_name(self):
+    def test_with_workflow_name(self) -> None:
         """Test env vars include workflow name when provided."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -129,7 +130,7 @@ class TestGetTerminalEnvVars:
 
         assert result[GOBBY_WORKFLOW_NAME] == "plan-execute"
 
-    def test_without_workflow_name(self):
+    def test_without_workflow_name(self) -> None:
         """Test workflow name omitted when not provided."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -141,7 +142,7 @@ class TestGetTerminalEnvVars:
 
         assert GOBBY_WORKFLOW_NAME not in result
 
-    def test_with_custom_depth(self):
+    def test_with_custom_depth(self) -> None:
         """Test env vars with custom depth values."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -155,7 +156,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_AGENT_DEPTH] == "2"
         assert result[GOBBY_MAX_AGENT_DEPTH] == "5"
 
-    def test_with_inline_prompt(self):
+    def test_with_inline_prompt(self) -> None:
         """Test env vars with inline prompt."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -168,7 +169,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_PROMPT] == "Implement the feature"
         assert GOBBY_PROMPT_FILE not in result
 
-    def test_with_prompt_file(self):
+    def test_with_prompt_file(self) -> None:
         """Test env vars with prompt file path."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -181,7 +182,7 @@ class TestGetTerminalEnvVars:
         assert result[GOBBY_PROMPT_FILE] == "/tmp/prompt.txt"
         assert GOBBY_PROMPT not in result
 
-    def test_all_values_are_strings(self):
+    def test_all_values_are_strings(self) -> None:
         """Test all env var values are strings."""
         result = get_terminal_env_vars(
             session_id="sess-123",
@@ -200,7 +201,7 @@ class TestGetTerminalEnvVars:
 class TestPrepareTerminalSpawn:
     """Tests for prepare_terminal_spawn function."""
 
-    def test_creates_child_session(self, child_session_manager, parent_session, project):
+    def test_creates_child_session(self, child_session_manager, parent_session, project) -> None:
         """Test that prepare_terminal_spawn creates a child session."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -216,7 +217,7 @@ class TestPrepareTerminalSpawn:
         assert result.parent_session_id == parent_session.id
         assert result.project_id == project.id
 
-    def test_sets_agent_depth(self, child_session_manager, parent_session, project):
+    def test_sets_agent_depth(self, child_session_manager, parent_session, project) -> None:
         """Test that agent depth is correctly set."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -230,7 +231,7 @@ class TestPrepareTerminalSpawn:
         assert result.agent_depth == 1
         assert result.env_vars[GOBBY_AGENT_DEPTH] == "1"
 
-    def test_with_workflow_name(self, child_session_manager, parent_session, project):
+    def test_with_workflow_name(self, child_session_manager, parent_session, project) -> None:
         """Test with workflow name."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -244,7 +245,7 @@ class TestPrepareTerminalSpawn:
         assert result.workflow_name == "plan-execute"
         assert result.env_vars[GOBBY_WORKFLOW_NAME] == "plan-execute"
 
-    def test_short_prompt_uses_env_var(self, child_session_manager, parent_session, project):
+    def test_short_prompt_uses_env_var(self, child_session_manager, parent_session, project) -> None:
         """Test that short prompts are passed via environment variable."""
         short_prompt = "Implement a simple feature"
 
@@ -260,7 +261,7 @@ class TestPrepareTerminalSpawn:
         assert result.env_vars[GOBBY_PROMPT] == short_prompt
         assert GOBBY_PROMPT_FILE not in result.env_vars
 
-    def test_long_prompt_uses_file(self, child_session_manager, parent_session, project):
+    def test_long_prompt_uses_file(self, child_session_manager, parent_session, project) -> None:
         """Test that long prompts are written to a file."""
         long_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 100)
 
@@ -281,7 +282,7 @@ class TestPrepareTerminalSpawn:
         assert prompt_file.exists()
         assert prompt_file.read_text() == long_prompt
 
-    def test_max_agent_depth_passed(self, child_session_manager, parent_session, project):
+    def test_max_agent_depth_passed(self, child_session_manager, parent_session, project) -> None:
         """Test that max_agent_depth is correctly passed."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -294,7 +295,7 @@ class TestPrepareTerminalSpawn:
 
         assert result.env_vars[GOBBY_MAX_AGENT_DEPTH] == "5"
 
-    def test_env_vars_contains_all_required(self, child_session_manager, parent_session, project):
+    def test_env_vars_contains_all_required(self, child_session_manager, parent_session, project) -> None:
         """Test that env_vars contains all required variables."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -320,7 +321,7 @@ class TestPrepareTerminalSpawn:
 class TestReadPromptFromEnv:
     """Tests for read_prompt_from_env function."""
 
-    def test_returns_none_when_not_set(self, monkeypatch):
+    def test_returns_none_when_not_set(self, monkeypatch) -> None:
         """Test returns None when no prompt environment variables set."""
         monkeypatch.delenv(GOBBY_PROMPT, raising=False)
         monkeypatch.delenv(GOBBY_PROMPT_FILE, raising=False)
@@ -329,7 +330,7 @@ class TestReadPromptFromEnv:
 
         assert result is None
 
-    def test_reads_inline_prompt(self, monkeypatch):
+    def test_reads_inline_prompt(self, monkeypatch) -> None:
         """Test reads inline prompt from GOBBY_PROMPT."""
         monkeypatch.setenv(GOBBY_PROMPT, "Implement the feature")
         monkeypatch.delenv(GOBBY_PROMPT_FILE, raising=False)
@@ -338,7 +339,7 @@ class TestReadPromptFromEnv:
 
         assert result == "Implement the feature"
 
-    def test_reads_prompt_from_file(self, monkeypatch):
+    def test_reads_prompt_from_file(self, monkeypatch) -> None:
         """Test reads prompt from file specified in GOBBY_PROMPT_FILE."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("This is a long prompt from file")
@@ -354,7 +355,7 @@ class TestReadPromptFromEnv:
         finally:
             Path(prompt_path).unlink()
 
-    def test_file_takes_priority(self, monkeypatch):
+    def test_file_takes_priority(self, monkeypatch) -> None:
         """Test that prompt file takes priority over inline prompt."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("Prompt from file")
@@ -370,7 +371,7 @@ class TestReadPromptFromEnv:
         finally:
             Path(prompt_path).unlink()
 
-    def test_fallback_to_inline_when_file_missing(self, monkeypatch):
+    def test_fallback_to_inline_when_file_missing(self, monkeypatch) -> None:
         """Test falls back to inline prompt when file doesn't exist."""
         monkeypatch.setenv(GOBBY_PROMPT_FILE, "/nonexistent/prompt.txt")
         monkeypatch.setenv(GOBBY_PROMPT, "Fallback prompt")
@@ -383,7 +384,7 @@ class TestReadPromptFromEnv:
 class TestTerminalSpawnerDetection:
     """Tests for terminal type detection."""
 
-    def test_get_available_terminals(self):
+    def test_get_available_terminals(self) -> None:
         """Test getting available terminals."""
         spawner = TerminalSpawner()
         available = spawner.get_available_terminals()
@@ -391,7 +392,7 @@ class TestTerminalSpawnerDetection:
         # Should return a list (may be empty in CI)
         assert isinstance(available, list)
 
-    def test_get_preferred_terminal(self):
+    def test_get_preferred_terminal(self) -> None:
         """Test getting preferred terminal."""
         spawner = TerminalSpawner()
         preferred = spawner.get_preferred_terminal()
@@ -399,7 +400,7 @@ class TestTerminalSpawnerDetection:
         # May be None in CI without terminals
         assert preferred is None or isinstance(preferred, TerminalType)
 
-    def test_auto_detection_with_no_terminals(self):
+    def test_auto_detection_with_no_terminals(self) -> None:
         """Test auto-detection when no terminals available."""
         spawner = TerminalSpawner()
 
@@ -414,7 +415,7 @@ class TestTerminalSpawnerDetection:
             assert result.success is False
             assert "No supported terminal" in result.message
 
-    def test_spawn_with_unavailable_terminal(self):
+    def test_spawn_with_unavailable_terminal(self) -> None:
         """Test spawning with unavailable terminal type."""
         spawner = TerminalSpawner()
 
@@ -433,7 +434,7 @@ class TestTerminalSpawnerDetection:
 class TestHeadlessSpawner:
     """Tests for headless spawner functionality."""
 
-    def test_spawn_simple_command(self):
+    def test_spawn_simple_command(self) -> None:
         """Test spawning a simple command in headless mode."""
         spawner = HeadlessSpawner()
 
@@ -450,7 +451,7 @@ class TestHeadlessSpawner:
         stdout, _ = result.process.communicate()
         assert "hello" in stdout
 
-    def test_spawn_with_env_vars(self):
+    def test_spawn_with_env_vars(self) -> None:
         """Test spawning with custom environment variables."""
         spawner = HeadlessSpawner()
 
@@ -464,7 +465,7 @@ class TestHeadlessSpawner:
         stdout, _ = result.process.communicate()
         assert "test_value" in stdout
 
-    def test_spawn_agent_sets_env_vars(self):
+    def test_spawn_agent_sets_env_vars(self) -> None:
         """Test spawn_agent sets Gobby environment variables."""
         spawner = HeadlessSpawner()
 
@@ -484,7 +485,7 @@ class TestHeadlessSpawner:
         assert "sess-123" in stdout
         assert "sess-parent" in stdout
 
-    def test_spawn_nonexistent_command(self):
+    def test_spawn_nonexistent_command(self) -> None:
         """Test spawning a non-existent command fails gracefully."""
         spawner = HeadlessSpawner()
 
@@ -500,14 +501,14 @@ class TestHeadlessSpawner:
 class TestSpawnModeEnum:
     """Tests for SpawnMode enum."""
 
-    def test_spawn_mode_values(self):
+    def test_spawn_mode_values(self) -> None:
         """Test SpawnMode enum values."""
         assert SpawnMode.TERMINAL.value == "terminal"
         assert SpawnMode.EMBEDDED.value == "embedded"
         assert SpawnMode.HEADLESS.value == "headless"
         assert SpawnMode.IN_PROCESS.value == "in_process"
 
-    def test_spawn_mode_from_string(self):
+    def test_spawn_mode_from_string(self) -> None:
         """Test creating SpawnMode from string."""
         assert SpawnMode("terminal") == SpawnMode.TERMINAL
         assert SpawnMode("headless") == SpawnMode.HEADLESS
@@ -516,14 +517,14 @@ class TestSpawnModeEnum:
 class TestTerminalTypeEnum:
     """Tests for TerminalType enum."""
 
-    def test_terminal_type_values(self):
+    def test_terminal_type_values(self) -> None:
         """Test TerminalType enum values."""
         assert TerminalType.GHOSTTY.value == "ghostty"
         assert TerminalType.ITERM.value == "iterm"
         assert TerminalType.KITTY.value == "kitty"
         assert TerminalType.AUTO.value == "auto"
 
-    def test_terminal_type_from_string(self):
+    def test_terminal_type_from_string(self) -> None:
         """Test creating TerminalType from string."""
         assert TerminalType("ghostty") == TerminalType.GHOSTTY
         assert TerminalType("auto") == TerminalType.AUTO
@@ -534,7 +535,7 @@ class TestWorktreeIntegration:
 
     def test_prepare_spawn_with_worktree_path(
         self, child_session_manager, parent_session, project, worktree_dir
-    ):
+    ) -> None:
         """Test preparing spawn with a worktree as working directory."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -548,7 +549,7 @@ class TestWorktreeIntegration:
         assert result.session_id is not None
         # The session would track the git branch for the worktree
 
-    def test_headless_spawn_in_worktree(self, worktree_dir):
+    def test_headless_spawn_in_worktree(self, worktree_dir) -> None:
         """Test headless spawning in a worktree directory."""
         spawner = HeadlessSpawner()
 
@@ -561,7 +562,7 @@ class TestWorktreeIntegration:
         stdout, _ = result.process.communicate()
         assert "worktree-feature-x" in stdout
 
-    def test_env_vars_for_worktree_agent(self, child_session_manager, parent_session, project):
+    def test_env_vars_for_worktree_agent(self, child_session_manager, parent_session, project) -> None:
         """Test that environment variables are correctly set for worktree agents."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -584,7 +585,7 @@ class TestWorktreeIntegration:
 class TestPreparedSpawnDataclass:
     """Tests for PreparedSpawn dataclass."""
 
-    def test_prepared_spawn_fields(self):
+    def test_prepared_spawn_fields(self) -> None:
         """Test PreparedSpawn has correct fields."""
         spawn = PreparedSpawn(
             session_id="sess-123",
@@ -604,7 +605,7 @@ class TestPreparedSpawnDataclass:
         assert spawn.agent_depth == 2
         assert spawn.env_vars == {"KEY": "value"}
 
-    def test_prepared_spawn_optional_workflow(self):
+    def test_prepared_spawn_optional_workflow(self) -> None:
         """Test PreparedSpawn with optional workflow."""
         spawn = PreparedSpawn(
             session_id="sess-123",
@@ -622,7 +623,7 @@ class TestPreparedSpawnDataclass:
 class TestSpawnResultDataclass:
     """Tests for SpawnResult dataclass."""
 
-    def test_spawn_result_success(self):
+    def test_spawn_result_success(self) -> None:
         """Test SpawnResult for successful spawn."""
         result = SpawnResult(
             success=True,
@@ -636,7 +637,7 @@ class TestSpawnResultDataclass:
         assert result.terminal_type == "ghostty"
         assert result.error is None
 
-    def test_spawn_result_failure(self):
+    def test_spawn_result_failure(self) -> None:
         """Test SpawnResult for failed spawn."""
         result = SpawnResult(
             success=False,
@@ -652,7 +653,7 @@ class TestSpawnResultDataclass:
 class TestHeadlessResultDataclass:
     """Tests for HeadlessResult dataclass."""
 
-    def test_headless_result_get_output(self):
+    def test_headless_result_get_output(self) -> None:
         """Test HeadlessResult.get_output method."""
         result = HeadlessResult(
             success=True,
@@ -664,7 +665,7 @@ class TestHeadlessResultDataclass:
         output = result.get_output()
         assert output == "line1\nline2\nline3"
 
-    def test_headless_result_empty_output(self):
+    def test_headless_result_empty_output(self) -> None:
         """Test HeadlessResult with empty output."""
         result = HeadlessResult(
             success=True,

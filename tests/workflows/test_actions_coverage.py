@@ -19,6 +19,8 @@ from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.templates import TemplateEngine
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -329,9 +331,7 @@ class TestHandleRequireTaskComplete:
         mock_task.id = "gt-ready-123"
         mock_services["task_manager"].list_ready_tasks.return_value = [mock_task]
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
             await action_executor.execute(
@@ -360,9 +360,7 @@ class TestHandleRequireTaskComplete:
 
         task_ids = ["gt-task1", "gt-task2", "gt-task3"]
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = None  # Allow
 
             await action_executor.execute(
@@ -388,9 +386,7 @@ class TestHandleRequireTaskComplete:
         )
         action_context.session_id = session.id
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -420,9 +416,7 @@ class TestHandleRequireTaskComplete:
         # Mock template engine to resolve the variable
         mock_services["template_engine"].render.return_value = "gt-resolved-task"
 
-        with patch(
-            "gobby.workflows.enforcement.handlers.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.enforcement.handlers.require_task_complete") as mock_require:
             mock_require.return_value = None
 
             await action_executor.execute(
@@ -873,7 +867,7 @@ class TestPluginActionValidationWrapper:
         action.handler = AsyncMock(return_value={"result": "success"})
         return action
 
-    def test_create_validating_wrapper(self, action_executor, mock_plugin_action):
+    def test_create_validating_wrapper(self, action_executor, mock_plugin_action) -> None:
         """Test that validating wrapper is created correctly."""
         wrapper = action_executor._create_validating_wrapper(mock_plugin_action)
         assert callable(wrapper)
@@ -914,12 +908,12 @@ class TestPluginActionValidationWrapper:
 class TestRegisterPluginActions:
     """Tests for register_plugin_actions method."""
 
-    def test_register_plugin_actions_none_registry(self, action_executor):
+    def test_register_plugin_actions_none_registry(self, action_executor) -> None:
         """Test register_plugin_actions with None registry."""
         # Should not raise
         action_executor.register_plugin_actions(None)
 
-    def test_register_plugin_actions_with_schema(self, action_executor):
+    def test_register_plugin_actions_with_schema(self, action_executor) -> None:
         """Test registering plugin actions that have schemas."""
         mock_registry = MagicMock()
         mock_plugin = MagicMock()
@@ -937,7 +931,7 @@ class TestRegisterPluginActions:
         # Verify action was registered with full name
         assert "plugin:test-plugin:validated_action" in action_executor._handlers
 
-    def test_register_plugin_actions_without_schema(self, action_executor):
+    def test_register_plugin_actions_without_schema(self, action_executor) -> None:
         """Test registering plugin actions without schemas."""
         mock_registry = MagicMock()
         mock_plugin = MagicMock()

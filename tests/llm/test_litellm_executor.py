@@ -7,6 +7,7 @@ import pytest
 
 from gobby.llm.executor import ToolResult, ToolSchema
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_litellm_module():
@@ -22,7 +23,7 @@ def mock_litellm_module():
 class TestGetLitellmModel:
     """Tests for get_litellm_model function."""
 
-    def test_claude_provider(self, mock_litellm_module):
+    def test_claude_provider(self, mock_litellm_module) -> None:
         """Test Claude provider gets anthropic prefix."""
         from gobby.llm.litellm_executor import get_litellm_model
 
@@ -34,35 +35,35 @@ class TestGetLitellmModel:
             get_litellm_model("claude-haiku-4-5", provider="claude") == "anthropic/claude-haiku-4-5"
         )
 
-    def test_gemini_api_key_mode(self, mock_litellm_module):
+    def test_gemini_api_key_mode(self, mock_litellm_module) -> None:
         """Test Gemini with api_key gets gemini prefix."""
         from gobby.llm.litellm_executor import get_litellm_model
 
         result = get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="api_key")
         assert result == "gemini/gemini-2.0-flash"
 
-    def test_gemini_adc_mode(self, mock_litellm_module):
+    def test_gemini_adc_mode(self, mock_litellm_module) -> None:
         """Test Gemini with adc gets vertex_ai prefix."""
         from gobby.llm.litellm_executor import get_litellm_model
 
         result = get_litellm_model("gemini-2.0-flash", provider="gemini", auth_mode="adc")
         assert result == "vertex_ai/gemini-2.0-flash"
 
-    def test_codex_provider(self, mock_litellm_module):
+    def test_codex_provider(self, mock_litellm_module) -> None:
         """Test Codex/OpenAI provider gets no prefix."""
         from gobby.llm.litellm_executor import get_litellm_model
 
         assert get_litellm_model("gpt-4o", provider="codex") == "gpt-4o"
         assert get_litellm_model("gpt-4o-mini", provider="openai") == "gpt-4o-mini"
 
-    def test_already_prefixed_model(self, mock_litellm_module):
+    def test_already_prefixed_model(self, mock_litellm_module) -> None:
         """Test models with existing prefix are returned as-is."""
         from gobby.llm.litellm_executor import get_litellm_model
 
         assert get_litellm_model("anthropic/claude-3", provider="claude") == "anthropic/claude-3"
         assert get_litellm_model("gemini/gemini-pro", provider="gemini") == "gemini/gemini-pro"
 
-    def test_no_provider_returns_as_is(self, mock_litellm_module):
+    def test_no_provider_returns_as_is(self, mock_litellm_module) -> None:
         """Test no provider returns model as-is."""
         from gobby.llm.litellm_executor import get_litellm_model
 
@@ -73,7 +74,7 @@ class TestGetLitellmModel:
 class TestSetupProviderEnv:
     """Tests for setup_provider_env function."""
 
-    def test_gemini_adc_sets_vertex_env(self, mock_litellm_module):
+    def test_gemini_adc_sets_vertex_env(self, mock_litellm_module) -> None:
         """Test Gemini ADC mode sets VERTEXAI env vars from GCP env."""
         from gobby.llm.litellm_executor import setup_provider_env
 
@@ -85,7 +86,7 @@ class TestSetupProviderEnv:
             assert os.environ.get("VERTEXAI_PROJECT") == "my-project"
             assert "VERTEXAI_LOCATION" in os.environ
 
-    def test_non_gemini_does_nothing(self, mock_litellm_module):
+    def test_non_gemini_does_nothing(self, mock_litellm_module) -> None:
         """Test non-Gemini providers don't modify env."""
         from gobby.llm.litellm_executor import setup_provider_env
 
@@ -100,7 +101,7 @@ class TestSetupProviderEnv:
 class TestLiteLLMExecutorInit:
     """Tests for LiteLLMExecutor initialization."""
 
-    def test_init_with_defaults(self, mock_litellm_module):
+    def test_init_with_defaults(self, mock_litellm_module) -> None:
         """LiteLLMExecutor initializes with default settings."""
         from gobby.llm.litellm_executor import LiteLLMExecutor
 
@@ -110,7 +111,7 @@ class TestLiteLLMExecutorInit:
         assert executor.default_model == "gpt-4o-mini"
         assert executor.api_base is None
 
-    def test_init_with_custom_model(self, mock_litellm_module):
+    def test_init_with_custom_model(self, mock_litellm_module) -> None:
         """LiteLLMExecutor uses custom default model."""
         from gobby.llm.litellm_executor import LiteLLMExecutor
 
@@ -118,7 +119,7 @@ class TestLiteLLMExecutorInit:
 
         assert executor.default_model == "claude-3-sonnet-20240229"
 
-    def test_init_with_api_base(self, mock_litellm_module):
+    def test_init_with_api_base(self, mock_litellm_module) -> None:
         """LiteLLMExecutor accepts custom API base."""
         from gobby.llm.litellm_executor import LiteLLMExecutor
 
@@ -126,7 +127,7 @@ class TestLiteLLMExecutorInit:
 
         assert executor.api_base == "https://openrouter.ai/api/v1"
 
-    def test_init_with_api_keys(self, mock_litellm_module):
+    def test_init_with_api_keys(self, mock_litellm_module) -> None:
         """LiteLLMExecutor sets API keys in environment."""
         with patch.dict("os.environ", {}, clear=True):
             import os
@@ -141,7 +142,7 @@ class TestLiteLLMExecutorInit:
             assert os.environ.get("OPENAI_API_KEY") == "sk-test"
             assert os.environ.get("ANTHROPIC_API_KEY") == "sk-ant"
 
-    def test_init_with_provider_and_auth_mode(self, mock_litellm_module):
+    def test_init_with_provider_and_auth_mode(self, mock_litellm_module) -> None:
         """LiteLLMExecutor accepts provider and auth_mode parameters."""
         from gobby.llm.litellm_executor import LiteLLMExecutor
 
@@ -155,7 +156,7 @@ class TestLiteLLMExecutorInit:
         assert executor.auth_mode == "api_key"
         assert executor.default_model == "claude-sonnet-4-5"
 
-    def test_init_gemini_adc_mode(self, mock_litellm_module):
+    def test_init_gemini_adc_mode(self, mock_litellm_module) -> None:
         """LiteLLMExecutor with Gemini ADC sets up env vars."""
         with patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "test-project"}, clear=True):
             from gobby.llm.litellm_executor import LiteLLMExecutor
@@ -169,7 +170,7 @@ class TestLiteLLMExecutorInit:
             assert executor.provider == "gemini"
             assert executor.auth_mode == "adc"
 
-    def test_init_skips_existing_env_keys(self, mock_litellm_module):
+    def test_init_skips_existing_env_keys(self, mock_litellm_module) -> None:
         """LiteLLMExecutor doesn't override existing environment keys."""
         with patch.dict("os.environ", {"OPENAI_API_KEY": "existing-key"}):
             import os
@@ -181,7 +182,7 @@ class TestLiteLLMExecutorInit:
             # Should keep existing key
             assert os.environ.get("OPENAI_API_KEY") == "existing-key"
 
-    def test_init_missing_package_raises(self):
+    def test_init_missing_package_raises(self) -> None:
         """LiteLLMExecutor raises ImportError when package not installed."""
         with patch.dict(sys.modules, {"litellm": None}):
             import importlib
@@ -677,7 +678,7 @@ class TestLiteLLMExecutorToolConversion:
 
         return LiteLLMExecutor()
 
-    def test_convert_single_tool(self, executor):
+    def test_convert_single_tool(self, executor) -> None:
         """Converts single tool schema correctly."""
         tools = [
             ToolSchema(
@@ -700,7 +701,7 @@ class TestLiteLLMExecutorToolConversion:
         assert result[0]["function"]["parameters"]["type"] == "object"
         assert "arg1" in result[0]["function"]["parameters"]["properties"]
 
-    def test_convert_multiple_tools(self, executor):
+    def test_convert_multiple_tools(self, executor) -> None:
         """Converts multiple tool schemas correctly."""
         tools = [
             ToolSchema(
@@ -721,13 +722,13 @@ class TestLiteLLMExecutorToolConversion:
         assert result[0]["function"]["name"] == "tool1"
         assert result[1]["function"]["name"] == "tool2"
 
-    def test_convert_empty_tools(self, executor):
+    def test_convert_empty_tools(self, executor) -> None:
         """Converts empty tool list correctly."""
         result = executor._convert_tools_to_openai_format([])
 
         assert result == []
 
-    def test_convert_adds_object_type_if_missing(self, executor):
+    def test_convert_adds_object_type_if_missing(self, executor) -> None:
         """Adds 'type: object' if missing from schema."""
         tools = [
             ToolSchema(

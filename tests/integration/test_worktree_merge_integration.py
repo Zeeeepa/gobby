@@ -18,6 +18,8 @@ import pytest
 
 from gobby.storage.merge_resolutions import MergeResolutionManager
 
+pytestmark = pytest.mark.integration
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -55,7 +57,7 @@ def mock_conflict():
 class TestMergeInitiationFromWorktree:
     """Tests for initiating merges from worktree context."""
 
-    def test_worktree_has_merge_state_field(self):
+    def test_worktree_has_merge_state_field(self) -> None:
         """Worktree should have merge_state field for tracking merge status."""
         from gobby.storage.worktrees import Worktree
 
@@ -63,14 +65,14 @@ class TestMergeInitiationFromWorktree:
         worktree_fields = Worktree.__dataclass_fields__
         assert "merge_state" in worktree_fields
 
-    def test_worktree_manager_has_set_merge_state_method(self):
+    def test_worktree_manager_has_set_merge_state_method(self) -> None:
         """WorktreeManager should have method to set merge state."""
         from gobby.storage.worktrees import LocalWorktreeManager
 
         # Check for set_merge_state method
         assert hasattr(LocalWorktreeManager, "set_merge_state")
 
-    def test_worktree_manager_has_get_by_merge_state_method(self):
+    def test_worktree_manager_has_get_by_merge_state_method(self) -> None:
         """WorktreeManager should have method to get worktrees by merge state."""
         from gobby.storage.worktrees import LocalWorktreeManager
 
@@ -85,13 +87,13 @@ class TestMergeInitiationFromWorktree:
 class TestAutomaticMergeOnSync:
     """Tests for automatic merge when syncing worktrees."""
 
-    def test_worktree_manager_has_sync_with_merge_resolution(self):
+    def test_worktree_manager_has_sync_with_merge_resolution(self) -> None:
         """WorktreeManager should have sync_with_merge_resolution method."""
         from gobby.storage.worktrees import LocalWorktreeManager
 
         assert hasattr(LocalWorktreeManager, "sync_with_merge_resolution")
 
-    def test_worktree_sync_returns_merge_info(self):
+    def test_worktree_sync_returns_merge_info(self) -> None:
         """Worktree sync should return merge resolution info when conflicts occur."""
         # Check method signature includes merge info
         import inspect
@@ -119,7 +121,7 @@ class TestTaskStatusDuringMerge:
     """
 
     @pytest.mark.skip(reason="Task merge fields deferred to Phase 2 - requires schema migration")
-    def test_task_has_merge_in_progress_field(self):
+    def test_task_has_merge_in_progress_field(self) -> None:
         """Task should have merge_in_progress field."""
         from gobby.storage.tasks import Task
 
@@ -127,7 +129,7 @@ class TestTaskStatusDuringMerge:
         assert "merge_in_progress" in task_fields
 
     @pytest.mark.skip(reason="Task merge fields deferred to Phase 2 - requires schema migration")
-    def test_task_has_blocked_by_merge_field(self):
+    def test_task_has_blocked_by_merge_field(self) -> None:
         """Task should have blocked_by_merge field."""
         from gobby.storage.tasks import Task
 
@@ -135,7 +137,7 @@ class TestTaskStatusDuringMerge:
         assert "blocked_by_merge" in task_fields
 
     @pytest.mark.skip(reason="Task merge fields deferred to Phase 2 - requires schema migration")
-    def test_task_manager_has_set_merge_status_method(self):
+    def test_task_manager_has_set_merge_status_method(self) -> None:
         """TaskManager should have method to set merge status."""
         from gobby.storage.tasks import LocalTaskManager
 
@@ -150,7 +152,7 @@ class TestTaskStatusDuringMerge:
 class TestMergeStatePersistence:
     """Tests for merge state persistence across daemon restarts."""
 
-    def test_merge_resolution_persists(self, tmp_path):
+    def test_merge_resolution_persists(self, tmp_path) -> None:
         """Merge resolution should persist in database."""
         from gobby.storage.database import LocalDatabase
         from gobby.storage.merge_resolutions import MergeResolutionManager
@@ -192,7 +194,7 @@ class TestMergeStatePersistence:
 
         db.close()
 
-    def test_worktree_merge_state_in_database_schema(self):
+    def test_worktree_merge_state_in_database_schema(self) -> None:
         """Database schema should include merge_state column in worktrees table."""
         # This test verifies the schema includes merge_state
         # Will pass when migration adds the column
@@ -210,12 +212,12 @@ class TestConcurrentMerges:
     """Tests for concurrent merges in different worktrees."""
 
     @patch("gobby.storage.merge_resolutions.MergeResolutionManager.list_resolutions")
-    def test_list_active_merges_method_exists(self, mock_list):
+    def test_list_active_merges_method_exists(self, mock_list) -> None:
         """MergeResolutionManager should have list_resolutions method."""
 
         assert hasattr(MergeResolutionManager, "list_resolutions")
 
-    def test_merge_resolution_manager_prevents_duplicate_worktree_merges(self):
+    def test_merge_resolution_manager_prevents_duplicate_worktree_merges(self) -> None:
         """MergeResolutionManager should prevent duplicate active merges per worktree."""
 
         # Check for method that validates or prevents duplicates
@@ -232,7 +234,7 @@ class TestConcurrentMerges:
 class TestCLIMergeStatusOutput:
     """Tests for merge status in gobby status CLI output."""
 
-    def test_daemon_module_has_get_merge_status(self):
+    def test_daemon_module_has_get_merge_status(self) -> None:
         """gobby.cli.daemon should have get_merge_status function."""
         # This function should provide merge status for CLI output
         try:
@@ -244,7 +246,7 @@ class TestCLIMergeStatusOutput:
             pytest.fail("get_merge_status not found in gobby.cli.daemon")
 
     @patch("gobby.cli.daemon.get_merge_status")
-    def test_status_command_includes_merge_info(self, mock_get_merge):
+    def test_status_command_includes_merge_info(self, mock_get_merge) -> None:
         """gobby status command should include merge information."""
         from click.testing import CliRunner
 
@@ -273,7 +275,7 @@ class TestCLIMergeStatusOutput:
 class TestMergeHooks:
     """Tests for pre-merge and post-merge hooks."""
 
-    def test_merge_hook_manager_exists(self):
+    def test_merge_hook_manager_exists(self) -> None:
         """MergeHookManager should exist in gobby.hooks.git."""
         try:
             from gobby.hooks.git import MergeHookManager
@@ -282,7 +284,7 @@ class TestMergeHooks:
         except ImportError:
             pytest.fail("MergeHookManager not found in gobby.hooks.git")
 
-    def test_merge_hook_manager_has_register_pre_merge(self):
+    def test_merge_hook_manager_has_register_pre_merge(self) -> None:
         """MergeHookManager should have register_pre_merge method."""
         try:
             from gobby.hooks.git import MergeHookManager
@@ -291,7 +293,7 @@ class TestMergeHooks:
         except ImportError:
             pytest.fail("MergeHookManager not found in gobby.hooks.git")
 
-    def test_merge_hook_manager_has_register_post_merge(self):
+    def test_merge_hook_manager_has_register_post_merge(self) -> None:
         """MergeHookManager should have register_post_merge method."""
         try:
             from gobby.hooks.git import MergeHookManager
@@ -300,7 +302,7 @@ class TestMergeHooks:
         except ImportError:
             pytest.fail("MergeHookManager not found in gobby.hooks.git")
 
-    def test_merge_resolution_manager_has_hooks_support(self):
+    def test_merge_resolution_manager_has_hooks_support(self) -> None:
         """MergeResolutionManager should support hooks."""
 
         # Check for methods that support hooks
@@ -317,23 +319,23 @@ class TestMergeHooks:
 class TestMergeManagerHelperMethods:
     """Tests for helper methods needed by CLI."""
 
-    def test_merge_manager_has_get_active_resolution(self):
+    def test_merge_manager_has_get_active_resolution(self) -> None:
         """MergeResolutionManager should have get_active_resolution method."""
 
         assert hasattr(MergeResolutionManager, "get_active_resolution")
 
-    def test_merge_manager_has_get_conflict_by_path(self):
+    def test_merge_manager_has_get_conflict_by_path(self) -> None:
         """MergeResolutionManager should have get_conflict_by_path method."""
 
         assert hasattr(MergeResolutionManager, "get_conflict_by_path")
 
-    def test_get_active_resolution_returns_pending_resolution(self, mock_resolution):
+    def test_get_active_resolution_returns_pending_resolution(self, mock_resolution) -> None:
         """get_active_resolution should return the current pending resolution."""
 
         if not hasattr(MergeResolutionManager, "get_active_resolution"):
             pytest.fail("get_active_resolution method not implemented")
 
-    def test_get_conflict_by_path_finds_conflict(self, mock_conflict):
+    def test_get_conflict_by_path_finds_conflict(self, mock_conflict) -> None:
         """get_conflict_by_path should find conflict by file path."""
 
         if not hasattr(MergeResolutionManager, "get_conflict_by_path"):

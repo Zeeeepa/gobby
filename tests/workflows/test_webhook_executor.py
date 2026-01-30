@@ -12,6 +12,7 @@ import pytest
 
 from gobby.workflows.webhook_executor import WebhookExecutor, WebhookResult
 
+pytestmark = pytest.mark.unit
 
 def create_mock_response(status=200, body="{}", headers=None):
     """Create a mock aiohttp response with proper async context manager support."""
@@ -408,7 +409,7 @@ class TestWebhookExecutorEdgeCases:
 class TestWebhookResult:
     """Tests for WebhookResult data class."""
 
-    def test_webhook_result_success_attributes(self):
+    def test_webhook_result_success_attributes(self) -> None:
         """WebhookResult should have success, status_code, body, headers, error."""
         result = WebhookResult(
             success=True,
@@ -424,7 +425,7 @@ class TestWebhookResult:
         assert result.headers["Content-Type"] == "application/json"
         assert result.error is None
 
-    def test_webhook_result_failure_attributes(self):
+    def test_webhook_result_failure_attributes(self) -> None:
         """WebhookResult for failure should have error message."""
         result = WebhookResult(
             success=False,
@@ -438,7 +439,7 @@ class TestWebhookResult:
         assert result.status_code is None
         assert result.error == "Connection refused"
 
-    def test_webhook_result_json_body(self):
+    def test_webhook_result_json_body(self) -> None:
         """WebhookResult should have helper to parse JSON body."""
         result = WebhookResult(
             success=True,
@@ -452,7 +453,7 @@ class TestWebhookResult:
         assert json_body["ticket_id"] == "PROJ-123"
         assert json_body["url"] == "https://jira.example.com/PROJ-123"
 
-    def test_webhook_result_json_body_returns_none_for_invalid(self):
+    def test_webhook_result_json_body_returns_none_for_invalid(self) -> None:
         """json_body() should return None for non-JSON body."""
         result = WebhookResult(
             success=True,

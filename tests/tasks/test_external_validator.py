@@ -14,6 +14,7 @@ import pytest
 from gobby.config.tasks import TaskValidationConfig
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
+pytestmark = pytest.mark.unit
 
 class TestRunExternalValidation:
     """Tests for external validation with a separate LLM agent."""
@@ -397,7 +398,7 @@ class TestExternalValidatorToggle:
 class TestExternalValidationResult:
     """Tests for ExternalValidationResult dataclass."""
 
-    def test_result_dataclass_fields(self):
+    def test_result_dataclass_fields(self) -> None:
         """Test ExternalValidationResult has expected fields."""
         from gobby.tasks.external_validator import ExternalValidationResult
 
@@ -412,7 +413,7 @@ class TestExternalValidationResult:
         assert result.issues == []
         assert result.error is None  # Optional field
 
-    def test_result_with_issues(self):
+    def test_result_with_issues(self) -> None:
         """Test ExternalValidationResult with issues populated."""
         from gobby.tasks.external_validator import ExternalValidationResult
 
@@ -432,7 +433,7 @@ class TestExternalValidationResult:
         assert len(result.issues) == 1
         assert result.issues[0].title == "Test failed"
 
-    def test_result_with_error(self):
+    def test_result_with_error(self) -> None:
         """Test ExternalValidationResult with error field."""
         from gobby.tasks.external_validator import ExternalValidationResult
 

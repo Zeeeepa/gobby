@@ -17,6 +17,7 @@ from gobby.mcp_proxy.semantic_search import (
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def semantic_search(temp_db: LocalDatabase) -> SemanticToolSearch:
@@ -68,13 +69,13 @@ def sample_tool(
 class TestTextProcessing:
     """Tests for text processing functions."""
 
-    def test_build_tool_text_basic(self):
+    def test_build_tool_text_basic(self) -> None:
         """Test building tool text with basic inputs."""
         text = _build_tool_text("my_tool", "Does something useful", None)
         assert "Tool: my_tool" in text
         assert "Description: Does something useful" in text
 
-    def test_build_tool_text_with_schema(self):
+    def test_build_tool_text_with_schema(self) -> None:
         """Test building tool text with input schema."""
         schema = {
             "type": "object",
@@ -90,13 +91,13 @@ class TestTextProcessing:
         assert "query (string): Search query" in text
         assert "count (integer)" in text
 
-    def test_build_tool_text_no_description(self):
+    def test_build_tool_text_no_description(self) -> None:
         """Test building tool text without description."""
         text = _build_tool_text("simple_tool", None, None)
         assert "Tool: simple_tool" in text
         assert "Description:" not in text
 
-    def test_compute_text_hash(self):
+    def test_compute_text_hash(self) -> None:
         """Test text hash computation."""
         hash1 = _compute_text_hash("hello world")
         hash2 = _compute_text_hash("hello world")
@@ -110,12 +111,12 @@ class TestTextProcessing:
 class TestSemanticToolSearch:
     """Tests for SemanticToolSearch class."""
 
-    def test_init_default_values(self, semantic_search: SemanticToolSearch):
+    def test_init_default_values(self, semantic_search: SemanticToolSearch) -> None:
         """Test initialization with default values."""
         assert semantic_search.embedding_model == DEFAULT_EMBEDDING_MODEL
         assert semantic_search.embedding_dim == DEFAULT_EMBEDDING_DIM
 
-    def test_init_custom_values(self, temp_db: LocalDatabase):
+    def test_init_custom_values(self, temp_db: LocalDatabase) -> None:
         """Test initialization with custom values."""
         search = SemanticToolSearch(
             temp_db,
@@ -129,7 +130,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test storing and retrieving an embedding."""
         embedding = [0.1] * 1536  # Mock embedding
 
@@ -159,7 +160,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test that storing updates existing embedding."""
         embedding1 = [0.1] * 1536
         embedding2 = [0.2] * 1536
@@ -187,7 +188,7 @@ class TestSemanticToolSearch:
         assert all(abs(a - b) < 1e-6 for a, b in zip(retrieved.embedding, embedding2, strict=True))
         assert retrieved.text_hash == "hash2"
 
-    def test_get_embedding_nonexistent(self, semantic_search: SemanticToolSearch):
+    def test_get_embedding_nonexistent(self, semantic_search: SemanticToolSearch) -> None:
         """Test getting nonexistent embedding returns None."""
         result = semantic_search.get_embedding("nonexistent-id")
         assert result is None
@@ -197,7 +198,7 @@ class TestSemanticToolSearch:
         semantic_search: SemanticToolSearch,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test getting all embeddings for a project."""
         # Create server and cache multiple tools at once
         mcp_manager.upsert(
@@ -233,7 +234,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test getting embeddings for a specific server."""
         semantic_search.store_embedding(
             tool_id=sample_tool["id"],
@@ -254,7 +255,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test deleting an embedding."""
         semantic_search.store_embedding(
             tool_id=sample_tool["id"],
@@ -268,7 +269,7 @@ class TestSemanticToolSearch:
         assert result is True
         assert semantic_search.get_embedding(sample_tool["id"]) is None
 
-    def test_delete_embedding_nonexistent(self, semantic_search: SemanticToolSearch):
+    def test_delete_embedding_nonexistent(self, semantic_search: SemanticToolSearch) -> None:
         """Test deleting nonexistent embedding returns False."""
         result = semantic_search.delete_embedding("nonexistent")
         assert result is False
@@ -279,7 +280,7 @@ class TestSemanticToolSearch:
         sample_tool: dict,
         mcp_manager: LocalMCPManager,
         sample_project: dict,
-    ):
+    ) -> None:
         """Test deleting all embeddings for a server."""
         mcp_manager.cache_tools(
             "test-server",
@@ -308,7 +309,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test that new tool needs embedding."""
         result = semantic_search.needs_reembedding(
             tool_id=sample_tool["id"],
@@ -322,7 +323,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test that unchanged tool doesn't need reembedding."""
         # Build the text and hash
         text = SemanticToolSearch.build_tool_text(
@@ -353,7 +354,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test that changed tool needs reembedding."""
         semantic_search.store_embedding(
             tool_id=sample_tool["id"],
@@ -375,7 +376,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test getting embedding statistics."""
         semantic_search.store_embedding(
             tool_id=sample_tool["id"],
@@ -396,7 +397,7 @@ class TestSemanticToolSearch:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test getting stats without project filter."""
         semantic_search.store_embedding(
             tool_id=sample_tool["id"],
@@ -417,7 +418,7 @@ class TestToolEmbedding:
         self,
         semantic_search: SemanticToolSearch,
         sample_tool: dict,
-    ):
+    ) -> None:
         """Test converting ToolEmbedding to dictionary."""
         embedding = semantic_search.store_embedding(
             tool_id=sample_tool["id"],
@@ -648,31 +649,31 @@ class TestEmbeddingGeneration:
 class TestCosineSimilarity:
     """Tests for cosine similarity function."""
 
-    def test_identical_vectors(self):
+    def test_identical_vectors(self) -> None:
         """Test that identical vectors have similarity 1.0."""
         vec = [0.5, 0.5, 0.5]
         assert abs(_cosine_similarity(vec, vec) - 1.0) < 1e-6
 
-    def test_opposite_vectors(self):
+    def test_opposite_vectors(self) -> None:
         """Test that opposite vectors have similarity -1.0."""
         vec1 = [1.0, 0.0, 0.0]
         vec2 = [-1.0, 0.0, 0.0]
         assert abs(_cosine_similarity(vec1, vec2) - (-1.0)) < 1e-6
 
-    def test_orthogonal_vectors(self):
+    def test_orthogonal_vectors(self) -> None:
         """Test that orthogonal vectors have similarity 0.0."""
         vec1 = [1.0, 0.0]
         vec2 = [0.0, 1.0]
         assert abs(_cosine_similarity(vec1, vec2)) < 1e-6
 
-    def test_dimension_mismatch_raises(self):
+    def test_dimension_mismatch_raises(self) -> None:
         """Test that dimension mismatch raises ValueError."""
         vec1 = [1.0, 2.0]
         vec2 = [1.0, 2.0, 3.0]
         with pytest.raises(ValueError, match="dimension mismatch"):
             _cosine_similarity(vec1, vec2)
 
-    def test_zero_vector(self):
+    def test_zero_vector(self) -> None:
         """Test that zero vector returns 0.0."""
         vec1 = [0.0, 0.0]
         vec2 = [1.0, 1.0]
@@ -682,7 +683,7 @@ class TestCosineSimilarity:
 class TestSearchResult:
     """Tests for SearchResult dataclass."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting SearchResult to dictionary."""
         result = SearchResult(
             tool_id="tool-123",

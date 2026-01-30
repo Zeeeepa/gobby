@@ -8,6 +8,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.sessions import LocalSessionManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path):

@@ -17,6 +17,8 @@ from gobby.hooks.plugins import (
     run_plugin_handlers,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -115,7 +117,7 @@ def plugins_config() -> PluginsConfig:
 class TestPluginsConfig:
     """Tests for PluginsConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default configuration values."""
         config = PluginsConfig()
         assert config.enabled is False  # Disabled by default for security
@@ -123,7 +125,7 @@ class TestPluginsConfig:
         assert config.auto_discover is True
         assert config.plugins == {}
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom configuration values."""
         config = PluginsConfig(
             enabled=True,
@@ -141,13 +143,13 @@ class TestPluginsConfig:
 class TestPluginItemConfig:
     """Tests for PluginItemConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default values."""
         config = PluginItemConfig()
         assert config.enabled is True
         assert config.config == {}
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom config values."""
         config = PluginItemConfig(
             enabled=False,
@@ -166,7 +168,7 @@ class TestPluginItemConfig:
 class TestHookHandlerDecorator:
     """Tests for @hook_handler decorator."""
 
-    def test_decorator_sets_attributes(self):
+    def test_decorator_sets_attributes(self) -> None:
         """Test that decorator sets metadata on function."""
 
         @hook_handler(HookEventType.SESSION_START, priority=25)
@@ -177,7 +179,7 @@ class TestHookHandlerDecorator:
         assert my_handler._hook_event_type == HookEventType.SESSION_START
         assert my_handler._hook_priority == 25
 
-    def test_decorator_preserves_function(self):
+    def test_decorator_preserves_function(self) -> None:
         """Test that decorator preserves the original function."""
 
         @hook_handler(HookEventType.BEFORE_TOOL)
@@ -186,7 +188,7 @@ class TestHookHandlerDecorator:
 
         assert my_handler(None) == "result"
 
-    def test_default_priority(self):
+    def test_default_priority(self) -> None:
         """Test that default priority is 50."""
 
         @hook_handler(HookEventType.AFTER_TOOL)
@@ -204,28 +206,28 @@ class TestHookHandlerDecorator:
 class TestHookPlugin:
     """Tests for HookPlugin base class."""
 
-    def test_plugin_instantiation(self):
+    def test_plugin_instantiation(self) -> None:
         """Test that plugins can be instantiated."""
         plugin = SamplePlugin()
         assert plugin.name == "sample-plugin"
         assert plugin.version == "1.0.0"
         assert plugin.description == "A sample plugin for testing"
 
-    def test_on_load_called(self):
+    def test_on_load_called(self) -> None:
         """Test that on_load receives config."""
         plugin = SamplePlugin()
         test_config = {"key": "value"}
         plugin.on_load(test_config)
         assert plugin.loaded_config == test_config
 
-    def test_on_unload_called(self):
+    def test_on_unload_called(self) -> None:
         """Test that on_unload is called."""
         plugin = SamplePlugin()
         assert plugin.unloaded is False
         plugin.on_unload()
         assert plugin.unloaded is True
 
-    def test_register_action(self):
+    def test_register_action(self) -> None:
         """Test action registration."""
         plugin = SamplePlugin()
 
@@ -239,7 +241,7 @@ class TestHookPlugin:
         assert plugin._actions["my_action"].name == "my_action"
         assert plugin._actions["my_action"].schema == {}  # Empty schema by default
 
-    def test_register_condition(self):
+    def test_register_condition(self) -> None:
         """Test condition registration."""
         plugin = SamplePlugin()
 
@@ -259,7 +261,7 @@ class TestHookPlugin:
 class TestPluginRegistry:
     """Tests for PluginRegistry."""
 
-    def test_register_plugin(self):
+    def test_register_plugin(self) -> None:
         """Test plugin registration."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -270,7 +272,7 @@ class TestPluginRegistry:
         assert "sample-plugin" in registry._plugins
         assert registry.get_plugin("sample-plugin") is plugin
 
-    def test_register_duplicate_raises(self):
+    def test_register_duplicate_raises(self) -> None:
         """Test that registering duplicate plugin raises error."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -281,7 +283,7 @@ class TestPluginRegistry:
         with pytest.raises(ValueError, match="already registered"):
             registry.register_plugin(plugin)
 
-    def test_unregister_plugin(self):
+    def test_unregister_plugin(self) -> None:
         """Test plugin unregistration."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -293,7 +295,7 @@ class TestPluginRegistry:
         assert "sample-plugin" not in registry._plugins
         assert registry.get_plugin("sample-plugin") is None
 
-    def test_handlers_registered(self):
+    def test_handlers_registered(self) -> None:
         """Test that handlers are registered from plugin."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -304,7 +306,7 @@ class TestPluginRegistry:
         assert len(handlers) == 1
         assert handlers[0].priority == 10
 
-    def test_handlers_sorted_by_priority(self):
+    def test_handlers_sorted_by_priority(self) -> None:
         """Test that handlers are sorted by priority."""
         registry = PluginRegistry()
 
@@ -319,7 +321,7 @@ class TestPluginRegistry:
         assert handlers[0].priority == 5  # high priority runs first
         assert handlers[1].priority == 40
 
-    def test_get_pre_handlers(self):
+    def test_get_pre_handlers(self) -> None:
         """Test getting only pre-handlers (priority < 50)."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -334,7 +336,7 @@ class TestPluginRegistry:
         assert len(post_handlers) == 1
         assert post_handlers[0].priority == 60
 
-    def test_list_plugins(self):
+    def test_list_plugins(self) -> None:
         """Test listing all plugins."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -356,7 +358,7 @@ class TestPluginRegistry:
 class TestPluginLoader:
     """Tests for PluginLoader."""
 
-    def test_discover_empty_directory(self, plugins_config):
+    def test_discover_empty_directory(self, plugins_config) -> None:
         """Test discovery with no plugins."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugins_config.plugin_dirs = [tmpdir]
@@ -365,7 +367,7 @@ class TestPluginLoader:
             discovered = loader.discover_plugins()
             assert discovered == []
 
-    def test_discover_nonexistent_directory(self, plugins_config):
+    def test_discover_nonexistent_directory(self, plugins_config) -> None:
         """Test discovery with nonexistent directory."""
         plugins_config.plugin_dirs = ["/nonexistent/path"]
         loader = PluginLoader(plugins_config)
@@ -373,7 +375,7 @@ class TestPluginLoader:
         discovered = loader.discover_plugins()
         assert discovered == []
 
-    def test_load_plugin(self, plugins_config):
+    def test_load_plugin(self, plugins_config) -> None:
         """Test loading a plugin directly."""
         loader = PluginLoader(plugins_config)
 
@@ -383,7 +385,7 @@ class TestPluginLoader:
         assert plugin.loaded_config == {"test": "config"}
         assert "sample-plugin" in loader.registry._plugins
 
-    def test_load_plugin_disabled(self, plugins_config):
+    def test_load_plugin_disabled(self, plugins_config) -> None:
         """Test loading disabled plugin raises error."""
         plugins_config.plugins["sample-plugin"] = PluginItemConfig(enabled=False)
         loader = PluginLoader(plugins_config)
@@ -391,7 +393,7 @@ class TestPluginLoader:
         with pytest.raises(ValueError, match="disabled"):
             loader.load_plugin(SamplePlugin)
 
-    def test_unload_plugin(self, plugins_config):
+    def test_unload_plugin(self, plugins_config) -> None:
         """Test unloading a plugin."""
         loader = PluginLoader(plugins_config)
         plugin = loader.load_plugin(SamplePlugin)
@@ -401,7 +403,7 @@ class TestPluginLoader:
         assert plugin.unloaded is True
         assert loader.registry.get_plugin("sample-plugin") is None
 
-    def test_load_all_disabled(self):
+    def test_load_all_disabled(self) -> None:
         """Test load_all when plugins disabled."""
         config = PluginsConfig(enabled=False)
         loader = PluginLoader(config)
@@ -418,7 +420,7 @@ class TestPluginLoader:
 class TestRunPluginHandlers:
     """Tests for run_plugin_handlers function."""
 
-    def test_pre_handler_allows(self, sample_event):
+    def test_pre_handler_allows(self, sample_event) -> None:
         """Test pre-handler that allows event."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -428,7 +430,7 @@ class TestRunPluginHandlers:
         result = run_plugin_handlers(registry, sample_event, pre=True)
         assert result is None  # None means allow
 
-    def test_pre_handler_blocks(self, blocked_event):
+    def test_pre_handler_blocks(self, blocked_event) -> None:
         """Test pre-handler that blocks event."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -440,7 +442,7 @@ class TestRunPluginHandlers:
         assert result.decision == "deny"
         assert "Blocked by plugin" in result.reason
 
-    def test_post_handler_runs(self, sample_event):
+    def test_post_handler_runs(self, sample_event) -> None:
         """Test post-handler execution."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -461,7 +463,7 @@ class TestRunPluginHandlers:
         result = run_plugin_handlers(registry, after_event, pre=False, core_response=core_response)
         assert result is None
 
-    def test_handler_error_continues(self, sample_event):
+    def test_handler_error_continues(self, sample_event) -> None:
         """Test that handler errors don't stop processing."""
 
         class ErrorPlugin(HookPlugin):
@@ -492,7 +494,7 @@ class TestRunPluginHandlers:
 class TestWorkflowIntegration:
     """Tests for workflow action/condition integration."""
 
-    def test_action_executor_registers_plugin_actions(self):
+    def test_action_executor_registers_plugin_actions(self) -> None:
         """Test that ActionExecutor registers plugin actions."""
         from gobby.workflows.actions import ActionExecutor
 
@@ -511,7 +513,7 @@ class TestWorkflowIntegration:
 
         assert "plugin:sample-plugin:test_action" in executor._handlers
 
-    def test_condition_evaluator_registers_plugin_conditions(self):
+    def test_condition_evaluator_registers_plugin_conditions(self) -> None:
         """Test that ConditionEvaluator registers plugin conditions."""
         from gobby.workflows.evaluator import ConditionEvaluator
 
@@ -530,7 +532,7 @@ class TestWorkflowIntegration:
 
         assert "plugin_sample_plugin_is_ready" in evaluator._plugin_conditions
 
-    def test_condition_can_be_evaluated(self):
+    def test_condition_can_be_evaluated(self) -> None:
         """Test that registered conditions can be evaluated."""
         from gobby.workflows.evaluator import ConditionEvaluator
 
@@ -853,7 +855,7 @@ class TestPluginActionExecution:
 
         assert result is None
 
-    def test_register_plugin_actions_with_none_registry(self):
+    def test_register_plugin_actions_with_none_registry(self) -> None:
         """Test that register_plugin_actions handles None registry gracefully."""
         from gobby.workflows.actions import ActionExecutor
 
@@ -870,7 +872,7 @@ class TestPluginActionExecution:
         plugin_actions = [k for k in executor._handlers.keys() if k.startswith("plugin:")]
         assert len(plugin_actions) == 0
 
-    def test_register_plugin_actions_empty_registry(self):
+    def test_register_plugin_actions_empty_registry(self) -> None:
         """Test registering from empty registry."""
         from gobby.workflows.actions import ActionExecutor
 
@@ -886,7 +888,7 @@ class TestPluginActionExecution:
         plugin_actions = [k for k in executor._handlers.keys() if k.startswith("plugin:")]
         assert len(plugin_actions) == 0
 
-    def test_plugin_actions_listed_in_plugin_info(self):
+    def test_plugin_actions_listed_in_plugin_info(self) -> None:
         """Test that registered actions appear in plugin listing."""
         registry = PluginRegistry()
         plugin = PluginWithActions()
@@ -914,7 +916,7 @@ class TestPluginActionExecution:
 class TestRegisterWorkflowAction:
     """Tests for register_workflow_action with schema validation."""
 
-    def test_register_workflow_action_with_schema(self):
+    def test_register_workflow_action_with_schema(self) -> None:
         """Test registering action with JSON schema."""
         plugin = SamplePlugin()
 
@@ -939,7 +941,7 @@ class TestRegisterWorkflowAction:
         assert action.name == "send_message"
         assert action.plugin_name == "sample-plugin"
 
-    def test_register_workflow_action_duplicate_raises(self):
+    def test_register_workflow_action_duplicate_raises(self) -> None:
         """Test that duplicate action registration raises error."""
         plugin = SamplePlugin()
 
@@ -954,7 +956,7 @@ class TestRegisterWorkflowAction:
         with pytest.raises(ValueError, match="already registered"):
             plugin.register_workflow_action("my_action", {}, action2)
 
-    def test_validate_input_success(self):
+    def test_validate_input_success(self) -> None:
         """Test successful schema validation."""
         plugin = SamplePlugin()
 
@@ -977,7 +979,7 @@ class TestRegisterWorkflowAction:
         assert is_valid is True
         assert error is None
 
-    def test_validate_input_missing_required(self):
+    def test_validate_input_missing_required(self) -> None:
         """Test validation fails for missing required field."""
         plugin = SamplePlugin()
 
@@ -999,7 +1001,7 @@ class TestRegisterWorkflowAction:
         assert is_valid is False
         assert "Missing required field: name" in error
 
-    def test_validate_input_wrong_type(self):
+    def test_validate_input_wrong_type(self) -> None:
         """Test validation fails for wrong type."""
         plugin = SamplePlugin()
 
@@ -1020,7 +1022,7 @@ class TestRegisterWorkflowAction:
         assert is_valid is False
         assert "invalid type" in error
 
-    def test_validate_input_no_schema(self):
+    def test_validate_input_no_schema(self) -> None:
         """Test validation passes when no schema defined."""
         plugin = SamplePlugin()
 
@@ -1034,7 +1036,7 @@ class TestRegisterWorkflowAction:
         assert is_valid is True
         assert error is None
 
-    def test_validate_input_optional_field_not_provided(self):
+    def test_validate_input_optional_field_not_provided(self) -> None:
         """Test validation skips optional fields when not provided."""
         plugin = SamplePlugin()
 
@@ -1058,7 +1060,7 @@ class TestRegisterWorkflowAction:
         assert is_valid is True
         assert error is None
 
-    def test_get_action(self):
+    def test_get_action(self) -> None:
         """Test get_action retrieves registered action."""
         plugin = SamplePlugin()
 
@@ -1074,7 +1076,7 @@ class TestRegisterWorkflowAction:
         missing = plugin.get_action("nonexistent")
         assert missing is None
 
-    def test_list_plugins_shows_schema_info(self):
+    def test_list_plugins_shows_schema_info(self) -> None:
         """Test that list_plugins shows schema information."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -1254,7 +1256,7 @@ class TestSchemaValidationInActionExecutor:
 class TestPluginActionRegistrationOnLoad:
     """Tests for plugin action registration during on_load lifecycle."""
 
-    def test_actions_registered_during_on_load(self):
+    def test_actions_registered_during_on_load(self) -> None:
         """Test that actions are available after on_load."""
         plugin = PluginWithActions()
 
@@ -1268,7 +1270,7 @@ class TestPluginActionRegistrationOnLoad:
         assert "sync_action" in plugin._actions
         assert "async_action" in plugin._actions
 
-    def test_actions_cleared_on_new_instance(self):
+    def test_actions_cleared_on_new_instance(self) -> None:
         """Test that each plugin instance has separate actions dict."""
         plugin1 = PluginWithActions()
         plugin1.on_load({})
@@ -1281,7 +1283,7 @@ class TestPluginActionRegistrationOnLoad:
         # plugin1 still has actions
         assert len(plugin1._actions) == 5
 
-    def test_action_receives_plugin_config(self):
+    def test_action_receives_plugin_config(self) -> None:
         """Test that action can access plugin config set during on_load."""
         plugin = PluginWithActions()
         plugin.on_load({"custom_key": "custom_value"})
@@ -1289,7 +1291,7 @@ class TestPluginActionRegistrationOnLoad:
         # The plugin stores config in on_load
         assert plugin.config["custom_key"] == "custom_value"
 
-    def test_unload_preserves_action_registration(self):
+    def test_unload_preserves_action_registration(self) -> None:
         """Test that on_unload doesn't affect action dict (registry handles cleanup)."""
         plugin = PluginWithActions()
         plugin.on_load({})
@@ -1310,7 +1312,7 @@ class TestPluginActionRegistrationOnLoad:
 class TestCheckTypeFunction:
     """Tests for _check_type helper function."""
 
-    def test_boolean_rejected_for_integer(self):
+    def test_boolean_rejected_for_integer(self) -> None:
         """Test that boolean values are rejected for integer type."""
         from gobby.hooks.plugins import _check_type
 
@@ -1322,7 +1324,7 @@ class TestCheckTypeFunction:
         assert _check_type(42, "integer") is True
         assert _check_type(-5, "integer") is True
 
-    def test_boolean_rejected_for_number(self):
+    def test_boolean_rejected_for_number(self) -> None:
         """Test that boolean values are rejected for number type."""
         from gobby.hooks.plugins import _check_type
 
@@ -1333,7 +1335,7 @@ class TestCheckTypeFunction:
         assert _check_type(3.14, "number") is True
         assert _check_type(42, "number") is True
 
-    def test_unknown_type_returns_true(self):
+    def test_unknown_type_returns_true(self) -> None:
         """Test that unknown types return True (skip validation)."""
         from gobby.hooks.plugins import _check_type
 
@@ -1341,14 +1343,14 @@ class TestCheckTypeFunction:
         assert _check_type(123, "custom") is True
         assert _check_type(None, "nonexistent") is True
 
-    def test_null_type(self):
+    def test_null_type(self) -> None:
         """Test null type checking."""
         from gobby.hooks.plugins import _check_type
 
         assert _check_type(None, "null") is True
         assert _check_type("not none", "null") is False
 
-    def test_array_type(self):
+    def test_array_type(self) -> None:
         """Test array type checking."""
         from gobby.hooks.plugins import _check_type
 
@@ -1356,7 +1358,7 @@ class TestCheckTypeFunction:
         assert _check_type([], "array") is True
         assert _check_type("not array", "array") is False
 
-    def test_object_type(self):
+    def test_object_type(self) -> None:
         """Test object type checking."""
         from gobby.hooks.plugins import _check_type
 
@@ -1364,7 +1366,7 @@ class TestCheckTypeFunction:
         assert _check_type({}, "object") is True
         assert _check_type([1, 2], "object") is False
 
-    def test_boolean_type(self):
+    def test_boolean_type(self) -> None:
         """Test boolean type checking."""
         from gobby.hooks.plugins import _check_type
 
@@ -1373,7 +1375,7 @@ class TestCheckTypeFunction:
         assert _check_type(1, "boolean") is False
         assert _check_type("true", "boolean") is False
 
-    def test_string_type(self):
+    def test_string_type(self) -> None:
         """Test string type checking."""
         from gobby.hooks.plugins import _check_type
 
@@ -1390,7 +1392,7 @@ class TestCheckTypeFunction:
 class TestPluginRegistryAdditional:
     """Additional tests for PluginRegistry edge cases."""
 
-    def test_unregister_nonexistent_plugin(self):
+    def test_unregister_nonexistent_plugin(self) -> None:
         """Test unregistering a plugin that doesn't exist logs warning."""
         registry = PluginRegistry()
 
@@ -1400,7 +1402,7 @@ class TestPluginRegistryAdditional:
         # Verify plugin is not in registry
         assert registry.get_plugin("nonexistent-plugin") is None
 
-    def test_get_plugin_action_success(self):
+    def test_get_plugin_action_success(self) -> None:
         """Test get_plugin_action returns action when found."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -1416,14 +1418,14 @@ class TestPluginRegistryAdditional:
         assert action is not None
         assert action.name == "test_action"
 
-    def test_get_plugin_action_plugin_not_found(self):
+    def test_get_plugin_action_plugin_not_found(self) -> None:
         """Test get_plugin_action returns None when plugin not found."""
         registry = PluginRegistry()
 
         action = registry.get_plugin_action("nonexistent", "some_action")
         assert action is None
 
-    def test_get_plugin_action_action_not_found(self):
+    def test_get_plugin_action_action_not_found(self) -> None:
         """Test get_plugin_action returns None when action not found."""
         registry = PluginRegistry()
         plugin = SamplePlugin()
@@ -1433,7 +1435,7 @@ class TestPluginRegistryAdditional:
         action = registry.get_plugin_action("sample-plugin", "nonexistent_action")
         assert action is None
 
-    def test_unregister_removes_handlers_and_cleans_empty_lists(self):
+    def test_unregister_removes_handlers_and_cleans_empty_lists(self) -> None:
         """Test that unregistering plugin removes handlers and cleans up empty lists."""
         registry = PluginRegistry()
 
@@ -1462,7 +1464,7 @@ class TestPluginRegistryAdditional:
 class TestPluginLoaderDiscovery:
     """Tests for PluginLoader discovery functionality."""
 
-    def test_discover_path_is_file_not_directory(self, plugins_config):
+    def test_discover_path_is_file_not_directory(self, plugins_config) -> None:
         """Test discovery when path is a file instead of directory."""
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
             f.write(b"# test file")
@@ -1477,7 +1479,7 @@ class TestPluginLoaderDiscovery:
         finally:
             Path(file_path).unlink()
 
-    def test_discover_skips_underscore_files(self, plugins_config):
+    def test_discover_skips_underscore_files(self, plugins_config) -> None:
         """Test that files starting with underscore are skipped."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create __init__.py
@@ -1491,7 +1493,7 @@ class TestPluginLoaderDiscovery:
             discovered = loader.discover_plugins()
             assert discovered == []
 
-    def test_discover_handles_module_load_error(self, plugins_config):
+    def test_discover_handles_module_load_error(self, plugins_config) -> None:
         """Test discovery continues when module fails to load."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a plugin file with syntax error
@@ -1505,7 +1507,7 @@ class TestPluginLoaderDiscovery:
             discovered = loader.discover_plugins()
             assert discovered == []
 
-    def test_discover_and_load_real_plugin(self, plugins_config):
+    def test_discover_and_load_real_plugin(self, plugins_config) -> None:
         """Test discovering and loading a real plugin from file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a valid plugin file
@@ -1542,7 +1544,7 @@ class MyTestPlugin(HookPlugin):
             assert plugin.version == "2.0.0"
             assert plugin.config == {"key": "value"}
 
-    def test_load_module_already_cached(self, plugins_config):
+    def test_load_module_already_cached(self, plugins_config) -> None:
         """Test that _load_module uses cached module."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "cached_plugin.py"
@@ -1574,7 +1576,7 @@ class CachedPlugin(HookPlugin):
 class TestPluginLoaderLoadPlugin:
     """Tests for PluginLoader.load_plugin method."""
 
-    def test_load_plugin_uses_config_from_plugins_config(self, plugins_config):
+    def test_load_plugin_uses_config_from_plugins_config(self, plugins_config) -> None:
         """Test that plugin config is taken from PluginsConfig if available."""
         plugins_config.plugins["sample-plugin"] = PluginItemConfig(
             enabled=True, config={"from_config": True, "value": 42}
@@ -1586,7 +1588,7 @@ class TestPluginLoaderLoadPlugin:
         # Should use config from PluginsConfig
         assert plugin.loaded_config == {"from_config": True, "value": 42}
 
-    def test_load_plugin_on_load_exception(self, plugins_config):
+    def test_load_plugin_on_load_exception(self, plugins_config) -> None:
         """Test that on_load exception is propagated."""
 
         class FailingPlugin(HookPlugin):
@@ -1600,7 +1602,7 @@ class TestPluginLoaderLoadPlugin:
         with pytest.raises(RuntimeError, match="on_load failed"):
             loader.load_plugin(FailingPlugin)
 
-    def test_load_plugin_tracks_source_path(self, plugins_config):
+    def test_load_plugin_tracks_source_path(self, plugins_config) -> None:
         """Test that source path is tracked when available."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "tracked_plugin.py"
@@ -1630,14 +1632,14 @@ class TrackedPlugin(HookPlugin):
 class TestPluginLoaderUnload:
     """Tests for PluginLoader.unload_plugin method."""
 
-    def test_unload_nonexistent_plugin(self, plugins_config):
+    def test_unload_nonexistent_plugin(self, plugins_config) -> None:
         """Test unloading a plugin that doesn't exist."""
         loader = PluginLoader(plugins_config)
 
         # Should not raise, just return
         loader.unload_plugin("nonexistent")
 
-    def test_unload_plugin_on_unload_exception(self, plugins_config):
+    def test_unload_plugin_on_unload_exception(self, plugins_config) -> None:
         """Test that on_unload exception doesn't prevent unregistration."""
 
         class FailingUnloadPlugin(HookPlugin):
@@ -1662,7 +1664,7 @@ class TestPluginLoaderUnload:
 class TestPluginLoaderLoadAll:
     """Tests for PluginLoader.load_all method."""
 
-    def test_load_all_with_auto_discover(self):
+    def test_load_all_with_auto_discover(self) -> None:
         """Test load_all with auto_discover enabled."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a plugin file
@@ -1687,7 +1689,7 @@ class AutoPlugin(HookPlugin):
             assert len(loaded) == 1
             assert loaded[0].name == "auto-plugin"
 
-    def test_load_all_skips_disabled_plugin(self):
+    def test_load_all_skips_disabled_plugin(self) -> None:
         """Test load_all skips explicitly disabled plugins."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "disabled_plugin.py"
@@ -1711,7 +1713,7 @@ class DisabledPlugin(HookPlugin):
             loaded = loader.load_all()
             assert len(loaded) == 0
 
-    def test_load_all_continues_on_error(self):
+    def test_load_all_continues_on_error(self) -> None:
         """Test load_all continues loading when one plugin fails."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a failing plugin
@@ -1755,7 +1757,7 @@ class WorkingPlugin(HookPlugin):
 class TestPluginLoaderUnloadAll:
     """Tests for PluginLoader.unload_all method."""
 
-    def test_unload_all(self, plugins_config):
+    def test_unload_all(self, plugins_config) -> None:
         """Test unload_all unloads all plugins."""
         loader = PluginLoader(plugins_config)
 
@@ -1770,7 +1772,7 @@ class TestPluginLoaderUnloadAll:
 
         assert len(loader.registry._plugins) == 0
 
-    def test_unload_all_handles_exception(self, plugins_config):
+    def test_unload_all_handles_exception(self, plugins_config) -> None:
         """Test unload_all continues when one unload fails."""
 
         class FailUnloadPlugin1(HookPlugin):
@@ -1797,7 +1799,7 @@ class TestPluginLoaderUnloadAll:
         assert len(loader.registry._plugins) == 0
         assert NormalPlugin.unloaded is True
 
-    def test_unload_all_catches_unload_plugin_exception(self, plugins_config):
+    def test_unload_all_catches_unload_plugin_exception(self, plugins_config) -> None:
         """Test unload_all catches exception from unload_plugin itself."""
         from unittest.mock import patch
 
@@ -1817,14 +1819,14 @@ class TestPluginLoaderUnloadAll:
 class TestPluginLoaderReload:
     """Tests for PluginLoader.reload_plugin method."""
 
-    def test_reload_nonexistent_plugin(self, plugins_config):
+    def test_reload_nonexistent_plugin(self, plugins_config) -> None:
         """Test reloading a plugin that doesn't exist."""
         loader = PluginLoader(plugins_config)
 
         result = loader.reload_plugin("nonexistent")
         assert result is None
 
-    def test_reload_plugin_success(self, plugins_config):
+    def test_reload_plugin_success(self, plugins_config) -> None:
         """Test successfully reloading a plugin from file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "reloadable.py"
@@ -1862,7 +1864,7 @@ class ReloadablePlugin(HookPlugin):
             assert reloaded is not None
             assert reloaded.version == "2.0.0"
 
-    def test_reload_plugin_no_source_path(self, plugins_config):
+    def test_reload_plugin_no_source_path(self, plugins_config) -> None:
         """Test reloading a plugin when source path is not available."""
         loader = PluginLoader(plugins_config)
 
@@ -1872,7 +1874,7 @@ class ReloadablePlugin(HookPlugin):
         result = loader.reload_plugin("sample-plugin")
         assert result is None
 
-    def test_reload_plugin_source_file_deleted(self, plugins_config):
+    def test_reload_plugin_source_file_deleted(self, plugins_config) -> None:
         """Test reloading when source file has been deleted."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "deletable.py"
@@ -1897,7 +1899,7 @@ class DeletablePlugin(HookPlugin):
             result = loader.reload_plugin("deletable")
             assert result is None
 
-    def test_reload_plugin_class_name_changed(self, plugins_config):
+    def test_reload_plugin_class_name_changed(self, plugins_config) -> None:
         """Test reloading when plugin class name changes (different class)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "changeable.py"
@@ -1930,7 +1932,7 @@ class DifferentPlugin(HookPlugin):
             result = loader.reload_plugin("changeable")
             assert result is None
 
-    def test_reload_plugin_load_error(self, plugins_config):
+    def test_reload_plugin_load_error(self, plugins_config) -> None:
         """Test reloading when loading the reloaded module fails."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "errorprone.py"
@@ -1960,7 +1962,7 @@ def broken(  # Syntax error
             result = loader.reload_plugin("errorprone")
             assert result is None
 
-    def test_reload_clears_module_caches(self, plugins_config):
+    def test_reload_clears_module_caches(self, plugins_config) -> None:
         """Test that reload clears module caches properly."""
         import sys
 
@@ -2015,7 +2017,7 @@ class CachedPlugin(HookPlugin):
 class TestRunPluginHandlersAdditional:
     """Additional tests for run_plugin_handlers edge cases."""
 
-    def test_post_handler_exception_continues(self):
+    def test_post_handler_exception_continues(self) -> None:
         """Test that post-handler errors don't stop processing."""
 
         class PostErrorPlugin(HookPlugin):
@@ -2052,7 +2054,7 @@ class TestRunPluginHandlersAdditional:
         assert result is None
         assert PostObserverPlugin.observed is True
 
-    def test_pre_handler_returns_block_decision(self):
+    def test_pre_handler_returns_block_decision(self) -> None:
         """Test that pre-handler can return 'block' decision."""
 
         class BlockPlugin(HookPlugin):
@@ -2084,7 +2086,7 @@ class TestRunPluginHandlersAdditional:
         assert result.reason == "Blocked for safety"
         assert result.metadata == {"blocked_by": "block-plugin"}
 
-    def test_pre_handler_non_blocking_response_continues(self):
+    def test_pre_handler_non_blocking_response_continues(self) -> None:
         """Test that pre-handler returning allow continues processing."""
 
         class AllowPlugin(HookPlugin):

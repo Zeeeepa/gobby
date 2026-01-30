@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def runner() -> CliRunner:
@@ -43,7 +44,7 @@ class TestAddLabel:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test successfully adding a label to a task."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -62,7 +63,7 @@ class TestAddLabel:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test adding label when task is not found."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -82,7 +83,7 @@ class TestAddLabel:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test adding label when ValueError is raised."""
         mock_manager = MagicMock()
         mock_manager.add_label.side_effect = ValueError("Label already exists")
@@ -102,7 +103,7 @@ class TestAddLabel:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test adding label when unexpected exception is raised."""
         mock_manager = MagicMock()
         mock_manager.add_label.side_effect = RuntimeError("Database error")
@@ -126,7 +127,7 @@ class TestRemoveLabel:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test successfully removing a label from a task."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -145,7 +146,7 @@ class TestRemoveLabel:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test removing label when task is not found."""
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
@@ -165,7 +166,7 @@ class TestRemoveLabel:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test removing label when ValueError is raised."""
         mock_manager = MagicMock()
         mock_manager.remove_label.side_effect = ValueError("Label not found")
@@ -185,7 +186,7 @@ class TestRemoveLabel:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test removing label when unexpected exception is raised."""
         mock_manager = MagicMock()
         mock_manager.remove_label.side_effect = RuntimeError("Database error")

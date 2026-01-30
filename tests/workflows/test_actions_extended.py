@@ -6,6 +6,7 @@ from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.templates import TemplateEngine
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_services():

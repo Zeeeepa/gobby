@@ -38,13 +38,34 @@ class GeminiTranscriptParser:
     ) -> list[dict[str, Any]]:
         """
         Extract last N user<>agent message pairs.
+
+        Handles both Gemini CLI's type-based format and legacy role/content format.
         """
         messages: list[dict[str, str]] = []
         for turn in reversed(turns):
-            # Adapt to generic turn structure
-            # Assumes generic schema: {"role": "...", "content": "..."} or nested in "message"
-            role = turn.get("role") or turn.get("message", {}).get("role")
-            content = turn.get("content") or turn.get("message", {}).get("content")
+            # Handle Gemini CLI's type-based format
+            event_type = turn.get("type")
+            role: str | None = None
+            content: str | Any = None
+
+            if event_type == "message":
+                role = turn.get("role")
+                content = turn.get("content")
+            elif event_type in ("init", "result"):
+                # Skip non-message events
+                continue
+            elif event_type == "tool_use":
+                # Include tool calls as assistant messages
+                role = "assistant"
+                tool_name = turn.get("tool_name") or turn.get("function_name", "unknown")
+                content = f"[Tool call: {tool_name}]"
+            elif event_type == "tool_result":
+                # Skip tool results for message extraction
+                continue
+            else:
+                # Fallback: legacy format with role/content at top level
+                role = turn.get("role") or turn.get("message", {}).get("role")
+                content = turn.get("content") or turn.get("message", {}).get("content")
 
             if role in ["user", "model", "assistant"]:
                 norm_role = "assistant" if role == "model" else role
@@ -53,7 +74,7 @@ class GeminiTranscriptParser:
                 if isinstance(content, list):
                     content = " ".join(str(part) for part in content)
 
-                messages.insert(0, {"role": norm_role, "content": str(content)})
+                messages.insert(0, {"role": norm_role, "content": str(content or "")})
                 if len(messages) >= num_pairs * 2:
                     break
         return messages
@@ -78,6 +99,13 @@ class GeminiTranscriptParser:
     def parse_line(self, line: str, index: int) -> ParsedMessage | None:
         """
         Parse a single line from the transcript JSONL.
+
+        Gemini CLI uses type-based events in JSONL format:
+        - {"type":"init", "session_id":"...", "model":"...", "timestamp":"..."}
+        - {"type":"message", "role":"user"|"model", "content":"...", ...}
+        - {"type":"tool_use", "tool_name":"Bash", "parameters":{...}, ...}
+        - {"type":"tool_result", "tool_id":"...", "status":"success", "output":"...", ...}
+        - {"type":"result", "status":"success", "stats":{...}, ...}
         """
         if not line.strip():
             return None
@@ -95,45 +123,83 @@ class GeminiTranscriptParser:
         except ValueError:
             timestamp = datetime.now(UTC)
 
-        # Determine role and content
-        # Check top-level or nested 'message'
-        role = data.get("role")
-        content = data.get("content")
+        # Handle Gemini CLI's type-based event format
+        event_type = data.get("type")
 
-        if not role and "message" in data:
-            msg = data["message"]
-            role = msg.get("role")
-            content = msg.get("content")
+        # Initialize defaults
+        role: str | None = None
+        content: str | Any = ""
+        content_type = "text"
+        tool_name: str | None = None
+        tool_input: dict[str, Any] | None = None
+        tool_result: dict[str, Any] | None = None
 
+        if event_type == "init":
+            # Session initialization event - skip or treat as system
+            return None
+
+        elif event_type == "message":
+            # Message event with role (user/model)
+            role = data.get("role")
+            content = data.get("content", "")
+
+        elif event_type in ("user", "model"):
+            # Role specified directly in type field
+            role = event_type
+            content = data.get("content", "")
+
+        elif event_type == "tool_use":
+            # Tool invocation event
+            role = "assistant"
+            content_type = "tool_use"
+            tool_name = data.get("tool_name") or data.get("function_name")
+            tool_input = data.get("parameters") or data.get("args") or data.get("input")
+            content = f"Tool call: {tool_name}"
+
+        elif event_type == "tool_result":
+            # Tool result event
+            role = "tool"
+            content_type = "tool_result"
+            tool_name = data.get("tool_name")
+            output = data.get("output") or data.get("result") or ""
+            tool_result = {"output": output, "status": data.get("status", "unknown")}
+            content = str(output)[:500] if output else ""  # Truncate long outputs
+
+        elif event_type == "result":
+            # Final result event - skip
+            return None
+
+        else:
+            # Fallback: try legacy format with role/content at top level
+            role = data.get("role")
+            content = data.get("content")
+
+            # Check nested message structure
+            if not role and "message" in data:
+                msg = data["message"]
+                role = msg.get("role")
+                content = msg.get("content")
+
+            # Handle tool_result at top level (legacy)
+            if not role and "tool_result" in data:
+                role = "tool"
+                content_type = "tool_result"
+                content = str(data["tool_result"])
+
+            # If still no role in fallback, skip this line
+            if not role:
+                return None
+
+        # Validate role is set - skip lines with missing role
         if not role:
-            # Try type field common in other schemas
-            msg_type = data.get("type")
-            if msg_type == "user":
-                role = "user"
-            elif msg_type == "model":
-                role = "assistant"
+            return None
 
-        # Normalize role
+        # Normalize role: model -> assistant
         if role == "model":
             role = "assistant"
 
-        if not role:
-            # Maybe a tool result or system event
-            if "tool_result" in data:
-                role = "tool"
-                content = str(data["tool_result"])
-            else:
-                # Unknown or uninteresting line
-                return None
-
-        # Normalize content
-        content_type = "text"
-        tool_name = None
-        tool_input = None
-        tool_result = None
-
+        # Normalize content - handle list content (rich parts)
         if isinstance(content, list):
-            # Handle potential rich content
             text_parts: list[str] = []
             for part in content:
                 if isinstance(part, str):
@@ -141,7 +207,7 @@ class GeminiTranscriptParser:
                 elif isinstance(part, dict):
                     if "text" in part:
                         text_parts.append(str(part["text"]))
-                    # Check for tool calls
+                    # Check for tool calls embedded in content
                     if "functionCall" in part:
                         content_type = "tool_use"
                         tool_name = part["functionCall"].get("name")

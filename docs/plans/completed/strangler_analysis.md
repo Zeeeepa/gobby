@@ -5,7 +5,7 @@ This document outlines the strategy for decomposing three logic-heavy files in t
 ## Overview
 
 | File | Lines | Priority | Risk |
-|------|-------|----------|------|
+| :--- | :--- | :--- | :--- |
 | `mcp_proxy/tools/session_messages.py` | 1,056 | 1st | Low |
 | `memory/manager.py` | 1,010 | 2nd | Medium |
 | `workflows/task_enforcement_actions.py` | 1,572 | 3rd | Medium |
@@ -20,21 +20,22 @@ This document outlines the strategy for decomposing three logic-heavy files in t
 **Role**: Defines the `gobby-sessions` MCP server and all its tools.
 **Why first**: Greenfield (no existing `sessions/` package), follows existing `tasks/` pattern, lowest coupling.
 
-### Target Structure
+### Target Structure (Phase 1)
 
 ```
 src/gobby/mcp_proxy/tools/sessions/
 ├── __init__.py        # Exports create_session_messages_registry
 ├── _messages.py       # get_session_messages, search_messages
 ├── _handoff.py        # create_handoff, get_handoff_context, pickup, helpers
-├── _crud.py           # get_session, get_current, list_sessions, session_stats
+├── _crud.py           # get_session, get_current_session, list_sessions, session_stats
 ├── _commits.py        # get_session_commits, mark_loop_complete
 └── _factory.py        # create_session_messages_registry
 ```
 
-### Tasks
+### Tasks (Phase 1)
 
-- [ ] Create sessions package with __init__.py (category: config)
+- [ ] Create sessions package with `__init__.py` (category: config)
+
 - [ ] Extract handoff helpers to _handoff.py (category: refactor)
 - [ ] Extract message tools to _messages.py (category: refactor)
 - [ ] Extract handoff tools to _handoff.py (category: refactor)
@@ -45,7 +46,7 @@ src/gobby/mcp_proxy/tools/sessions/
 - [ ] Update test imports to use sessions package (category: refactor)
 - [ ] Delete session_messages.py (category: refactor)
 
-### Verification
+### Verification (Phase 1)
 
 ```bash
 uv run pytest tests/mcp_proxy/test_mcp_tools_session_messages.py tests/mcp_proxy/tools/test_session_messages_coverage.py -v
@@ -59,7 +60,7 @@ uv run pytest tests/mcp_proxy/test_mcp_tools_session_messages.py tests/mcp_proxy
 **Role**: High-level orchestrator for the memory system.
 **Why second**: Existing package structure (`backends/`, `search/`), clear boundaries.
 
-### Target Structure
+### Target Structure (Phase 2)
 
 ```
 src/gobby/memory/
@@ -73,7 +74,7 @@ src/gobby/memory/
     └── coordinator.py   # SearchCoordinator class (NEW)
 ```
 
-### Tasks
+### Tasks (Phase 2)
 
 - [ ] Create SearchCoordinator in search/coordinator.py (category: refactor)
 - [ ] Create MultimodalIngestor in ingestion/multimodal.py (category: refactor)
@@ -103,7 +104,7 @@ After extraction, `MemoryManager` becomes a thin facade that delegates to the ne
 #### Retained Public API
 
 | Method | Signature | Delegates To |
-|--------|-----------|--------------|
+| :--- | :--- | :--- |
 | `save_memory()` | `async def save_memory(self, content: str, metadata: dict | None = None) -> Memory` | Direct (core CRUD) |
 | `get_memory()` | `async def get_memory(self, memory_id: str) -> Memory | None` | Direct (core CRUD) |
 | `delete_memory()` | `async def delete_memory(self, memory_id: str) -> bool` | Direct (core CRUD) |
@@ -162,7 +163,7 @@ class MemoryManager:
 - **Internal-only change**: Callers continue using `MemoryManager` without modification
 - **Deprecation path**: None needed; this is a transparent refactor
 
-### Verification
+### Verification (Phase 2)
 
 ```bash
 uv run pytest tests/memory/test_manager.py tests/memory/test_v2_features.py -v
@@ -182,7 +183,7 @@ uv run pytest tests/memory/test_manager.py tests/memory/test_v2_features.py -v
 - Create `safe_evaluator.py` for `SafeExpressionEvaluator` (AST-based)
 - Existing `git_utils.py` → extend with `get_dirty_files()`
 
-### Target Structure
+### Target Structure (Phase 3)
 
 ```
 src/gobby/workflows/
@@ -195,7 +196,7 @@ src/gobby/workflows/
     └── task_policy.py    # require_task_*, validate_scope + handlers
 ```
 
-### Tasks
+### Tasks (Phase 3)
 
 - [ ] Extract SafeExpressionEvaluator to safe_evaluator.py (category: refactor)
 - [ ] Extend git_utils.py with get_dirty_files (category: refactor)
@@ -230,7 +231,7 @@ src/gobby/workflows/
 - `require_active_task()` + handler (DEPRECATED)
 - `validate_session_task_scope()` + handler
 
-### Verification
+### Verification (Phase 3)
 
 ```bash
 uv run pytest tests/workflows/test_task_enforcement.py -v
@@ -241,7 +242,8 @@ uv run pytest tests/workflows/test_task_enforcement.py -v
 ## Risk Mitigation
 
 | Risk | Mitigation |
-|------|------------|
+| :--- | :--- |
+
 | Test breakage from imports | Update all imports before deleting original files |
 | Circular imports | Use TYPE_CHECKING imports; utilities have no deps |
 | Runtime behavior change | No logic changes during extraction |

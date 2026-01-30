@@ -5,6 +5,7 @@ import pytest
 from gobby.mcp_proxy.tools.task_github import create_github_sync_registry
 from gobby.sync.github import GitHubNotFoundError, GitHubRateLimitError
 
+pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_import_github_issues_success():

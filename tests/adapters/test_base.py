@@ -20,6 +20,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSo
 if TYPE_CHECKING:
     from gobby.hooks.hook_manager import HookManager
 
+pytestmark = pytest.mark.unit
 
 # =============================================================================
 # Test Fixtures and Concrete Implementation for Testing
@@ -76,23 +77,23 @@ class IncompleteAdapter(BaseAdapter):
 class TestBaseAdapterAbstract:
     """Tests for BaseAdapter abstract class properties."""
 
-    def test_cannot_instantiate_base_adapter_directly(self):
+    def test_cannot_instantiate_base_adapter_directly(self) -> None:
         """BaseAdapter cannot be instantiated directly."""
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             BaseAdapter()
 
-    def test_cannot_instantiate_incomplete_adapter(self):
+    def test_cannot_instantiate_incomplete_adapter(self) -> None:
         """Adapter missing abstract methods cannot be instantiated."""
         # IncompleteAdapter is missing translate_from_hook_response
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             IncompleteAdapter()
 
-    def test_concrete_adapter_instantiation(self):
+    def test_concrete_adapter_instantiation(self) -> None:
         """Concrete adapter with all methods can be instantiated."""
         adapter = ConcreteAdapter()
         assert adapter is not None
 
-    def test_source_attribute_required(self):
+    def test_source_attribute_required(self) -> None:
         """Subclasses must define source attribute."""
         adapter = ConcreteAdapter()
         assert adapter.source == SessionSource.CLAUDE
@@ -101,13 +102,13 @@ class TestBaseAdapterAbstract:
 class TestBaseAdapterSubclassing:
     """Tests for proper subclassing of BaseAdapter."""
 
-    def test_subclass_inherits_handle_native(self):
+    def test_subclass_inherits_handle_native(self) -> None:
         """Concrete subclass inherits handle_native method."""
         adapter = ConcreteAdapter()
         assert hasattr(adapter, "handle_native")
         assert callable(adapter.handle_native)
 
-    def test_subclass_can_override_handle_native(self):
+    def test_subclass_can_override_handle_native(self) -> None:
         """Concrete subclass can override handle_native."""
 
         class CustomAdapter(ConcreteAdapter):
@@ -121,7 +122,7 @@ class TestBaseAdapterSubclassing:
 
         assert result == {"overridden": True}
 
-    def test_different_sources_can_be_defined(self):
+    def test_different_sources_can_be_defined(self) -> None:
         """Different adapters can define different sources."""
 
         class GeminiTestAdapter(BaseAdapter):
@@ -168,7 +169,7 @@ class TestTranslateToHookEvent:
             data={"key": "value"},
         )
 
-    def test_translate_returns_hook_event(self, sample_hook_event):
+    def test_translate_returns_hook_event(self, sample_hook_event) -> None:
         """translate_to_hook_event returns HookEvent when successful."""
         adapter = ConcreteAdapter(translate_result=sample_hook_event)
 
@@ -178,7 +179,7 @@ class TestTranslateToHookEvent:
         assert result.event_type == HookEventType.SESSION_START
         assert result.session_id == "test-session-123"
 
-    def test_translate_can_return_none(self):
+    def test_translate_can_return_none(self) -> None:
         """translate_to_hook_event can return None for ignored events."""
         adapter = ConcreteAdapter(translate_result=None)
 
@@ -186,7 +187,7 @@ class TestTranslateToHookEvent:
 
         assert result is None
 
-    def test_translate_receives_native_event(self):
+    def test_translate_receives_native_event(self) -> None:
         """translate_to_hook_event receives the native event dict."""
 
         class InspectingAdapter(BaseAdapter):
@@ -211,7 +212,7 @@ class TestTranslateToHookEvent:
 class TestTranslateFromHookResponse:
     """Tests for translate_from_hook_response abstract method behavior."""
 
-    def test_translate_returns_dict(self):
+    def test_translate_returns_dict(self) -> None:
         """translate_from_hook_response returns a dict."""
         adapter = ConcreteAdapter(response_result={"decision": "allow"})
 
@@ -221,7 +222,7 @@ class TestTranslateFromHookResponse:
         assert isinstance(result, dict)
         assert result == {"decision": "allow"}
 
-    def test_translate_can_return_empty_dict(self):
+    def test_translate_can_return_empty_dict(self) -> None:
         """translate_from_hook_response can return empty dict."""
         adapter = ConcreteAdapter(response_result={})
 
@@ -230,7 +231,7 @@ class TestTranslateFromHookResponse:
 
         assert result == {}
 
-    def test_translate_receives_hook_response(self):
+    def test_translate_receives_hook_response(self) -> None:
         """translate_from_hook_response receives HookResponse object."""
 
         class InspectingAdapter(BaseAdapter):
@@ -284,7 +285,7 @@ class TestHandleNative:
         manager.handle.return_value = HookResponse(decision="allow")
         return manager
 
-    def test_handle_native_full_roundtrip(self, sample_hook_event, mock_hook_manager):
+    def test_handle_native_full_roundtrip(self, sample_hook_event, mock_hook_manager) -> None:
         """handle_native performs full translate -> process -> translate cycle."""
         adapter = ConcreteAdapter(
             translate_result=sample_hook_event,
@@ -299,7 +300,7 @@ class TestHandleNative:
         # Verify response was translated
         assert result == {"decision": "allow", "continue": True}
 
-    def test_handle_native_returns_empty_when_event_is_none(self, mock_hook_manager):
+    def test_handle_native_returns_empty_when_event_is_none(self, mock_hook_manager) -> None:
         """handle_native returns empty dict when translate returns None."""
         adapter = ConcreteAdapter(translate_result=None)
 
@@ -311,7 +312,7 @@ class TestHandleNative:
         # Should return empty dict
         assert result == {}
 
-    def test_handle_native_passes_hook_response_to_translate(self, sample_hook_event):
+    def test_handle_native_passes_hook_response_to_translate(self, sample_hook_event) -> None:
         """handle_native passes HookResponse from manager to translate method."""
         expected_response = HookResponse(
             decision="deny",
@@ -340,7 +341,7 @@ class TestHandleNative:
         assert VerifyingAdapter.received_response is expected_response
         assert result["decision"] == "deny"
 
-    def test_handle_native_with_various_response_decisions(self, sample_hook_event):
+    def test_handle_native_with_various_response_decisions(self, sample_hook_event) -> None:
         """handle_native works with all response decision types."""
         decisions = ["allow", "deny", "ask", "block", "modify"]
 
@@ -357,7 +358,7 @@ class TestHandleNative:
 
             assert result["decision"] == decision
 
-    def test_handle_native_preserves_native_event(self, sample_hook_event, mock_hook_manager):
+    def test_handle_native_preserves_native_event(self, sample_hook_event, mock_hook_manager) -> None:
         """handle_native passes native event unchanged to translate."""
         received_events = []
 
@@ -402,7 +403,7 @@ class TestHandleNativeEdgeCases:
             data={},
         )
 
-    def test_handle_native_with_empty_native_event(self, sample_hook_event):
+    def test_handle_native_with_empty_native_event(self, sample_hook_event) -> None:
         """handle_native works with empty native event dict."""
         mock_manager = MagicMock()
         mock_manager.handle.return_value = HookResponse(decision="allow")
@@ -416,7 +417,7 @@ class TestHandleNativeEdgeCases:
 
         assert result == {"status": "ok"}
 
-    def test_handle_native_with_complex_response(self, sample_hook_event):
+    def test_handle_native_with_complex_response(self, sample_hook_event) -> None:
         """handle_native handles complex translated responses."""
         mock_manager = MagicMock()
         mock_manager.handle.return_value = HookResponse(
@@ -447,7 +448,7 @@ class TestHandleNativeEdgeCases:
         assert "hookSpecificOutput" in result
         assert result["hookSpecificOutput"]["additionalContext"] == "Injected context"
 
-    def test_handle_native_multiple_calls(self, sample_hook_event):
+    def test_handle_native_multiple_calls(self, sample_hook_event) -> None:
         """handle_native can be called multiple times."""
         mock_manager = MagicMock()
         mock_manager.handle.return_value = HookResponse(decision="allow")
@@ -475,7 +476,7 @@ class TestHandleNativeEdgeCases:
 class TestAdapterIntegration:
     """Integration tests for adapter behavior with realistic scenarios."""
 
-    def test_session_lifecycle_simulation(self):
+    def test_session_lifecycle_simulation(self) -> None:
         """Simulate full session lifecycle through adapter."""
         events_processed = []
 
@@ -533,7 +534,7 @@ class TestAdapterIntegration:
         ]
         assert mock_manager.handle.call_count == 6
 
-    def test_tool_blocking_scenario(self):
+    def test_tool_blocking_scenario(self) -> None:
         """Simulate tool being blocked by hook manager."""
 
         class BlockingAdapter(BaseAdapter):
@@ -573,7 +574,7 @@ class TestAdapterIntegration:
         assert result["stopReason"] == "No task claimed"
         assert "Please claim a task" in result["systemMessage"]
 
-    def test_context_injection_scenario(self):
+    def test_context_injection_scenario(self) -> None:
         """Simulate context being injected via hook response."""
 
         class ContextAdapter(BaseAdapter):
@@ -616,7 +617,7 @@ class TestAdapterIntegration:
 class TestAdapterErrorHandling:
     """Tests for error handling in adapter methods."""
 
-    def test_adapter_handles_manager_exception(self):
+    def test_adapter_handles_manager_exception(self) -> None:
         """Test behavior when hook manager raises exception."""
 
         class SafeAdapter(BaseAdapter):
@@ -642,7 +643,7 @@ class TestAdapterErrorHandling:
         with pytest.raises(Exception, match="Manager error"):
             adapter.handle_native({}, mock_manager)
 
-    def test_translate_method_exception_propagates(self):
+    def test_translate_method_exception_propagates(self) -> None:
         """Test that exceptions in translate methods propagate."""
 
         class FailingAdapter(BaseAdapter):
@@ -669,22 +670,22 @@ class TestAdapterErrorHandling:
 class TestAdapterDocumentation:
     """Tests verifying documentation and docstrings are accurate."""
 
-    def test_base_adapter_has_docstring(self):
+    def test_base_adapter_has_docstring(self) -> None:
         """BaseAdapter class has documentation."""
         assert BaseAdapter.__doc__ is not None
         assert "CLI adapters" in BaseAdapter.__doc__
 
-    def test_translate_to_hook_event_has_docstring(self):
+    def test_translate_to_hook_event_has_docstring(self) -> None:
         """translate_to_hook_event has documentation."""
         assert BaseAdapter.translate_to_hook_event.__doc__ is not None
         assert "native" in BaseAdapter.translate_to_hook_event.__doc__.lower()
 
-    def test_translate_from_hook_response_has_docstring(self):
+    def test_translate_from_hook_response_has_docstring(self) -> None:
         """translate_from_hook_response has documentation."""
         assert BaseAdapter.translate_from_hook_response.__doc__ is not None
         assert "response" in BaseAdapter.translate_from_hook_response.__doc__.lower()
 
-    def test_handle_native_has_docstring(self):
+    def test_handle_native_has_docstring(self) -> None:
         """handle_native has documentation."""
         assert BaseAdapter.handle_native.__doc__ is not None
         assert "entry point" in BaseAdapter.handle_native.__doc__.lower()

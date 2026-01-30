@@ -11,6 +11,7 @@ import pytest
 from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner
 from gobby.llm.executor import AgentResult, CostInfo
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_db():

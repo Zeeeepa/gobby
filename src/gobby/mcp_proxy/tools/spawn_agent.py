@@ -12,7 +12,6 @@ One tool: spawn_agent(prompt, agent="generic", isolation="current"|"worktree"|"c
 from __future__ import annotations
 
 import logging
-import socket
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -22,10 +21,12 @@ from gobby.agents.isolation import (
     SpawnConfig,
     get_isolation_handler,
 )
+from gobby.agents.registry import RunningAgent, get_running_agent_registry
 from gobby.agents.sandbox import SandboxConfig
 from gobby.agents.spawn_executor import SpawnRequest, execute_spawn
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+from gobby.utils.machine_id import get_machine_id
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
@@ -264,13 +265,30 @@ async def spawn_agent_impl(
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
         session_manager=runner._child_session_manager,
-        machine_id=socket.gethostname(),
+        machine_id=get_machine_id() or "unknown",
         sandbox_config=effective_sandbox_config,
     )
 
     spawn_result = await execute_spawn(spawn_request)
 
-    # 11. Return response with isolation metadata
+    # 11. Register with RunningAgentRegistry for send_to_parent/child messaging
+    # Only register if spawn succeeded and we have a valid child_session_id
+    if spawn_result.success and spawn_result.child_session_id is not None:
+        agent_registry = get_running_agent_registry()
+        agent_registry.add(
+            RunningAgent(
+                run_id=spawn_result.run_id,
+                session_id=spawn_result.child_session_id,
+                parent_session_id=parent_session_id,
+                mode=effective_mode,
+                pid=spawn_result.pid,
+                provider=effective_provider,
+                workflow_name=effective_workflow,
+                worktree_id=isolation_ctx.worktree_id,
+            )
+        )
+
+    # 12. Return response with isolation metadata
     return {
         "success": spawn_result.success,
         "run_id": spawn_result.run_id,
@@ -295,6 +313,7 @@ def create_spawn_agent_registry(
     git_manager: Any | None = None,
     clone_storage: Any | None = None,
     clone_manager: Any | None = None,
+    session_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a spawn_agent tool registry with the unified spawn_agent tool.
@@ -307,10 +326,20 @@ def create_spawn_agent_registry(
         git_manager: Git manager for worktree operations.
         clone_storage: Storage for clone records.
         clone_manager: Git manager for clone operations.
+        session_manager: Session manager for resolving session references.
 
     Returns:
         InternalToolRegistry with spawn_agent tool registered.
     """
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if session_manager is None:
+            return ref  # No resolution available, return as-is
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+        return str(session_manager.resolve_session_reference(ref, project_id))
+
     registry = InternalToolRegistry(
         name="gobby-spawn-agent",
         description="Unified agent spawning with isolation support",
@@ -324,7 +353,8 @@ def create_spawn_agent_registry(
         description=(
             "Spawn a subagent to execute a task. Supports isolation modes: "
             "'current' (work in current directory), 'worktree' (create git worktree), "
-            "'clone' (create shallow clone). Can use named agent definitions or raw parameters."
+            "'clone' (create shallow clone). Can use named agent definitions or raw parameters. "
+            "Accepts #N, N, UUID, or prefix for parent_session_id."
         ),
     )
     async def spawn_agent(
@@ -374,12 +404,20 @@ def create_spawn_agent_registry(
             sandbox_mode: Sandbox mode (permissive/restrictive). Overrides agent_def.
             sandbox_allow_network: Allow network access. Overrides agent_def.
             sandbox_extra_paths: Extra paths for sandbox write access.
-            parent_session_id: Parent session ID
+            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent session
             project_path: Project path override
 
         Returns:
             Dict with success status, run_id, child_session_id, isolation metadata
         """
+        # Resolve parent_session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_parent_session_id = parent_session_id
+        if parent_session_id:
+            try:
+                resolved_parent_session_id = _resolve_session_id(parent_session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
         # Load agent definition (defaults to "generic")
         agent_def = loader.load(agent)
         if agent_def is None and agent != "generic":
@@ -410,7 +448,7 @@ def create_spawn_agent_registry(
             sandbox_mode=sandbox_mode,
             sandbox_allow_network=sandbox_allow_network,
             sandbox_extra_paths=sandbox_extra_paths,
-            parent_session_id=parent_session_id,
+            parent_session_id=resolved_parent_session_id,
             project_path=project_path,
         )
 

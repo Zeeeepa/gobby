@@ -1,4 +1,7 @@
 """Tests for Gobby MCP server instructions builder."""
+import pytest
+
+pytestmark = pytest.mark.unit
 
 
 class TestBuildGobbyInstructions:

@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from gobby.cli.installers.shared import (
     configure_mcp_server_json,
     configure_mcp_server_toml,
@@ -22,11 +24,12 @@ from gobby.cli.installers.shared import (
     remove_mcp_server_toml,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestInstallSharedContent:
     """Tests for install_shared_content function."""
 
-    def test_install_shared_content_no_shared_dir(self, temp_dir: Path):
+    def test_install_shared_content_no_shared_dir(self, temp_dir: Path) -> None:
         """Test when shared directory doesn't exist."""
         cli_path = temp_dir / ".claude"
         project_path = temp_dir / "project"
@@ -40,7 +43,7 @@ class TestInstallSharedContent:
 
         assert result == {"workflows": [], "plugins": [], "prompts": [], "docs": []}
 
-    def test_install_shared_workflows(self, temp_dir: Path):
+    def test_install_shared_workflows(self, temp_dir: Path) -> None:
         """Test installing shared workflows to .gobby/workflows/."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
@@ -65,7 +68,7 @@ class TestInstallSharedContent:
         assert (project_path / ".gobby" / "workflows" / "plan-execute.yaml").exists()
         assert (project_path / ".gobby" / "workflows" / "test-driven.yaml").exists()
 
-    def test_install_shared_workflows_copies_subdirectories(self, temp_dir: Path):
+    def test_install_shared_workflows_copies_subdirectories(self, temp_dir: Path) -> None:
         """Test that subdirectories in workflows folder are copied."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
@@ -90,7 +93,7 @@ class TestInstallSharedContent:
         assert "lifecycle/" in result["workflows"]
         assert (project_path / ".gobby" / "workflows" / "lifecycle" / "session.yaml").exists()
 
-    def test_install_shared_plugins(self, temp_dir: Path):
+    def test_install_shared_plugins(self, temp_dir: Path) -> None:
         """Test installing shared plugins to .gobby/plugins/ (project-scoped)."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
@@ -119,7 +122,7 @@ class TestInstallSharedContent:
         assert (project_path / ".gobby" / "plugins" / "notify.py").exists()
         assert (project_path / ".gobby" / "plugins" / "audit.py").exists()
 
-    def test_install_shared_docs(self, temp_dir: Path):
+    def test_install_shared_docs(self, temp_dir: Path) -> None:
         """Test installing shared docs to .gobby/docs/."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
@@ -144,7 +147,7 @@ class TestInstallSharedContent:
         assert (project_path / ".gobby" / "docs" / "spec-planning.md").exists()
         assert (project_path / ".gobby" / "docs" / "workflow-guide.md").exists()
 
-    def test_install_shared_content_all_types(self, temp_dir: Path):
+    def test_install_shared_content_all_types(self, temp_dir: Path) -> None:
         """Test installing all content types at once."""
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
@@ -191,7 +194,7 @@ class TestInstallSharedContent:
 class TestInstallCliContent:
     """Tests for install_cli_content function."""
 
-    def test_install_cli_content_no_cli_dir(self, temp_dir: Path):
+    def test_install_cli_content_no_cli_dir(self, temp_dir: Path) -> None:
         """Test when CLI-specific directory doesn't exist."""
         target_path = temp_dir / ".claude"
         target_path.mkdir(parents=True)
@@ -202,7 +205,7 @@ class TestInstallCliContent:
 
         assert result == {"workflows": [], "commands": []}
 
-    def test_install_cli_workflows(self, temp_dir: Path):
+    def test_install_cli_workflows(self, temp_dir: Path) -> None:
         """Test installing CLI-specific workflows."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "gemini"
@@ -221,7 +224,7 @@ class TestInstallCliContent:
         assert "gemini-workflow.yaml" in result["workflows"]
         assert (target_path / "workflows" / "gemini-workflow.yaml").exists()
 
-    def test_install_cli_commands_directory(self, temp_dir: Path):
+    def test_install_cli_commands_directory(self, temp_dir: Path) -> None:
         """Test installing CLI commands from commands/ directory."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "claude"
@@ -249,7 +252,7 @@ class TestInstallCliContent:
         assert (target_path / "commands" / "memory" / "remember.md").exists()
         assert (target_path / "commands" / "status.md").exists()
 
-    def test_install_cli_prompts_directory(self, temp_dir: Path):
+    def test_install_cli_prompts_directory(self, temp_dir: Path) -> None:
         """Test installing CLI commands from prompts/ directory (Codex style)."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "codex"
@@ -268,7 +271,7 @@ class TestInstallCliContent:
         assert "commit.md" in result["commands"]
         assert (target_path / "prompts" / "commit.md").exists()
 
-    def test_install_cli_commands_overwrites_existing_directory(self, temp_dir: Path):
+    def test_install_cli_commands_overwrites_existing_directory(self, temp_dir: Path) -> None:
         """Test that command directories are replaced entirely."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "claude"
@@ -299,7 +302,7 @@ class TestInstallCliContent:
 class TestConfigureMcpServerJson:
     """Tests for configure_mcp_server_json function."""
 
-    def test_configure_new_settings_file(self, temp_dir: Path):
+    def test_configure_new_settings_file(self, temp_dir: Path) -> None:
         """Test creating new settings file with MCP server."""
         settings_path = temp_dir / ".claude" / "settings.json"
 
@@ -318,7 +321,7 @@ class TestConfigureMcpServerJson:
         assert settings["mcpServers"]["gobby"]["command"] == "uv"
         assert settings["mcpServers"]["gobby"]["args"] == ["run", "gobby", "mcp-server"]
 
-    def test_configure_existing_settings_no_mcp(self, temp_dir: Path):
+    def test_configure_existing_settings_no_mcp(self, temp_dir: Path) -> None:
         """Test adding MCP server to existing settings without mcpServers."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
@@ -334,7 +337,7 @@ class TestConfigureMcpServerJson:
         assert settings["otherSetting"] == "value"
         assert "gobby" in settings["mcpServers"]
 
-    def test_configure_existing_settings_with_other_mcp(self, temp_dir: Path):
+    def test_configure_existing_settings_with_other_mcp(self, temp_dir: Path) -> None:
         """Test adding gobby to existing mcpServers."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
@@ -350,7 +353,7 @@ class TestConfigureMcpServerJson:
         assert "other-server" in settings["mcpServers"]
         assert "gobby" in settings["mcpServers"]
 
-    def test_configure_already_configured(self, temp_dir: Path):
+    def test_configure_already_configured(self, temp_dir: Path) -> None:
         """Test when gobby is already configured."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
@@ -364,7 +367,7 @@ class TestConfigureMcpServerJson:
         assert result["already_configured"] is True
         assert result["backup_path"] is None  # No backup when already configured
 
-    def test_configure_custom_server_name(self, temp_dir: Path):
+    def test_configure_custom_server_name(self, temp_dir: Path) -> None:
         """Test using a custom server name."""
         settings_path = temp_dir / ".claude" / "settings.json"
 
@@ -377,7 +380,7 @@ class TestConfigureMcpServerJson:
         assert "custom-gobby" in settings["mcpServers"]
         assert "gobby" not in settings["mcpServers"]
 
-    def test_configure_invalid_json(self, temp_dir: Path):
+    def test_configure_invalid_json(self, temp_dir: Path) -> None:
         """Test handling invalid JSON in settings file."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
@@ -389,7 +392,7 @@ class TestConfigureMcpServerJson:
         assert result["error"] is not None
         assert "Failed to parse" in result["error"]
 
-    def test_configure_read_permission_error(self, temp_dir: Path):
+    def test_configure_read_permission_error(self, temp_dir: Path) -> None:
         """Test handling read permission error."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
@@ -403,7 +406,7 @@ class TestConfigureMcpServerJson:
         finally:
             settings_path.chmod(0o644)
 
-    def test_configure_creates_parent_directory(self, temp_dir: Path):
+    def test_configure_creates_parent_directory(self, temp_dir: Path) -> None:
         """Test that parent directory is created if it doesn't exist."""
         settings_path = temp_dir / "deep" / "nested" / "settings.json"
 
@@ -412,7 +415,7 @@ class TestConfigureMcpServerJson:
         assert result["success"] is True
         assert settings_path.exists()
 
-    def test_configure_backup_created(self, temp_dir: Path):
+    def test_configure_backup_created(self, temp_dir: Path) -> None:
         """Test that backup file is created for existing settings."""
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"existing": true}')
@@ -434,7 +437,7 @@ class TestConfigureMcpServerJson:
 class TestRemoveMcpServerJson:
     """Tests for remove_mcp_server_json function."""
 
-    def test_remove_nonexistent_file(self, temp_dir: Path):
+    def test_remove_nonexistent_file(self, temp_dir: Path) -> None:
         """Test removing from nonexistent file."""
         settings_path = temp_dir / "settings.json"
 
@@ -443,7 +446,7 @@ class TestRemoveMcpServerJson:
         assert result["success"] is True
         assert result["removed"] is False
 
-    def test_remove_no_mcp_servers_section(self, temp_dir: Path):
+    def test_remove_no_mcp_servers_section(self, temp_dir: Path) -> None:
         """Test removing when no mcpServers section exists."""
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"other": "value"}')
@@ -453,7 +456,7 @@ class TestRemoveMcpServerJson:
         assert result["success"] is True
         assert result["removed"] is False
 
-    def test_remove_server_not_present(self, temp_dir: Path):
+    def test_remove_server_not_present(self, temp_dir: Path) -> None:
         """Test removing when server isn't in mcpServers."""
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"mcpServers": {"other": {}}}')
@@ -463,7 +466,7 @@ class TestRemoveMcpServerJson:
         assert result["success"] is True
         assert result["removed"] is False
 
-    def test_remove_server_successfully(self, temp_dir: Path):
+    def test_remove_server_successfully(self, temp_dir: Path) -> None:
         """Test successfully removing MCP server."""
         settings_path = temp_dir / "settings.json"
         existing = {
@@ -484,7 +487,7 @@ class TestRemoveMcpServerJson:
         assert "gobby" not in settings["mcpServers"]
         assert "other" in settings["mcpServers"]
 
-    def test_remove_last_server_cleans_section(self, temp_dir: Path):
+    def test_remove_last_server_cleans_section(self, temp_dir: Path) -> None:
         """Test removing the last server cleans up mcpServers section."""
         settings_path = temp_dir / "settings.json"
         existing = {"mcpServers": {"gobby": {"command": "uv"}}, "otherSetting": "preserved"}
@@ -499,7 +502,7 @@ class TestRemoveMcpServerJson:
         assert "mcpServers" not in settings
         assert settings["otherSetting"] == "preserved"
 
-    def test_remove_custom_server_name(self, temp_dir: Path):
+    def test_remove_custom_server_name(self, temp_dir: Path) -> None:
         """Test removing with custom server name."""
         settings_path = temp_dir / "settings.json"
         existing = {
@@ -516,7 +519,7 @@ class TestRemoveMcpServerJson:
         assert "custom-gobby" not in settings["mcpServers"]
         assert "gobby" in settings["mcpServers"]
 
-    def test_remove_invalid_json(self, temp_dir: Path):
+    def test_remove_invalid_json(self, temp_dir: Path) -> None:
         """Test handling invalid JSON."""
         settings_path = temp_dir / "settings.json"
         settings_path.write_text("not valid json")
@@ -526,7 +529,7 @@ class TestRemoveMcpServerJson:
         assert result["success"] is False
         assert result["error"] is not None
 
-    def test_remove_creates_backup(self, temp_dir: Path):
+    def test_remove_creates_backup(self, temp_dir: Path) -> None:
         """Test that backup is created before removal."""
         settings_path = temp_dir / "settings.json"
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
@@ -544,7 +547,7 @@ class TestRemoveMcpServerJson:
 class TestConfigureMcpServerToml:
     """Tests for configure_mcp_server_toml function."""
 
-    def test_configure_new_toml_file(self, temp_dir: Path):
+    def test_configure_new_toml_file(self, temp_dir: Path) -> None:
         """Test creating new TOML file with MCP server."""
         config_path = temp_dir / ".codex" / "config.toml"
 
@@ -559,7 +562,7 @@ class TestConfigureMcpServerToml:
         assert 'command = "uv"' in content
         assert 'args = ["run", "gobby", "mcp-server"]' in content
 
-    def test_configure_existing_toml_no_mcp(self, temp_dir: Path):
+    def test_configure_existing_toml_no_mcp(self, temp_dir: Path) -> None:
         """Test adding MCP server to existing TOML without mcp_servers."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('model = "gpt-4"\n')
@@ -574,7 +577,7 @@ class TestConfigureMcpServerToml:
         assert 'model = "gpt-4"' in content
         assert "[mcp_servers.gobby]" in content
 
-    def test_configure_already_configured_toml(self, temp_dir: Path):
+    def test_configure_already_configured_toml(self, temp_dir: Path) -> None:
         """Test when server is already configured in TOML."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('[mcp_servers.gobby]\ncommand = "existing"\n')
@@ -586,7 +589,7 @@ class TestConfigureMcpServerToml:
         assert result["already_configured"] is True
         assert result["backup_path"] is None
 
-    def test_configure_custom_server_name_toml(self, temp_dir: Path):
+    def test_configure_custom_server_name_toml(self, temp_dir: Path) -> None:
         """Test using custom server name in TOML."""
         config_path = temp_dir / "config.toml"
 
@@ -598,7 +601,7 @@ class TestConfigureMcpServerToml:
         content = config_path.read_text()
         assert "[mcp_servers.my-gobby]" in content
 
-    def test_configure_toml_creates_parent_directory(self, temp_dir: Path):
+    def test_configure_toml_creates_parent_directory(self, temp_dir: Path) -> None:
         """Test that parent directory is created."""
         config_path = temp_dir / "deep" / "path" / "config.toml"
 
@@ -607,7 +610,7 @@ class TestConfigureMcpServerToml:
         assert result["success"] is True
         assert config_path.exists()
 
-    def test_configure_toml_backup_created(self, temp_dir: Path):
+    def test_configure_toml_backup_created(self, temp_dir: Path) -> None:
         """Test that backup is created for existing TOML."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('existing = "value"\n')
@@ -620,7 +623,7 @@ class TestConfigureMcpServerToml:
         assert "1111111111" in result["backup_path"]
         assert Path(result["backup_path"]).exists()
 
-    def test_configure_toml_preserves_empty_content(self, temp_dir: Path):
+    def test_configure_toml_preserves_empty_content(self, temp_dir: Path) -> None:
         """Test handling empty TOML file."""
         config_path = temp_dir / "config.toml"
         config_path.write_text("")
@@ -630,7 +633,7 @@ class TestConfigureMcpServerToml:
         assert result["success"] is True
         assert result["added"] is True
 
-    def test_configure_toml_regex_escapes_server_name(self, temp_dir: Path):
+    def test_configure_toml_regex_escapes_server_name(self, temp_dir: Path) -> None:
         """Test that special characters in server name are handled."""
         config_path = temp_dir / "config.toml"
         config_path.write_text("")
@@ -646,7 +649,7 @@ class TestConfigureMcpServerToml:
 class TestRemoveMcpServerToml:
     """Tests for remove_mcp_server_toml function."""
 
-    def test_remove_nonexistent_toml(self, temp_dir: Path):
+    def test_remove_nonexistent_toml(self, temp_dir: Path) -> None:
         """Test removing from nonexistent file."""
         config_path = temp_dir / "config.toml"
 
@@ -655,7 +658,7 @@ class TestRemoveMcpServerToml:
         assert result["success"] is True
         assert result["removed"] is False
 
-    def test_remove_server_not_in_toml(self, temp_dir: Path):
+    def test_remove_server_not_in_toml(self, temp_dir: Path) -> None:
         """Test removing when server isn't present."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('[mcp_servers.other]\ncommand = "other"\n')
@@ -665,7 +668,7 @@ class TestRemoveMcpServerToml:
         assert result["success"] is True
         assert result["removed"] is False
 
-    def test_remove_server_successfully_toml(self, temp_dir: Path):
+    def test_remove_server_successfully_toml(self, temp_dir: Path) -> None:
         """Test successfully removing MCP server from TOML."""
         config_path = temp_dir / "config.toml"
         content = """[mcp_servers.gobby]
@@ -691,7 +694,7 @@ command = "other"
         assert "gobby" not in config.get("mcp_servers", {})
         assert "other" in config.get("mcp_servers", {})
 
-    def test_remove_last_server_cleans_section_toml(self, temp_dir: Path):
+    def test_remove_last_server_cleans_section_toml(self, temp_dir: Path) -> None:
         """Test removing the last server removes mcp_servers section."""
         config_path = temp_dir / "config.toml"
         content = """model = "gpt-4"
@@ -713,7 +716,7 @@ command = "uv"
         assert "mcp_servers" not in config
         assert config.get("model") == "gpt-4"
 
-    def test_remove_custom_server_name_toml(self, temp_dir: Path):
+    def test_remove_custom_server_name_toml(self, temp_dir: Path) -> None:
         """Test removing with custom server name."""
         config_path = temp_dir / "config.toml"
         content = """[mcp_servers.custom-gobby]
@@ -736,7 +739,7 @@ command = "default"
         assert "custom-gobby" not in config["mcp_servers"]
         assert "gobby" in config["mcp_servers"]
 
-    def test_remove_invalid_toml(self, temp_dir: Path):
+    def test_remove_invalid_toml(self, temp_dir: Path) -> None:
         """Test handling invalid TOML."""
         config_path = temp_dir / "config.toml"
         config_path.write_text("[ invalid toml ]]")
@@ -747,7 +750,7 @@ command = "default"
         assert result["error"] is not None
         assert "Failed to parse TOML" in result["error"]
 
-    def test_remove_toml_creates_backup(self, temp_dir: Path):
+    def test_remove_toml_creates_backup(self, temp_dir: Path) -> None:
         """Test that backup is created before removal."""
         config_path = temp_dir / "config.toml"
         content = """[mcp_servers.gobby]
@@ -763,7 +766,7 @@ command = "uv"
         assert "2222222222" in result["backup_path"]
         assert Path(result["backup_path"]).exists()
 
-    def test_remove_no_mcp_servers_section_toml(self, temp_dir: Path):
+    def test_remove_no_mcp_servers_section_toml(self, temp_dir: Path) -> None:
         """Test removing when no mcp_servers section exists."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('model = "gpt-4"\n')
@@ -777,7 +780,7 @@ command = "uv"
 class TestEdgeCases:
     """Tests for edge cases and error conditions."""
 
-    def test_configure_json_write_error(self, temp_dir: Path):
+    def test_configure_json_write_error(self, temp_dir: Path) -> None:
         """Test handling write permission error for JSON."""
         settings_path = temp_dir / "settings.json"
         settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -796,7 +799,7 @@ class TestEdgeCases:
         assert result["success"] is False
         assert "Failed to write" in result["error"]
 
-    def test_remove_json_write_error(self, temp_dir: Path):
+    def test_remove_json_write_error(self, temp_dir: Path) -> None:
         """Test handling write permission error when removing from JSON."""
         settings_path = temp_dir / "settings.json"
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
@@ -821,7 +824,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to write" in result["error"]
 
-    def test_install_cli_content_multiple_command_dirs(self, temp_dir: Path):
+    def test_install_cli_content_multiple_command_dirs(self, temp_dir: Path) -> None:
         """Test that both commands/ and prompts/ directories are processed."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "test-cli"
@@ -847,7 +850,7 @@ class TestEdgeCases:
         assert (target_path / "commands" / "cmd1.md").exists()
         assert (target_path / "prompts" / "prompt1.md").exists()
 
-    def test_configure_json_backup_error(self, temp_dir: Path):
+    def test_configure_json_backup_error(self, temp_dir: Path) -> None:
         """Test handling backup creation failure for JSON."""
         settings_path = temp_dir / "settings.json"
         settings_path.write_text('{"existing": true}')
@@ -860,7 +863,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to create backup" in result["error"]
 
-    def test_remove_json_backup_error(self, temp_dir: Path):
+    def test_remove_json_backup_error(self, temp_dir: Path) -> None:
         """Test handling backup creation failure when removing JSON server."""
         settings_path = temp_dir / "settings.json"
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
@@ -874,7 +877,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to create backup" in result["error"]
 
-    def test_configure_toml_read_error(self, temp_dir: Path):
+    def test_configure_toml_read_error(self, temp_dir: Path) -> None:
         """Test handling read error for TOML file."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('valid = "content"')
@@ -888,7 +891,7 @@ class TestEdgeCases:
         finally:
             config_path.chmod(0o644)
 
-    def test_configure_toml_backup_error(self, temp_dir: Path):
+    def test_configure_toml_backup_error(self, temp_dir: Path) -> None:
         """Test handling backup creation failure for TOML."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('existing = "value"')
@@ -902,7 +905,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to create backup" in result["error"]
 
-    def test_configure_toml_write_error(self, temp_dir: Path):
+    def test_configure_toml_write_error(self, temp_dir: Path) -> None:
         """Test handling write error for TOML file."""
         config_path = temp_dir / "config.toml"
         # Create a new file (no backup needed)
@@ -915,7 +918,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to write" in result["error"]
 
-    def test_remove_toml_read_error(self, temp_dir: Path):
+    def test_remove_toml_read_error(self, temp_dir: Path) -> None:
         """Test handling read error when removing TOML server."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('[mcp_servers.gobby]\ncommand = "uv"')
@@ -929,7 +932,7 @@ class TestEdgeCases:
         finally:
             config_path.chmod(0o644)
 
-    def test_remove_toml_backup_error(self, temp_dir: Path):
+    def test_remove_toml_backup_error(self, temp_dir: Path) -> None:
         """Test handling backup creation failure when removing TOML server."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('[mcp_servers.gobby]\ncommand = "uv"')
@@ -942,7 +945,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to create backup" in result["error"]
 
-    def test_remove_toml_write_error(self, temp_dir: Path):
+    def test_remove_toml_write_error(self, temp_dir: Path) -> None:
         """Test handling write error when removing TOML server."""
         config_path = temp_dir / "config.toml"
         config_path.write_text('[mcp_servers.gobby]\ncommand = "uv"')
@@ -965,7 +968,7 @@ class TestEdgeCases:
         assert result["error"] is not None
         assert "Failed to write" in result["error"]
 
-    def test_install_cli_workflows_copies_subdirectories(self, temp_dir: Path):
+    def test_install_cli_workflows_copies_subdirectories(self, temp_dir: Path) -> None:
         """Test that subdirectories in CLI workflows folder are copied."""
         install_dir = temp_dir / "install"
         cli_dir = install_dir / "claude"

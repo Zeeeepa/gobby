@@ -6,6 +6,7 @@ import pytest
 
 from gobby.skills.loader import SkillLoader
 
+pytestmark = pytest.mark.unit
 
 class TestStartingSessionsSkill:
     """Tests for the starting-sessions micro-skill."""

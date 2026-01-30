@@ -15,6 +15,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def session_storage(temp_db: LocalDatabase) -> LocalSessionManager:

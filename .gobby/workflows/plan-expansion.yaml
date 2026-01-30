@@ -501,7 +501,7 @@ steps:
           hierarchies. You must create the Epic → Phase → Task structure manually.
 
           **Required**: All `create_task` calls need a `session_id` parameter. Find your
-          session ID in the SessionStart hook context (look for `session_id: <uuid>`).
+          session ID in the SessionStart hook context (look for `Gobby Session Ref:` or `Gobby Session ID:`).
 
           ### Step 1: Create Root Epic (Level 1)
 

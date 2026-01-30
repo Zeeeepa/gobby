@@ -8,6 +8,7 @@ then will pass once LLMProviderConfig and LLMProvidersConfig are extracted from 
 import pytest
 from pydantic import ValidationError
 
+pytestmark = pytest.mark.unit
 
 class TestLLMProviderConfigImport:
     """Test that LLMProviderConfig can be imported from the llm_providers module."""

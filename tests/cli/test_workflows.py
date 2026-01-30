@@ -6,6 +6,8 @@ from click.testing import CliRunner
 from gobby.cli.workflows import workflows
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowStep
 
+pytestmark = pytest.mark.unit
+
 # Mock workflow definition
 MOCK_WORKFLOW = WorkflowDefinition(
     name="test-workflow",
@@ -31,7 +33,7 @@ def mock_state_manager():
         yield mock.return_value
 
 
-def test_list_workflows_empty(mock_loader):
+def test_list_workflows_empty(mock_loader) -> None:
     """Test 'workflows list' with no workflows."""
     # Mock global_dirs to be empty or contain directories with no yaml
     mock_loader.global_dirs = []
@@ -81,7 +83,7 @@ def test_list_workflows_found(mock_open, mock_yaml, mock_project_path, mock_load
     assert "desc" in result.output
 
 
-def test_show_workflow(mock_loader):
+def test_show_workflow(mock_loader) -> None:
     """Test 'workflows show' with valid name."""
     mock_loader.load_workflow.return_value = MOCK_WORKFLOW
 
@@ -94,7 +96,7 @@ def test_show_workflow(mock_loader):
     assert "- step1" in result.output
 
 
-def test_show_workflow_not_found(mock_loader):
+def test_show_workflow_not_found(mock_loader) -> None:
     """Test 'workflows show' with invalid name."""
     mock_loader.load_workflow.return_value = None
 
@@ -105,7 +107,7 @@ def test_show_workflow_not_found(mock_loader):
     assert "not found" in result.output
 
 
-def test_status_no_active(mock_state_manager):
+def test_status_no_active(mock_state_manager) -> None:
     """Test 'workflows status' with no active workflow."""
     mock_state_manager.get_state.return_value = None
 
@@ -117,7 +119,7 @@ def test_status_no_active(mock_state_manager):
     assert "No workflow active" in result.output
 
 
-def test_set_workflow_success(mock_loader, mock_state_manager):
+def test_set_workflow_success(mock_loader, mock_state_manager) -> None:
     """Test 'workflows set' successfully."""
     mock_loader.load_workflow.return_value = MOCK_WORKFLOW
     mock_state_manager.get_state.return_value = None  # No existing workflow
@@ -131,7 +133,7 @@ def test_set_workflow_success(mock_loader, mock_state_manager):
     mock_state_manager.save_state.assert_called_once()
 
 
-def test_clear_workflow(mock_state_manager):
+def test_clear_workflow(mock_state_manager) -> None:
     """Test 'workflows clear'."""
     mock_state = MagicMock()
     mock_state.workflow_name = "test-workflow"

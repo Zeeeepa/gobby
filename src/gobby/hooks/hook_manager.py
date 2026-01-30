@@ -369,6 +369,10 @@ class HookManager:
         # Skill manager for core skill injection
         self._skill_manager = HookSkillManager()
 
+        # Track sessions that have received full metadata injection
+        # Key: "{platform_session_id}:{source}" - cleared on daemon restart
+        self._injected_sessions: set[str] = set()
+
         # Event handlers (delegated to EventHandlers module)
         self._event_handlers = EventHandlers(
             session_manager=self._session_manager,
@@ -644,7 +648,21 @@ class HookManager:
             # Copy session metadata from event to response for adapter injection
             # The adapter reads response.metadata to inject session info into agent context
             if event.metadata.get("_platform_session_id"):
-                response.metadata["session_id"] = event.metadata["_platform_session_id"]
+                platform_session_id = event.metadata["_platform_session_id"]
+                response.metadata["session_id"] = platform_session_id
+                # Look up seq_num for session_ref (#N format)
+                if self._session_storage:
+                    session_obj = self._session_storage.get(platform_session_id)
+                    if session_obj and session_obj.seq_num:
+                        response.metadata["session_ref"] = f"#{session_obj.seq_num}"
+
+                # Track first hook per session for token optimization
+                # Adapters use this flag to inject full metadata only on first hook
+                session_key = f"{platform_session_id}:{event.source.value}"
+                is_first = session_key not in self._injected_sessions
+                if is_first:
+                    self._injected_sessions.add(session_key)
+                response.metadata["_first_hook_for_session"] = is_first
             if event.session_id:  # external_id (e.g., Claude Code's session UUID)
                 response.metadata["external_id"] = event.session_id
             if event.machine_id:

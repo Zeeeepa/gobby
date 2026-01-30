@@ -10,6 +10,8 @@ import pytest
 from gobby.mcp_proxy.models import ConnectionState, MCPServerConfig
 from gobby.mcp_proxy.transports.base import BaseTransportConnection
 
+pytestmark = pytest.mark.unit
+
 # --- Fixtures ---
 
 

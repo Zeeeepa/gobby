@@ -7,6 +7,7 @@ from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
 
+pytestmark = pytest.mark.unit
 
 def make_event(
     event_type: HookEventType = HookEventType.BEFORE_TOOL,

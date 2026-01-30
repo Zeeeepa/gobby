@@ -7,7 +7,7 @@ and update workflow state variables accordingly.
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.hooks.events import HookEvent
@@ -44,30 +44,24 @@ def detect_task_claim(
     if not event.data:
         return
 
-    tool_name = event.data.get("tool_name", "")
     tool_input = event.data.get("tool_input", {}) or {}
-    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
-    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
+    # Use normalized tool_output (adapters normalize tool_result/tool_response)
+    tool_output = event.data.get("tool_output") or {}
 
-    # Check if this is a gobby-tasks call via MCP proxy
-    # Tool name could be "call_tool" (from legacy) or "mcp__gobby__call_tool" (direct)
-    if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
-        return
-
-    # Check server is gobby-tasks
-    server_name = tool_input.get("server_name", "")
+    # Use normalized MCP fields from adapter layer
+    # Adapters extract these from CLI-specific formats
+    server_name = event.data.get("mcp_server", "")
     if server_name != "gobby-tasks":
         return
 
-    # Check inner tool name
-    inner_tool_name = tool_input.get("tool_name", "")
+    inner_tool_name = event.data.get("mcp_tool", "")
 
     # Handle close_task - clears task_claimed when task is closed
     # Note: Claude Code doesn't include tool_result in post-tool-use hooks, so for CC
     # the workflow state is updated directly in the MCP proxy's close_task function.
     # This detection provides a fallback for CLIs that do report tool results (Gemini/Codex).
     if inner_tool_name == "close_task":
-        tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
+        # tool_output already normalized at top of function
 
         # If no tool output, skip - can't verify success
         # The MCP proxy's close_task handles state clearing for successful closes
@@ -254,6 +248,11 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
     This enables workflow conditions like:
         when: "mcp_called('gobby-memory', 'recall')"
 
+    Uses normalized fields from adapters:
+    - mcp_server: The MCP server name (normalized from both Claude and Gemini formats)
+    - mcp_tool: The tool name on the server (normalized from both formats)
+    - tool_output: The tool result (normalized from tool_result/tool_response)
+
     Args:
         event: The AFTER_TOOL hook event
         state: Current workflow state (modified in place)
@@ -261,21 +260,36 @@ def detect_mcp_call(event: "HookEvent", state: "WorkflowState") -> None:
     if not event.data:
         return
 
-    tool_name = event.data.get("tool_name", "")
-    tool_input = event.data.get("tool_input", {}) or {}
-    # Claude Code sends "tool_result", but we also check "tool_output" for compatibility
-    tool_output = event.data.get("tool_result") or event.data.get("tool_output") or {}
-
-    # Check for MCP proxy call
-    if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
-        return
-
-    server_name = tool_input.get("server_name", "")
-    inner_tool = tool_input.get("tool_name", "")
+    # Use normalized fields from adapter layer
+    # Adapters extract these from CLI-specific formats:
+    # - Claude: tool_input.server_name/tool_name → mcp_server/mcp_tool
+    # - Gemini: mcp_context.server_name/tool_name → mcp_server/mcp_tool
+    server_name = event.data.get("mcp_server", "")
+    inner_tool = event.data.get("mcp_tool", "")
 
     if not server_name or not inner_tool:
         return
 
+    # Use normalized tool_output (adapters normalize tool_result/tool_response)
+    tool_output = event.data.get("tool_output") or {}
+
+    _track_mcp_call(state, server_name, inner_tool, tool_output)
+
+
+def _track_mcp_call(
+    state: "WorkflowState",
+    server_name: str,
+    inner_tool: str,
+    tool_output: dict[str, Any] | Any,
+) -> None:
+    """Track a successful MCP call in workflow state.
+
+    Args:
+        state: Current workflow state (modified in place)
+        server_name: MCP server name (e.g., "gobby-sessions")
+        inner_tool: Tool name on the server (e.g., "get_current_session")
+        tool_output: Tool output to check for errors
+    """
     # Check if call succeeded (skip tracking failed calls)
     if isinstance(tool_output, dict):
         if tool_output.get("error") or tool_output.get("status") == "error":

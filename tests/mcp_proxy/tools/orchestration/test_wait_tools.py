@@ -7,14 +7,13 @@ Tests the blocking wait tools:
 - wait_for_all_tasks: Wait for all tasks to complete
 """
 
-import asyncio
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
+pytestmark = pytest.mark.unit
 
 class MockTask:
     """Mock task object for tests."""
@@ -61,7 +60,7 @@ def wait_registry(mock_task_manager):
 class TestRegisterWait:
     """Tests for register_wait function."""
 
-    def test_registers_all_expected_tools(self, wait_registry):
+    def test_registers_all_expected_tools(self, wait_registry) -> None:
         """Test that all wait tools are registered."""
         tools = wait_registry.list_tools()
         tool_names = [t["name"] for t in tools]

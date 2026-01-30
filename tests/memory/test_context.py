@@ -1,42 +1,45 @@
 """Tests for memory context building."""
 
+import pytest
+
 from gobby.memory.context import (
     _strip_leading_bullet,
     build_memory_context,
 )
 from gobby.storage.memories import Memory
 
+pytestmark = pytest.mark.unit
 
 class TestStripLeadingBullet:
     """Tests for _strip_leading_bullet function."""
 
-    def test_dash_bullet(self):
+    def test_dash_bullet(self) -> None:
         """Test stripping dash bullet."""
         assert _strip_leading_bullet("- item") == "item"
 
-    def test_asterisk_bullet(self):
+    def test_asterisk_bullet(self) -> None:
         """Test stripping asterisk bullet."""
         assert _strip_leading_bullet("* item") == "item"
 
-    def test_bullet_point_character(self):
+    def test_bullet_point_character(self) -> None:
         """Test stripping bullet point character."""
         assert _strip_leading_bullet("• item") == "item"
 
-    def test_no_bullet(self):
+    def test_no_bullet(self) -> None:
         """Test content without bullet."""
         assert _strip_leading_bullet("item") == "item"
 
-    def test_leading_whitespace(self):
+    def test_leading_whitespace(self) -> None:
         """Test content with leading whitespace."""
         assert _strip_leading_bullet("  - item") == "item"
         assert _strip_leading_bullet("  item") == "item"
 
-    def test_empty_content(self):
+    def test_empty_content(self) -> None:
         """Test empty content."""
         assert _strip_leading_bullet("") == ""
         assert _strip_leading_bullet("   ") == ""
 
-    def test_only_bullet(self):
+    def test_only_bullet(self) -> None:
         """Test content that is only a bullet marker."""
         # Single dash without space is stripped (matches bullet pattern)
         assert _strip_leading_bullet("-") == ""
@@ -44,7 +47,7 @@ class TestStripLeadingBullet:
         assert _strip_leading_bullet("*") == ""
         assert _strip_leading_bullet("•") == ""
 
-    def test_preserves_internal_dashes(self):
+    def test_preserves_internal_dashes(self) -> None:
         """Test that internal dashes are preserved."""
         assert _strip_leading_bullet("- use foo-bar") == "use foo-bar"
         assert _strip_leading_bullet("use foo-bar") == "use foo-bar"
@@ -53,11 +56,11 @@ class TestStripLeadingBullet:
 class TestBuildMemoryContext:
     """Tests for build_memory_context function."""
 
-    def test_empty_memories(self):
+    def test_empty_memories(self) -> None:
         """Test with empty memory list."""
         assert build_memory_context([]) == ""
 
-    def test_single_preference(self):
+    def test_single_preference(self) -> None:
         """Test with single preference memory."""
         mem = Memory(
             id="m1",
@@ -73,7 +76,7 @@ class TestBuildMemoryContext:
         # Should not have double bullets
         assert "- - " not in result
 
-    def test_handles_various_bullet_formats(self):
+    def test_handles_various_bullet_formats(self) -> None:
         """Test that various bullet formats are normalized."""
         memories = [
             Memory(
@@ -111,7 +114,7 @@ class TestBuildMemoryContext:
         assert "- * " not in result
         assert "- • " not in result
 
-    def test_all_memory_types(self):
+    def test_all_memory_types(self) -> None:
         """Test with all 4 memory types present."""
         memories = [
             Memory(
@@ -163,7 +166,7 @@ class TestBuildMemoryContext:
         assert "Follow PEP 8 style" in result
         assert "Database uses SQLite" in result
 
-    def test_context_type_no_bullet_stripping(self):
+    def test_context_type_no_bullet_stripping(self) -> None:
         """Test that context type content is not bullet-stripped."""
         mem = Memory(
             id="m1",
@@ -177,7 +180,7 @@ class TestBuildMemoryContext:
         # Context type preserves original formatting
         assert "- This is context with dash" in result
 
-    def test_mixed_types_ordering(self):
+    def test_mixed_types_ordering(self) -> None:
         """Test that sections appear in correct order."""
         memories = [
             Memory(
@@ -204,7 +207,7 @@ class TestBuildMemoryContext:
         facts_pos = result.find("## Facts")
         assert context_pos < facts_pos
 
-    def test_skips_empty_content_after_stripping(self):
+    def test_skips_empty_content_after_stripping(self) -> None:
         """Test that empty content after bullet stripping is skipped."""
         memories = [
             Memory(
@@ -229,5 +232,5 @@ class TestBuildMemoryContext:
         assert result.count("- Valid content") == 1
         # Should not have empty bullet lines
         lines = result.split("\n")
-        bullet_lines = [l for l in lines if l.strip() == "-"]
+        bullet_lines = [line for line in lines if line.strip() == "-"]
         assert len(bullet_lines) == 0

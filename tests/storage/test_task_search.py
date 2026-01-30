@@ -6,6 +6,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db_with_tasks(tmp_path):
@@ -79,7 +80,7 @@ def db_with_tasks(tmp_path):
 class TestTaskSearch:
     """Tests for LocalTaskManager.search_tasks method."""
 
-    def test_search_returns_relevant_results(self, db_with_tasks):
+    def test_search_returns_relevant_results(self, db_with_tasks) -> None:
         """Test that search returns tasks matching the query."""
         db, manager, project_id = db_with_tasks
 
@@ -90,7 +91,7 @@ class TestTaskSearch:
         titles = [task.title for task, score in results]
         assert any("authentication" in t.lower() for t in titles)
 
-    def test_search_with_status_filter(self, db_with_tasks):
+    def test_search_with_status_filter(self, db_with_tasks) -> None:
         """Test search with status filter."""
         db, manager, project_id = db_with_tasks
 
@@ -110,7 +111,7 @@ class TestTaskSearch:
         )
         assert len(results) == 0
 
-    def test_search_with_status_list(self, db_with_tasks):
+    def test_search_with_status_list(self, db_with_tasks) -> None:
         """Test search with list of statuses."""
         db, manager, project_id = db_with_tasks
 
@@ -121,7 +122,7 @@ class TestTaskSearch:
         )
         assert len(results) > 0
 
-    def test_search_with_task_type_filter(self, db_with_tasks):
+    def test_search_with_task_type_filter(self, db_with_tasks) -> None:
         """Test search with task type filter."""
         db, manager, project_id = db_with_tasks
 
@@ -132,10 +133,10 @@ class TestTaskSearch:
         )
 
         assert len(results) > 0
-        for task, score in results:
+        for task, _score in results:
             assert task.task_type == "bug"
 
-    def test_search_with_priority_filter(self, db_with_tasks):
+    def test_search_with_priority_filter(self, db_with_tasks) -> None:
         """Test search with priority filter."""
         db, manager, project_id = db_with_tasks
 
@@ -145,10 +146,10 @@ class TestTaskSearch:
             priority=2,
         )
 
-        for task, score in results:
+        for task, _score in results:
             assert task.priority == 2
 
-    def test_search_with_min_score(self, db_with_tasks):
+    def test_search_with_min_score(self, db_with_tasks) -> None:
         """Test search with minimum score threshold."""
         db, manager, project_id = db_with_tasks
 
@@ -170,10 +171,10 @@ class TestTaskSearch:
         assert len(filtered_results) <= len(all_results)
 
         # All filtered results should have score >= 0.1
-        for task, score in filtered_results:
+        for _task, score in filtered_results:
             assert score >= 0.1
 
-    def test_search_with_limit(self, db_with_tasks):
+    def test_search_with_limit(self, db_with_tasks) -> None:
         """Test search with limit parameter."""
         db, manager, project_id = db_with_tasks
 
@@ -185,24 +186,24 @@ class TestTaskSearch:
 
         assert len(results) <= 2
 
-    def test_search_empty_query_returns_empty(self, db_with_tasks):
+    def test_search_empty_query_returns_empty(self, db_with_tasks) -> None:
         """Test that empty query returns empty results."""
         db, manager, project_id = db_with_tasks
 
         results = manager.search_tasks("", project_id=project_id)
         assert len(results) == 0
 
-    def test_search_results_include_scores(self, db_with_tasks):
+    def test_search_results_include_scores(self, db_with_tasks) -> None:
         """Test that search results include similarity scores."""
         db, manager, project_id = db_with_tasks
 
         results = manager.search_tasks("authentication", project_id=project_id)
 
-        for task, score in results:
+        for _task, score in results:
             assert isinstance(score, float)
             assert 0.0 <= score <= 1.0
 
-    def test_search_results_sorted_by_score(self, db_with_tasks):
+    def test_search_results_sorted_by_score(self, db_with_tasks) -> None:
         """Test that results are sorted by score descending."""
         db, manager, project_id = db_with_tasks
 
@@ -211,7 +212,7 @@ class TestTaskSearch:
         scores = [score for _, score in results]
         assert scores == sorted(scores, reverse=True)
 
-    def test_reindex_search(self, db_with_tasks):
+    def test_reindex_search(self, db_with_tasks) -> None:
         """Test reindex_search rebuilds the index."""
         db, manager, project_id = db_with_tasks
 
@@ -233,7 +234,7 @@ class TestTaskSearch:
 class TestTaskSearcher:
     """Tests for the TaskSearcher helper class."""
 
-    def test_build_searchable_content(self):
+    def test_build_searchable_content(self) -> None:
         """Test build_searchable_content function."""
         from gobby.storage.tasks._models import Task
         from gobby.storage.tasks._search import build_searchable_content
@@ -263,7 +264,7 @@ class TestTaskSearcher:
         assert "feature" in content
         assert "code" in content
 
-    def test_task_searcher_fit_and_search(self, db_with_tasks):
+    def test_task_searcher_fit_and_search(self, db_with_tasks) -> None:
         """Test TaskSearcher fit and search."""
         from gobby.storage.tasks._search import TaskSearcher
 
@@ -285,7 +286,7 @@ class TestTaskSearcher:
             assert isinstance(task_id, str)
             assert isinstance(score, float)
 
-    def test_task_searcher_dirty_tracking(self, db_with_tasks):
+    def test_task_searcher_dirty_tracking(self, db_with_tasks) -> None:
         """Test TaskSearcher dirty flag tracking."""
         from gobby.storage.tasks._search import TaskSearcher
 

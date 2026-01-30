@@ -21,6 +21,7 @@ from gobby.utils.project_context import (
     get_project_mcp_dir,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestMachineId:
     """Tests for machine_id utility."""
@@ -33,7 +34,7 @@ class TestMachineId:
         """Clear cache after each test."""
         clear_cache()
 
-    def test_get_machine_id_caches_result(self):
+    def test_get_machine_id_caches_result(self) -> None:
         """Test that machine ID is cached."""
         with patch("gobby.utils.machine_id._get_or_create_machine_id") as mock_get:
             mock_get.return_value = "cached-id"
@@ -46,7 +47,7 @@ class TestMachineId:
             assert result1 == result2
             mock_get.assert_called_once()
 
-    def test_clear_cache(self):
+    def test_clear_cache(self) -> None:
         """Test clearing the machine ID cache."""
         with patch("gobby.utils.machine_id._get_or_create_machine_id") as mock_get:
             mock_get.return_value = "test-id"
@@ -58,7 +59,7 @@ class TestMachineId:
             # Should be called twice after cache clear
             assert mock_get.call_count == 2
 
-    def test_get_machine_id_returns_string(self):
+    def test_get_machine_id_returns_string(self) -> None:
         """Test that get_machine_id returns a string."""
         with patch("gobby.utils.machine_id._get_or_create_machine_id") as mock_get:
             mock_get.return_value = "test-machine-id"
@@ -71,7 +72,7 @@ class TestGitUtils:
     """Tests for git utility functions."""
 
     @pytest.mark.integration
-    def test_run_git_command_success(self, temp_dir: Path):
+    def test_run_git_command_success(self, temp_dir: Path) -> None:
         """Test running a successful git command."""
         # Initialize git repo
         subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
@@ -80,13 +81,13 @@ class TestGitUtils:
         assert result is not None
         assert ".git" in result
 
-    def test_run_git_command_not_a_repo(self, temp_dir: Path):
+    def test_run_git_command_not_a_repo(self, temp_dir: Path) -> None:
         """Test running git command in non-repo directory."""
         result = run_git_command(["git", "status"], temp_dir)
         assert result is None
 
     @patch("subprocess.run")
-    def test_run_git_command_timeout(self, mock_run: MagicMock, temp_dir: Path):
+    def test_run_git_command_timeout(self, mock_run: MagicMock, temp_dir: Path) -> None:
         """Test git command timeout handling."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
 
@@ -94,7 +95,7 @@ class TestGitUtils:
         assert result is None
 
     @patch("subprocess.run")
-    def test_run_git_command_not_found(self, mock_run: MagicMock, temp_dir: Path):
+    def test_run_git_command_not_found(self, mock_run: MagicMock, temp_dir: Path) -> None:
         """Test git executable not found."""
         mock_run.side_effect = FileNotFoundError()
 
@@ -102,7 +103,7 @@ class TestGitUtils:
         assert result is None
 
     @pytest.mark.integration
-    def test_get_github_url_with_origin(self, temp_dir: Path):
+    def test_get_github_url_with_origin(self, temp_dir: Path) -> None:
         """Test getting GitHub URL from origin remote."""
         # Initialize git repo with remote
         subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
@@ -117,7 +118,7 @@ class TestGitUtils:
         assert result == "https://github.com/test/repo.git"
 
     @pytest.mark.integration
-    def test_get_github_url_no_remote(self, temp_dir: Path):
+    def test_get_github_url_no_remote(self, temp_dir: Path) -> None:
         """Test getting GitHub URL when no remote exists."""
         subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
 
@@ -125,7 +126,7 @@ class TestGitUtils:
         assert result is None
 
     @pytest.mark.integration
-    def test_get_git_branch(self, temp_dir: Path):
+    def test_get_git_branch(self, temp_dir: Path) -> None:
         """Test getting current git branch."""
         # Initialize git repo and create initial commit
         subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
@@ -156,13 +157,13 @@ class TestGitUtils:
         # Modern git uses 'main' or 'master' as default
         assert result in ["main", "master"]
 
-    def test_get_git_branch_not_a_repo(self, temp_dir: Path):
+    def test_get_git_branch_not_a_repo(self, temp_dir: Path) -> None:
         """Test getting branch in non-repo directory."""
         result = get_git_branch(temp_dir)
         assert result is None
 
     @pytest.mark.integration
-    def test_get_git_metadata(self, temp_dir: Path):
+    def test_get_git_metadata(self, temp_dir: Path) -> None:
         """Test getting comprehensive git metadata."""
         # Initialize git repo
         subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
@@ -199,12 +200,12 @@ class TestGitUtils:
         assert metadata.get("github_url") == "https://github.com/test/repo.git"
         assert metadata.get("git_branch") in ["main", "master"]
 
-    def test_get_git_metadata_not_a_repo(self, temp_dir: Path):
+    def test_get_git_metadata_not_a_repo(self, temp_dir: Path) -> None:
         """Test getting metadata from non-repo directory."""
         metadata = get_git_metadata(temp_dir)
         assert metadata == {}
 
-    def test_get_git_metadata_nonexistent_path(self):
+    def test_get_git_metadata_nonexistent_path(self) -> None:
         """Test getting metadata from nonexistent path."""
         metadata = get_git_metadata(Path("/nonexistent/path"))
         assert metadata == {}
@@ -213,7 +214,7 @@ class TestGitUtils:
 class TestProjectContext:
     """Tests for project context utilities."""
 
-    def test_find_project_root(self, temp_dir: Path):
+    def test_find_project_root(self, temp_dir: Path) -> None:
         """Test finding project root with .gobby/project.json."""
         # Create project structure
         gobby_dir = temp_dir / ".gobby"
@@ -232,7 +233,7 @@ class TestProjectContext:
         assert result is not None
         assert result.resolve() == temp_dir.resolve()
 
-    def test_find_project_root_not_found(self, temp_dir: Path, monkeypatch):
+    def test_find_project_root_not_found(self, temp_dir: Path, monkeypatch) -> None:
         """Test finding project root when not in a project."""
         # Isolate test from parent directories
         original_exists = Path.exists
@@ -248,7 +249,7 @@ class TestProjectContext:
         result = find_project_root(temp_dir)
         assert result is None
 
-    def test_get_project_context(self, temp_dir: Path):
+    def test_get_project_context(self, temp_dir: Path) -> None:
         """Test getting project context."""
         # Create project structure
         gobby_dir = temp_dir / ".gobby"
@@ -263,7 +264,7 @@ class TestProjectContext:
         # Handle macOS symlinks (/var -> /private/var)
         assert Path(result["project_path"]).resolve() == temp_dir.resolve()
 
-    def test_get_project_context_not_found(self, temp_dir: Path, monkeypatch):
+    def test_get_project_context_not_found(self, temp_dir: Path, monkeypatch) -> None:
         """Test getting project context when not in a project."""
         # Isolate test from parent directories
         original_exists = Path.exists
@@ -279,7 +280,7 @@ class TestProjectContext:
         result = get_project_context(temp_dir)
         assert result is None
 
-    def test_get_project_context_invalid_json(self, temp_dir: Path):
+    def test_get_project_context_invalid_json(self, temp_dir: Path) -> None:
         """Test getting project context with invalid JSON."""
         gobby_dir = temp_dir / ".gobby"
         gobby_dir.mkdir()
@@ -288,13 +289,13 @@ class TestProjectContext:
         result = get_project_context(temp_dir)
         assert result is None
 
-    def test_get_project_mcp_dir(self):
+    def test_get_project_mcp_dir(self) -> None:
         """Test getting project MCP directory path."""
         result = get_project_mcp_dir("My Project")
         expected = Path.home() / ".gobby" / "projects" / "my_project"
         assert result == expected
 
-    def test_get_project_mcp_config_path(self):
+    def test_get_project_mcp_config_path(self) -> None:
         """Test getting project MCP config path."""
         result = get_project_mcp_config_path("test-project")
         expected = Path.home() / ".gobby" / "projects" / "test-project" / ".mcp.json"
@@ -304,7 +305,7 @@ class TestProjectContext:
 class TestMigrations:
     """Tests for database migrations."""
 
-    def test_migrations_run_in_order(self, temp_dir: Path):
+    def test_migrations_run_in_order(self, temp_dir: Path) -> None:
         """Test that migrations run in version order."""
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import get_current_version, run_migrations
@@ -324,7 +325,7 @@ class TestMigrations:
 
         db.close()
 
-    def test_migrations_are_idempotent(self, temp_dir: Path):
+    def test_migrations_are_idempotent(self, temp_dir: Path) -> None:
         """Test that running migrations twice doesn't fail."""
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import get_current_version, run_migrations
@@ -344,7 +345,7 @@ class TestMigrations:
 
         db.close()
 
-    def test_tables_created(self, temp_db):
+    def test_tables_created(self, temp_db) -> None:
         """Test that expected tables are created."""
         # Check tables exist
         tables = temp_db.fetchall("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")

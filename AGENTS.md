@@ -109,16 +109,19 @@ call_tool("gobby-tasks", "close_task", {
 
 ## Session Context
 
-Your `session_id` is injected at session start. Look for:
+Your `session_id` is injected at session start. Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 
-```
-session_id: fd59c8fc-...
+```text
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
 
-If not present, use `get_current`:
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
+
+If not present, use `get_current_session`:
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-codex-session-id>",
     "source": "codex"
 })
@@ -131,7 +134,7 @@ When spawned as a subagent (via `start_agent` or `spawn_agent_in_worktree`), use
 ### 1. Get your session info
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-session-id>",
     "source": "codex"
 })
@@ -158,7 +161,7 @@ call_tool("gobby-sessions", "mark_loop_complete", {
 
 ```python
 call_tool("gobby-agents", "kill_agent", {
-    "run_id": "<agent_run_id>"  # From get_current response
+    "run_id": "<agent_run_id>"  # From get_current_session response
 })
 ```
 
@@ -176,7 +179,7 @@ call_tool("gobby-agents", "kill_agent", {
 ## Troubleshooting
 
 | Issue | Solution |
-|-------|----------|
+| ------- | ---------- |
 | "Edit/Write blocked" | Create or claim a task first (see **claiming-tasks** skill) |
 | "Task has no commits" | Commit with `[task-id]` in message before closing |
 | "Agent depth exceeded" | Max nesting is 3 - reduce agent spawning depth |

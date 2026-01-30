@@ -30,7 +30,7 @@ pytestmark = pytest.mark.e2e
 class TestDaemonStart:
     """Tests for daemon startup behavior."""
 
-    def test_daemon_starts_and_creates_pid_file(self, daemon_instance: DaemonInstance):
+    def test_daemon_starts_and_creates_pid_file(self, daemon_instance: DaemonInstance) -> None:
         """Verify daemon process is running after startup."""
         # Daemon should be alive
         assert daemon_instance.is_alive(), "Daemon process should be alive after start"
@@ -45,7 +45,7 @@ class TestDaemonStart:
 
     def test_daemon_health_endpoint_responds(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
-    ):
+    ) -> None:
         """Verify health endpoint responds when daemon is ready."""
         response = daemon_client.get("/admin/status")
         assert response.status_code == 200
@@ -54,7 +54,7 @@ class TestDaemonStart:
         assert data.get("status") == "healthy"
         assert "uptime_seconds" in data or "version" in data or "status" in data
 
-    def test_daemon_listens_on_configured_ports(self, daemon_instance: DaemonInstance):
+    def test_daemon_listens_on_configured_ports(self, daemon_instance: DaemonInstance) -> None:
         """Verify daemon is listening on both HTTP and WebSocket ports."""
         import socket
 
@@ -70,7 +70,7 @@ class TestDaemonStart:
         ws_sock.close()
         assert result == 0, f"WebSocket port {daemon_instance.ws_port} should be in use"
 
-    def test_daemon_uses_isolated_database(self, daemon_instance: DaemonInstance):
+    def test_daemon_uses_isolated_database(self, daemon_instance: DaemonInstance) -> None:
         """Verify daemon database is in the expected location."""
         # Database should exist in the temp directory
         assert daemon_instance.db_path.parent.exists(), "Database directory should exist"
@@ -79,7 +79,7 @@ class TestDaemonStart:
 class TestDaemonStop:
     """Tests for daemon stop behavior."""
 
-    def test_daemon_stops_gracefully_on_sigterm(self, daemon_instance: DaemonInstance):
+    def test_daemon_stops_gracefully_on_sigterm(self, daemon_instance: DaemonInstance) -> None:
         """Verify daemon stops gracefully when sent SIGTERM."""
         pid = daemon_instance.pid
 
@@ -99,7 +99,7 @@ class TestDaemonStop:
         # Process should have stopped
         assert not daemon_instance.is_alive(), "Daemon should stop after SIGTERM"
 
-    def test_no_orphan_processes_after_stop(self, daemon_instance: DaemonInstance):
+    def test_no_orphan_processes_after_stop(self, daemon_instance: DaemonInstance) -> None:
         """Verify no orphan child processes remain after daemon stops."""
         pid = daemon_instance.pid
 
@@ -124,7 +124,7 @@ class TestDaemonStop:
             except psutil.NoSuchProcess:
                 pass  # Expected - child process is gone
 
-    def test_stop_is_idempotent_on_non_running_daemon(self, e2e_project_dir):
+    def test_stop_is_idempotent_on_non_running_daemon(self, e2e_project_dir) -> None:
         """Verify stopping a non-running daemon doesn't error."""
         # Create a fake PID file with a non-existent PID
         pid_file = e2e_project_dir / ".gobby-home" / "gobby.pid"
@@ -150,7 +150,7 @@ class TestDaemonRestart:
         self,
         e2e_project_dir,
         e2e_config,
-    ):
+    ) -> None:
         """Verify daemon can be started again after being stopped."""
         import subprocess
         import sys
@@ -221,7 +221,7 @@ class TestDaemonRestart:
         self,
         e2e_project_dir,
         e2e_config,
-    ):
+    ) -> None:
         """Verify restarted daemon doesn't inherit state from previous instance."""
         import subprocess
         import sys
@@ -295,7 +295,7 @@ class TestDaemonRestart:
 class TestDaemonMultipleInstances:
     """Tests for handling multiple daemon instances."""
 
-    def test_second_start_on_same_port_fails(self, daemon_instance: DaemonInstance):
+    def test_second_start_on_same_port_fails(self, daemon_instance: DaemonInstance) -> None:
         """Verify starting a second daemon on same ports fails gracefully."""
         import subprocess
         import sys

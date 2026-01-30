@@ -6,6 +6,7 @@ from click.testing import CliRunner
 from gobby.cli.worktrees import worktrees
 from gobby.storage.worktrees import Worktree
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_worktree_manager():
@@ -36,7 +37,7 @@ def runner():
     return CliRunner()
 
 
-def test_create_worktree(runner, mock_httpx):
+def test_create_worktree(runner, mock_httpx) -> None:
     """Test create worktree command."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -55,7 +56,7 @@ def test_create_worktree(runner, mock_httpx):
     assert "Created worktree: wt-123" in result.output
 
 
-def test_create_worktree_with_task(runner, mock_httpx, mock_task_manager):
+def test_create_worktree_with_task(runner, mock_httpx, mock_task_manager) -> None:
     """Test create worktree with task link."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -79,7 +80,7 @@ def test_create_worktree_with_task(runner, mock_httpx, mock_task_manager):
     assert call_args["task_id"] == "task-uuid"
 
 
-def test_list_worktrees(runner, mock_worktree_manager):
+def test_list_worktrees(runner, mock_worktree_manager) -> None:
     """Test list worktrees command."""
     mock_worktree_manager.list_worktrees.return_value = [
         Worktree(
@@ -118,7 +119,7 @@ def test_list_worktrees(runner, mock_worktree_manager):
     assert "active" in result.output
 
 
-def test_show_worktree(runner, mock_worktree_manager, mock_resolve_worktree_id):
+def test_show_worktree(runner, mock_worktree_manager, mock_resolve_worktree_id) -> None:
     """Test show worktree command."""
     mock_resolve_worktree_id.return_value = "wt-123"
     worktree = Worktree(
@@ -143,7 +144,7 @@ def test_show_worktree(runner, mock_worktree_manager, mock_resolve_worktree_id):
     assert "Branch: feat/1" in result.output
 
 
-def test_delete_worktree(runner, mock_httpx, mock_resolve_worktree_id):
+def test_delete_worktree(runner, mock_httpx, mock_resolve_worktree_id) -> None:
     """Test delete worktree command."""
     mock_resolve_worktree_id.return_value = "wt-123"
 
@@ -158,7 +159,7 @@ def test_delete_worktree(runner, mock_httpx, mock_resolve_worktree_id):
     assert "Deleted worktree: wt-123" in result.output
 
 
-def test_claim_worktree(runner, mock_worktree_manager, mock_resolve_worktree_id):
+def test_claim_worktree(runner, mock_worktree_manager, mock_resolve_worktree_id) -> None:
     """Test claim worktree command."""
     mock_resolve_worktree_id.return_value = "wt-123"
     mock_worktree_manager.claim.return_value = True
@@ -170,7 +171,7 @@ def test_claim_worktree(runner, mock_worktree_manager, mock_resolve_worktree_id)
     assert "Claimed worktree wt-123" in result.output
 
 
-def test_sync_worktree(runner, mock_httpx, mock_resolve_worktree_id):
+def test_sync_worktree(runner, mock_httpx, mock_resolve_worktree_id) -> None:
     """Test sync worktree command."""
     mock_resolve_worktree_id.return_value = "wt-123"
 
@@ -186,7 +187,7 @@ def test_sync_worktree(runner, mock_httpx, mock_resolve_worktree_id):
     assert "Commits merged: 2" in result.output
 
 
-def test_cleanup_worktrees(runner, mock_httpx):
+def test_cleanup_worktrees(runner, mock_httpx) -> None:
     """Test cleanup worktrees command."""
     mock_response = MagicMock()
     mock_response.status_code = 200

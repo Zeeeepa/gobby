@@ -44,7 +44,7 @@ class TestMergeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify all merge management tools are available on gobby-merge server."""
         tools = mcp_client.list_tools(server="gobby-merge")
         tool_names = [t["name"] for t in tools]
@@ -64,7 +64,7 @@ class TestMergeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify merge_start tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-merge",
@@ -78,7 +78,7 @@ class TestMergeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify merge_status tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-merge",
@@ -96,7 +96,7 @@ class TestWorktreeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify worktree management tools are available on gobby-worktrees server."""
         tools = mcp_client.list_tools(server="gobby-worktrees")
         tool_names = [t["name"] for t in tools]
@@ -116,7 +116,7 @@ class TestWorktreeToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify clone management tools are available on gobby-clones server."""
         tools = mcp_client.list_tools(server="gobby-clones")
         tool_names = [t["name"] for t in tools]
@@ -141,7 +141,7 @@ class TestMergeWorkflowBasics:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merge_start returns error when worktree_id is missing."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-merge",
@@ -161,7 +161,7 @@ class TestMergeWorkflowBasics:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merge_start returns error when source_branch is missing."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-merge",
@@ -181,7 +181,7 @@ class TestMergeWorkflowBasics:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merge_status returns error for non-existent resolution."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-merge",
@@ -197,7 +197,7 @@ class TestMergeWorkflowBasics:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merge_abort returns error for non-existent resolution."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-merge",
@@ -217,7 +217,7 @@ class TestWorktreeLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test listing worktrees when none exist."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -234,7 +234,7 @@ class TestWorktreeLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test getting a non-existent worktree returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -250,7 +250,7 @@ class TestWorktreeLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test deleting a non-existent worktree returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -270,7 +270,7 @@ class TestCloneMergeWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test listing clones returns correct structure."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -287,7 +287,7 @@ class TestCloneMergeWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test getting a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -303,7 +303,7 @@ class TestCloneMergeWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test syncing a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -322,7 +322,7 @@ class TestCloneMergeWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merging a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -338,7 +338,7 @@ class TestCloneMergeWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test deleting a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -358,7 +358,7 @@ class TestMergeConflictDetection:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test resolving a non-existent conflict returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-merge",
@@ -377,7 +377,7 @@ class TestMergeConflictDetection:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test applying a non-existent resolution returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-merge",
@@ -397,7 +397,7 @@ class TestWorktreeMergeIntegration:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test marking a non-existent worktree as merged returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -414,7 +414,7 @@ class TestWorktreeMergeIntegration:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test that worktrees can be linked to tasks."""
         # Setup - register project and session
         project_result = cli_events.register_test_project(
@@ -469,7 +469,7 @@ class TestMergeResolutionStrategies:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merge_start accepts different strategy parameters."""
         # These calls will fail (no worktree), but we're testing parameter acceptance
         strategies = ["auto", "conflict_only", "full_file", "manual"]

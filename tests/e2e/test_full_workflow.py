@@ -40,7 +40,7 @@ class TestFullWorkflowIntegration:
         self,
         e2e_project_dir,
         e2e_config,
-    ):
+    ) -> None:
         """
         Test the complete workflow including daemon restart.
 
@@ -250,7 +250,7 @@ class TestFullWorkflowIntegration:
         daemon_client: httpx.Client,
         cli_events: CLIEventSimulator,
         mcp_client,
-    ):
+    ) -> None:
         """
         Test that multiple components work correctly in concurrent usage.
 
@@ -312,7 +312,7 @@ class TestFullWorkflowIntegration:
         daemon_instance,
         daemon_client: httpx.Client,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """
         Test that errors in one component don't break other components.
 

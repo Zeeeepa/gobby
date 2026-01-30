@@ -9,6 +9,7 @@ from gobby.config.persistence import MemorySyncConfig
 from gobby.storage.memories import Memory
 from gobby.sync.memories import MemorySyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_db():
@@ -140,7 +141,7 @@ async def test_trigger_export_disabled(mock_db, mock_memory_manager):
     assert sync_manager._export_task is None
 
 
-def test_trigger_export_no_event_loop(mock_db, mock_memory_manager, tmp_path):
+def test_trigger_export_no_event_loop(mock_db, mock_memory_manager, tmp_path) -> None:
     """Test trigger_export runs synchronously when no event loop."""
     config = MemorySyncConfig(enabled=True)
     sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
@@ -153,7 +154,7 @@ def test_trigger_export_no_event_loop(mock_db, mock_memory_manager, tmp_path):
     assert (tmp_path / "memories.jsonl").exists()
 
 
-def test_trigger_export_sync_error(mock_db, mock_memory_manager, tmp_path, caplog):
+def test_trigger_export_sync_error(mock_db, mock_memory_manager, tmp_path, caplog) -> None:
     """Test trigger_export handles sync export errors."""
     config = MemorySyncConfig(enabled=True)
     sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
@@ -396,7 +397,7 @@ async def test_import_handles_file_error(sync_manager, tmp_path, caplog):
     assert "Failed to import memories" in caplog.text
 
 
-def test_export_sync(sync_manager, tmp_path):
+def test_export_sync(sync_manager, tmp_path) -> None:
     """Test synchronous export."""
     mem_file = tmp_path / "memories.jsonl"
     sync_manager.export_path = mem_file
@@ -407,7 +408,7 @@ def test_export_sync(sync_manager, tmp_path):
     assert mem_file.exists()
 
 
-def test_export_sync_disabled(mock_db, mock_memory_manager):
+def test_export_sync_disabled(mock_db, mock_memory_manager) -> None:
     """Test export_sync returns 0 when disabled."""
     config = MemorySyncConfig(enabled=False)
     sync_manager = MemorySyncManager(mock_db, mock_memory_manager, config)
@@ -417,7 +418,7 @@ def test_export_sync_disabled(mock_db, mock_memory_manager):
     assert count == 0
 
 
-def test_export_sync_no_memory_manager(mock_db):
+def test_export_sync_no_memory_manager(mock_db) -> None:
     """Test export_sync returns 0 when no memory manager."""
     config = MemorySyncConfig(enabled=True)
     sync_manager = MemorySyncManager(mock_db, None, config)
@@ -427,7 +428,7 @@ def test_export_sync_no_memory_manager(mock_db):
     assert count == 0
 
 
-def test_export_sync_error(sync_manager, caplog):
+def test_export_sync_error(sync_manager, caplog) -> None:
     """Test export_sync handles errors."""
     sync_manager.memory_manager.list_memories.side_effect = Exception("Export failed")
 
@@ -459,7 +460,7 @@ async def test_export_to_files_no_memory_manager(mock_db):
     assert count == 0
 
 
-def test_import_memories_sync_no_manager(mock_db, tmp_path):
+def test_import_memories_sync_no_manager(mock_db, tmp_path) -> None:
     """Test _import_memories_sync returns 0 when no manager."""
     config = MemorySyncConfig(enabled=True)
     sync_manager = MemorySyncManager(mock_db, None, config)
@@ -469,7 +470,7 @@ def test_import_memories_sync_no_manager(mock_db, tmp_path):
     assert count == 0
 
 
-def test_export_memories_sync_no_manager(mock_db, tmp_path):
+def test_export_memories_sync_no_manager(mock_db, tmp_path) -> None:
     """Test _export_memories_sync returns 0 when no manager."""
     config = MemorySyncConfig(enabled=True)
     sync_manager = MemorySyncManager(mock_db, None, config)
@@ -479,7 +480,7 @@ def test_export_memories_sync_no_manager(mock_db, tmp_path):
     assert count == 0
 
 
-def test_export_memories_sync_error(sync_manager, tmp_path, caplog):
+def test_export_memories_sync_error(sync_manager, tmp_path, caplog) -> None:
     """Test _export_memories_sync handles errors."""
     sync_manager.memory_manager.list_memories.side_effect = Exception("List failed")
 
@@ -498,25 +499,25 @@ def test_export_memories_sync_error(sync_manager, tmp_path, caplog):
 class TestBackupManagerRename:
     """Tests for MemoryBackupManager class rename and API updates."""
 
-    def test_memory_backup_manager_is_exported(self):
+    def test_memory_backup_manager_is_exported(self) -> None:
         """Test that MemoryBackupManager is exported in __all__."""
         from gobby.sync import memories
 
         assert hasattr(memories, "__all__")
         assert "MemoryBackupManager" in memories.__all__
 
-    def test_memory_backup_manager_direct_import(self):
+    def test_memory_backup_manager_direct_import(self) -> None:
         """Test that MemoryBackupManager can be imported directly."""
         from gobby.sync.memories import MemoryBackupManager
 
         assert MemoryBackupManager is not None
 
-    def test_backup_sync_method_exists(self, sync_manager):
+    def test_backup_sync_method_exists(self, sync_manager) -> None:
         """Test that backup_sync method exists (renamed from export_sync)."""
         assert hasattr(sync_manager, "backup_sync")
         assert callable(sync_manager.backup_sync)
 
-    def test_backup_sync_method_works(self, sync_manager, tmp_path):
+    def test_backup_sync_method_works(self, sync_manager, tmp_path) -> None:
         """Test backup_sync method functions correctly."""
         mem_file = tmp_path / "memories.jsonl"
         sync_manager.export_path = mem_file
@@ -526,7 +527,7 @@ class TestBackupManagerRename:
         assert count == 1
         assert mem_file.exists()
 
-    def test_backup_sync_disabled(self, mock_db, mock_memory_manager):
+    def test_backup_sync_disabled(self, mock_db, mock_memory_manager) -> None:
         """Test backup_sync returns 0 when disabled."""
         config = MemorySyncConfig(enabled=False)
         manager = MemorySyncManager(mock_db, mock_memory_manager, config)
@@ -535,7 +536,7 @@ class TestBackupManagerRename:
 
         assert count == 0
 
-    def test_backup_sync_no_memory_manager(self, mock_db):
+    def test_backup_sync_no_memory_manager(self, mock_db) -> None:
         """Test backup_sync returns 0 when no memory manager."""
         config = MemorySyncConfig(enabled=True)
         manager = MemorySyncManager(mock_db, None, config)

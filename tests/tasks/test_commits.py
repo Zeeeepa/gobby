@@ -14,6 +14,7 @@ from gobby.tasks.commits import (
     summarize_diff_for_validation,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestGetTaskDiff:
     """Tests for get_task_diff function."""
@@ -24,7 +25,7 @@ class TestGetTaskDiff:
         manager = MagicMock()
         return manager
 
-    def test_returns_combined_diff_for_linked_commits(self, mock_task_manager):
+    def test_returns_combined_diff_for_linked_commits(self, mock_task_manager) -> None:
         """Test that get_task_diff returns combined diff for all linked commits."""
         # Mock task with commits
         mock_task = MagicMock()
@@ -41,7 +42,7 @@ class TestGetTaskDiff:
             assert "added line" in result.diff
             assert result.commits == ["abc123", "def456"]
 
-    def test_includes_uncommitted_changes(self, mock_task_manager):
+    def test_includes_uncommitted_changes(self, mock_task_manager) -> None:
         """Test that uncommitted changes are included when flag is set."""
         mock_task = MagicMock()
         mock_task.commits = ["abc123"]
@@ -64,7 +65,7 @@ class TestGetTaskDiff:
             assert "diff from uncommitted" in result.diff
             assert result.has_uncommitted_changes is True
 
-    def test_excludes_uncommitted_changes_by_default(self, mock_task_manager):
+    def test_excludes_uncommitted_changes_by_default(self, mock_task_manager) -> None:
         """Test that uncommitted changes are excluded by default."""
         mock_task = MagicMock()
         mock_task.commits = ["abc123"]
@@ -79,7 +80,7 @@ class TestGetTaskDiff:
             assert mock_git.call_count == 1
             assert result.has_uncommitted_changes is False
 
-    def test_handles_task_with_no_commits(self, mock_task_manager):
+    def test_handles_task_with_no_commits(self, mock_task_manager) -> None:
         """Test graceful handling of tasks with no linked commits."""
         mock_task = MagicMock()
         mock_task.commits = None
@@ -91,7 +92,7 @@ class TestGetTaskDiff:
         assert result.commits == []
         assert result.has_uncommitted_changes is False
 
-    def test_handles_empty_commits_list(self, mock_task_manager):
+    def test_handles_empty_commits_list(self, mock_task_manager) -> None:
         """Test graceful handling of empty commits list."""
         mock_task = MagicMock()
         mock_task.commits = []
@@ -102,7 +103,7 @@ class TestGetTaskDiff:
         assert result.diff == ""
         assert result.commits == []
 
-    def test_returns_empty_diff_when_no_changes(self, mock_task_manager):
+    def test_returns_empty_diff_when_no_changes(self, mock_task_manager) -> None:
         """Test that empty diff is returned when commits have no diff."""
         mock_task = MagicMock()
         mock_task.commits = ["abc123"]
@@ -116,7 +117,7 @@ class TestGetTaskDiff:
             assert result.diff == ""
             assert result.commits == ["abc123"]
 
-    def test_orders_commits_chronologically(self, mock_task_manager):
+    def test_orders_commits_chronologically(self, mock_task_manager) -> None:
         """Test that commits are processed in chronological order."""
         mock_task = MagicMock()
         # Commits listed newest to oldest (as typically stored)
@@ -137,14 +138,14 @@ class TestGetTaskDiff:
             # Commits should be in the result in order
             assert result.commits == ["newest", "middle", "oldest"]
 
-    def test_raises_on_invalid_task(self, mock_task_manager):
+    def test_raises_on_invalid_task(self, mock_task_manager) -> None:
         """Test that ValueError is raised for non-existent task."""
         mock_task_manager.get_task.side_effect = ValueError("Task not found")
 
         with pytest.raises(ValueError, match="not found"):
             get_task_diff("gt-nonexistent", mock_task_manager)
 
-    def test_task_diff_result_structure(self, mock_task_manager):
+    def test_task_diff_result_structure(self, mock_task_manager) -> None:
         """Test TaskDiffResult contains expected fields."""
         mock_task = MagicMock()
         mock_task.commits = ["abc123"]
@@ -160,7 +161,7 @@ class TestGetTaskDiff:
             assert hasattr(result, "has_uncommitted_changes")
             assert hasattr(result, "file_count")
 
-    def test_counts_modified_files(self, mock_task_manager):
+    def test_counts_modified_files(self, mock_task_manager) -> None:
         """Test that file count is calculated from diff."""
         mock_task = MagicMock()
         mock_task.commits = ["abc123"]
@@ -199,43 +200,43 @@ class TestExtractTaskIdsFromMessage:
     - Case variations work: `Fixes #1`, `FIXES #1`
     """
 
-    def test_extracts_bracket_pattern(self):
+    def test_extracts_bracket_pattern(self) -> None:
         """Test extraction of [#N] pattern."""
         message = "Fix authentication bug [#1]"
         result = extract_task_ids_from_message(message)
         assert "#1" in result
 
-    def test_extracts_colon_pattern(self):
+    def test_extracts_colon_pattern(self) -> None:
         """Test extraction of '#N:' pattern."""
         message = "#42: Add new feature"
         result = extract_task_ids_from_message(message)
         assert "#42" in result
 
-    def test_extracts_implements_pattern(self):
+    def test_extracts_implements_pattern(self) -> None:
         """Test extraction of 'Implements #N' pattern."""
         message = "Implements #7 feature request"
         result = extract_task_ids_from_message(message)
         assert "#7" in result
 
-    def test_extracts_fixes_pattern(self):
+    def test_extracts_fixes_pattern(self) -> None:
         """Test extraction of 'Fixes #N' pattern."""
         message = "Fixes #123 by updating validation"
         result = extract_task_ids_from_message(message)
         assert "#123" in result
 
-    def test_extracts_closes_pattern(self):
+    def test_extracts_closes_pattern(self) -> None:
         """Test extraction of 'Closes #N' pattern."""
         message = "Closes #99"
         result = extract_task_ids_from_message(message)
         assert "#99" in result
 
-    def test_extracts_refs_pattern(self):
+    def test_extracts_refs_pattern(self) -> None:
         """Test extraction of 'Refs #N' pattern."""
         message = "Refs #5 for context"
         result = extract_task_ids_from_message(message)
         assert "#5" in result
 
-    def test_extracts_multiple_task_ids(self):
+    def test_extracts_multiple_task_ids(self) -> None:
         """Test extraction of multiple task IDs from one message."""
         message = "[#1] and also #2: and Fixes #3"
         result = extract_task_ids_from_message(message)
@@ -243,7 +244,7 @@ class TestExtractTaskIdsFromMessage:
         assert "#2" in result
         assert "#3" in result
 
-    def test_extracts_comma_separated_refs(self):
+    def test_extracts_comma_separated_refs(self) -> None:
         """Test extraction of comma-separated refs like 'refs #1, #2, #3'."""
         message = "Refs #1, refs #2, refs #3"
         result = extract_task_ids_from_message(message)
@@ -251,26 +252,26 @@ class TestExtractTaskIdsFromMessage:
         assert "#2" in result
         assert "#3" in result
 
-    def test_returns_empty_for_no_matches(self):
+    def test_returns_empty_for_no_matches(self) -> None:
         """Test returns empty list when no task IDs found."""
         message = "Just a regular commit message"
         result = extract_task_ids_from_message(message)
         assert result == []
 
-    def test_deduplicates_task_ids(self):
+    def test_deduplicates_task_ids(self) -> None:
         """Test that duplicate task IDs are removed."""
         message = "[#1] #1: Implements #1"
         result = extract_task_ids_from_message(message)
         assert result.count("#1") == 1
 
-    def test_case_insensitive_keywords(self):
+    def test_case_insensitive_keywords(self) -> None:
         """Test that keywords are case insensitive."""
         message = "IMPLEMENTS #1 and FIXES #2"
         result = extract_task_ids_from_message(message)
         assert "#1" in result
         assert "#2" in result
 
-    def test_gt_format_not_recognized(self):
+    def test_gt_format_not_recognized(self) -> None:
         """Test that deprecated gt-* format is NOT recognized."""
         message = "[gt-abc123] gt-def456: Fixes gt-789xyz"
         result = extract_task_ids_from_message(message)
@@ -280,7 +281,7 @@ class TestExtractTaskIdsFromMessage:
         assert "gt-def456" not in result
         assert "gt-789xyz" not in result
 
-    def test_avoids_false_positives_with_paths(self):
+    def test_avoids_false_positives_with_paths(self) -> None:
         """Test that #N in file paths is not matched incorrectly."""
         # This shouldn't match because #1 shouldn't appear in normal paths
         message = "Update docs/chapter#1.md"
@@ -288,7 +289,7 @@ class TestExtractTaskIdsFromMessage:
         # The pattern requires whitespace before #N, so this shouldn't match
         assert "#1" not in result or len(result) == 0
 
-    def test_multiline_message(self):
+    def test_multiline_message(self) -> None:
         """Test extraction from multiline commit messages."""
         message = """feat: add new feature
 
@@ -315,7 +316,7 @@ class TestAutoLinkCommits:
         manager = MagicMock()
         return manager
 
-    def test_links_commits_matching_task_id(self, mock_task_manager):
+    def test_links_commits_matching_task_id(self, mock_task_manager) -> None:
         """Test that commits mentioning task IDs are linked."""
         # Mock task exists
         mock_task = MagicMock()
@@ -333,7 +334,7 @@ class TestAutoLinkCommits:
             assert "#1" in result.linked_tasks
             assert "abc123" in result.linked_tasks["#1"]
 
-    def test_respects_since_parameter(self, mock_task_manager):
+    def test_respects_since_parameter(self, mock_task_manager) -> None:
         """Test that --since parameter filters commits."""
         mock_task = MagicMock()
         mock_task.id = "#1"
@@ -353,7 +354,7 @@ class TestAutoLinkCommits:
             call_args = mock_git.call_args[0][0]
             assert any("--since" in str(arg) for arg in call_args)
 
-    def test_does_not_duplicate_already_linked_commits(self, mock_task_manager):
+    def test_does_not_duplicate_already_linked_commits(self, mock_task_manager) -> None:
         """Test that already-linked commits are not re-linked."""
         mock_task = MagicMock()
         mock_task.id = "#1"
@@ -369,7 +370,7 @@ class TestAutoLinkCommits:
             if "#1" in result.linked_tasks:
                 assert "abc123" not in result.linked_tasks["#1"]
 
-    def test_links_to_multiple_tasks(self, mock_task_manager):
+    def test_links_to_multiple_tasks(self, mock_task_manager) -> None:
         """Test linking commits that mention multiple tasks."""
         task1 = MagicMock()
         task1.id = "#1"
@@ -396,7 +397,7 @@ class TestAutoLinkCommits:
             assert "#1" in result.linked_tasks
             assert "#2" in result.linked_tasks
 
-    def test_skips_non_existent_tasks(self, mock_task_manager):
+    def test_skips_non_existent_tasks(self, mock_task_manager) -> None:
         """Test that commits mentioning non-existent tasks are skipped."""
         mock_task_manager.get_task.side_effect = ValueError("Task not found")
 
@@ -408,7 +409,7 @@ class TestAutoLinkCommits:
             # Should not crash, just skip the task
             assert "#999" not in result.linked_tasks
 
-    def test_returns_count_of_linked_commits(self, mock_task_manager):
+    def test_returns_count_of_linked_commits(self, mock_task_manager) -> None:
         """Test that result includes count of newly linked commits."""
         mock_task = MagicMock()
         mock_task.id = "#1"
@@ -422,7 +423,7 @@ class TestAutoLinkCommits:
 
             assert result.total_linked >= 2
 
-    def test_filters_by_task_id(self, mock_task_manager):
+    def test_filters_by_task_id(self, mock_task_manager) -> None:
         """Test filtering auto-link to specific task ID."""
         mock_task = MagicMock()
         mock_task.id = "#1"
@@ -442,7 +443,7 @@ class TestAutoLinkCommits:
             assert "#1" in result.linked_tasks
             assert "#2" not in result.linked_tasks
 
-    def test_handles_empty_git_log(self, mock_task_manager):
+    def test_handles_empty_git_log(self, mock_task_manager) -> None:
         """Test handling of empty git log output."""
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = ""
@@ -452,7 +453,7 @@ class TestAutoLinkCommits:
             assert result.linked_tasks == {}
             assert result.total_linked == 0
 
-    def test_result_includes_skipped_count(self, mock_task_manager):
+    def test_result_includes_skipped_count(self, mock_task_manager) -> None:
         """Test that result includes count of skipped commits."""
         mock_task = MagicMock()
         mock_task.id = "#1"
@@ -470,7 +471,7 @@ class TestAutoLinkCommits:
 class TestIsDocOnlyDiff:
     """Tests for is_doc_only_diff function."""
 
-    def test_returns_true_for_markdown_only(self):
+    def test_returns_true_for_markdown_only(self) -> None:
         """Test that returns True for markdown-only diffs."""
         diff = """diff --git a/README.md b/README.md
 index abc..def 100644
@@ -481,7 +482,7 @@ index abc..def 100644
 """
         assert is_doc_only_diff(diff) is True
 
-    def test_returns_true_for_multiple_doc_files(self):
+    def test_returns_true_for_multiple_doc_files(self) -> None:
         """Test that returns True for multiple doc files."""
         diff = """diff --git a/README.md b/README.md
 +content
@@ -492,7 +493,7 @@ diff --git a/docs/guide.txt b/docs/guide.txt
 """
         assert is_doc_only_diff(diff) is True
 
-    def test_returns_false_for_code_files(self):
+    def test_returns_false_for_code_files(self) -> None:
         """Test that returns False when code files are included."""
         diff = """diff --git a/src/main.py b/src/main.py
 index abc..def 100644
@@ -503,7 +504,7 @@ index abc..def 100644
 """
         assert is_doc_only_diff(diff) is False
 
-    def test_returns_false_for_mixed_files(self):
+    def test_returns_false_for_mixed_files(self) -> None:
         """Test that returns False for mixed doc and code files."""
         diff = """diff --git a/README.md b/README.md
 +doc content
@@ -512,11 +513,11 @@ diff --git a/src/main.py b/src/main.py
 """
         assert is_doc_only_diff(diff) is False
 
-    def test_returns_false_for_empty_diff(self):
+    def test_returns_false_for_empty_diff(self) -> None:
         """Test that returns False for empty diff."""
         assert is_doc_only_diff("") is False
 
-    def test_supports_multiple_doc_extensions(self):
+    def test_supports_multiple_doc_extensions(self) -> None:
         """Test that various doc extensions are supported."""
         diff = """diff --git a/doc.rst b/doc.rst
 +rst content
@@ -531,13 +532,13 @@ diff --git a/info.markdown b/info.markdown
 class TestSummarizeDiffForValidation:
     """Tests for summarize_diff_for_validation function."""
 
-    def test_returns_original_for_small_diffs(self):
+    def test_returns_original_for_small_diffs(self) -> None:
         """Test that small diffs are returned unchanged."""
         small_diff = "diff --git a/file.py b/file.py\n+line"
         result = summarize_diff_for_validation(small_diff)
         assert result == small_diff
 
-    def test_includes_file_list_summary(self):
+    def test_includes_file_list_summary(self) -> None:
         """Test that summarized diffs include file list."""
         large_diff = "diff --git a/file1.py b/file1.py\n" + ("+" * 20000)
         large_diff += "\ndiff --git a/file2.py b/file2.py\n" + ("+" * 20000)
@@ -548,7 +549,7 @@ class TestSummarizeDiffForValidation:
         assert "file2.py" in result
         assert "Files Changed:" in result
 
-    def test_counts_additions_and_deletions(self):
+    def test_counts_additions_and_deletions(self) -> None:
         """Test that summary includes +/- counts."""
         diff = """diff --git a/file.py b/file.py
 +added line 1
@@ -562,7 +563,7 @@ class TestSummarizeDiffForValidation:
         assert "+" in result
         assert "-" in result
 
-    def test_truncates_to_max_chars(self):
+    def test_truncates_to_max_chars(self) -> None:
         """Test that result respects max_chars limit."""
         large_diff = "diff --git a/file.py b/file.py\n" + ("+" * 100000)
 
@@ -570,17 +571,17 @@ class TestSummarizeDiffForValidation:
 
         assert len(result) <= 10000
 
-    def test_handles_empty_diff(self):
+    def test_handles_empty_diff(self) -> None:
         """Test graceful handling of empty diff."""
         result = summarize_diff_for_validation("")
         assert result == ""
 
-    def test_handles_none_diff(self):
+    def test_handles_none_diff(self) -> None:
         """Test graceful handling of None diff."""
         result = summarize_diff_for_validation(None)
         assert result is None
 
-    def test_preserves_file_headers_when_truncating(self):
+    def test_preserves_file_headers_when_truncating(self) -> None:
         """Test that file headers are preserved even when content is truncated."""
         diff = """diff --git a/important.py b/important.py
 index abc..def 100644
@@ -594,7 +595,7 @@ index abc..def 100644
         # Should still have the file name visible
         assert "important.py" in result
 
-    def test_priority_files_none_unchanged_behavior(self):
+    def test_priority_files_none_unchanged_behavior(self) -> None:
         """Test that priority_files=None keeps current behavior."""
         large_diff = "diff --git a/file1.py b/file1.py\n" + ("+" * 20000)
         large_diff += "\ndiff --git a/file2.py b/file2.py\n" + ("+" * 20000)
@@ -611,7 +612,7 @@ index abc..def 100644
         assert "file1.py" in result_without_param
         assert "file2.py" in result_without_param
 
-    def test_priority_files_appear_first(self):
+    def test_priority_files_appear_first(self) -> None:
         """Test that priority files appear before non-priority files."""
         diff = """diff --git a/aaa_first.py b/aaa_first.py
 index abc..def 100644
@@ -646,7 +647,7 @@ index abc..def 100644
                 "aaa_first.py", details_start
             )
 
-    def test_priority_files_get_more_space(self):
+    def test_priority_files_get_more_space(self) -> None:
         """Test that priority files get at least 60% of available space."""
         # Create diff with priority file having less content than others
         priority_content = "+priority line\n" * 100  # Small content
@@ -673,7 +674,7 @@ index abc..def 100644
         assert "truncated" not in priority_only, "Priority file should not be truncated"
         assert "priority" in priority_only, "Priority file content should appear in its section"
 
-    def test_non_priority_files_share_remaining_space(self):
+    def test_non_priority_files_share_remaining_space(self) -> None:
         """Test that non-priority files share remaining 40% of space."""
         priority_content = "+priority\n" * 50
         other_content = "+other\n" * 5000  # Very large
@@ -691,7 +692,7 @@ diff --git a/other2.py b/other2.py
         assert "other1.py" in result
         assert "other2.py" in result
 
-    def test_priority_files_shown_in_full_before_truncation(self):
+    def test_priority_files_shown_in_full_before_truncation(self) -> None:
         """Test priority files are shown fully up to their allocation."""
         # Priority file with moderate content
         priority_content = "+priority line content here\n" * 200
@@ -716,7 +717,7 @@ diff --git a/other.py b/other.py
         # (not just the header)
         assert priority_lines_in_result > 50  # Most of the 200 lines should be there
 
-    def test_priority_files_not_in_diff_ignored(self):
+    def test_priority_files_not_in_diff_ignored(self) -> None:
         """Test that files in priority_files but not in diff are ignored."""
         diff = """diff --git a/actual_file.py b/actual_file.py
 index abc..def 100644
@@ -736,7 +737,7 @@ index abc..def 100644
 class TestExtractMentionedFiles:
     """Tests for extract_mentioned_files function."""
 
-    def test_extracts_simple_path_from_description(self):
+    def test_extracts_simple_path_from_description(self) -> None:
         """Test extraction of simple file paths from task description."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -747,7 +748,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert "src/gobby/tasks/commits.py" in result
 
-    def test_extracts_backtick_quoted_paths(self):
+    def test_extracts_backtick_quoted_paths(self) -> None:
         """Test extraction of paths wrapped in backticks."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -758,7 +759,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert "path/to/file.py" in result
 
-    def test_extracts_multiple_paths(self):
+    def test_extracts_multiple_paths(self) -> None:
         """Test extraction of multiple file paths from same text."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -770,7 +771,7 @@ class TestExtractMentionedFiles:
         assert "src/module_a.py" in result
         assert "src/module_b.py" in result
 
-    def test_extracts_paths_from_title(self):
+    def test_extracts_paths_from_title(self) -> None:
         """Test extraction of file paths from task title."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -781,7 +782,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert "src/utils/helpers.py" in result
 
-    def test_extracts_relative_paths(self):
+    def test_extracts_relative_paths(self) -> None:
         """Test extraction of relative file paths."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -793,7 +794,7 @@ class TestExtractMentionedFiles:
         assert "tests/test_main.py" in result
         assert "./config/settings.yaml" in result
 
-    def test_extracts_paths_without_extension(self):
+    def test_extracts_paths_without_extension(self) -> None:
         """Test extraction of paths that may not have extensions."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -805,7 +806,7 @@ class TestExtractMentionedFiles:
         # Should extract paths with common file-like patterns
         assert any("Makefile" in p for p in result)
 
-    def test_extracts_absolute_paths(self):
+    def test_extracts_absolute_paths(self) -> None:
         """Test extraction of absolute file paths."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -816,7 +817,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert "/etc/config.yaml" in result
 
-    def test_returns_empty_list_when_no_paths(self):
+    def test_returns_empty_list_when_no_paths(self) -> None:
         """Test returns empty list when no file paths found."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -827,7 +828,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert result == []
 
-    def test_handles_none_description(self):
+    def test_handles_none_description(self) -> None:
         """Test graceful handling of None description."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -838,7 +839,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert isinstance(result, list)
 
-    def test_handles_missing_description(self):
+    def test_handles_missing_description(self) -> None:
         """Test graceful handling of missing description key."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -846,7 +847,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert isinstance(result, list)
 
-    def test_deduplicates_paths(self):
+    def test_deduplicates_paths(self) -> None:
         """Test that duplicate paths are removed."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -857,7 +858,7 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert result.count("src/main.py") == 1
 
-    def test_extracts_paths_with_various_extensions(self):
+    def test_extracts_paths_with_various_extensions(self) -> None:
         """Test extraction of paths with various common extensions."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -879,7 +880,7 @@ class TestExtractMentionedFiles:
         assert "setup.cfg" in result
         assert "tests/test_api.py" in result
 
-    def test_extracts_from_validation_criteria(self):
+    def test_extracts_from_validation_criteria(self) -> None:
         """Test extraction from validation_criteria field if present."""
         from gobby.tasks.commits import extract_mentioned_files
 
@@ -896,7 +897,7 @@ class TestExtractMentionedFiles:
 class TestExtractMentionedSymbols:
     """Tests for extract_mentioned_symbols function."""
 
-    def test_extracts_backtick_function_with_parens(self):
+    def test_extracts_backtick_function_with_parens(self) -> None:
         """Test extraction of function names in backticks with parentheses."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -907,7 +908,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert "summarize_diff_for_validation" in result
 
-    def test_extracts_backtick_function_without_parens(self):
+    def test_extracts_backtick_function_without_parens(self) -> None:
         """Test extraction of function names in backticks without parentheses."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -918,7 +919,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert "process_data" in result
 
-    def test_extracts_class_names_in_backticks(self):
+    def test_extracts_class_names_in_backticks(self) -> None:
         """Test extraction of class names in backticks (PascalCase)."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -929,7 +930,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert "TaskDiffResult" in result
 
-    def test_extracts_method_references(self):
+    def test_extracts_method_references(self) -> None:
         """Test extraction of method references like ClassName.method_name."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -941,7 +942,7 @@ class TestExtractMentionedSymbols:
         # Should extract the method name
         assert "get_task" in result or "TaskManager.get_task" in result
 
-    def test_extracts_multiple_symbols(self):
+    def test_extracts_multiple_symbols(self) -> None:
         """Test extraction of multiple symbols from same text."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -953,7 +954,7 @@ class TestExtractMentionedSymbols:
         assert "validate_input" in result
         assert "process_output" in result
 
-    def test_extracts_symbols_from_title(self):
+    def test_extracts_symbols_from_title(self) -> None:
         """Test extraction of symbols from task title."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -964,7 +965,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert "calculate_total" in result
 
-    def test_returns_empty_list_when_no_symbols(self):
+    def test_returns_empty_list_when_no_symbols(self) -> None:
         """Test returns empty list when no symbols found."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -975,7 +976,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert result == []
 
-    def test_deduplicates_symbols(self):
+    def test_deduplicates_symbols(self) -> None:
         """Test that duplicate symbols are removed."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -986,7 +987,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert result.count("process_data") == 1
 
-    def test_handles_none_description(self):
+    def test_handles_none_description(self) -> None:
         """Test graceful handling of None description."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -997,7 +998,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert isinstance(result, list)
 
-    def test_handles_missing_description(self):
+    def test_handles_missing_description(self) -> None:
         """Test graceful handling of missing description key."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -1005,7 +1006,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert isinstance(result, list)
 
-    def test_extracts_from_validation_criteria(self):
+    def test_extracts_from_validation_criteria(self) -> None:
         """Test extraction from validation_criteria field if present."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -1017,7 +1018,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert "new_feature" in result
 
-    def test_ignores_file_paths(self):
+    def test_ignores_file_paths(self) -> None:
         """Test that file paths are not extracted as symbols."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -1030,7 +1031,7 @@ class TestExtractMentionedSymbols:
         assert "src/gobby/tasks/commits.py" not in result
         assert "commits.py" not in result
 
-    def test_extracts_dunder_methods(self):
+    def test_extracts_dunder_methods(self) -> None:
         """Test extraction of dunder methods like __init__."""
         from gobby.tasks.commits import extract_mentioned_symbols
 
@@ -1041,7 +1042,7 @@ class TestExtractMentionedSymbols:
         result = extract_mentioned_symbols(task)
         assert "__init__" in result
 
-    def test_handles_nested_class_methods(self):
+    def test_handles_nested_class_methods(self) -> None:
         """Test extraction of nested class.method patterns."""
         from gobby.tasks.commits import extract_mentioned_symbols
 

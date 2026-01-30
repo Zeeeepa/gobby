@@ -48,7 +48,7 @@ def registry(mock_clone_storage, mock_git_manager):
 class TestClonesRegistryCreation:
     """Tests for registry creation."""
 
-    def test_creates_registry_with_expected_tools(self, registry):
+    def test_creates_registry_with_expected_tools(self, registry) -> None:
         """Registry has all expected tools."""
         tools = registry.list_tools()
         tool_names = [t["name"] for t in tools]

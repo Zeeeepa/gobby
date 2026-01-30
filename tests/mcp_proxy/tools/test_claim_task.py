@@ -18,6 +18,7 @@ from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -75,11 +76,19 @@ class TestClaimTaskTool:
     @pytest.mark.asyncio
     async def test_claim_task_success(self, mock_task_manager, mock_sync_manager, sample_task):
         """Test successfully claiming an unclaimed task."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -142,11 +151,19 @@ class TestClaimTaskTool:
         self, mock_task_manager, mock_sync_manager, claimed_task
     ):
         """Test claiming a task with force=True overrides existing claim."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -191,11 +208,19 @@ class TestClaimTaskTool:
             assignee="my-session-id",  # Same session
         )
 
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -318,7 +343,7 @@ class TestClaimTaskTool:
 class TestClaimTaskSchema:
     """Tests for claim_task tool schema."""
 
-    def test_claim_task_registered_in_registry(self, mock_task_manager, mock_sync_manager):
+    def test_claim_task_registered_in_registry(self, mock_task_manager, mock_sync_manager) -> None:
         """Test that claim_task is registered in the task registry."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -327,7 +352,7 @@ class TestClaimTaskSchema:
 
         assert "claim_task" in tool_names, "claim_task tool not registered"
 
-    def test_claim_task_schema_has_required_fields(self, mock_task_manager, mock_sync_manager):
+    def test_claim_task_schema_has_required_fields(self, mock_task_manager, mock_sync_manager) -> None:
         """Test claim_task schema includes required fields."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -348,7 +373,7 @@ class TestClaimTaskSchema:
         assert "task_id" in schema["inputSchema"]["required"]
         assert "session_id" in schema["inputSchema"]["required"]
 
-    def test_claim_task_schema_has_description(self, mock_task_manager, mock_sync_manager):
+    def test_claim_task_schema_has_description(self, mock_task_manager, mock_sync_manager) -> None:
         """Test claim_task has helpful description."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -370,11 +395,19 @@ class TestClaimTaskVsUpdateTask:
         self, mock_task_manager, mock_sync_manager, sample_task
     ):
         """Test that claim_task atomically sets assignee and status together."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with (
+            patch(
+                "gobby.mcp_proxy.tools.tasks._context.SessionTaskManager"
+            ) as MockSessionTaskManager,
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+        ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
+
+            # Mock session manager to return the session_id as-is
+            mock_session_manager = MagicMock()
+            mock_session_manager.resolve_session_reference.return_value = "my-session-id"
+            MockSessionManager.return_value = mock_session_manager
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 

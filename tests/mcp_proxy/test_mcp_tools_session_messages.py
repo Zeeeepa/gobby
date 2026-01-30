@@ -8,6 +8,7 @@ from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager, Session
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_message_manager():
@@ -18,6 +19,8 @@ def mock_message_manager():
 @pytest.fixture
 def mock_session_manager():
     manager = MagicMock(spec=LocalSessionManager)
+    # resolve_session_reference returns input unchanged by default
+    manager.resolve_session_reference = MagicMock(side_effect=lambda ref, project_id=None: ref)
     return manager
 
 
@@ -36,13 +39,13 @@ def full_sessions_registry(mock_message_manager, mock_session_manager):
     )
 
 
-def test_create_session_messages_registry_returns_registry(session_messages_registry):
+def test_create_session_messages_registry_returns_registry(session_messages_registry) -> None:
     """Test that create_session_messages_registry returns an InternalToolRegistry."""
     assert isinstance(session_messages_registry, InternalToolRegistry)
     assert session_messages_registry.name == "gobby-sessions"
 
 
-def test_session_messages_registry_has_all_tools(session_messages_registry):
+def test_session_messages_registry_has_all_tools(session_messages_registry) -> None:
     """Test that all expected tools are registered."""
     expected_tools = [
         "get_session_messages",
@@ -123,7 +126,7 @@ async def test_search_messages_with_session_filter(mock_message_manager, session
 # --- Session CRUD Tool Tests ---
 
 
-def test_full_registry_has_session_tools(full_sessions_registry):
+def test_full_registry_has_session_tools(full_sessions_registry) -> None:
     """Test that full registry has all session and handoff tools."""
     expected_tools = [
         "get_session_messages",
@@ -143,7 +146,7 @@ def test_full_registry_has_session_tools(full_sessions_registry):
         assert tool_name in tool_names, f"Missing tool: {tool_name}"
 
 
-def test_registry_without_session_manager_lacks_crud_tools(session_messages_registry):
+def test_registry_without_session_manager_lacks_crud_tools(session_messages_registry) -> None:
     """Test that registry without session_manager doesn't have CRUD tools."""
     tools_list = session_messages_registry.list_tools()
     tool_names = [t["name"] for t in tools_list]
@@ -518,7 +521,7 @@ async def test_get_session_commits_not_found(mock_session_manager, full_sessions
 
 @pytest.mark.asyncio
 async def test_get_session_commits_prefix_match(mock_session_manager, full_sessions_registry):
-    """Test get_session_commits supports prefix matching."""
+    """Test get_session_commits supports prefix matching via resolve_session_reference."""
     from datetime import datetime
     from unittest.mock import patch
 
@@ -527,8 +530,9 @@ async def test_get_session_commits_prefix_match(mock_session_manager, full_sessi
     mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
     mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
 
-    mock_session_manager.get.return_value = None  # Direct lookup fails
-    mock_session_manager.list.return_value = [mock_session]  # Prefix match works
+    # resolve_session_reference resolves prefix to full ID
+    mock_session_manager.resolve_session_reference.return_value = "sess-abc123"
+    mock_session_manager.get.return_value = mock_session
 
     mock_result = MagicMock()
     mock_result.returncode = 0

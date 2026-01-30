@@ -10,7 +10,11 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from gobby.agents.sandbox import SandboxConfig
+from gobby.agents.sandbox import (
+    GeminiSandboxResolver,
+    SandboxConfig,
+    compute_sandbox_paths,
+)
 
 if TYPE_CHECKING:
     from gobby.agents.session import ChildSessionManager
@@ -63,7 +67,7 @@ class SpawnResult:
 
     success: bool
     run_id: str
-    child_session_id: str
+    child_session_id: str | None
     status: str
 
     # Optional result fields
@@ -219,16 +223,19 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     """
     Spawn Gemini agent in terminal with preflight session capture.
 
-    Gemini CLI in interactive mode can't introspect its session_id, so we:
-    1. Launch preflight to capture session_id from stream-json output
-    2. Create Gobby session with external_id = gemini's session_id
-    3. Launch interactive with -r {session_id} to resume
+    Uses preflight to capture Gemini's session_id before launching interactive mode:
+    1. Run `gemini --output-format stream-json` to capture Gemini's session_id
+    2. Pre-create Gobby session with parent_session_id linked and external_id set
+    3. Resume Gemini session with `-r {session_id}` flag
+
+    This approach ensures session linkage works without relying on env vars,
+    which don't pass through macOS's `open` command.
     """
     if request.session_manager is None:
         return SpawnResult(
             success=False,
             run_id=request.run_id,
-            child_session_id=request.session_id,
+            child_session_id=None,
             status="failed",
             error="session_manager is required for Gemini preflight",
         )
@@ -242,21 +249,31 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
             machine_id=request.machine_id or "unknown",
             workflow_name=request.workflow,
             git_branch=None,  # Will be detected by hook
+            prompt=request.prompt,
+            max_agent_depth=request.max_agent_depth,
         )
     except FileNotFoundError as e:
+        logger.error(
+            f"Gemini spawn failed - command not found: {e}",
+            extra={"project_id": request.project_id, "run_id": request.run_id},
+        )
         return SpawnResult(
             success=False,
             run_id=request.run_id,
-            child_session_id=request.session_id,
+            child_session_id=None,
             status="failed",
             error=str(e),
         )
     except Exception as e:
-        logger.error(f"Gemini preflight capture failed: {e}", exc_info=True)
+        logger.error(
+            f"Gemini preflight capture failed: {e}",
+            extra={"project_id": request.project_id, "run_id": request.run_id},
+            exc_info=True,
+        )
         return SpawnResult(
             success=False,
             run_id=request.run_id,
-            child_session_id=request.session_id,
+            child_session_id=None,
             status="failed",
             error=f"Gemini preflight capture failed: {e}",
         )
@@ -265,13 +282,25 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     gobby_session_id = spawn_context.session_id
     gemini_session_id = spawn_context.env_vars["GOBBY_GEMINI_EXTERNAL_ID"]
 
-    # Build command with session context injected into prompt
+    # Build command with resume (no env vars needed - session already linked)
     cmd = build_gemini_command_with_resume(
         gemini_external_id=gemini_session_id,
         prompt=request.prompt,
-        auto_approve=True,  # Subagents need to work autonomously
+        auto_approve=True,
         gobby_session_id=gobby_session_id,
     )
+
+    # Resolve sandbox config if provided
+    sandbox_env: dict[str, str] = {}
+    if request.sandbox_config and request.sandbox_config.enabled:
+        resolver = GeminiSandboxResolver()
+        paths = compute_sandbox_paths(
+            config=request.sandbox_config,
+            workspace_path=request.cwd,
+        )
+        sandbox_args, sandbox_env = resolver.resolve(request.sandbox_config, paths)
+        # Append sandbox args to command (e.g., -s flag)
+        cmd.extend(sandbox_args)
 
     # Spawn in terminal
     terminal_spawner = TerminalSpawner()
@@ -279,6 +308,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         command=cmd,
         cwd=request.cwd,
         terminal=request.terminal,
+        env=sandbox_env if sandbox_env else None,
     )
 
     if not terminal_result.success:
@@ -293,7 +323,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     return SpawnResult(
         success=True,
         run_id=f"gemini-{gemini_session_id[:8]}",
-        child_session_id=gobby_session_id,
+        child_session_id=gobby_session_id,  # Now properly set!
         status="pending",
         pid=terminal_result.pid,
         gemini_session_id=gemini_session_id,

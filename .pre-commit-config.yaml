@@ -23,6 +23,7 @@ repos:
       - id: check-yaml
         args: [--unsafe]  # Allow custom tags
       - id: check-json
+        exclude: ^\.gobby/
       - id: check-toml
       - id: check-added-large-files
         args: [--maxkb=500]

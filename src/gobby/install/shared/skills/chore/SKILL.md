@@ -26,7 +26,8 @@ Create a maintenance or housekeeping task with the provided title and optional d
 
 ## Action
 
-Call `gobby-tasks.create_task` with:
+Create a chore task by invoking `call_tool()` with the following parameters:
+
 - `title`: The chore title from user input
 - `task_type`: "chore"
 - `priority`: 3 (low - maintenance tasks are important but rarely urgent)

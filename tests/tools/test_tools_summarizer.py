@@ -9,6 +9,7 @@ from gobby.tools.summarizer import (
     summarize_tools,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestSummarizeTools:
     """Tests for summarize_tools function."""
@@ -117,7 +118,7 @@ class TestSummarizeTools:
 class TestMaxDescriptionLength:
     """Tests for MAX_DESCRIPTION_LENGTH constant."""
 
-    def test_max_length_value(self):
+    def test_max_length_value(self) -> None:
         """Test that MAX_DESCRIPTION_LENGTH is set to 200."""
         assert MAX_DESCRIPTION_LENGTH == 200
 

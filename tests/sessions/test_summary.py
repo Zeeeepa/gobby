@@ -9,6 +9,7 @@ import pytest
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_transcript_processor():
@@ -43,7 +44,7 @@ def summary_generator(mock_transcript_processor, mock_llm_service, temp_dir):
 class TestSummaryFileGeneratorInit:
     """Tests for SummaryFileGenerator initialization."""
 
-    def test_init_with_llm_service(self, mock_transcript_processor, mock_llm_service):
+    def test_init_with_llm_service(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test initialization with LLM service."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -53,7 +54,7 @@ class TestSummaryFileGeneratorInit:
         assert gen.llm_provider is not None
         mock_llm_service.get_default_provider.assert_called_once()
 
-    def test_init_without_llm_service(self, mock_transcript_processor):
+    def test_init_without_llm_service(self, mock_transcript_processor) -> None:
         """Test initialization without LLM service falls back to ClaudeLLMProvider."""
         with patch("gobby.config.app.load_config") as mock_load:
             mock_config = MagicMock()
@@ -67,7 +68,7 @@ class TestSummaryFileGeneratorInit:
                 # Should try to create ClaudeLLMProvider as fallback
                 mock_claude.assert_called_once_with(mock_config)
 
-    def test_init_llm_service_no_providers(self, mock_transcript_processor):
+    def test_init_llm_service_no_providers(self, mock_transcript_processor) -> None:
         """Test initialization when LLM service has no providers."""
         mock_service = MagicMock()
         mock_service.get_default_provider.side_effect = ValueError("No providers configured")
@@ -88,7 +89,7 @@ class TestSummaryFileGeneratorInit:
                 mock_claude.assert_called_once_with(mock_config)
                 assert gen.llm_provider is not None
 
-    def test_init_fallback_provider_fails(self, mock_transcript_processor):
+    def test_init_fallback_provider_fails(self, mock_transcript_processor) -> None:
         """Test initialization when fallback ClaudeLLMProvider also fails."""
         mock_service = MagicMock()
         mock_service.get_default_provider.side_effect = ValueError("No providers")
@@ -104,7 +105,7 @@ class TestSummaryFileGeneratorInit:
             # llm_provider should remain None
             assert gen.llm_provider is None
 
-    def test_init_with_config_passed(self, mock_transcript_processor, mock_llm_service):
+    def test_init_with_config_passed(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test initialization with config passed directly."""
         from gobby.config.app import DaemonConfig
 
@@ -122,7 +123,7 @@ class TestSummaryFileGeneratorInit:
 class TestSummaryFileGeneratorWrite:
     """Tests for summary file writing."""
 
-    def test_write_summary_to_file(self, summary_generator, temp_dir):
+    def test_write_summary_to_file(self, summary_generator, temp_dir) -> None:
         """Test writing summary to file."""
         session_id = "test-session-123"
         summary = "# Test Summary\n\nTest content"
@@ -135,7 +136,7 @@ class TestSummaryFileGeneratorWrite:
 
     def test_write_summary_creates_directory(
         self, mock_transcript_processor, mock_llm_service, temp_dir
-    ):
+    ) -> None:
         """Test that write_summary creates directory if it doesn't exist."""
         new_dir = temp_dir / "new_summaries"
         gen = SummaryFileGenerator(
@@ -149,7 +150,7 @@ class TestSummaryFileGeneratorWrite:
         assert result is not None
         assert new_dir.exists()
 
-    def test_write_summary_file_naming(self, summary_generator, temp_dir):
+    def test_write_summary_file_naming(self, summary_generator, temp_dir) -> None:
         """Test that summary files are named with timestamp and session_id."""
         session_id = "unique-session-id"
 
@@ -161,7 +162,7 @@ class TestSummaryFileGeneratorWrite:
         assert filename.startswith("session_")
         assert filename.endswith(".md")
 
-    def test_write_summary_to_file_failure(self, mock_transcript_processor, mock_llm_service):
+    def test_write_summary_to_file_failure(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test write_summary_to_file handles write errors."""
         # Use an invalid path
         gen = SummaryFileGenerator(
@@ -180,7 +181,7 @@ class TestSummaryFileGeneratorWrite:
 class TestSummaryFileGeneratorGenerate:
     """Tests for summary generation."""
 
-    def test_generate_session_summary_no_external_id(self, summary_generator):
+    def test_generate_session_summary_no_external_id(self, summary_generator) -> None:
         """Test generation fails when no external_id in input."""
         result = summary_generator.generate_session_summary(
             session_id="db-session-id",
@@ -189,7 +190,7 @@ class TestSummaryFileGeneratorGenerate:
 
         assert result["status"] == "no_external_id"
 
-    def test_generate_session_summary_no_transcript(self, summary_generator):
+    def test_generate_session_summary_no_transcript(self, summary_generator) -> None:
         """Test generation handles missing transcript path."""
         result = summary_generator.generate_session_summary(
             session_id="db-session-id",
@@ -198,7 +199,7 @@ class TestSummaryFileGeneratorGenerate:
 
         assert result["status"] == "no_transcript"
 
-    def test_generate_session_summary_transcript_not_found(self, summary_generator, temp_dir):
+    def test_generate_session_summary_transcript_not_found(self, summary_generator, temp_dir) -> None:
         """Test generation handles non-existent transcript file."""
         result = summary_generator.generate_session_summary(
             session_id="db-session-id",
@@ -212,7 +213,7 @@ class TestSummaryFileGeneratorGenerate:
 
     def test_generate_session_summary_success(
         self, summary_generator, mock_transcript_processor, temp_dir
-    ):
+    ) -> None:
         """Test successful summary generation."""
         # Create a test transcript file
         transcript_path = temp_dir / "transcript.jsonl"
@@ -244,7 +245,7 @@ class TestSummaryFileGeneratorGenerate:
 
     def test_generate_session_summary_disabled_in_config(
         self, mock_transcript_processor, mock_llm_service, temp_dir
-    ):
+    ) -> None:
         """Test generation respects disabled config."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -266,7 +267,7 @@ class TestSummaryFileGeneratorGenerate:
 
     def test_generate_session_summary_updates_path_from_config(
         self, mock_transcript_processor, mock_llm_service, temp_dir
-    ):
+    ) -> None:
         """Test generation updates summary path from config."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -309,7 +310,7 @@ class TestSummaryFileGeneratorGenerate:
 
     def test_generate_session_summary_exception_handling(
         self, mock_transcript_processor, mock_llm_service, temp_dir
-    ):
+    ) -> None:
         """Test generation handles exceptions gracefully."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -343,7 +344,7 @@ class TestSummaryFileGeneratorGenerate:
 class TestExtractTodowrite:
     """Tests for TodoWrite extraction."""
 
-    def test_extract_todowrite_found(self, summary_generator):
+    def test_extract_todowrite_found(self, summary_generator) -> None:
         """Test extracting TodoWrite from transcript."""
         turns = [
             {
@@ -373,7 +374,7 @@ class TestExtractTodowrite:
         assert "[>] Task 2 (in_progress)" in result
         assert "[ ] Task 3 (pending)" in result
 
-    def test_extract_todowrite_not_found(self, summary_generator):
+    def test_extract_todowrite_not_found(self, summary_generator) -> None:
         """Test extracting TodoWrite when not present."""
         turns = [
             {"message": {"role": "user", "content": "Hello"}},
@@ -384,7 +385,7 @@ class TestExtractTodowrite:
 
         assert result is None
 
-    def test_extract_todowrite_empty_todos(self, summary_generator):
+    def test_extract_todowrite_empty_todos(self, summary_generator) -> None:
         """Test extracting TodoWrite with empty todos list."""
         turns = [
             {
@@ -405,7 +406,7 @@ class TestExtractTodowrite:
 
         assert result is None
 
-    def test_extract_todowrite_multiple_turns_gets_last(self, summary_generator):
+    def test_extract_todowrite_multiple_turns_gets_last(self, summary_generator) -> None:
         """Test that the last TodoWrite is extracted when multiple exist."""
         turns = [
             {
@@ -448,7 +449,7 @@ class TestExtractTodowrite:
         assert "New task" in result
         assert "Old task" not in result
 
-    def test_extract_todowrite_non_list_content(self, summary_generator):
+    def test_extract_todowrite_non_list_content(self, summary_generator) -> None:
         """Test extracting TodoWrite when content is not a list."""
         turns = [
             {"message": {"role": "assistant", "content": "Just text content"}},
@@ -458,7 +459,7 @@ class TestExtractTodowrite:
 
         assert result is None
 
-    def test_extract_todowrite_non_dict_blocks(self, summary_generator):
+    def test_extract_todowrite_non_dict_blocks(self, summary_generator) -> None:
         """Test extracting TodoWrite with non-dict blocks in content."""
         turns = [
             {
@@ -477,7 +478,7 @@ class TestExtractTodowrite:
 class TestFormatTurns:
     """Tests for turn formatting."""
 
-    def test_format_turns_text_content(self, summary_generator):
+    def test_format_turns_text_content(self, summary_generator) -> None:
         """Test formatting turns with text content."""
         turns = [
             {"message": {"role": "user", "content": "Hello world"}},
@@ -489,7 +490,7 @@ class TestFormatTurns:
         assert "[Turn 1 - user]: Hello world" in result
         assert "[Turn 2 - assistant]: Hi there!" in result
 
-    def test_format_turns_array_content(self, summary_generator):
+    def test_format_turns_array_content(self, summary_generator) -> None:
         """Test formatting turns with array content (assistant messages)."""
         turns = [
             {
@@ -510,13 +511,13 @@ class TestFormatTurns:
         assert "[Thinking: Let me think...]" in result
         assert "[Tool: Read]" in result
 
-    def test_format_turns_empty(self, summary_generator):
+    def test_format_turns_empty(self, summary_generator) -> None:
         """Test formatting empty turns list."""
         result = summary_generator._format_turns_for_llm([])
 
         assert result == ""
 
-    def test_format_turns_missing_message(self, summary_generator):
+    def test_format_turns_missing_message(self, summary_generator) -> None:
         """Test formatting turns with missing message key."""
         turns = [
             {},  # No message key
@@ -528,7 +529,7 @@ class TestFormatTurns:
         assert "[Turn 1 - unknown]:" in result
         assert "[Turn 2 - unknown]:" in result
 
-    def test_format_turns_non_dict_blocks(self, summary_generator):
+    def test_format_turns_non_dict_blocks(self, summary_generator) -> None:
         """Test formatting turns where content array has non-dict items."""
         turns = [
             {
@@ -551,7 +552,7 @@ class TestFormatTurns:
 class TestGetProviderForFeature:
     """Tests for feature-specific provider selection."""
 
-    def test_get_provider_no_config(self, mock_transcript_processor, mock_llm_service):
+    def test_get_provider_no_config(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test getting provider when no config is set."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -564,7 +565,7 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt is None
 
-    def test_get_provider_feature_disabled(self, mock_transcript_processor, mock_llm_service):
+    def test_get_provider_feature_disabled(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test getting provider when feature is disabled."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -582,7 +583,7 @@ class TestGetProviderForFeature:
         assert provider is None
         assert prompt is None
 
-    def test_get_provider_with_custom_prompt(self, mock_transcript_processor, mock_llm_service):
+    def test_get_provider_with_custom_prompt(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test getting provider with custom prompt from config."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -605,7 +606,7 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt == "Custom prompt template"
 
-    def test_get_provider_unknown_feature(self, mock_transcript_processor, mock_llm_service):
+    def test_get_provider_unknown_feature(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test getting provider for unknown feature name."""
         from gobby.config.app import DaemonConfig
 
@@ -623,7 +624,7 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt is None
 
-    def test_get_provider_no_feature_config(self, mock_transcript_processor, mock_llm_service):
+    def test_get_provider_no_feature_config(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test getting provider when feature config attribute is None."""
         from gobby.config.app import DaemonConfig
 
@@ -641,7 +642,7 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt is None
 
-    def test_get_provider_with_named_provider(self, mock_transcript_processor):
+    def test_get_provider_with_named_provider(self, mock_transcript_processor) -> None:
         """Test getting provider by name from LLMService."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -673,7 +674,7 @@ class TestGetProviderForFeature:
         assert prompt == "Use OpenAI"
         mock_service.get_provider.assert_called_with("openai")
 
-    def test_get_provider_named_provider_not_available(self, mock_transcript_processor):
+    def test_get_provider_named_provider_not_available(self, mock_transcript_processor) -> None:
         """Test fallback when named provider is not available."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -703,7 +704,7 @@ class TestGetProviderForFeature:
         assert provider is mock_default_provider
         assert prompt == "Some prompt"
 
-    def test_get_provider_exception_handling(self, mock_transcript_processor, mock_llm_service):
+    def test_get_provider_exception_handling(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test that exceptions in _get_provider_for_feature are handled."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -729,7 +730,7 @@ class TestGetProviderForFeature:
 class TestGenerateSummaryWithLLM:
     """Tests for LLM summary generation."""
 
-    def test_generate_summary_no_provider(self, mock_transcript_processor, mock_llm_service):
+    def test_generate_summary_no_provider(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test summary generation when no provider available."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -752,7 +753,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_no_prompt_configured(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test summary generation when no prompt template is configured."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="Summary")
@@ -780,7 +781,7 @@ class TestGenerateSummaryWithLLM:
         # Provider should not be called
         mock_provider.generate_summary.assert_not_called()
 
-    def test_generate_summary_with_custom_prompt(self, mock_transcript_processor, mock_llm_service):
+    def test_generate_summary_with_custom_prompt(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test summary generation with custom prompt."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="Custom summary")
@@ -808,7 +809,7 @@ class TestGenerateSummaryWithLLM:
         call_kwargs = mock_provider.generate_summary.call_args
         assert call_kwargs[1]["prompt_template"] == "Custom template"
 
-    def test_generate_summary_llm_returns_empty(self, mock_transcript_processor, mock_llm_service):
+    def test_generate_summary_llm_returns_empty(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test summary generation when LLM returns empty string."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="")
@@ -834,7 +835,7 @@ class TestGenerateSummaryWithLLM:
         # Should produce error summary
         assert "Error" in result
 
-    def test_generate_summary_llm_exception(self, mock_transcript_processor, mock_llm_service):
+    def test_generate_summary_llm_exception(self, mock_transcript_processor, mock_llm_service) -> None:
         """Test summary generation handles LLM exceptions."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(side_effect=Exception("LLM API error"))
@@ -862,7 +863,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_header_without_session_source(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test header generation without session_source."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="Summary content")
@@ -890,7 +891,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_header_without_session_id(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test header generation without session_id."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="Summary content")
@@ -919,7 +920,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_with_todowrite_in_llm_output(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test todowrite insertion when LLM output contains Claude's Todo List section."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(
@@ -954,7 +955,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_with_todowrite_no_next_section(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test todowrite insertion when there's no section after Claude's Todo List."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(
@@ -987,7 +988,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_with_todowrite_fallback_before_next_steps(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test todowrite insertion before Next Steps when no Claude's Todo List section."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(
@@ -1021,7 +1022,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_with_todowrite_append_fallback(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test todowrite appended to end when no markers exist."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="## Summary\n\nJust some content")
@@ -1052,7 +1053,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_error_with_todowrite(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test error summary includes todowrite list."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(side_effect=Exception("API error"))
@@ -1085,7 +1086,7 @@ class TestGenerateSummaryWithLLM:
 
     def test_generate_summary_error_header_variants(
         self, mock_transcript_processor, mock_llm_service
-    ):
+    ) -> None:
         """Test error header generation with different session_id/source combinations."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(side_effect=Exception("API error"))
@@ -1133,7 +1134,7 @@ class TestGenerateSummaryWithLLM:
 class TestGitOperations:
     """Tests for git status and file changes methods."""
 
-    def test_get_git_status_success(self, summary_generator):
+    def test_get_git_status_success(self, summary_generator) -> None:
         """Test successful git status retrieval."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout=" M src/file.py\n?? new_file.py\n")
@@ -1143,7 +1144,7 @@ class TestGitOperations:
         assert "M src/file.py" in result
         assert "new_file.py" in result
 
-    def test_get_git_status_not_git_repo(self, summary_generator):
+    def test_get_git_status_not_git_repo(self, summary_generator) -> None:
         """Test git status when not in a git repo."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Not a git repository")
@@ -1152,7 +1153,7 @@ class TestGitOperations:
 
         assert result == "Not a git repository or git not available"
 
-    def test_get_git_status_timeout(self, summary_generator):
+    def test_get_git_status_timeout(self, summary_generator) -> None:
         """Test git status when command times out."""
         import subprocess
 
@@ -1163,7 +1164,7 @@ class TestGitOperations:
 
         assert result == "Not a git repository or git not available"
 
-    def test_get_file_changes_with_modifications(self, summary_generator):
+    def test_get_file_changes_with_modifications(self, summary_generator) -> None:
         """Test file changes with modified files."""
         with patch("subprocess.run") as mock_run:
             # Mock diff result
@@ -1180,7 +1181,7 @@ class TestGitOperations:
         assert "Untracked:" in result
         assert "new_file.py" in result
 
-    def test_get_file_changes_no_changes(self, summary_generator):
+    def test_get_file_changes_no_changes(self, summary_generator) -> None:
         """Test file changes when there are no changes."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="")
@@ -1192,7 +1193,7 @@ class TestGitOperations:
 
         assert result == "No changes"
 
-    def test_get_file_changes_only_untracked(self, summary_generator):
+    def test_get_file_changes_only_untracked(self, summary_generator) -> None:
         """Test file changes with only untracked files."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="")
@@ -1206,7 +1207,7 @@ class TestGitOperations:
         assert "new_file.py" in result
         assert "Modified/Deleted:" not in result
 
-    def test_get_file_changes_only_modified(self, summary_generator):
+    def test_get_file_changes_only_modified(self, summary_generator) -> None:
         """Test file changes with only modified files."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tsrc/file.py\n")
@@ -1220,7 +1221,7 @@ class TestGitOperations:
         assert "src/file.py" in result
         assert "Untracked:" not in result
 
-    def test_get_file_changes_exception(self, summary_generator):
+    def test_get_file_changes_exception(self, summary_generator) -> None:
         """Test file changes when exception occurs."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Git command failed")
@@ -1233,7 +1234,7 @@ class TestGitOperations:
 class TestTranscriptProcessor:
     """Tests for the TranscriptProcessor backward-compatible alias."""
 
-    def test_transcript_processor_alias(self):
+    def test_transcript_processor_alias(self) -> None:
         """Test that TranscriptProcessor is an alias for ClaudeTranscriptParser."""
         from gobby.sessions.summary import TranscriptProcessor
 

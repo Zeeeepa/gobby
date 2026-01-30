@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 class TestInstallClaude:
     """Tests for the install_claude function."""
@@ -64,7 +65,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test successful Claude Code installation."""
         from gobby.cli.installers.claude import install_claude
 
@@ -105,7 +106,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation fails when source files are missing."""
         from gobby.cli.installers.claude import install_claude
 
@@ -125,7 +126,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation fails when hooks-template.json is missing."""
         from gobby.cli.installers.claude import install_claude
 
@@ -158,7 +159,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test installation merges with existing settings.json."""
         from gobby.cli.installers.claude import install_claude
 
@@ -204,7 +205,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test installation creates backup of existing settings.json."""
         from gobby.cli.installers.claude import install_claude
 
@@ -245,7 +246,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test installation fails gracefully with invalid existing JSON."""
         from gobby.cli.installers.claude import install_claude
 
@@ -271,7 +272,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test installation handles shared content installation errors."""
         from gobby.cli.installers.claude import install_claude
 
@@ -293,7 +294,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test installation handles CLI content installation errors."""
         from gobby.cli.installers.claude import install_claude
 
@@ -319,7 +320,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test MCP configuration failure is non-fatal."""
         from gobby.cli.installers.claude import install_claude
 
@@ -348,7 +349,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test handling when MCP is already configured."""
         from gobby.cli.installers.claude import install_claude
 
@@ -376,7 +377,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test installation handles file copy errors."""
         from gobby.cli.installers.claude import install_claude
 
@@ -401,7 +402,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_home_dir: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that $PROJECT_PATH is replaced in hooks template."""
         from gobby.cli.installers.claude import install_claude
 
@@ -451,7 +452,7 @@ class TestInstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation handles invalid hooks template JSON."""
         from gobby.cli.installers.claude import install_claude
 
@@ -486,7 +487,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test that existing hook files are overwritten."""
         from gobby.cli.installers.claude import install_claude
 
@@ -523,7 +524,7 @@ class TestInstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test that hook files are made executable."""
         from gobby.cli.installers.claude import install_claude
 
@@ -608,7 +609,7 @@ class TestUninstallClaude:
         installed_claude_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test successful Claude Code uninstallation."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -649,7 +650,7 @@ class TestUninstallClaude:
         # User's custom content should be preserved
         assert settings["allowedTools"] == ["tool1"]
 
-    def test_uninstall_claude_no_settings_file(self, temp_project: Path):
+    def test_uninstall_claude_no_settings_file(self, temp_project: Path) -> None:
         """Test uninstallation when no settings.json exists."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -666,7 +667,7 @@ class TestUninstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test uninstallation handles invalid settings.json."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -691,7 +692,7 @@ class TestUninstallClaude:
         installed_claude_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test uninstallation creates backup of settings.json."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -727,7 +728,7 @@ class TestUninstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test uninstallation when settings has no hooks section."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -754,7 +755,7 @@ class TestUninstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test that all supported hook types are removed."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -805,7 +806,7 @@ class TestUninstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test uninstallation handles partial hook file presence."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -838,7 +839,7 @@ class TestUninstallClaude:
         temp_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test that MCP removal failure is handled gracefully."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -865,7 +866,7 @@ class TestUninstallClaude:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test uninstallation handles backup creation failure."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -895,7 +896,7 @@ class TestUninstallClaude:
         installed_claude_project: Path,
         mock_install_dir: Path,
         mock_home_dir: Path,
-    ):
+    ) -> None:
         """Test that write failures trigger backup restoration."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -957,7 +958,7 @@ class TestInstallClaudeEdgeCases:
         temp_project: Path,
         mock_install_dir: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation with existing empty hooks section."""
         from gobby.cli.installers.claude import install_claude
 
@@ -991,7 +992,7 @@ class TestInstallClaudeEdgeCases:
         mock_get_install_dir: MagicMock,
         mock_install_dir: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test installation with unicode characters in project path."""
         from gobby.cli.installers.claude import install_claude
 
@@ -1025,7 +1026,7 @@ class TestInstallClaudeEdgeCases:
         temp_project: Path,
         mock_install_dir: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that result dictionary has expected structure."""
         from gobby.cli.installers.claude import install_claude
 
@@ -1088,7 +1089,7 @@ class TestUninstallClaudeEdgeCases:
         temp_project: Path,
         mock_install_dir: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that uninstall result dictionary has expected structure."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -1131,7 +1132,7 @@ class TestUninstallClaudeEdgeCases:
         temp_project: Path,
         mock_install_dir: Path,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that custom user hooks are preserved during uninstall."""
         from gobby.cli.installers.claude import uninstall_claude
 
@@ -1174,7 +1175,7 @@ class TestUninstallClaudeEdgeCases:
         mock_get_install_dir: MagicMock,
         temp_project: Path,
         mock_install_dir: Path,
-    ):
+    ) -> None:
         """Test uninstallation handles file read errors."""
         from gobby.cli.installers.claude import uninstall_claude
 

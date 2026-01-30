@@ -17,6 +17,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
 
 def get_artifacts_module():
     """Import the artifacts CLI module when it exists."""
@@ -93,7 +94,7 @@ class TestArtifactsSearch:
     """Tests for the gobby artifacts search command."""
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_search_returns_matching_artifacts(self, runner, mock_artifact_manager):
+    def test_search_returns_matching_artifacts(self, runner, mock_artifact_manager) -> None:
         """Verify 'gobby artifacts search <query>' returns matching artifacts."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "search", "calculateTotal"])
@@ -103,7 +104,7 @@ class TestArtifactsSearch:
             mock_artifact_manager.search_artifacts.assert_called_once()
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_search_with_session_filter(self, runner, mock_artifact_manager):
+    def test_search_with_session_filter(self, runner, mock_artifact_manager) -> None:
         """Verify search can filter by session_id."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "search", "test", "--session", "sess-123"])
@@ -114,7 +115,7 @@ class TestArtifactsSearch:
             assert "sess-123" in str(call_kwargs)
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_search_with_type_filter(self, runner, mock_artifact_manager):
+    def test_search_with_type_filter(self, runner, mock_artifact_manager) -> None:
         """Verify search can filter by artifact type."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "search", "error", "--type", "error"])
@@ -124,7 +125,7 @@ class TestArtifactsSearch:
             assert "error" in str(call_kwargs)
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_search_with_limit(self, runner, mock_artifact_manager):
+    def test_search_with_limit(self, runner, mock_artifact_manager) -> None:
         """Verify search respects limit parameter."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "search", "test", "--limit", "10"])
@@ -134,7 +135,7 @@ class TestArtifactsSearch:
             assert "10" in str(call_kwargs) or call_kwargs[1].get("limit") == 10
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_search_empty_results(self, runner, mock_artifact_manager):
+    def test_search_empty_results(self, runner, mock_artifact_manager) -> None:
         """Verify search handles empty results gracefully."""
         mock_artifact_manager.search_artifacts.return_value = []
 
@@ -154,7 +155,7 @@ class TestArtifactsList:
     """Tests for the gobby artifacts list command."""
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_list_all_artifacts(self, runner, mock_artifact_manager):
+    def test_list_all_artifacts(self, runner, mock_artifact_manager) -> None:
         """Verify 'gobby artifacts list' returns all artifacts."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "list"])
@@ -163,7 +164,7 @@ class TestArtifactsList:
             assert "art-abc123" in result.output
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_list_by_session(self, runner, mock_artifact_manager):
+    def test_list_by_session(self, runner, mock_artifact_manager) -> None:
         """Verify list can filter by session_id."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "list", "--session", "sess-xyz789"])
@@ -174,7 +175,7 @@ class TestArtifactsList:
             assert "sess-xyz789" in str(call_kwargs)
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_list_by_type(self, runner, mock_artifact_manager):
+    def test_list_by_type(self, runner, mock_artifact_manager) -> None:
         """Verify list can filter by artifact type."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "list", "--type", "code"])
@@ -184,7 +185,7 @@ class TestArtifactsList:
             assert "code" in str(call_kwargs)
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_list_with_pagination(self, runner, mock_artifact_manager):
+    def test_list_with_pagination(self, runner, mock_artifact_manager) -> None:
         """Verify list supports pagination."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "list", "--limit", "10", "--offset", "20"])
@@ -196,7 +197,7 @@ class TestArtifactsList:
             assert "20" in str(call_kwargs) or call_kwargs[1].get("offset") == 20
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_list_empty_results(self, runner, mock_artifact_manager):
+    def test_list_empty_results(self, runner, mock_artifact_manager) -> None:
         """Verify list handles empty results gracefully."""
         mock_artifact_manager.list_artifacts.return_value = []
 
@@ -215,7 +216,7 @@ class TestArtifactsShow:
     """Tests for the gobby artifacts show command."""
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_show_artifact_by_id(self, runner, mock_artifact_manager, mock_artifact):
+    def test_show_artifact_by_id(self, runner, mock_artifact_manager, mock_artifact) -> None:
         """Verify 'gobby artifacts show <id>' displays artifact content."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "show", "art-abc123"])
@@ -226,7 +227,7 @@ class TestArtifactsShow:
             mock_artifact_manager.get_artifact.assert_called_once_with("art-abc123")
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_show_nonexistent_artifact(self, runner, mock_artifact_manager):
+    def test_show_nonexistent_artifact(self, runner, mock_artifact_manager) -> None:
         """Verify show returns error for nonexistent artifact."""
         mock_artifact_manager.get_artifact.return_value = None
 
@@ -236,7 +237,7 @@ class TestArtifactsShow:
             assert result.exit_code != 0 or "not found" in result.output.lower()
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_show_includes_metadata(self, runner, mock_artifact_manager, mock_artifact):
+    def test_show_includes_metadata(self, runner, mock_artifact_manager, mock_artifact) -> None:
         """Verify show displays artifact metadata."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "show", "art-abc123", "--verbose"])
@@ -255,7 +256,7 @@ class TestArtifactsTimeline:
     """Tests for the gobby artifacts timeline command."""
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_timeline_for_session(self, runner, mock_artifact_manager):
+    def test_timeline_for_session(self, runner, mock_artifact_manager) -> None:
         """Verify 'gobby artifacts timeline <session_id>' shows chronological view."""
         # Setup multiple artifacts with different timestamps
         art1 = MagicMock()
@@ -285,7 +286,7 @@ class TestArtifactsTimeline:
                 assert art1_idx < art2_idx, "Timeline should show oldest first"
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_timeline_requires_session_id(self, runner):
+    def test_timeline_requires_session_id(self, runner) -> None:
         """Verify timeline requires session_id argument."""
         result = runner.invoke(cli, ["artifacts", "timeline"])
 
@@ -293,7 +294,7 @@ class TestArtifactsTimeline:
         assert result.exit_code != 0 or "session" in result.output.lower()
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_timeline_with_type_filter(self, runner, mock_artifact_manager):
+    def test_timeline_with_type_filter(self, runner, mock_artifact_manager) -> None:
         """Verify timeline can filter by artifact type."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "timeline", "sess-123", "--type", "code"])
@@ -315,7 +316,7 @@ class TestArtifactOutputFormatting:
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
     def test_code_artifact_has_syntax_highlighting(
         self, runner, mock_artifact_manager, mock_artifact
-    ):
+    ) -> None:
         """Verify code artifacts have syntax highlighting in output."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "show", "art-abc123"])
@@ -326,7 +327,7 @@ class TestArtifactOutputFormatting:
             assert "calculateTotal" in result.output or "function" in result.output
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_json_output_format(self, runner, mock_artifact_manager, mock_artifact):
+    def test_json_output_format(self, runner, mock_artifact_manager, mock_artifact) -> None:
         """Verify --json flag outputs JSON format."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "show", "art-abc123", "--json"])
@@ -342,7 +343,7 @@ class TestArtifactOutputFormatting:
                 pytest.fail("Output is not valid JSON")
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_list_table_format(self, runner, mock_artifact_manager):
+    def test_list_table_format(self, runner, mock_artifact_manager) -> None:
         """Verify list command outputs in table format by default."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "list"])
@@ -353,7 +354,7 @@ class TestArtifactOutputFormatting:
             assert "art-abc123" in result.output
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_error_artifact_formatting(self, runner, mock_artifact_manager):
+    def test_error_artifact_formatting(self, runner, mock_artifact_manager) -> None:
         """Verify error artifacts are formatted appropriately."""
         error_artifact = MagicMock()
         error_artifact.id = "art-error-1"
@@ -384,7 +385,7 @@ class TestArtifactsCLIErrorHandling:
     """Tests for error handling in artifacts CLI."""
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_search_with_invalid_type(self, runner, mock_artifact_manager):
+    def test_search_with_invalid_type(self, runner, mock_artifact_manager) -> None:
         """Verify search handles invalid artifact type gracefully."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "search", "test", "--type", "invalid_type"])
@@ -394,7 +395,7 @@ class TestArtifactsCLIErrorHandling:
             assert result.exit_code == 0 or "invalid" in result.output.lower()
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_database_error_handling(self, runner, mock_artifact_manager):
+    def test_database_error_handling(self, runner, mock_artifact_manager) -> None:
         """Verify CLI handles database errors gracefully."""
         mock_artifact_manager.search_artifacts.side_effect = Exception("Database connection failed")
 
@@ -413,7 +414,7 @@ class TestArtifactsCLIErrorHandling:
 class TestArtifactsCLIRegistration:
     """Tests for artifacts CLI command registration."""
 
-    def test_artifacts_command_exists(self, runner):
+    def test_artifacts_command_exists(self, runner) -> None:
         """Verify artifacts command is registered (will fail in TDD red phase)."""
         result = runner.invoke(cli, ["artifacts", "--help"])
 
@@ -423,7 +424,7 @@ class TestArtifactsCLIRegistration:
         assert result.exit_code == 0
         assert "artifacts" in result.output.lower()
 
-    def test_artifacts_subcommands_exist(self, runner):
+    def test_artifacts_subcommands_exist(self, runner) -> None:
         """Verify all expected subcommands are registered."""
         result = runner.invoke(cli, ["artifacts", "--help"])
 

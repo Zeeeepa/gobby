@@ -12,6 +12,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.tasks.build_verification import (
     BuildResult,
     BuildVerifier,
@@ -20,11 +22,12 @@ from gobby.tasks.build_verification import (
 )
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
+pytestmark = pytest.mark.unit
 
 class TestDetectBuildCommand:
     """Tests for detect_build_command() auto-detection."""
 
-    def test_detects_npm_from_package_json(self, tmp_path):
+    def test_detects_npm_from_package_json(self, tmp_path) -> None:
         """Test detecting npm test from package.json."""
         (tmp_path / "package.json").write_text('{"name": "test"}')
 
@@ -32,7 +35,7 @@ class TestDetectBuildCommand:
 
         assert result == "npm test"
 
-    def test_detects_pytest_from_pyproject_toml(self, tmp_path):
+    def test_detects_pytest_from_pyproject_toml(self, tmp_path) -> None:
         """Test detecting pytest from pyproject.toml."""
         (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'")
 
@@ -40,7 +43,7 @@ class TestDetectBuildCommand:
 
         assert result == "uv run pytest"
 
-    def test_detects_cargo_test_from_cargo_toml(self, tmp_path):
+    def test_detects_cargo_test_from_cargo_toml(self, tmp_path) -> None:
         """Test detecting cargo test from Cargo.toml."""
         (tmp_path / "Cargo.toml").write_text('[package]\nname = "test"')
 
@@ -48,7 +51,7 @@ class TestDetectBuildCommand:
 
         assert result == "cargo test"
 
-    def test_detects_go_test_from_go_mod(self, tmp_path):
+    def test_detects_go_test_from_go_mod(self, tmp_path) -> None:
         """Test detecting go test from go.mod."""
         (tmp_path / "go.mod").write_text("module test")
 
@@ -56,13 +59,13 @@ class TestDetectBuildCommand:
 
         assert result == "go test ./..."
 
-    def test_returns_none_when_no_project_files(self, tmp_path):
+    def test_returns_none_when_no_project_files(self, tmp_path) -> None:
         """Test returning None when no recognized project files exist."""
         result = detect_build_command(tmp_path)
 
         assert result is None
 
-    def test_prefers_package_json_over_others(self, tmp_path):
+    def test_prefers_package_json_over_others(self, tmp_path) -> None:
         """Test that package.json takes priority when multiple exist."""
         (tmp_path / "package.json").write_text('{"name": "test"}')
         (tmp_path / "pyproject.toml").write_text("[project]")
@@ -76,7 +79,7 @@ class TestDetectBuildCommand:
 class TestRunBuildCheck:
     """Tests for run_build_check() execution."""
 
-    def test_runs_configured_command(self, tmp_path):
+    def test_runs_configured_command(self, tmp_path) -> None:
         """Test that run_build_check executes the configured command."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -96,7 +99,7 @@ class TestRunBuildCheck:
             assert call_kwargs["cwd"] == tmp_path
             assert "npm test" in mock_run.call_args.args[0]
 
-    def test_returns_failure_on_nonzero_exit(self, tmp_path):
+    def test_returns_failure_on_nonzero_exit(self, tmp_path) -> None:
         """Test that non-zero exit code results in failure."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -113,7 +116,7 @@ class TestRunBuildCheck:
             assert result.success is False
             assert "assertion error" in result.stderr
 
-    def test_captures_stdout_and_stderr(self, tmp_path):
+    def test_captures_stdout_and_stderr(self, tmp_path) -> None:
         """Test that stdout and stderr are captured."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -134,7 +137,7 @@ class TestRunBuildCheck:
 class TestBuildTimeout:
     """Tests for build timeout enforcement."""
 
-    def test_default_timeout_is_5_minutes(self, tmp_path):
+    def test_default_timeout_is_5_minutes(self, tmp_path) -> None:
         """Test that default timeout is 300 seconds (5 minutes)."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -148,7 +151,7 @@ class TestBuildTimeout:
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs["timeout"] == 300
 
-    def test_timeout_exceeded_returns_failure(self, tmp_path):
+    def test_timeout_exceeded_returns_failure(self, tmp_path) -> None:
         """Test that timeout exceeded results in failure with error message."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(
@@ -164,7 +167,7 @@ class TestBuildTimeout:
             assert result.success is False
             assert "timeout" in result.error.lower()
 
-    def test_custom_timeout_is_respected(self, tmp_path):
+    def test_custom_timeout_is_respected(self, tmp_path) -> None:
         """Test that custom timeout value is passed to subprocess."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -186,7 +189,7 @@ class TestBuildTimeout:
 class TestBuildResultToIssue:
     """Tests for converting build failures to Issue objects."""
 
-    def test_failed_build_converts_to_issue(self):
+    def test_failed_build_converts_to_issue(self) -> None:
         """Test that a failed build can be converted to an Issue."""
         result = BuildResult(
             success=False,
@@ -204,7 +207,7 @@ class TestBuildResultToIssue:
         assert "npm test" in issue.title or "build" in issue.title.lower()
         assert "test failed" in issue.details.lower()
 
-    def test_timeout_converts_to_issue(self):
+    def test_timeout_converts_to_issue(self) -> None:
         """Test that a timeout failure converts to an Issue."""
         result = BuildResult(
             success=False,
@@ -218,7 +221,7 @@ class TestBuildResultToIssue:
         assert issue.severity == IssueSeverity.BLOCKER
         assert "timeout" in issue.title.lower() or "timeout" in issue.details.lower()
 
-    def test_successful_build_to_issue_returns_none(self):
+    def test_successful_build_to_issue_returns_none(self) -> None:
         """Test that successful build to_issue returns None."""
         result = BuildResult(
             success=True,
@@ -235,7 +238,7 @@ class TestBuildResultToIssue:
 class TestBuildVerifierSkipped:
     """Tests for build check skipping when disabled."""
 
-    def test_skipped_when_disabled_in_config(self):
+    def test_skipped_when_disabled_in_config(self) -> None:
         """Test that build check is skipped when disabled in config."""
         verifier = BuildVerifier(
             enabled=False,
@@ -247,7 +250,7 @@ class TestBuildVerifierSkipped:
         assert result.skipped is True
         assert result.success is True
 
-    def test_skipped_when_no_command_detected(self, tmp_path):
+    def test_skipped_when_no_command_detected(self, tmp_path) -> None:
         """Test that build check is skipped when no command can be detected."""
         verifier = BuildVerifier(
             enabled=True,
@@ -260,7 +263,7 @@ class TestBuildVerifierSkipped:
         assert result.skipped is True
         assert result.success is True
 
-    def test_not_skipped_when_enabled_with_command(self, tmp_path):
+    def test_not_skipped_when_enabled_with_command(self, tmp_path) -> None:
         """Test that build check runs when enabled with explicit command."""
         verifier = BuildVerifier(
             enabled=True,
@@ -283,7 +286,7 @@ class TestBuildVerifierSkipped:
 class TestBuildVerifierIntegration:
     """Integration tests for BuildVerifier class."""
 
-    def test_verifier_uses_auto_detected_command(self, tmp_path):
+    def test_verifier_uses_auto_detected_command(self, tmp_path) -> None:
         """Test that verifier auto-detects command when not configured."""
         (tmp_path / "pyproject.toml").write_text("[project]")
 
@@ -306,7 +309,7 @@ class TestBuildVerifierIntegration:
             call_args = mock_run.call_args.args[0]
             assert "pytest" in call_args
 
-    def test_verifier_uses_configured_command_over_auto_detect(self, tmp_path):
+    def test_verifier_uses_configured_command_over_auto_detect(self, tmp_path) -> None:
         """Test that configured command takes priority over auto-detect."""
         (tmp_path / "package.json").write_text('{"name": "test"}')
 
@@ -327,7 +330,7 @@ class TestBuildVerifierIntegration:
             call_args = mock_run.call_args.args[0]
             assert "make test" in call_args
 
-    def test_verifier_result_includes_command_used(self, tmp_path):
+    def test_verifier_result_includes_command_used(self, tmp_path) -> None:
         """Test that result includes the command that was executed."""
         verifier = BuildVerifier(
             enabled=True,
@@ -349,7 +352,7 @@ class TestBuildVerifierIntegration:
 class TestBuildResult:
     """Tests for BuildResult dataclass."""
 
-    def test_build_result_success(self):
+    def test_build_result_success(self) -> None:
         """Test creating a successful BuildResult."""
         result = BuildResult(
             success=True,
@@ -363,7 +366,7 @@ class TestBuildResult:
         assert result.skipped is False
         assert result.error is None
 
-    def test_build_result_failure(self):
+    def test_build_result_failure(self) -> None:
         """Test creating a failed BuildResult."""
         result = BuildResult(
             success=False,
@@ -376,7 +379,7 @@ class TestBuildResult:
         assert result.success is False
         assert result.returncode == 1
 
-    def test_build_result_skipped(self):
+    def test_build_result_skipped(self) -> None:
         """Test creating a skipped BuildResult."""
         result = BuildResult(
             success=True,
@@ -386,7 +389,7 @@ class TestBuildResult:
         assert result.success is True
         assert result.skipped is True
 
-    def test_build_result_with_error(self):
+    def test_build_result_with_error(self) -> None:
         """Test creating a BuildResult with error message."""
         result = BuildResult(
             success=False,

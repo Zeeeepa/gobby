@@ -2,7 +2,7 @@
 
 This module contains MCP tools for:
 - Getting session details (get_session)
-- Getting current session (get_current)
+- Getting current session (get_current_session)
 - Listing sessions (list_sessions)
 - Session statistics (session_stats)
 """
@@ -71,7 +71,7 @@ def register_crud_tools(
         }
 
     @registry.tool(
-        name="get_current",
+        name="get_current_session",
         description="""Get YOUR current session ID - the CORRECT way to look up your session.
 
 Use this when session_id wasn't in your injected context. Pass your external_id
@@ -79,7 +79,7 @@ Use this when session_id wasn't in your injected context. Pass your external_id
 
 DO NOT use list_sessions to find your session - it won't work with multiple active sessions.""",
     )
-    def get_current(
+    def get_current_session(
         external_id: str,
         source: str,
     ) -> dict[str, Any]:
@@ -148,7 +148,7 @@ DO NOT use list_sessions to find your session - it won't work with multiple acti
 WARNING: Do NOT use this to find your own session_id!
 - `list_sessions(status="active", limit=1)` will NOT reliably return YOUR session
 - Multiple sessions can be active simultaneously (parallel agents, multiple terminals)
-- Use `get_current(external_id, source)` instead - it uses your unique session key
+- Use `get_current_session(external_id, source)` instead - it uses your unique session key
 
 This tool is for browsing/listing sessions, not for self-identification.""",
     )
@@ -192,7 +192,7 @@ This tool is for browsing/listing sessions, not for self-identification.""",
                 "warning": (
                     "list_sessions(status='active', limit=1) will NOT reliably get YOUR session_id! "
                     "Multiple sessions can be active simultaneously. "
-                    "Use get_current(external_id='<your-external-id>', source='claude') instead."
+                    "Use get_current_session(external_id='<your-external-id>', source='claude') instead."
                 ),
                 "hint": "Your external_id is in your transcript path: /path/to/<external_id>.jsonl",
                 "sessions": [s.to_dict() for s in sessions],

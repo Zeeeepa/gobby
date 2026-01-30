@@ -20,6 +20,8 @@ from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test WorkflowDefinition Variables Loading from YAML
 # =============================================================================
@@ -28,7 +30,7 @@ from gobby.workflows.state_manager import WorkflowStateManager
 class TestWorkflowDefinitionVariables:
     """Tests for loading variables from workflow YAML files."""
 
-    def test_load_workflow_with_variables(self):
+    def test_load_workflow_with_variables(self) -> None:
         """Variables section from YAML is loaded into WorkflowDefinition."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
@@ -57,7 +59,7 @@ class TestWorkflowDefinitionVariables:
             "session_task": None,
         }
 
-    def test_load_workflow_without_variables(self):
+    def test_load_workflow_without_variables(self) -> None:
         """Workflow without variables section has empty dict."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
@@ -77,7 +79,7 @@ class TestWorkflowDefinitionVariables:
         assert wf is not None
         assert wf.variables == {}
 
-    def test_variables_support_all_types(self):
+    def test_variables_support_all_types(self) -> None:
         """Variables support string, int, float, bool, null, list, and dict values."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
@@ -115,7 +117,7 @@ class TestWorkflowDefinitionVariables:
 class TestWorkflowVariableInheritance:
     """Tests for variable inheritance when workflows extend each other."""
 
-    def test_child_inherits_parent_variables(self):
+    def test_child_inherits_parent_variables(self) -> None:
         """Child workflow inherits variables from parent."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -160,7 +162,7 @@ class TestWorkflowVariableInheritance:
         assert wf.variables["from_parent"] == "inherited"
         assert wf.variables["from_child"] == "new"
 
-    def test_child_overrides_parent_variables(self):
+    def test_child_overrides_parent_variables(self) -> None:
         """Child variables override parent variables with same name."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -204,7 +206,7 @@ class TestWorkflowVariableInheritance:
         assert wf.variables["shared_var"] == "child_value"
         assert wf.variables["only_parent"] == 100
 
-    def test_three_level_inheritance_merges_variables(self):
+    def test_three_level_inheritance_merges_variables(self) -> None:
         """Variables merge across three levels of inheritance."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -296,7 +298,7 @@ class TestWorkflowStateVariablesPersistence:
         )
         return session.id
 
-    def test_save_and_load_state_with_variables(self, state_manager, session_id):
+    def test_save_and_load_state_with_variables(self, state_manager, session_id) -> None:
         """Variables are persisted and loaded correctly."""
 
         # Create state with variables
@@ -326,7 +328,7 @@ class TestWorkflowStateVariablesPersistence:
             "count": 42,
         }
 
-    def test_update_state_preserves_variables(self, state_manager, session_id):
+    def test_update_state_preserves_variables(self, state_manager, session_id) -> None:
         """Updating state preserves variable values."""
         # Initial state
         state = WorkflowState(
@@ -347,7 +349,7 @@ class TestWorkflowStateVariablesPersistence:
         assert loaded.step == "step2"
         assert loaded.variables == {"var1": "initial", "var2": "added"}
 
-    def test_empty_variables_persisted(self, state_manager, session_id):
+    def test_empty_variables_persisted(self, state_manager, session_id) -> None:
         """Empty variables dict is persisted correctly."""
         state = WorkflowState(
             session_id=session_id,
@@ -360,7 +362,7 @@ class TestWorkflowStateVariablesPersistence:
         loaded = state_manager.get_state(session_id)
         assert loaded.variables == {}
 
-    def test_variables_with_special_types(self, state_manager, session_id):
+    def test_variables_with_special_types(self, state_manager, session_id) -> None:
         """Variables with nested structures are serialized correctly."""
         state = WorkflowState(
             session_id=session_id,
@@ -390,7 +392,7 @@ class TestWorkflowStateVariablesPersistence:
 class TestWorkflowStateInitFromDefinition:
     """Tests for initializing WorkflowState variables from WorkflowDefinition."""
 
-    def test_state_initialized_with_definition_variables(self):
+    def test_state_initialized_with_definition_variables(self) -> None:
         """WorkflowState should copy variables from WorkflowDefinition."""
         # This is the pattern used in agents/runner.py:327
         definition = WorkflowDefinition(
@@ -416,7 +418,7 @@ class TestWorkflowStateInitFromDefinition:
         assert state.variables["tdd_mode"] is False
         assert state.variables["session_task"] is None
 
-    def test_state_runtime_variables_can_override_defaults(self):
+    def test_state_runtime_variables_can_override_defaults(self) -> None:
         """Runtime variables set after initialization override definition defaults."""
         definition = WorkflowDefinition(
             name="test_workflow",
@@ -442,7 +444,7 @@ class TestWorkflowStateInitFromDefinition:
         assert state.variables["tdd_mode"] is False  # From definition
         assert state.variables["new_var"] == "runtime_value"  # New
 
-    def test_activate_workflow_does_not_copy_definition_variables(self):
+    def test_activate_workflow_does_not_copy_definition_variables(self) -> None:
         """Bug/gap: activate_workflow MCP tool initializes empty variables.
 
         This test documents current behavior - activate_workflow creates state
@@ -482,7 +484,7 @@ class TestVariablePrecedencePattern:
     set via explicit parameter, workflow variable, or config default.
     """
 
-    def test_explicit_parameter_takes_precedence(self):
+    def test_explicit_parameter_takes_precedence(self) -> None:
         """Explicit parameter overrides workflow variable and config default."""
         workflow_state = WorkflowState(
             session_id="s1",
@@ -502,7 +504,7 @@ class TestVariablePrecedencePattern:
 
         assert effective is True  # Explicit wins
 
-    def test_workflow_variable_overrides_config_default(self):
+    def test_workflow_variable_overrides_config_default(self) -> None:
         """Workflow variable overrides config default when no explicit param."""
         workflow_state = WorkflowState(
             session_id="s1",
@@ -521,7 +523,7 @@ class TestVariablePrecedencePattern:
 
         assert effective is False  # Workflow variable wins
 
-    def test_config_default_used_when_no_override(self):
+    def test_config_default_used_when_no_override(self) -> None:
         """Config default is used when no explicit param or workflow variable."""
         workflow_state = WorkflowState(
             session_id="s1",
@@ -540,7 +542,7 @@ class TestVariablePrecedencePattern:
 
         assert effective is True  # Config default wins
 
-    def test_null_workflow_state_uses_config_default(self):
+    def test_null_workflow_state_uses_config_default(self) -> None:
         """When workflow_state is None, config default is used."""
         workflow_state = None
 
@@ -588,7 +590,7 @@ class TestWorkflowMCPVariables:
         )
         return session.id
 
-    def test_set_variable_creates_lifecycle_state(self, state_manager, session_id):
+    def test_set_variable_creates_lifecycle_state(self, state_manager, session_id) -> None:
         """Setting variable on session without state creates __lifecycle__ state.
 
         This is the pattern used by set_variable MCP tool (workflows.py:504-511).
@@ -615,7 +617,7 @@ class TestWorkflowMCPVariables:
         assert loaded.workflow_name == "__lifecycle__"
         assert loaded.variables["session_task"] == "gt-abc123"
 
-    def test_set_variable_updates_existing_state(self, state_manager, session_id):
+    def test_set_variable_updates_existing_state(self, state_manager, session_id) -> None:
         """Setting variable on existing state adds to existing variables."""
         # Create initial state with existing variable
         initial_state = WorkflowState(
@@ -636,7 +638,7 @@ class TestWorkflowMCPVariables:
         assert loaded.variables["existing_var"] == "existing_value"
         assert loaded.variables["new_var"] == "new_value"
 
-    def test_get_variable_returns_none_for_missing(self, state_manager, session_id):
+    def test_get_variable_returns_none_for_missing(self, state_manager, session_id) -> None:
         """Getting non-existent variable returns None."""
         state = WorkflowState(
             session_id=session_id,

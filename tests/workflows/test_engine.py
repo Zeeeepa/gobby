@@ -10,6 +10,7 @@ from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_loader():
@@ -441,6 +442,8 @@ class TestDetectTaskClaim:
             timestamp=datetime.now(UTC),
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "create_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "create_task",
@@ -488,6 +491,8 @@ class TestDetectTaskClaim:
             timestamp=datetime.now(UTC),
             data={
                 "tool_name": "call_tool",  # Alternative tool name
+                "mcp_server": "gobby-tasks",  # Normalized MCP fields
+                "mcp_tool": "update_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "update_task",
@@ -534,6 +539,8 @@ class TestDetectTaskClaim:
             timestamp=datetime.now(UTC),
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",  # Normalized MCP fields
+                "mcp_tool": "claim_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "claim_task",

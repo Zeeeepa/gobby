@@ -24,6 +24,8 @@ from gobby.agents.spawners.embedded import (
     _get_spawn_utils,
 )
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -65,22 +67,22 @@ def mock_os_close():
 class TestGetSpawnUtils:
     """Tests for _get_spawn_utils lazy import helper."""
 
-    def test_returns_tuple_of_three(self):
+    def test_returns_tuple_of_three(self) -> None:
         """_get_spawn_utils returns correct tuple of utilities."""
         result = _get_spawn_utils()
         assert len(result) == 3
 
-    def test_returns_callable_build_cli_command(self):
+    def test_returns_callable_build_cli_command(self) -> None:
         """First element should be build_cli_command function."""
         build_cli_command, _, _ = _get_spawn_utils()
         assert callable(build_cli_command)
 
-    def test_returns_callable_create_prompt_file(self):
+    def test_returns_callable_create_prompt_file(self) -> None:
         """Second element should be _create_prompt_file function."""
         _, create_prompt_file, _ = _get_spawn_utils()
         assert callable(create_prompt_file)
 
-    def test_returns_max_env_prompt_length(self):
+    def test_returns_max_env_prompt_length(self) -> None:
         """Third element should be MAX_ENV_PROMPT_LENGTH constant."""
         _, _, max_length = _get_spawn_utils()
         assert isinstance(max_length, int)
@@ -95,7 +97,7 @@ class TestGetSpawnUtils:
 class TestEmbeddedSpawnerSpawn:
     """Tests for EmbeddedSpawner.spawn() method."""
 
-    def test_spawn_empty_command_list(self, spawner):
+    def test_spawn_empty_command_list(self, spawner) -> None:
         """spawn() returns error for empty command list."""
         result = spawner.spawn([], cwd="/tmp")
 
@@ -103,7 +105,7 @@ class TestEmbeddedSpawnerSpawn:
         assert "empty command" in result.message.lower()
         assert result.error is not None
 
-    def test_spawn_none_in_command_check(self, spawner):
+    def test_spawn_none_in_command_check(self, spawner) -> None:
         """spawn() handles edge case of checking empty command."""
         # Test with a list that has zero length
         result = spawner.spawn(command=[], cwd="/tmp")
@@ -111,7 +113,7 @@ class TestEmbeddedSpawnerSpawn:
         assert "empty command" in result.message.lower()
 
     @patch("platform.system", return_value="Windows")
-    def test_spawn_not_supported_on_windows(self, mock_system, spawner):
+    def test_spawn_not_supported_on_windows(self, mock_system, spawner) -> None:
         """spawn() returns error on Windows platform."""
         with patch("gobby.agents.spawners.embedded.pty", None):
             result = spawner.spawn(["echo", "test"], cwd="/tmp")
@@ -121,7 +123,7 @@ class TestEmbeddedSpawnerSpawn:
             assert result.error is not None
 
     @patch("gobby.agents.spawners.embedded.pty", None)
-    def test_spawn_without_pty_module(self, spawner):
+    def test_spawn_without_pty_module(self, spawner) -> None:
         """spawn() returns error when pty module is not available."""
         with patch("platform.system", return_value="Linux"):
             result = spawner.spawn(["echo", "test"], cwd="/tmp")
@@ -129,7 +131,7 @@ class TestEmbeddedSpawnerSpawn:
             assert result.success is False
             # Should indicate PTY not supported
 
-    def test_spawn_openpty_error(self, spawner, mock_pty):
+    def test_spawn_openpty_error(self, spawner, mock_pty) -> None:
         """spawn() handles openpty() errors gracefully."""
         mock_pty.openpty.side_effect = OSError("PTY creation failed")
 
@@ -139,7 +141,7 @@ class TestEmbeddedSpawnerSpawn:
         assert result.error is not None
         assert "PTY creation failed" in result.error or "Failed" in result.message
 
-    def test_spawn_fork_error(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_fork_error(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() handles fork() errors gracefully."""
         with patch("os.fork", side_effect=OSError("Fork failed")):
             result = spawner.spawn(["echo", "test"], cwd="/tmp")
@@ -149,7 +151,7 @@ class TestEmbeddedSpawnerSpawn:
             # Verify cleanup was attempted - os.close should be called for both fds
             assert mock_os_close.call_count >= 1
 
-    def test_spawn_parent_process_success(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_parent_process_success(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() returns correct result in parent process."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -163,7 +165,7 @@ class TestEmbeddedSpawnerSpawn:
             assert "Spawned embedded PTY with PID 12345" in result.message
             mock_os_close.assert_called_once_with(11)
 
-    def test_spawn_with_path_object(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_with_path_object(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() accepts Path object for cwd."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -172,7 +174,7 @@ class TestEmbeddedSpawnerSpawn:
 
             assert result.success is True
 
-    def test_spawn_with_env_vars(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_with_env_vars(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() passes environment variables correctly."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -185,7 +187,7 @@ class TestEmbeddedSpawnerSpawn:
 
             assert result.success is True
 
-    def test_spawn_without_env_vars(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_without_env_vars(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() works without environment variables."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -194,7 +196,7 @@ class TestEmbeddedSpawnerSpawn:
 
             assert result.success is True
 
-    def test_spawn_closes_fds_on_exception(self, spawner, mock_pty):
+    def test_spawn_closes_fds_on_exception(self, spawner, mock_pty) -> None:
         """spawn() closes file descriptors when an exception occurs."""
         mock_pty.openpty.return_value = (100, 101)
 
@@ -208,7 +210,7 @@ class TestEmbeddedSpawnerSpawn:
                 mock_close.assert_any_call(100)
                 mock_close.assert_any_call(101)
 
-    def test_spawn_handles_close_oserror_on_cleanup(self, spawner, mock_pty):
+    def test_spawn_handles_close_oserror_on_cleanup(self, spawner, mock_pty) -> None:
         """spawn() handles OSError when closing fds during cleanup."""
         mock_pty.openpty.return_value = (100, 101)
 
@@ -228,7 +230,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     """Tests for EmbeddedSpawner.spawn_agent() method."""
 
     @patch("platform.system", return_value="Windows")
-    def test_spawn_agent_not_supported_on_windows(self, mock_system, spawner):
+    def test_spawn_agent_not_supported_on_windows(self, mock_system, spawner) -> None:
         """spawn_agent() returns error on Windows platform."""
         with patch("gobby.agents.spawners.embedded.pty", None):
             result = spawner.spawn_agent(
@@ -246,7 +248,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_basic(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
+    def test_spawn_agent_basic(self, mock_utils, mock_close, mock_fork, mock_pty, spawner) -> None:
         """spawn_agent() creates command with correct parameters."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -287,7 +289,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_with_short_prompt(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() passes short prompt via environment variable."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -315,7 +317,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_with_long_prompt(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() writes long prompt to file."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -346,7 +348,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_prompt_exactly_at_threshold(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() uses env var when prompt is exactly at threshold."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -379,7 +381,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_codex_working_directory(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() passes working directory for Codex CLI."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -406,7 +408,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_gemini_no_working_directory(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() does not pass working directory for non-Codex CLIs."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -431,7 +433,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_workflow(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
+    def test_spawn_agent_with_workflow(self, mock_utils, mock_close, mock_fork, mock_pty, spawner) -> None:
         """spawn_agent() passes workflow name correctly."""
         mock_pty.openpty.return_value = (10, 11)
         mock_utils.return_value = (MagicMock(return_value=["claude"]), MagicMock(), 4096)
@@ -454,7 +456,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_with_custom_depth(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() passes custom agent depth values."""
         mock_pty.openpty.return_value = (10, 11)
         mock_utils.return_value = (MagicMock(return_value=["claude"]), MagicMock(), 4096)
@@ -478,7 +480,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_auto_approve_always_true(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() always sets auto_approve=True for subagents."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -502,7 +504,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_without_prompt(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
+    def test_spawn_agent_without_prompt(self, mock_utils, mock_close, mock_fork, mock_pty, spawner) -> None:
         """spawn_agent() works without a prompt."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -528,7 +530,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_with_path_object_cwd(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() accepts Path object for cwd."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -562,7 +564,7 @@ class TestEmbeddedSpawnerChildProcess:
     actually test the child process without real forking.
     """
 
-    def test_spawn_error_handling_comprehensive(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_error_handling_comprehensive(self, spawner, mock_pty, mock_os_close) -> None:
         """Comprehensive test for exception handling in spawn."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -582,7 +584,7 @@ class TestEmbeddedSpawnerChildProcess:
 class TestEmbeddedSpawnerUnixIntegration:
     """Integration tests for EmbeddedSpawner on Unix systems."""
 
-    def test_spawn_real_process(self, spawner):
+    def test_spawn_real_process(self, spawner) -> None:
         """spawn() creates real PTY and runs command."""
         result = spawner.spawn(
             command=["echo", "hello"],
@@ -603,7 +605,7 @@ class TestEmbeddedSpawnerUnixIntegration:
                 except ChildProcessError:
                     pass
 
-    def test_spawn_with_env_integration(self, spawner):
+    def test_spawn_with_env_integration(self, spawner) -> None:
         """spawn() passes environment variables in real process."""
         result = spawner.spawn(
             command=["env"],
@@ -622,7 +624,7 @@ class TestEmbeddedSpawnerUnixIntegration:
                 except ChildProcessError:
                     pass
 
-    def test_spawn_invalid_command(self, spawner):
+    def test_spawn_invalid_command(self, spawner) -> None:
         """spawn() handles invalid commands."""
         result = spawner.spawn(
             command=["nonexistent_command_12345"],
@@ -645,7 +647,7 @@ class TestEmbeddedSpawnerUnixIntegration:
                     except ChildProcessError:
                         pass
 
-    def test_spawn_read_from_pty(self, spawner):
+    def test_spawn_read_from_pty(self, spawner) -> None:
         """spawn() allows reading from master fd."""
         result = spawner.spawn(
             command=["echo", "hello_from_pty"],
@@ -680,7 +682,7 @@ class TestEmbeddedSpawnerUnixIntegration:
 class TestEmbeddedPTYResult:
     """Tests for EmbeddedPTYResult dataclass methods."""
 
-    def test_close_with_valid_fds(self):
+    def test_close_with_valid_fds(self) -> None:
         """close() closes valid file descriptors."""
         r, w = os.pipe()
         result = EmbeddedPTYResult(
@@ -699,7 +701,7 @@ class TestEmbeddedPTYResult:
         with pytest.raises(OSError):
             os.close(w)
 
-    def test_close_with_none_fds(self):
+    def test_close_with_none_fds(self) -> None:
         """close() handles None file descriptors gracefully."""
         result = EmbeddedPTYResult(
             success=False,
@@ -710,7 +712,7 @@ class TestEmbeddedPTYResult:
         # Should not raise
         result.close()
 
-    def test_close_with_already_closed_fd(self):
+    def test_close_with_already_closed_fd(self) -> None:
         """close() handles already closed file descriptors gracefully."""
         r, w = os.pipe()
         os.close(r)
@@ -726,7 +728,7 @@ class TestEmbeddedPTYResult:
         # Should not raise
         result.close()
 
-    def test_close_master_only(self):
+    def test_close_master_only(self) -> None:
         """close() handles case where only master_fd is set."""
         r, w = os.pipe()
         os.close(w)  # Close one end ourselves
@@ -745,7 +747,7 @@ class TestEmbeddedPTYResult:
         with pytest.raises(OSError):
             os.close(r)
 
-    def test_close_slave_only(self):
+    def test_close_slave_only(self) -> None:
         """close() handles case where only slave_fd is set."""
         r, w = os.pipe()
         os.close(r)  # Close one end ourselves
@@ -773,11 +775,11 @@ class TestEmbeddedPTYResult:
 class TestModuleConstants:
     """Tests for module-level constants."""
 
-    def test_max_env_prompt_length_value(self):
+    def test_max_env_prompt_length_value(self) -> None:
         """MAX_ENV_PROMPT_LENGTH has expected value."""
         assert MAX_ENV_PROMPT_LENGTH == 4096
 
-    def test_max_env_prompt_length_is_positive(self):
+    def test_max_env_prompt_length_is_positive(self) -> None:
         """MAX_ENV_PROMPT_LENGTH is a positive integer."""
         assert isinstance(MAX_ENV_PROMPT_LENGTH, int)
         assert MAX_ENV_PROMPT_LENGTH > 0
@@ -791,7 +793,7 @@ class TestModuleConstants:
 class TestEdgeCasesAndSecurity:
     """Tests for edge cases and security considerations."""
 
-    def test_spawn_with_special_characters_in_command(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_with_special_characters_in_command(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() handles commands with special characters."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -803,7 +805,7 @@ class TestEdgeCasesAndSecurity:
 
             assert result.success is True
 
-    def test_spawn_with_unicode_in_command(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_with_unicode_in_command(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() handles commands with unicode characters."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -815,7 +817,7 @@ class TestEdgeCasesAndSecurity:
 
             assert result.success is True
 
-    def test_spawn_with_empty_string_command(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_with_empty_string_command(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() handles command with empty string element."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -825,7 +827,7 @@ class TestEdgeCasesAndSecurity:
             # Should not crash - behavior depends on execvpe
             assert result.success is True
 
-    def test_spawn_with_spaces_in_path(self, spawner, mock_pty, mock_os_close):
+    def test_spawn_with_spaces_in_path(self, spawner, mock_pty, mock_os_close) -> None:
         """spawn() handles working directory with spaces."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -843,7 +845,7 @@ class TestEdgeCasesAndSecurity:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_with_special_chars_in_prompt(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() handles special characters in prompt."""
         mock_pty.openpty.return_value = (10, 11)
         mock_utils.return_value = (MagicMock(return_value=["claude"]), MagicMock(), 4096)
@@ -866,7 +868,7 @@ class TestEdgeCasesAndSecurity:
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
     def test_spawn_agent_with_newlines_in_prompt(
         self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    ) -> None:
         """spawn_agent() handles newlines in prompt."""
         mock_pty.openpty.return_value = (10, 11)
         mock_utils.return_value = (MagicMock(return_value=["claude"]), MagicMock(), 4096)
@@ -893,7 +895,7 @@ class TestPlatformSpecificBehavior:
     """Tests for platform-specific behavior."""
 
     @patch("platform.system", return_value="Darwin")
-    def test_spawn_on_macos(self, mock_system, spawner, mock_pty, mock_os_close):
+    def test_spawn_on_macos(self, mock_system, spawner, mock_pty, mock_os_close) -> None:
         """spawn() works on macOS."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -903,7 +905,7 @@ class TestPlatformSpecificBehavior:
             assert result.success is True
 
     @patch("platform.system", return_value="Linux")
-    def test_spawn_on_linux(self, mock_system, spawner, mock_pty, mock_os_close):
+    def test_spawn_on_linux(self, mock_system, spawner, mock_pty, mock_os_close) -> None:
         """spawn() works on Linux."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -913,7 +915,7 @@ class TestPlatformSpecificBehavior:
             assert result.success is True
 
     @patch("platform.system", return_value="FreeBSD")
-    def test_spawn_on_freebsd(self, mock_system, spawner, mock_pty, mock_os_close):
+    def test_spawn_on_freebsd(self, mock_system, spawner, mock_pty, mock_os_close) -> None:
         """spawn() works on FreeBSD (Unix-like)."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -931,7 +933,7 @@ class TestPlatformSpecificBehavior:
 class TestModuleExports:
     """Tests for module exports."""
 
-    def test_embedded_spawner_in_all(self):
+    def test_embedded_spawner_in_all(self) -> None:
         """EmbeddedSpawner is exported in __all__."""
         from gobby.agents.spawners import embedded
 

@@ -7,6 +7,7 @@ from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.server import GobbyDaemonTools
 
+pytestmark = pytest.mark.unit
 
 # Define dummy classes for mocking imports effectively
 class AssistantMessage:
@@ -296,7 +297,7 @@ async def test_call_tool_returns_mcp_error_on_validation_failure(daemon_tools):
 @pytest.mark.asyncio
 async def test_call_tool_returns_mcp_error_without_schema(daemon_tools):
     """Test that call_tool returns CallToolResult(isError=True) even without schema info."""
-    from mcp.types import CallToolResult, TextContent
+    from mcp.types import CallToolResult
 
     # Mock tool_proxy.call_tool to return an error dict without schema
     daemon_tools.tool_proxy.call_tool = AsyncMock(

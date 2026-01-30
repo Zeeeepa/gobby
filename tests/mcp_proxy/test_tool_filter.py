@@ -6,6 +6,7 @@ import pytest
 
 from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 
+pytestmark = pytest.mark.unit
 
 class TestToolFilterService:
     """Tests for ToolFilterService."""
@@ -63,20 +64,20 @@ class TestGetStepRestrictions:
             state_manager=mock_state_manager,
         )
 
-    def test_returns_none_without_state_manager(self, mock_db, mock_loader):
+    def test_returns_none_without_state_manager(self, mock_db, mock_loader) -> None:
         """Test returns None when no state manager is available."""
         service = ToolFilterService(db=None, loader=mock_loader, state_manager=None)
         result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_none_when_no_workflow_state(self, service, mock_state_manager):
+    def test_returns_none_when_no_workflow_state(self, service, mock_state_manager) -> None:
         """Test returns None when session has no workflow state."""
         mock_state_manager.get_state.return_value = None
         result = service.get_step_restrictions("session-123")
         assert result is None
         mock_state_manager.get_state.assert_called_once_with("session-123")
 
-    def test_returns_none_when_workflow_not_found(self, service, mock_state_manager, mock_loader):
+    def test_returns_none_when_workflow_not_found(self, service, mock_state_manager, mock_loader) -> None:
         """Test returns None when workflow definition is not found."""
         mock_state = MagicMock()
         mock_state.workflow_name = "unknown-workflow"
@@ -87,7 +88,7 @@ class TestGetStepRestrictions:
         result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_none_when_step_not_found(self, service, mock_state_manager, mock_loader):
+    def test_returns_none_when_step_not_found(self, service, mock_state_manager, mock_loader) -> None:
         """Test returns None when step is not found in workflow."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -101,7 +102,7 @@ class TestGetStepRestrictions:
         result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_restrictions_when_found(self, service, mock_state_manager, mock_loader):
+    def test_returns_restrictions_when_found(self, service, mock_state_manager, mock_loader) -> None:
         """Test returns step restrictions when workflow and step found."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -125,7 +126,7 @@ class TestGetStepRestrictions:
             "blocked_tools": ["write", "delete"],
         }
 
-    def test_returns_all_allowed_tools(self, service, mock_state_manager, mock_loader):
+    def test_returns_all_allowed_tools(self, service, mock_state_manager, mock_loader) -> None:
         """Test returns 'all' for allowed_tools when step allows all."""
         mock_state = MagicMock()
         mock_state.workflow_name = "open-workflow"
@@ -169,7 +170,7 @@ class TestIsToolAllowed:
             state_manager=mock_state_manager,
         )
 
-    def test_allowed_when_no_workflow_active(self, service, mock_state_manager):
+    def test_allowed_when_no_workflow_active(self, service, mock_state_manager) -> None:
         """Test tool is allowed when no workflow is active."""
         mock_state_manager.get_state.return_value = None
 
@@ -178,7 +179,7 @@ class TestIsToolAllowed:
         assert allowed is True
         assert reason is None
 
-    def test_blocked_when_in_blocked_list(self, service, mock_state_manager, mock_loader):
+    def test_blocked_when_in_blocked_list(self, service, mock_state_manager, mock_loader) -> None:
         """Test tool is blocked when in blocked_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -199,7 +200,7 @@ class TestIsToolAllowed:
         assert "blocked" in reason.lower()
         assert "restricted" in reason
 
-    def test_allowed_when_in_allowed_list(self, service, mock_state_manager, mock_loader):
+    def test_allowed_when_in_allowed_list(self, service, mock_state_manager, mock_loader) -> None:
         """Test tool is allowed when in allowed_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -219,7 +220,7 @@ class TestIsToolAllowed:
         assert allowed is True
         assert reason is None
 
-    def test_not_allowed_when_not_in_allowed_list(self, service, mock_state_manager, mock_loader):
+    def test_not_allowed_when_not_in_allowed_list(self, service, mock_state_manager, mock_loader) -> None:
         """Test tool is not allowed when not in allowed_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -239,7 +240,7 @@ class TestIsToolAllowed:
         assert allowed is False
         assert "not in allowed list" in reason.lower()
 
-    def test_allowed_when_all_tools_allowed(self, service, mock_state_manager, mock_loader):
+    def test_allowed_when_all_tools_allowed(self, service, mock_state_manager, mock_loader) -> None:
         """Test any tool is allowed when allowed_tools is 'all'."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -261,7 +262,7 @@ class TestIsToolAllowed:
 
     def test_blocked_takes_priority_over_allowed_all(
         self, service, mock_state_manager, mock_loader
-    ):
+    ) -> None:
         """Test blocked list takes priority even when allowed_tools is 'all'."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -305,7 +306,7 @@ class TestFilterTools:
             state_manager=mock_state_manager,
         )
 
-    def test_returns_all_tools_without_session_id(self, service):
+    def test_returns_all_tools_without_session_id(self, service) -> None:
         """Test returns all tools when no session_id provided."""
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -316,7 +317,7 @@ class TestFilterTools:
 
         assert result == tools
 
-    def test_returns_all_tools_when_no_workflow_active(self, service, mock_state_manager):
+    def test_returns_all_tools_when_no_workflow_active(self, service, mock_state_manager) -> None:
         """Test returns all tools when no workflow is active."""
         mock_state_manager.get_state.return_value = None
 
@@ -329,7 +330,7 @@ class TestFilterTools:
 
         assert result == tools
 
-    def test_filters_blocked_tools(self, service, mock_state_manager, mock_loader):
+    def test_filters_blocked_tools(self, service, mock_state_manager, mock_loader) -> None:
         """Test filters out tools in blocked list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -357,7 +358,7 @@ class TestFilterTools:
         assert {"name": "tool3", "brief": "desc3"} in result
         assert {"name": "tool2", "brief": "desc2"} not in result
 
-    def test_filters_to_allowed_list(self, service, mock_state_manager, mock_loader):
+    def test_filters_to_allowed_list(self, service, mock_state_manager, mock_loader) -> None:
         """Test filters to only allowed tools when list specified."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -384,7 +385,7 @@ class TestFilterTools:
         assert {"name": "tool1", "brief": "desc1"} in result
         assert {"name": "tool3", "brief": "desc3"} in result
 
-    def test_blocked_takes_priority_in_filter(self, service, mock_state_manager, mock_loader):
+    def test_blocked_takes_priority_in_filter(self, service, mock_state_manager, mock_loader) -> None:
         """Test blocked tools are filtered even if in allowed list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -434,7 +435,7 @@ class TestFilterServersTools:
             state_manager=mock_state_manager,
         )
 
-    def test_returns_all_when_no_session_id(self, service):
+    def test_returns_all_when_no_session_id(self, service) -> None:
         """Test returns all servers and tools when no session_id."""
         servers = [
             {"name": "server1", "tools": [{"name": "tool1", "brief": "d1"}]},
@@ -445,7 +446,7 @@ class TestFilterServersTools:
 
         assert result == servers
 
-    def test_filters_tools_across_servers(self, service, mock_state_manager, mock_loader):
+    def test_filters_tools_across_servers(self, service, mock_state_manager, mock_loader) -> None:
         """Test filters tools across multiple servers."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -488,7 +489,7 @@ class TestFilterServersTools:
         assert len(result[1]["tools"]) == 1
         assert result[1]["tools"][0]["name"] == "tool3"
 
-    def test_keeps_empty_servers(self, service, mock_state_manager, mock_loader):
+    def test_keeps_empty_servers(self, service, mock_state_manager, mock_loader) -> None:
         """Test keeps servers even when all tools filtered out."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -517,7 +518,7 @@ class TestFilterServersTools:
 class TestLazyInitialization:
     """Tests for lazy initialization of state manager and loader."""
 
-    def test_creates_state_manager_from_db(self):
+    def test_creates_state_manager_from_db(self) -> None:
         """Test state manager is lazily created from db."""
         mock_db = MagicMock()
         service = ToolFilterService(db=mock_db, loader=None, state_manager=None)
@@ -531,7 +532,7 @@ class TestLazyInitialization:
 
             mock_class.assert_called_once_with(mock_db)
 
-    def test_creates_loader_when_needed(self):
+    def test_creates_loader_when_needed(self) -> None:
         """Test workflow loader is lazily created."""
         mock_db = MagicMock()
         mock_state_manager = MagicMock()
@@ -552,7 +553,7 @@ class TestLazyInitialization:
 
             mock_class.assert_called_once()
 
-    def test_reuses_existing_state_manager(self):
+    def test_reuses_existing_state_manager(self) -> None:
         """Test existing state manager is reused."""
         mock_state_manager = MagicMock()
         mock_state_manager.get_state.return_value = None
@@ -567,7 +568,7 @@ class TestLazyInitialization:
             # Should not create new instance - use existing
             mock_class.assert_not_called()
 
-    def test_reuses_existing_loader(self):
+    def test_reuses_existing_loader(self) -> None:
         """Test existing loader is reused."""
         mock_loader = MagicMock()
         mock_loader.load_workflow.return_value = None

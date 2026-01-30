@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytestmark = pytest.mark.unit
 
 # Mock the module since it doesn't exist yet
 # Once implemented, these can be replaced with actual imports
@@ -30,7 +31,7 @@ def get_artifacts_registry():
 class TestSearchArtifacts:
     """Tests for the search_artifacts tool."""
 
-    def test_search_by_query_returns_matching_artifacts(self):
+    def test_search_by_query_returns_matching_artifacts(self) -> None:
         """Verify search_artifacts finds artifacts matching query text."""
         create_registry = get_artifacts_registry()
 
@@ -66,7 +67,7 @@ class TestSearchArtifacts:
         assert result["artifacts"][0]["id"] == "art-123"
         mock_artifact_manager.search_artifacts.assert_called_once()
 
-    def test_search_with_session_filter(self):
+    def test_search_with_session_filter(self) -> None:
         """Verify search_artifacts can filter by session_id."""
         create_registry = get_artifacts_registry()
 
@@ -86,7 +87,7 @@ class TestSearchArtifacts:
             limit=50,
         )
 
-    def test_search_with_type_filter(self):
+    def test_search_with_type_filter(self) -> None:
         """Verify search_artifacts can filter by artifact_type."""
         create_registry = get_artifacts_registry()
 
@@ -106,7 +107,7 @@ class TestSearchArtifacts:
             limit=50,
         )
 
-    def test_search_empty_query_returns_empty(self):
+    def test_search_empty_query_returns_empty(self) -> None:
         """Verify empty query returns empty results."""
         create_registry = get_artifacts_registry()
 
@@ -126,7 +127,7 @@ class TestSearchArtifacts:
 class TestListArtifacts:
     """Tests for the list_artifacts tool."""
 
-    def test_list_all_artifacts(self):
+    def test_list_all_artifacts(self) -> None:
         """Verify list_artifacts returns all artifacts when no filters."""
         create_registry = get_artifacts_registry()
 
@@ -152,7 +153,7 @@ class TestListArtifacts:
         assert result["success"] is True
         assert len(result["artifacts"]) == 2
 
-    def test_list_artifacts_by_session(self):
+    def test_list_artifacts_by_session(self) -> None:
         """Verify list_artifacts filters by session_id."""
         create_registry = get_artifacts_registry()
 
@@ -169,7 +170,7 @@ class TestListArtifacts:
         call_kwargs = mock_artifact_manager.list_artifacts.call_args
         assert call_kwargs[1].get("session_id") == "sess-123" or call_kwargs[0][0] == "sess-123"
 
-    def test_list_artifacts_by_type(self):
+    def test_list_artifacts_by_type(self) -> None:
         """Verify list_artifacts filters by artifact_type."""
         create_registry = get_artifacts_registry()
 
@@ -184,7 +185,7 @@ class TestListArtifacts:
 
         mock_artifact_manager.list_artifacts.assert_called_once()
 
-    def test_list_artifacts_with_pagination(self):
+    def test_list_artifacts_with_pagination(self) -> None:
         """Verify list_artifacts supports limit and offset."""
         create_registry = get_artifacts_registry()
 
@@ -206,7 +207,7 @@ class TestListArtifacts:
 class TestGetArtifact:
     """Tests for the get_artifact tool."""
 
-    def test_get_existing_artifact(self):
+    def test_get_existing_artifact(self) -> None:
         """Verify get_artifact returns artifact by ID."""
         create_registry = get_artifacts_registry()
 
@@ -233,7 +234,7 @@ class TestGetArtifact:
         assert result["artifact"]["id"] == "art-123"
         mock_artifact_manager.get_artifact.assert_called_once_with("art-123")
 
-    def test_get_nonexistent_artifact_returns_error(self):
+    def test_get_nonexistent_artifact_returns_error(self) -> None:
         """Verify get_artifact returns error for invalid ID."""
         create_registry = get_artifacts_registry()
 
@@ -253,7 +254,7 @@ class TestGetArtifact:
 class TestGetTimeline:
     """Tests for the get_timeline tool (artifacts chronologically)."""
 
-    def test_timeline_returns_chronological_order(self):
+    def test_timeline_returns_chronological_order(self) -> None:
         """Verify get_timeline returns artifacts in chronological order."""
         create_registry = get_artifacts_registry()
 
@@ -292,7 +293,7 @@ class TestGetTimeline:
         assert result["artifacts"][0]["id"] == "art-1"
         assert result["artifacts"][2]["id"] == "art-3"
 
-    def test_timeline_requires_session_id(self):
+    def test_timeline_requires_session_id(self) -> None:
         """Verify get_timeline requires session_id parameter."""
         create_registry = get_artifacts_registry()
 
@@ -308,7 +309,7 @@ class TestGetTimeline:
         assert result["success"] is False
         assert "session_id" in result["error"].lower()
 
-    def test_timeline_with_type_filter(self):
+    def test_timeline_with_type_filter(self) -> None:
         """Verify get_timeline can filter by artifact_type."""
         create_registry = get_artifacts_registry()
 
@@ -328,7 +329,7 @@ class TestGetTimeline:
 class TestMCPResponseFormat:
     """Tests for proper MCP response format."""
 
-    def test_search_returns_mcp_format(self):
+    def test_search_returns_mcp_format(self) -> None:
         """Verify search_artifacts returns proper MCP format."""
         create_registry = get_artifacts_registry()
 
@@ -347,7 +348,7 @@ class TestMCPResponseFormat:
         assert "artifacts" in result
         assert isinstance(result["artifacts"], list)
 
-    def test_list_returns_mcp_format(self):
+    def test_list_returns_mcp_format(self) -> None:
         """Verify list_artifacts returns proper MCP format."""
         create_registry = get_artifacts_registry()
 
@@ -364,7 +365,7 @@ class TestMCPResponseFormat:
         assert "artifacts" in result
         assert isinstance(result["artifacts"], list)
 
-    def test_get_returns_mcp_format(self):
+    def test_get_returns_mcp_format(self) -> None:
         """Verify get_artifact returns proper MCP format."""
         create_registry = get_artifacts_registry()
 
@@ -383,7 +384,7 @@ class TestMCPResponseFormat:
         assert "artifact" in result
         assert isinstance(result["artifact"], dict)
 
-    def test_error_response_format(self):
+    def test_error_response_format(self) -> None:
         """Verify error responses follow MCP format."""
         create_registry = get_artifacts_registry()
 
@@ -404,7 +405,7 @@ class TestMCPResponseFormat:
 class TestRegistryStructure:
     """Tests for the registry structure and tool registration."""
 
-    def test_registry_has_correct_name(self):
+    def test_registry_has_correct_name(self) -> None:
         """Verify registry is named gobby-artifacts."""
         create_registry = get_artifacts_registry()
 
@@ -415,7 +416,7 @@ class TestRegistryStructure:
 
         assert registry.name == "gobby-artifacts"
 
-    def test_registry_has_all_required_tools(self):
+    def test_registry_has_all_required_tools(self) -> None:
         """Verify registry has all expected tools."""
         create_registry = get_artifacts_registry()
 

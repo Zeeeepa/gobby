@@ -12,6 +12,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.projects import LocalProjectManager
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_daemon_client():
@@ -97,7 +99,7 @@ def sample_session_start_event(temp_dir: Path) -> HookEvent:
 class TestHookManagerInit:
     """Tests for HookManager initialization."""
 
-    def test_init_creates_subsystems(self, hook_manager_with_mocks: HookManager):
+    def test_init_creates_subsystems(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that initialization creates all subsystems."""
         manager = hook_manager_with_mocks
 
@@ -107,12 +109,12 @@ class TestHookManagerInit:
         assert manager._summary_file_generator is not None
         assert manager._database is not None
 
-    def test_init_sets_daemon_url(self, hook_manager_with_mocks: HookManager):
+    def test_init_sets_daemon_url(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that daemon URL is set correctly."""
         manager = hook_manager_with_mocks
         assert manager.daemon_url == "http://localhost:60887"
 
-    def test_init_creates_event_handlers(self, hook_manager_with_mocks: HookManager):
+    def test_init_creates_event_handlers(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that event handlers are created."""
         manager = hook_manager_with_mocks
         handler_map = manager._event_handlers.get_handler_map()
@@ -133,7 +135,7 @@ class TestHookManagerHandle:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test that handle returns a HookResponse."""
         response = hook_manager_with_mocks.handle(sample_session_start_event)
 
@@ -144,7 +146,7 @@ class TestHookManagerHandle:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test handling when daemon is not ready."""
         from unittest.mock import patch
 
@@ -175,7 +177,7 @@ class TestHookManagerHandle:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test daemon recovery after retry for critical hooks."""
         from unittest.mock import MagicMock, patch
 
@@ -204,7 +206,7 @@ class TestHookManagerHandle:
         # check_now should have been called (retry logic was triggered)
         assert check_now_mock.call_count >= 1
 
-    def test_handle_unknown_event_type(self, hook_manager_with_mocks: HookManager):
+    def test_handle_unknown_event_type(self, hook_manager_with_mocks: HookManager) -> None:
         """Test handling unknown event type fails open."""
         from unittest.mock import patch
 
@@ -233,7 +235,7 @@ class TestHookManagerSessionStart:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test that session start registers a new session."""
         response = hook_manager_with_mocks.handle(sample_session_start_event)
 
@@ -245,7 +247,7 @@ class TestHookManagerSessionStart:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test that session start returns a valid response with system_message."""
         response = hook_manager_with_mocks.handle(sample_session_start_event)
 
@@ -259,7 +261,7 @@ class TestHookManagerSessionStart:
         self,
         hook_manager_with_mocks: HookManager,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that resume source doesn't show 'Context restored' system_message.
 
         Parent session finding only happens on source='clear' (handoff scenario).
@@ -300,7 +302,7 @@ class TestHookManagerSessionEnd:
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that session end is allowed."""
         # First start a session
         hook_manager_with_mocks.handle(sample_session_start_event)
@@ -327,7 +329,7 @@ class TestHookManagerSessionEnd:
         self,
         hook_manager_with_mocks: HookManager,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that session end auto-links commits made during session."""
         from gobby.storage.sessions import Session
         from gobby.tasks.commits import AutoLinkResult
@@ -399,7 +401,7 @@ class TestHookManagerBeforeAgent:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test that before agent is allowed."""
         # Start session first
         hook_manager_with_mocks.handle(sample_session_start_event)
@@ -424,7 +426,7 @@ class TestHookManagerToolEvents:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test that before tool use is allowed."""
         hook_manager_with_mocks.handle(sample_session_start_event)
 
@@ -444,7 +446,7 @@ class TestHookManagerToolEvents:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
-    ):
+    ) -> None:
         """Test that after tool use is allowed."""
         hook_manager_with_mocks.handle(sample_session_start_event)
 
@@ -464,7 +466,7 @@ class TestHookManagerToolEvents:
 class TestHookManagerShutdown:
     """Tests for HookManager shutdown."""
 
-    def test_shutdown_stops_health_check(self, hook_manager_with_mocks: HookManager):
+    def test_shutdown_stops_health_check(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that shutdown stops health check monitoring."""
         manager = hook_manager_with_mocks
 
@@ -483,13 +485,13 @@ class TestHookManagerShutdown:
 class TestHookManagerGetEventHandler:
     """Tests for event handler lookup."""
 
-    def test_get_handler_for_known_event(self, hook_manager_with_mocks: HookManager):
+    def test_get_handler_for_known_event(self, hook_manager_with_mocks: HookManager) -> None:
         """Test getting handler for known event type."""
         handler = hook_manager_with_mocks._get_event_handler(HookEventType.SESSION_START)
         assert handler is not None
         assert callable(handler)
 
-    def test_get_handler_for_all_event_types(self, hook_manager_with_mocks: HookManager):
+    def test_get_handler_for_all_event_types(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that all event types in map have handlers."""
         handler_map = hook_manager_with_mocks._event_handlers.get_handler_map()
         for event_type in handler_map:
@@ -500,7 +502,7 @@ class TestHookManagerGetEventHandler:
 class TestHookManagerMachineId:
     """Tests for machine ID functionality."""
 
-    def test_get_machine_id(self, hook_manager_with_mocks: HookManager):
+    def test_get_machine_id(self, hook_manager_with_mocks: HookManager) -> None:
         """Test getting machine ID returns a string."""
         result = hook_manager_with_mocks.get_machine_id()
         # Should return a string (either from cache, config, or generated)
@@ -510,7 +512,7 @@ class TestHookManagerMachineId:
 class TestHookManagerCachedDaemonStatus:
     """Tests for cached daemon status."""
 
-    def test_get_cached_daemon_status(self, hook_manager_with_mocks: HookManager):
+    def test_get_cached_daemon_status(self, hook_manager_with_mocks: HookManager) -> None:
         """Test getting cached daemon status."""
         manager = hook_manager_with_mocks
 
@@ -531,7 +533,9 @@ class TestHookManagerCachedDaemonStatus:
 class TestHookManagerConfigLoadError:
     """Tests for config loading error handling."""
 
-    def test_init_handles_config_load_error(self, temp_dir: Path, mock_daemon_client: MagicMock):
+    def test_init_handles_config_load_error(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ) -> None:
         """Test that init handles config loading errors gracefully."""
         with (
             patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
@@ -555,7 +559,7 @@ class TestHookManagerConfigLoadError:
 
     def test_init_uses_default_health_check_interval_without_config(
         self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
+    ) -> None:
         """Test that init uses default health check interval when config is None."""
         with (
             patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
@@ -581,7 +585,7 @@ class TestHookManagerWorkflowBlocking:
 
     def test_handle_workflow_blocks_event(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that workflow can block an event."""
         manager = hook_manager_with_mocks
 
@@ -607,7 +611,7 @@ class TestHookManagerWorkflowBlocking:
 
     def test_handle_workflow_ask_decision(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that workflow can return ask decision."""
         manager = hook_manager_with_mocks
 
@@ -633,7 +637,7 @@ class TestHookManagerWorkflowBlocking:
 
     def test_handle_workflow_context_merged(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that workflow context is merged into response."""
         manager = hook_manager_with_mocks
 
@@ -647,7 +651,7 @@ class TestHookManagerWorkflowBlocking:
 
     def test_handle_workflow_error_fails_open(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that workflow errors fail open."""
         manager = hook_manager_with_mocks
 
@@ -668,7 +672,7 @@ class TestHookManagerWebhookBlocking:
 
     def test_handle_webhook_blocks_event(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that blocking webhook can block an event."""
         manager = hook_manager_with_mocks
 
@@ -697,7 +701,7 @@ class TestHookManagerWebhookBlocking:
 
     def test_handle_webhook_error_fails_open(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that webhook errors fail open."""
         manager = hook_manager_with_mocks
 
@@ -716,7 +720,7 @@ class TestHookManagerPluginHandling:
 
     def test_handle_plugin_pre_handler_blocks(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that plugin pre-handler can block an event."""
         manager = hook_manager_with_mocks
 
@@ -745,7 +749,7 @@ class TestHookManagerPluginHandling:
 
     def test_handle_plugin_pre_handler_deny(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that plugin pre-handler deny decision blocks."""
         manager = hook_manager_with_mocks
 
@@ -773,7 +777,7 @@ class TestHookManagerPluginHandling:
 
     def test_handle_plugin_pre_handler_error_fails_open(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that plugin pre-handler errors fail open."""
         manager = hook_manager_with_mocks
 
@@ -792,7 +796,7 @@ class TestHookManagerPluginHandling:
 
     def test_handle_plugin_post_handler_called(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that plugin post-handler is called after event handling."""
         manager = hook_manager_with_mocks
 
@@ -819,7 +823,7 @@ class TestHookManagerPluginHandling:
 
     def test_handle_plugin_post_handler_error_continues(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that plugin post-handler errors don't affect response."""
         manager = hook_manager_with_mocks
 
@@ -846,7 +850,7 @@ class TestHookManagerHandlerErrors:
 
     def test_handle_handler_exception_fails_open(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that handler exceptions fail open."""
         manager = hook_manager_with_mocks
 
@@ -875,7 +879,7 @@ class TestHookManagerBroadcasting:
 
     def test_handle_broadcasts_event_with_loop(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that events are broadcast when broadcaster is configured."""
         import asyncio
 
@@ -900,7 +904,7 @@ class TestHookManagerBroadcasting:
 
     def test_handle_broadcasts_event_threadsafe(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that events are broadcast thread-safely when no loop is running."""
         import asyncio
         import time
@@ -941,7 +945,7 @@ class TestHookManagerBroadcasting:
 
     def test_handle_no_loop_no_broadcaster_error(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that handle works without event loop and no broadcaster."""
         manager = hook_manager_with_mocks
         manager.broadcaster = MagicMock()
@@ -953,7 +957,7 @@ class TestHookManagerBroadcasting:
 
     def test_handle_broadcast_threadsafe_error(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that broadcast errors from run_coroutine_threadsafe are handled."""
         import asyncio
         import warnings
@@ -983,7 +987,7 @@ class TestHookManagerBroadcasting:
 
     def test_handle_dispatch_webhooks_async_error(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that async webhook dispatch errors are handled."""
         manager = hook_manager_with_mocks
 
@@ -1002,7 +1006,7 @@ class TestHookManagerSessionLookup:
 
     def test_handle_looks_up_session_from_database(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that session is looked up from database when not in cache."""
         manager = hook_manager_with_mocks
 
@@ -1025,7 +1029,7 @@ class TestHookManagerSessionLookup:
 
     def test_handle_auto_registers_unknown_session(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that unknown sessions are auto-registered."""
         manager = hook_manager_with_mocks
 
@@ -1060,7 +1064,7 @@ class TestHookManagerSessionLookup:
 
     def test_handle_resolves_active_task(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that active task is resolved for session."""
         manager = hook_manager_with_mocks
 
@@ -1103,7 +1107,7 @@ class TestHookManagerSessionLookup:
 
     def test_handle_task_resolution_error(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that task resolution errors are handled gracefully."""
         manager = hook_manager_with_mocks
 
@@ -1143,7 +1147,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_sync_disabled(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that sync webhook dispatch returns empty when disabled."""
         manager = hook_manager_with_mocks
 
@@ -1164,7 +1168,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_sync_no_matching_endpoints(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that sync webhook dispatch returns empty when no matching endpoints."""
         manager = hook_manager_with_mocks
 
@@ -1186,7 +1190,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_sync_with_matching_endpoints(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that sync webhook dispatch works with matching endpoints."""
         from gobby.config.extensions import WebhookEndpointConfig
 
@@ -1239,7 +1243,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_async_disabled(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that async webhook dispatch does nothing when disabled."""
         manager = hook_manager_with_mocks
 
@@ -1260,7 +1264,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_async_no_matching_endpoints(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that async webhook dispatch does nothing when no matching endpoints."""
         manager = hook_manager_with_mocks
 
@@ -1282,7 +1286,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_async_with_matching_endpoints(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that async webhook dispatch schedules tasks for matching endpoints."""
         import asyncio
         import threading
@@ -1341,7 +1345,7 @@ class TestHookManagerWebhookDispatch:
 
     def test_dispatch_webhooks_async_within_running_loop(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that async webhook dispatch creates task when inside running loop."""
         import asyncio
 
@@ -1392,7 +1396,7 @@ class TestHookManagerShutdownWebhook:
 
     def test_shutdown_closes_webhook_dispatcher_with_loop(
         self, hook_manager_with_mocks: HookManager
-    ):
+    ) -> None:
         """Test that shutdown closes webhook dispatcher when loop is available."""
         import asyncio
 
@@ -1423,7 +1427,7 @@ class TestHookManagerShutdownWebhook:
 
     def test_shutdown_closes_webhook_dispatcher_without_loop(
         self, hook_manager_with_mocks: HookManager
-    ):
+    ) -> None:
         """Test that shutdown closes webhook dispatcher when no loop is available."""
         manager = hook_manager_with_mocks
         manager._loop = None
@@ -1433,7 +1437,9 @@ class TestHookManagerShutdownWebhook:
 
         assert manager._health_monitor._is_shutdown is True
 
-    def test_shutdown_handles_webhook_close_error(self, hook_manager_with_mocks: HookManager):
+    def test_shutdown_handles_webhook_close_error(
+        self, hook_manager_with_mocks: HookManager
+    ) -> None:
         """Test that shutdown handles webhook dispatcher close errors."""
         manager = hook_manager_with_mocks
 
@@ -1453,7 +1459,9 @@ class TestHookManagerShutdownWebhook:
 class TestHookManagerResolveProjectId:
     """Tests for project ID resolution."""
 
-    def test_resolve_project_id_returns_provided_id(self, hook_manager_with_mocks: HookManager):
+    def test_resolve_project_id_returns_provided_id(
+        self, hook_manager_with_mocks: HookManager
+    ) -> None:
         """Test that provided project ID is returned directly."""
         manager = hook_manager_with_mocks
 
@@ -1462,7 +1470,7 @@ class TestHookManagerResolveProjectId:
 
     def test_resolve_project_id_from_project_context(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that project ID is resolved from project.json."""
         manager = hook_manager_with_mocks
 
@@ -1476,7 +1484,7 @@ class TestHookManagerResolveProjectId:
 
     def test_resolve_project_id_auto_initializes(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
-    ):
+    ) -> None:
         """Test that project is auto-initialized when no project.json exists."""
         manager = hook_manager_with_mocks
 
@@ -1501,7 +1509,7 @@ class TestHookManagerLogging:
 
     def test_setup_logging_creates_log_directory(
         self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
+    ) -> None:
         """Test that logging setup creates the log file directory."""
         # First ensure the parent directory for logs doesn't exist
         log_dir = temp_dir / "new_custom_logs"
@@ -1528,7 +1536,7 @@ class TestHookManagerLogging:
 
     def test_setup_logging_reuses_existing_logger(
         self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
+    ) -> None:
         """Test that logging setup reuses existing logger if already configured."""
         import logging
 
@@ -1558,7 +1566,9 @@ class TestHookManagerLogging:
 class TestHookManagerPluginLoading:
     """Tests for plugin loading during initialization."""
 
-    def test_init_loads_plugins_when_enabled(self, temp_dir: Path, mock_daemon_client: MagicMock):
+    def test_init_loads_plugins_when_enabled(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ) -> None:
         """Test that plugins are loaded when enabled in config."""
         from gobby.config.extensions import PluginsConfig
 
@@ -1595,7 +1605,9 @@ class TestHookManagerPluginLoading:
 
             manager.shutdown()
 
-    def test_init_handles_plugin_load_error(self, temp_dir: Path, mock_daemon_client: MagicMock):
+    def test_init_handles_plugin_load_error(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ) -> None:
         """Test that plugin loading errors are handled gracefully."""
         from gobby.config.extensions import PluginsConfig
 
@@ -1639,7 +1651,7 @@ class TestHookManagerContextMerging:
 
     def test_merge_workflow_context_with_existing_response_context(
         self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
-    ):
+    ) -> None:
         """Test that workflow context is appended to existing response context."""
         manager = hook_manager_with_mocks
 
@@ -1664,7 +1676,9 @@ class TestHookManagerContextMerging:
 class TestHookManagerMachineIdFallback:
     """Tests for machine ID fallback behavior."""
 
-    def test_get_machine_id_returns_unknown_on_none(self, hook_manager_with_mocks: HookManager):
+    def test_get_machine_id_returns_unknown_on_none(
+        self, hook_manager_with_mocks: HookManager
+    ) -> None:
         """Test that get_machine_id returns 'unknown-machine' when underlying returns None."""
         manager = hook_manager_with_mocks
 
@@ -1678,7 +1692,7 @@ class TestHookManagerMachineIdFallback:
 
     def test_get_machine_id_returns_value_when_available(
         self, hook_manager_with_mocks: HookManager
-    ):
+    ) -> None:
         """Test that get_machine_id returns the underlying value when available."""
         manager = hook_manager_with_mocks
 
@@ -1695,7 +1709,7 @@ class TestHookManagerMachineIdFallback:
 class TestArtifactCaptureHookImport:
     """Tests for importing ArtifactCaptureHook."""
 
-    def test_import_artifact_capture_hook(self):
+    def test_import_artifact_capture_hook(self) -> None:
         """Test that ArtifactCaptureHook can be imported."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
 
@@ -1736,7 +1750,7 @@ def artifact_test_db(temp_dir: Path):
 class TestArtifactCaptureHookProcessing:
     """Tests for ArtifactCaptureHook processing assistant messages."""
 
-    def test_processes_assistant_messages(self, artifact_test_db):
+    def test_processes_assistant_messages(self, artifact_test_db) -> None:
         """Test that ArtifactCaptureHook processes assistant messages."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
 
@@ -1745,7 +1759,7 @@ class TestArtifactCaptureHookProcessing:
         # Hook should have a method to process messages
         assert hasattr(hook, "process_message")
 
-    def test_ignores_user_messages(self, artifact_test_db):
+    def test_ignores_user_messages(self, artifact_test_db) -> None:
         """Test that ArtifactCaptureHook ignores user messages."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
 
@@ -1765,7 +1779,7 @@ class TestArtifactCaptureHookProcessing:
 class TestArtifactCaptureHookCodeExtraction:
     """Tests for code block extraction from messages."""
 
-    def test_extracts_code_blocks_from_message(self, temp_dir: Path):
+    def test_extracts_code_blocks_from_message(self, temp_dir: Path) -> None:
         """Test that code blocks are extracted and stored as artifacts."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager
@@ -1819,7 +1833,7 @@ function greet() {
 
         db.close()
 
-    def test_code_block_includes_language_metadata(self, temp_dir: Path):
+    def test_code_block_includes_language_metadata(self, temp_dir: Path) -> None:
         """Test that extracted code blocks have language metadata."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager
@@ -1867,7 +1881,7 @@ fn main() {
 class TestArtifactCaptureHookFileReferences:
     """Tests for file reference extraction from messages."""
 
-    def test_extracts_file_paths_from_message(self, temp_dir: Path):
+    def test_extracts_file_paths_from_message(self, temp_dir: Path) -> None:
         """Test that file references are extracted and stored."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager
@@ -1914,7 +1928,7 @@ class TestArtifactCaptureHookFileReferences:
 class TestArtifactCaptureHookSessionLinking:
     """Tests for artifact session linking."""
 
-    def test_artifacts_linked_to_session_id(self, temp_dir: Path):
+    def test_artifacts_linked_to_session_id(self, temp_dir: Path) -> None:
         """Test that artifacts are linked to the correct session_id."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager
@@ -1962,7 +1976,7 @@ print("test")
 class TestArtifactCaptureHookRegistration:
     """Tests for hook registration in HooksManager."""
 
-    def test_hook_registered_in_hooks_manager(self, hook_manager_with_mocks: HookManager):
+    def test_hook_registered_in_hooks_manager(self, hook_manager_with_mocks: HookManager) -> None:
         """Test that ArtifactCaptureHook is registered in HooksManager."""
         manager = hook_manager_with_mocks
 
@@ -1977,7 +1991,7 @@ class TestArtifactCaptureHookRegistration:
 class TestArtifactCaptureHookDuplicateDetection:
     """Tests for duplicate content detection."""
 
-    def test_duplicate_content_not_restored(self, temp_dir: Path):
+    def test_duplicate_content_not_restored(self, temp_dir: Path) -> None:
         """Test that duplicate content is not stored again."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager
@@ -2032,7 +2046,7 @@ def duplicate():
 
         db.close()
 
-    def test_similar_but_different_content_stored(self, temp_dir: Path):
+    def test_similar_but_different_content_stored(self, temp_dir: Path) -> None:
         """Test that similar but different content is stored separately."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
         from gobby.storage.artifacts import LocalArtifactManager

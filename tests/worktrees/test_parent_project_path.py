@@ -10,14 +10,17 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from gobby.mcp_proxy.tools.worktrees import _copy_project_json_to_worktree
 from gobby.utils.project_context import get_project_context, get_workflow_project_path
 
+pytestmark = pytest.mark.unit
 
 class TestCopyProjectJsonToWorktree:
     """Tests for _copy_project_json_to_worktree function."""
 
-    def test_copies_project_json_with_parent_path(self, tmp_path: Path):
+    def test_copies_project_json_with_parent_path(self, tmp_path: Path) -> None:
         """Verify parent_project_path is added when copying project.json to worktree."""
         # Setup main repo with .gobby/project.json
         main_repo = tmp_path / "main_repo"
@@ -51,7 +54,7 @@ class TestCopyProjectJsonToWorktree:
         assert data["id"] == "proj-123"
         assert data["name"] == "test-project"
 
-    def test_does_not_overwrite_existing_project_json(self, tmp_path: Path):
+    def test_does_not_overwrite_existing_project_json(self, tmp_path: Path) -> None:
         """Verify existing worktree project.json is not overwritten."""
         # Setup main repo
         main_repo = tmp_path / "main_repo"
@@ -81,7 +84,7 @@ class TestCopyProjectJsonToWorktree:
         assert data["id"] == "existing-id", "Original ID should be preserved"
         assert data["parent_project_path"] == "/some/old/path", "Original parent path preserved"
 
-    def test_no_project_json_in_main_repo(self, tmp_path: Path):
+    def test_no_project_json_in_main_repo(self, tmp_path: Path) -> None:
         """Verify function handles missing project.json in main repo gracefully."""
         # Setup main repo without project.json
         main_repo = tmp_path / "main_repo"
@@ -98,7 +101,7 @@ class TestCopyProjectJsonToWorktree:
         worktree_project_json = worktree / ".gobby" / "project.json"
         assert not worktree_project_json.exists()
 
-    def test_creates_gobby_dir_if_missing(self, tmp_path: Path):
+    def test_creates_gobby_dir_if_missing(self, tmp_path: Path) -> None:
         """Verify .gobby directory is created in worktree if it doesn't exist."""
         # Setup main repo
         main_repo = tmp_path / "main_repo"
@@ -123,7 +126,7 @@ class TestCopyProjectJsonToWorktree:
 class TestGetWorkflowProjectPath:
     """Tests for get_workflow_project_path function."""
 
-    def test_returns_parent_path_for_worktree(self, tmp_path: Path):
+    def test_returns_parent_path_for_worktree(self, tmp_path: Path) -> None:
         """Verify get_workflow_project_path returns parent_project_path for worktrees."""
         # Setup worktree with parent_project_path in project.json
         worktree = tmp_path / "worktree"
@@ -144,7 +147,7 @@ class TestGetWorkflowProjectPath:
         assert result is not None
         assert result == parent_path
 
-    def test_returns_project_path_for_main_project(self, tmp_path: Path):
+    def test_returns_project_path_for_main_project(self, tmp_path: Path) -> None:
         """Verify get_workflow_project_path returns project_path for non-worktrees."""
         # Setup main project without parent_project_path
         project = tmp_path / "project"
@@ -159,7 +162,7 @@ class TestGetWorkflowProjectPath:
         assert result is not None
         assert result.resolve() == project.resolve()
 
-    def test_returns_none_for_no_project(self, tmp_path: Path, monkeypatch):
+    def test_returns_none_for_no_project(self, tmp_path: Path, monkeypatch) -> None:
         """Verify get_workflow_project_path returns None when no project found."""
         # Isolate test from parent directories
         original_exists = Path.exists
@@ -177,7 +180,7 @@ class TestGetWorkflowProjectPath:
 
         assert result is None
 
-    def test_handles_missing_project_path_key(self, tmp_path: Path):
+    def test_handles_missing_project_path_key(self, tmp_path: Path) -> None:
         """Verify function handles project.json without project_path key."""
         project = tmp_path / "project"
         project.mkdir()
@@ -192,7 +195,7 @@ class TestGetWorkflowProjectPath:
         # Should still work - project_path is added by get_project_context
         assert result is not None
 
-    def test_handles_nested_worktree_scenario(self, tmp_path: Path):
+    def test_handles_nested_worktree_scenario(self, tmp_path: Path) -> None:
         """Verify function handles nested worktree scenario by following parent chain."""
         # Scenario: worktree of a worktree should still resolve to original parent
         # In practice, worktrees should always point to the main project, not to
@@ -216,7 +219,7 @@ class TestGetWorkflowProjectPath:
         assert result is not None
         assert result == original_project
 
-    def test_returns_from_subdirectory(self, tmp_path: Path):
+    def test_returns_from_subdirectory(self, tmp_path: Path) -> None:
         """Verify function works when called from a subdirectory of the project."""
         project = tmp_path / "project"
         project.mkdir()
@@ -239,7 +242,7 @@ class TestGetWorkflowProjectPath:
 class TestReadParentProjectPath:
     """Tests for reading parent_project_path from existing worktree project.json."""
 
-    def test_get_project_context_includes_parent_project_path(self, tmp_path: Path):
+    def test_get_project_context_includes_parent_project_path(self, tmp_path: Path) -> None:
         """Verify get_project_context returns parent_project_path if present."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
@@ -262,7 +265,7 @@ class TestReadParentProjectPath:
         assert result["parent_project_path"] == "/path/to/parent"
         assert result["id"] == "wt-id"
 
-    def test_get_project_context_without_parent_project_path(self, tmp_path: Path):
+    def test_get_project_context_without_parent_project_path(self, tmp_path: Path) -> None:
         """Verify get_project_context works without parent_project_path."""
         project = tmp_path / "project"
         project.mkdir()
@@ -281,7 +284,7 @@ class TestReadParentProjectPath:
 class TestEdgeCases:
     """Tests for edge cases when worktree is not inside a parent project."""
 
-    def test_worktree_with_nonexistent_parent_path(self, tmp_path: Path):
+    def test_worktree_with_nonexistent_parent_path(self, tmp_path: Path) -> None:
         """Verify handling when parent_project_path points to nonexistent directory."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
@@ -299,7 +302,7 @@ class TestEdgeCases:
         assert result is not None
         assert result == Path("/nonexistent/path")
 
-    def test_worktree_with_empty_parent_path(self, tmp_path: Path):
+    def test_worktree_with_empty_parent_path(self, tmp_path: Path) -> None:
         """Verify handling when parent_project_path is empty string."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
@@ -314,7 +317,7 @@ class TestEdgeCases:
         assert result is not None
         assert result.resolve() == worktree.resolve()
 
-    def test_worktree_with_null_parent_path(self, tmp_path: Path):
+    def test_worktree_with_null_parent_path(self, tmp_path: Path) -> None:
         """Verify handling when parent_project_path is null/None."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
@@ -329,7 +332,7 @@ class TestEdgeCases:
         assert result is not None
         assert result.resolve() == worktree.resolve()
 
-    def test_copy_handles_json_write_error(self, tmp_path: Path):
+    def test_copy_handles_json_write_error(self, tmp_path: Path) -> None:
         """Verify _copy_project_json_to_worktree handles write errors gracefully."""
         # Setup main repo
         main_repo = tmp_path / "main_repo"
@@ -351,7 +354,7 @@ class TestEdgeCases:
         # Verify .gobby dir was created (function gets that far before error)
         assert (worktree / ".gobby").is_dir()
 
-    def test_copy_handles_invalid_json_in_source(self, tmp_path: Path):
+    def test_copy_handles_invalid_json_in_source(self, tmp_path: Path) -> None:
         """Verify _copy_project_json_to_worktree handles invalid JSON in source."""
         # Setup main repo with invalid JSON
         main_repo = tmp_path / "main_repo"

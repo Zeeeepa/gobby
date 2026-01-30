@@ -20,7 +20,7 @@ gobby sessions create-handoff #42
 
 ```python
 # MCP: Get your current session ID (the correct way)
-call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+call_tool(server_name="gobby-sessions", tool_name="get_current_session", arguments={
     "external_id": "<your_claude_session_id>",
     "source": "claude"
 })
@@ -52,7 +52,7 @@ created → active → paused → handoff_ready → completed
 Gobby tracks which CLI created each session:
 
 | Source | Description |
-|--------|-------------|
+| :--- | :--- |
 | `claude` | Claude Code |
 | `gemini` | Gemini CLI |
 | `codex` | OpenAI Codex CLI |
@@ -92,7 +92,7 @@ gobby sessions list [OPTIONS]
 ```
 
 | Option | Description |
-|--------|-------------|
+| :--- | :--- |
 | `--project REF` | Filter by project |
 | `--status STATUS` | Filter by status |
 | `--limit N` | Max sessions (default: 20) |
@@ -116,9 +116,9 @@ View session transcript.
 gobby sessions messages SESSION_ID [--limit N] [--role ROLE]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--limit N` | Max messages (default: 50) |
+| Option        | Description                           |
+| :------------ | :------------------------------------ |
+| `--limit N`   | Max messages (default: 50)            |
 | `--role ROLE` | Filter by role: user, assistant, tool |
 
 ### `gobby sessions search`
@@ -159,12 +159,12 @@ gobby sessions delete SESSION_ID
 
 ## MCP Tools
 
-### get_current
+### get_current_session
 
 **Get YOUR current session ID** - the correct way to look up your session.
 
 ```python
-call_tool(server_name="gobby-sessions", tool_name="get_current", arguments={
+call_tool(server_name="gobby-sessions", tool_name="get_current_session", arguments={
     "external_id": "<your_external_session_id>",
     "source": "claude"  # or "gemini", "codex"
 })
@@ -326,7 +326,7 @@ Sessions work seamlessly across Claude Code, Gemini CLI, and Codex CLI.
 ### Hook Events
 
 | Event | Trigger | Action |
-|-------|---------|--------|
+| :--- | :--- | :--- |
 | `SessionStart` | CLI starts | Register session, restore context |
 | `PromptSubmit` | User sends message | Update title, track message |
 | `Stop` | CLI pauses | Mark session as paused |
@@ -336,7 +336,7 @@ Sessions work seamlessly across Claude Code, Gemini CLI, and Codex CLI.
 
 ### Do
 
-- Use `get_current` to find your session ID
+- Use `get_current_session` to find your session ID
 - Create handoffs before long breaks
 - Link tasks to sessions for traceability
 - Use meaningful session titles
@@ -370,7 +370,7 @@ Sessions work seamlessly across Claude Code, Gemini CLI, and Codex CLI.
 ## Data Storage
 
 | Path | Description |
-|------|-------------|
+| :--- | :--- |
 | `~/.gobby/gobby-hub.db` | SQLite database with sessions table |
 | `~/.gobby/logs/` | Session-related logs |
 

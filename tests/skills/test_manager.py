@@ -29,21 +29,21 @@ def storage(db):
 class TestSkillManagerCreation:
     """Tests for SkillManager creation and initialization."""
 
-    def test_create_manager(self, db):
+    def test_create_manager(self, db) -> None:
         """Test creating a SkillManager instance."""
         from gobby.skills.manager import SkillManager
 
         manager = SkillManager(db)
         assert manager is not None
 
-    def test_manager_has_storage(self, db):
+    def test_manager_has_storage(self, db) -> None:
         """Test that manager has storage component."""
         from gobby.skills.manager import SkillManager
 
         manager = SkillManager(db)
         assert manager.storage is not None
 
-    def test_manager_has_search(self, db):
+    def test_manager_has_search(self, db) -> None:
         """Test that manager has search component."""
         from gobby.skills.manager import SkillManager
 
@@ -54,7 +54,7 @@ class TestSkillManagerCreation:
 class TestSkillManagerCRUD:
     """Tests for SkillManager CRUD operations."""
 
-    def test_create_skill(self, db):
+    def test_create_skill(self, db) -> None:
         """Test creating a skill through manager."""
         from gobby.skills.manager import SkillManager
 
@@ -68,7 +68,7 @@ class TestSkillManagerCRUD:
         assert skill.id is not None
         assert skill.name == "test-skill"
 
-    def test_get_skill(self, db):
+    def test_get_skill(self, db) -> None:
         """Test getting a skill through manager."""
         from gobby.skills.manager import SkillManager
 
@@ -83,7 +83,7 @@ class TestSkillManagerCRUD:
         assert fetched.id == created.id
         assert fetched.name == "get-test"
 
-    def test_get_by_name(self, db):
+    def test_get_by_name(self, db) -> None:
         """Test getting a skill by name through manager."""
         from gobby.skills.manager import SkillManager
 
@@ -98,7 +98,7 @@ class TestSkillManagerCRUD:
         assert skill is not None
         assert skill.name == "named-skill"
 
-    def test_update_skill(self, db):
+    def test_update_skill(self, db) -> None:
         """Test updating a skill through manager."""
         from gobby.skills.manager import SkillManager
 
@@ -112,7 +112,7 @@ class TestSkillManagerCRUD:
         updated = manager.update_skill(created.id, description="Updated")
         assert updated.description == "Updated"
 
-    def test_delete_skill(self, db):
+    def test_delete_skill(self, db) -> None:
         """Test deleting a skill through manager."""
         from gobby.skills.manager import SkillManager
 
@@ -129,7 +129,7 @@ class TestSkillManagerCRUD:
         # Verify it's gone
         assert manager.get_by_name("delete-test") is None
 
-    def test_list_skills(self, db):
+    def test_list_skills(self, db) -> None:
         """Test listing skills through manager."""
         from gobby.skills.manager import SkillManager
 
@@ -144,7 +144,7 @@ class TestSkillManagerCRUD:
 class TestSkillManagerSearch:
     """Tests for SkillManager search integration."""
 
-    def test_search_after_create(self, db):
+    def test_search_after_create(self, db) -> None:
         """Test that created skills are searchable."""
         from gobby.skills.manager import SkillManager
 
@@ -162,7 +162,7 @@ class TestSkillManagerSearch:
         assert len(results) > 0
         assert results[0].skill_name == "searchable"
 
-    def test_search_with_filters(self, db):
+    def test_search_with_filters(self, db) -> None:
         """Test searching with filters through manager."""
         from gobby.skills.manager import SkillManager
         from gobby.skills.search import SearchFilters
@@ -194,7 +194,7 @@ class TestSkillManagerSearch:
 class TestSkillManagerAutoReindex:
     """Tests for SkillManager automatic search reindexing."""
 
-    def test_create_triggers_search_update(self, db):
+    def test_create_triggers_search_update(self, db) -> None:
         """Test that creating a skill triggers search update tracking."""
         from gobby.skills.manager import SkillManager
 
@@ -211,7 +211,7 @@ class TestSkillManagerAutoReindex:
         # Should have pending update
         assert manager._search._pending_updates > initial_updates
 
-    def test_update_triggers_search_update(self, db):
+    def test_update_triggers_search_update(self, db) -> None:
         """Test that updating a skill triggers search update tracking."""
         from gobby.skills.manager import SkillManager
 
@@ -227,7 +227,7 @@ class TestSkillManagerAutoReindex:
 
         assert manager._search._pending_updates > 0
 
-    def test_delete_triggers_search_update(self, db):
+    def test_delete_triggers_search_update(self, db) -> None:
         """Test that deleting a skill triggers search update tracking."""
         from gobby.skills.manager import SkillManager
 
@@ -243,7 +243,7 @@ class TestSkillManagerAutoReindex:
 
         assert manager._search._pending_updates > 0
 
-    def test_needs_reindex(self, db):
+    def test_needs_reindex(self, db) -> None:
         """Test checking if reindex is needed."""
         from gobby.skills.manager import SkillManager
 
@@ -266,7 +266,7 @@ class TestSkillManagerAutoReindex:
 class TestSkillManagerCoreSkills:
     """Tests for SkillManager core skills (alwaysApply=true)."""
 
-    def test_list_core_skills_empty(self, db):
+    def test_list_core_skills_empty(self, db) -> None:
         """Test listing core skills when none exist."""
         from gobby.skills.manager import SkillManager
 
@@ -274,7 +274,7 @@ class TestSkillManagerCoreSkills:
         core = manager.list_core_skills()
         assert core == []
 
-    def test_list_core_skills(self, db):
+    def test_list_core_skills(self, db) -> None:
         """Test listing core skills with alwaysApply=true."""
         from gobby.skills.manager import SkillManager
 
@@ -300,7 +300,7 @@ class TestSkillManagerCoreSkills:
         assert len(core) == 1
         assert core[0].name == "core-skill"
 
-    def test_list_core_skills_includes_no_metadata(self, db):
+    def test_list_core_skills_includes_no_metadata(self, db) -> None:
         """Test that skills without metadata are not core skills."""
         from gobby.skills.manager import SkillManager
 
@@ -320,7 +320,7 @@ class TestSkillManagerCoreSkills:
 class TestSkillManagerProjectScope:
     """Tests for SkillManager project scoping."""
 
-    def test_create_global_skill(self, db):
+    def test_create_global_skill(self, db) -> None:
         """Test creating a global skill (no project)."""
         from gobby.skills.manager import SkillManager
 
@@ -333,7 +333,7 @@ class TestSkillManagerProjectScope:
 
         assert skill.project_id is None
 
-    def test_list_global_skills(self, db):
+    def test_list_global_skills(self, db) -> None:
         """Test listing global skills."""
         from gobby.skills.manager import SkillManager
 

@@ -645,49 +645,49 @@ class TestResetValidationCountTool:
 class TestValidationToolsRegistration:
     """Tests verifying validation tools are properly registered in the new module."""
 
-    def test_validate_task_tool_registered(self, validation_registry):
+    def test_validate_task_tool_registered(self, validation_registry) -> None:
         """Test that validate_task is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "validate_task" in tool_names
 
-    def test_generate_validation_criteria_tool_registered(self, validation_registry):
+    def test_generate_validation_criteria_tool_registered(self, validation_registry) -> None:
         """Test that generate_validation_criteria is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "generate_validation_criteria" in tool_names
 
-    def test_get_validation_status_tool_registered(self, validation_registry):
+    def test_get_validation_status_tool_registered(self, validation_registry) -> None:
         """Test that get_validation_status is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "get_validation_status" in tool_names
 
-    def test_reset_validation_count_tool_registered(self, validation_registry):
+    def test_reset_validation_count_tool_registered(self, validation_registry) -> None:
         """Test that reset_validation_count is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "reset_validation_count" in tool_names
 
-    def test_get_validation_history_tool_registered(self, validation_registry):
+    def test_get_validation_history_tool_registered(self, validation_registry) -> None:
         """Test that get_validation_history is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "get_validation_history" in tool_names
 
-    def test_get_recurring_issues_tool_registered(self, validation_registry):
+    def test_get_recurring_issues_tool_registered(self, validation_registry) -> None:
         """Test that get_recurring_issues is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "get_recurring_issues" in tool_names
 
-    def test_clear_validation_history_tool_registered(self, validation_registry):
+    def test_clear_validation_history_tool_registered(self, validation_registry) -> None:
         """Test that clear_validation_history is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "clear_validation_history" in tool_names
 
-    def test_de_escalate_task_tool_registered(self, validation_registry):
+    def test_de_escalate_task_tool_registered(self, validation_registry) -> None:
         """Test that de_escalate_task is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
@@ -702,7 +702,7 @@ class TestValidationToolsRegistration:
 class TestValidationToolSchemas:
     """Tests for tool input schemas."""
 
-    def test_validate_task_schema(self, validation_registry):
+    def test_validate_task_schema(self, validation_registry) -> None:
         """Test validate_task has correct input schema."""
         schema = validation_registry.get_schema("validate_task")
         assert schema is not None
@@ -711,7 +711,7 @@ class TestValidationToolSchemas:
         assert "changes_summary" in input_schema["properties"]
         assert "context_files" in input_schema["properties"]
 
-    def test_generate_validation_criteria_schema(self, validation_registry):
+    def test_generate_validation_criteria_schema(self, validation_registry) -> None:
         """Test generate_validation_criteria has correct input schema."""
         schema = validation_registry.get_schema("generate_validation_criteria")
         assert schema is not None
@@ -786,7 +786,7 @@ class TestRunFixAttemptTool:
         assert result["success"] is False
         assert "no issues" in result["error"].lower()
 
-    def test_run_fix_attempt_tool_registered(self, validation_registry):
+    def test_run_fix_attempt_tool_registered(self, validation_registry) -> None:
         """Test that run_fix_attempt is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
@@ -879,13 +879,13 @@ class TestValidateAndFixTool:
         assert result["is_valid"] is True
         assert result["iterations"] == 1
 
-    def test_validate_and_fix_tool_registered(self, validation_registry):
+    def test_validate_and_fix_tool_registered(self, validation_registry) -> None:
         """Test that validate_and_fix is registered."""
         tools = validation_registry.list_tools()
         tool_names = [t["name"] for t in tools]
         assert "validate_and_fix" in tool_names
 
-    def test_validate_and_fix_schema(self, validation_registry):
+    def test_validate_and_fix_schema(self, validation_registry) -> None:
         """Test validate_and_fix has correct input schema."""
         schema = validation_registry.get_schema("validate_and_fix")
         assert schema is not None

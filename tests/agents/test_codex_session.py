@@ -8,6 +8,8 @@ from gobby.agents.codex_session import (
     capture_codex_session_id,
 )
 
+pytestmark = pytest.mark.unit
+
 # Sample output matching the regex in codex_session.py
 SAMPLE_CODEX_OUTPUT = """OpenAI Codex v0.80.0 (research preview)
 --------
@@ -88,7 +90,7 @@ async def test_capture_codex_session_id_not_installed():
             await capture_codex_session_id()
 
 
-def test_session_id_pattern_regex():
+def test_session_id_pattern_regex() -> None:
     """Test the session ID regex pattern."""
     assert (
         SESSION_ID_PATTERN.match("session id: 019bbaea-3e0f-7d61-afc4-56a9456c2c7d").group(1)

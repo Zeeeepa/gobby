@@ -8,6 +8,7 @@ from gobby.config.extensions import HookExtensionsConfig, WebSocketBroadcastConf
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
+pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_broadcaster_broadcasts_session_start_event():

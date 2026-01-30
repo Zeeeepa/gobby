@@ -10,6 +10,7 @@ import pytest
 
 from gobby.sync.linear import LinearSyncService
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_mcp_manager():
@@ -46,7 +47,7 @@ def sync_service(mock_mcp_manager, mock_task_manager):
 class TestLinearSyncServiceInit:
     """Test LinearSyncService initialization."""
 
-    def test_init_with_dependencies(self, mock_mcp_manager, mock_task_manager):
+    def test_init_with_dependencies(self, mock_mcp_manager, mock_task_manager) -> None:
         """LinearSyncService initializes with mcp_manager and task_manager."""
         service = LinearSyncService(
             mcp_manager=mock_mcp_manager,
@@ -57,7 +58,7 @@ class TestLinearSyncServiceInit:
         assert service.task_manager is mock_task_manager
         assert service.project_id == "test-project"
 
-    def test_init_creates_linear_integration(self, mock_mcp_manager, mock_task_manager):
+    def test_init_creates_linear_integration(self, mock_mcp_manager, mock_task_manager) -> None:
         """LinearSyncService creates LinearIntegration for availability checks."""
         service = LinearSyncService(
             mcp_manager=mock_mcp_manager,
@@ -69,7 +70,7 @@ class TestLinearSyncServiceInit:
 
         assert isinstance(service.linear, LinearIntegration)
 
-    def test_init_default_team_id_is_none(self, mock_mcp_manager, mock_task_manager):
+    def test_init_default_team_id_is_none(self, mock_mcp_manager, mock_task_manager) -> None:
         """Default linear_team_id is None if not specified."""
         service = LinearSyncService(
             mcp_manager=mock_mcp_manager,
@@ -78,7 +79,7 @@ class TestLinearSyncServiceInit:
         )
         assert service.linear_team_id is None
 
-    def test_init_with_team_id(self, mock_mcp_manager, mock_task_manager):
+    def test_init_with_team_id(self, mock_mcp_manager, mock_task_manager) -> None:
         """LinearSyncService accepts linear_team_id parameter."""
         service = LinearSyncService(
             mcp_manager=mock_mcp_manager,
@@ -92,7 +93,7 @@ class TestLinearSyncServiceInit:
 class TestLinearSyncServiceAvailability:
     """Test availability checking."""
 
-    def test_requires_linear_available(self, mock_mcp_manager, mock_task_manager):
+    def test_requires_linear_available(self, mock_mcp_manager, mock_task_manager) -> None:
         """Operations should check Linear availability first."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -104,7 +105,7 @@ class TestLinearSyncServiceAvailability:
 
         assert service.linear.is_available() is False
 
-    def test_is_available_proxies_to_integration(self, mock_mcp_manager, mock_task_manager):
+    def test_is_available_proxies_to_integration(self, mock_mcp_manager, mock_task_manager) -> None:
         """is_available() delegates to LinearIntegration."""
         service = LinearSyncService(
             mcp_manager=mock_mcp_manager,
@@ -295,35 +296,35 @@ class TestLinearSyncServiceCreate:
 class TestStatusMapping:
     """Test status mapping functions."""
 
-    def test_map_gobby_status_to_linear_open(self, sync_service):
+    def test_map_gobby_status_to_linear_open(self, sync_service) -> None:
         """map_gobby_status_to_linear converts open to Todo."""
         assert sync_service.map_gobby_status_to_linear("open") == "Todo"
 
-    def test_map_gobby_status_to_linear_in_progress(self, sync_service):
+    def test_map_gobby_status_to_linear_in_progress(self, sync_service) -> None:
         """map_gobby_status_to_linear converts in_progress to In Progress."""
         assert sync_service.map_gobby_status_to_linear("in_progress") == "In Progress"
 
-    def test_map_gobby_status_to_linear_closed(self, sync_service):
+    def test_map_gobby_status_to_linear_closed(self, sync_service) -> None:
         """map_gobby_status_to_linear converts closed to Done."""
         assert sync_service.map_gobby_status_to_linear("closed") == "Done"
 
-    def test_map_gobby_status_to_linear_unknown(self, sync_service):
+    def test_map_gobby_status_to_linear_unknown(self, sync_service) -> None:
         """map_gobby_status_to_linear defaults to Todo for unknown status."""
         assert sync_service.map_gobby_status_to_linear("unknown") == "Todo"
 
-    def test_map_linear_status_to_gobby_todo(self, sync_service):
+    def test_map_linear_status_to_gobby_todo(self, sync_service) -> None:
         """map_linear_status_to_gobby converts Todo to open."""
         assert sync_service.map_linear_status_to_gobby("Todo") == "open"
 
-    def test_map_linear_status_to_gobby_in_progress(self, sync_service):
+    def test_map_linear_status_to_gobby_in_progress(self, sync_service) -> None:
         """map_linear_status_to_gobby converts In Progress to in_progress."""
         assert sync_service.map_linear_status_to_gobby("In Progress") == "in_progress"
 
-    def test_map_linear_status_to_gobby_done(self, sync_service):
+    def test_map_linear_status_to_gobby_done(self, sync_service) -> None:
         """map_linear_status_to_gobby converts Done to closed."""
         assert sync_service.map_linear_status_to_gobby("Done") == "closed"
 
-    def test_map_linear_status_to_gobby_unknown(self, sync_service):
+    def test_map_linear_status_to_gobby_unknown(self, sync_service) -> None:
         """map_linear_status_to_gobby defaults to open for unknown state."""
         assert sync_service.map_linear_status_to_gobby("Unknown State") == "open"
 
@@ -397,7 +398,7 @@ class TestLinearSyncIntegration:
 class TestLinearSyncExceptions:
     """Test custom exceptions and error handling."""
 
-    def test_linear_sync_error_base_exception(self):
+    def test_linear_sync_error_base_exception(self) -> None:
         """LinearSyncError is a base exception for sync errors."""
         from gobby.sync.linear import LinearSyncError
 
@@ -405,7 +406,7 @@ class TestLinearSyncExceptions:
         assert str(error) == "Something went wrong"
         assert isinstance(error, Exception)
 
-    def test_linear_rate_limit_error(self):
+    def test_linear_rate_limit_error(self) -> None:
         """LinearRateLimitError includes rate limit reset time."""
         from gobby.sync.linear import LinearRateLimitError
 
@@ -413,7 +414,7 @@ class TestLinearSyncExceptions:
         assert "Rate limited" in str(error)
         assert error.reset_at == 1234567890
 
-    def test_linear_not_found_error(self):
+    def test_linear_not_found_error(self) -> None:
         """LinearNotFoundError indicates missing resource."""
         from gobby.sync.linear import LinearNotFoundError
 

@@ -7,17 +7,20 @@ pure utility functions for git operations without ActionContext dependency.
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.workflows.git_utils import (
     get_file_changes,
     get_git_status,
     get_recent_git_commits,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestGetGitStatus:
     """Tests for get_git_status function."""
 
-    def test_returns_short_status(self):
+    def test_returns_short_status(self) -> None:
         """Test that git status --short output is returned."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="M file.py\nA new_file.py")
@@ -31,7 +34,7 @@ class TestGetGitStatus:
                 timeout=5,
             )
 
-    def test_returns_no_changes_when_empty(self):
+    def test_returns_no_changes_when_empty(self) -> None:
         """Test that 'No changes' is returned when status is empty."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="")
@@ -39,7 +42,7 @@ class TestGetGitStatus:
 
             assert result == "No changes"
 
-    def test_returns_no_changes_when_whitespace_only(self):
+    def test_returns_no_changes_when_whitespace_only(self) -> None:
         """Test that 'No changes' is returned when status is whitespace."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="   \n  \t  ")
@@ -47,7 +50,7 @@ class TestGetGitStatus:
 
             assert result == "No changes"
 
-    def test_handles_subprocess_timeout(self):
+    def test_handles_subprocess_timeout(self) -> None:
         """Test graceful handling of subprocess timeout."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
@@ -55,7 +58,7 @@ class TestGetGitStatus:
 
             assert result == "Not a git repository or git not available"
 
-    def test_handles_file_not_found_error(self):
+    def test_handles_file_not_found_error(self) -> None:
         """Test graceful handling when git is not installed."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("git not found")
@@ -63,7 +66,7 @@ class TestGetGitStatus:
 
             assert result == "Not a git repository or git not available"
 
-    def test_handles_permission_error(self):
+    def test_handles_permission_error(self) -> None:
         """Test graceful handling of permission errors."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = PermissionError("Permission denied")
@@ -71,7 +74,7 @@ class TestGetGitStatus:
 
             assert result == "Not a git repository or git not available"
 
-    def test_handles_generic_exception(self):
+    def test_handles_generic_exception(self) -> None:
         """Test graceful handling of unexpected exceptions."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Unexpected error")
@@ -79,7 +82,7 @@ class TestGetGitStatus:
 
             assert result == "Not a git repository or git not available"
 
-    def test_handles_not_a_git_repo(self):
+    def test_handles_not_a_git_repo(self) -> None:
         """Test handling when directory is not a git repository."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(returncode=128, cmd="git status")
@@ -87,7 +90,7 @@ class TestGetGitStatus:
 
             assert result == "Not a git repository or git not available"
 
-    def test_strips_output(self):
+    def test_strips_output(self) -> None:
         """Test that output is properly stripped of whitespace."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="  M file.py  \n")
@@ -95,7 +98,7 @@ class TestGetGitStatus:
 
             assert result == "M file.py"
 
-    def test_handles_multiple_files(self):
+    def test_handles_multiple_files(self) -> None:
         """Test handling of multiple changed files."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -112,7 +115,7 @@ class TestGetGitStatus:
 class TestGetRecentGitCommits:
     """Tests for get_recent_git_commits function."""
 
-    def test_returns_commits_with_hash_and_message(self):
+    def test_returns_commits_with_hash_and_message(self) -> None:
         """Test that commits are parsed correctly with hash and message."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -125,7 +128,7 @@ class TestGetRecentGitCommits:
             assert result[0] == {"hash": "abc123def456", "message": "feat: add feature"}
             assert result[1] == {"hash": "789xyz000111", "message": "fix: bug fix"}
 
-    def test_default_max_commits_is_10(self):
+    def test_default_max_commits_is_10(self) -> None:
         """Test that default max_commits parameter is 10."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="")
@@ -138,7 +141,7 @@ class TestGetRecentGitCommits:
                 timeout=5,
             )
 
-    def test_custom_max_commits(self):
+    def test_custom_max_commits(self) -> None:
         """Test that custom max_commits parameter is respected."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="")
@@ -151,7 +154,7 @@ class TestGetRecentGitCommits:
                 timeout=5,
             )
 
-    def test_returns_empty_list_on_non_zero_returncode(self):
+    def test_returns_empty_list_on_non_zero_returncode(self) -> None:
         """Test that empty list is returned when git command fails."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=128, stdout="")
@@ -159,7 +162,7 @@ class TestGetRecentGitCommits:
 
             assert result == []
 
-    def test_returns_empty_list_on_exception(self):
+    def test_returns_empty_list_on_exception(self) -> None:
         """Test that empty list is returned on exception."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Git error")
@@ -167,7 +170,7 @@ class TestGetRecentGitCommits:
 
             assert result == []
 
-    def test_handles_timeout(self):
+    def test_handles_timeout(self) -> None:
         """Test graceful handling of subprocess timeout."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
@@ -175,7 +178,7 @@ class TestGetRecentGitCommits:
 
             assert result == []
 
-    def test_handles_file_not_found(self):
+    def test_handles_file_not_found(self) -> None:
         """Test graceful handling when git is not installed."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("git not found")
@@ -183,7 +186,7 @@ class TestGetRecentGitCommits:
 
             assert result == []
 
-    def test_skips_lines_without_pipe(self):
+    def test_skips_lines_without_pipe(self) -> None:
         """Test that lines without pipe separator are skipped."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -196,7 +199,7 @@ class TestGetRecentGitCommits:
             assert result[0]["hash"] == "abc123"
             assert result[1]["hash"] == "xyz789"
 
-    def test_handles_empty_output(self):
+    def test_handles_empty_output(self) -> None:
         """Test handling of empty git log output."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="")
@@ -204,7 +207,7 @@ class TestGetRecentGitCommits:
 
             assert result == []
 
-    def test_handles_whitespace_only_output(self):
+    def test_handles_whitespace_only_output(self) -> None:
         """Test handling of whitespace-only git log output."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="  \n\t  \n")
@@ -212,7 +215,7 @@ class TestGetRecentGitCommits:
 
             assert result == []
 
-    def test_handles_message_with_multiple_pipes(self):
+    def test_handles_message_with_multiple_pipes(self) -> None:
         """Test that messages containing pipes are handled correctly."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -225,7 +228,7 @@ class TestGetRecentGitCommits:
             assert result[0]["hash"] == "abc123"
             assert result[0]["message"] == "feat: add pipe | handling in message"
 
-    def test_handles_single_commit(self):
+    def test_handles_single_commit(self) -> None:
         """Test handling of single commit."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="abc123|initial commit")
@@ -234,7 +237,7 @@ class TestGetRecentGitCommits:
             assert len(result) == 1
             assert result[0] == {"hash": "abc123", "message": "initial commit"}
 
-    def test_max_commits_zero(self):
+    def test_max_commits_zero(self) -> None:
         """Test behavior with max_commits=0."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="")
@@ -248,7 +251,7 @@ class TestGetRecentGitCommits:
             )
             assert result == []
 
-    def test_max_commits_large_number(self):
+    def test_max_commits_large_number(self) -> None:
         """Test behavior with large max_commits value."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="abc|msg")
@@ -265,7 +268,7 @@ class TestGetRecentGitCommits:
 class TestGetFileChanges:
     """Tests for get_file_changes function."""
 
-    def test_returns_modified_and_untracked(self):
+    def test_returns_modified_and_untracked(self) -> None:
         """Test that both modified and untracked files are returned."""
         with patch("subprocess.run") as mock_run:
             # Mock diff result (first call) and untracked result (second call)
@@ -281,7 +284,7 @@ class TestGetFileChanges:
             assert "Untracked:" in result
             assert "new_file.txt" in result
 
-    def test_calls_correct_git_commands(self):
+    def test_calls_correct_git_commands(self) -> None:
         """Test that correct git commands are called."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="")
@@ -303,7 +306,7 @@ class TestGetFileChanges:
                 timeout=5,
             )
 
-    def test_returns_no_changes_when_both_empty(self):
+    def test_returns_no_changes_when_both_empty(self) -> None:
         """Test that 'No changes' is returned when no changes exist."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="")
@@ -311,7 +314,7 @@ class TestGetFileChanges:
 
             assert result == "No changes"
 
-    def test_returns_only_modified_when_no_untracked(self):
+    def test_returns_only_modified_when_no_untracked(self) -> None:
         """Test output when there are only modified files."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tfile.py")
@@ -324,7 +327,7 @@ class TestGetFileChanges:
             assert "file.py" in result
             assert "Untracked:" not in result
 
-    def test_returns_only_untracked_when_no_modified(self):
+    def test_returns_only_untracked_when_no_modified(self) -> None:
         """Test output when there are only untracked files."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="")
@@ -337,7 +340,7 @@ class TestGetFileChanges:
             assert "Untracked:" in result
             assert "new_file.txt" in result
 
-    def test_handles_exception(self):
+    def test_handles_exception(self) -> None:
         """Test graceful handling of exceptions."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Git error")
@@ -345,7 +348,7 @@ class TestGetFileChanges:
 
             assert result == "Unable to determine file changes"
 
-    def test_handles_timeout(self):
+    def test_handles_timeout(self) -> None:
         """Test graceful handling of subprocess timeout."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
@@ -353,7 +356,7 @@ class TestGetFileChanges:
 
             assert result == "Unable to determine file changes"
 
-    def test_handles_file_not_found(self):
+    def test_handles_file_not_found(self) -> None:
         """Test graceful handling when git is not installed."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("git not found")
@@ -361,7 +364,7 @@ class TestGetFileChanges:
 
             assert result == "Unable to determine file changes"
 
-    def test_handles_permission_error(self):
+    def test_handles_permission_error(self) -> None:
         """Test graceful handling of permission errors."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = PermissionError("Permission denied")
@@ -369,7 +372,7 @@ class TestGetFileChanges:
 
             assert result == "Unable to determine file changes"
 
-    def test_handles_exception_on_second_call(self):
+    def test_handles_exception_on_second_call(self) -> None:
         """Test handling when second git command fails."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tfile.py")
@@ -379,7 +382,7 @@ class TestGetFileChanges:
 
             assert result == "Unable to determine file changes"
 
-    def test_strips_whitespace_from_output(self):
+    def test_strips_whitespace_from_output(self) -> None:
         """Test that whitespace is properly stripped."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="  M\tfile.py  \n")
@@ -392,7 +395,7 @@ class TestGetFileChanges:
             assert "M\tfile.py" in result
             assert "new.txt" in result
 
-    def test_handles_multiple_modified_files(self):
+    def test_handles_multiple_modified_files(self) -> None:
         """Test handling of multiple modified files."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tfile1.py\nA\tfile2.py\nD\tfile3.py")
@@ -405,7 +408,7 @@ class TestGetFileChanges:
             assert "file2.py" in result
             assert "file3.py" in result
 
-    def test_handles_multiple_untracked_files(self):
+    def test_handles_multiple_untracked_files(self) -> None:
         """Test handling of multiple untracked files."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="")
@@ -418,7 +421,7 @@ class TestGetFileChanges:
             assert "file2.txt" in result
             assert "file3.txt" in result
 
-    def test_handles_whitespace_only_diff_output(self):
+    def test_handles_whitespace_only_diff_output(self) -> None:
         """Test handling when diff output is whitespace only."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="   \n  \t  ")
@@ -431,7 +434,7 @@ class TestGetFileChanges:
             assert "Untracked:" in result
             assert "new.txt" in result
 
-    def test_handles_whitespace_only_untracked_output(self):
+    def test_handles_whitespace_only_untracked_output(self) -> None:
         """Test handling when untracked output is whitespace only."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tfile.py")
@@ -444,7 +447,7 @@ class TestGetFileChanges:
             assert "file.py" in result
             assert "Untracked:" not in result
 
-    def test_output_format_with_newlines(self):
+    def test_output_format_with_newlines(self) -> None:
         """Test that output format includes proper newlines between sections."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tmodified.py")
@@ -463,7 +466,7 @@ class TestGetFileChanges:
 class TestGitUtilsIntegration:
     """Integration-style tests for git utilities (still using mocks but testing combinations)."""
 
-    def test_all_functions_handle_not_a_repo(self):
+    def test_all_functions_handle_not_a_repo(self) -> None:
         """Test that all functions gracefully handle not being in a git repo."""
         error = subprocess.CalledProcessError(returncode=128, cmd="git")
 
@@ -476,7 +479,7 @@ class TestGitUtilsIntegration:
             assert commits == []
             assert "Unable to determine" in changes
 
-    def test_all_functions_handle_git_not_installed(self):
+    def test_all_functions_handle_git_not_installed(self) -> None:
         """Test that all functions gracefully handle git not being installed."""
         with patch("subprocess.run", side_effect=FileNotFoundError("git")):
             status = get_git_status()
@@ -487,7 +490,7 @@ class TestGitUtilsIntegration:
             assert commits == []
             assert "Unable to determine" in changes
 
-    def test_all_functions_handle_timeout(self):
+    def test_all_functions_handle_timeout(self) -> None:
         """Test that all functions gracefully handle timeouts."""
         timeout_error = subprocess.TimeoutExpired(cmd="git", timeout=5)
 
@@ -504,7 +507,7 @@ class TestGitUtilsIntegration:
 class TestEdgeCases:
     """Edge case tests for git utilities."""
 
-    def test_get_git_status_with_unicode_filenames(self):
+    def test_get_git_status_with_unicode_filenames(self) -> None:
         """Test handling of unicode characters in filenames."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="M test_\u00e9\u00e0\u00fc.py")
@@ -512,7 +515,7 @@ class TestEdgeCases:
 
             assert "test_\u00e9\u00e0\u00fc.py" in result
 
-    def test_get_recent_commits_with_special_characters_in_message(self):
+    def test_get_recent_commits_with_special_characters_in_message(self) -> None:
         """Test handling of special characters in commit messages."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -524,7 +527,7 @@ class TestEdgeCases:
             assert len(result) == 1
             assert 'feat: add "quotes" and \\backslash' in result[0]["message"]
 
-    def test_get_file_changes_with_spaces_in_filenames(self):
+    def test_get_file_changes_with_spaces_in_filenames(self) -> None:
         """Test handling of filenames with spaces."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="M\tmy file with spaces.py")
@@ -536,7 +539,7 @@ class TestEdgeCases:
             assert "my file with spaces.py" in result
             assert "another file.txt" in result
 
-    def test_get_recent_commits_with_empty_message(self):
+    def test_get_recent_commits_with_empty_message(self) -> None:
         """Test handling of commits with empty messages."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
@@ -549,7 +552,7 @@ class TestEdgeCases:
             assert result[0] == {"hash": "abc123", "message": ""}
             assert result[1] == {"hash": "xyz789", "message": "normal message"}
 
-    def test_get_git_status_with_binary_files(self):
+    def test_get_git_status_with_binary_files(self) -> None:
         """Test handling of binary file indicators in status."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="M  image.png\nM  data.bin")
@@ -558,7 +561,7 @@ class TestEdgeCases:
             assert "image.png" in result
             assert "data.bin" in result
 
-    def test_get_file_changes_with_renamed_files(self):
+    def test_get_file_changes_with_renamed_files(self) -> None:
         """Test handling of renamed files in diff output."""
         with patch("subprocess.run") as mock_run:
             diff_result = MagicMock(stdout="R100\told_name.py\tnew_name.py")

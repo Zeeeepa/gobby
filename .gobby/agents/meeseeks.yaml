@@ -1,0 +1,27 @@
+name: meeseeks
+description: |
+  Meeseeks worker agent - spawns in worktree to complete a single task.
+  "Hi, I'm Mr. Meeseeks! Look at me!"
+
+  Uses Gemini in an isolated git worktree. Designed to be spawned by
+  a parent orchestrator (using auto-task-claude workflow).
+
+  Key characteristics:
+  - Runs in worktree isolation for clean git history
+  - Uses Gemini as the AI provider
+  - Follows work-task-gemini workflow (claim -> work -> close -> report -> shutdown)
+  - Cannot spawn other agents (no recursion)
+
+mode: terminal
+provider: gemini
+model: gemini-3-pro-preview
+isolation: worktree
+base_branch: main
+workflow: work-task-gemini
+timeout: 600.0
+max_turns: 50
+
+sandbox:
+  enabled: true
+  mode: permissive
+  allow_network: true

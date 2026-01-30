@@ -12,6 +12,7 @@ import pytest
 from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 from gobby.workflows.definitions import WorkflowState
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_db():
@@ -28,7 +29,10 @@ def mock_state_manager():
 @pytest.fixture
 def mock_session_manager():
     """Create a mock session manager."""
-    return MagicMock()
+    manager = MagicMock()
+    # Make resolve_session_reference return the input unchanged (for testing)
+    manager.resolve_session_reference.side_effect = lambda ref, project_id=None: ref
+    return manager
 
 
 @pytest.fixture
@@ -63,7 +67,7 @@ class TestBlockManualTransitionToConditionalSteps:
 
     def test_blocks_manual_transition_to_conditional_step(
         self, registry, mock_loader, mock_state_manager
-    ):
+    ) -> None:
         """Manual transition to step with conditional auto-transition is blocked."""
         # Setup mock state in "work" step
         mock_state = MagicMock()
@@ -102,7 +106,7 @@ class TestBlockManualTransitionToConditionalSteps:
 
     def test_allows_manual_transition_without_condition(
         self, registry, mock_loader, mock_state_manager
-    ):
+    ) -> None:
         """Manual transition to step without conditional auto-transition is allowed."""
         # Setup mock state
         mock_state = MagicMock()
@@ -136,7 +140,7 @@ class TestBlockManualTransitionToConditionalSteps:
 
     def test_allows_transition_to_step_with_unconditional_transition(
         self, registry, mock_loader, mock_state_manager
-    ):
+    ) -> None:
         """Manual transition is allowed when transition has no 'when' condition."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -170,7 +174,7 @@ class TestBlockManualTransitionToConditionalSteps:
 
     def test_blocks_only_transitions_to_conditional_targets(
         self, registry, mock_loader, mock_state_manager
-    ):
+    ) -> None:
         """Transition to a different step (not the conditional target) is allowed."""
         mock_state = MagicMock()
         mock_state.workflow_name = "multi-step"
@@ -214,7 +218,7 @@ class TestBlockSessionTaskModification:
 
     def test_blocks_session_task_modification_with_active_workflow(
         self, registry, mock_state_manager
-    ):
+    ) -> None:
         """Cannot modify session_task when a real workflow is active."""
         # Setup mock state with active workflow and existing session_task
         mock_state = MagicMock(spec=WorkflowState)
@@ -238,7 +242,7 @@ class TestBlockSessionTaskModification:
 
     def test_allows_session_task_modification_with_lifecycle_workflow(
         self, registry, mock_state_manager
-    ):
+    ) -> None:
         """Can modify session_task when only __lifecycle__ workflow is active."""
         mock_state = MagicMock(spec=WorkflowState)
         mock_state.workflow_name = "__lifecycle__"
@@ -258,7 +262,7 @@ class TestBlockSessionTaskModification:
         assert "warning" in result
         assert "DEPRECATED" in result["warning"]
 
-    def test_allows_session_task_modification_with_no_state(self, registry, mock_state_manager):
+    def test_allows_session_task_modification_with_no_state(self, registry, mock_state_manager) -> None:
         """Can set session_task when no workflow state exists."""
         mock_state_manager.get_state.return_value = None
 
@@ -274,7 +278,7 @@ class TestBlockSessionTaskModification:
         # Should still save state and show warning
         mock_state_manager.save_state.assert_called_once()
 
-    def test_allows_initial_session_task_setting(self, registry, mock_state_manager):
+    def test_allows_initial_session_task_setting(self, registry, mock_state_manager) -> None:
         """Can set session_task for the first time even with active workflow."""
         # Workflow active but session_task not yet set
         mock_state = MagicMock(spec=WorkflowState)
@@ -293,7 +297,7 @@ class TestBlockSessionTaskModification:
         # Should allow since there's no existing value to protect
         assert "error" not in result
 
-    def test_allows_setting_same_session_task_value(self, registry, mock_state_manager):
+    def test_allows_setting_same_session_task_value(self, registry, mock_state_manager) -> None:
         """Setting session_task to same value is allowed (idempotent)."""
         mock_state = MagicMock(spec=WorkflowState)
         mock_state.workflow_name = "auto-task"
@@ -312,7 +316,7 @@ class TestBlockSessionTaskModification:
 
     def test_allows_other_variable_modification_with_active_workflow(
         self, registry, mock_state_manager
-    ):
+    ) -> None:
         """Other variables can still be modified when workflow is active."""
         mock_state = MagicMock(spec=WorkflowState)
         mock_state.workflow_name = "auto-task"
@@ -331,7 +335,7 @@ class TestBlockSessionTaskModification:
 
     def test_blocks_session_task_modification_suggests_end_workflow(
         self, registry, mock_state_manager
-    ):
+    ) -> None:
         """Error message suggests using end_workflow first."""
         mock_state = MagicMock(spec=WorkflowState)
         mock_state.workflow_name = "auto-task"

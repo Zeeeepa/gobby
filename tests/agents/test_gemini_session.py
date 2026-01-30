@@ -6,6 +6,8 @@ import pytest
 
 from gobby.agents.gemini_session import capture_gemini_session_id
 
+pytestmark = pytest.mark.unit
+
 # Sample init JSON from Gemini CLI
 SAMPLE_GEMINI_INIT_JSON = json.dumps(
     {

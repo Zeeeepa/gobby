@@ -14,6 +14,7 @@ from click.testing import CliRunner
 
 from gobby.cli import cli
 
+pytestmark = pytest.mark.unit
 
 @pytest.mark.unit
 class TestValidateCommandWithNewFlags:
@@ -38,31 +39,31 @@ class TestValidateCommandWithNewFlags:
         task.validation_fail_count = 0
         return task
 
-    def test_validate_help_shows_max_iterations_flag(self, runner: CliRunner):
+    def test_validate_help_shows_max_iterations_flag(self, runner: CliRunner) -> None:
         """Test that validate --help shows --max-iterations flag."""
         result = runner.invoke(cli, ["tasks", "validate", "--help"])
         assert result.exit_code == 0
         assert "--max-iterations" in result.output
 
-    def test_validate_help_shows_external_flag(self, runner: CliRunner):
+    def test_validate_help_shows_external_flag(self, runner: CliRunner) -> None:
         """Test that validate --help shows --external flag."""
         result = runner.invoke(cli, ["tasks", "validate", "--help"])
         assert result.exit_code == 0
         assert "--external" in result.output
 
-    def test_validate_help_shows_skip_build_flag(self, runner: CliRunner):
+    def test_validate_help_shows_skip_build_flag(self, runner: CliRunner) -> None:
         """Test that validate --help shows --skip-build flag."""
         result = runner.invoke(cli, ["tasks", "validate", "--help"])
         assert result.exit_code == 0
         assert "--skip-build" in result.output
 
-    def test_validate_help_shows_history_flag(self, runner: CliRunner):
+    def test_validate_help_shows_history_flag(self, runner: CliRunner) -> None:
         """Test that validate --help shows --history flag."""
         result = runner.invoke(cli, ["tasks", "validate", "--help"])
         assert result.exit_code == 0
         assert "--history" in result.output
 
-    def test_validate_help_shows_recurring_flag(self, runner: CliRunner):
+    def test_validate_help_shows_recurring_flag(self, runner: CliRunner) -> None:
         """Test that validate --help shows --recurring flag."""
         result = runner.invoke(cli, ["tasks", "validate", "--help"])
         assert result.exit_code == 0
@@ -78,7 +79,7 @@ class TestValidateCommandWithNewFlags:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate with --max-iterations flag."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -114,7 +115,7 @@ class TestValidateCommandWithNewFlags:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate with --external flag."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -140,7 +141,7 @@ class TestValidateCommandWithNewFlags:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate with --skip-build flag."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -164,7 +165,7 @@ class TestValidateCommandWithNewFlags:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate --history shows validation history."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -188,7 +189,7 @@ class TestValidateCommandWithNewFlags:
         mock_get_manager: MagicMock,
         runner: CliRunner,
         mock_task: MagicMock,
-    ):
+    ) -> None:
         """Test validate --recurring shows recurring issues."""
         mock_resolve.return_value = mock_task
         mock_manager = MagicMock()
@@ -212,19 +213,19 @@ class TestDeEscalateCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_de_escalate_command_exists(self, runner: CliRunner):
+    def test_de_escalate_command_exists(self, runner: CliRunner) -> None:
         """Test that de-escalate command exists."""
         result = runner.invoke(cli, ["tasks", "de-escalate", "--help"])
         assert result.exit_code == 0
         assert "de-escalate" in result.output.lower() or "Return" in result.output
 
-    def test_de_escalate_requires_task_id(self, runner: CliRunner):
+    def test_de_escalate_requires_task_id(self, runner: CliRunner) -> None:
         """Test that de-escalate requires a task ID."""
         result = runner.invoke(cli, ["tasks", "de-escalate"])
         # Should fail with missing argument
         assert result.exit_code != 0
 
-    def test_de_escalate_requires_reason(self, runner: CliRunner):
+    def test_de_escalate_requires_reason(self, runner: CliRunner) -> None:
         """Test that de-escalate requires a reason."""
         result = runner.invoke(cli, ["tasks", "de-escalate", "gt-test123"])
         # --reason is required=True in Click, so omitting it should fail with exit code 2
@@ -239,7 +240,7 @@ class TestDeEscalateCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test de-escalate with valid arguments."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -264,7 +265,7 @@ class TestDeEscalateCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test de-escalate fails for non-escalated task."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -291,7 +292,7 @@ class TestDeEscalateCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test de-escalate with --reset-validation flag."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -321,12 +322,12 @@ class TestValidationHistoryCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_validation_history_command_exists(self, runner: CliRunner):
+    def test_validation_history_command_exists(self, runner: CliRunner) -> None:
         """Test that validation-history command exists."""
         result = runner.invoke(cli, ["tasks", "validation-history", "--help"])
         assert result.exit_code == 0
 
-    def test_validation_history_requires_task_id(self, runner: CliRunner):
+    def test_validation_history_requires_task_id(self, runner: CliRunner) -> None:
         """Test that validation-history requires a task ID."""
         result = runner.invoke(cli, ["tasks", "validation-history"])
         # Should fail with missing argument
@@ -339,7 +340,7 @@ class TestValidationHistoryCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test validation-history shows iteration data."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -355,7 +356,7 @@ class TestValidationHistoryCommand:
 
         assert result.exit_code == 0
 
-    def test_validation_history_clear_flag_exists(self, runner: CliRunner):
+    def test_validation_history_clear_flag_exists(self, runner: CliRunner) -> None:
         """Test that validation-history --clear flag exists."""
         result = runner.invoke(cli, ["tasks", "validation-history", "--help"])
         assert "--clear" in result.output
@@ -367,7 +368,7 @@ class TestValidationHistoryCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test validation-history --clear removes history."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -391,7 +392,7 @@ class TestValidationHistoryCommand:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test validation-history --json outputs JSON."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -440,7 +441,7 @@ class TestListTasksEscalatedFilter:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_list_accepts_escalated_status(self, runner: CliRunner):
+    def test_list_accepts_escalated_status(self, runner: CliRunner) -> None:
         """Test that list command accepts --status escalated."""
         result = runner.invoke(cli, ["tasks", "list", "--help"])
         assert result.exit_code == 0
@@ -452,7 +453,7 @@ class TestListTasksEscalatedFilter:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test list --status escalated filters correctly."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -488,7 +489,7 @@ class TestListTasksEscalatedFilter:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test that escalated tasks show escalation reason."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -529,7 +530,7 @@ class TestValidateFlagCombinations:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_history_flag_does_not_require_summary(self, runner: CliRunner):
+    def test_history_flag_does_not_require_summary(self, runner: CliRunner) -> None:
         """Test that --history bypasses --summary requirement.
 
         When using --history, we're viewing validation history data,
@@ -551,7 +552,7 @@ class TestValidateFlagCombinations:
         mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test using multiple flags together."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -597,7 +598,7 @@ class TestValidateTaskNotFound:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test validate --history with non-existent task."""
         mock_manager = MagicMock()
         mock_manager.get_task.side_effect = ValueError("not found")
@@ -617,7 +618,7 @@ class TestValidateTaskNotFound:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test validation-history with non-existent task."""
         mock_manager = MagicMock()
         mock_manager.get_task.side_effect = ValueError("not found")
@@ -636,7 +637,7 @@ class TestValidateTaskNotFound:
         self,
         mock_get_manager: MagicMock,
         runner: CliRunner,
-    ):
+    ) -> None:
         """Test de-escalate with non-existent task."""
         mock_manager = MagicMock()
         mock_manager.get_task.side_effect = ValueError("not found")

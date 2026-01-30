@@ -4,6 +4,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
 from gobby.storage.migrations import run_migrations
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def db(tmp_path):
@@ -18,7 +20,7 @@ def memory_manager(db):
     return LocalMemoryManager(db)
 
 
-def test_create_memory(memory_manager):
+def test_create_memory(memory_manager) -> None:
     memory = memory_manager.create_memory(
         content="Test memory",
         memory_type="fact",
@@ -31,13 +33,13 @@ def test_create_memory(memory_manager):
     assert memory.importance == 0.5
 
 
-def test_get_memory(memory_manager):
+def test_get_memory(memory_manager) -> None:
     created = memory_manager.create_memory(content="Test get")
     retrieved = memory_manager.get_memory(created.id)
     assert retrieved == created
 
 
-def test_update_memory(memory_manager):
+def test_update_memory(memory_manager) -> None:
     created = memory_manager.create_memory(content="Original", importance=0.1)
     updated = memory_manager.update_memory(
         created.id,
@@ -49,14 +51,14 @@ def test_update_memory(memory_manager):
     assert updated.updated_at >= created.updated_at
 
 
-def test_delete_memory(memory_manager):
+def test_delete_memory(memory_manager) -> None:
     created = memory_manager.create_memory(content="To delete")
     assert memory_manager.delete_memory(created.id)
     with pytest.raises(ValueError, match="not found"):
         memory_manager.get_memory(created.id)
 
 
-def test_list_memories(memory_manager, db):
+def test_list_memories(memory_manager, db) -> None:
     # Seed projects for foreign keys
     db.execute("INSERT INTO projects (id, name) VALUES ('p1', 'Project 1')")
     db.execute("INSERT INTO projects (id, name) VALUES ('p2', 'Project 2')")
@@ -87,7 +89,7 @@ def test_list_memories(memory_manager, db):
     assert high_imp[0].content == "Global"
 
 
-def test_search_memories(memory_manager):
+def test_search_memories(memory_manager) -> None:
     memory_manager.create_memory(content="The quick brown fox")
     memory_manager.create_memory(content="The lazy dog")
 
@@ -99,7 +101,7 @@ def test_search_memories(memory_manager):
     assert len(results) == 2
 
 
-def test_memory_to_dict(memory_manager):
+def test_memory_to_dict(memory_manager) -> None:
     """Test Memory.to_dict() method."""
     memory = memory_manager.create_memory(
         content="Test to_dict",
@@ -120,7 +122,7 @@ def test_memory_to_dict(memory_manager):
     assert "updated_at" in d
 
 
-def test_add_change_listener(memory_manager):
+def test_add_change_listener(memory_manager) -> None:
     """Test adding a change listener and verifying it's called."""
     call_count = [0]
 
@@ -143,7 +145,7 @@ def test_add_change_listener(memory_manager):
     assert call_count[0] == 3
 
 
-def test_change_listener_error_handling(memory_manager):
+def test_change_listener_error_handling(memory_manager) -> None:
     """Test that listener errors are caught and don't break operations."""
     call_count = [0]
 
@@ -163,7 +165,7 @@ def test_change_listener_error_handling(memory_manager):
     assert memory.content == "Test error handling"
 
 
-def test_create_memory_returns_existing(memory_manager):
+def test_create_memory_returns_existing(memory_manager) -> None:
     """Test that creating a memory with same content/project returns existing."""
     memory1 = memory_manager.create_memory(content="Duplicate test", project_id=None)
     memory2 = memory_manager.create_memory(content="Duplicate test", project_id=None)
@@ -172,14 +174,14 @@ def test_create_memory_returns_existing(memory_manager):
     assert memory1.content == memory2.content
 
 
-def test_memory_exists(memory_manager):
+def test_memory_exists(memory_manager) -> None:
     """Test memory_exists method."""
     memory = memory_manager.create_memory(content="Exists test")
     assert memory_manager.memory_exists(memory.id) is True
     assert memory_manager.memory_exists("mm-nonexistent") is False
 
 
-def test_content_exists_with_project(memory_manager, db):
+def test_content_exists_with_project(memory_manager, db) -> None:
     """Test content_exists method with project_id."""
     db.execute("INSERT INTO projects (id, name) VALUES ('proj1', 'Project 1')")
 
@@ -188,14 +190,15 @@ def test_content_exists_with_project(memory_manager, db):
     # Same content with same project should exist
     assert memory_manager.content_exists("Project content", project_id="proj1") is True
 
-    # Same content with different project should not exist
-    assert memory_manager.content_exists("Project content", project_id="other-proj") is False
+    # Same content with different project should ALSO exist (global deduplication)
+    # This prevents duplicates when same content is stored with different project_ids
+    assert memory_manager.content_exists("Project content", project_id="other-proj") is True
 
     # Different content should not exist
     assert memory_manager.content_exists("Other content", project_id="proj1") is False
 
 
-def test_content_exists_without_project(memory_manager):
+def test_content_exists_without_project(memory_manager) -> None:
     """Test content_exists method without project_id."""
     memory_manager.create_memory(content="Global content", project_id=None)
 
@@ -206,7 +209,7 @@ def test_content_exists_without_project(memory_manager):
     assert memory_manager.content_exists("Different content", project_id=None) is False
 
 
-def test_update_memory_individual_fields(memory_manager):
+def test_update_memory_individual_fields(memory_manager) -> None:
     """Test updating individual fields in update_memory."""
     memory = memory_manager.create_memory(
         content="Original content",
@@ -230,7 +233,7 @@ def test_update_memory_individual_fields(memory_manager):
     assert updated.tags == ["new", "tags"]
 
 
-def test_update_memory_no_changes(memory_manager):
+def test_update_memory_no_changes(memory_manager) -> None:
     """Test update_memory with no changes returns existing memory."""
     memory = memory_manager.create_memory(content="No change test")
     updated = memory_manager.update_memory(memory.id)
@@ -238,19 +241,19 @@ def test_update_memory_no_changes(memory_manager):
     assert updated.content == memory.content
 
 
-def test_update_memory_not_found(memory_manager):
+def test_update_memory_not_found(memory_manager) -> None:
     """Test update_memory raises error for non-existent memory."""
     with pytest.raises(ValueError, match="Memory mm-nonexistent not found"):
         memory_manager.update_memory("mm-nonexistent", content="Update")
 
 
-def test_delete_memory_not_found(memory_manager):
+def test_delete_memory_not_found(memory_manager) -> None:
     """Test delete_memory returns False for non-existent memory."""
     result = memory_manager.delete_memory("mm-nonexistent")
     assert result is False
 
 
-def test_list_memories_by_type(memory_manager):
+def test_list_memories_by_type(memory_manager) -> None:
     """Test filtering memories by memory_type."""
     memory_manager.create_memory(content="Fact memory", memory_type="fact")
     memory_manager.create_memory(content="Preference memory", memory_type="preference")
@@ -265,7 +268,7 @@ def test_list_memories_by_type(memory_manager):
     assert preferences[0].memory_type == "preference"
 
 
-def test_list_memories_offset(memory_manager):
+def test_list_memories_offset(memory_manager) -> None:
     """Test list_memories with offset pagination."""
     for i in range(5):
         memory_manager.create_memory(content=f"Memory {i}", importance=float(i) / 10)
@@ -279,7 +282,7 @@ def test_list_memories_offset(memory_manager):
     assert len(offset_memories) == 2
 
 
-def test_update_access_stats(memory_manager):
+def test_update_access_stats(memory_manager) -> None:
     """Test update_access_stats method."""
     memory = memory_manager.create_memory(content="Access test")
     assert memory.access_count == 0
@@ -305,7 +308,7 @@ def test_update_access_stats(memory_manager):
     assert updated2.last_accessed_at == access_time2
 
 
-def test_search_memories_with_project(memory_manager, db):
+def test_search_memories_with_project(memory_manager, db) -> None:
     """Test search_memories with project_id filter."""
     db.execute("INSERT INTO projects (id, name) VALUES ('proj-search', 'Search Project')")
 
@@ -322,7 +325,7 @@ def test_search_memories_with_project(memory_manager, db):
     assert results[0].importance >= results[1].importance
 
 
-def test_search_memories_limit(memory_manager):
+def test_search_memories_limit(memory_manager) -> None:
     """Test search_memories respects limit parameter."""
     for i in range(10):
         memory_manager.create_memory(content=f"Searchable item {i}")
@@ -331,7 +334,7 @@ def test_search_memories_limit(memory_manager):
     assert len(results) == 3
 
 
-def test_search_memories_escapes_wildcards(memory_manager):
+def test_search_memories_escapes_wildcards(memory_manager) -> None:
     """Test that search properly escapes SQL LIKE wildcards."""
     memory_manager.create_memory(content="100% complete")
     memory_manager.create_memory(content="user_name is set")
@@ -352,20 +355,20 @@ def test_search_memories_escapes_wildcards(memory_manager):
     assert len(results) == 1
 
 
-def test_get_memory_not_found(memory_manager):
+def test_get_memory_not_found(memory_manager) -> None:
     """Test get_memory raises ValueError for non-existent memory."""
     with pytest.raises(ValueError, match="Memory mm-nonexistent not found"):
         memory_manager.get_memory("mm-nonexistent")
 
 
-def test_memory_from_row_with_null_tags(memory_manager):
+def test_memory_from_row_with_null_tags(memory_manager) -> None:
     """Test Memory.from_row handles null tags correctly."""
     # Create a memory without tags
     memory = memory_manager.create_memory(content="No tags", tags=None)
     assert memory.tags == []
 
 
-def test_create_memory_with_all_fields(memory_manager, db):
+def test_create_memory_with_all_fields(memory_manager, db) -> None:
     """Test creating a memory with all optional fields set."""
     db.execute("INSERT INTO projects (id, name) VALUES ('proj-full', 'Full Project')")
     # Insert a valid session to satisfy foreign key constraint
@@ -393,7 +396,7 @@ def test_create_memory_with_all_fields(memory_manager, db):
     assert memory.tags == ["tag1", "tag2", "tag3"]
 
 
-def test_list_memories_combined_filters(memory_manager, db):
+def test_list_memories_combined_filters(memory_manager, db) -> None:
     """Test list_memories with multiple filters combined."""
     db.execute("INSERT INTO projects (id, name) VALUES ('proj-combo', 'Combo Project')")
 

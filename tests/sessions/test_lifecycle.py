@@ -7,6 +7,7 @@ from gobby.config.sessions import SessionLifecycleConfig
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.storage.sessions import Session
 
+pytestmark = pytest.mark.unit
 
 class TestSessionLifecycleManager:
     """Tests for SessionLifecycleManager."""

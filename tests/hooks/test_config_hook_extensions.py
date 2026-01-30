@@ -1,10 +1,13 @@
 """Tests for HookExtensionsConfig."""
 
+import pytest
+
 from gobby.config.app import DaemonConfig
 from gobby.config.extensions import HookExtensionsConfig, WebSocketBroadcastConfig
 
+pytestmark = pytest.mark.unit
 
-def test_hook_extensions_defaults():
+def test_hook_extensions_defaults() -> None:
     """Test default values for hook extensions."""
     config = DaemonConfig()
 
@@ -18,7 +21,7 @@ def test_hook_extensions_defaults():
     assert "pre-tool-use" in config.hook_extensions.websocket.broadcast_events
 
 
-def test_hook_extensions_custom_values():
+def test_hook_extensions_custom_values() -> None:
     """Test setting custom values for hook extensions."""
     config_dict = {
         "hook_extensions": {

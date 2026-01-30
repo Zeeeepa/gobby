@@ -1,13 +1,15 @@
 from unittest.mock import MagicMock, patch
 
 import httpx
+import pytest
 
 from gobby.utils.status import fetch_rich_status, format_status_message
 
+pytestmark = pytest.mark.unit
 
 class TestStatusUtils:
     @patch("httpx.get")
-    def test_fetch_rich_status_success(self, mock_get):
+    def test_fetch_rich_status_success(self, mock_get) -> None:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -35,7 +37,7 @@ class TestStatusUtils:
         assert status["memories_count"] == 10
 
     @patch("httpx.get")
-    def test_fetch_rich_status_failure(self, mock_get):
+    def test_fetch_rich_status_failure(self, mock_get) -> None:
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_get.return_value = mock_response
@@ -44,18 +46,18 @@ class TestStatusUtils:
         assert status == {}
 
     @patch("httpx.get")
-    def test_fetch_rich_status_connection_error(self, mock_get):
+    def test_fetch_rich_status_connection_error(self, mock_get) -> None:
         mock_get.side_effect = httpx.ConnectError("Connection failed")
         status = fetch_rich_status(8080)
         assert status == {}
 
     @patch("httpx.get")
-    def test_fetch_rich_status_other_error(self, mock_get):
+    def test_fetch_rich_status_other_error(self, mock_get) -> None:
         mock_get.side_effect = Exception("Unknown error")
         status = fetch_rich_status(8080)
         assert status == {}
 
-    def test_format_status_message_running(self):
+    def test_format_status_message_running(self) -> None:
         msg = format_status_message(
             running=True,
             pid=1234,
@@ -74,20 +76,20 @@ class TestStatusUtils:
         assert "Servers: 1 connected / 2 total" in msg
         assert "Active: 1" in msg
 
-    def test_format_status_message_stopped(self):
+    def test_format_status_message_stopped(self) -> None:
         msg = format_status_message(running=False)
         assert "Status: Stopped" in msg
 
-    def test_format_status_message_unhealthy_mcp(self):
+    def test_format_status_message_unhealthy_mcp(self) -> None:
         msg = format_status_message(running=True, mcp_total=1, mcp_unhealthy=[("s1", "error")])
         assert "Unhealthy: s1 (error)" in msg
 
-    def test_format_status_message_paths(self):
+    def test_format_status_message_paths(self) -> None:
         msg = format_status_message(running=True, pid_file="/tmp/pid", log_files="/tmp/logs")
         assert "PID file: /tmp/pid" in msg
         assert "Logs: /tmp/logs" in msg
 
-    def test_format_status_message_full(self):
+    def test_format_status_message_full(self) -> None:
         msg = format_status_message(
             running=True,
             tasks_open=1,

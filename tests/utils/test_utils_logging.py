@@ -4,6 +4,8 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.utils.logging import (
     ContextLogger,
     ExtraFieldsFormatter,
@@ -19,22 +21,23 @@ from gobby.utils.logging import (
     setup_mcp_logging,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestRequestIDFunctions:
     """Tests for request ID utility functions."""
 
-    def test_generate_request_id(self):
+    def test_generate_request_id(self) -> None:
         """Test that generate_request_id returns UUID string."""
         request_id = generate_request_id()
         assert isinstance(request_id, str)
         assert len(request_id) == 36  # UUID format: 8-4-4-4-12
 
-    def test_generate_request_id_unique(self):
+    def test_generate_request_id_unique(self) -> None:
         """Test that each call generates unique ID."""
         ids = {generate_request_id() for _ in range(100)}
         assert len(ids) == 100  # All unique
 
-    def test_set_request_id_with_value(self):
+    def test_set_request_id_with_value(self) -> None:
         """Test setting specific request ID."""
         test_id = "test-request-123"
         result = set_request_id(test_id)
@@ -45,7 +48,7 @@ class TestRequestIDFunctions:
         # Cleanup
         clear_request_id()
 
-    def test_set_request_id_generates_new(self):
+    def test_set_request_id_generates_new(self) -> None:
         """Test that None generates new ID."""
         result = set_request_id(None)
 
@@ -56,12 +59,12 @@ class TestRequestIDFunctions:
         # Cleanup
         clear_request_id()
 
-    def test_get_request_id_default_none(self):
+    def test_get_request_id_default_none(self) -> None:
         """Test that default request ID is None."""
         clear_request_id()
         assert get_request_id() is None
 
-    def test_clear_request_id(self):
+    def test_clear_request_id(self) -> None:
         """Test clearing request ID."""
         set_request_id("test-id")
         assert get_request_id() == "test-id"
@@ -73,7 +76,7 @@ class TestRequestIDFunctions:
 class TestRequestIDFilter:
     """Tests for RequestIDFilter."""
 
-    def test_filter_adds_request_id(self):
+    def test_filter_adds_request_id(self) -> None:
         """Test that filter adds request_id to record."""
         set_request_id("test-filter-id")
 
@@ -95,7 +98,7 @@ class TestRequestIDFilter:
 
         clear_request_id()
 
-    def test_filter_adds_dash_when_no_id(self):
+    def test_filter_adds_dash_when_no_id(self) -> None:
         """Test that filter adds '-' when no request ID set."""
         clear_request_id()
 
@@ -118,7 +121,7 @@ class TestRequestIDFilter:
 class TestContextLogger:
     """Tests for ContextLogger adapter."""
 
-    def test_process_adds_request_id(self):
+    def test_process_adds_request_id(self) -> None:
         """Test that process adds request_id to extra."""
         set_request_id("context-logger-id")
 
@@ -131,7 +134,7 @@ class TestContextLogger:
 
         clear_request_id()
 
-    def test_process_merges_extra(self):
+    def test_process_merges_extra(self) -> None:
         """Test that process merges adapter extra with kwargs extra."""
         base_logger = logging.getLogger("test.context2")
         adapter = ContextLogger(base_logger, {"component": "test"})
@@ -141,7 +144,7 @@ class TestContextLogger:
         assert kwargs["extra"]["component"] == "test"
         assert kwargs["extra"]["custom"] == "value"
 
-    def test_get_context_logger(self):
+    def test_get_context_logger(self) -> None:
         """Test get_context_logger creates ContextLogger."""
         logger = get_context_logger("test.module", {"extra_key": "extra_value"})
 
@@ -153,7 +156,7 @@ class TestContextLogger:
 class TestExtraFieldsFormatter:
     """Tests for ExtraFieldsFormatter."""
 
-    def test_format_strips_gobby_prefix(self):
+    def test_format_strips_gobby_prefix(self) -> None:
         """Test that gobby. prefix is stripped from logger name."""
         formatter = ExtraFieldsFormatter("%(short_name)s - %(message)s")
 
@@ -170,7 +173,7 @@ class TestExtraFieldsFormatter:
         formatter.format(record)
         assert cast(Any, record).short_name == "http_server"
 
-    def test_format_no_prefix(self):
+    def test_format_no_prefix(self) -> None:
         """Test formatting without gobby prefix."""
         formatter = ExtraFieldsFormatter("%(short_name)s - %(message)s")
 
@@ -188,7 +191,7 @@ class TestExtraFieldsFormatter:
 
         assert cast(Any, record).short_name == "other.module"
 
-    def test_format_includes_extra_fields(self):
+    def test_format_includes_extra_fields(self) -> None:
         """Test that extra fields are included in output."""
         formatter = ExtraFieldsFormatter("%(message)s")
 
@@ -209,7 +212,7 @@ class TestExtraFieldsFormatter:
         assert "custom_field=custom_value" in result
         assert "another_field=123" in result
 
-    def test_format_excludes_standard_attrs(self):
+    def test_format_excludes_standard_attrs(self) -> None:
         """Test that standard log attributes are excluded from extra."""
         formatter = ExtraFieldsFormatter("%(message)s")
 
@@ -234,7 +237,7 @@ class TestExtraFieldsFormatter:
 class TestSetupFileLogging:
     """Tests for setup_file_logging function."""
 
-    def test_setup_creates_log_directory(self, tmp_path):
+    def test_setup_creates_log_directory(self, tmp_path) -> None:
         """Test that setup creates log directory if needed."""
         mock_config = MagicMock()
         mock_config.logging.client = str(tmp_path / "logs" / "gobby.log")
@@ -249,7 +252,7 @@ class TestSetupFileLogging:
 
         assert (tmp_path / "logs").exists()
 
-    def test_setup_verbose_mode(self, tmp_path):
+    def test_setup_verbose_mode(self, tmp_path) -> None:
         """Test that verbose mode sets DEBUG level."""
         mock_config = MagicMock()
         mock_config.logging.client = str(tmp_path / "logs" / "gobby.log")
@@ -265,7 +268,7 @@ class TestSetupFileLogging:
         pkg_logger = logging.getLogger("gobby")
         assert pkg_logger.level == logging.DEBUG
 
-    def test_setup_json_format(self, tmp_path):
+    def test_setup_json_format(self, tmp_path) -> None:
         """Test JSON format configuration."""
         mock_config = MagicMock()
         mock_config.logging.client = str(tmp_path / "logs" / "gobby.log")
@@ -286,7 +289,7 @@ class TestSetupFileLogging:
 class TestSetupMCPLogging:
     """Tests for setup_mcp_logging function."""
 
-    def test_setup_returns_two_loggers(self, tmp_path):
+    def test_setup_returns_two_loggers(self, tmp_path) -> None:
         """Test that setup returns server and client loggers."""
         mock_config = MagicMock()
         mock_config.logging.mcp_server = str(tmp_path / "logs" / "mcp-server.log")
@@ -302,7 +305,7 @@ class TestSetupMCPLogging:
         assert server_logger.name == "gobby.mcp.server"
         assert client_logger.name == "gobby.mcp.client"
 
-    def test_setup_mcp_verbose(self, tmp_path):
+    def test_setup_mcp_verbose(self, tmp_path) -> None:
         """Test MCP logging in verbose mode."""
         mock_config = MagicMock()
         mock_config.logging.mcp_server = str(tmp_path / "logs" / "mcp-server.log")
@@ -322,17 +325,17 @@ class TestSetupMCPLogging:
 class TestGetMCPLoggers:
     """Tests for get_mcp_server_logger and get_mcp_client_logger."""
 
-    def test_get_mcp_server_logger(self):
+    def test_get_mcp_server_logger(self) -> None:
         """Test getting MCP server logger."""
         logger = get_mcp_server_logger()
         assert logger.name == "gobby.mcp.server"
 
-    def test_get_mcp_client_logger(self):
+    def test_get_mcp_client_logger(self) -> None:
         """Test getting MCP client logger."""
         logger = get_mcp_client_logger()
         assert logger.name == "gobby.mcp.client"
 
-    def test_loggers_are_same_instance(self):
+    def test_loggers_are_same_instance(self) -> None:
         """Test that repeated calls return same logger instance."""
         logger1 = get_mcp_server_logger()
         logger2 = get_mcp_server_logger()

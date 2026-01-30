@@ -12,6 +12,7 @@ from gobby.utils.machine_id import (
     get_machine_id,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestGetMachineId:
     """Tests for get_machine_id function."""
@@ -20,7 +21,7 @@ class TestGetMachineId:
         """Clear cache before each test."""
         clear_cache()
 
-    def test_returns_cached_id_if_available(self):
+    def test_returns_cached_id_if_available(self) -> None:
         """Test that cached ID is returned without recalculating."""
         import gobby.utils.machine_id as machine_id_module
 
@@ -34,7 +35,7 @@ class TestGetMachineId:
         # Cleanup
         machine_id_module._cached_machine_id = None
 
-    def test_calls_get_or_create_when_no_cache(self):
+    def test_calls_get_or_create_when_no_cache(self) -> None:
         """Test that _get_or_create_machine_id is called when no cache."""
         with patch(
             "gobby.utils.machine_id._get_or_create_machine_id", return_value="new-machine-id"
@@ -44,7 +45,7 @@ class TestGetMachineId:
         assert result == "new-machine-id"
         mock.assert_called_once()
 
-    def test_caches_result_after_call(self):
+    def test_caches_result_after_call(self) -> None:
         """Test that result is cached after first call."""
         import gobby.utils.machine_id as machine_id_module
 
@@ -56,7 +57,7 @@ class TestGetMachineId:
         # Cleanup
         machine_id_module._cached_machine_id = None
 
-    def test_propagates_os_error(self):
+    def test_propagates_os_error(self) -> None:
         """Test that OSError is propagated."""
         with patch(
             "gobby.utils.machine_id._get_or_create_machine_id", side_effect=OSError("File error")
@@ -68,7 +69,7 @@ class TestGetMachineId:
 class TestGetOrCreateMachineId:
     """Tests for _get_or_create_machine_id function."""
 
-    def test_returns_existing_id_from_file(self, tmp_path):
+    def test_returns_existing_id_from_file(self, tmp_path) -> None:
         """Test returns machine_id from file if present."""
         test_file = tmp_path / "machine_id"
         test_file.write_text("existing-id-from-file")
@@ -78,7 +79,7 @@ class TestGetOrCreateMachineId:
 
         assert result == "existing-id-from-file"
 
-    def test_generates_and_saves_new_id_when_file_missing(self, tmp_path):
+    def test_generates_and_saves_new_id_when_file_missing(self, tmp_path) -> None:
         """Test generates new ID and saves to file when missing."""
         test_file = tmp_path / "machine_id"
 
@@ -92,7 +93,7 @@ class TestGetOrCreateMachineId:
         assert test_file.exists()
         assert test_file.read_text() == "new-generated-id"
 
-    def test_creates_parent_directory_if_missing(self, tmp_path):
+    def test_creates_parent_directory_if_missing(self, tmp_path) -> None:
         """Test creates parent directory if it doesn't exist."""
         test_file = tmp_path / "subdir" / "machine_id"
 
@@ -105,7 +106,7 @@ class TestGetOrCreateMachineId:
         assert result == "new-id"
         assert test_file.parent.exists()
 
-    def test_ignores_empty_file(self, tmp_path):
+    def test_ignores_empty_file(self, tmp_path) -> None:
         """Test generates new ID if file exists but is empty."""
         test_file = tmp_path / "machine_id"
         test_file.write_text("   \n")  # Whitespace only
@@ -122,7 +123,7 @@ class TestGetOrCreateMachineId:
 class TestWriteFileSecure:
     """Tests for _write_file_secure function."""
 
-    def test_writes_content_to_file(self, tmp_path):
+    def test_writes_content_to_file(self, tmp_path) -> None:
         """Test writes content correctly."""
         test_file = tmp_path / "test_file"
 
@@ -130,7 +131,7 @@ class TestWriteFileSecure:
 
         assert test_file.read_text() == "test-content"
 
-    def test_sets_restrictive_permissions(self, tmp_path):
+    def test_sets_restrictive_permissions(self, tmp_path) -> None:
         """Test file is created with 0o600 permissions."""
         test_file = tmp_path / "test_file"
 
@@ -140,7 +141,7 @@ class TestWriteFileSecure:
         mode = test_file.stat().st_mode & 0o777
         assert mode == 0o600
 
-    def test_overwrites_existing_file(self, tmp_path):
+    def test_overwrites_existing_file(self, tmp_path) -> None:
         """Test overwrites existing file content."""
         test_file = tmp_path / "test_file"
         test_file.write_text("old-content")
@@ -153,7 +154,7 @@ class TestWriteFileSecure:
 class TestGenerateMachineId:
     """Tests for _generate_machine_id function."""
 
-    def test_uses_machineid_library_when_available(self):
+    def test_uses_machineid_library_when_available(self) -> None:
         """Test uses machineid library if available."""
         mock_machineid = MagicMock()
         mock_machineid.id.return_value = "hardware-id"
@@ -175,7 +176,7 @@ class TestGenerateMachineId:
             if cached_module is not None:
                 sys.modules["machineid"] = cached_module
 
-    def test_falls_back_to_uuid_when_import_fails(self):
+    def test_falls_back_to_uuid_when_import_fails(self) -> None:
         """Test falls back to UUID when machineid unavailable."""
         with patch.dict("sys.modules", {"machineid": None}):
             result = _generate_machine_id()
@@ -185,7 +186,7 @@ class TestGenerateMachineId:
         assert isinstance(result, str)
         assert len(result) == 36  # UUID format
 
-    def test_falls_back_to_uuid_when_machineid_raises(self):
+    def test_falls_back_to_uuid_when_machineid_raises(self) -> None:
         """Test falls back to UUID when machineid.id() raises."""
         mock_machineid = MagicMock()
         mock_machineid.id.side_effect = Exception("Hardware access failed")
@@ -201,7 +202,7 @@ class TestGenerateMachineId:
 class TestClearCache:
     """Tests for clear_cache function."""
 
-    def test_clears_cached_value(self):
+    def test_clears_cached_value(self) -> None:
         """Test that clear_cache sets cached value to None."""
         import gobby.utils.machine_id as machine_id_module
 
@@ -212,7 +213,7 @@ class TestClearCache:
 
         assert machine_id_module._cached_machine_id is None
 
-    def test_clear_cache_is_thread_safe(self):
+    def test_clear_cache_is_thread_safe(self) -> None:
         """Test that clear_cache uses lock."""
         # The function uses _cache_lock internally
         # Just verify it doesn't raise any exceptions

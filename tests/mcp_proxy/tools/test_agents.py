@@ -23,11 +23,12 @@ import pytest
 from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 from gobby.mcp_proxy.tools.agents import create_agents_registry
 
+pytestmark = pytest.mark.unit
 
 class TestCreateAgentsRegistry:
     """Tests for create_agents_registry factory function."""
 
-    def test_creates_registry_with_correct_name(self):
+    def test_creates_registry_with_correct_name(self) -> None:
         """Test registry has correct name."""
         runner = MagicMock()
         registry = create_agents_registry(runner)
@@ -35,7 +36,7 @@ class TestCreateAgentsRegistry:
         assert registry.name == "gobby-agents"
         assert "Agent" in registry.description
 
-    def test_registers_all_expected_tools(self):
+    def test_registers_all_expected_tools(self) -> None:
         """Test all agent tools are registered."""
         runner = MagicMock()
         registry = create_agents_registry(runner)
@@ -56,7 +57,7 @@ class TestCreateAgentsRegistry:
         for tool_name in expected_tools:
             assert registry.get_schema(tool_name) is not None, f"Missing tool: {tool_name}"
 
-    def test_uses_provided_running_registry(self):
+    def test_uses_provided_running_registry(self) -> None:
         """Test that provided registry is used instead of global."""
         runner = MagicMock()
         custom_registry = RunningAgentRegistry()

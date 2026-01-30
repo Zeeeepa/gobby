@@ -9,6 +9,7 @@ import pytest
 from gobby.agents.definitions import AgentDefinition
 from gobby.agents.runner import AgentConfig, AgentRunner
 
+pytestmark = pytest.mark.unit
 
 class TestAgentRunnerDefinitions:
     """Tests for named agent definition support in AgentRunner."""
@@ -33,7 +34,7 @@ class TestAgentRunnerDefinitions:
 
         return runner, session_storage, runner._agent_loader
 
-    def test_prepare_run_with_agent_loader_merges_lifecycle_variables(self, mock_deps):
+    def test_prepare_run_with_agent_loader_merges_lifecycle_variables(self, mock_deps) -> None:
         """Test that prepare_run loads agent definition and merges variables."""
         runner, session_storage, agent_loader = mock_deps
 

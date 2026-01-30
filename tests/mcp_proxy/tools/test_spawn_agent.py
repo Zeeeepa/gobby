@@ -17,11 +17,12 @@ from gobby.agents.isolation import (
     IsolationContext,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestCreateSpawnAgentRegistry:
     """Tests for create_spawn_agent_registry factory function."""
 
-    def test_creates_registry_with_correct_name(self):
+    def test_creates_registry_with_correct_name(self) -> None:
         """Test registry has correct name."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
@@ -30,7 +31,7 @@ class TestCreateSpawnAgentRegistry:
 
         assert registry.name == "gobby-spawn-agent"
 
-    def test_registers_spawn_agent_tool(self):
+    def test_registers_spawn_agent_tool(self) -> None:
         """Test spawn_agent tool is registered."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 

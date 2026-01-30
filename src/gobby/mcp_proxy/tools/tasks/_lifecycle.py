@@ -93,13 +93,21 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Auto-skip validation for certain close reasons
         should_skip = skip_validation or reason.lower() in SKIP_REASONS
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = session_id
+        if session_id:
+            try:
+                resolved_session_id = ctx.resolve_session_id(session_id)
+            except ValueError:
+                pass  # Fall back to raw value if resolution fails
+
         # Enforce commits if session had edits
-        if session_id and not should_skip:
+        if resolved_session_id and not should_skip:
             try:
                 from gobby.storage.sessions import LocalSessionManager
 
                 session_manager = LocalSessionManager(ctx.task_manager.db)
-                session = session_manager.get(session_id)
+                session = session_manager.get(resolved_session_id)
 
                 # Check if task has commits (including the one being linked right now)
                 has_commits = bool(task.commits) or bool(commit_sha)
@@ -185,9 +193,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             )
 
             # Auto-link session if provided
-            if session_id:
+            if resolved_session_id:
                 try:
-                    ctx.session_task_manager.link_task(session_id, resolved_id, "review")
+                    ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "review")
                 except Exception:
                     pass  # nosec B110 - best-effort linking
 
@@ -208,15 +216,15 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         ctx.task_manager.close_task(
             resolved_id,
             reason=reason,
-            closed_in_session_id=session_id,
+            closed_in_session_id=resolved_session_id,
             closed_commit_sha=current_commit_sha,
             validation_override_reason=override_justification if store_override else None,
         )
 
         # Auto-link session if provided
-        if session_id:
+        if resolved_session_id:
             try:
-                ctx.session_task_manager.link_task(session_id, resolved_id, "closed")
+                ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "closed")
             except Exception:
                 pass  # nosec B110 - best-effort linking, don't fail the close
 
@@ -224,9 +232,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Respects the clear_task_on_close variable (defaults to True if not set)
         # This is done here because Claude Code's post-tool-use hook doesn't include
         # the tool result, so the detection_helpers can't verify close succeeded
-        if session_id:
+        if resolved_session_id:
             try:
-                state = ctx.workflow_state_manager.get_state(session_id)
+                state = ctx.workflow_state_manager.get_state(resolved_session_id)
                 if state and state.variables.get("claimed_task_id") == resolved_id:
                     # Check if clear_task_on_close is enabled (default: True)
                     clear_on_close = state.variables.get("clear_task_on_close", True)
@@ -288,7 +296,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (from system context). Pass this to track which session closed the task.",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Pass this to track which session closed the task.",
                     "default": None,
                 },
                 "override_justification": {
@@ -528,8 +536,15 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not task:
             return {"success": False, "error": f"Task {task_id} not found"}
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = session_id
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError:
+            pass  # Fall back to raw value if resolution fails
+
         # Check if already claimed by another session
-        if task.assignee and task.assignee != session_id and not force:
+        if task.assignee and task.assignee != resolved_session_id and not force:
             return {
                 "success": False,
                 "error": "Task already claimed by another session",
@@ -540,7 +555,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Update task with assignee and status in single atomic call
         updated = ctx.task_manager.update_task(
             resolved_id,
-            assignee=session_id,
+            assignee=resolved_session_id,
             status="in_progress",
         )
         if not updated:
@@ -548,7 +563,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Link task to session (best-effort, don't fail the claim if this fails)
         try:
-            ctx.session_task_manager.link_task(session_id, resolved_id, "claimed")
+            ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "claimed")
         except Exception:
             pass  # nosec B110 - best-effort linking
 
@@ -566,7 +581,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (from system context). The session claiming the task.",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). The session claiming the task.",
                 },
                 "force": {
                     "type": "boolean",

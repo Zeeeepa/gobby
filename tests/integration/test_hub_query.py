@@ -96,7 +96,7 @@ def multi_project_hub(hub_dir):
 class TestHubQueryIntegration:
     """Integration tests for hub query tools with multi-project data."""
 
-    def test_list_all_projects_returns_all_projects(self, multi_project_hub):
+    def test_list_all_projects_returns_all_projects(self, multi_project_hub) -> None:
         """Test that list_all_projects returns all projects from hub."""
         import asyncio
 
@@ -113,7 +113,7 @@ class TestHubQueryIntegration:
         assert "project-frontend" in project_ids
         assert "project-backend" in project_ids
 
-    def test_list_all_projects_includes_accurate_counts(self, multi_project_hub):
+    def test_list_all_projects_includes_accurate_counts(self, multi_project_hub) -> None:
         """Test that list_all_projects includes correct task and session counts."""
         import asyncio
 
@@ -130,7 +130,7 @@ class TestHubQueryIntegration:
             assert project["task_count"] == 3
             assert project["session_count"] == 2
 
-    def test_list_cross_project_tasks_returns_tasks_from_all_projects(self, multi_project_hub):
+    def test_list_cross_project_tasks_returns_tasks_from_all_projects(self, multi_project_hub) -> None:
         """Test that list_cross_project_tasks returns tasks from multiple projects."""
         import asyncio
 
@@ -148,7 +148,7 @@ class TestHubQueryIntegration:
         assert "project-frontend" in project_ids
         assert "project-backend" in project_ids
 
-    def test_list_cross_project_tasks_filters_by_status(self, multi_project_hub):
+    def test_list_cross_project_tasks_filters_by_status(self, multi_project_hub) -> None:
         """Test that list_cross_project_tasks correctly filters by status."""
         import asyncio
 
@@ -165,7 +165,7 @@ class TestHubQueryIntegration:
         for task in result["tasks"]:
             assert task["status"] == "open"
 
-    def test_list_cross_project_tasks_respects_limit(self, multi_project_hub):
+    def test_list_cross_project_tasks_respects_limit(self, multi_project_hub) -> None:
         """Test that list_cross_project_tasks respects the limit parameter."""
         import asyncio
 
@@ -180,7 +180,7 @@ class TestHubQueryIntegration:
 
     def test_list_cross_project_sessions_returns_sessions_from_all_projects(
         self, multi_project_hub
-    ):
+    ) -> None:
         """Test that list_cross_project_sessions returns sessions from multiple projects."""
         import asyncio
 
@@ -198,7 +198,7 @@ class TestHubQueryIntegration:
         assert "project-frontend" in project_ids
         assert "project-backend" in project_ids
 
-    def test_list_cross_project_sessions_respects_limit(self, multi_project_hub):
+    def test_list_cross_project_sessions_respects_limit(self, multi_project_hub) -> None:
         """Test that list_cross_project_sessions respects the limit parameter."""
         import asyncio
 
@@ -211,7 +211,7 @@ class TestHubQueryIntegration:
         assert result["success"] is True
         assert result["count"] == 2
 
-    def test_hub_stats_returns_accurate_aggregates(self, multi_project_hub):
+    def test_hub_stats_returns_accurate_aggregates(self, multi_project_hub) -> None:
         """Test that hub_stats returns accurate aggregate statistics."""
         import asyncio
 
@@ -244,7 +244,7 @@ class TestHubQueryIntegration:
 class TestHubQueryEdgeCases:
     """Integration tests for hub query edge cases."""
 
-    def test_hub_tools_handle_missing_database(self, hub_dir):
+    def test_hub_tools_handle_missing_database(self, hub_dir) -> None:
         """Test that all hub tools handle missing database gracefully."""
         import asyncio
 
@@ -264,7 +264,7 @@ class TestHubQueryEdgeCases:
             assert result["success"] is False
             assert "not found" in result["error"]
 
-    def test_hub_tools_handle_empty_database(self, hub_dir):
+    def test_hub_tools_handle_empty_database(self, hub_dir) -> None:
         """Test that all hub tools handle empty database gracefully."""
         import asyncio
 
@@ -305,7 +305,7 @@ class TestHubQueryEdgeCases:
         assert result["stats"]["tasks"]["total"] == 0
         assert result["stats"]["sessions"]["total"] == 0
 
-    def test_projects_with_only_tasks_no_sessions(self, hub_dir):
+    def test_projects_with_only_tasks_no_sessions(self, hub_dir) -> None:
         """Test that list_all_projects handles projects with only tasks."""
         import asyncio
 
@@ -342,7 +342,7 @@ class TestHubQueryEdgeCases:
         assert project["task_count"] == 1
         assert project["session_count"] == 0
 
-    def test_projects_with_only_sessions_no_tasks(self, hub_dir):
+    def test_projects_with_only_sessions_no_tasks(self, hub_dir) -> None:
         """Test that list_all_projects handles projects with only sessions."""
         import asyncio
 

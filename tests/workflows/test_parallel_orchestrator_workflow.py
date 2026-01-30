@@ -28,7 +28,7 @@ def workflow_loader_with_install_dir() -> WorkflowLoader:
 class TestParallelOrchestratorLoading:
     """Tests for loading the parallel-orchestrator workflow."""
 
-    def test_workflow_loads(self, workflow_loader_with_install_dir):
+    def test_workflow_loads(self, workflow_loader_with_install_dir) -> None:
         """Test that parallel-orchestrator workflow can be loaded."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -37,7 +37,7 @@ class TestParallelOrchestratorLoading:
         assert workflow.name == "parallel-orchestrator"
         assert workflow.type == "step"
 
-    def test_workflow_has_description(self, workflow_loader_with_install_dir):
+    def test_workflow_has_description(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has a meaningful description."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -50,7 +50,7 @@ class TestParallelOrchestratorLoading:
 class TestParallelOrchestratorConfig:
     """Tests for workflow configuration."""
 
-    def test_has_max_parallel_agents_config(self, workflow_loader_with_install_dir):
+    def test_has_max_parallel_agents_config(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has max_parallel_agents=3 configuration."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -59,7 +59,7 @@ class TestParallelOrchestratorConfig:
         assert "max_parallel_agents" in workflow.variables
         assert workflow.variables["max_parallel_agents"] == 3
 
-    def test_has_isolation_mode_clone(self, workflow_loader_with_install_dir):
+    def test_has_isolation_mode_clone(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has isolation_mode=clone configuration."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -72,7 +72,7 @@ class TestParallelOrchestratorConfig:
 class TestParallelOrchestratorSteps:
     """Tests for required workflow steps."""
 
-    def test_has_select_batch_step(self, workflow_loader_with_install_dir):
+    def test_has_select_batch_step(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has select_batch step."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -81,7 +81,7 @@ class TestParallelOrchestratorSteps:
         step = workflow.get_step("select_batch")
         assert step is not None, "Missing 'select_batch' step"
 
-    def test_has_spawn_batch_step(self, workflow_loader_with_install_dir):
+    def test_has_spawn_batch_step(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has spawn_batch step."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -90,7 +90,7 @@ class TestParallelOrchestratorSteps:
         step = workflow.get_step("spawn_batch")
         assert step is not None, "Missing 'spawn_batch' step"
 
-    def test_has_wait_any_step(self, workflow_loader_with_install_dir):
+    def test_has_wait_any_step(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has wait_any step."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -99,7 +99,7 @@ class TestParallelOrchestratorSteps:
         step = workflow.get_step("wait_any")
         assert step is not None, "Missing 'wait_any' step"
 
-    def test_has_sync_and_review_step(self, workflow_loader_with_install_dir):
+    def test_has_sync_and_review_step(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has sync_and_review step."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -108,7 +108,7 @@ class TestParallelOrchestratorSteps:
         step = workflow.get_step("sync_and_review")
         assert step is not None, "Missing 'sync_and_review' step"
 
-    def test_has_process_completed_step(self, workflow_loader_with_install_dir):
+    def test_has_process_completed_step(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has process_completed step."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -117,7 +117,7 @@ class TestParallelOrchestratorSteps:
         step = workflow.get_step("process_completed")
         assert step is not None, "Missing 'process_completed' step"
 
-    def test_has_loop_step(self, workflow_loader_with_install_dir):
+    def test_has_loop_step(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has loop step."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -130,7 +130,7 @@ class TestParallelOrchestratorSteps:
 class TestParallelOrchestratorCloneTools:
     """Tests for clone tool availability."""
 
-    def test_spawn_batch_allows_clone_tools(self, workflow_loader_with_install_dir):
+    def test_spawn_batch_allows_clone_tools(self, workflow_loader_with_install_dir) -> None:
         """Test that spawn_batch step allows clone tools."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")
@@ -152,7 +152,7 @@ class TestParallelOrchestratorCloneTools:
 class TestParallelOrchestratorSettings:
     """Tests for workflow settings."""
 
-    def test_is_valid_for_agent_spawning(self, workflow_loader_with_install_dir):
+    def test_is_valid_for_agent_spawning(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow is valid for agent spawning (not lifecycle type)."""
         loader = workflow_loader_with_install_dir
         is_valid, error = loader.validate_workflow_for_agent("parallel-orchestrator")
@@ -160,7 +160,7 @@ class TestParallelOrchestratorSettings:
         assert is_valid is True
         assert error is None
 
-    def test_has_exit_condition(self, workflow_loader_with_install_dir):
+    def test_has_exit_condition(self, workflow_loader_with_install_dir) -> None:
         """Test that workflow has an exit condition."""
         loader = workflow_loader_with_install_dir
         workflow = loader.load_workflow("parallel-orchestrator")

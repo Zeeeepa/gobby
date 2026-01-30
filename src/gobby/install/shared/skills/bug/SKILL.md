@@ -24,7 +24,7 @@ Create a bug/defect task with the provided title and optional description.
 
 ## Action
 
-Call `gobby-tasks.create_task` with:
+Create a bug task with the following parameters:
 
 - `title`: The bug title from user input
 - `task_type`: "bug"
@@ -62,7 +62,7 @@ The `session_id` parameter is required. If session context is unavailable:
 3. **Fallback options**:
    - Prompt the user to provide a session ID manually
    - Implement retry logic with exponential backoff if the session service is temporarily unavailable
-   - Check `get_current` from `gobby-sessions` to obtain or refresh the session
+   - Check `get_current_session` from `gobby-sessions` to obtain or refresh the session
 
 ```python
 # Example error handling

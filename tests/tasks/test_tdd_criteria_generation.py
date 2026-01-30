@@ -15,6 +15,7 @@ import pytest
 from gobby.config.tasks import PatternCriteriaConfig, TaskValidationConfig
 from gobby.tasks.validation import TaskValidator
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_llm():

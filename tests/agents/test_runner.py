@@ -7,11 +7,12 @@ import pytest
 from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner, RunningAgent
 from gobby.llm.executor import AgentResult
 
+pytestmark = pytest.mark.unit
 
 class TestAgentRunContext:
     """Tests for AgentRunContext dataclass."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """All fields default to None."""
         ctx = AgentRunContext()
 
@@ -20,7 +21,7 @@ class TestAgentRunContext:
         assert ctx.workflow_state is None
         assert ctx.workflow_config is None
 
-    def test_session_id_property(self):
+    def test_session_id_property(self) -> None:
         """session_id property returns session.id."""
         mock_session = MagicMock()
         mock_session.id = "sess-123"
@@ -29,13 +30,13 @@ class TestAgentRunContext:
 
         assert ctx.session_id == "sess-123"
 
-    def test_session_id_none_when_no_session(self):
+    def test_session_id_none_when_no_session(self) -> None:
         """session_id returns None when session is None."""
         ctx = AgentRunContext()
 
         assert ctx.session_id is None
 
-    def test_run_id_property(self):
+    def test_run_id_property(self) -> None:
         """run_id property returns run.id."""
         mock_run = MagicMock()
         mock_run.id = "run-456"
@@ -44,13 +45,13 @@ class TestAgentRunContext:
 
         assert ctx.run_id == "run-456"
 
-    def test_run_id_none_when_no_run(self):
+    def test_run_id_none_when_no_run(self) -> None:
         """run_id returns None when run is None."""
         ctx = AgentRunContext()
 
         assert ctx.run_id is None
 
-    def test_all_fields_settable(self):
+    def test_all_fields_settable(self) -> None:
         """All fields can be set."""
         mock_session = MagicMock()
         mock_run = MagicMock()
@@ -73,13 +74,13 @@ class TestAgentRunContext:
 class TestAgentConfig:
     """Tests for AgentConfig dataclass."""
 
-    def test_prompt_required(self):
+    def test_prompt_required(self) -> None:
         """prompt is the only required field."""
         config = AgentConfig(prompt="Do something")
 
         assert config.prompt == "Do something"
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Default values are set correctly."""
         config = AgentConfig(prompt="test")
 
@@ -98,7 +99,7 @@ class TestAgentConfig:
         assert config.max_turns == 10
         assert config.timeout == 120.0
 
-    def test_get_effective_workflow_prefers_workflow(self):
+    def test_get_effective_workflow_prefers_workflow(self) -> None:
         """get_effective_workflow prefers 'workflow' over 'workflow_name'."""
         config = AgentConfig(
             prompt="test",
@@ -108,7 +109,7 @@ class TestAgentConfig:
 
         assert config.get_effective_workflow() == "new-workflow"
 
-    def test_get_effective_workflow_fallback(self):
+    def test_get_effective_workflow_fallback(self) -> None:
         """get_effective_workflow falls back to workflow_name."""
         config = AgentConfig(
             prompt="test",
@@ -117,7 +118,7 @@ class TestAgentConfig:
 
         assert config.get_effective_workflow() == "legacy-workflow"
 
-    def test_get_effective_workflow_none(self):
+    def test_get_effective_workflow_none(self) -> None:
         """get_effective_workflow returns None when neither set."""
         config = AgentConfig(prompt="test")
 
@@ -171,7 +172,7 @@ def runner(mock_db, mock_session_storage, mock_executor):
 class TestAgentRunnerPrepareRun:
     """Tests for AgentRunner.prepare_run()."""
 
-    def test_prepare_run_validates_parent_session_id(self, runner):
+    def test_prepare_run_validates_parent_session_id(self, runner) -> None:
         """prepare_run returns error when parent_session_id is missing."""
         config = AgentConfig(
             prompt="Test prompt",
@@ -185,7 +186,7 @@ class TestAgentRunnerPrepareRun:
         assert result.status == "error"
         assert "parent_session_id is required" in result.error
 
-    def test_prepare_run_validates_project_id(self, runner):
+    def test_prepare_run_validates_project_id(self, runner) -> None:
         """prepare_run returns error when project_id is missing."""
         config = AgentConfig(
             prompt="Test prompt",
@@ -199,7 +200,7 @@ class TestAgentRunnerPrepareRun:
         assert result.status == "error"
         assert "project_id is required" in result.error
 
-    def test_prepare_run_validates_machine_id(self, runner):
+    def test_prepare_run_validates_machine_id(self, runner) -> None:
         """prepare_run returns error when machine_id is missing."""
         config = AgentConfig(
             prompt="Test prompt",
@@ -213,7 +214,7 @@ class TestAgentRunnerPrepareRun:
         assert result.status == "error"
         assert "machine_id is required" in result.error
 
-    def test_prepare_run_creates_context(self, runner, mock_session_storage):
+    def test_prepare_run_creates_context(self, runner, mock_session_storage) -> None:
         """prepare_run creates AgentRunContext with session and run."""
         # Mock can_spawn to allow spawning
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
@@ -244,7 +245,7 @@ class TestAgentRunnerPrepareRun:
         assert result.session_id == "sess-child"
         assert result.run_id == "run-123"
 
-    def test_prepare_run_checks_spawn_depth(self, runner):
+    def test_prepare_run_checks_spawn_depth(self, runner) -> None:
         """prepare_run checks agent depth limit."""
         # Make can_spawn return False
         runner._child_session_manager.can_spawn_child = MagicMock(
@@ -404,7 +405,7 @@ class TestAgentRunnerRun:
 class TestAgentRunnerTerminalPickupMetadata:
     """Tests for terminal pickup metadata in prepare_run."""
 
-    def test_prepare_run_sets_terminal_pickup_metadata(self, runner, mock_session_storage):
+    def test_prepare_run_sets_terminal_pickup_metadata(self, runner, mock_session_storage) -> None:
         """prepare_run calls update_terminal_pickup_metadata with correct values."""
         # Mock can_spawn to allow spawning
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
@@ -445,7 +446,7 @@ class TestAgentRunnerTerminalPickupMetadata:
             original_prompt="Test prompt for agent",
         )
 
-    def test_prepare_run_sets_metadata_without_workflow(self, runner, mock_session_storage):
+    def test_prepare_run_sets_metadata_without_workflow(self, runner, mock_session_storage) -> None:
         """prepare_run sets metadata even when no workflow specified."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
@@ -478,7 +479,7 @@ class TestAgentRunnerTerminalPickupMetadata:
             original_prompt="Simple task",
         )
 
-    def test_prepare_run_uses_legacy_workflow_name(self, runner, mock_session_storage):
+    def test_prepare_run_uses_legacy_workflow_name(self, runner, mock_session_storage) -> None:
         """prepare_run uses legacy workflow_name if workflow not specified."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
@@ -515,7 +516,7 @@ class TestAgentRunnerTerminalPickupMetadata:
 class TestRunningAgent:
     """Tests for RunningAgent dataclass (from gobby.agents.registry)."""
 
-    def test_create_running_agent(self):
+    def test_create_running_agent(self) -> None:
         """RunningAgent stores all fields correctly."""
         agent = RunningAgent(
             run_id="run-123",
@@ -541,7 +542,7 @@ class TestRunningAgent:
         assert agent.terminal_type == "ghostty"
         assert agent.master_fd == 5
 
-    def test_running_agent_defaults(self):
+    def test_running_agent_defaults(self) -> None:
         """RunningAgent has correct default values."""
         agent = RunningAgent(
             run_id="run-1",
@@ -558,7 +559,7 @@ class TestRunningAgent:
         assert agent.provider == "claude"
         assert agent.task is None
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """RunningAgent.to_dict() returns correct dict."""
         agent = RunningAgent(
             run_id="run-abc",
@@ -581,7 +582,7 @@ class TestRunningAgent:
 class TestAgentRunnerGetAndListRuns:
     """Tests for AgentRunner.get_run() and list_runs()."""
 
-    def test_get_run_returns_run(self, runner):
+    def test_get_run_returns_run(self, runner) -> None:
         """get_run returns the run from storage."""
         mock_run = MagicMock()
         mock_run.id = "run-abc"
@@ -592,7 +593,7 @@ class TestAgentRunnerGetAndListRuns:
         assert result is mock_run
         runner._run_storage.get.assert_called_once_with("run-abc")
 
-    def test_get_run_returns_none_for_missing(self, runner):
+    def test_get_run_returns_none_for_missing(self, runner) -> None:
         """get_run returns None when run not found."""
         runner._run_storage.get = MagicMock(return_value=None)
 
@@ -600,7 +601,7 @@ class TestAgentRunnerGetAndListRuns:
 
         assert result is None
 
-    def test_list_runs_returns_runs(self, runner):
+    def test_list_runs_returns_runs(self, runner) -> None:
         """list_runs returns runs from storage."""
         mock_runs = [MagicMock(), MagicMock()]
         runner._run_storage.list_by_session = MagicMock(return_value=mock_runs)
@@ -614,7 +615,7 @@ class TestAgentRunnerGetAndListRuns:
             limit=50,
         )
 
-    def test_list_runs_uses_defaults(self, runner):
+    def test_list_runs_uses_defaults(self, runner) -> None:
         """list_runs uses default values for status and limit."""
         runner._run_storage.list_by_session = MagicMock(return_value=[])
 
@@ -630,7 +631,7 @@ class TestAgentRunnerGetAndListRuns:
 class TestAgentRunnerCancelRun:
     """Tests for AgentRunner.cancel_run()."""
 
-    def test_cancel_run_success(self, runner, mock_session_storage):
+    def test_cancel_run_success(self, runner, mock_session_storage) -> None:
         """cancel_run cancels a running agent."""
         mock_run = MagicMock()
         mock_run.id = "run-cancel"
@@ -645,7 +646,7 @@ class TestAgentRunnerCancelRun:
         runner._run_storage.cancel.assert_called_once_with("run-cancel")
         mock_session_storage.update_status.assert_called_once_with("sess-child", "cancelled")
 
-    def test_cancel_run_not_found(self, runner):
+    def test_cancel_run_not_found(self, runner) -> None:
         """cancel_run returns False when run not found."""
         runner._run_storage.get = MagicMock(return_value=None)
 
@@ -653,7 +654,7 @@ class TestAgentRunnerCancelRun:
 
         assert result is False
 
-    def test_cancel_run_not_running(self, runner):
+    def test_cancel_run_not_running(self, runner) -> None:
         """cancel_run returns False when run is not in running status."""
         mock_run = MagicMock()
         mock_run.id = "run-done"
@@ -664,7 +665,7 @@ class TestAgentRunnerCancelRun:
 
         assert result is False
 
-    def test_cancel_run_removes_from_tracking(self, runner, mock_session_storage):
+    def test_cancel_run_removes_from_tracking(self, runner, mock_session_storage) -> None:
         """cancel_run removes agent from in-memory tracking."""
         mock_run = MagicMock()
         mock_run.id = "run-tracked"
@@ -682,7 +683,7 @@ class TestAgentRunnerCancelRun:
         assert result is True
         assert "run-tracked" not in runner._running_agents
 
-    def test_cancel_run_no_child_session(self, runner):
+    def test_cancel_run_no_child_session(self, runner) -> None:
         """cancel_run handles case where run has no child_session_id."""
         mock_run = MagicMock()
         mock_run.id = "run-no-child"
@@ -700,7 +701,7 @@ class TestAgentRunnerCancelRun:
 class TestAgentRunnerRegisterExecutor:
     """Tests for AgentRunner.register_executor()."""
 
-    def test_register_executor(self, runner):
+    def test_register_executor(self, runner) -> None:
         """register_executor adds executor for provider."""
         mock_executor = MagicMock()
 
@@ -709,7 +710,7 @@ class TestAgentRunnerRegisterExecutor:
         assert runner._executors["gemini"] is mock_executor
         assert runner.get_executor("gemini") is mock_executor
 
-    def test_register_executor_overwrites_existing(self, runner):
+    def test_register_executor_overwrites_existing(self, runner) -> None:
         """register_executor overwrites existing executor."""
         old_executor = MagicMock()
         new_executor = MagicMock()
@@ -723,7 +724,7 @@ class TestAgentRunnerRegisterExecutor:
 class TestAgentRunnerInMemoryTracking:
     """Tests for AgentRunner in-memory running agents tracking."""
 
-    def test_track_running_agent(self, runner):
+    def test_track_running_agent(self, runner) -> None:
         """_track_running_agent adds agent to dict."""
         agent = runner._track_running_agent(
             run_id="run-123",
@@ -737,7 +738,7 @@ class TestAgentRunnerInMemoryTracking:
         assert "run-123" in runner._running_agents
         assert runner._running_agents["run-123"] is agent
 
-    def test_untrack_running_agent(self, runner):
+    def test_untrack_running_agent(self, runner) -> None:
         """_untrack_running_agent removes agent from dict."""
         runner._track_running_agent(
             run_id="run-456",
@@ -753,13 +754,13 @@ class TestAgentRunnerInMemoryTracking:
         assert removed.run_id == "run-456"
         assert "run-456" not in runner._running_agents
 
-    def test_untrack_nonexistent_returns_none(self, runner):
+    def test_untrack_nonexistent_returns_none(self, runner) -> None:
         """_untrack_running_agent returns None for missing agent."""
         result = runner._untrack_running_agent("nonexistent-run")
 
         assert result is None
 
-    def test_update_running_agent(self, runner):
+    def test_update_running_agent(self, runner) -> None:
         """_update_running_agent returns agent if found.
 
         Note: The registry's RunningAgent is lightweight and doesn't track
@@ -784,7 +785,7 @@ class TestAgentRunnerInMemoryTracking:
         assert updated is not None
         assert updated.run_id == "run-789"
 
-    def test_get_running_agent(self, runner):
+    def test_get_running_agent(self, runner) -> None:
         """get_running_agent returns agent by ID."""
         runner._track_running_agent(
             run_id="run-get",
@@ -799,13 +800,13 @@ class TestAgentRunnerInMemoryTracking:
         assert agent is not None
         assert agent.run_id == "run-get"
 
-    def test_get_running_agent_not_found(self, runner):
+    def test_get_running_agent_not_found(self, runner) -> None:
         """get_running_agent returns None for missing agent."""
         agent = runner.get_running_agent("missing")
 
         assert agent is None
 
-    def test_get_running_agents(self, runner):
+    def test_get_running_agents(self, runner) -> None:
         """get_running_agents returns all agents."""
         runner._track_running_agent(
             run_id="run-1",
@@ -828,7 +829,7 @@ class TestAgentRunnerInMemoryTracking:
         run_ids = {a.run_id for a in agents}
         assert run_ids == {"run-1", "run-2"}
 
-    def test_get_running_agents_filter_by_parent(self, runner):
+    def test_get_running_agents_filter_by_parent(self, runner) -> None:
         """get_running_agents filters by parent_session_id."""
         runner._track_running_agent(
             run_id="run-a",
@@ -850,7 +851,7 @@ class TestAgentRunnerInMemoryTracking:
         assert len(agents) == 1
         assert agents[0].run_id == "run-a"
 
-    def test_get_running_agents_count(self, runner):
+    def test_get_running_agents_count(self, runner) -> None:
         """get_running_agents_count returns correct count."""
         assert runner.get_running_agents_count() == 0
 
@@ -864,7 +865,7 @@ class TestAgentRunnerInMemoryTracking:
 
         assert runner.get_running_agents_count() == 1
 
-    def test_is_agent_running(self, runner):
+    def test_is_agent_running(self, runner) -> None:
         """is_agent_running returns correct boolean."""
         assert runner.is_agent_running("run-check") is False
 
@@ -1032,7 +1033,7 @@ class TestAgentRunnerExecuteRunStatusHandling:
 class TestAgentRunnerPrepareRunWorkflows:
     """Tests for AgentRunner.prepare_run() workflow handling."""
 
-    def test_prepare_run_rejects_lifecycle_workflow(self, runner, mock_session_storage):
+    def test_prepare_run_rejects_lifecycle_workflow(self, runner, mock_session_storage) -> None:
         """prepare_run returns error for lifecycle workflows."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
@@ -1056,7 +1057,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert "lifecycle workflow" in result.error.lower()
         assert "cannot use" in result.error.lower()
 
-    def test_prepare_run_handles_child_session_creation_failure(self, runner, mock_session_storage):
+    def test_prepare_run_handles_child_session_creation_failure(self, runner, mock_session_storage) -> None:
         """prepare_run handles ValueError from create_child_session."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
         runner._child_session_manager.create_child_session = MagicMock(
@@ -1076,7 +1077,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert result.status == "error"
         assert "Session creation failed" in result.error
 
-    def test_prepare_run_warns_on_workflow_not_found(self, runner, mock_session_storage, caplog):
+    def test_prepare_run_warns_on_workflow_not_found(self, runner, mock_session_storage, caplog) -> None:
         """prepare_run logs warning when workflow not found."""
         import logging
 
@@ -1108,7 +1109,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert isinstance(result, AgentRunContext)
         assert "not found" in caplog.text or result.workflow_config is None
 
-    def test_prepare_run_initializes_workflow_state(self, runner, mock_session_storage):
+    def test_prepare_run_initializes_workflow_state(self, runner, mock_session_storage) -> None:
         """prepare_run initializes workflow state for step workflows."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
@@ -1147,7 +1148,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert result.workflow_config is mock_workflow
         runner._workflow_state_manager.save_state.assert_called_once()
 
-    def test_prepare_run_handles_workflow_with_no_steps(self, runner, mock_session_storage):
+    def test_prepare_run_handles_workflow_with_no_steps(self, runner, mock_session_storage) -> None:
         """prepare_run handles workflow with empty steps list."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 

@@ -16,6 +16,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import Memory, MemoryCrossRef
 from gobby.storage.migrations import run_migrations
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -59,13 +61,13 @@ def memory_manager_with_crossref(db, memory_config_with_crossref):
 class TestTFIDFSearcher:
     """Tests for the TF-IDF search backend."""
 
-    def test_init_creates_unfitted_searcher(self):
+    def test_init_creates_unfitted_searcher(self) -> None:
         """Test that initialization creates an unfitted searcher."""
         searcher = TFIDFSearcher()
         assert searcher.needs_refit() is True
         assert searcher._fitted is False
 
-    def test_fit_with_memories(self):
+    def test_fit_with_memories(self) -> None:
         """Test fitting the searcher with memory data."""
         searcher = TFIDFSearcher()
         memories = [
@@ -79,7 +81,7 @@ class TestTFIDFSearcher:
         assert searcher.needs_refit() is False
         assert len(searcher._item_ids) == 3
 
-    def test_fit_with_empty_list(self):
+    def test_fit_with_empty_list(self) -> None:
         """Test fitting with empty list clears the index."""
         searcher = TFIDFSearcher()
         # First fit with data
@@ -91,7 +93,7 @@ class TestTFIDFSearcher:
         assert searcher._fitted is False
         assert len(searcher._item_ids) == 0
 
-    def test_search_returns_relevant_results(self):
+    def test_search_returns_relevant_results(self) -> None:
         """Test that search returns relevant memories."""
         searcher = TFIDFSearcher()
         memories = [
@@ -108,7 +110,7 @@ class TestTFIDFSearcher:
         memory_ids = [r[0] for r in results]
         assert "mm-1" in memory_ids or "mm-3" in memory_ids
 
-    def test_search_respects_top_k(self):
+    def test_search_respects_top_k(self) -> None:
         """Test that search respects the top_k limit."""
         searcher = TFIDFSearcher()
         memories = [
@@ -123,13 +125,13 @@ class TestTFIDFSearcher:
         results = searcher.search("programming", top_k=2)
         assert len(results) <= 2
 
-    def test_search_unfitted_returns_empty(self):
+    def test_search_unfitted_returns_empty(self) -> None:
         """Test that searching an unfitted index returns empty list."""
         searcher = TFIDFSearcher()
         results = searcher.search("anything", top_k=10)
         assert results == []
 
-    def test_search_no_matches_returns_empty(self):
+    def test_search_no_matches_returns_empty(self) -> None:
         """Test that search with no matches returns empty list."""
         searcher = TFIDFSearcher()
         searcher.fit([("mm-1", "Python programming")])
@@ -137,7 +139,7 @@ class TestTFIDFSearcher:
         results = searcher.search("completely unrelated xyz123", top_k=10)
         assert results == []
 
-    def test_search_returns_similarity_scores(self):
+    def test_search_returns_similarity_scores(self) -> None:
         """Test that search results include similarity scores."""
         searcher = TFIDFSearcher()
         searcher.fit(
@@ -156,7 +158,7 @@ class TestTFIDFSearcher:
         assert isinstance(similarity, float)
         assert 0.0 <= similarity <= 1.0
 
-    def test_mark_update_triggers_refit_need(self):
+    def test_mark_update_triggers_refit_need(self) -> None:
         """Test that marking updates triggers refit need."""
         searcher = TFIDFSearcher(refit_threshold=3)
         searcher.fit([("mm-1", "content")])
@@ -170,7 +172,7 @@ class TestTFIDFSearcher:
         searcher.mark_update()  # Third update
         assert searcher.needs_refit() is True
 
-    def test_get_stats_returns_index_info(self):
+    def test_get_stats_returns_index_info(self) -> None:
         """Test that get_stats returns useful information."""
         searcher = TFIDFSearcher()
         searcher.fit(
@@ -187,7 +189,7 @@ class TestTFIDFSearcher:
         assert "vocabulary_size" in stats
         assert stats["vocabulary_size"] > 0
 
-    def test_clear_resets_index(self):
+    def test_clear_resets_index(self) -> None:
         """Test that clear resets the search index."""
         searcher = TFIDFSearcher()
         searcher.fit([("mm-1", "content")])
@@ -334,7 +336,7 @@ class TestCrossReferences:
 class TestVisualization:
     """Tests for memory knowledge graph visualization."""
 
-    def test_export_memory_graph_generates_html(self):
+    def test_export_memory_graph_generates_html(self) -> None:
         """Test that export_memory_graph generates valid HTML."""
         memories = [
             Memory(
@@ -374,7 +376,7 @@ class TestVisualization:
         assert "mm-1" in html
         assert "mm-2" in html
 
-    def test_export_memory_graph_colors_by_type(self):
+    def test_export_memory_graph_colors_by_type(self) -> None:
         """Test that nodes are colored by memory type."""
         memories = [
             Memory(
@@ -401,7 +403,7 @@ class TestVisualization:
         assert "#4CAF50" in html  # Green for facts
         assert "#2196F3" in html  # Blue for preferences
 
-    def test_export_memory_graph_handles_empty_memories(self):
+    def test_export_memory_graph_handles_empty_memories(self) -> None:
         """Test that export handles empty memory list."""
         html = export_memory_graph([], [], title="Empty Graph")
 
@@ -409,7 +411,7 @@ class TestVisualization:
         assert "Nodes: 0" in html
         assert "Edges: 0" in html
 
-    def test_export_memory_graph_truncates_long_content(self):
+    def test_export_memory_graph_truncates_long_content(self) -> None:
         """Test that long content is truncated in labels."""
         long_content = "A" * 100  # 100 characters
         memories = [
@@ -429,7 +431,7 @@ class TestVisualization:
         # Label is first 50 chars + "..."
         assert "..." in html
 
-    def test_export_memory_graph_includes_edge_data(self):
+    def test_export_memory_graph_includes_edge_data(self) -> None:
         """Test that edges include similarity information."""
         memories = [
             Memory(
@@ -463,7 +465,7 @@ class TestVisualization:
         # Check edge data is present
         assert "Similarity: 0.85" in html
 
-    def test_export_memory_graph_filters_orphan_edges(self):
+    def test_export_memory_graph_filters_orphan_edges(self) -> None:
         """Test that edges to non-existent nodes are filtered."""
         memories = [
             Memory(

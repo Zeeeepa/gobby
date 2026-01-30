@@ -10,6 +10,8 @@ import unittest.mock
 import pytest
 from pydantic import ValidationError
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Import Tests (RED phase targets)
 # =============================================================================

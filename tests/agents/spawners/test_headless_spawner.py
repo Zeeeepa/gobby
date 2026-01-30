@@ -33,7 +33,7 @@ pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Unix-specific t
 class TestGetSpawnUtils:
     """Tests for the _get_spawn_utils lazy import function."""
 
-    def test_returns_correct_functions(self):
+    def test_returns_correct_functions(self) -> None:
         """_get_spawn_utils returns the expected functions and constant."""
         build_cli_command, _create_prompt_file, max_env_prompt_length = _get_spawn_utils()
 
@@ -42,12 +42,12 @@ class TestGetSpawnUtils:
         assert callable(_create_prompt_file)
         assert isinstance(max_env_prompt_length, int)
 
-    def test_max_env_prompt_length_value(self):
+    def test_max_env_prompt_length_value(self) -> None:
         """_get_spawn_utils returns correct MAX_ENV_PROMPT_LENGTH."""
         _, _, max_env_prompt_length = _get_spawn_utils()
         assert max_env_prompt_length == 4096
 
-    def test_build_cli_command_callable(self):
+    def test_build_cli_command_callable(self) -> None:
         """build_cli_command from _get_spawn_utils is functional."""
         build_cli_command, _, _ = _get_spawn_utils()
 
@@ -64,7 +64,7 @@ class TestGetSpawnUtils:
 class TestHeadlessSpawnerSpawn:
     """Tests for HeadlessSpawner.spawn() method."""
 
-    def test_spawn_simple_command(self):
+    def test_spawn_simple_command(self) -> None:
         """spawn() runs a simple command successfully."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(["echo", "hello"], cwd="/tmp")
@@ -80,7 +80,7 @@ class TestHeadlessSpawnerSpawn:
         stdout, _ = result.process.communicate()
         assert "hello" in stdout
 
-    def test_spawn_captures_stdout(self):
+    def test_spawn_captures_stdout(self) -> None:
         """spawn() captures stdout through the process handle."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(["echo", "test output"], cwd="/tmp")
@@ -89,7 +89,7 @@ class TestHeadlessSpawnerSpawn:
         stdout, _ = result.process.communicate()
         assert "test output" in stdout
 
-    def test_spawn_with_env_vars(self):
+    def test_spawn_with_env_vars(self) -> None:
         """spawn() passes environment variables to the subprocess."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(
@@ -102,7 +102,7 @@ class TestHeadlessSpawnerSpawn:
         stdout, _ = result.process.communicate()
         assert "headless_value_123" in stdout
 
-    def test_spawn_merges_env_with_parent(self):
+    def test_spawn_merges_env_with_parent(self) -> None:
         """spawn() merges custom env with parent environment."""
         spawner = HeadlessSpawner()
 
@@ -117,7 +117,7 @@ class TestHeadlessSpawnerSpawn:
         stdout, _ = result.process.communicate()
         assert "PATH exists:" in stdout
 
-    def test_spawn_without_env_uses_parent_env(self):
+    def test_spawn_without_env_uses_parent_env(self) -> None:
         """spawn() uses parent environment when env is None."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(
@@ -130,7 +130,7 @@ class TestHeadlessSpawnerSpawn:
         stdout, _ = result.process.communicate()
         assert "PATH:" in stdout
 
-    def test_spawn_with_working_directory(self):
+    def test_spawn_with_working_directory(self) -> None:
         """spawn() uses the specified working directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             spawner = HeadlessSpawner()
@@ -147,7 +147,7 @@ class TestHeadlessSpawnerSpawn:
                 or os.path.basename(tmpdir) in stdout
             )
 
-    def test_spawn_with_path_object(self):
+    def test_spawn_with_path_object(self) -> None:
         """spawn() accepts Path object for cwd."""
         with tempfile.TemporaryDirectory() as tmpdir:
             spawner = HeadlessSpawner()
@@ -157,7 +157,7 @@ class TestHeadlessSpawnerSpawn:
             stdout, _ = result.process.communicate()
             assert tmpdir in stdout or os.path.basename(tmpdir) in stdout
 
-    def test_spawn_returns_pid(self):
+    def test_spawn_returns_pid(self) -> None:
         """spawn() returns the process PID in the result."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(["sleep", "0.1"], cwd="/tmp")
@@ -171,7 +171,7 @@ class TestHeadlessSpawnerSpawn:
         result.process.terminate()
         result.process.wait()
 
-    def test_spawn_nonexistent_command_fails(self):
+    def test_spawn_nonexistent_command_fails(self) -> None:
         """spawn() returns failure for non-existent commands."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(["nonexistent_command_xyz_12345"], cwd="/tmp")
@@ -182,7 +182,7 @@ class TestHeadlessSpawnerSpawn:
         assert result.pid is None
         assert result.process is None
 
-    def test_spawn_handles_popen_exception(self):
+    def test_spawn_handles_popen_exception(self) -> None:
         """spawn() handles Popen exceptions gracefully."""
         spawner = HeadlessSpawner()
 
@@ -193,7 +193,7 @@ class TestHeadlessSpawnerSpawn:
             assert "Spawn failed" in result.error
             assert "Failed to spawn headless process" in result.message
 
-    def test_spawn_handles_permission_error(self):
+    def test_spawn_handles_permission_error(self) -> None:
         """spawn() handles PermissionError gracefully."""
         spawner = HeadlessSpawner()
 
@@ -203,7 +203,7 @@ class TestHeadlessSpawnerSpawn:
             assert result.success is False
             assert "Access denied" in result.error
 
-    def test_spawn_handles_filenotfound_error(self):
+    def test_spawn_handles_filenotfound_error(self) -> None:
         """spawn() handles FileNotFoundError gracefully."""
         spawner = HeadlessSpawner()
 
@@ -213,7 +213,7 @@ class TestHeadlessSpawnerSpawn:
             assert result.success is False
             assert "Command not found" in result.error
 
-    def test_spawn_process_configuration(self):
+    def test_spawn_process_configuration(self) -> None:
         """spawn() configures Popen with correct parameters."""
         spawner = HeadlessSpawner()
 
@@ -245,7 +245,7 @@ class TestHeadlessSpawnerSpawn:
             assert call_args[1]["bufsize"] == 1
             assert "TEST" in call_args[1]["env"]
 
-    def test_spawn_stderr_merged_with_stdout(self):
+    def test_spawn_stderr_merged_with_stdout(self) -> None:
         """spawn() merges stderr into stdout."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(
@@ -514,7 +514,7 @@ class TestHeadlessSpawnerSpawnAndCapture:
 class TestHeadlessSpawnerSpawnAgent:
     """Tests for HeadlessSpawner.spawn_agent() method."""
 
-    def test_spawn_agent_basic(self):
+    def test_spawn_agent_basic(self) -> None:
         """spawn_agent() builds correct command for Claude CLI."""
         spawner = HeadlessSpawner()
 
@@ -548,7 +548,7 @@ class TestHeadlessSpawnerSpawnAgent:
             assert env["GOBBY_AGENT_RUN_ID"] == "run-789"
             assert env["GOBBY_PROJECT_ID"] == "proj-abc"
 
-    def test_spawn_agent_with_prompt(self):
+    def test_spawn_agent_with_prompt(self) -> None:
         """spawn_agent() passes prompt in CLI and env."""
         spawner = HeadlessSpawner()
 
@@ -576,7 +576,7 @@ class TestHeadlessSpawnerSpawnAgent:
             # Short prompt should be in env
             assert env["GOBBY_PROMPT"] == "Test prompt"
 
-    def test_spawn_agent_long_prompt_uses_file(self):
+    def test_spawn_agent_long_prompt_uses_file(self) -> None:
         """spawn_agent() writes long prompts to file."""
         spawner = HeadlessSpawner()
 
@@ -609,7 +609,7 @@ class TestHeadlessSpawnerSpawnAgent:
                 # Prompt file path should be in env
                 assert env["GOBBY_PROMPT_FILE"] == "/tmp/prompt.txt"
 
-    def test_spawn_agent_with_workflow(self):
+    def test_spawn_agent_with_workflow(self) -> None:
         """spawn_agent() passes workflow name in env."""
         spawner = HeadlessSpawner()
 
@@ -631,7 +631,7 @@ class TestHeadlessSpawnerSpawnAgent:
 
             assert env["GOBBY_WORKFLOW_NAME"] == "plan-execute"
 
-    def test_spawn_agent_agent_depth(self):
+    def test_spawn_agent_agent_depth(self) -> None:
         """spawn_agent() passes agent depth in env."""
         spawner = HeadlessSpawner()
 
@@ -655,7 +655,7 @@ class TestHeadlessSpawnerSpawnAgent:
             assert env["GOBBY_AGENT_DEPTH"] == "2"
             assert env["GOBBY_MAX_AGENT_DEPTH"] == "5"
 
-    def test_spawn_agent_codex_working_directory(self):
+    def test_spawn_agent_codex_working_directory(self) -> None:
         """spawn_agent() passes working directory for Codex CLI."""
         spawner = HeadlessSpawner()
 
@@ -678,7 +678,7 @@ class TestHeadlessSpawnerSpawnAgent:
             assert "-C" in command
             assert "/projects/app" in command
 
-    def test_spawn_agent_gemini_cli(self):
+    def test_spawn_agent_gemini_cli(self) -> None:
         """spawn_agent() builds correct command for Gemini CLI."""
         spawner = HeadlessSpawner()
 
@@ -701,7 +701,7 @@ class TestHeadlessSpawnerSpawnAgent:
             assert "--approval-mode" in command
             assert "yolo" in command
 
-    def test_spawn_agent_default_depth(self):
+    def test_spawn_agent_default_depth(self) -> None:
         """spawn_agent() uses default agent depth values."""
         spawner = HeadlessSpawner()
 
@@ -724,7 +724,7 @@ class TestHeadlessSpawnerSpawnAgent:
             assert env["GOBBY_AGENT_DEPTH"] == "1"
             assert env["GOBBY_MAX_AGENT_DEPTH"] == "3"
 
-    def test_spawn_agent_no_workflow(self):
+    def test_spawn_agent_no_workflow(self) -> None:
         """spawn_agent() works without workflow name."""
         spawner = HeadlessSpawner()
 
@@ -747,7 +747,7 @@ class TestHeadlessSpawnerSpawnAgent:
             # No workflow env var should be set
             assert "GOBBY_WORKFLOW_NAME" not in env
 
-    def test_spawn_agent_no_prompt(self):
+    def test_spawn_agent_no_prompt(self) -> None:
         """spawn_agent() works without prompt."""
         spawner = HeadlessSpawner()
 
@@ -771,7 +771,7 @@ class TestHeadlessSpawnerSpawnAgent:
             assert "GOBBY_PROMPT" not in env
             assert "GOBBY_PROMPT_FILE" not in env
 
-    def test_spawn_agent_prompt_at_boundary(self):
+    def test_spawn_agent_prompt_at_boundary(self) -> None:
         """spawn_agent() handles prompt exactly at MAX_ENV_PROMPT_LENGTH."""
         spawner = HeadlessSpawner()
 
@@ -799,7 +799,7 @@ class TestHeadlessSpawnerSpawnAgent:
                 # At exactly MAX, should NOT use file
                 mock_create_file.assert_not_called()
 
-    def test_spawn_agent_prompt_one_over_boundary(self):
+    def test_spawn_agent_prompt_one_over_boundary(self) -> None:
         """spawn_agent() uses file for prompt one char over MAX_ENV_PROMPT_LENGTH."""
         spawner = HeadlessSpawner()
 
@@ -836,7 +836,7 @@ class TestHeadlessSpawnerSpawnAgent:
 class TestHeadlessResult:
     """Tests for HeadlessResult dataclass."""
 
-    def test_success_result_fields(self):
+    def test_success_result_fields(self) -> None:
         """HeadlessResult has correct fields for success."""
         result = HeadlessResult(
             success=True,
@@ -852,7 +852,7 @@ class TestHeadlessResult:
         assert result.output_buffer == ["line1", "line2"]
         assert result.error is None
 
-    def test_failure_result_fields(self):
+    def test_failure_result_fields(self) -> None:
         """HeadlessResult has correct fields for failure."""
         result = HeadlessResult(
             success=False,
@@ -866,7 +866,7 @@ class TestHeadlessResult:
         assert result.pid is None
         assert result.process is None
 
-    def test_get_output_joins_lines(self):
+    def test_get_output_joins_lines(self) -> None:
         """get_output() joins buffer with newlines."""
         result = HeadlessResult(
             success=True,
@@ -876,12 +876,12 @@ class TestHeadlessResult:
 
         assert result.get_output() == "first\nsecond\nthird"
 
-    def test_get_output_empty_buffer(self):
+    def test_get_output_empty_buffer(self) -> None:
         """get_output() returns empty string for empty buffer."""
         result = HeadlessResult(success=True, message="Test")
         assert result.get_output() == ""
 
-    def test_get_output_single_line(self):
+    def test_get_output_single_line(self) -> None:
         """get_output() returns single line without trailing newline."""
         result = HeadlessResult(
             success=True,
@@ -891,18 +891,18 @@ class TestHeadlessResult:
 
         assert result.get_output() == "only line"
 
-    def test_output_buffer_default_empty(self):
+    def test_output_buffer_default_empty(self) -> None:
         """HeadlessResult has empty output_buffer by default."""
         result = HeadlessResult(success=True, message="Test")
         assert result.output_buffer == []
 
-    def test_output_buffer_mutable(self):
+    def test_output_buffer_mutable(self) -> None:
         """output_buffer can be modified."""
         result = HeadlessResult(success=True, message="Test")
         result.output_buffer.append("new line")
         assert "new line" in result.output_buffer
 
-    def test_error_mutable(self):
+    def test_error_mutable(self) -> None:
         """error field can be modified."""
         result = HeadlessResult(success=True, message="Test")
         assert result.error is None
@@ -920,7 +920,7 @@ class TestHeadlessResult:
 class TestHeadlessSpawnerIntegration:
     """Integration tests for HeadlessSpawner on Unix systems."""
 
-    def test_spawn_real_process_sync(self):
+    def test_spawn_real_process_sync(self) -> None:
         """Integration: spawn() runs real process."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(
@@ -966,7 +966,7 @@ class TestHeadlessSpawnerIntegration:
         assert "1" in lines
         assert "5" in lines
 
-    def test_spawn_agent_integration(self):
+    def test_spawn_agent_integration(self) -> None:
         """Integration: spawn_agent() creates process with env vars."""
         spawner = HeadlessSpawner()
 
@@ -1003,7 +1003,7 @@ class TestHeadlessSpawnerIntegration:
 class TestHeadlessSpawnerEdgeCases:
     """Tests for edge cases and error handling."""
 
-    def test_spawn_empty_command(self):
+    def test_spawn_empty_command(self) -> None:
         """spawn() handles empty command list."""
         spawner = HeadlessSpawner()
 
@@ -1011,7 +1011,7 @@ class TestHeadlessSpawnerEdgeCases:
             result = spawner.spawn([], cwd="/tmp")
             assert result.success is False
 
-    def test_spawn_with_special_characters_in_args(self):
+    def test_spawn_with_special_characters_in_args(self) -> None:
         """spawn() handles special characters in arguments."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(
@@ -1023,7 +1023,7 @@ class TestHeadlessSpawnerEdgeCases:
         stdout, _ = result.process.communicate()
         assert "$world" in stdout
 
-    def test_spawn_with_unicode_in_args(self):
+    def test_spawn_with_unicode_in_args(self) -> None:
         """spawn() handles unicode in arguments."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(
@@ -1060,7 +1060,7 @@ class TestHeadlessSpawnerEdgeCases:
         assert result.success is True
         assert len(result.output_buffer) == 100
 
-    def test_spawn_nonexistent_cwd(self):
+    def test_spawn_nonexistent_cwd(self) -> None:
         """spawn() handles non-existent working directory."""
         spawner = HeadlessSpawner()
         result = spawner.spawn(

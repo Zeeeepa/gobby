@@ -12,6 +12,7 @@ from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_loader():

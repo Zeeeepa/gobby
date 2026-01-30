@@ -8,6 +8,7 @@ from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.webhook_executor import WebhookExecutor, WebhookResult
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def evaluator() -> ConditionEvaluator:

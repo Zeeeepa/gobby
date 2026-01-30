@@ -21,16 +21,19 @@ Returns server names and connection status. This shows what MCP servers are avai
 
 ### 2. Check Your Session Context
 
-Look for `session_id` in your system context (injected by SessionStart hook):
+Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context (injected by SessionStart hook):
 
+```text
+Gobby Session Ref: #5
+Gobby Session ID: <uuid>
 ```
-session_id: fd59c8fc-...
-```
+
+**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
 If not present, retrieve it:
 
 ```python
-call_tool("gobby-sessions", "get_current", {
+call_tool("gobby-sessions", "get_current_session", {
     "external_id": "<your-cli-session-id>",
     "source": "claude"  # or "gemini", "codex"
 })

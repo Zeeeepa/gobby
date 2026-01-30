@@ -13,6 +13,7 @@ import pytest
 
 from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_mcp_manager():
@@ -55,7 +56,7 @@ def tool_proxy_no_validation(mock_mcp_manager, mock_internal_manager):
 class TestCheckArguments:
     """Tests for the _check_arguments validation method."""
 
-    def test_valid_arguments_returns_empty_list(self, tool_proxy):
+    def test_valid_arguments_returns_empty_list(self, tool_proxy) -> None:
         """Verify valid arguments return no errors."""
         schema = {
             "type": "object",
@@ -71,7 +72,7 @@ class TestCheckArguments:
 
         assert errors == []
 
-    def test_unknown_parameter_returns_error(self, tool_proxy):
+    def test_unknown_parameter_returns_error(self, tool_proxy) -> None:
         """Verify unknown parameter names are flagged."""
         schema = {
             "type": "object",
@@ -89,7 +90,7 @@ class TestCheckArguments:
         assert "Unknown parameter 'workflow_name'" in errors[0]
         assert "name" in errors[0]  # Should suggest similar param
 
-    def test_unknown_parameter_lists_valid_parameters(self, tool_proxy):
+    def test_unknown_parameter_lists_valid_parameters(self, tool_proxy) -> None:
         """Verify error lists valid parameters when no similar match."""
         schema = {
             "type": "object",
@@ -108,7 +109,7 @@ class TestCheckArguments:
         assert "Valid parameters:" in errors[0]
         assert "title" in errors[0]
 
-    def test_missing_required_parameter_returns_error(self, tool_proxy):
+    def test_missing_required_parameter_returns_error(self, tool_proxy) -> None:
         """Verify missing required parameters are flagged."""
         schema = {
             "type": "object",
@@ -125,7 +126,7 @@ class TestCheckArguments:
         assert len(errors) == 1
         assert "Missing required parameter 'session_id'" in errors[0]
 
-    def test_multiple_errors_returned(self, tool_proxy):
+    def test_multiple_errors_returned(self, tool_proxy) -> None:
         """Verify multiple errors are returned together."""
         schema = {
             "type": "object",
@@ -145,7 +146,7 @@ class TestCheckArguments:
         assert "Missing required parameter 'name'" in error_text
         assert "Missing required parameter 'session_id'" in error_text
 
-    def test_empty_arguments_with_no_required(self, tool_proxy):
+    def test_empty_arguments_with_no_required(self, tool_proxy) -> None:
         """Verify empty arguments pass if nothing is required."""
         schema = {
             "type": "object",
@@ -160,7 +161,7 @@ class TestCheckArguments:
 
         assert errors == []
 
-    def test_empty_schema_accepts_all(self, tool_proxy):
+    def test_empty_schema_accepts_all(self, tool_proxy) -> None:
         """Verify empty schema accepts any arguments (no validation possible)."""
         schema = {}
         arguments = {"anything": "goes"}
@@ -425,47 +426,47 @@ class TestCallToolInternalServer:
 class TestIsArgumentError:
     """Tests for the _is_argument_error heuristic method."""
 
-    def test_detects_missing_required_parameter(self, tool_proxy):
+    def test_detects_missing_required_parameter(self, tool_proxy) -> None:
         """Verify detection of missing required parameter errors."""
         assert tool_proxy._is_argument_error("Missing required parameter 'name'") is True
 
-    def test_detects_invalid_argument(self, tool_proxy):
+    def test_detects_invalid_argument(self, tool_proxy) -> None:
         """Verify detection of invalid argument errors."""
         assert tool_proxy._is_argument_error("Invalid argument type for 'count'") is True
 
-    def test_detects_unknown_parameter(self, tool_proxy):
+    def test_detects_unknown_parameter(self, tool_proxy) -> None:
         """Verify detection of unknown parameter errors."""
         assert tool_proxy._is_argument_error("Unknown parameter 'foo'") is True
 
-    def test_detects_validation_error(self, tool_proxy):
+    def test_detects_validation_error(self, tool_proxy) -> None:
         """Verify detection of validation errors."""
         assert tool_proxy._is_argument_error("Validation failed: expected string") is True
 
-    def test_detects_http_400(self, tool_proxy):
+    def test_detects_http_400(self, tool_proxy) -> None:
         """Verify detection of HTTP 400 errors."""
         assert tool_proxy._is_argument_error("HTTP 400 Bad Request") is True
 
-    def test_detects_http_422(self, tool_proxy):
+    def test_detects_http_422(self, tool_proxy) -> None:
         """Verify detection of HTTP 422 errors."""
         assert tool_proxy._is_argument_error("422 Unprocessable Entity") is True
 
-    def test_detects_jsonrpc_invalid_params(self, tool_proxy):
+    def test_detects_jsonrpc_invalid_params(self, tool_proxy) -> None:
         """Verify detection of JSON-RPC invalid params error code."""
         assert tool_proxy._is_argument_error("Error code -32602: Invalid params") is True
 
-    def test_does_not_detect_connection_timeout(self, tool_proxy):
+    def test_does_not_detect_connection_timeout(self, tool_proxy) -> None:
         """Verify connection timeout is NOT detected as argument error."""
         assert tool_proxy._is_argument_error("Connection timed out after 30s") is False
 
-    def test_does_not_detect_server_not_found(self, tool_proxy):
+    def test_does_not_detect_server_not_found(self, tool_proxy) -> None:
         """Verify server not found is NOT detected as argument error."""
         assert tool_proxy._is_argument_error("Server 'foo' is not connected") is False
 
-    def test_does_not_detect_internal_server_error(self, tool_proxy):
+    def test_does_not_detect_internal_server_error(self, tool_proxy) -> None:
         """Verify generic 500 without validation keywords is NOT detected."""
         assert tool_proxy._is_argument_error("Internal server error") is False
 
-    def test_case_insensitive(self, tool_proxy):
+    def test_case_insensitive(self, tool_proxy) -> None:
         """Verify detection is case insensitive."""
         assert tool_proxy._is_argument_error("MISSING REQUIRED FIELD") is True
         assert tool_proxy._is_argument_error("Invalid Argument") is True

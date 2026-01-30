@@ -82,6 +82,8 @@ class SessionManager:
         git_branch: str | None = None,
         project_path: str | None = None,
         terminal_context: dict[str, Any] | None = None,
+        workflow_name: str | None = None,
+        agent_depth: int = 0,
     ) -> str:
         """
         Register new session with local storage.
@@ -96,6 +98,9 @@ class SessionManager:
             title: Optional session title/summary
             git_branch: Optional git branch name
             project_path: Optional project path (for git extraction if git_branch not provided)
+            terminal_context: Optional terminal context for correlation
+            workflow_name: Optional workflow to auto-activate for this session
+            agent_depth: Depth in agent hierarchy (0 = root session)
 
         Returns:
             session_id (database UUID)
@@ -125,6 +130,8 @@ class SessionManager:
                 git_branch=git_branch,
                 parent_session_id=parent_session_id,
                 terminal_context=terminal_context,
+                workflow_name=workflow_name,
+                agent_depth=agent_depth,
             )
 
             session_id: str = session.id
@@ -143,6 +150,8 @@ class SessionManager:
                     "project_id": project_id,
                     "title": title,
                     "git_branch": git_branch,
+                    "workflow_name": workflow_name,
+                    "agent_depth": agent_depth,
                 }
 
             self.logger.debug(f"Registered session {session_id} (external_id={external_id})")

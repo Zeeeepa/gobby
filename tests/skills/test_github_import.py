@@ -11,7 +11,7 @@ pytestmark = pytest.mark.unit
 class TestParseGithubUrl:
     """Tests for parse_github_url() function."""
 
-    def test_parse_owner_repo_format(self):
+    def test_parse_owner_repo_format(self) -> None:
         """Test parsing 'owner/repo' format."""
         from gobby.skills.loader import parse_github_url
 
@@ -22,7 +22,7 @@ class TestParseGithubUrl:
         assert result.branch is None
         assert result.path is None
 
-    def test_parse_owner_repo_branch_format(self):
+    def test_parse_owner_repo_branch_format(self) -> None:
         """Test parsing 'owner/repo#branch' format."""
         from gobby.skills.loader import parse_github_url
 
@@ -32,7 +32,7 @@ class TestParseGithubUrl:
         assert result.repo == "claude-code"
         assert result.branch == "main"
 
-    def test_parse_github_prefix_format(self):
+    def test_parse_github_prefix_format(self) -> None:
         """Test parsing 'github:owner/repo' format."""
         from gobby.skills.loader import parse_github_url
 
@@ -41,7 +41,7 @@ class TestParseGithubUrl:
         assert result.owner == "anthropics"
         assert result.repo == "claude-code"
 
-    def test_parse_github_prefix_with_branch(self):
+    def test_parse_github_prefix_with_branch(self) -> None:
         """Test parsing 'github:owner/repo#branch' format."""
         from gobby.skills.loader import parse_github_url
 
@@ -51,7 +51,7 @@ class TestParseGithubUrl:
         assert result.repo == "claude-code"
         assert result.branch == "feature"
 
-    def test_parse_full_url(self):
+    def test_parse_full_url(self) -> None:
         """Test parsing full GitHub URL."""
         from gobby.skills.loader import parse_github_url
 
@@ -60,7 +60,7 @@ class TestParseGithubUrl:
         assert result.owner == "anthropics"
         assert result.repo == "claude-code"
 
-    def test_parse_full_url_with_path(self):
+    def test_parse_full_url_with_path(self) -> None:
         """Test parsing full GitHub URL with path to skill directory."""
         from gobby.skills.loader import parse_github_url
 
@@ -73,7 +73,7 @@ class TestParseGithubUrl:
         assert result.branch == "main"
         assert result.path == "skills/commit"
 
-    def test_parse_full_url_with_branch(self):
+    def test_parse_full_url_with_branch(self) -> None:
         """Test parsing full GitHub URL with explicit branch."""
         from gobby.skills.loader import parse_github_url
 
@@ -83,21 +83,21 @@ class TestParseGithubUrl:
         assert result.repo == "claude-code"
         assert result.branch == "develop"
 
-    def test_parse_invalid_url_raises_error(self):
+    def test_parse_invalid_url_raises_error(self) -> None:
         """Test that invalid URLs raise ValueError."""
         from gobby.skills.loader import parse_github_url
 
         with pytest.raises(ValueError, match="Invalid GitHub URL"):
             parse_github_url("not-a-valid-url")
 
-    def test_parse_empty_string_raises_error(self):
+    def test_parse_empty_string_raises_error(self) -> None:
         """Test that empty string raises ValueError."""
         from gobby.skills.loader import parse_github_url
 
         with pytest.raises(ValueError, match="Invalid GitHub URL"):
             parse_github_url("")
 
-    def test_parse_url_strips_git_suffix(self):
+    def test_parse_url_strips_git_suffix(self) -> None:
         """Test that .git suffix is stripped from repo name."""
         from gobby.skills.loader import parse_github_url
 
@@ -109,7 +109,7 @@ class TestParseGithubUrl:
 class TestGitHubRef:
     """Tests for GitHubRef dataclass."""
 
-    def test_clone_url(self):
+    def test_clone_url(self) -> None:
         """Test generating clone URL from GitHubRef."""
         from gobby.skills.loader import parse_github_url
 
@@ -117,7 +117,7 @@ class TestGitHubRef:
 
         assert ref.clone_url == "https://github.com/anthropics/claude-code.git"
 
-    def test_cache_key(self):
+    def test_cache_key(self) -> None:
         """Test generating cache key from GitHubRef."""
         from gobby.skills.loader import parse_github_url
 
@@ -128,7 +128,7 @@ class TestGitHubRef:
         assert "claude-code" in ref.cache_key
         assert "main" in ref.cache_key
 
-    def test_cache_key_default_branch(self):
+    def test_cache_key_default_branch(self) -> None:
         """Test cache key when no branch specified uses 'HEAD'."""
         from gobby.skills.loader import parse_github_url
 
@@ -141,7 +141,7 @@ class TestGitHubRef:
 class TestCloneSkillRepo:
     """Tests for clone_skill_repo() function."""
 
-    def test_clone_creates_cache_directory(self, tmp_path):
+    def test_clone_creates_cache_directory(self, tmp_path) -> None:
         """Test that clone creates cache directory if needed."""
         from gobby.skills.loader import clone_skill_repo, parse_github_url
 
@@ -154,7 +154,7 @@ class TestCloneSkillRepo:
 
         assert cache_dir.exists()
 
-    def test_clone_calls_git_clone(self, tmp_path):
+    def test_clone_calls_git_clone(self, tmp_path) -> None:
         """Test that clone calls git clone with correct URL."""
         from gobby.skills.loader import clone_skill_repo, parse_github_url
 
@@ -171,7 +171,7 @@ class TestCloneSkillRepo:
         assert "clone" in call_args
         assert ref.clone_url in call_args
 
-    def test_clone_with_branch_uses_branch_flag(self, tmp_path):
+    def test_clone_with_branch_uses_branch_flag(self, tmp_path) -> None:
         """Test that clone with branch uses --branch flag."""
         from gobby.skills.loader import clone_skill_repo, parse_github_url
 
@@ -186,7 +186,7 @@ class TestCloneSkillRepo:
         assert "--branch" in call_args
         assert "develop" in call_args
 
-    def test_clone_returns_repo_path(self, tmp_path):
+    def test_clone_returns_repo_path(self, tmp_path) -> None:
         """Test that clone returns path to cloned repo."""
         from gobby.skills.loader import clone_skill_repo, parse_github_url
 
@@ -200,7 +200,7 @@ class TestCloneSkillRepo:
         assert isinstance(result, Path)
         assert "anthropics" in str(result) or "claude-code" in str(result)
 
-    def test_clone_uses_existing_if_present(self, tmp_path):
+    def test_clone_uses_existing_if_present(self, tmp_path) -> None:
         """Test that clone reuses existing repo and does git pull."""
         from gobby.skills.loader import clone_skill_repo, parse_github_url
 
@@ -220,7 +220,7 @@ class TestCloneSkillRepo:
         call_args = mock_run.call_args[0][0]
         assert "pull" in call_args or "fetch" in call_args
 
-    def test_clone_failure_raises_error(self, tmp_path):
+    def test_clone_failure_raises_error(self, tmp_path) -> None:
         """Test that clone failure raises SkillLoadError."""
         from gobby.skills.loader import SkillLoadError, clone_skill_repo, parse_github_url
 
@@ -232,7 +232,7 @@ class TestCloneSkillRepo:
             with pytest.raises(SkillLoadError, match="clone"):
                 clone_skill_repo(ref, cache_dir=cache_dir)
 
-    def test_clone_shallow_by_default(self, tmp_path):
+    def test_clone_shallow_by_default(self, tmp_path) -> None:
         """Test that clone uses --depth 1 by default for speed."""
         from gobby.skills.loader import clone_skill_repo, parse_github_url
 
@@ -250,7 +250,7 @@ class TestCloneSkillRepo:
 class TestSkillLoaderGitHubIntegration:
     """Tests for SkillLoader GitHub integration."""
 
-    def test_load_from_github_single_skill(self, tmp_path):
+    def test_load_from_github_single_skill(self, tmp_path) -> None:
         """Test loading a single skill from GitHub."""
         from gobby.skills.loader import SkillLoader
 
@@ -279,7 +279,7 @@ Content here.
         assert skill.source_type == "github"
         assert "test-owner/test-skill" in skill.source_path
 
-    def test_load_from_github_sets_source_ref(self, tmp_path):
+    def test_load_from_github_sets_source_ref(self, tmp_path) -> None:
         """Test that loading from GitHub sets source_ref for updates."""
         from gobby.skills.loader import SkillLoader
 
@@ -303,7 +303,7 @@ Content
 
         assert skill.source_ref == "main"
 
-    def test_load_from_github_with_path(self, tmp_path):
+    def test_load_from_github_with_path(self, tmp_path) -> None:
         """Test loading a skill from a subdirectory in a GitHub repo."""
         from gobby.skills.loader import SkillLoader
 
@@ -330,7 +330,7 @@ Content
 
         assert skill.name == "commit"
 
-    def test_load_from_github_skill_not_found(self, tmp_path):
+    def test_load_from_github_skill_not_found(self, tmp_path) -> None:
         """Test error when skill not found in repo."""
         from gobby.skills.loader import SkillLoader, SkillLoadError
 
@@ -347,7 +347,7 @@ Content
                 with pytest.raises(SkillLoadError, match="SKILL.md"):
                     loader.load_from_github("owner/empty-repo")
 
-    def test_load_from_github_multiple_skills(self, tmp_path):
+    def test_load_from_github_multiple_skills(self, tmp_path) -> None:
         """Test loading multiple skills from a GitHub repo."""
         from gobby.skills.loader import SkillLoader
 

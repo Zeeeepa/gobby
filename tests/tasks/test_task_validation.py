@@ -16,10 +16,11 @@ from gobby.tasks.validation import (
     read_files_content,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestGetGitDiff:
     @patch("subprocess.run")
-    def test_get_git_diff_success(self, mock_run):
+    def test_get_git_diff_success(self, mock_run) -> None:
         # Mock unstaged
         mock_unstaged = MagicMock()
         mock_unstaged.returncode = 0
@@ -39,7 +40,7 @@ class TestGetGitDiff:
         assert "diff unstaged" in diff
 
     @patch("subprocess.run")
-    def test_get_git_diff_no_changes(self, mock_run):
+    def test_get_git_diff_no_changes(self, mock_run) -> None:
         mock_res = MagicMock()
         mock_res.returncode = 0
         mock_res.stdout = ""
@@ -48,7 +49,7 @@ class TestGetGitDiff:
         assert get_git_diff() is None
 
     @patch("subprocess.run")
-    def test_get_git_diff_error_code(self, mock_run):
+    def test_get_git_diff_error_code(self, mock_run) -> None:
         mock_res = MagicMock()
         mock_res.returncode = 1
         mock_run.return_value = mock_res
@@ -56,12 +57,12 @@ class TestGetGitDiff:
         assert get_git_diff() is None
 
     @patch("subprocess.run")
-    def test_get_git_diff_exception(self, mock_run):
+    def test_get_git_diff_exception(self, mock_run) -> None:
         mock_run.side_effect = Exception("Git error")
         assert get_git_diff() is None
 
     @patch("subprocess.run")
-    def test_get_git_diff_truncate(self, mock_run):
+    def test_get_git_diff_truncate(self, mock_run) -> None:
         mock_res = MagicMock()
         mock_res.returncode = 0
         mock_res.stdout = "a" * 100
@@ -184,7 +185,7 @@ class TestGetRecentCommits:
     """Tests for get_recent_commits function."""
 
     @patch("subprocess.run")
-    def test_get_recent_commits_success(self, mock_run):
+    def test_get_recent_commits_success(self, mock_run) -> None:
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout="abc123|First commit\ndef456|Second commit\nghi789|Third commit",
@@ -197,19 +198,19 @@ class TestGetRecentCommits:
         assert commits[2] == {"sha": "ghi789", "subject": "Third commit"}
 
     @patch("subprocess.run")
-    def test_get_recent_commits_empty(self, mock_run):
+    def test_get_recent_commits_empty(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         commits = get_recent_commits(5)
         assert commits == []
 
     @patch("subprocess.run")
-    def test_get_recent_commits_error(self, mock_run):
+    def test_get_recent_commits_error(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=1)
         commits = get_recent_commits(5)
         assert commits == []
 
     @patch("subprocess.run")
-    def test_get_recent_commits_exception(self, mock_run):
+    def test_get_recent_commits_exception(self, mock_run) -> None:
         mock_run.side_effect = Exception("Git error")
         commits = get_recent_commits(5)
         assert commits == []
@@ -219,7 +220,7 @@ class TestGetMultiCommitDiff:
     """Tests for get_multi_commit_diff function."""
 
     @patch("subprocess.run")
-    def test_get_multi_commit_diff_success(self, mock_run):
+    def test_get_multi_commit_diff_success(self, mock_run) -> None:
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout="diff --git a/file.py b/file.py\n+new line",
@@ -230,20 +231,20 @@ class TestGetMultiCommitDiff:
         assert "diff --git" in diff
 
     @patch("subprocess.run")
-    def test_get_multi_commit_diff_truncate(self, mock_run):
+    def test_get_multi_commit_diff_truncate(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="a" * 1000)
         diff = get_multi_commit_diff(5, max_chars=100)
         assert len(diff) < 1000
         assert "... [diff truncated] ..." in diff
 
     @patch("subprocess.run")
-    def test_get_multi_commit_diff_empty(self, mock_run):
+    def test_get_multi_commit_diff_empty(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         diff = get_multi_commit_diff(5)
         assert diff is None
 
     @patch("subprocess.run")
-    def test_get_multi_commit_diff_error(self, mock_run):
+    def test_get_multi_commit_diff_error(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=1)
         diff = get_multi_commit_diff(5)
         assert diff is None
@@ -253,7 +254,7 @@ class TestGetCommitsSince:
     """Tests for get_commits_since function."""
 
     @patch("subprocess.run")
-    def test_get_commits_since_success(self, mock_run):
+    def test_get_commits_since_success(self, mock_run) -> None:
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout="diff content here",
@@ -264,7 +265,7 @@ class TestGetCommitsSince:
         assert "diff content" in diff
 
     @patch("subprocess.run")
-    def test_get_commits_since_empty(self, mock_run):
+    def test_get_commits_since_empty(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         diff = get_commits_since("abc123")
         assert diff is None
@@ -273,33 +274,33 @@ class TestGetCommitsSince:
 class TestExtractFilePatternsFromText:
     """Tests for extract_file_patterns_from_text function."""
 
-    def test_extract_explicit_paths(self):
+    def test_extract_explicit_paths(self) -> None:
         text = "Check the file src/gobby/tasks/validation.py for issues"
         patterns = extract_file_patterns_from_text(text)
         assert "src/gobby/tasks/validation.py" in patterns
 
-    def test_extract_module_references(self):
+    def test_extract_module_references(self) -> None:
         text = "The module gobby.tasks.validation handles this"
         patterns = extract_file_patterns_from_text(text)
         assert "src/gobby/tasks/validation.py" in patterns
 
-    def test_extract_test_patterns(self):
+    def test_extract_test_patterns(self) -> None:
         text = "Run test_validation to verify"
         patterns = extract_file_patterns_from_text(text)
         assert any("test_validation" in p for p in patterns)
 
-    def test_extract_class_references(self):
+    def test_extract_class_references(self) -> None:
         text = "Check the TaskValidator class"
         patterns = extract_file_patterns_from_text(text)
         assert any("validator" in p.lower() for p in patterns)
 
-    def test_skip_urls(self):
+    def test_skip_urls(self) -> None:
         text = "See http://example.com/file.py for details"
         patterns = extract_file_patterns_from_text(text)
         # Should not include the URL as a file pattern
         assert not any("http" in p for p in patterns)
 
-    def test_empty_text(self):
+    def test_empty_text(self) -> None:
         patterns = extract_file_patterns_from_text("")
         assert patterns == []
 
@@ -307,7 +308,7 @@ class TestExtractFilePatternsFromText:
 class TestFindMatchingFiles:
     """Tests for find_matching_files function."""
 
-    def test_find_direct_path(self, tmp_path):
+    def test_find_direct_path(self, tmp_path) -> None:
         test_file = tmp_path / "test.py"
         test_file.write_text("content")
 
@@ -315,7 +316,7 @@ class TestFindMatchingFiles:
         assert len(files) == 1
         assert files[0] == test_file
 
-    def test_find_glob_pattern(self, tmp_path):
+    def test_find_glob_pattern(self, tmp_path) -> None:
         (tmp_path / "test_one.py").write_text("content")
         (tmp_path / "test_two.py").write_text("content")
         (tmp_path / "other.txt").write_text("content")
@@ -324,7 +325,7 @@ class TestFindMatchingFiles:
         assert len(files) == 2
         assert all(f.suffix == ".py" for f in files)
 
-    def test_find_nested_glob(self, tmp_path):
+    def test_find_nested_glob(self, tmp_path) -> None:
         subdir = tmp_path / "src"
         subdir.mkdir()
         (subdir / "module.py").write_text("content")
@@ -333,14 +334,14 @@ class TestFindMatchingFiles:
         assert len(files) == 1
         assert files[0].name == "module.py"
 
-    def test_max_files_limit(self, tmp_path):
+    def test_max_files_limit(self, tmp_path) -> None:
         for i in range(10):
             (tmp_path / f"file{i}.py").write_text("content")
 
         files = find_matching_files(["*.py"], base_dir=tmp_path, max_files=3)
         assert len(files) == 3
 
-    def test_no_matches(self, tmp_path):
+    def test_no_matches(self, tmp_path) -> None:
         files = find_matching_files(["nonexistent.py"], base_dir=tmp_path)
         assert files == []
 
@@ -348,7 +349,7 @@ class TestFindMatchingFiles:
 class TestReadFilesContent:
     """Tests for read_files_content function."""
 
-    def test_read_single_file(self, tmp_path):
+    def test_read_single_file(self, tmp_path) -> None:
         test_file = tmp_path / "test.py"
         test_file.write_text("file content here")
 
@@ -356,7 +357,7 @@ class TestReadFilesContent:
         assert "file content here" in content
         assert "=== " in content  # Header
 
-    def test_read_multiple_files(self, tmp_path):
+    def test_read_multiple_files(self, tmp_path) -> None:
         file1 = tmp_path / "file1.py"
         file2 = tmp_path / "file2.py"
         file1.write_text("content 1")
@@ -366,7 +367,7 @@ class TestReadFilesContent:
         assert "content 1" in content
         assert "content 2" in content
 
-    def test_truncate_large_content(self, tmp_path):
+    def test_truncate_large_content(self, tmp_path) -> None:
         test_file = tmp_path / "large.py"
         test_file.write_text("a" * 10000)
 
@@ -374,7 +375,7 @@ class TestReadFilesContent:
         assert len(content) < 10000
         assert "... [file truncated] ..." in content
 
-    def test_read_nonexistent_file(self, tmp_path):
+    def test_read_nonexistent_file(self, tmp_path) -> None:
         nonexistent = tmp_path / "missing.py"
         content = read_files_content([nonexistent])
         assert "Error reading file" in content
@@ -384,7 +385,7 @@ class TestGetValidationContextSmart:
     """Tests for get_validation_context_smart function."""
 
     @patch("subprocess.run")
-    def test_includes_uncommitted_changes(self, mock_run):
+    def test_includes_uncommitted_changes(self, mock_run) -> None:
         # Mock staged and unstaged diffs
         mock_staged = MagicMock(returncode=0, stdout="staged diff content")
         mock_unstaged = MagicMock(returncode=0, stdout="unstaged diff content")
@@ -397,7 +398,7 @@ class TestGetValidationContextSmart:
 
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
-    def test_includes_multi_commit_diff(self, mock_multi_diff, mock_run):
+    def test_includes_multi_commit_diff(self, mock_multi_diff, mock_run) -> None:
         # No uncommitted changes
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         mock_multi_diff.return_value = "multi commit diff content"
@@ -409,7 +410,7 @@ class TestGetValidationContextSmart:
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.get_recent_commits")
-    def test_includes_commit_summary(self, mock_commits, mock_diff, mock_run):
+    def test_includes_commit_summary(self, mock_commits, mock_diff, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         mock_diff.return_value = "diff content"
         mock_commits.return_value = [
@@ -424,7 +425,7 @@ class TestGetValidationContextSmart:
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.find_matching_files")
-    def test_includes_file_analysis(self, mock_find, mock_diff, mock_run, tmp_path):
+    def test_includes_file_analysis(self, mock_find, mock_diff, mock_run, tmp_path) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         mock_diff.return_value = None  # No git diff
 
@@ -441,7 +442,7 @@ class TestGetValidationContextSmart:
 
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
-    def test_returns_none_when_no_context(self, mock_diff, mock_run):
+    def test_returns_none_when_no_context(self, mock_diff, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         mock_diff.return_value = None
 
@@ -453,7 +454,7 @@ class TestGetValidationContextSmart:
         # The function should handle this gracefully
 
     @patch("subprocess.run")
-    def test_respects_max_chars(self, mock_run):
+    def test_respects_max_chars(self, mock_run) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="a" * 10000)
 
         context = get_validation_context_smart("Test task", max_chars=500)
@@ -849,7 +850,7 @@ class TestCwdParameter:
     """
 
     @patch("subprocess.run")
-    def test_get_git_diff_passes_cwd(self, mock_run):
+    def test_get_git_diff_passes_cwd(self, mock_run) -> None:
         """Test that get_git_diff passes cwd to subprocess.run."""
         mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
 
@@ -860,7 +861,7 @@ class TestCwdParameter:
             assert call.kwargs.get("cwd") == "/path/to/project"
 
     @patch("subprocess.run")
-    def test_get_recent_commits_passes_cwd(self, mock_run):
+    def test_get_recent_commits_passes_cwd(self, mock_run) -> None:
         """Test that get_recent_commits passes cwd to subprocess.run."""
         mock_run.return_value = MagicMock(returncode=0, stdout="abc123|Commit message")
 
@@ -870,7 +871,7 @@ class TestCwdParameter:
         assert mock_run.call_args.kwargs.get("cwd") == "/custom/path"
 
     @patch("subprocess.run")
-    def test_get_multi_commit_diff_passes_cwd(self, mock_run):
+    def test_get_multi_commit_diff_passes_cwd(self, mock_run) -> None:
         """Test that get_multi_commit_diff passes cwd to subprocess.run."""
         mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
 
@@ -880,7 +881,7 @@ class TestCwdParameter:
         assert mock_run.call_args.kwargs.get("cwd") == "/repo/path"
 
     @patch("subprocess.run")
-    def test_get_commits_since_passes_cwd(self, mock_run):
+    def test_get_commits_since_passes_cwd(self, mock_run) -> None:
         """Test that get_commits_since passes cwd to subprocess.run."""
         mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
 
@@ -892,7 +893,7 @@ class TestCwdParameter:
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.get_recent_commits")
-    def test_get_validation_context_smart_passes_cwd(self, mock_commits, mock_diff, mock_run):
+    def test_get_validation_context_smart_passes_cwd(self, mock_commits, mock_diff, mock_run) -> None:
         """Test that get_validation_context_smart passes cwd to subprocess calls."""
         # Mock subprocess for Strategy 1 (uncommitted changes) - empty to trigger Strategy 2
         mock_run.return_value = MagicMock(returncode=0, stdout="")
@@ -914,7 +915,7 @@ class TestCwdParameter:
         assert mock_commits.call_args.kwargs.get("cwd") == "/project/root"
 
     @patch("subprocess.run")
-    def test_get_git_diff_none_cwd_is_default(self, mock_run):
+    def test_get_git_diff_none_cwd_is_default(self, mock_run) -> None:
         """Test that cwd=None uses default behavior (current directory)."""
         mock_run.return_value = MagicMock(returncode=0, stdout="diff")
 
@@ -926,7 +927,7 @@ class TestCwdParameter:
 
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_last_commit_diff")
-    def test_get_git_diff_fallback_passes_cwd(self, mock_last_commit, mock_run):
+    def test_get_git_diff_fallback_passes_cwd(self, mock_last_commit, mock_run) -> None:
         """Test that fallback to last commit also passes cwd."""
         # No uncommitted changes
         mock_run.return_value = MagicMock(returncode=0, stdout="")

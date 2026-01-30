@@ -494,3 +494,96 @@ class WorkflowEngine:
     def _detect_mcp_call(self, event: HookEvent, state: WorkflowState) -> None:
         """Track MCP tool calls by server/tool for workflow conditions."""
         detect_mcp_call(event, state)
+
+    def activate_workflow(
+        self,
+        workflow_name: str,
+        session_id: str,
+        project_path: Path | None = None,
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Activate a step-based workflow for a session.
+
+        This is used internally during session startup for terminal-mode agents
+        that have a workflow_name set. It creates the initial workflow state.
+
+        Args:
+            workflow_name: Name of the workflow to activate
+            session_id: Session ID to activate for
+            project_path: Optional project path for workflow discovery
+            variables: Optional initial variables to merge with workflow defaults
+
+        Returns:
+            Dict with success status and workflow info
+        """
+        # Load workflow
+        definition = self.loader.load_workflow(workflow_name, project_path)
+        if not definition:
+            logger.warning(f"Workflow '{workflow_name}' not found for auto-activation")
+            return {"success": False, "error": f"Workflow '{workflow_name}' not found"}
+
+        if definition.type == "lifecycle":
+            logger.debug(f"Skipping auto-activation of lifecycle workflow '{workflow_name}'")
+            return {
+                "success": False,
+                "error": f"Workflow '{workflow_name}' is lifecycle type (auto-runs on events)",
+            }
+
+        # Check for existing step workflow
+        existing = self.state_manager.get_state(session_id)
+        if existing and existing.workflow_name != "__lifecycle__":
+            # Check if existing is lifecycle type
+            existing_def = self.loader.load_workflow(existing.workflow_name, project_path)
+            if not existing_def or existing_def.type != "lifecycle":
+                logger.warning(
+                    f"Session {session_id} already has workflow '{existing.workflow_name}' active"
+                )
+                return {
+                    "success": False,
+                    "error": f"Session already has workflow '{existing.workflow_name}' active",
+                }
+
+        # Determine initial step - fail fast if no steps defined
+        if not definition.steps:
+            logger.error(f"Workflow '{workflow_name}' has no steps defined")
+            return {
+                "success": False,
+                "error": f"Workflow '{workflow_name}' has no steps defined",
+            }
+        step = definition.steps[0].name
+
+        # Merge workflow default variables with passed-in variables
+        merged_variables = dict(definition.variables)
+        if variables:
+            merged_variables.update(variables)
+
+        # Create state
+        state = WorkflowState(
+            session_id=session_id,
+            workflow_name=workflow_name,
+            step=step,
+            step_entered_at=datetime.now(UTC),
+            step_action_count=0,
+            total_action_count=0,
+            artifacts={},
+            observations=[],
+            reflection_pending=False,
+            context_injected=False,
+            variables=merged_variables,
+            task_list=None,
+            current_task_index=0,
+            files_modified_this_task=0,
+        )
+
+        self.state_manager.save_state(state)
+        logger.info(f"Auto-activated workflow '{workflow_name}' for session {session_id}")
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "workflow": workflow_name,
+            "step": step,
+            "steps": [s.name for s in definition.steps],
+            "variables": merged_variables,
+        }

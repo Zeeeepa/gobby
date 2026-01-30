@@ -6,11 +6,14 @@ to calculate costs for various models.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+pytestmark = pytest.mark.unit
 
 class TestTokenTracker:
     """Tests for TokenTracker class."""
 
-    def test_calculate_cost_claude_model(self):
+    def test_calculate_cost_claude_model(self) -> None:
         """Calculate cost for Claude model using LiteLLM."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -28,7 +31,7 @@ class TestTokenTracker:
         assert isinstance(cost, float)
         assert cost >= 0.0
 
-    def test_calculate_cost_gemini_model(self):
+    def test_calculate_cost_gemini_model(self) -> None:
         """Calculate cost for Gemini model using LiteLLM."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -43,7 +46,7 @@ class TestTokenTracker:
         assert isinstance(cost, float)
         assert cost >= 0.0
 
-    def test_calculate_cost_gpt_model(self):
+    def test_calculate_cost_gpt_model(self) -> None:
         """Calculate cost for GPT model using LiteLLM."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -58,7 +61,7 @@ class TestTokenTracker:
         assert isinstance(cost, float)
         assert cost >= 0.0
 
-    def test_calculate_cost_unknown_model(self):
+    def test_calculate_cost_unknown_model(self) -> None:
         """Calculate cost for unknown model returns 0."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -73,7 +76,7 @@ class TestTokenTracker:
 
         assert cost == 0.0
 
-    def test_calculate_cost_zero_tokens(self):
+    def test_calculate_cost_zero_tokens(self) -> None:
         """Calculate cost with zero tokens returns 0."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -87,7 +90,7 @@ class TestTokenTracker:
 
         assert cost == 0.0
 
-    def test_calculate_cost_from_response(self):
+    def test_calculate_cost_from_response(self) -> None:
         """Calculate cost from LiteLLM response object."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -108,7 +111,7 @@ class TestTokenTracker:
         assert cost == 0.015
         mock_completion_cost.assert_called_once_with(mock_response)
 
-    def test_calculate_cost_from_response_error(self):
+    def test_calculate_cost_from_response_error(self) -> None:
         """Calculate cost from response handles errors gracefully."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -123,7 +126,7 @@ class TestTokenTracker:
 
         assert cost == 0.0
 
-    def test_track_usage(self):
+    def test_track_usage(self) -> None:
         """Track usage accumulates costs and tokens."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -149,7 +152,7 @@ class TestTokenTracker:
         assert tracker.total_input_tokens == 1500
         assert tracker.total_output_tokens == 750
 
-    def test_track_usage_accumulates_cost(self):
+    def test_track_usage_accumulates_cost(self) -> None:
         """Track usage accumulates total cost."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -163,7 +166,7 @@ class TestTokenTracker:
 
         assert tracker.total_cost == 0.02
 
-    def test_reset(self):
+    def test_reset(self) -> None:
         """Reset clears all tracked usage."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -178,7 +181,7 @@ class TestTokenTracker:
         assert tracker.total_output_tokens == 0
         assert tracker.total_cost == 0.0
 
-    def test_get_summary(self):
+    def test_get_summary(self) -> None:
         """Get summary returns dict with usage info."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -197,7 +200,7 @@ class TestTokenTracker:
 class TestTokenTrackerWithCacheTokens:
     """Tests for TokenTracker with cache token support."""
 
-    def test_calculate_cost_with_cache_tokens(self):
+    def test_calculate_cost_with_cache_tokens(self) -> None:
         """Calculate cost with cache tokens for models that support it."""
         from gobby.conductor.pricing import TokenTracker
 
@@ -216,7 +219,7 @@ class TestTokenTrackerWithCacheTokens:
         assert isinstance(cost, float)
         assert cost >= 0.0
 
-    def test_track_usage_with_cache_tokens(self):
+    def test_track_usage_with_cache_tokens(self) -> None:
         """Track usage with cache tokens accumulates correctly."""
         from gobby.conductor.pricing import TokenTracker
 

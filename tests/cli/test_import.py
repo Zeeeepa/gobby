@@ -6,6 +6,7 @@ import pytest
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def sync_manager(temp_db):

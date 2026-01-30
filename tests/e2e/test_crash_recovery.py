@@ -41,7 +41,7 @@ class TestCrashRecovery:
         self,
         e2e_project_dir: Path,
         e2e_config: tuple[Path, int, int],
-    ):
+    ) -> None:
         """Verify SIGKILL crash leaves database in consistent state."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
@@ -106,7 +106,7 @@ class TestCrashRecovery:
         self,
         e2e_project_dir: Path,
         e2e_config: tuple[Path, int, int],
-    ):
+    ) -> None:
         """Verify sessions persist and are restored after crash restart."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
@@ -188,7 +188,7 @@ class TestCrashRecovery:
 class TestStalePIDFile:
     """Tests for stale PID file handling."""
 
-    def test_stale_pid_file_detected_and_cleaned_on_start(self, e2e_project_dir: Path):
+    def test_stale_pid_file_detected_and_cleaned_on_start(self, e2e_project_dir: Path) -> None:
         """Verify stale PID file from crashed daemon is cleaned up."""
         # Create a fake stale PID file with non-existent process
         pid_dir = e2e_project_dir / ".gobby-stale"
@@ -216,7 +216,7 @@ class TestStalePIDFile:
         self,
         e2e_project_dir: Path,
         e2e_config: tuple[Path, int, int],
-    ):
+    ) -> None:
         """Verify daemon can start when stale PID file exists."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
@@ -269,7 +269,7 @@ class TestClientReconnection:
         self,
         e2e_project_dir: Path,
         e2e_config: tuple[Path, int, int],
-    ):
+    ) -> None:
         """Verify clients can reconnect after daemon restart."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
@@ -347,7 +347,7 @@ class TestTaskStatePersistence:
         self,
         e2e_project_dir: Path,
         e2e_config: tuple[Path, int, int],
-    ):
+    ) -> None:
         """Verify task state is preserved after daemon restart."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent
@@ -449,7 +449,7 @@ class TestTaskStatePersistence:
         self,
         e2e_project_dir: Path,
         e2e_config: tuple[Path, int, int],
-    ):
+    ) -> None:
         """Verify task state survives SIGKILL crash."""
         config_path, http_port, ws_port = e2e_config
         gobby_home = config_path.parent

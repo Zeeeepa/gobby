@@ -74,25 +74,26 @@ When user provides `/gobby mcp <server> [args]`:
 
 Example: `/gobby mcp context7 react hooks`
 ```python
-# 1. Verify server
-servers = call_tool("gobby", "list_mcp_servers")
-# 2. Get tools
-tools = call_tool("gobby", "list_tools", {"server": "context7"})
+# 1. Verify server exists
+list_mcp_servers()
+# 2. Get available tools on that server
+list_tools(server="context7")
 # 3. Call appropriate tool (e.g., resolve-library-id, query-docs)
+call_tool(server_name="context7", tool_name="resolve-library-id", arguments={"libraryName": "react", "query": "hooks"})
 ```
 
 ### 3. First arg matches a skill → Load Skill
 
 When user provides `/gobby <skill> [args]`:
 
-1. Call `gobby-skills.get_skill(name="<skill>")` to load the skill
+1. Call `get_skill(name="<skill>")` to load the skill
 2. If skill not found, suggest similar skills or show help
 3. If skill found, follow the skill's instructions with remaining args
 
 Example: `/gobby tasks list`
 ```python
 # Load the skill
-skill = call_tool("gobby-skills", "get_skill", {"name": "tasks"})
+get_skill(name="tasks")
 # Follow skill instructions with args: "list"
 ```
 
@@ -168,7 +169,7 @@ Run list_mcp_servers() for full list.
 
 ## Implementation Notes
 
-1. **Skill loading**: Always use `gobby-skills.get_skill(name=...)` - the name parameter works for both skill names and IDs.
+1. **Skill loading**: Always use `get_skill(name=...)` - the name parameter works for both skill names and IDs.
 
 2. **Fallback resolution**: If exact name fails, try with `gobby-` prefix for core skills.
 

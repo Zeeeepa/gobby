@@ -13,11 +13,12 @@ import pytest
 
 from gobby.llm.executor import ToolSchema
 
+pytestmark = pytest.mark.unit
 
 class TestCodexExecutorInit:
     """Tests for CodexExecutor initialization."""
 
-    def test_init_subscription_mode_without_cli_raises(self):
+    def test_init_subscription_mode_without_cli_raises(self) -> None:
         """CodexExecutor raises ValueError when CLI not found."""
         with patch("shutil.which", return_value=None):
             from gobby.llm.codex_executor import CodexExecutor
@@ -25,7 +26,7 @@ class TestCodexExecutorInit:
             with pytest.raises(ValueError, match="Codex CLI not found"):
                 CodexExecutor(auth_mode="subscription")
 
-    def test_init_subscription_mode_with_cli(self):
+    def test_init_subscription_mode_with_cli(self) -> None:
         """CodexExecutor initializes in subscription mode when CLI found."""
         with patch("shutil.which", return_value="/usr/local/bin/codex"):
             from gobby.llm.codex_executor import CodexExecutor
@@ -35,7 +36,7 @@ class TestCodexExecutorInit:
             assert executor.auth_mode == "subscription"
             assert executor._cli_path == "/usr/local/bin/codex"
 
-    def test_init_cli_mode_with_cli(self):
+    def test_init_cli_mode_with_cli(self) -> None:
         """CodexExecutor initializes in cli mode when CLI found."""
         with patch("shutil.which", return_value="/usr/local/bin/codex"):
             from gobby.llm.codex_executor import CodexExecutor
@@ -45,7 +46,7 @@ class TestCodexExecutorInit:
             assert executor.auth_mode == "cli"
             assert executor._cli_path == "/usr/local/bin/codex"
 
-    def test_init_with_custom_model(self):
+    def test_init_with_custom_model(self) -> None:
         """CodexExecutor accepts custom default model."""
         with patch("shutil.which", return_value="/usr/local/bin/codex"):
             from gobby.llm.codex_executor import CodexExecutor
@@ -54,14 +55,14 @@ class TestCodexExecutorInit:
 
             assert executor.default_model == "gpt-4-turbo"
 
-    def test_init_api_key_mode_raises(self):
+    def test_init_api_key_mode_raises(self) -> None:
         """CodexExecutor raises ValueError for api_key mode (now unsupported)."""
         from gobby.llm.codex_executor import CodexExecutor
 
         with pytest.raises(ValueError, match="only supports subscription/cli mode"):
             CodexExecutor(auth_mode="api_key")
 
-    def test_init_invalid_auth_mode_raises(self):
+    def test_init_invalid_auth_mode_raises(self) -> None:
         """CodexExecutor raises ValueError for invalid auth mode."""
         from gobby.llm.codex_executor import CodexExecutor
 
@@ -276,7 +277,7 @@ class TestCodexExecutorSubscriptionMode:
 class TestCodexExecutorProviderName:
     """Tests for provider_name property."""
 
-    def test_provider_name_subscription_mode(self):
+    def test_provider_name_subscription_mode(self) -> None:
         """Provider name is 'codex' in subscription mode."""
         with patch("shutil.which", return_value="/usr/local/bin/codex"):
             from gobby.llm.codex_executor import CodexExecutor
@@ -284,7 +285,7 @@ class TestCodexExecutorProviderName:
             executor = CodexExecutor(auth_mode="subscription")
             assert executor.provider_name == "codex"
 
-    def test_provider_name_cli_mode(self):
+    def test_provider_name_cli_mode(self) -> None:
         """Provider name is 'codex' in cli mode."""
         with patch("shutil.which", return_value="/usr/local/bin/codex"):
             from gobby.llm.codex_executor import CodexExecutor

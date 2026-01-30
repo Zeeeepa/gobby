@@ -197,40 +197,51 @@ class LocalMemoryManager:
         return row is not None
 
     def content_exists(self, content: str, project_id: str | None = None) -> bool:
-        """Check if a memory with identical content already exists."""
-        # Normalize content same way as ID generation in create_memory
-        normalized_content = content.strip()
-        project_str = project_id if project_id else ""
-        # Use delimiter to match create_memory ID generation
-        memory_id = generate_prefixed_id("mm", f"{normalized_content}||{project_str}")
+        """Check if a memory with identical content already exists.
 
-        # Check by ID (content-hash based) for consistent dedup
-        row = self.db.fetchone("SELECT 1 FROM memories WHERE id = ?", (memory_id,))
+        Uses global deduplication - checks if any memory has the same content,
+        regardless of project_id. This prevents duplicates when the same content
+        is stored with different or NULL project_ids.
+
+        Args:
+            content: The content to check for
+            project_id: Ignored (kept for backward compatibility)
+
+        Returns:
+            True if a memory with identical content exists
+        """
+        # Global deduplication: check by content directly, ignoring project_id
+        # This fixes the duplicate issue where same content + different project_id
+        # would create different memory IDs
+        normalized_content = content.strip()
+        row = self.db.fetchone(
+            "SELECT 1 FROM memories WHERE content = ? LIMIT 1",
+            (normalized_content,),
+        )
         return row is not None
 
     def get_memory_by_content(self, content: str, project_id: str | None = None) -> Memory | None:
-        """Get a memory by its exact content, using the content-derived ID.
+        """Get a memory by its exact content.
 
-        This provides a reliable way to fetch an existing memory without
-        relying on search result ordering.
+        Uses global lookup - finds any memory with matching content regardless
+        of project_id. This matches the behavior of content_exists().
 
         Args:
             content: The exact content to look up (will be normalized)
-            project_id: Optional project ID for scoping
+            project_id: Ignored (kept for backward compatibility)
 
         Returns:
             The Memory object if found, None otherwise
         """
-        # Normalize content same way as ID generation in create_memory
+        # Global lookup: find by content directly, ignoring project_id
         normalized_content = content.strip()
-        project_str = project_id if project_id else ""
-        # Use delimiter to match create_memory ID generation
-        memory_id = generate_prefixed_id("mm", f"{normalized_content}||{project_str}")
-
-        try:
-            return self.get_memory(memory_id)
-        except ValueError:
-            return None
+        row = self.db.fetchone(
+            "SELECT * FROM memories WHERE content = ? LIMIT 1",
+            (normalized_content,),
+        )
+        if row:
+            return Memory.from_row(row)
+        return None
 
     def update_memory(
         self,

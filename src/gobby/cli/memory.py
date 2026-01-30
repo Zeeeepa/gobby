@@ -282,6 +282,191 @@ def export_memories(
         click.echo(markdown)
 
 
+@memory.command("dedupe")
+@click.option("--dry-run", is_flag=True, help="Show duplicates without deleting")
+@click.pass_context
+def dedupe_memories(ctx: click.Context, dry_run: bool) -> None:
+    """Remove duplicate memories (same content, different IDs).
+
+    Identifies memories with identical content but different IDs (caused by
+    project_id variations) and removes duplicates, keeping the earliest one.
+
+    Examples:
+
+        gobby memory dedupe --dry-run   # Preview duplicates
+
+        gobby memory dedupe             # Remove duplicates
+    """
+    manager = get_memory_manager(ctx)
+
+    # Get all memories
+    memories = manager.list_memories(limit=10000)
+
+    if not memories:
+        click.echo("No memories found.")
+        return
+
+    # Group by normalized content
+    content_groups: dict[str, list[tuple[str, str, str | None]]] = {}
+    for m in memories:
+        normalized = m.content.strip()
+        if normalized not in content_groups:
+            content_groups[normalized] = []
+        content_groups[normalized].append((m.id, m.created_at, m.project_id))
+
+    # Find duplicates
+    duplicates_to_delete: list[str] = []
+    duplicate_count = 0
+
+    for content, entries in content_groups.items():
+        if len(entries) > 1:
+            duplicate_count += len(entries) - 1
+            # Sort by created_at to keep earliest
+            entries.sort(key=lambda x: x[1])
+            keeper = entries[0]
+            to_delete = entries[1:]
+
+            if dry_run:
+                click.echo(f"\nDuplicate content ({len(entries)} copies):")
+                click.echo(f"  Content: {content[:80]}{'...' if len(content) > 80 else ''}")
+                click.echo(f"  Keep: {keeper[0][:12]} (created: {keeper[1][:19]})")
+                for d in to_delete:
+                    click.echo(f"  Delete: {d[0][:12]} (created: {d[1][:19]}, project: {d[2]})")
+            else:
+                for d in to_delete:
+                    duplicates_to_delete.append(d[0])
+
+    if dry_run:
+        click.echo(f"\nFound {duplicate_count} duplicate memories.")
+        click.echo("Run without --dry-run to delete them.")
+    else:
+        # Delete duplicates
+        deleted = 0
+        for memory_id in duplicates_to_delete:
+            if manager.forget(memory_id):
+                deleted += 1
+
+        click.echo(f"Deleted {deleted} duplicate memories.")
+
+
+@memory.command("fix-null-project")
+@click.option("--dry-run", is_flag=True, help="Show affected memories without updating")
+@click.pass_context
+def fix_null_project(ctx: click.Context, dry_run: bool) -> None:
+    """Fix memories with NULL project_id from their source session.
+
+    Finds memories with source_type='session' and NULL project_id, then
+    looks up the source session to get the correct project_id.
+
+    Examples:
+
+        gobby memory fix-null-project --dry-run   # Preview changes
+
+        gobby memory fix-null-project             # Apply fixes
+    """
+    from gobby.storage.sessions import LocalSessionManager
+
+    db = LocalDatabase()
+    session_mgr = LocalSessionManager(db)
+
+    # Find memories with NULL project_id and session source
+    rows = db.fetchall(
+        """
+        SELECT id, content, source_session_id
+        FROM memories
+        WHERE project_id IS NULL AND source_type = 'session' AND source_session_id IS NOT NULL
+        """,
+        (),
+    )
+
+    if not rows:
+        click.echo("No memories with NULL project_id from sessions found.")
+        return
+
+    click.echo(f"Found {len(rows)} memories with NULL project_id from sessions.")
+
+    fixed = 0
+    for row in rows:
+        memory_id = row["id"]
+        session_id = row["source_session_id"]
+        content_preview = row["content"][:50] if row["content"] else ""
+
+        # Look up session to get project_id
+        session = session_mgr.get(session_id)
+        if session and session.project_id:
+            if dry_run:
+                click.echo(
+                    f"  Would fix {memory_id[:12]}: set project_id={session.project_id[:12]}"
+                )
+                click.echo(f"    Content: {content_preview}...")
+            else:
+                # Update the memory's project_id
+                with db.transaction() as conn:
+                    conn.execute(
+                        "UPDATE memories SET project_id = ? WHERE id = ?",
+                        (session.project_id, memory_id),
+                    )
+                fixed += 1
+        else:
+            if dry_run:
+                click.echo(
+                    f"  Cannot fix {memory_id[:12]}: session {session_id} not found or has no project_id"
+                )
+
+    if dry_run:
+        click.echo(f"\nWould fix {fixed} memories. Run without --dry-run to apply.")
+    else:
+        click.echo(f"Fixed {fixed} memories with project_id from their source sessions.")
+
+
+@memory.command("backup")
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    type=click.Path(),
+    help="Output file path (default: .gobby/memories.jsonl)",
+)
+@click.pass_context
+def backup_memories(ctx: click.Context, output_path: str | None) -> None:
+    """Backup memories to JSONL file.
+
+    Exports all memories to a JSONL file for backup/disaster recovery.
+    This runs synchronously and can be used even when the daemon is not running.
+
+    Examples:
+
+        gobby memory backup                           # Export to .gobby/memories.jsonl
+
+        gobby memory backup -o ~/backups/mem.jsonl   # Export to custom path
+    """
+    from pathlib import Path
+
+    from gobby.config.persistence import MemorySyncConfig
+    from gobby.sync.memories import MemoryBackupManager
+
+    manager = get_memory_manager(ctx)
+
+    # Create a backup manager with custom or default path
+    if output_path:
+        export_path = Path(output_path)
+    else:
+        export_path = Path(".gobby/memories.jsonl")
+
+    config = MemorySyncConfig(enabled=True, export_path=export_path)
+    backup_mgr = MemoryBackupManager(
+        db=manager.db,
+        memory_manager=manager,
+        config=config,
+    )
+
+    count = backup_mgr.backup_sync()
+    if count > 0:
+        click.echo(f"Backed up {count} memories to {export_path}")
+    else:
+        click.echo("No memories to backup.")
+
+
 def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
     """Resolve memory reference (UUID or prefix) to full ID."""
     # Try exact match first

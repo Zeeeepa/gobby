@@ -1,13 +1,16 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from gobby.hooks.event_handlers import EDIT_TOOLS, EventHandlers
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.integration
 
-def test_edit_history_flow(temp_db):
+def test_edit_history_flow(temp_db) -> None:
     """Test full flow: session -> claim task -> edit -> had_edits set."""
     # 1. Setup managers
     session_manager = LocalSessionManager(temp_db)
@@ -82,7 +85,7 @@ def test_edit_history_flow(temp_db):
     assert not session.had_edits
 
 
-def test_edit_history_not_set_if_task_not_claimed(temp_db):
+def test_edit_history_not_set_if_task_not_claimed(temp_db) -> None:
     """Test had_edits is NOT set if no task is claimed."""
     session_manager = LocalSessionManager(temp_db)
     task_manager = LocalTaskManager(temp_db)

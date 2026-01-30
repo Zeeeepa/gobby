@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from gobby.hooks.events import (
     EVENT_TYPE_CLI_SUPPORT,
     HookEvent,
@@ -8,11 +10,12 @@ from gobby.hooks.events import (
     SessionSource,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestHookEventType:
     """Tests for HookEventType enum."""
 
-    def test_enum_values(self):
+    def test_enum_values(self) -> None:
         """Test that key enum values exist."""
         assert HookEventType.SESSION_START == "session_start"
         assert HookEventType.BEFORE_TOOL == "before_tool"
@@ -22,7 +25,7 @@ class TestHookEventType:
 class TestSessionSource:
     """Tests for SessionSource enum."""
 
-    def test_enum_values(self):
+    def test_enum_values(self) -> None:
         """Test that source values exist."""
         assert SessionSource.CLAUDE == "claude"
         assert SessionSource.GEMINI == "gemini"
@@ -31,7 +34,7 @@ class TestSessionSource:
 class TestHookEvent:
     """Tests for HookEvent dataclass."""
 
-    def test_minimal_instantiation(self):
+    def test_minimal_instantiation(self) -> None:
         """Test creating event with required fields only."""
         now = datetime.now(UTC)
         event = HookEvent(
@@ -53,7 +56,7 @@ class TestHookEvent:
         assert event.cwd is None
         assert event.metadata == {}
 
-    def test_full_instantiation(self):
+    def test_full_instantiation(self) -> None:
         """Test creating event with all fields."""
         now = datetime.now(UTC)
         event = HookEvent(
@@ -80,14 +83,14 @@ class TestHookEvent:
 class TestHookResponse:
     """Tests for HookResponse dataclass."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """Test default values."""
         resp = HookResponse()
         assert resp.decision == "allow"
         assert resp.context is None
         assert resp.metadata == {}
 
-    def test_instantiation(self):
+    def test_instantiation(self) -> None:
         """Test custom values."""
         resp = HookResponse(
             decision="deny",
@@ -111,7 +114,7 @@ class TestHookResponse:
 class TestEventTypeMapping:
     """Tests for EVENT_TYPE_CLI_SUPPORT constant."""
 
-    def test_mapping_coverage(self):
+    def test_mapping_coverage(self) -> None:
         """Ensure mapping covers all enum types."""
         # This checks that we didn't forget to add a new enum member to the mapping table
         # if that is the intent.

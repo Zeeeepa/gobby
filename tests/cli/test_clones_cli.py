@@ -51,7 +51,7 @@ def mock_httpx():
 class TestClonesListCommand:
     """Tests for 'clones list' command."""
 
-    def test_list_clones_empty(self, mock_clone_manager):
+    def test_list_clones_empty(self, mock_clone_manager) -> None:
         """Test 'clones list' with no clones."""
         from gobby.cli.clones import clones
 
@@ -63,7 +63,7 @@ class TestClonesListCommand:
         assert result.exit_code == 0
         assert "No clones found" in result.output
 
-    def test_list_clones_populated(self, mock_clone_manager):
+    def test_list_clones_populated(self, mock_clone_manager) -> None:
         """Test 'clones list' with clones present."""
         from gobby.cli.clones import clones
 
@@ -77,7 +77,7 @@ class TestClonesListCommand:
         assert "feature/test" in result.output
         assert "active" in result.output
 
-    def test_list_clones_json_format(self, mock_clone_manager):
+    def test_list_clones_json_format(self, mock_clone_manager) -> None:
         """Test 'clones list --json'."""
         from gobby.cli.clones import clones
 
@@ -93,7 +93,7 @@ class TestClonesListCommand:
 class TestClonesCreateCommand:
     """Tests for 'clones create' command."""
 
-    def test_create_clone_success(self, mock_httpx):
+    def test_create_clone_success(self, mock_httpx) -> None:
         """Test 'clones create' success."""
         from gobby.cli.clones import clones
 
@@ -112,7 +112,7 @@ class TestClonesCreateCommand:
         assert "clone-new" in result.output
         mock_httpx.assert_called_once()
 
-    def test_create_clone_failure(self, mock_httpx):
+    def test_create_clone_failure(self, mock_httpx) -> None:
         """Test 'clones create' failure."""
         from gobby.cli.clones import clones
 
@@ -134,7 +134,7 @@ class TestClonesCreateCommand:
 class TestClonesSpawnCommand:
     """Tests for 'clones spawn' command."""
 
-    def test_spawn_agent_success(self, mock_clone_manager, mock_httpx):
+    def test_spawn_agent_success(self, mock_clone_manager, mock_httpx) -> None:
         """Test 'clones spawn' success."""
         from gobby.cli.clones import clones
 
@@ -160,7 +160,7 @@ class TestClonesSpawnCommand:
         assert "session-456" in result.output or "Spawned" in result.output
         mock_httpx.assert_called_once()
 
-    def test_spawn_agent_clone_not_found(self, mock_clone_manager):
+    def test_spawn_agent_clone_not_found(self, mock_clone_manager) -> None:
         """Test 'clones spawn' with non-existent clone."""
         from gobby.cli.clones import clones
 
@@ -179,7 +179,7 @@ class TestClonesSpawnCommand:
 class TestClonesSyncCommand:
     """Tests for 'clones sync' command."""
 
-    def test_sync_clone_success(self, mock_clone_manager, mock_httpx):
+    def test_sync_clone_success(self, mock_clone_manager, mock_httpx) -> None:
         """Test 'clones sync' success."""
         from gobby.cli.clones import clones
 
@@ -201,7 +201,7 @@ class TestClonesSyncCommand:
 class TestClonesMergeCommand:
     """Tests for 'clones merge' command."""
 
-    def test_merge_clone_success(self, mock_clone_manager, mock_httpx):
+    def test_merge_clone_success(self, mock_clone_manager, mock_httpx) -> None:
         """Test 'clones merge' success."""
         from gobby.cli.clones import clones
 
@@ -222,7 +222,7 @@ class TestClonesMergeCommand:
         assert result.exit_code == 0
         assert "Merged" in result.output or "success" in result.output.lower()
 
-    def test_merge_clone_conflicts(self, mock_clone_manager, mock_httpx):
+    def test_merge_clone_conflicts(self, mock_clone_manager, mock_httpx) -> None:
         """Test 'clones merge' with conflicts."""
         from gobby.cli.clones import clones
 
@@ -248,7 +248,7 @@ class TestClonesMergeCommand:
 class TestClonesDeleteCommand:
     """Tests for 'clones delete' command."""
 
-    def test_delete_clone_success(self, mock_clone_manager, mock_httpx):
+    def test_delete_clone_success(self, mock_clone_manager, mock_httpx) -> None:
         """Test 'clones delete' success."""
         from gobby.cli.clones import clones
 
@@ -266,7 +266,7 @@ class TestClonesDeleteCommand:
         assert result.exit_code == 0
         assert "Deleted" in result.output or "success" in result.output.lower()
 
-    def test_delete_clone_not_found(self, mock_clone_manager):
+    def test_delete_clone_not_found(self, mock_clone_manager) -> None:
         """Test 'clones delete' with non-existent clone."""
         from gobby.cli.clones import clones
 

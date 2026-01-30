@@ -1,9 +1,12 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from gobby.mcp_proxy.registries import setup_internal_registries
 
+pytestmark = pytest.mark.unit
 
-def test_setup_internal_registries_with_merge():
+def test_setup_internal_registries_with_merge() -> None:
     merge_storage = MagicMock()
     merge_resolver = MagicMock()
     git_manager = MagicMock()
@@ -21,7 +24,7 @@ def test_setup_internal_registries_with_merge():
     assert any(r.name == "gobby-merge" for r in registries)
 
 
-def test_setup_with_config_none():
+def test_setup_with_config_none() -> None:
     """Test setup with config=None disables tasks registry."""
     manager = setup_internal_registries(_config=None)
 
@@ -32,7 +35,7 @@ def test_setup_with_config_none():
     assert any(r.name == "gobby-workflows" for r in registries)
 
 
-def test_setup_with_all_managers_none():
+def test_setup_with_all_managers_none() -> None:
     """Test setup with all optional managers as None."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -63,7 +66,7 @@ def test_setup_with_all_managers_none():
     assert "gobby-merge" not in registry_names
 
 
-def test_setup_with_memory_manager_only():
+def test_setup_with_memory_manager_only() -> None:
     """Test setup with only memory manager enabled."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -80,7 +83,7 @@ def test_setup_with_memory_manager_only():
     assert "gobby-workflows" in registry_names
 
 
-def test_setup_with_metrics_manager_only():
+def test_setup_with_metrics_manager_only() -> None:
     """Test setup with only metrics manager enabled."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -96,7 +99,7 @@ def test_setup_with_metrics_manager_only():
     assert "gobby-metrics" in registry_names
 
 
-def test_setup_with_agent_runner_only():
+def test_setup_with_agent_runner_only() -> None:
     """Test setup with only agent runner enabled."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -112,7 +115,7 @@ def test_setup_with_agent_runner_only():
     assert "gobby-agents" in registry_names
 
 
-def test_setup_with_worktree_storage_only():
+def test_setup_with_worktree_storage_only() -> None:
     """Test setup with only worktree storage enabled."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -128,7 +131,7 @@ def test_setup_with_worktree_storage_only():
     assert "gobby-worktrees" in registry_names
 
 
-def test_setup_sessions_with_message_manager():
+def test_setup_sessions_with_message_manager() -> None:
     """Test sessions registry is created with message_manager."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -144,7 +147,7 @@ def test_setup_sessions_with_message_manager():
     assert "gobby-sessions" in registry_names
 
 
-def test_setup_sessions_with_local_session_manager():
+def test_setup_sessions_with_local_session_manager() -> None:
     """Test sessions registry is created with local_session_manager."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -160,7 +163,7 @@ def test_setup_sessions_with_local_session_manager():
     assert "gobby-sessions" in registry_names
 
 
-def test_setup_hub_registry_with_database_path():
+def test_setup_hub_registry_with_database_path() -> None:
     """Test hub registry is created when config has database_path."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -173,7 +176,7 @@ def test_setup_hub_registry_with_database_path():
     assert "gobby-hub" in registry_names
 
 
-def test_setup_tasks_disabled_by_config():
+def test_setup_tasks_disabled_by_config() -> None:
     """Test tasks registry is not created when disabled in config."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -192,7 +195,7 @@ def test_setup_tasks_disabled_by_config():
     assert "gobby-tasks" not in registry_names
 
 
-def test_setup_tasks_missing_task_manager():
+def test_setup_tasks_missing_task_manager() -> None:
     """Test tasks registry is not created when task_manager is None."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = True
@@ -210,7 +213,7 @@ def test_setup_tasks_missing_task_manager():
     assert "gobby-tasks" not in registry_names
 
 
-def test_setup_tasks_missing_sync_manager():
+def test_setup_tasks_missing_sync_manager() -> None:
     """Test tasks registry is not created when sync_manager is None."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = True
@@ -228,7 +231,7 @@ def test_setup_tasks_missing_sync_manager():
     assert "gobby-tasks" not in registry_names
 
 
-def test_setup_merge_requires_both_storage_and_resolver():
+def test_setup_merge_requires_both_storage_and_resolver() -> None:
     """Test merge registry requires both merge_storage and merge_resolver."""
     mock_config = MagicMock()
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -255,7 +258,7 @@ def test_setup_merge_requires_both_storage_and_resolver():
 # --- Skills Registry Tests ---
 
 
-def test_setup_with_database_path(tmp_path):
+def test_setup_with_database_path(tmp_path) -> None:
     """Test registries are created when config has database_path."""
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
@@ -278,7 +281,7 @@ def test_setup_with_database_path(tmp_path):
     assert "gobby-hub" in registry_names
 
 
-def test_setup_skills_registry_not_created_without_config():
+def test_setup_skills_registry_not_created_without_config() -> None:
     """Test skills registry is not created when config is None."""
     manager = setup_internal_registries(_config=None)
 
@@ -287,7 +290,7 @@ def test_setup_skills_registry_not_created_without_config():
     assert "gobby-skills" not in registry_names
 
 
-def test_setup_skills_registry_not_created_without_database_path():
+def test_setup_skills_registry_not_created_without_database_path() -> None:
     """Test skills registry is not created when database_path is missing."""
     mock_config = MagicMock(spec=["get_gobby_tasks_config"])
     mock_config.get_gobby_tasks_config.return_value.enabled = False
@@ -300,7 +303,7 @@ def test_setup_skills_registry_not_created_without_database_path():
     assert "gobby-skills" not in registry_names
 
 
-def test_setup_hub_registry_has_expected_tools(tmp_path):
+def test_setup_hub_registry_has_expected_tools(tmp_path) -> None:
     """Test hub registry has expected tools."""
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations
@@ -331,7 +334,7 @@ def test_setup_hub_registry_has_expected_tools(tmp_path):
     assert len(tool_names) > 0
 
 
-def test_setup_hub_registry_accepts_project_id(tmp_path):
+def test_setup_hub_registry_accepts_project_id(tmp_path) -> None:
     """Test hub registry accepts project_id when provided."""
     from gobby.storage.database import LocalDatabase
     from gobby.storage.migrations import run_migrations

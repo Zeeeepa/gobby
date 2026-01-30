@@ -25,6 +25,8 @@ import pytest
 # This import should fail initially (red phase) - module doesn't exist yet
 from gobby.hooks.health_monitor import HealthMonitor
 
+pytestmark = pytest.mark.unit
+
 if TYPE_CHECKING:
     pass
 

@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
 from gobby.hooks.events import (
     EVENT_TYPE_CLI_SUPPORT,
     HookEvent,
@@ -10,32 +12,33 @@ from gobby.hooks.events import (
     SessionSource,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestHookEventType:
     """Tests for HookEventType enum."""
 
-    def test_session_lifecycle_events(self):
+    def test_session_lifecycle_events(self) -> None:
         """Test session lifecycle event types."""
         assert HookEventType.SESSION_START.value == "session_start"
         assert HookEventType.SESSION_END.value == "session_end"
 
-    def test_agent_lifecycle_events(self):
+    def test_agent_lifecycle_events(self) -> None:
         """Test agent lifecycle event types."""
         assert HookEventType.BEFORE_AGENT.value == "before_agent"
         assert HookEventType.AFTER_AGENT.value == "after_agent"
 
-    def test_tool_lifecycle_events(self):
+    def test_tool_lifecycle_events(self) -> None:
         """Test tool lifecycle event types."""
         assert HookEventType.BEFORE_TOOL.value == "before_tool"
         assert HookEventType.AFTER_TOOL.value == "after_tool"
         assert HookEventType.BEFORE_TOOL_SELECTION.value == "before_tool_selection"
 
-    def test_model_lifecycle_events(self):
+    def test_model_lifecycle_events(self) -> None:
         """Test model lifecycle event types (Gemini only)."""
         assert HookEventType.BEFORE_MODEL.value == "before_model"
         assert HookEventType.AFTER_MODEL.value == "after_model"
 
-    def test_other_events(self):
+    def test_other_events(self) -> None:
         """Test other event types."""
         assert HookEventType.PRE_COMPACT.value == "pre_compact"
         assert HookEventType.SUBAGENT_START.value == "subagent_start"
@@ -43,7 +46,7 @@ class TestHookEventType:
         assert HookEventType.NOTIFICATION.value == "notification"
         assert HookEventType.PERMISSION_REQUEST.value == "permission_request"
 
-    def test_all_event_types_covered(self):
+    def test_all_event_types_covered(self) -> None:
         """Test that all event types are in the support matrix."""
         for event_type in HookEventType:
             assert event_type in EVENT_TYPE_CLI_SUPPORT
@@ -52,7 +55,7 @@ class TestHookEventType:
 class TestSessionSource:
     """Tests for SessionSource enum."""
 
-    def test_source_values(self):
+    def test_source_values(self) -> None:
         """Test session source values."""
         assert SessionSource.CLAUDE.value == "claude"
         assert SessionSource.GEMINI.value == "gemini"
@@ -63,7 +66,7 @@ class TestSessionSource:
 class TestHookEvent:
     """Tests for HookEvent dataclass."""
 
-    def test_create_minimal_event(self):
+    def test_create_minimal_event(self) -> None:
         """Test creating event with required fields only."""
         event = HookEvent(
             event_type=HookEventType.SESSION_START,
@@ -78,7 +81,7 @@ class TestHookEvent:
         assert event.source == SessionSource.CLAUDE
         assert event.data == {}
 
-    def test_create_full_event(self):
+    def test_create_full_event(self) -> None:
         """Test creating event with all fields."""
         now = datetime.now(UTC)
         event = HookEvent(
@@ -104,7 +107,7 @@ class TestHookEvent:
         assert event.metadata == {"custom": "value"}
         assert event.data["tool_name"] == "bash"
 
-    def test_default_optional_fields(self):
+    def test_default_optional_fields(self) -> None:
         """Test default values for optional fields."""
         event = HookEvent(
             event_type=HookEventType.SESSION_END,
@@ -125,7 +128,7 @@ class TestHookEvent:
 class TestHookResponse:
     """Tests for HookResponse dataclass."""
 
-    def test_default_response(self):
+    def test_default_response(self) -> None:
         """Test default response values."""
         response = HookResponse()
 
@@ -137,12 +140,12 @@ class TestHookResponse:
         assert response.trigger_action is None
         assert response.metadata == {}
 
-    def test_allow_response(self):
+    def test_allow_response(self) -> None:
         """Test creating an allow response."""
         response = HookResponse(decision="allow")
         assert response.decision == "allow"
 
-    def test_deny_response(self):
+    def test_deny_response(self) -> None:
         """Test creating a deny response."""
         response = HookResponse(
             decision="deny",
@@ -152,12 +155,12 @@ class TestHookResponse:
         assert response.decision == "deny"
         assert response.reason == "Operation not permitted"
 
-    def test_ask_response(self):
+    def test_ask_response(self) -> None:
         """Test creating an ask response."""
         response = HookResponse(decision="ask")
         assert response.decision == "ask"
 
-    def test_response_with_context(self):
+    def test_response_with_context(self) -> None:
         """Test response with context injection."""
         response = HookResponse(
             decision="allow",
@@ -167,7 +170,7 @@ class TestHookResponse:
         assert response.context is not None
         assert "auth module" in response.context
 
-    def test_response_with_system_message(self):
+    def test_response_with_system_message(self) -> None:
         """Test response with user-visible system message."""
         response = HookResponse(
             decision="allow",
@@ -176,7 +179,7 @@ class TestHookResponse:
 
         assert response.system_message == "Context restored from previous session."
 
-    def test_response_with_metadata(self):
+    def test_response_with_metadata(self) -> None:
         """Test response with custom metadata."""
         response = HookResponse(
             decision="allow",
@@ -190,13 +193,13 @@ class TestHookResponse:
 class TestEventTypeCLISupport:
     """Tests for EVENT_TYPE_CLI_SUPPORT mapping."""
 
-    def test_claude_support(self):
+    def test_claude_support(self) -> None:
         """Test Claude Code support in mapping."""
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["claude"] == "SessionStart"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["claude"] == "PreToolUse"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.AFTER_TOOL]["claude"] == "PostToolUse"
 
-    def test_gemini_support(self):
+    def test_gemini_support(self) -> None:
         """Test Gemini CLI support in mapping."""
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["gemini"] == "SessionStart"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["gemini"] == "BeforeTool"
@@ -205,13 +208,13 @@ class TestEventTypeCLISupport:
             == "BeforeToolSelection"
         )
 
-    def test_codex_support(self):
+    def test_codex_support(self) -> None:
         """Test Codex CLI support in mapping."""
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["codex"] == "thread/started"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["codex"] == "requestApproval"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.AFTER_TOOL]["codex"] == "item/completed"
 
-    def test_cli_specific_events(self):
+    def test_cli_specific_events(self) -> None:
         """Test CLI-specific event support."""
         # Gemini-only events
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_MODEL]["claude"] is None

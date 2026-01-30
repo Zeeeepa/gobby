@@ -147,6 +147,56 @@ class EventHandlers:
         """
         return dict(self._handler_map)
 
+    def _auto_activate_workflow(
+        self, workflow_name: str, session_id: str, project_path: str | None
+    ) -> None:
+        """Auto-activate a workflow for a session.
+
+        Args:
+            workflow_name: Name of the workflow to activate
+            session_id: Session ID to activate workflow for
+            project_path: Project path for workflow context
+        """
+        if not self._workflow_handler:
+            return
+
+        try:
+            result = self._workflow_handler.activate_workflow(
+                workflow_name=workflow_name,
+                session_id=session_id,
+                project_path=project_path,
+            )
+            if result.get("success"):
+                self.logger.info(
+                    "Auto-activated workflow for session",
+                    extra={
+                        "workflow_name": workflow_name,
+                        "session_id": session_id,
+                        "project_path": project_path,
+                    },
+                )
+            else:
+                self.logger.warning(
+                    "Failed to auto-activate workflow",
+                    extra={
+                        "workflow_name": workflow_name,
+                        "session_id": session_id,
+                        "project_path": project_path,
+                        "error": result.get("error"),
+                    },
+                )
+        except Exception as e:
+            self.logger.warning(
+                "Failed to auto-activate workflow",
+                extra={
+                    "workflow_name": workflow_name,
+                    "session_id": session_id,
+                    "project_path": project_path,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
+
     # ==================== SESSION HANDLERS ====================
 
     def handle_session_start(self, event: HookEvent) -> HookResponse:
@@ -207,6 +257,12 @@ class EventHandlers:
                         except Exception as e:
                             self.logger.warning(f"Failed to start agent run: {e}")
 
+                    # Auto-activate workflow if specified for this session
+                    if existing_session.workflow_name and session_id:
+                        self._auto_activate_workflow(
+                            existing_session.workflow_name, session_id, cwd
+                        )
+
                     # Update event metadata
                     event.metadata["_platform_session_id"] = session_id
 
@@ -235,9 +291,9 @@ class EventHandlers:
                     session_ref = (
                         f"#{existing_session.seq_num}" if existing_session.seq_num else session_id
                     )
-                    system_message = f"\nGobby Session Ref: {session_ref}"
-                    system_message += f"\nGobby Session ID: {session_id}"
-                    system_message += f"\nExternal ID: {external_id}"
+                    system_message = f"\nGobby Session ID: {session_ref}"
+                    system_message += " <- Use this for MCP tool calls (session_id parameter)"
+                    system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
                     if parent_session_id:
                         context_parts.append(f"Parent session: {parent_session_id}")
 
@@ -261,6 +317,7 @@ class EventHandlers:
                         system_message=system_message,
                         metadata={
                             "session_id": session_id,
+                            "session_ref": session_ref,
                             "parent_session_id": parent_session_id,
                             "machine_id": machine_id,
                             "project_id": existing_session.project_id,
@@ -272,9 +329,13 @@ class EventHandlers:
             except Exception as e:
                 self.logger.debug(f"No pre-created session found: {e}")
 
-        # Step 1: Find parent session if this is a handoff (source='clear' only)
-        parent_session_id = None
-        if session_source == "clear" and self._session_storage:
+        # Step 1: Find parent session
+        # Check env vars first (spawned agent case), then handoff (source='clear')
+        parent_session_id = input_data.get("parent_session_id")
+        workflow_name = input_data.get("workflow_name")
+        agent_depth = input_data.get("agent_depth")
+
+        if not parent_session_id and session_source == "clear" and self._session_storage:
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,
@@ -291,6 +352,14 @@ class EventHandlers:
         # Step 2: Register new session with parent if found
         # Extract terminal context (injected by hook_dispatcher for terminal correlation)
         terminal_context = input_data.get("terminal_context")
+        # Parse agent_depth as int if provided
+        agent_depth_val = 0
+        if agent_depth:
+            try:
+                agent_depth_val = int(agent_depth)
+            except (ValueError, TypeError):
+                pass
+
         session_id = None
         if self._session_manager:
             session_id = self._session_manager.register_session(
@@ -302,6 +371,8 @@ class EventHandlers:
                 source=cli_source,
                 project_path=cwd,
                 terminal_context=terminal_context,
+                workflow_name=workflow_name,
+                agent_depth=agent_depth_val,
             )
 
         # Step 2b: Mark parent session as expired after successful handoff
@@ -311,6 +382,10 @@ class EventHandlers:
                 self.logger.debug(f"Marked parent session {parent_session_id} as expired")
             except Exception as e:
                 self.logger.warning(f"Failed to mark parent session as expired: {e}")
+
+        # Step 2c: Auto-activate workflow if specified (for spawned agents)
+        if workflow_name and session_id:
+            self._auto_activate_workflow(workflow_name, session_id, cwd)
 
         # Step 3: Track registered session
         if transcript_path and self._session_coordinator:
@@ -354,9 +429,13 @@ class EventHandlers:
             session_obj = self._session_storage.get(session_id)
             if session_obj and session_obj.seq_num:
                 session_ref = f"#{session_obj.seq_num}"
-        system_message = f"\nGobby Session Ref: {session_ref}"
-        system_message += f"\nGobby Session ID: {session_id}"
-        system_message += f"\nExternal ID: {external_id}"
+        # Format: "Gobby Session ID: #N" with usage hint
+        if session_ref and session_ref != session_id:
+            system_message = f"\nGobby Session ID: {session_ref}"
+        else:
+            system_message = f"\nGobby Session ID: {session_id}"
+        system_message += " <- Use this for MCP tool calls (session_id parameter)"
+        system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
         # Add active lifecycle workflows
         if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
@@ -384,6 +463,7 @@ class EventHandlers:
         # Build metadata with terminal context (filter out nulls)
         metadata: dict[str, Any] = {
             "session_id": session_id,
+            "session_ref": session_ref,
             "parent_session_id": parent_session_id,
             "machine_id": machine_id,
             "project_id": project_id,
@@ -716,10 +796,16 @@ class EventHandlers:
 
             # Track edits for session high-water mark
             # Only if tool succeeded, matches edit tools, and session has claimed a task
+            # Skip .gobby/ internal files (tasks.jsonl, memories.jsonl, etc.)
+            tool_input = input_data.get("tool_input", {})
+            file_path = tool_input.get("file_path", "")
+            is_gobby_internal = "/.gobby/" in file_path or file_path.startswith(".gobby/")
+
             if (
                 not is_failure
                 and tool_name
                 and tool_name.lower() in EDIT_TOOLS
+                and not is_gobby_internal
                 and self._session_storage
                 and self._task_manager
             ):
@@ -780,9 +866,22 @@ class EventHandlers:
     # ==================== COMPACT HANDLER ====================
 
     def handle_pre_compact(self, event: HookEvent) -> HookResponse:
-        """Handle PRE_COMPACT event."""
+        """Handle PRE_COMPACT event.
+
+        Note: Gemini fires PreCompress constantly during normal operation,
+        unlike Claude which fires it only when approaching context limits.
+        We skip handoff logic and workflow execution for Gemini to avoid
+        excessive state changes and workflow interruptions.
+        """
+        from gobby.hooks.events import SessionSource
+
         trigger = event.data.get("trigger", "auto")
         session_id = event.metadata.get("_platform_session_id")
+
+        # Skip handoff logic for Gemini - it fires PreCompress too frequently
+        if event.source == SessionSource.GEMINI:
+            self.logger.debug(f"PRE_COMPACT ({trigger}): session {session_id} [Gemini - skipped]")
+            return HookResponse(decision="allow")
 
         if session_id:
             self.logger.debug(f"PRE_COMPACT ({trigger}): session {session_id}")

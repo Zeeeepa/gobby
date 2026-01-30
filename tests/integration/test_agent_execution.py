@@ -473,7 +473,7 @@ class TestAgentListRuns:
 class TestAgentExecutorRegistration:
     """Tests for executor registration."""
 
-    def test_register_executor(self, temp_db, session_storage):
+    def test_register_executor(self, temp_db, session_storage) -> None:
         """Test registering a new executor."""
         runner = AgentRunner(
             db=temp_db,
@@ -486,7 +486,7 @@ class TestAgentExecutorRegistration:
 
         assert runner.get_executor("custom") is mock_executor
 
-    def test_get_executor_returns_none_for_unknown(self, runner):
+    def test_get_executor_returns_none_for_unknown(self, runner) -> None:
         """Test get_executor returns None for unknown provider."""
         executor = runner.get_executor("unknown_provider")
         assert executor is None

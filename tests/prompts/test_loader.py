@@ -7,6 +7,7 @@ import pytest
 
 from gobby.prompts import PromptLoader, PromptTemplate
 
+pytestmark = pytest.mark.unit
 
 class TestPromptLoader:
     """Tests for PromptLoader class."""

@@ -8,6 +8,7 @@ then will pass once LoggingSettings is extracted from app.py.
 import pytest
 from pydantic import ValidationError
 
+pytestmark = pytest.mark.unit
 
 class TestLoggingSettingsImport:
     """Test that LoggingSettings can be imported from the logging module."""

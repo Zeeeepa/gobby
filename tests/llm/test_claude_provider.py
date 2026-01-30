@@ -10,6 +10,8 @@ from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 from gobby.llm.claude import ClaudeLLMProvider
 
+pytestmark = pytest.mark.unit
+
 # --- Mocks for claude_agent_sdk ---
 
 

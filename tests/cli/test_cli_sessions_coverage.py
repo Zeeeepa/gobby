@@ -6,6 +6,7 @@ from click.testing import CliRunner
 from gobby.cli.sessions import _format_turns_for_llm, sessions
 from gobby.storage.sessions import Session
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_session_manager():
@@ -37,7 +38,7 @@ async def async_return(val):
     return val
 
 
-def test_list_sessions_empty(mock_session_manager):
+def test_list_sessions_empty(mock_session_manager) -> None:
     mock_session_manager.list.return_value = []
 
     runner = CliRunner()
@@ -47,7 +48,7 @@ def test_list_sessions_empty(mock_session_manager):
     assert "No sessions found" in result.output
 
 
-def test_list_sessions_found(mock_session_manager):
+def test_list_sessions_found(mock_session_manager) -> None:
     session = Session(
         id="sess-1",
         project_id="proj-1",
@@ -78,7 +79,7 @@ def test_list_sessions_found(mock_session_manager):
     assert "#1" in result.output
 
 
-def test_list_sessions_json(mock_session_manager):
+def test_list_sessions_json(mock_session_manager) -> None:
     session = Session(
         id="sess-1",
         project_id="proj-1",
@@ -106,7 +107,7 @@ def test_list_sessions_json(mock_session_manager):
     assert '"title": "Test Session"' in result.output
 
 
-def test_show_session_found(mock_session_manager, mock_resolve_session):
+def test_show_session_found(mock_session_manager, mock_resolve_session) -> None:
     session = Session(
         id="sess-1",
         project_id="proj-1",
@@ -135,7 +136,7 @@ def test_show_session_found(mock_session_manager, mock_resolve_session):
     assert "Test Summary" in result.output
 
 
-def test_show_session_not_found(mock_session_manager, mock_resolve_session):
+def test_show_session_not_found(mock_session_manager, mock_resolve_session) -> None:
     mock_session_manager.get.return_value = None
 
     runner = CliRunner()
@@ -145,7 +146,7 @@ def test_show_session_not_found(mock_session_manager, mock_resolve_session):
     assert "Session not found" in result.output
 
 
-def test_delete_session_success(mock_session_manager, mock_resolve_session):
+def test_delete_session_success(mock_session_manager, mock_resolve_session) -> None:
     session = Session(
         id="sess-1",
         project_id="proj-1",
@@ -174,7 +175,7 @@ def test_delete_session_success(mock_session_manager, mock_resolve_session):
     mock_session_manager.delete.assert_called_with("sess-1")
 
 
-def test_delete_session_not_found(mock_session_manager, mock_resolve_session):
+def test_delete_session_not_found(mock_session_manager, mock_resolve_session) -> None:
     mock_session_manager.get.return_value = None
 
     runner = CliRunner()
@@ -184,7 +185,7 @@ def test_delete_session_not_found(mock_session_manager, mock_resolve_session):
     assert "Session not found" in result.output
 
 
-def test_session_stats(mock_session_manager, mock_message_manager):
+def test_session_stats(mock_session_manager, mock_message_manager) -> None:
     s1 = Session(
         id="s1",
         project_id="p1",
@@ -236,7 +237,7 @@ def test_session_stats(mock_session_manager, mock_message_manager):
     assert "gemini: 1" in result.output
 
 
-def test_show_messages(mock_session_manager, mock_message_manager, mock_resolve_session):
+def test_show_messages(mock_session_manager, mock_message_manager, mock_resolve_session) -> None:
     session = Session(
         id="s1",
         project_id="p1",
@@ -272,7 +273,7 @@ def test_show_messages(mock_session_manager, mock_message_manager, mock_resolve_
     assert "assistant: hi" in result.output
 
 
-def test_search_messages(mock_message_manager, mock_resolve_session):
+def test_search_messages(mock_message_manager, mock_resolve_session) -> None:
     msgs = [{"role": "user", "content": "found it", "session_id": "s1"}]
     mock_message_manager.search_messages.side_effect = lambda **kwargs: async_return(msgs)
 
@@ -424,7 +425,7 @@ def test_create_handoff_full_llm_error(
     )
 
 
-def test_create_handoff_no_session(mock_session_manager, mock_resolve_session):
+def test_create_handoff_no_session(mock_session_manager, mock_resolve_session) -> None:
     mock_session_manager.get.return_value = None
     runner = CliRunner()
     result = runner.invoke(sessions, ["create-handoff", "-s", "missing"])
@@ -432,7 +433,7 @@ def test_create_handoff_no_session(mock_session_manager, mock_resolve_session):
     assert "Session not found" in result.output
 
 
-def test_create_handoff_no_transcript_path(mock_session_manager, mock_resolve_session):
+def test_create_handoff_no_transcript_path(mock_session_manager, mock_resolve_session) -> None:
     session = Session(
         id="s1",
         project_id="p1",
@@ -468,7 +469,7 @@ def test_create_handoff_no_transcript_path(mock_session_manager, mock_resolve_se
     assert "has no transcript path" in result.output
 
 
-def test_create_handoff_transcript_not_found(mock_session_manager, mock_resolve_session):
+def test_create_handoff_transcript_not_found(mock_session_manager, mock_resolve_session) -> None:
     session = Session(
         id="s1",
         project_id="p1",
@@ -507,7 +508,7 @@ def test_create_handoff_transcript_not_found(mock_session_manager, mock_resolve_
     assert "Transcript file not found" in result.output
 
 
-def test_list_sessions_filters(mock_session_manager):
+def test_list_sessions_filters(mock_session_manager) -> None:
     runner = CliRunner()
 
     # Test strict filters call manager with correct args
@@ -521,7 +522,7 @@ def test_list_sessions_filters(mock_session_manager):
     )
 
 
-def test_list_sessions_project_filter(mock_session_manager):
+def test_list_sessions_project_filter(mock_session_manager) -> None:
     with patch("gobby.cli.sessions.resolve_project_ref", return_value="p1"):
         runner = CliRunner()
         result = runner.invoke(sessions, ["list", "--project", "my-project"])
@@ -532,7 +533,7 @@ def test_list_sessions_project_filter(mock_session_manager):
         )
 
 
-def test_format_turns_for_llm():
+def test_format_turns_for_llm() -> None:
     turns = [
         {"message": {"role": "user", "content": "hello"}},
         {
@@ -574,14 +575,14 @@ def test_create_handoff_full_success(mock_session_manager, mock_resolve_session)
     # Setup Mocks
     with (
         patch("builtins.open") as mock_open,
-        patch("pathlib.Path.exists", return_value=True) as mock_exists,
+        patch("pathlib.Path.exists", return_value=True),
         patch("gobby.sessions.analyzer.TranscriptAnalyzer") as mock_analyzer,
-        patch("subprocess.run") as mock_subprocess,
+        patch("subprocess.run"),
         patch("gobby.sessions.transcripts.claude.ClaudeTranscriptParser") as mock_parser_cls,
         patch("gobby.llm.claude.ClaudeLLMProvider") as mock_provider_cls,
         patch("gobby.config.app.load_config") as mock_load_config,
-        patch("gobby.cli.sessions.LocalDatabase") as mock_db,
-        patch("gobby.storage.projects.LocalProjectManager") as mock_project_manager,
+        patch("gobby.cli.sessions.LocalDatabase"),
+        patch("gobby.storage.projects.LocalProjectManager"),
         patch("anyio.run", return_value="Full Summary Content"),
     ):
         # Mock file reading

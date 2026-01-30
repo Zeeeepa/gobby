@@ -153,10 +153,15 @@ class SessionMemoryExtractor:
         """
         session = self.session_manager.get(session_id)
         if not session:
+            logger.warning(f"Session not found for memory extraction: {session_id}")
             return None
 
-        # Get project info
+        # Get project info - log for debugging NULL project_id issues
         project_id = session.project_id
+        logger.debug(
+            f"Memory extraction context: session={session_id}, "
+            f"project_id={project_id!r} (type={type(project_id).__name__})"
+        )
         project_name = "Unknown Project"
 
         if project_id:
@@ -461,6 +466,15 @@ class SessionMemoryExtractor:
             session_id: Source session ID
             project_id: Project ID for the memories
         """
+        # Log project_id for debugging NULL project_id issues
+        if project_id is None:
+            logger.warning(
+                f"Storing memories with NULL project_id for session {session_id}. "
+                "This may cause duplicate detection issues."
+            )
+        else:
+            logger.debug(f"Storing {len(candidates)} memories with project_id={project_id}")
+
         for candidate in candidates:
             try:
                 await self.memory_manager.remember(

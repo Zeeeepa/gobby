@@ -6,11 +6,12 @@ import pytest
 
 from gobby.utils.daemon_client import DaemonClient
 
+pytestmark = pytest.mark.unit
 
 class TestDaemonClientInit:
     """Tests for DaemonClient initialization."""
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test default initialization values."""
         client = DaemonClient()
 
@@ -19,21 +20,21 @@ class TestDaemonClientInit:
         assert client._cached_is_ready is None
         assert client._cached_status is None
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         """Test custom initialization values."""
         client = DaemonClient(host="192.168.1.1", port=9000, timeout=10.0)
 
         assert client.url == "http://192.168.1.1:9000"
         assert client.timeout == 10.0
 
-    def test_custom_logger(self):
+    def test_custom_logger(self) -> None:
         """Test with custom logger."""
         mock_logger = MagicMock()
         client = DaemonClient(logger=mock_logger)
 
         assert client.logger is mock_logger
 
-    def test_status_text_mapping(self):
+    def test_status_text_mapping(self) -> None:
         """Test DAEMON_STATUS_TEXT class constant."""
         assert DaemonClient.DAEMON_STATUS_TEXT["not_running"] == "Not Running"
         assert DaemonClient.DAEMON_STATUS_TEXT["cannot_access"] == "Cannot Access"
@@ -43,7 +44,7 @@ class TestDaemonClientInit:
 class TestDaemonClientCheckHealth:
     """Tests for check_health method."""
 
-    def test_health_check_success(self):
+    def test_health_check_success(self) -> None:
         """Test successful health check."""
         client = DaemonClient()
 
@@ -56,7 +57,7 @@ class TestDaemonClientCheckHealth:
         assert is_healthy is True
         assert error is None
 
-    def test_health_check_non_200_status(self):
+    def test_health_check_non_200_status(self) -> None:
         """Test health check with non-200 status."""
         client = DaemonClient()
 
@@ -69,7 +70,7 @@ class TestDaemonClientCheckHealth:
         assert is_healthy is False
         assert error == "HTTP 503"
 
-    def test_health_check_connection_refused(self):
+    def test_health_check_connection_refused(self) -> None:
         """Test health check when daemon not running."""
         client = DaemonClient()
 
@@ -79,7 +80,7 @@ class TestDaemonClientCheckHealth:
         assert is_healthy is False
         assert error is None  # None indicates daemon not running
 
-    def test_health_check_other_error(self):
+    def test_health_check_other_error(self) -> None:
         """Test health check with other errors."""
         client = DaemonClient()
 
@@ -93,7 +94,7 @@ class TestDaemonClientCheckHealth:
 class TestDaemonClientCheckStatus:
     """Tests for check_status method."""
 
-    def test_status_ready(self):
+    def test_status_ready(self) -> None:
         """Test status when daemon is ready."""
         client = DaemonClient()
 
@@ -105,7 +106,7 @@ class TestDaemonClientCheckStatus:
         assert status == "ready"
         assert error is None
 
-    def test_status_not_running(self):
+    def test_status_not_running(self) -> None:
         """Test status when daemon is not running."""
         client = DaemonClient()
 
@@ -117,7 +118,7 @@ class TestDaemonClientCheckStatus:
         assert status == "not_running"
         assert error is None
 
-    def test_status_cannot_access(self):
+    def test_status_cannot_access(self) -> None:
         """Test status when daemon cannot be accessed."""
         client = DaemonClient()
 
@@ -133,7 +134,7 @@ class TestDaemonClientCheckStatus:
 class TestDaemonClientCallHttpApi:
     """Tests for call_http_api method."""
 
-    def test_get_request(self):
+    def test_get_request(self) -> None:
         """Test GET request."""
         client = DaemonClient()
 
@@ -146,7 +147,7 @@ class TestDaemonClientCallHttpApi:
         assert response == mock_response
         mock_get.assert_called_once()
 
-    def test_post_request(self):
+    def test_post_request(self) -> None:
         """Test POST request with JSON data."""
         client = DaemonClient()
 
@@ -161,7 +162,7 @@ class TestDaemonClientCallHttpApi:
         assert response == mock_response
         mock_post.assert_called_once()
 
-    def test_put_request(self):
+    def test_put_request(self) -> None:
         """Test PUT request."""
         client = DaemonClient()
 
@@ -173,7 +174,7 @@ class TestDaemonClientCallHttpApi:
         assert response == mock_response
         mock_put.assert_called_once()
 
-    def test_delete_request(self):
+    def test_delete_request(self) -> None:
         """Test DELETE request."""
         client = DaemonClient()
 
@@ -185,14 +186,14 @@ class TestDaemonClientCallHttpApi:
         assert response == mock_response
         mock_delete.assert_called_once()
 
-    def test_unsupported_method(self):
+    def test_unsupported_method(self) -> None:
         """Test unsupported HTTP method raises ValueError."""
         client = DaemonClient()
 
         with pytest.raises(ValueError, match="Unsupported HTTP method"):
             client.call_http_api("/test", method="PATCH")
 
-    def test_custom_timeout(self):
+    def test_custom_timeout(self) -> None:
         """Test using custom timeout."""
         client = DaemonClient(timeout=5.0)
 
@@ -205,7 +206,7 @@ class TestDaemonClientCallHttpApi:
         call_args = mock_get.call_args
         assert call_args.kwargs["timeout"] == 30.0
 
-    def test_exception_handling(self):
+    def test_exception_handling(self) -> None:
         """Test exception is raised on failure."""
         client = DaemonClient()
 
@@ -217,7 +218,7 @@ class TestDaemonClientCallHttpApi:
 class TestDaemonClientCallMcpTool:
     """Tests for call_mcp_tool method."""
 
-    def test_call_mcp_tool_success(self):
+    def test_call_mcp_tool_success(self) -> None:
         """Test successful MCP tool call."""
         client = DaemonClient()
 
@@ -235,7 +236,7 @@ class TestDaemonClientCallMcpTool:
 
         assert result == {"result": "success"}
 
-    def test_call_mcp_tool_endpoint_format(self):
+    def test_call_mcp_tool_endpoint_format(self) -> None:
         """Test that correct endpoint is constructed."""
         client = DaemonClient()
 
@@ -257,7 +258,7 @@ class TestDaemonClientCallMcpTool:
 class TestDaemonClientStatusCache:
     """Tests for status caching functionality."""
 
-    def test_update_status_cache(self):
+    def test_update_status_cache(self) -> None:
         """Test updating status cache."""
         client = DaemonClient()
 
@@ -269,7 +270,7 @@ class TestDaemonClientStatusCache:
         assert client._cached_status == "ready"
         assert client._cached_error is None
 
-    def test_get_cached_status_initial(self):
+    def test_get_cached_status_initial(self) -> None:
         """Test getting cached status before any check."""
         client = DaemonClient()
 
@@ -280,7 +281,7 @@ class TestDaemonClientStatusCache:
         assert status is None
         assert error is None
 
-    def test_get_cached_status_after_update(self):
+    def test_get_cached_status_after_update(self) -> None:
         """Test getting cached status after update."""
         client = DaemonClient()
 
@@ -295,7 +296,7 @@ class TestDaemonClientStatusCache:
         assert message == "Not running"
         assert status == "not_running"
 
-    def test_cache_thread_safety(self):
+    def test_cache_thread_safety(self) -> None:
         """Test that cache operations use lock."""
         client = DaemonClient()
 

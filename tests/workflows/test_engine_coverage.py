@@ -28,6 +28,7 @@ from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_loader():
@@ -688,7 +689,7 @@ class TestCheckPrematureStop:
 class TestLogApproval:
     """Tests for lines 1079-1090: _log_approval audit logging method."""
 
-    def test_log_approval_success(self, workflow_engine, mock_audit_manager):
+    def test_log_approval_success(self, workflow_engine, mock_audit_manager) -> None:
         """_log_approval calls audit_manager.log_approval successfully."""
         workflow_engine._log_approval(
             session_id="sess1",
@@ -708,7 +709,7 @@ class TestLogApproval:
             context={"key": "value"},
         )
 
-    def test_log_approval_exception_handled(self, workflow_engine, mock_audit_manager):
+    def test_log_approval_exception_handled(self, workflow_engine, mock_audit_manager) -> None:
         """_log_approval handles exceptions gracefully."""
         mock_audit_manager.log_approval.side_effect = Exception("Database error")
 
@@ -721,7 +722,7 @@ class TestLogApproval:
 
     def test_log_approval_no_audit_manager(
         self, mock_loader, mock_state_manager, mock_action_executor
-    ):
+    ) -> None:
         """_log_approval does nothing when audit_manager is None."""
         engine = WorkflowEngine(
             mock_loader,
@@ -771,6 +772,8 @@ class TestCloseTaskClearsTaskClaimed:
             event_type=HookEventType.AFTER_TOOL,
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",  # Normalized MCP fields
+                "mcp_tool": "close_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "close_task",
@@ -884,6 +887,8 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
             metadata={"_platform_session_id": "sess1"},
             data={
                 "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",  # Normalized MCP fields
+                "mcp_tool": "create_task",
                 "tool_input": {
                     "server_name": "gobby-tasks",
                     "tool_name": "create_task",

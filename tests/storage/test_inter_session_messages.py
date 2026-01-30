@@ -6,19 +6,22 @@ Tests cover:
 - InterSessionMessageManager CRUD operations
 """
 
+import pytest
+
 from gobby.storage.database import LocalDatabase
 
+pytestmark = pytest.mark.unit
 
 class TestInterSessionMessageDataclass:
     """TDD tests for InterSessionMessage dataclass."""
 
-    def test_import_inter_session_message(self):
+    def test_import_inter_session_message(self) -> None:
         """Test that InterSessionMessage can be imported from storage module."""
         from gobby.storage.inter_session_messages import InterSessionMessage
 
         assert InterSessionMessage is not None
 
-    def test_dataclass_has_required_fields(self):
+    def test_dataclass_has_required_fields(self) -> None:
         """Test that InterSessionMessage has all required fields."""
         from gobby.storage.inter_session_messages import InterSessionMessage
 
@@ -41,7 +44,7 @@ class TestInterSessionMessageDataclass:
         assert msg.sent_at == "2026-01-19T12:00:00Z"
         assert msg.read_at is None
 
-    def test_from_row_creates_instance(self, temp_db: LocalDatabase):
+    def test_from_row_creates_instance(self, temp_db: LocalDatabase) -> None:
         """Test that InterSessionMessage.from_row creates instance from DB row."""
         from gobby.storage.inter_session_messages import InterSessionMessage
         from gobby.storage.projects import LocalProjectManager
@@ -88,7 +91,7 @@ class TestInterSessionMessageDataclass:
         assert msg.content == "Test content"
         assert msg.priority == "normal"
 
-    def test_to_dict_returns_dictionary(self):
+    def test_to_dict_returns_dictionary(self) -> None:
         """Test that to_dict returns a dictionary with all fields."""
         from gobby.storage.inter_session_messages import InterSessionMessage
 
@@ -115,13 +118,13 @@ class TestInterSessionMessageDataclass:
 class TestInterSessionMessageManagerImport:
     """TDD tests for InterSessionMessageManager import and instantiation."""
 
-    def test_import_manager(self):
+    def test_import_manager(self) -> None:
         """Test that InterSessionMessageManager can be imported."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
 
         assert InterSessionMessageManager is not None
 
-    def test_manager_accepts_database(self, temp_db: LocalDatabase):
+    def test_manager_accepts_database(self, temp_db: LocalDatabase) -> None:
         """Test that manager can be instantiated with database."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
 
@@ -132,7 +135,7 @@ class TestInterSessionMessageManagerImport:
 class TestInterSessionMessageManagerCreateMessage:
     """TDD tests for create_message method."""
 
-    def test_create_message_returns_message(self, temp_db: LocalDatabase):
+    def test_create_message_returns_message(self, temp_db: LocalDatabase) -> None:
         """Test that create_message returns an InterSessionMessage."""
         from gobby.storage.inter_session_messages import (
             InterSessionMessage,
@@ -169,7 +172,7 @@ class TestInterSessionMessageManagerCreateMessage:
         assert msg.priority == "normal"
         assert msg.read_at is None
 
-    def test_create_message_persists_to_database(self, temp_db: LocalDatabase):
+    def test_create_message_persists_to_database(self, temp_db: LocalDatabase) -> None:
         """Test that created message is persisted to database."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
         from gobby.storage.projects import LocalProjectManager
@@ -198,7 +201,7 @@ class TestInterSessionMessageManagerCreateMessage:
         assert row is not None
         assert row["content"] == "Persistent message"
 
-    def test_create_message_defaults_priority_to_normal(self, temp_db: LocalDatabase):
+    def test_create_message_defaults_priority_to_normal(self, temp_db: LocalDatabase) -> None:
         """Test that priority defaults to 'normal' if not specified."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
         from gobby.storage.projects import LocalProjectManager
@@ -228,7 +231,7 @@ class TestInterSessionMessageManagerCreateMessage:
 class TestInterSessionMessageManagerGetMessages:
     """TDD tests for get_messages method."""
 
-    def test_get_messages_returns_list(self, temp_db: LocalDatabase):
+    def test_get_messages_returns_list(self, temp_db: LocalDatabase) -> None:
         """Test that get_messages returns a list of messages."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
         from gobby.storage.projects import LocalProjectManager
@@ -261,7 +264,7 @@ class TestInterSessionMessageManagerGetMessages:
         assert isinstance(messages, list)
         assert len(messages) == 2
 
-    def test_get_messages_filters_by_recipient(self, temp_db: LocalDatabase):
+    def test_get_messages_filters_by_recipient(self, temp_db: LocalDatabase) -> None:
         """Test that get_messages only returns messages for specified recipient."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
         from gobby.storage.projects import LocalProjectManager
@@ -289,7 +292,7 @@ class TestInterSessionMessageManagerGetMessages:
         assert len(messages) == 1
         assert messages[0].content == "For child 1"
 
-    def test_get_messages_unread_only(self, temp_db: LocalDatabase):
+    def test_get_messages_unread_only(self, temp_db: LocalDatabase) -> None:
         """Test that get_messages with unread_only=True filters read messages."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
         from gobby.storage.projects import LocalProjectManager
@@ -324,7 +327,7 @@ class TestInterSessionMessageManagerGetMessages:
 class TestInterSessionMessageManagerMarkRead:
     """TDD tests for mark_read method."""
 
-    def test_mark_read_sets_read_at(self, temp_db: LocalDatabase):
+    def test_mark_read_sets_read_at(self, temp_db: LocalDatabase) -> None:
         """Test that mark_read sets the read_at timestamp."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
         from gobby.storage.projects import LocalProjectManager
@@ -353,7 +356,7 @@ class TestInterSessionMessageManagerMarkRead:
         row = temp_db.fetchone("SELECT read_at FROM inter_session_messages WHERE id = ?", (msg.id,))
         assert row["read_at"] is not None
 
-    def test_mark_read_returns_updated_message(self, temp_db: LocalDatabase):
+    def test_mark_read_returns_updated_message(self, temp_db: LocalDatabase) -> None:
         """Test that mark_read returns the updated message."""
         from gobby.storage.inter_session_messages import (
             InterSessionMessage,
@@ -384,7 +387,7 @@ class TestInterSessionMessageManagerMarkRead:
 class TestInterSessionMessageManagerGetMessage:
     """TDD tests for get_message method."""
 
-    def test_get_message_returns_message(self, temp_db: LocalDatabase):
+    def test_get_message_returns_message(self, temp_db: LocalDatabase) -> None:
         """Test that get_message returns the message by ID."""
         from gobby.storage.inter_session_messages import (
             InterSessionMessage,
@@ -414,7 +417,7 @@ class TestInterSessionMessageManagerGetMessage:
         assert fetched.id == created.id
         assert fetched.content == "Fetch me"
 
-    def test_get_message_returns_none_for_missing(self, temp_db: LocalDatabase):
+    def test_get_message_returns_none_for_missing(self, temp_db: LocalDatabase) -> None:
         """Test that get_message returns None for non-existent message."""
         from gobby.storage.inter_session_messages import InterSessionMessageManager
 
@@ -426,7 +429,7 @@ class TestInterSessionMessageManagerGetMessage:
 class TestInterSessionMessageManagerExport:
     """TDD tests for module exports."""
 
-    def test_exported_from_storage_init(self):
+    def test_exported_from_storage_init(self) -> None:
         """Test that InterSessionMessageManager is exported from storage package."""
         from gobby.storage import InterSessionMessageManager
 

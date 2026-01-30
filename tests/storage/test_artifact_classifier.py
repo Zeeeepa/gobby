@@ -7,6 +7,9 @@ classifier module does not exist yet.
 The classifier is used to automatically categorize session artifacts into
 types like code, file_path, error, command, structured_data, or text.
 """
+import pytest
+
+pytestmark = pytest.mark.unit
 
 
 # =============================================================================
@@ -17,13 +20,13 @@ types like code, file_path, error, command, structured_data, or text.
 class TestArtifactClassifierImport:
     """Tests for importing the artifact classifier."""
 
-    def test_import_classify_artifact(self):
+    def test_import_classify_artifact(self) -> None:
         """Test that classify_artifact can be imported from storage.artifact_classifier."""
         from gobby.storage.artifact_classifier import classify_artifact
 
         assert classify_artifact is not None
 
-    def test_import_classification_result(self):
+    def test_import_classification_result(self) -> None:
         """Test that ClassificationResult can be imported."""
         from gobby.storage.artifact_classifier import ClassificationResult
 
@@ -38,7 +41,7 @@ class TestArtifactClassifierImport:
 class TestCodeBlockClassification:
     """Tests for classify_artifact identifying code blocks by language markers."""
 
-    def test_python_code_with_def(self):
+    def test_python_code_with_def(self) -> None:
         """Test that Python code with 'def' is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -50,7 +53,7 @@ class TestCodeBlockClassification:
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "python"
 
-    def test_python_code_with_class(self):
+    def test_python_code_with_class(self) -> None:
         """Test that Python code with 'class' is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -63,7 +66,7 @@ class TestCodeBlockClassification:
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "python"
 
-    def test_python_code_with_import(self):
+    def test_python_code_with_import(self) -> None:
         """Test that Python code with imports is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -76,7 +79,7 @@ import json
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "python"
 
-    def test_javascript_code_with_function(self):
+    def test_javascript_code_with_function(self) -> None:
         """Test that JavaScript code with 'function' is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -89,7 +92,7 @@ import json
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "javascript"
 
-    def test_javascript_code_with_const_arrow(self):
+    def test_javascript_code_with_const_arrow(self) -> None:
         """Test that JavaScript code with const and arrow functions is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -102,7 +105,7 @@ import json
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "javascript"
 
-    def test_typescript_code_with_interface(self):
+    def test_typescript_code_with_interface(self) -> None:
         """Test that TypeScript code with interface is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -117,7 +120,7 @@ import json
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "typescript"
 
-    def test_rust_code_with_fn(self):
+    def test_rust_code_with_fn(self) -> None:
         """Test that Rust code with 'fn' is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -130,7 +133,7 @@ import json
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "rust"
 
-    def test_go_code_with_func(self):
+    def test_go_code_with_func(self) -> None:
         """Test that Go code with 'func' is classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -147,7 +150,7 @@ import json
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "go"
 
-    def test_sql_query(self):
+    def test_sql_query(self) -> None:
         """Test that SQL queries are classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -163,7 +166,7 @@ ORDER BY order_count DESC;
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "sql"
 
-    def test_shell_script(self):
+    def test_shell_script(self) -> None:
         """Test that shell scripts are classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -187,7 +190,7 @@ done
 class TestFilePathClassification:
     """Tests for classify_artifact identifying file paths."""
 
-    def test_unix_absolute_path(self):
+    def test_unix_absolute_path(self) -> None:
         """Test that Unix absolute paths are classified as file_path."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -197,7 +200,7 @@ class TestFilePathClassification:
         assert result.artifact_type == "file_path"
         assert result.metadata.get("extension") == "py"
 
-    def test_windows_absolute_path(self):
+    def test_windows_absolute_path(self) -> None:
         """Test that Windows absolute paths are classified as file_path."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -207,7 +210,7 @@ class TestFilePathClassification:
         assert result.artifact_type == "file_path"
         assert result.metadata.get("extension") == "py"
 
-    def test_relative_path_with_extension(self):
+    def test_relative_path_with_extension(self) -> None:
         """Test that relative paths with extensions are classified as file_path."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -217,7 +220,7 @@ class TestFilePathClassification:
         assert result.artifact_type == "file_path"
         assert result.metadata.get("extension") == "py"
 
-    def test_path_with_dots_directory(self):
+    def test_path_with_dots_directory(self) -> None:
         """Test that paths with dot directories are classified as file_path."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -226,7 +229,7 @@ class TestFilePathClassification:
 
         assert result.artifact_type == "file_path"
 
-    def test_path_without_extension(self):
+    def test_path_without_extension(self) -> None:
         """Test that paths without extensions can still be classified as file_path."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -245,7 +248,7 @@ class TestFilePathClassification:
 class TestErrorMessageClassification:
     """Tests for classify_artifact identifying error messages and stack traces."""
 
-    def test_python_traceback(self):
+    def test_python_traceback(self) -> None:
         """Test that Python tracebacks are classified as error."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -262,7 +265,7 @@ ZeroDivisionError: division by zero
         # May extract error name like "ZeroDivisionError"
         assert "error" in result.metadata or result.metadata == {}
 
-    def test_javascript_error(self):
+    def test_javascript_error(self) -> None:
         """Test that JavaScript errors are classified as error."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -275,7 +278,7 @@ ZeroDivisionError: division by zero
 
         assert result.artifact_type == "error"
 
-    def test_rust_panic(self):
+    def test_rust_panic(self) -> None:
         """Test that Rust panics are classified as error."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -286,7 +289,7 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
         assert result.artifact_type == "error"
 
-    def test_generic_error_message(self):
+    def test_generic_error_message(self) -> None:
         """Test that generic error messages are classified as error."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -297,7 +300,7 @@ Failed to connect to database at localhost:5432
 
         assert result.artifact_type == "error"
 
-    def test_exception_message(self):
+    def test_exception_message(self) -> None:
         """Test that exception messages are classified as error."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -318,7 +321,7 @@ Failed to connect to database at localhost:5432
 class TestCommandOutputClassification:
     """Tests for classify_artifact identifying command outputs."""
 
-    def test_git_status_output(self):
+    def test_git_status_output(self) -> None:
         """Test that git status output is classified as command_output."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -335,7 +338,7 @@ no changes added to commit (use "git add" and/or "git commit -a")
 
         assert result.artifact_type == "command_output"
 
-    def test_npm_install_output(self):
+    def test_npm_install_output(self) -> None:
         """Test that npm install output is classified as command_output."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -351,7 +354,7 @@ found 0 vulnerabilities
 
         assert result.artifact_type == "command_output"
 
-    def test_pytest_output(self):
+    def test_pytest_output(self) -> None:
         """Test that pytest output is classified as command_output."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -368,7 +371,7 @@ tests/test_utils.py ..............                                         [100%
 
         assert result.artifact_type == "command_output"
 
-    def test_ls_output(self):
+    def test_ls_output(self) -> None:
         """Test that ls output is classified as command_output."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -382,7 +385,7 @@ drwxr-xr-x   5 user  staff   160 Jan  8 09:00 ..
 
         assert result.artifact_type == "command_output"
 
-    def test_shell_prompt_output(self):
+    def test_shell_prompt_output(self) -> None:
         """Test that shell command with prompt is classified as command_output."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -404,7 +407,7 @@ ghi9012 docs: update readme
 class TestStructuredDataClassification:
     """Tests for classify_artifact identifying structured data (JSON/YAML)."""
 
-    def test_json_object(self):
+    def test_json_object(self) -> None:
         """Test that JSON objects are classified as structured_data."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -422,7 +425,7 @@ class TestStructuredDataClassification:
         assert result.artifact_type == "structured_data"
         assert result.metadata.get("format") == "json"
 
-    def test_json_array(self):
+    def test_json_array(self) -> None:
         """Test that JSON arrays are classified as structured_data."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -437,7 +440,7 @@ class TestStructuredDataClassification:
         assert result.artifact_type == "structured_data"
         assert result.metadata.get("format") == "json"
 
-    def test_yaml_config(self):
+    def test_yaml_config(self) -> None:
         """Test that YAML config is classified as structured_data."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -455,7 +458,7 @@ settings:
         assert result.artifact_type == "structured_data"
         assert result.metadata.get("format") == "yaml"
 
-    def test_toml_config(self):
+    def test_toml_config(self) -> None:
         """Test that TOML config is classified as structured_data."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -472,7 +475,7 @@ pydantic = "^2.0.0"
         assert result.artifact_type == "structured_data"
         assert result.metadata.get("format") == "toml"
 
-    def test_xml_data(self):
+    def test_xml_data(self) -> None:
         """Test that XML data is classified as structured_data."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -496,7 +499,7 @@ pydantic = "^2.0.0"
 class TestDefaultTypeClassification:
     """Tests for classify_artifact returning 'text' as default type."""
 
-    def test_plain_text_returns_text(self):
+    def test_plain_text_returns_text(self) -> None:
         """Test that plain text is classified as text."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -507,7 +510,7 @@ It's a description of something, maybe some notes or documentation.
 
         assert result.artifact_type == "text"
 
-    def test_short_string_returns_text(self):
+    def test_short_string_returns_text(self) -> None:
         """Test that short strings are classified as text."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -516,7 +519,7 @@ It's a description of something, maybe some notes or documentation.
 
         assert result.artifact_type == "text"
 
-    def test_empty_string_returns_text(self):
+    def test_empty_string_returns_text(self) -> None:
         """Test that empty strings are classified as text."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -525,7 +528,7 @@ It's a description of something, maybe some notes or documentation.
 
         assert result.artifact_type == "text"
 
-    def test_whitespace_only_returns_text(self):
+    def test_whitespace_only_returns_text(self) -> None:
         """Test that whitespace-only content is classified as text."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -534,7 +537,7 @@ It's a description of something, maybe some notes or documentation.
 
         assert result.artifact_type == "text"
 
-    def test_mixed_content_defaults_to_text(self):
+    def test_mixed_content_defaults_to_text(self) -> None:
         """Test that ambiguous mixed content defaults to text."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -558,7 +561,7 @@ These are just bullet points.
 class TestMetadataExtraction:
     """Tests for metadata extraction based on artifact type."""
 
-    def test_code_extracts_language(self):
+    def test_code_extracts_language(self) -> None:
         """Test that code classification extracts language."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -568,7 +571,7 @@ class TestMetadataExtraction:
         assert result.artifact_type == "code"
         assert "language" in result.metadata
 
-    def test_file_path_extracts_extension(self):
+    def test_file_path_extracts_extension(self) -> None:
         """Test that file_path classification extracts extension."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -578,7 +581,7 @@ class TestMetadataExtraction:
         assert result.artifact_type == "file_path"
         assert result.metadata.get("extension") == "py"
 
-    def test_file_path_extracts_filename(self):
+    def test_file_path_extracts_filename(self) -> None:
         """Test that file_path classification extracts filename."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -588,7 +591,7 @@ class TestMetadataExtraction:
         assert result.artifact_type == "file_path"
         assert result.metadata.get("filename") == "my_script.py"
 
-    def test_structured_data_extracts_format(self):
+    def test_structured_data_extracts_format(self) -> None:
         """Test that structured_data classification extracts format."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -598,7 +601,7 @@ class TestMetadataExtraction:
         assert result.artifact_type == "structured_data"
         assert result.metadata.get("format") == "json"
 
-    def test_error_extracts_error_type(self):
+    def test_error_extracts_error_type(self) -> None:
         """Test that error classification extracts error type when possible."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -618,14 +621,14 @@ class TestMetadataExtraction:
 class TestClassificationResult:
     """Tests for ClassificationResult dataclass."""
 
-    def test_classification_result_has_artifact_type(self):
+    def test_classification_result_has_artifact_type(self) -> None:
         """Test that ClassificationResult has artifact_type field."""
         from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
         result = ClassificationResult(artifact_type=ArtifactType.CODE, metadata={})
         assert result.artifact_type == "code"
 
-    def test_classification_result_has_metadata(self):
+    def test_classification_result_has_metadata(self) -> None:
         """Test that ClassificationResult has metadata field."""
         from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
@@ -634,14 +637,14 @@ class TestClassificationResult:
         )
         assert result.metadata == {"language": "python"}
 
-    def test_classification_result_metadata_defaults_empty(self):
+    def test_classification_result_metadata_defaults_empty(self) -> None:
         """Test that ClassificationResult metadata can be empty."""
         from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
         result = ClassificationResult(artifact_type=ArtifactType.TEXT, metadata={})
         assert result.metadata == {}
 
-    def test_classification_result_to_dict(self):
+    def test_classification_result_to_dict(self) -> None:
         """Test that ClassificationResult has to_dict method."""
         from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
@@ -662,7 +665,7 @@ class TestClassificationResult:
 class TestEdgeCases:
     """Tests for edge cases in classification."""
 
-    def test_code_block_with_markdown_fence(self):
+    def test_code_block_with_markdown_fence(self) -> None:
         """Test that markdown fenced code blocks are classified as code."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -675,7 +678,7 @@ def hello():
         assert result.artifact_type == "code"
         assert result.metadata.get("language") == "python"
 
-    def test_code_block_with_triple_backticks_no_lang(self):
+    def test_code_block_with_triple_backticks_no_lang(self) -> None:
         """Test that markdown code blocks without language hint."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -687,7 +690,7 @@ some code here
         # Should still be classified as code, language may be unknown
         assert result.artifact_type == "code"
 
-    def test_very_long_content(self):
+    def test_very_long_content(self) -> None:
         """Test that very long content is handled."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -696,7 +699,7 @@ some code here
 
         assert result.artifact_type == "text"
 
-    def test_binary_looking_content(self):
+    def test_binary_looking_content(self) -> None:
         """Test that binary-looking content is handled gracefully."""
         from gobby.storage.artifact_classifier import classify_artifact
 
@@ -706,7 +709,7 @@ some code here
         # Should not raise, may be text or other type
         assert result.artifact_type is not None
 
-    def test_unicode_content(self):
+    def test_unicode_content(self) -> None:
         """Test that unicode content is handled."""
         from gobby.storage.artifact_classifier import classify_artifact
 

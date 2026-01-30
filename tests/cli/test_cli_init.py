@@ -10,6 +10,7 @@ from gobby.cli import cli
 from gobby.cli.init import init
 from gobby.utils.project_init import InitResult, VerificationCommands
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def runner() -> CliRunner:
@@ -74,7 +75,7 @@ def mock_init_result_with_verification() -> InitResult:
 class TestInitCommandBasic:
     """Basic tests for the init command."""
 
-    def test_init_help(self, runner: CliRunner):
+    def test_init_help(self, runner: CliRunner) -> None:
         """Test init --help displays help text."""
         result = runner.invoke(cli, ["init", "--help"])
         assert result.exit_code == 0
@@ -82,7 +83,7 @@ class TestInitCommandBasic:
         assert "--name" in result.output
         assert "--github-url" in result.output
 
-    def test_init_command_directly(self, runner: CliRunner):
+    def test_init_command_directly(self, runner: CliRunner) -> None:
         """Test invoking init command directly."""
         result = runner.invoke(init, ["--help"])
         assert result.exit_code == 0
@@ -102,7 +103,7 @@ class TestInitNewProject:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test successful initialization of a new project."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new
@@ -127,7 +128,7 @@ class TestInitNewProject:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initialization with a custom project name."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new
@@ -153,7 +154,7 @@ class TestInitNewProject:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initialization with a GitHub URL."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new
@@ -181,7 +182,7 @@ class TestInitNewProject:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initialization with both name and github-url options."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new
@@ -220,7 +221,7 @@ class TestInitExistingProject:
         mock_config: MagicMock,
         mock_init_result_existing: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initializing when project already exists."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_existing
@@ -249,7 +250,7 @@ class TestInitWithVerification:
         mock_config: MagicMock,
         mock_init_result_with_verification: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that verification commands are displayed."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_with_verification
@@ -276,7 +277,7 @@ class TestInitWithVerification:
         mock_config: MagicMock,
         mock_init_result_with_verification: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that custom verification commands are displayed."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_with_verification
@@ -298,7 +299,7 @@ class TestInitWithVerification:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that None verification values are not displayed."""
         mock_load_config.return_value = mock_config
 
@@ -340,7 +341,7 @@ class TestInitWithVerification:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test initialization without any verification commands."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new  # Has verification=None
@@ -360,7 +361,7 @@ class TestInitWithVerification:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that empty verification dict doesn't show section."""
         mock_load_config.return_value = mock_config
 
@@ -392,7 +393,7 @@ class TestInitWithVerification:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test handling of non-dict custom verification value."""
         mock_load_config.return_value = mock_config
 
@@ -432,7 +433,7 @@ class TestInitErrorHandling:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test handling of generic exception during initialization."""
         mock_load_config.return_value = mock_config
         mock_initialize.side_effect = Exception("Database connection failed")
@@ -453,7 +454,7 @@ class TestInitErrorHandling:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test handling of permission error during initialization."""
         mock_load_config.return_value = mock_config
         mock_initialize.side_effect = PermissionError("Cannot write to directory")
@@ -474,7 +475,7 @@ class TestInitErrorHandling:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test handling of file not found error."""
         mock_load_config.return_value = mock_config
         mock_initialize.side_effect = FileNotFoundError("Config file not found")
@@ -495,7 +496,7 @@ class TestInitErrorHandling:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test handling of OS error during initialization."""
         mock_load_config.return_value = mock_config
         mock_initialize.side_effect = OSError("Disk full")
@@ -516,7 +517,7 @@ class TestInitErrorHandling:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test handling of value error during initialization."""
         mock_load_config.return_value = mock_config
         mock_initialize.side_effect = ValueError("Invalid project name")
@@ -541,7 +542,7 @@ class TestInitOutputFormat:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test the output format for a new project initialization."""
         mock_load_config.return_value = mock_config
 
@@ -579,7 +580,7 @@ class TestInitOutputFormat:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test the output format for an existing project."""
         mock_load_config.return_value = mock_config
 
@@ -617,7 +618,7 @@ class TestInitCwdHandling:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that init uses current working directory."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new
@@ -645,7 +646,7 @@ class TestVerificationCommandsDataclass:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test verification with all fields populated."""
         mock_load_config.return_value = mock_config
 
@@ -685,7 +686,7 @@ class TestVerificationCommandsDataclass:
         runner: CliRunner,
         mock_config: MagicMock,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test verification with multiple custom commands."""
         mock_load_config.return_value = mock_config
 
@@ -722,18 +723,18 @@ class TestVerificationCommandsDataclass:
 class TestInitInvalidOptions:
     """Tests for invalid command options."""
 
-    def test_init_unknown_option(self, runner: CliRunner):
+    def test_init_unknown_option(self, runner: CliRunner) -> None:
         """Test that unknown options are rejected."""
         result = runner.invoke(cli, ["init", "--unknown-option", "value"])
         assert result.exit_code != 0
         assert "No such option" in result.output or "no such option" in result.output.lower()
 
-    def test_init_name_without_value(self, runner: CliRunner):
+    def test_init_name_without_value(self, runner: CliRunner) -> None:
         """Test that --name without value shows error."""
         result = runner.invoke(cli, ["init", "--name"])
         assert result.exit_code != 0
 
-    def test_init_github_url_without_value(self, runner: CliRunner):
+    def test_init_github_url_without_value(self, runner: CliRunner) -> None:
         """Test that --github-url without value shows error."""
         result = runner.invoke(cli, ["init", "--github-url"])
         assert result.exit_code != 0
@@ -752,7 +753,7 @@ class TestInitContext:
         mock_config: MagicMock,
         mock_init_result_new: InitResult,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test that init command receives Click context."""
         mock_load_config.return_value = mock_config
         mock_initialize.return_value = mock_init_result_new

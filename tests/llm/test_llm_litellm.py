@@ -6,6 +6,7 @@ from gobby.config.app import DaemonConfig
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def litellm_config() -> DaemonConfig:
@@ -33,7 +34,7 @@ def litellm_config_no_keys() -> DaemonConfig:
 class TestLiteLLMProviderInit:
     """Tests for LiteLLMProvider initialization."""
 
-    def test_init_with_api_keys(self, litellm_config: DaemonConfig):
+    def test_init_with_api_keys(self, litellm_config: DaemonConfig) -> None:
         """Test initialization with API keys in config."""
         from gobby.llm.litellm import LiteLLMProvider
 
@@ -44,7 +45,7 @@ class TestLiteLLMProviderInit:
         assert "OPENAI_API_KEY" in provider._api_keys
         assert provider._api_keys["OPENAI_API_KEY"] == "sk-test-key"
 
-    def test_init_without_api_keys(self, litellm_config_no_keys: DaemonConfig):
+    def test_init_without_api_keys(self, litellm_config_no_keys: DaemonConfig) -> None:
         """Test initialization without API keys."""
         from gobby.llm.litellm import LiteLLMProvider
 
@@ -56,35 +57,35 @@ class TestLiteLLMProviderInit:
 class TestLiteLLMProviderProperties:
     """Tests for LiteLLMProvider properties."""
 
-    def test_provider_name(self, litellm_config: DaemonConfig):
+    def test_provider_name(self, litellm_config: DaemonConfig) -> None:
         """Test provider_name property."""
         from gobby.llm.litellm import LiteLLMProvider
 
         provider = LiteLLMProvider(litellm_config)
         assert provider.provider_name == "litellm"
 
-    def test_auth_mode(self, litellm_config: DaemonConfig):
+    def test_auth_mode(self, litellm_config: DaemonConfig) -> None:
         """Test auth_mode property always returns api_key."""
         from gobby.llm.litellm import LiteLLMProvider
 
         provider = LiteLLMProvider(litellm_config)
         assert provider.auth_mode == "api_key"
 
-    def test_get_model_summary(self, litellm_config: DaemonConfig):
+    def test_get_model_summary(self, litellm_config: DaemonConfig) -> None:
         """Test _get_model for summary task."""
         from gobby.llm.litellm import LiteLLMProvider
 
         provider = LiteLLMProvider(litellm_config)
         assert provider._get_model("summary") == "gpt-4o-mini"
 
-    def test_get_model_title(self, litellm_config: DaemonConfig):
+    def test_get_model_title(self, litellm_config: DaemonConfig) -> None:
         """Test _get_model for title task."""
         from gobby.llm.litellm import LiteLLMProvider
 
         provider = LiteLLMProvider(litellm_config)
         assert provider._get_model("title") == "gpt-4o-mini"
 
-    def test_get_model_unknown(self, litellm_config: DaemonConfig):
+    def test_get_model_unknown(self, litellm_config: DaemonConfig) -> None:
         """Test _get_model for unknown task defaults to gpt-4o-mini."""
         from gobby.llm.litellm import LiteLLMProvider
 

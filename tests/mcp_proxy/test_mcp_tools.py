@@ -7,6 +7,7 @@ from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_task_manager():
@@ -25,13 +26,13 @@ def task_registry(mock_task_manager, mock_sync_manager):
     return create_task_registry(mock_task_manager, mock_sync_manager)
 
 
-def test_create_task_registry_returns_registry(task_registry):
+def test_create_task_registry_returns_registry(task_registry) -> None:
     """Test that create_task_registry returns an InternalToolRegistry."""
     assert isinstance(task_registry, InternalToolRegistry)
     assert task_registry.name == "gobby-tasks"
 
 
-def test_create_task_registry_has_all_tools(task_registry):
+def test_create_task_registry_has_all_tools(task_registry) -> None:
     """Test that all expected tools are registered."""
     expected_tools = [
         "create_task",
@@ -60,7 +61,7 @@ def test_create_task_registry_has_all_tools(task_registry):
         assert tool_name in tool_names, f"Missing tool: {tool_name}"
 
 
-def test_task_registry_get_schema(task_registry):
+def test_task_registry_get_schema(task_registry) -> None:
     """Test that schemas can be retrieved from the registry."""
     schema = task_registry.get_schema("create_task")
 
@@ -75,8 +76,6 @@ def test_task_registry_get_schema(task_registry):
 @pytest.mark.asyncio
 async def test_create_task(mock_task_manager, mock_sync_manager):
     """Test create_task tool execution."""
-    registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
     # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
@@ -87,9 +86,18 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     }
     mock_task_manager.get_task.return_value = mock_task
 
-    # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+    # Mock get_project_context and LocalSessionManager
+    with (
+        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+    ):
         mock_ctx.return_value = {"id": "test-project-id"}
+        # Mock session manager to resolve session_id as-is
+        mock_session_manager = MagicMock()
+        mock_session_manager.resolve_session_reference.return_value = "test-session"
+        MockSessionManager.return_value = mock_session_manager
+
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call(
             "create_task", {"title": "Test Task", "priority": 1, "session_id": "test-session"}
@@ -113,8 +121,6 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
 @pytest.mark.asyncio
 async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager):
     """Test create_task tool captures session_id as created_in_session_id."""
-    registry = create_task_registry(mock_task_manager, mock_sync_manager)
-
     # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
@@ -125,9 +131,18 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     }
     mock_task_manager.get_task.return_value = mock_task
 
-    # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx:
+    # Mock get_project_context and LocalSessionManager
+    with (
+        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
+        patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
+    ):
         mock_ctx.return_value = {"id": "test-project-id"}
+        # Mock session manager to resolve session_id as-is
+        mock_session_manager = MagicMock()
+        mock_session_manager.resolve_session_reference.return_value = "session-abc123"
+        MockSessionManager.return_value = mock_session_manager
+
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call(
             "create_task",
@@ -240,7 +255,7 @@ async def test_sync_tasks(mock_task_manager, mock_sync_manager):
 # =============================================================================
 
 
-def test_task_registry_has_commit_linking_tools(task_registry):
+def test_task_registry_has_commit_linking_tools(task_registry) -> None:
     """Test that commit linking tools are registered."""
     expected_tools = [
         "link_commit",
@@ -256,7 +271,7 @@ def test_task_registry_has_commit_linking_tools(task_registry):
         assert tool_name in tool_names, f"Missing commit linking tool: {tool_name}"
 
 
-def test_link_commit_schema(task_registry):
+def test_link_commit_schema(task_registry) -> None:
     """Test link_commit tool schema."""
     schema = task_registry.get_schema("link_commit")
 
@@ -269,7 +284,7 @@ def test_link_commit_schema(task_registry):
     assert "commit_sha" in properties
 
 
-def test_unlink_commit_schema(task_registry):
+def test_unlink_commit_schema(task_registry) -> None:
     """Test unlink_commit tool schema."""
     schema = task_registry.get_schema("unlink_commit")
 
@@ -282,7 +297,7 @@ def test_unlink_commit_schema(task_registry):
     assert "commit_sha" in properties
 
 
-def test_auto_link_commits_schema(task_registry):
+def test_auto_link_commits_schema(task_registry) -> None:
     """Test auto_link_commits tool schema."""
     schema = task_registry.get_schema("auto_link_commits")
 
@@ -295,7 +310,7 @@ def test_auto_link_commits_schema(task_registry):
     assert "task_id" in properties or "since" in properties
 
 
-def test_get_task_diff_schema(task_registry):
+def test_get_task_diff_schema(task_registry) -> None:
     """Test get_task_diff tool schema."""
     schema = task_registry.get_schema("get_task_diff")
 

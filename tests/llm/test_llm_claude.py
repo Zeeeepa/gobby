@@ -8,6 +8,7 @@ import pytest
 from gobby.config.app import DaemonConfig
 from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 
+pytestmark = pytest.mark.unit
 
 # Define mock classes for claude_agent_sdk
 class MockAssistantMessage:
@@ -90,7 +91,7 @@ def mock_claude_sdk(mock_query_func):
 class TestToolCallDataclass:
     """Tests for the ToolCall dataclass."""
 
-    def test_tool_call_creation(self):
+    def test_tool_call_creation(self) -> None:
         """Test ToolCall can be created with required fields."""
         from gobby.llm.claude import ToolCall
 
@@ -105,7 +106,7 @@ class TestToolCallDataclass:
         assert call.arguments == {"title": "Test task"}
         assert call.result is None
 
-    def test_tool_call_with_result(self):
+    def test_tool_call_with_result(self) -> None:
         """Test ToolCall with result."""
         from gobby.llm.claude import ToolCall
 
@@ -122,7 +123,7 @@ class TestToolCallDataclass:
 class TestMCPToolResultDataclass:
     """Tests for the MCPToolResult dataclass."""
 
-    def test_mcp_tool_result_creation(self):
+    def test_mcp_tool_result_creation(self) -> None:
         """Test MCPToolResult can be created with required fields."""
         from gobby.llm.claude import MCPToolResult
 
@@ -131,7 +132,7 @@ class TestMCPToolResultDataclass:
         assert result.text == "Task created successfully"
         assert result.tool_calls == []
 
-    def test_mcp_tool_result_with_calls(self):
+    def test_mcp_tool_result_with_calls(self) -> None:
         """Test MCPToolResult with tool calls."""
         from gobby.llm.claude import MCPToolResult, ToolCall
 
@@ -512,7 +513,7 @@ class TestGenerateWithMcpToolsWithCli:
 class TestClaudeLLMProviderInit:
     """Tests for ClaudeLLMProvider initialization and CLI path handling."""
 
-    def test_provider_name(self, claude_config: DaemonConfig):
+    def test_provider_name(self, claude_config: DaemonConfig) -> None:
         """Test provider_name property returns 'claude'."""
         with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
@@ -522,7 +523,7 @@ class TestClaudeLLMProviderInit:
                     provider = ClaudeLLMProvider(claude_config)
                     assert provider.provider_name == "claude"
 
-    def test_cli_path_not_found(self, claude_config: DaemonConfig):
+    def test_cli_path_not_found(self, claude_config: DaemonConfig) -> None:
         """Test initialization when CLI is not in PATH."""
         with patch("gobby.llm.claude.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
@@ -530,7 +531,7 @@ class TestClaudeLLMProviderInit:
             provider = ClaudeLLMProvider(claude_config)
             assert provider._claude_cli_path is None
 
-    def test_cli_path_exists_but_not_executable(self, claude_config: DaemonConfig):
+    def test_cli_path_exists_but_not_executable(self, claude_config: DaemonConfig) -> None:
         """Test initialization when CLI exists but is not executable."""
         with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
@@ -540,7 +541,7 @@ class TestClaudeLLMProviderInit:
                     provider = ClaudeLLMProvider(claude_config)
                     assert provider._claude_cli_path is None
 
-    def test_cli_path_which_returns_nonexistent(self, claude_config: DaemonConfig):
+    def test_cli_path_which_returns_nonexistent(self, claude_config: DaemonConfig) -> None:
         """Test initialization when shutil.which returns path that doesn't exist."""
         with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=False):  # Path doesn't exist
@@ -553,7 +554,7 @@ class TestClaudeLLMProviderInit:
 class TestVerifyCliPath:
     """Tests for _verify_cli_path method with retry logic."""
 
-    def test_verify_cli_path_cached_path_valid(self, claude_config: DaemonConfig):
+    def test_verify_cli_path_cached_path_valid(self, claude_config: DaemonConfig) -> None:
         """Test _verify_cli_path returns cached path when it's valid."""
         with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
             with patch("os.path.exists", return_value=True):
@@ -564,7 +565,7 @@ class TestVerifyCliPath:
                     result = provider._verify_cli_path()
                     assert result == "/usr/bin/claude"
 
-    def test_verify_cli_path_retry_on_missing(self, claude_config: DaemonConfig):
+    def test_verify_cli_path_retry_on_missing(self, claude_config: DaemonConfig) -> None:
         """Test _verify_cli_path retries when cached path disappears."""
         exists_call_count = 0
 
@@ -597,7 +598,7 @@ class TestVerifyCliPath:
                         result = provider._verify_cli_path()
                         assert result == "/new/path/claude"
 
-    def test_verify_cli_path_retry_exhausted(self, claude_config: DaemonConfig):
+    def test_verify_cli_path_retry_exhausted(self, claude_config: DaemonConfig) -> None:
         """Test _verify_cli_path returns None after retries exhausted."""
         with patch("gobby.llm.claude.shutil.which") as mock_which:
             mock_which.side_effect = [

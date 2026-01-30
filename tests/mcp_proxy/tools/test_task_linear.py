@@ -5,6 +5,7 @@ import pytest
 from gobby.mcp_proxy.tools.task_linear import create_linear_sync_registry
 from gobby.sync.linear import LinearNotFoundError, LinearRateLimitError
 
+pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_import_linear_issues_success():

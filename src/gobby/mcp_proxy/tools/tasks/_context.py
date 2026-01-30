@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.session_tasks import SessionTaskManager
+from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.project_context import get_project_context
@@ -42,6 +43,7 @@ class RegistryContext:
     # Derived managers (initialized in __post_init__)
     dep_manager: TaskDependencyManager = field(init=False)
     session_task_manager: SessionTaskManager = field(init=False)
+    session_manager: LocalSessionManager = field(init=False)
     workflow_state_manager: WorkflowStateManager = field(init=False)
     project_manager: LocalProjectManager = field(init=False)
 
@@ -56,6 +58,7 @@ class RegistryContext:
         db = self.task_manager.db
         self.dep_manager = TaskDependencyManager(db)
         self.session_task_manager = SessionTaskManager(db)
+        self.session_manager = LocalSessionManager(db)
         self.workflow_state_manager = WorkflowStateManager(db)
         self.project_manager = LocalProjectManager(db)
 
@@ -90,3 +93,18 @@ class RegistryContext:
         if not session_id:
             return None
         return self.workflow_state_manager.get_state(session_id)
+
+    def resolve_session_id(self, session_id: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID.
+
+        Args:
+            session_id: Session reference string
+
+        Returns:
+            Resolved UUID string
+
+        Raises:
+            ValueError: If session cannot be resolved
+        """
+        project_id = self.get_current_project_id()
+        return self.session_manager.resolve_session_reference(session_id, project_id)

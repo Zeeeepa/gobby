@@ -3,6 +3,7 @@
 from enum import Enum
 
 import msgspec
+import pytest
 
 from gobby.utils.json_helpers import (
     decode_llm_response,
@@ -10,17 +11,18 @@ from gobby.utils.json_helpers import (
     extract_json_object,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestExtractJsonFromText:
     """Tests for extract_json_from_text()."""
 
-    def test_extracts_plain_json(self):
+    def test_extracts_plain_json(self) -> None:
         """Test extraction of plain JSON without wrapping."""
         text = '{"key": "value", "count": 42}'
         result = extract_json_from_text(text)
         assert result == '{"key": "value", "count": 42}'
 
-    def test_extracts_from_markdown_json_block(self):
+    def test_extracts_from_markdown_json_block(self) -> None:
         """Test extraction from ```json code block."""
         text = """Here's the response:
 
@@ -36,7 +38,7 @@ That's all!"""
         parsed = json.loads(result)
         assert parsed == {"status": "ok", "data": [1, 2, 3]}
 
-    def test_extracts_from_plain_code_block(self):
+    def test_extracts_from_plain_code_block(self) -> None:
         """Test extraction from plain ``` code block."""
         text = """```
 {"result": true}
@@ -44,7 +46,7 @@ That's all!"""
         result = extract_json_from_text(text)
         assert result == '{"result": true}'
 
-    def test_handles_nested_backticks_in_strings(self):
+    def test_handles_nested_backticks_in_strings(self) -> None:
         """Test that backticks inside JSON strings don't break extraction."""
         text = """```json
 {
@@ -60,7 +62,7 @@ That's all!"""
         assert "```" in parsed["description"]
         assert parsed["count"] == 1
 
-    def test_handles_braces_in_strings(self):
+    def test_handles_braces_in_strings(self) -> None:
         """Test that braces inside strings don't break extraction."""
         text = '{"text": "Hello { world } with {braces}", "nested": {"key": "value"}}'
         result = extract_json_from_text(text)
@@ -71,7 +73,7 @@ That's all!"""
         assert parsed["text"] == "Hello { world } with {braces}"
         assert parsed["nested"]["key"] == "value"
 
-    def test_handles_escaped_quotes(self):
+    def test_handles_escaped_quotes(self) -> None:
         """Test that escaped quotes in strings are handled."""
         text = r'{"message": "He said \"hello\" to me", "count": 1}'
         result = extract_json_from_text(text)
@@ -81,16 +83,16 @@ That's all!"""
         parsed = json.loads(result)
         assert 'He said "hello" to me' == parsed["message"]
 
-    def test_returns_none_for_empty_text(self):
+    def test_returns_none_for_empty_text(self) -> None:
         """Test that empty text returns None."""
         assert extract_json_from_text("") is None
         assert extract_json_from_text(None) is None  # type: ignore
 
-    def test_returns_none_for_no_json(self):
+    def test_returns_none_for_no_json(self) -> None:
         """Test that text without JSON returns None."""
         assert extract_json_from_text("No JSON here, just text.") is None
 
-    def test_handles_json_with_preamble(self):
+    def test_handles_json_with_preamble(self) -> None:
         """Test extraction when JSON has preamble text."""
         text = 'Here\'s your result: {"status": "done"} and that\'s it.'
         result = extract_json_from_text(text)
@@ -100,19 +102,19 @@ That's all!"""
 class TestExtractJsonObject:
     """Tests for extract_json_object()."""
 
-    def test_extracts_and_parses_object(self):
+    def test_extracts_and_parses_object(self) -> None:
         """Test extraction and parsing of JSON object."""
         text = '{"key": "value"}'
         result = extract_json_object(text)
         assert result == {"key": "value"}
 
-    def test_returns_none_for_array(self):
+    def test_returns_none_for_array(self) -> None:
         """Test that JSON arrays return None (not an object)."""
         text = "[1, 2, 3]"
         result = extract_json_object(text)
         assert result is None
 
-    def test_returns_none_for_no_json(self):
+    def test_returns_none_for_no_json(self) -> None:
         """Test that text without JSON returns None."""
         result = extract_json_object("Just text")
         assert result is None
@@ -150,7 +152,7 @@ class ResultWithOptional(msgspec.Struct):
 class TestDecodeLlmResponse:
     """Tests for decode_llm_response()."""
 
-    def test_decodes_simple_struct(self):
+    def test_decodes_simple_struct(self) -> None:
         """Test basic struct decoding."""
         text = '{"status": "ok", "count": 42}'
         result = decode_llm_response(text, SimpleResult)
@@ -158,7 +160,7 @@ class TestDecodeLlmResponse:
         assert result.status == "ok"
         assert result.count == 42
 
-    def test_decodes_from_markdown_block(self):
+    def test_decodes_from_markdown_block(self) -> None:
         """Test decoding from markdown code block."""
         text = """Here's the result:
 ```json
@@ -169,7 +171,7 @@ class TestDecodeLlmResponse:
         assert result.status == "done"
         assert result.count == 10
 
-    def test_decodes_enum_values(self):
+    def test_decodes_enum_values(self) -> None:
         """Test that enum values are properly decoded."""
         text = '{"status": "pending", "message": "Task queued"}'
         result = decode_llm_response(text, ResultWithEnum)
@@ -177,7 +179,7 @@ class TestDecodeLlmResponse:
         assert result.status == TaskStatus.PENDING
         assert result.message == "Task queued"
 
-    def test_decodes_optional_fields(self):
+    def test_decodes_optional_fields(self) -> None:
         """Test that optional fields work correctly."""
         # With optional field provided
         text = '{"title": "Test", "description": "A test task", "priority": 1}'
@@ -195,14 +197,14 @@ class TestDecodeLlmResponse:
         assert result.description is None
         assert result.priority == 2
 
-    def test_strict_mode_rejects_type_mismatch(self):
+    def test_strict_mode_rejects_type_mismatch(self) -> None:
         """Test that strict=True rejects type mismatches."""
         # String "42" should fail for int field in strict mode
         text = '{"status": "ok", "count": "42"}'
         result = decode_llm_response(text, SimpleResult, strict=True)
         assert result is None
 
-    def test_non_strict_mode_coerces_types(self):
+    def test_non_strict_mode_coerces_types(self) -> None:
         """Test that strict=False coerces compatible types."""
         # String "42" should coerce to int 42
         text = '{"status": "ok", "count": "42"}'
@@ -210,29 +212,29 @@ class TestDecodeLlmResponse:
         assert result is not None
         assert result.count == 42
 
-    def test_returns_none_for_missing_required_field(self):
+    def test_returns_none_for_missing_required_field(self) -> None:
         """Test that missing required fields return None."""
         text = '{"status": "ok"}'  # missing count
         result = decode_llm_response(text, SimpleResult)
         assert result is None
 
-    def test_returns_none_for_invalid_enum(self):
+    def test_returns_none_for_invalid_enum(self) -> None:
         """Test that invalid enum values return None."""
         text = '{"status": "invalid_status", "message": "test"}'
         result = decode_llm_response(text, ResultWithEnum)
         assert result is None
 
-    def test_returns_none_for_empty_text(self):
+    def test_returns_none_for_empty_text(self) -> None:
         """Test that empty text returns None."""
         result = decode_llm_response("", SimpleResult)
         assert result is None
 
-    def test_returns_none_for_no_json(self):
+    def test_returns_none_for_no_json(self) -> None:
         """Test that text without JSON returns None."""
         result = decode_llm_response("No JSON here", SimpleResult)
         assert result is None
 
-    def test_handles_nested_backticks(self):
+    def test_handles_nested_backticks(self) -> None:
         """Test decoding JSON with backticks in string values."""
         text = """```json
 {"title": "Add ```code``` support", "description": null}
@@ -251,7 +253,7 @@ class NestedResult(msgspec.Struct):
 class TestDecodeLlmResponseNested:
     """Tests for nested struct decoding."""
 
-    def test_decodes_nested_list(self):
+    def test_decodes_nested_list(self) -> None:
         """Test decoding struct with nested list of structs."""
         text = """{"subtasks": [
             {"status": "done", "count": 1},

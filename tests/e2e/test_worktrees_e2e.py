@@ -192,7 +192,7 @@ class TestWorktreeCreation:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Create a worktree and verify it exists on disk."""
         import httpx
 
@@ -234,7 +234,7 @@ class TestWorktreeCreation:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Creating a worktree with existing branch name should fail."""
         branch_name = "feature/duplicate-test"
 
@@ -273,7 +273,7 @@ class TestWorktreeRetrieval:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """List worktrees should return created worktrees."""
         # Create a couple worktrees
         branches = ["feature/list-test-1", "feature/list-test-2"]
@@ -314,7 +314,7 @@ class TestWorktreeRetrieval:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Get worktree by ID returns correct details."""
         # Create worktree
         create_response = mcp_client.call_tool(
@@ -348,7 +348,7 @@ class TestWorktreeRetrieval:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Getting a nonexistent worktree returns error."""
         response = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -370,7 +370,7 @@ class TestWorktreeClaimRelease:
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
         cli_events,
-    ):
+    ) -> None:
         """Claiming a worktree assigns session ownership."""
         import json as json_lib
 
@@ -436,7 +436,7 @@ class TestWorktreeClaimRelease:
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
         cli_events,
-    ):
+    ) -> None:
         """Releasing a worktree removes session ownership."""
         # Create worktree
         create_response = mcp_client.call_tool(
@@ -510,7 +510,7 @@ class TestWorktreeStatusTransitions:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Marking a worktree as merged updates status."""
         # Create worktree
         create_response = mcp_client.call_tool(
@@ -551,7 +551,7 @@ class TestWorktreeDeletion:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Deleting a worktree removes it from database.
 
         Note: Without git_manager configured in daemon, only the database
@@ -599,7 +599,7 @@ class TestWorktreeDeletion:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Deleting a worktree should also delete the git branch."""
         try:
             branch_name = "feature/delete-branch-test"
@@ -661,7 +661,7 @@ class TestWorktreeStats:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Get worktree stats returns counts by status."""
         # Create some worktrees
         for i in range(3):
@@ -699,7 +699,7 @@ class TestWorktreeSync:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Sync worktree updates from main branch."""
         # Create worktree
         create_response = mcp_client.call_tool(
@@ -758,7 +758,7 @@ class TestWorktreeToolSchema:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """List tools returns gobby-worktrees tools."""
         tools = mcp_client.list_tools(server="gobby-worktrees")
 
@@ -786,7 +786,7 @@ class TestWorktreeToolSchema:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Get schema for create_worktree tool."""
         response = mcp_client.get_tool_schema(
             server_name="gobby-worktrees",
@@ -814,7 +814,7 @@ class TestWorktreeTaskLinking:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Create worktree with task ID links them."""
         # Create a task first
         task_response = mcp_client.call_tool(
@@ -856,7 +856,7 @@ class TestWorktreeTaskLinking:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
-    ):
+    ) -> None:
         """Get worktree by task ID."""
         # Create task and worktree
         task_response = mcp_client.call_tool(

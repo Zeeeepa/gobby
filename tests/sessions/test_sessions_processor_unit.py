@@ -14,6 +14,7 @@ import pytest
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.sessions.transcripts.base import ParsedMessage
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_db():
@@ -81,7 +82,7 @@ class TestProcessorLifecycle:
 class TestSessionRegistration:
     """Tests for session registration and unregistration."""
 
-    def test_register_session_already_registered(self, processor, tmp_path):
+    def test_register_session_already_registered(self, processor, tmp_path) -> None:
         """Registering the same session twice should be a no-op."""
         transcript = tmp_path / "transcript.jsonl"
         transcript.touch()
@@ -97,7 +98,7 @@ class TestSessionRegistration:
         processor.register_session("session-1", str(transcript))
         assert processor._parsers["session-1"] is original_parser  # Not replaced
 
-    def test_register_session_transcript_not_found(self, processor, tmp_path, caplog):
+    def test_register_session_transcript_not_found(self, processor, tmp_path, caplog) -> None:
         """Register should log warning but still register if transcript doesn't exist."""
         nonexistent = tmp_path / "nonexistent.jsonl"
 
@@ -109,7 +110,7 @@ class TestSessionRegistration:
         assert "session-1" in processor._parsers
         assert "Transcript file not found" in caplog.text
 
-    def test_register_session_with_different_sources(self, processor, tmp_path):
+    def test_register_session_with_different_sources(self, processor, tmp_path) -> None:
         """Register should use appropriate parser for each source."""
         transcript = tmp_path / "transcript.jsonl"
         transcript.touch()
@@ -123,7 +124,7 @@ class TestSessionRegistration:
         assert "gemini-session" in processor._parsers
         assert "codex-session" in processor._parsers
 
-    def test_unregister_session_existing(self, processor, tmp_path):
+    def test_unregister_session_existing(self, processor, tmp_path) -> None:
         """Unregister should remove session and parser."""
         transcript = tmp_path / "transcript.jsonl"
         transcript.touch()
@@ -136,13 +137,13 @@ class TestSessionRegistration:
         assert "session-1" not in processor._active_sessions
         assert "session-1" not in processor._parsers
 
-    def test_unregister_session_not_registered(self, processor):
+    def test_unregister_session_not_registered(self, processor) -> None:
         """Unregister should be a no-op for non-existent session."""
         # Should not raise
         processor.unregister_session("nonexistent")
         assert "nonexistent" not in processor._active_sessions
 
-    def test_unregister_session_missing_parser(self, processor, tmp_path):
+    def test_unregister_session_missing_parser(self, processor, tmp_path) -> None:
         """Unregister should handle case where parser is missing."""
         transcript = tmp_path / "transcript.jsonl"
         transcript.touch()
@@ -590,17 +591,17 @@ class TestModelExtraction:
 class TestInitialization:
     """Tests for processor initialization."""
 
-    def test_default_poll_interval(self, mock_db):
+    def test_default_poll_interval(self, mock_db) -> None:
         """Should use default poll interval of 2.0 seconds."""
         processor = SessionMessageProcessor(mock_db)
         assert processor.poll_interval == 2.0
 
-    def test_custom_poll_interval(self, mock_db):
+    def test_custom_poll_interval(self, mock_db) -> None:
         """Should accept custom poll interval."""
         processor = SessionMessageProcessor(mock_db, poll_interval=5.0)
         assert processor.poll_interval == 5.0
 
-    def test_initial_state(self, mock_db):
+    def test_initial_state(self, mock_db) -> None:
         """Should initialize with empty state."""
         processor = SessionMessageProcessor(mock_db)
         assert processor._active_sessions == {}
@@ -608,7 +609,7 @@ class TestInitialization:
         assert processor._running is False
         assert processor._task is None
 
-    def test_websocket_server_optional(self, mock_db):
+    def test_websocket_server_optional(self, mock_db) -> None:
         """Should accept optional WebSocket server."""
         mock_ws = MagicMock()
         processor = SessionMessageProcessor(mock_db, websocket_server=mock_ws)

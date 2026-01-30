@@ -4,8 +4,6 @@ Tests for Isolation Handlers.
 Tests the isolation abstraction layer for spawn_agent unified API.
 """
 
-import time
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,11 +19,12 @@ from gobby.agents.isolation import (
     get_isolation_handler,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestIsolationContext:
     """Tests for IsolationContext dataclass."""
 
-    def test_isolation_context_fields(self):
+    def test_isolation_context_fields(self) -> None:
         """Test IsolationContext has all required fields."""
         ctx = IsolationContext(
             cwd="/path/to/project",
@@ -41,7 +40,7 @@ class TestIsolationContext:
         assert ctx.clone_id == "clone-456"
         assert ctx.isolation_type == "worktree"
 
-    def test_isolation_context_defaults(self):
+    def test_isolation_context_defaults(self) -> None:
         """Test IsolationContext default values."""
         ctx = IsolationContext(cwd="/path/to/project")
 
@@ -52,7 +51,7 @@ class TestIsolationContext:
         assert ctx.isolation_type == "current"
         assert ctx.extra == {}
 
-    def test_isolation_context_extra_dict(self):
+    def test_isolation_context_extra_dict(self) -> None:
         """Test IsolationContext extra dict for additional metadata."""
         ctx = IsolationContext(
             cwd="/path/to/project",
@@ -65,7 +64,7 @@ class TestIsolationContext:
 class TestSpawnConfig:
     """Tests for SpawnConfig dataclass."""
 
-    def test_spawn_config_fields(self):
+    def test_spawn_config_fields(self) -> None:
         """Test SpawnConfig has all required fields."""
         config = SpawnConfig(
             prompt="Test prompt",
@@ -97,7 +96,7 @@ class TestSpawnConfig:
 class TestGenerateBranchName:
     """Tests for generate_branch_name function."""
 
-    def test_explicit_branch_name_returned(self):
+    def test_explicit_branch_name_returned(self) -> None:
         """Test explicit branch_name is returned as-is."""
         config = SpawnConfig(
             prompt="Test",
@@ -116,7 +115,7 @@ class TestGenerateBranchName:
         branch = generate_branch_name(config)
         assert branch == "my-explicit-branch"
 
-    def test_branch_from_task_title(self):
+    def test_branch_from_task_title(self) -> None:
         """Test branch generated from task title and seq_num."""
         config = SpawnConfig(
             prompt="Test",
@@ -135,7 +134,7 @@ class TestGenerateBranchName:
         branch = generate_branch_name(config)
         assert branch == "task-6079-implement-login-feature"
 
-    def test_branch_from_task_title_slug_truncated(self):
+    def test_branch_from_task_title_slug_truncated(self) -> None:
         """Test branch slug is truncated to 40 chars."""
         config = SpawnConfig(
             prompt="Test",
@@ -157,7 +156,7 @@ class TestGenerateBranchName:
         slug_part = branch[len("task-6079-") :]
         assert len(slug_part) <= 40
 
-    def test_branch_from_task_title_special_chars_removed(self):
+    def test_branch_from_task_title_special_chars_removed(self) -> None:
         """Test special characters are removed from slug."""
         config = SpawnConfig(
             prompt="Test",
@@ -177,7 +176,7 @@ class TestGenerateBranchName:
         # Only alphanumeric and hyphens should remain
         assert branch == "task-6080-fix-bug-123-handle-users-input"
 
-    def test_fallback_to_prefix_timestamp(self):
+    def test_fallback_to_prefix_timestamp(self) -> None:
         """Test fallback to prefix+timestamp when no task."""
         config = SpawnConfig(
             prompt="Test",
@@ -197,7 +196,7 @@ class TestGenerateBranchName:
             branch = generate_branch_name(config)
             assert branch == "agent/1706297600"
 
-    def test_fallback_default_prefix(self):
+    def test_fallback_default_prefix(self) -> None:
         """Test default prefix 'agent/' when no prefix specified."""
         config = SpawnConfig(
             prompt="Test",
@@ -268,7 +267,7 @@ class TestCurrentIsolationHandler:
         assert ctx.worktree_id is None
         assert ctx.clone_id is None
 
-    def test_build_context_prompt_returns_unchanged(self):
+    def test_build_context_prompt_returns_unchanged(self) -> None:
         """Test build_context_prompt returns original prompt unchanged."""
         handler = CurrentIsolationHandler()
         original_prompt = "Please implement the login feature."
@@ -278,11 +277,11 @@ class TestCurrentIsolationHandler:
 
         assert result == original_prompt
 
-    def test_is_isolation_handler_subclass(self):
+    def test_is_isolation_handler_subclass(self) -> None:
         """Test CurrentIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(CurrentIsolationHandler, IsolationHandler)
 
-    def test_isolation_handler_is_abstract(self):
+    def test_isolation_handler_is_abstract(self) -> None:
         """Test IsolationHandler cannot be instantiated directly."""
         with pytest.raises(TypeError):
             IsolationHandler()  # type: ignore
@@ -374,7 +373,7 @@ class TestWorktreeIsolationHandler:
         # Should NOT create a new worktree
         mock_git_manager.create_worktree.assert_not_called()
 
-    def test_build_context_prompt_prepends_warning(self):
+    def test_build_context_prompt_prepends_warning(self) -> None:
         """Test build_context_prompt prepends CRITICAL: Worktree Context warning."""
         mock_git_manager = MagicMock()
         mock_worktree_storage = MagicMock()
@@ -399,7 +398,7 @@ class TestWorktreeIsolationHandler:
         assert original_prompt in result
         assert "feature-branch" in result
 
-    def test_is_isolation_handler_subclass(self):
+    def test_is_isolation_handler_subclass(self) -> None:
         """Test WorktreeIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(WorktreeIsolationHandler, IsolationHandler)
 
@@ -488,7 +487,7 @@ class TestCloneIsolationHandler:
         # Should NOT create a new clone
         mock_clone_manager.create_clone.assert_not_called()
 
-    def test_build_context_prompt_prepends_warning(self):
+    def test_build_context_prompt_prepends_warning(self) -> None:
         """Test build_context_prompt prepends CRITICAL: Clone Context warning."""
         mock_clone_manager = MagicMock()
         mock_clone_storage = MagicMock()
@@ -513,7 +512,7 @@ class TestCloneIsolationHandler:
         assert original_prompt in result
         assert "feature-branch" in result
 
-    def test_is_isolation_handler_subclass(self):
+    def test_is_isolation_handler_subclass(self) -> None:
         """Test CloneIsolationHandler is a subclass of IsolationHandler."""
         assert issubclass(CloneIsolationHandler, IsolationHandler)
 
@@ -521,13 +520,13 @@ class TestCloneIsolationHandler:
 class TestGetIsolationHandler:
     """Tests for get_isolation_handler factory function."""
 
-    def test_get_isolation_handler_current(self):
+    def test_get_isolation_handler_current(self) -> None:
         """Test get_isolation_handler('current') returns CurrentIsolationHandler."""
         handler = get_isolation_handler("current")
 
         assert isinstance(handler, CurrentIsolationHandler)
 
-    def test_get_isolation_handler_worktree(self):
+    def test_get_isolation_handler_worktree(self) -> None:
         """Test get_isolation_handler('worktree', ...) returns WorktreeIsolationHandler."""
         mock_git_manager = MagicMock()
         mock_worktree_storage = MagicMock()
@@ -540,7 +539,7 @@ class TestGetIsolationHandler:
 
         assert isinstance(handler, WorktreeIsolationHandler)
 
-    def test_get_isolation_handler_clone(self):
+    def test_get_isolation_handler_clone(self) -> None:
         """Test get_isolation_handler('clone', ...) returns CloneIsolationHandler."""
         mock_clone_manager = MagicMock()
         mock_clone_storage = MagicMock()
@@ -553,17 +552,17 @@ class TestGetIsolationHandler:
 
         assert isinstance(handler, CloneIsolationHandler)
 
-    def test_get_isolation_handler_invalid_mode_raises(self):
+    def test_get_isolation_handler_invalid_mode_raises(self) -> None:
         """Test get_isolation_handler raises ValueError for invalid mode."""
         with pytest.raises(ValueError, match="Unknown isolation mode"):
             get_isolation_handler("invalid")
 
-    def test_get_isolation_handler_worktree_missing_deps_raises(self):
+    def test_get_isolation_handler_worktree_missing_deps_raises(self) -> None:
         """Test get_isolation_handler('worktree') raises if dependencies missing."""
         with pytest.raises(ValueError, match="git_manager.*required"):
             get_isolation_handler("worktree")
 
-    def test_get_isolation_handler_clone_missing_deps_raises(self):
+    def test_get_isolation_handler_clone_missing_deps_raises(self) -> None:
         """Test get_isolation_handler('clone') raises if dependencies missing."""
         with pytest.raises(ValueError, match="clone_manager.*required"):
             get_isolation_handler("clone")

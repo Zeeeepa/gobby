@@ -348,6 +348,116 @@ class ConditionEvaluator:
 
             allowed_globals["mcp_called"] = _mcp_called
 
+            def _mcp_result_is_null(server: str, tool: str) -> bool:
+                """Check if MCP tool result is null/missing.
+
+                Used in workflow conditions like:
+                    when: "mcp_result_is_null('gobby-tasks', 'suggest_next_task')"
+
+                Args:
+                    server: MCP server name
+                    tool: Tool name
+
+                Returns:
+                    True if the result is null/missing, False if result exists.
+                """
+                variables = context.get("variables", {})
+                if isinstance(variables, dict):
+                    mcp_results = variables.get("mcp_results", {})
+                else:
+                    mcp_results = getattr(variables, "mcp_results", {})
+
+                if not isinstance(mcp_results, dict):
+                    return True  # No results means null
+
+                server_results = mcp_results.get(server, {})
+                if not isinstance(server_results, dict):
+                    return True
+
+                result = server_results.get(tool)
+                return result is None
+
+            allowed_globals["mcp_result_is_null"] = _mcp_result_is_null
+
+            def _mcp_failed(server: str, tool: str) -> bool:
+                """Check if MCP tool call failed.
+
+                Used in workflow conditions like:
+                    when: "mcp_failed('gobby-agents', 'spawn_agent')"
+
+                Args:
+                    server: MCP server name
+                    tool: Tool name
+
+                Returns:
+                    True if the result exists and indicates failure.
+                """
+                variables = context.get("variables", {})
+                if isinstance(variables, dict):
+                    mcp_results = variables.get("mcp_results", {})
+                else:
+                    mcp_results = getattr(variables, "mcp_results", {})
+
+                if not isinstance(mcp_results, dict):
+                    return False  # No results means we can't determine failure
+
+                server_results = mcp_results.get(server, {})
+                if not isinstance(server_results, dict):
+                    return False
+
+                result = server_results.get(tool)
+                if result is None:
+                    return False
+
+                # Check for failure indicators
+                if isinstance(result, dict):
+                    if result.get("success") is False:
+                        return True
+                    if result.get("error"):
+                        return True
+                    if result.get("status") == "failed":
+                        return True
+                return False
+
+            allowed_globals["mcp_failed"] = _mcp_failed
+
+            def _mcp_result_has(server: str, tool: str, field: str, value: Any) -> bool:
+                """Check if MCP tool result has a specific field value.
+
+                Used in workflow conditions like:
+                    when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', True)"
+
+                Args:
+                    server: MCP server name
+                    tool: Tool name
+                    field: Field name to check
+                    value: Expected value (supports bool, str, int, float)
+
+                Returns:
+                    True if the field equals the expected value.
+                """
+                variables = context.get("variables", {})
+                if isinstance(variables, dict):
+                    mcp_results = variables.get("mcp_results", {})
+                else:
+                    mcp_results = getattr(variables, "mcp_results", {})
+
+                if not isinstance(mcp_results, dict):
+                    return False
+
+                server_results = mcp_results.get(server, {})
+                if not isinstance(server_results, dict):
+                    return False
+
+                result = server_results.get(tool)
+                if not isinstance(result, dict):
+                    return False
+
+                actual_value = result.get(field)
+                return bool(actual_value == value)
+
+            allowed_globals["mcp_result_has"] = _mcp_result_has
+
             # eval used with restricted allowed_globals for workflow conditions
             # nosec B307: eval is intentional here for DSL evaluation with
             # restricted globals (__builtins__={}) and controlled workflow conditions

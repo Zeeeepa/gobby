@@ -6,6 +6,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.skills import ChangeEvent, LocalSkillManager, Skill, SkillChangeNotifier
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def db(tmp_path):
@@ -25,7 +26,7 @@ def skill_manager(db):
 class TestSkillDataclass:
     """Tests for the Skill dataclass."""
 
-    def test_skill_to_dict(self):
+    def test_skill_to_dict(self) -> None:
         """Test Skill.to_dict() returns all fields."""
         skill = Skill(
             id="skl-123",
@@ -62,7 +63,7 @@ class TestSkillDataclass:
         assert d["enabled"] is True
         assert d["project_id"] is None
 
-    def test_skill_get_category(self):
+    def test_skill_get_category(self) -> None:
         """Test Skill.get_category() extracts from metadata."""
         skill = Skill(
             id="skl-1",
@@ -82,7 +83,7 @@ class TestSkillDataclass:
         )
         assert skill_no_meta.get_category() is None
 
-    def test_skill_get_tags(self):
+    def test_skill_get_tags(self) -> None:
         """Test Skill.get_tags() extracts from metadata."""
         skill = Skill(
             id="skl-1",
@@ -103,7 +104,7 @@ class TestSkillDataclass:
         )
         assert skill_no_tags.get_tags() == []
 
-    def test_skill_is_always_apply(self):
+    def test_skill_is_always_apply(self) -> None:
         """Test Skill.is_always_apply() checks alwaysApply flag."""
         skill_core = Skill(
             id="skl-1",
@@ -123,7 +124,7 @@ class TestSkillDataclass:
         )
         assert skill_normal.is_always_apply() is False
 
-    def test_skill_is_always_apply_top_level(self):
+    def test_skill_is_always_apply_top_level(self) -> None:
         """Test Skill.is_always_apply() with top-level alwaysApply."""
         skill = Skill(
             id="skl-1",
@@ -143,7 +144,7 @@ class TestSkillDataclass:
         )
         assert skill_false.is_always_apply() is False
 
-    def test_skill_is_always_apply_top_level_precedence(self):
+    def test_skill_is_always_apply_top_level_precedence(self) -> None:
         """Test that top-level alwaysApply takes precedence over nested."""
         skill = Skill(
             id="skl-1",
@@ -154,7 +155,7 @@ class TestSkillDataclass:
         )
         assert skill.is_always_apply() is True
 
-    def test_skill_get_category_top_level(self):
+    def test_skill_get_category_top_level(self) -> None:
         """Test Skill.get_category() with top-level category."""
         skill = Skill(
             id="skl-1",
@@ -165,7 +166,7 @@ class TestSkillDataclass:
         )
         assert skill.get_category() == "core"
 
-    def test_skill_get_category_top_level_precedence(self):
+    def test_skill_get_category_top_level_precedence(self) -> None:
         """Test that top-level category takes precedence over nested."""
         skill = Skill(
             id="skl-1",
@@ -180,7 +181,7 @@ class TestSkillDataclass:
 class TestLocalSkillManager:
     """Tests for LocalSkillManager CRUD operations."""
 
-    def test_create_skill(self, skill_manager):
+    def test_create_skill(self, skill_manager) -> None:
         """Test creating a new skill."""
         skill = skill_manager.create_skill(
             name="commit-message",
@@ -200,7 +201,7 @@ class TestLocalSkillManager:
         assert skill.created_at is not None
         assert skill.updated_at is not None
 
-    def test_create_skill_with_all_fields(self, skill_manager):
+    def test_create_skill_with_all_fields(self, skill_manager) -> None:
         """Test creating a skill with all Agent Skills spec fields."""
         skill = skill_manager.create_skill(
             name="test-skill",
@@ -238,7 +239,7 @@ class TestLocalSkillManager:
         assert skill.source_type == "github"
         assert skill.source_ref == "main"
 
-    def test_create_skill_duplicate_fails(self, skill_manager):
+    def test_create_skill_duplicate_fails(self, skill_manager) -> None:
         """Test that creating a duplicate skill raises ValueError."""
         skill_manager.create_skill(
             name="unique-skill",
@@ -253,7 +254,7 @@ class TestLocalSkillManager:
                 content="Content",
             )
 
-    def test_get_skill(self, skill_manager):
+    def test_get_skill(self, skill_manager) -> None:
         """Test getting a skill by ID."""
         created = skill_manager.create_skill(
             name="get-test",
@@ -265,12 +266,12 @@ class TestLocalSkillManager:
         assert fetched.id == created.id
         assert fetched.name == "get-test"
 
-    def test_get_skill_not_found(self, skill_manager):
+    def test_get_skill_not_found(self, skill_manager) -> None:
         """Test getting a non-existent skill raises ValueError."""
         with pytest.raises(ValueError, match="not found"):
             skill_manager.get_skill("nonexistent-id")
 
-    def test_get_by_name(self, skill_manager):
+    def test_get_by_name(self, skill_manager) -> None:
         """Test getting a skill by name."""
         skill_manager.create_skill(
             name="by-name-test",
@@ -285,7 +286,7 @@ class TestLocalSkillManager:
         # Non-existent
         assert skill_manager.get_by_name("nonexistent") is None
 
-    def test_update_skill(self, skill_manager):
+    def test_update_skill(self, skill_manager) -> None:
         """Test updating a skill."""
         skill = skill_manager.create_skill(
             name="update-test",
@@ -306,7 +307,7 @@ class TestLocalSkillManager:
         assert updated.version == "2.0.0"
         assert updated.name == "update-test"  # Unchanged
 
-    def test_update_skill_clear_optional_fields(self, skill_manager):
+    def test_update_skill_clear_optional_fields(self, skill_manager) -> None:
         """Test that optional fields can be cleared with None."""
         skill = skill_manager.create_skill(
             name="clear-test",
@@ -325,12 +326,12 @@ class TestLocalSkillManager:
         assert updated.version is None
         assert updated.license is None
 
-    def test_update_skill_not_found(self, skill_manager):
+    def test_update_skill_not_found(self, skill_manager) -> None:
         """Test updating a non-existent skill raises ValueError."""
         with pytest.raises(ValueError, match="not found"):
             skill_manager.update_skill("nonexistent", description="New")
 
-    def test_delete_skill(self, skill_manager):
+    def test_delete_skill(self, skill_manager) -> None:
         """Test deleting a skill."""
         skill = skill_manager.create_skill(
             name="delete-test",
@@ -341,11 +342,11 @@ class TestLocalSkillManager:
         assert skill_manager.delete_skill(skill.id) is True
         assert skill_manager.skill_exists(skill.id) is False
 
-    def test_delete_skill_not_found(self, skill_manager):
+    def test_delete_skill_not_found(self, skill_manager) -> None:
         """Test deleting a non-existent skill returns False."""
         assert skill_manager.delete_skill("nonexistent") is False
 
-    def test_list_skills(self, skill_manager):
+    def test_list_skills(self, skill_manager) -> None:
         """Test listing skills."""
         skill_manager.create_skill(name="skill-a", description="A", content="A")
         skill_manager.create_skill(name="skill-b", description="B", content="B")
@@ -357,7 +358,7 @@ class TestLocalSkillManager:
         names = [s.name for s in skills]
         assert names == ["skill-a", "skill-b", "skill-c"]
 
-    def test_list_skills_with_limit(self, skill_manager):
+    def test_list_skills_with_limit(self, skill_manager) -> None:
         """Test listing skills with limit."""
         for i in range(5):
             skill_manager.create_skill(
@@ -369,7 +370,7 @@ class TestLocalSkillManager:
         skills = skill_manager.list_skills(limit=3)
         assert len(skills) == 3
 
-    def test_list_skills_filter_enabled(self, skill_manager):
+    def test_list_skills_filter_enabled(self, skill_manager) -> None:
         """Test filtering skills by enabled state."""
         skill_manager.create_skill(name="enabled", description="E", content="C")
         disabled = skill_manager.create_skill(name="disabled", description="D", content="C")
@@ -383,7 +384,7 @@ class TestLocalSkillManager:
         assert len(disabled_skills) == 1
         assert disabled_skills[0].name == "disabled"
 
-    def test_list_skills_filter_category(self, skill_manager):
+    def test_list_skills_filter_category(self, skill_manager) -> None:
         """Test filtering skills by category."""
         skill_manager.create_skill(
             name="git-skill",
@@ -402,7 +403,7 @@ class TestLocalSkillManager:
         assert len(git_skills) == 1
         assert git_skills[0].name == "git-skill"
 
-    def test_search_skills(self, skill_manager):
+    def test_search_skills(self, skill_manager) -> None:
         """Test searching skills by name and description."""
         skill_manager.create_skill(
             name="commit-generator",
@@ -425,7 +426,7 @@ class TestLocalSkillManager:
         assert len(results) == 1
         assert results[0].name == "code-reviewer"
 
-    def test_list_core_skills(self, skill_manager):
+    def test_list_core_skills(self, skill_manager) -> None:
         """Test listing core skills (alwaysApply=true)."""
         skill_manager.create_skill(
             name="core-skill",
@@ -444,7 +445,7 @@ class TestLocalSkillManager:
         assert len(core) == 1
         assert core[0].name == "core-skill"
 
-    def test_skill_exists(self, skill_manager):
+    def test_skill_exists(self, skill_manager) -> None:
         """Test checking if a skill exists."""
         skill = skill_manager.create_skill(
             name="exists-test",
@@ -455,7 +456,7 @@ class TestLocalSkillManager:
         assert skill_manager.skill_exists(skill.id) is True
         assert skill_manager.skill_exists("nonexistent") is False
 
-    def test_count_skills(self, skill_manager):
+    def test_count_skills(self, skill_manager) -> None:
         """Test counting skills."""
         assert skill_manager.count_skills() == 0
 
@@ -468,7 +469,7 @@ class TestLocalSkillManager:
 class TestSkillProjectScope:
     """Tests for project-scoped skills."""
 
-    def test_same_name_different_projects(self, db):
+    def test_same_name_different_projects(self, db) -> None:
         """Test that same skill name can exist in different projects."""
         # Create two projects
         with db.transaction() as conn:
@@ -501,7 +502,7 @@ class TestSkillProjectScope:
         assert skill1.project_id == "proj-1"
         assert skill2.project_id == "proj-2"
 
-    def test_global_vs_project_skills(self, db):
+    def test_global_vs_project_skills(self, db) -> None:
         """Test global skills vs project-scoped skills."""
         with db.transaction() as conn:
             conn.execute(
@@ -512,7 +513,7 @@ class TestSkillProjectScope:
         manager = LocalSkillManager(db)
 
         # Global skill
-        global_skill = manager.create_skill(
+        manager.create_skill(
             name="global-skill",
             description="Global",
             content="Content",
@@ -520,7 +521,7 @@ class TestSkillProjectScope:
         )
 
         # Project skill
-        project_skill = manager.create_skill(
+        manager.create_skill(
             name="project-skill",
             description="Project",
             content="Content",
@@ -545,7 +546,7 @@ class TestSkillProjectScope:
 class TestSkillChangeNotification:
     """Tests for skill change notification."""
 
-    def test_notifier_called_on_create(self, db):
+    def test_notifier_called_on_create(self, db) -> None:
         """Test that notifier is called when a skill is created."""
         events = []
 
@@ -565,7 +566,7 @@ class TestSkillChangeNotification:
         assert events[0][1] == skill.id
         assert events[0][2] == "notify-test"
 
-    def test_notifier_called_on_update(self, db):
+    def test_notifier_called_on_update(self, db) -> None:
         """Test that notifier is called when a skill is updated."""
         events = []
 
@@ -586,7 +587,7 @@ class TestSkillChangeNotification:
         assert len(events) == 1
         assert events[0][0] == "update"
 
-    def test_notifier_called_on_delete(self, db):
+    def test_notifier_called_on_delete(self, db) -> None:
         """Test that notifier is called when a skill is deleted."""
         events = []
 
@@ -608,7 +609,7 @@ class TestSkillChangeNotification:
         assert events[0][0] == "delete"
         assert events[0][2] == "delete-notify"
 
-    def test_notifier_error_does_not_propagate(self, db):
+    def test_notifier_error_does_not_propagate(self, db) -> None:
         """Test that notifier errors are caught and logged."""
 
         class FailingNotifier:
@@ -629,7 +630,7 @@ class TestSkillChangeNotification:
 class TestSkillChangeNotifierClass:
     """Tests for the SkillChangeNotifier class."""
 
-    def test_add_listener(self):
+    def test_add_listener(self) -> None:
         """Test adding a listener."""
         notifier = SkillChangeNotifier()
         events = []
@@ -640,7 +641,7 @@ class TestSkillChangeNotifierClass:
         notifier.add_listener(listener)
         assert notifier.listener_count == 1
 
-    def test_add_listener_no_duplicates(self):
+    def test_add_listener_no_duplicates(self) -> None:
         """Test that the same listener cannot be added twice."""
         notifier = SkillChangeNotifier()
 
@@ -651,7 +652,7 @@ class TestSkillChangeNotifierClass:
         notifier.add_listener(listener)
         assert notifier.listener_count == 1
 
-    def test_remove_listener(self):
+    def test_remove_listener(self) -> None:
         """Test removing a listener."""
         notifier = SkillChangeNotifier()
 
@@ -665,7 +666,7 @@ class TestSkillChangeNotifierClass:
         assert result is True
         assert notifier.listener_count == 0
 
-    def test_remove_listener_not_found(self):
+    def test_remove_listener_not_found(self) -> None:
         """Test removing a listener that doesn't exist."""
         notifier = SkillChangeNotifier()
 
@@ -675,7 +676,7 @@ class TestSkillChangeNotifierClass:
         result = notifier.remove_listener(listener)
         assert result is False
 
-    def test_fire_change(self):
+    def test_fire_change(self) -> None:
         """Test firing a change event."""
         notifier = SkillChangeNotifier()
         events = []
@@ -695,7 +696,7 @@ class TestSkillChangeNotifierClass:
         assert events[0].skill_id == "skl-test"
         assert events[0].skill_name == "test-skill"
 
-    def test_fire_change_multiple_listeners(self):
+    def test_fire_change_multiple_listeners(self) -> None:
         """Test firing a change to multiple listeners."""
         notifier = SkillChangeNotifier()
         events1 = []
@@ -709,7 +710,7 @@ class TestSkillChangeNotifierClass:
         assert len(events1) == 1
         assert len(events2) == 1
 
-    def test_fire_change_with_metadata(self):
+    def test_fire_change_with_metadata(self) -> None:
         """Test firing a change event with metadata."""
         notifier = SkillChangeNotifier()
         events = []
@@ -724,7 +725,7 @@ class TestSkillChangeNotifierClass:
 
         assert events[0].metadata == {"reason": "cleanup"}
 
-    def test_fire_change_listener_error_does_not_stop_others(self):
+    def test_fire_change_listener_error_does_not_stop_others(self) -> None:
         """Test that one failing listener doesn't stop others."""
         notifier = SkillChangeNotifier()
         events = []
@@ -744,7 +745,7 @@ class TestSkillChangeNotifierClass:
         # The working listener should still have been called
         assert len(events) == 1
 
-    def test_clear_listeners(self):
+    def test_clear_listeners(self) -> None:
         """Test clearing all listeners."""
         notifier = SkillChangeNotifier()
 
@@ -759,7 +760,7 @@ class TestSkillChangeNotifierClass:
 class TestChangeEvent:
     """Tests for the ChangeEvent dataclass."""
 
-    def test_change_event_creation(self):
+    def test_change_event_creation(self) -> None:
         """Test creating a change event."""
         event = ChangeEvent(
             event_type="create",
@@ -773,7 +774,7 @@ class TestChangeEvent:
         assert event.timestamp is not None
         assert event.metadata is None
 
-    def test_change_event_with_metadata(self):
+    def test_change_event_with_metadata(self) -> None:
         """Test creating a change event with metadata."""
         event = ChangeEvent(
             event_type="update",
@@ -784,7 +785,7 @@ class TestChangeEvent:
 
         assert event.metadata == {"changes": ["description"]}
 
-    def test_change_event_to_dict(self):
+    def test_change_event_to_dict(self) -> None:
         """Test converting change event to dict."""
         event = ChangeEvent(
             event_type="delete",
@@ -800,7 +801,7 @@ class TestChangeEvent:
         assert d["metadata"] == {"reason": "cleanup"}
         assert "timestamp" in d
 
-    def test_change_event_types(self):
+    def test_change_event_types(self) -> None:
         """Test all valid event types."""
         for event_type in ["create", "update", "delete"]:
             event = ChangeEvent(

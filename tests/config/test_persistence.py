@@ -8,6 +8,8 @@ then will pass once memory/skill config classes are extracted from app.py.
 import pytest
 from pydantic import ValidationError
 
+pytestmark = pytest.mark.unit
+
 # =============================================================================
 # Import Tests (RED phase targets)
 # =============================================================================

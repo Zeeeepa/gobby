@@ -46,7 +46,7 @@ class TestCloneToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify all clone management tools are available on gobby-clones server."""
         tools = mcp_client.list_tools(server="gobby-clones")
         tool_names = [t["name"] for t in tools]
@@ -69,7 +69,7 @@ class TestCloneToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify create_clone tool schema can be retrieved."""
         raw_schema = mcp_client.get_tool_schema(
             server_name="gobby-clones",
@@ -83,7 +83,7 @@ class TestCloneToolsAvailability:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify spawn_agent tool schema can be retrieved from gobby-agents."""
         # spawn_agent_in_clone was deprecated; use unified spawn_agent with isolation="clone"
         raw_schema = mcp_client.get_tool_schema(
@@ -102,7 +102,7 @@ class TestParallelOrchestratorWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify workflow tools needed for parallel orchestration are available."""
         tools = mcp_client.list_tools(server="gobby-workflows")
         tool_names = [t["name"] for t in tools]
@@ -121,7 +121,7 @@ class TestParallelOrchestratorWorkflow:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Verify orchestration tools needed for parallel processing are available."""
         tools = mcp_client.list_tools(server="gobby-tasks")
         tool_names = [t["name"] for t in tools]
@@ -146,7 +146,7 @@ class TestEpicWithIndependentSubtasks:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test creating epic with 3 independent subtasks for parallel processing.
 
         Independent subtasks have no dependencies on each other, so they can
@@ -223,7 +223,7 @@ class TestEpicWithIndependentSubtasks:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test orchestration status tracking for parallel epic."""
         # Setup
         project_result = cli_events.register_test_project(
@@ -290,7 +290,7 @@ class TestCloneLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test listing clones when none exist."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -308,7 +308,7 @@ class TestCloneLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test getting a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -324,7 +324,7 @@ class TestCloneLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test deleting a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -340,7 +340,7 @@ class TestCloneLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test syncing a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -359,7 +359,7 @@ class TestCloneLifecycle:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test merging a non-existent clone returns error."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-clones",
@@ -379,7 +379,7 @@ class TestSpawnAgentWithCloneIsolation:
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
-    ):
+    ) -> None:
         """Test spawn_agent requires parent_session_id."""
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
@@ -400,7 +400,7 @@ class TestSpawnAgentWithCloneIsolation:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test spawn_agent with invalid mode returns error."""
         # Setup session
         project_result = cli_events.register_test_project(
@@ -434,12 +434,15 @@ class TestSpawnAgentWithCloneIsolation:
         assert result.get("success") is False
         # Error may be about invalid mode OR about missing clone infrastructure
         # (clone_manager/clone_storage may not be wired in e2e test environment)
+        # OR about missing remote URL (e2e test repo has no remote configured)
         error_msg = result.get("error", "").lower()
         assert (
             "invalid" in error_msg
             or "mode" in error_msg
             or "clone_manager" in error_msg
             or "clone_storage" in error_msg
+            or "remote" in error_msg
+            or "url" in error_msg
         )
 
 
@@ -451,7 +454,7 @@ class TestParallelTaskProcessing:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test completing multiple parallel tasks sequentially (simulates parallel completion).
 
         While we can't spawn actual agents in E2E tests, we can verify the task
@@ -580,7 +583,7 @@ class TestWorkflowActivation:
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         cli_events: CLIEventSimulator,
-    ):
+    ) -> None:
         """Test get_workflow_status returns correct status when no workflow active."""
         # Setup session
         project_result = cli_events.register_test_project(

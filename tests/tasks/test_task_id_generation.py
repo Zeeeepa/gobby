@@ -10,11 +10,12 @@ import pytest
 
 from gobby.storage.tasks import LocalTaskManager, generate_task_id
 
+pytestmark = pytest.mark.unit
 
 class TestGenerateTaskId:
     """Test the generate_task_id function returns UUID format."""
 
-    def test_generate_task_id_returns_uuid_format(self):
+    def test_generate_task_id_returns_uuid_format(self) -> None:
         """Test that generate_task_id returns a valid UUID string."""
         task_id = generate_task_id("test-project")
 
@@ -25,7 +26,7 @@ class TestGenerateTaskId:
         except ValueError:
             pytest.fail(f"Task ID '{task_id}' is not a valid UUID")
 
-    def test_generate_task_id_is_unique(self):
+    def test_generate_task_id_is_unique(self) -> None:
         """Test that generate_task_id returns unique IDs."""
         ids = set()
         for _ in range(100):
@@ -33,7 +34,7 @@ class TestGenerateTaskId:
             assert task_id not in ids, f"Duplicate ID generated: {task_id}"
             ids.add(task_id)
 
-    def test_generate_task_id_different_projects(self):
+    def test_generate_task_id_different_projects(self) -> None:
         """Test that generate_task_id works across different projects."""
         id1 = generate_task_id("project-a")
         id2 = generate_task_id("project-b")
@@ -45,7 +46,7 @@ class TestGenerateTaskId:
         # Should be different
         assert id1 != id2
 
-    def test_generate_task_id_with_salt(self):
+    def test_generate_task_id_with_salt(self) -> None:
         """Test that salt affects the generated ID."""
         id1 = generate_task_id("project", salt="")
         id2 = generate_task_id("project", salt="salt1")
@@ -64,7 +65,7 @@ class TestGenerateTaskId:
 class TestTaskCreationUUID:
     """Test that tasks created via LocalTaskManager get UUID IDs."""
 
-    def test_create_task_returns_uuid_id(self, task_manager, project_id):
+    def test_create_task_returns_uuid_id(self, task_manager, project_id) -> None:
         """Test that create_task generates a UUID ID for new tasks."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -78,7 +79,7 @@ class TestTaskCreationUUID:
         except ValueError:
             pytest.fail(f"Task ID '{task.id}' is not a valid UUID")
 
-    def test_create_task_uuid_is_unique(self, task_manager, project_id):
+    def test_create_task_uuid_is_unique(self, task_manager, project_id) -> None:
         """Test that multiple tasks get unique UUID IDs."""
         ids = set()
         for i in range(10):
@@ -92,7 +93,7 @@ class TestTaskCreationUUID:
             # Each should be valid UUID
             uuid.UUID(task.id)
 
-    def test_create_task_uuid_stored_and_retrieved(self, task_manager, project_id):
+    def test_create_task_uuid_stored_and_retrieved(self, task_manager, project_id) -> None:
         """Test that UUID ID is properly stored and can be retrieved."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -108,7 +109,7 @@ class TestTaskCreationUUID:
         assert retrieved.id == original_id
         assert retrieved.title == "Test Task"
 
-    def test_create_task_uuid_version_4(self, task_manager, project_id):
+    def test_create_task_uuid_version_4(self, task_manager, project_id) -> None:
         """Test that generated UUIDs are version 4 (random)."""
         task = task_manager.create_task(
             project_id=project_id,
@@ -119,7 +120,7 @@ class TestTaskCreationUUID:
         # UUID version 4 has version field set to 4
         assert parsed.version == 4, f"UUID should be version 4, got version {parsed.version}"
 
-    def test_create_child_task_uuid(self, task_manager, project_id):
+    def test_create_child_task_uuid(self, task_manager, project_id) -> None:
         """Test that child tasks also get UUID IDs."""
         parent = task_manager.create_task(
             project_id=project_id,

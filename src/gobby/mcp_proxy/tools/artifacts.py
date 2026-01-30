@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 def create_artifacts_registry(
     db: LocalDatabase | None = None,
     artifact_manager: LocalArtifactManager | None = None,
+    session_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an artifacts tool registry with all artifact-related tools.
@@ -32,10 +33,21 @@ def create_artifacts_registry(
     Args:
         db: LocalDatabase instance (used to create artifact_manager if not provided)
         artifact_manager: LocalArtifactManager instance
+        session_manager: Session manager for resolving session references
 
     Returns:
         InternalToolRegistry with artifact tools registered
     """
+    from gobby.utils.project_context import get_project_context
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if session_manager is None:
+            return ref  # No resolution available, return as-is
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+        return str(session_manager.resolve_session_reference(ref, project_id))
+
     # Create artifact manager if not provided
     if artifact_manager is None:
         if db is None:
@@ -55,7 +67,7 @@ def create_artifacts_registry(
 
     @registry.tool(
         name="search_artifacts",
-        description="Search artifacts by content using full-text search.",
+        description="Search artifacts by content using full-text search. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def search_artifacts(
         query: str,
@@ -68,7 +80,7 @@ def create_artifacts_registry(
 
         Args:
             query: Search query text
-            session_id: Optional session ID to filter by
+            session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by
             artifact_type: Optional artifact type to filter by (code, diff, error, etc.)
             limit: Maximum number of results (default: 50)
 
@@ -78,10 +90,18 @@ def create_artifacts_registry(
         if not query or not query.strip():
             return {"success": True, "artifacts": [], "count": 0}
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = session_id
+        if session_id:
+            try:
+                resolved_session_id = _resolve_session_id(session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e), "artifacts": []}
+
         try:
             artifacts = _artifact_manager.search_artifacts(
                 query_text=query,
-                session_id=session_id,
+                session_id=resolved_session_id,
                 artifact_type=artifact_type,
                 limit=limit,
             )
@@ -95,7 +115,7 @@ def create_artifacts_registry(
 
     @registry.tool(
         name="list_artifacts",
-        description="List artifacts with optional filters.",
+        description="List artifacts with optional filters. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def list_artifacts(
         session_id: str | None = None,
@@ -107,7 +127,7 @@ def create_artifacts_registry(
         List artifacts with optional filters.
 
         Args:
-            session_id: Optional session ID to filter by
+            session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by
             artifact_type: Optional artifact type to filter by
             limit: Maximum number of results (default: 100)
             offset: Offset for pagination (default: 0)
@@ -115,9 +135,17 @@ def create_artifacts_registry(
         Returns:
             Dict with success status and list of artifacts
         """
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = session_id
+        if session_id:
+            try:
+                resolved_session_id = _resolve_session_id(session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e), "artifacts": []}
+
         try:
             artifacts = _artifact_manager.list_artifacts(
-                session_id=session_id,
+                session_id=resolved_session_id,
                 artifact_type=artifact_type,
                 limit=limit,
                 offset=offset,
@@ -161,7 +189,7 @@ def create_artifacts_registry(
 
     @registry.tool(
         name="get_timeline",
-        description="Get artifacts for a session in chronological order.",
+        description="Get artifacts for a session in chronological order. Accepts #N, N, UUID, or prefix for session_id.",
     )
     def get_timeline(
         session_id: str | None = None,
@@ -172,7 +200,7 @@ def create_artifacts_registry(
         Get artifacts for a session in chronological order (oldest first).
 
         Args:
-            session_id: Required session ID to get timeline for
+            session_id: Required session reference (accepts #N, N, UUID, or prefix) to get timeline for
             artifact_type: Optional artifact type to filter by
             limit: Maximum number of results (default: 100)
 
@@ -186,10 +214,16 @@ def create_artifacts_registry(
                 "artifacts": [],
             }
 
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_session_id = _resolve_session_id(session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e), "artifacts": []}
+
         try:
             # Get artifacts (list_artifacts returns newest first by default)
             artifacts = _artifact_manager.list_artifacts(
-                session_id=session_id,
+                session_id=resolved_session_id,
                 artifact_type=artifact_type,
                 limit=limit,
                 offset=0,

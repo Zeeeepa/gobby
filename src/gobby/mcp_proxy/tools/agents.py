@@ -32,6 +32,7 @@ def create_agents_registry(
     runner: AgentRunner,
     running_registry: RunningAgentRegistry | None = None,
     workflow_state_manager: Any | None = None,
+    session_manager: Any | None = None,
     # spawn_agent dependencies
     agent_loader: Any | None = None,
     task_manager: Any | None = None,
@@ -48,6 +49,7 @@ def create_agents_registry(
         running_registry: Optional in-memory registry for running agents.
         workflow_state_manager: Optional WorkflowStateManager for stopping workflows
             when agents are killed. If not provided, workflow stop will be skipped.
+        session_manager: Optional LocalSessionManager for resolving session references.
         agent_loader: Agent definition loader for spawn_agent.
         task_manager: Task manager for spawn_agent task resolution.
         worktree_storage: Worktree storage for spawn_agent isolation.
@@ -58,6 +60,16 @@ def create_agents_registry(
     Returns:
         InternalToolRegistry with all agent tools registered.
     """
+    from gobby.utils.project_context import get_project_context
+
+    def _resolve_session_id(ref: str) -> str:
+        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
+        if session_manager is None:
+            return ref  # No resolution available, return as-is
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id") if project_ctx else None
+        return str(session_manager.resolve_session_reference(ref, project_id))
+
     registry = InternalToolRegistry(
         name="gobby-agents",
         description="Agent spawning - start, monitor, and manage subagents",
@@ -105,7 +117,7 @@ def create_agents_registry(
 
     @registry.tool(
         name="list_agents",
-        description="List agent runs for a session.",
+        description="List agent runs for a session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def list_agents(
         parent_session_id: str,
@@ -116,14 +128,20 @@ def create_agents_registry(
         List agent runs for a session.
 
         Args:
-            parent_session_id: The parent session ID.
+            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent.
             status: Optional status filter (pending, running, success, error, timeout, cancelled).
             limit: Maximum results (default: 20).
 
         Returns:
             Dict with list of agent runs.
         """
-        runs = runner.list_runs(parent_session_id, status=status, limit=limit)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_parent_id = _resolve_session_id(parent_session_id)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        runs = runner.list_runs(resolved_parent_id, status=status, limit=limit)
 
         return {
             "success": True,
@@ -221,6 +239,12 @@ def create_agents_registry(
         agent = agent_registry.get(run_id)
         session_id = agent.session_id if agent else None
 
+        # Database fallback: if not in registry, look up from DB
+        if session_id is None:
+            db_run = runner.get_run(run_id)
+            if db_run and db_run.child_session_id:
+                session_id = db_run.child_session_id
+
         # Kill via registry (run in thread to avoid blocking event loop)
         import asyncio
 
@@ -245,7 +269,7 @@ def create_agents_registry(
 
     @registry.tool(
         name="can_spawn_agent",
-        description="Check if an agent can be spawned from the current session.",
+        description="Check if an agent can be spawned from the current session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def can_spawn_agent(parent_session_id: str) -> dict[str, Any]:
         """
@@ -254,12 +278,18 @@ def create_agents_registry(
         This checks the agent depth limit to prevent infinite nesting.
 
         Args:
-            parent_session_id: The session that would spawn the agent.
+            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the session that would spawn the agent.
 
         Returns:
             Dict with can_spawn boolean and reason.
         """
-        can_spawn, reason, _parent_depth = runner.can_spawn(parent_session_id)
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        try:
+            resolved_parent_id = _resolve_session_id(parent_session_id)
+        except ValueError as e:
+            return {"can_spawn": False, "reason": str(e)}
+
+        can_spawn, reason, _parent_depth = runner.can_spawn(resolved_parent_id)
         return {
             "can_spawn": can_spawn,
             "reason": reason,
@@ -267,7 +297,7 @@ def create_agents_registry(
 
     @registry.tool(
         name="list_running_agents",
-        description="List all currently running agents (in-memory process state).",
+        description="List all currently running agents (in-memory process state). Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def list_running_agents(
         parent_session_id: str | None = None,
@@ -280,14 +310,19 @@ def create_agents_registry(
         including PIDs and process handles not stored in the database.
 
         Args:
-            parent_session_id: Optional filter by parent session.
+            parent_session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by parent.
             mode: Optional filter by execution mode (terminal, embedded, headless).
 
         Returns:
             Dict with list of running agents.
         """
         if parent_session_id:
-            agents = agent_registry.list_by_parent(parent_session_id)
+            # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+            try:
+                resolved_parent_id = _resolve_session_id(parent_session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+            agents = agent_registry.list_by_parent(resolved_parent_id)
         elif mode:
             agents = agent_registry.list_by_mode(mode)
         else:
@@ -394,6 +429,7 @@ def create_agents_registry(
         git_manager=git_manager,
         clone_storage=clone_storage,
         clone_manager=clone_manager,
+        session_manager=session_manager,
     )
 
     # Merge spawn_agent tools into agents registry

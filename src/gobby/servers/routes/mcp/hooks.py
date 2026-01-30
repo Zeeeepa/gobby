@@ -19,6 +19,44 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Map hook types to hookEventName for additionalContext
+# Only these hook types support hookSpecificOutput in Claude Code
+HOOK_EVENT_NAME_MAP: dict[str, str] = {
+    "pre-tool-use": "PreToolUse",
+    "post-tool-use": "PostToolUse",
+    "post-tool-use-failure": "PostToolUse",
+    "user-prompt-submit": "UserPromptSubmit",
+}
+
+
+def _graceful_error_response(hook_type: str, error_msg: str) -> dict[str, Any]:
+    """
+    Create a graceful degradation response for hook errors.
+
+    Instead of returning HTTP 500 (which causes Claude Code to show a confusing
+    "hook failed" warning), return a successful response that:
+    1. Allows the tool to proceed (continue=True)
+    2. Explains the error via additionalContext (so agents understand what happened)
+
+    This prevents agents from being confused by non-fatal hook errors.
+    """
+    response: dict[str, Any] = {
+        "continue": True,
+        "decision": "approve",
+    }
+
+    # Add helpful context for supported hook types
+    hook_event_name = HOOK_EVENT_NAME_MAP.get(hook_type)
+    if hook_event_name:
+        response["hookSpecificOutput"] = {
+            "hookEventName": hook_event_name,
+            "additionalContext": (
+                f"Gobby hook error (non-fatal): {error_msg}. Tool execution will proceed normally."
+            ),
+        }
+
+    return response
+
 
 def create_hooks_router(server: "HTTPServer") -> APIRouter:
     """
@@ -51,6 +89,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
         start_time = time.perf_counter()
         metrics.inc_counter("http_requests_total")
         metrics.inc_counter("hooks_total")
+        hook_type: str | None = None  # Track for error handling
 
         try:
             # Parse request
@@ -109,27 +148,35 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
                 return result
 
             except ValueError as e:
+                # Invalid request - still return graceful response
                 metrics.inc_counter("hooks_failed_total")
                 logger.warning(
                     f"Invalid hook request: {hook_type}",
                     extra={"hook_type": hook_type, "error": str(e)},
                 )
-                raise HTTPException(status_code=400, detail=str(e)) from e
+                return _graceful_error_response(hook_type, str(e))
 
             except Exception as e:
+                # Hook execution error - return graceful response so tool proceeds
+                # This prevents confusing "hook failed" warnings in Claude Code
                 metrics.inc_counter("hooks_failed_total")
                 logger.error(
                     f"Hook execution failed: {hook_type}",
                     exc_info=True,
                     extra={"hook_type": hook_type},
                 )
-                raise HTTPException(status_code=500, detail=str(e)) from e
+                return _graceful_error_response(hook_type, str(e))
 
         except HTTPException:
+            # Re-raise 400 errors (bad request) - these are client errors
             raise
         except Exception as e:
+            # Outer exception - return graceful response to prevent CLI warning
             metrics.inc_counter("hooks_failed_total")
             logger.error("Hook endpoint error", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            if hook_type:
+                return _graceful_error_response(hook_type, str(e))
+            # Fallback: return basic success to prevent CLI hook failure
+            return {"continue": True, "decision": "approve"}
 
     return router

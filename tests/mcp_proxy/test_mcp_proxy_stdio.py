@@ -16,11 +16,12 @@ from gobby.mcp_proxy.stdio import (
     stop_daemon_process,
 )
 
+pytestmark = pytest.mark.unit
 
 class TestGetDaemonPid:
     """Tests for get_daemon_pid using psutil."""
 
-    def test_returns_none_when_no_daemon_process(self):
+    def test_returns_none_when_no_daemon_process(self) -> None:
         """Test returns None when no daemon process logic matches."""
         # Mock psutil.process_iter to return processes that DONT match
         with patch("gobby.mcp_proxy.daemon_control.psutil.process_iter") as mock_iter:
@@ -30,7 +31,7 @@ class TestGetDaemonPid:
             ]
             assert get_daemon_pid() is None
 
-    def test_returns_pid_when_daemon_process_found(self):
+    def test_returns_pid_when_daemon_process_found(self) -> None:
         """Test returns PID when valid daemon process found."""
         with patch("gobby.mcp_proxy.daemon_control.psutil.process_iter") as mock_iter:
             # Matches logic: "gobby.cli.app" and "daemon" and "start"
@@ -53,7 +54,7 @@ class TestGetDaemonPid:
             ]
             assert get_daemon_pid() == 12345
 
-    def test_ignores_current_process(self):
+    def test_ignores_current_process(self) -> None:
         """Test ignores the current process even if it matches."""
         current_pid = 777
         with patch("gobby.mcp_proxy.daemon_control.os.getpid", return_value=current_pid):
@@ -81,12 +82,12 @@ class TestGetDaemonPid:
 class TestIsDaemonRunning:
     """Tests for is_daemon_running function."""
 
-    def test_returns_false_when_no_pid(self):
+    def test_returns_false_when_no_pid(self) -> None:
         """Test returns False when no PID."""
         with patch("gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=None):
             assert is_daemon_running() is False
 
-    def test_returns_true_when_pid_exists(self):
+    def test_returns_true_when_pid_exists(self) -> None:
         """Test returns True when PID exists."""
         with patch("gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=12345):
             assert is_daemon_running() is True
@@ -352,7 +353,7 @@ class TestCheckDaemonHttpHealth:
 class TestCreateStdioMcpServer:
     """Tests for create_stdio_mcp_server function."""
 
-    def test_creates_mcp_server(self):
+    def test_creates_mcp_server(self) -> None:
         """Test creates FastMCP server instance."""
         # Use simple patching here since we don't need capture
         with patch("gobby.mcp_proxy.stdio.load_config") as mock_config:

@@ -1,12 +1,15 @@
 """Tests for src/utils/status.py - Status Message Formatting."""
 
+import pytest
+
 from gobby.utils.status import format_status_message
 
+pytestmark = pytest.mark.unit
 
 class TestFormatStatusMessage:
     """Tests for format_status_message function."""
 
-    def test_stopped_status(self):
+    def test_stopped_status(self) -> None:
         """Test formatting stopped daemon status."""
         result = format_status_message(running=False)
 
@@ -14,67 +17,67 @@ class TestFormatStatusMessage:
         assert "Status: Stopped" in result
         assert "=" * 70 in result
 
-    def test_running_status_minimal(self):
+    def test_running_status_minimal(self) -> None:
         """Test running status with minimal info."""
         result = format_status_message(running=True)
 
         assert "Status: Running" in result
         assert "(PID:" not in result  # No PID provided
 
-    def test_running_status_with_pid(self):
+    def test_running_status_with_pid(self) -> None:
         """Test running status with PID."""
         result = format_status_message(running=True, pid=12345)
 
         assert "Status: Running (PID: 12345)" in result
 
-    def test_running_status_with_uptime(self):
+    def test_running_status_with_uptime(self) -> None:
         """Test running status with uptime."""
         result = format_status_message(running=True, uptime="1h 23m 45s")
 
         assert "Uptime: 1h 23m 45s" in result
 
-    def test_running_status_with_pid_file(self):
+    def test_running_status_with_pid_file(self) -> None:
         """Test running status with PID file path."""
         result = format_status_message(running=True, pid_file="/var/run/gobby.pid")
 
         assert "PID file: /var/run/gobby.pid" in result
         assert "Paths:" in result
 
-    def test_running_status_with_log_files(self):
+    def test_running_status_with_log_files(self) -> None:
         """Test running status with log files path."""
         result = format_status_message(running=True, log_files="/var/log/gobby/")
 
         assert "Logs: /var/log/gobby/" in result
         assert "Paths:" in result
 
-    def test_server_configuration_with_http_port(self):
+    def test_server_configuration_with_http_port(self) -> None:
         """Test server configuration section with HTTP port."""
         result = format_status_message(running=True, http_port=60887)
 
         assert "Server Configuration:" in result
         assert "HTTP: localhost:60887" in result
 
-    def test_server_configuration_with_websocket_port(self):
+    def test_server_configuration_with_websocket_port(self) -> None:
         """Test server configuration section with WebSocket port."""
         result = format_status_message(running=True, websocket_port=60888)
 
         assert "Server Configuration:" in result
         assert "WebSocket: localhost:60888" in result
 
-    def test_server_configuration_with_both_ports(self):
+    def test_server_configuration_with_both_ports(self) -> None:
         """Test server configuration with both ports."""
         result = format_status_message(running=True, http_port=60887, websocket_port=60888)
 
         assert "HTTP: localhost:60887" in result
         assert "WebSocket: localhost:60888" in result
 
-    def test_no_server_configuration_when_no_ports(self):
+    def test_no_server_configuration_when_no_ports(self) -> None:
         """Test that server configuration section is hidden when no ports."""
         result = format_status_message(running=True, pid=123)
 
         assert "Server Configuration:" not in result
 
-    def test_full_status_message(self):
+    def test_full_status_message(self) -> None:
         """Test full status message with all fields."""
         result = format_status_message(
             running=True,
@@ -104,7 +107,7 @@ class TestFormatStatusMessage:
         assert "HTTP: localhost:60887" in result
         assert "WebSocket: localhost:60888" in result
 
-    def test_stopped_status_no_details(self):
+    def test_stopped_status_no_details(self) -> None:
         """Test stopped status doesn't show running details."""
         result = format_status_message(
             running=False,
@@ -116,20 +119,20 @@ class TestFormatStatusMessage:
         assert "PID: 12345" not in result
         assert "Uptime:" not in result
 
-    def test_extra_kwargs_ignored(self):
+    def test_extra_kwargs_ignored(self) -> None:
         """Test that extra kwargs are silently ignored."""
         # Should not raise any exception
         result = format_status_message(running=True, unknown_field="value", another_unknown=123)
 
         assert "Status: Running" in result
 
-    def test_output_is_string(self):
+    def test_output_is_string(self) -> None:
         """Test that output is a string."""
         result = format_status_message(running=True)
 
         assert isinstance(result, str)
 
-    def test_output_has_newlines(self):
+    def test_output_has_newlines(self) -> None:
         """Test that output uses newlines for formatting."""
         result = format_status_message(running=True, pid=123)
 
@@ -137,7 +140,7 @@ class TestFormatStatusMessage:
         lines = result.split("\n")
         assert len(lines) > 5  # Should have multiple lines
 
-    def test_mcp_proxy_section(self):
+    def test_mcp_proxy_section(self) -> None:
         """Test MCP proxy section with server stats."""
         result = format_status_message(
             running=True, mcp_connected=3, mcp_total=5, mcp_tools_cached=42
@@ -147,7 +150,7 @@ class TestFormatStatusMessage:
         assert "Servers: 3 connected / 5 total" in result
         assert "Tools cached: 42" in result
 
-    def test_mcp_proxy_unhealthy(self):
+    def test_mcp_proxy_unhealthy(self) -> None:
         """Test MCP proxy with unhealthy servers."""
         result = format_status_message(
             running=True,
@@ -158,7 +161,7 @@ class TestFormatStatusMessage:
 
         assert "Unhealthy: server1 (retry), server2 (failed)" in result
 
-    def test_sessions_section(self):
+    def test_sessions_section(self) -> None:
         """Test sessions section."""
         result = format_status_message(
             running=True, sessions_active=2, sessions_paused=3, sessions_handoff_ready=1
@@ -169,7 +172,7 @@ class TestFormatStatusMessage:
         assert "Paused: 3" in result
         assert "Handoff Ready: 1" in result
 
-    def test_tasks_section(self):
+    def test_tasks_section(self) -> None:
         """Test tasks section."""
         result = format_status_message(
             running=True, tasks_open=10, tasks_in_progress=2, tasks_ready=5, tasks_blocked=3
@@ -181,7 +184,7 @@ class TestFormatStatusMessage:
         assert "Ready: 5" in result
         assert "Blocked: 3" in result
 
-    def test_memory_section(self):
+    def test_memory_section(self) -> None:
         """Test memory section."""
         result = format_status_message(
             running=True,
@@ -192,7 +195,7 @@ class TestFormatStatusMessage:
         assert "Memory:" in result
         assert "Memories: 50 (avg importance: 0.65)" in result
 
-    def test_process_metrics(self):
+    def test_process_metrics(self) -> None:
         """Test process metrics (memory, CPU)."""
         result = format_status_message(
             running=True, uptime="1h 0m 0s", memory_mb=45.5, cpu_percent=2.3

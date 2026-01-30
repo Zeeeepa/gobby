@@ -45,13 +45,13 @@ pytestmark = pytest.mark.skipif(
 class TestMem0BackendImport:
     """TDD tests for Mem0Backend import and factory."""
 
-    def test_mem0_backend_importable(self):
+    def test_mem0_backend_importable(self) -> None:
         """Test that Mem0Backend can be imported from backends module."""
         from gobby.memory.backends.mem0 import Mem0Backend
 
         assert Mem0Backend is not None
 
-    def test_get_backend_supports_mem0_type(self):
+    def test_get_backend_supports_mem0_type(self) -> None:
         """Test that get_backend factory supports 'mem0' type."""
         from gobby.memory.backends import get_backend
 
@@ -66,7 +66,7 @@ class TestMem0BackendImport:
 class TestMem0BackendInstantiation:
     """TDD tests for Mem0Backend instantiation."""
 
-    def test_instantiate_with_api_key(self):
+    def test_instantiate_with_api_key(self) -> None:
         """Test that Mem0Backend can be instantiated with API key."""
         from gobby.memory.backends.mem0 import Mem0Backend
 
@@ -75,7 +75,7 @@ class TestMem0BackendInstantiation:
             backend = Mem0Backend(api_key="test-api-key")
             assert backend is not None
 
-    def test_instantiate_with_config(self):
+    def test_instantiate_with_config(self) -> None:
         """Test that Mem0Backend can be instantiated with config dict."""
         from gobby.memory.backends.mem0 import Mem0Backend
 
@@ -98,7 +98,7 @@ class TestMem0BackendInstantiation:
 class TestMem0BackendProtocol:
     """TDD tests for MemoryBackendProtocol compliance."""
 
-    def test_implements_protocol(self):
+    def test_implements_protocol(self) -> None:
         """Test that Mem0Backend implements MemoryBackendProtocol."""
         from gobby.memory.backends.mem0 import Mem0Backend
 
@@ -106,7 +106,7 @@ class TestMem0BackendProtocol:
             backend = Mem0Backend(api_key="test-key")
             assert isinstance(backend, MemoryBackendProtocol)
 
-    def test_capabilities_returns_set(self):
+    def test_capabilities_returns_set(self) -> None:
         """Test that capabilities() returns a set of MemoryCapability."""
         from gobby.memory.backends.mem0 import Mem0Backend
 

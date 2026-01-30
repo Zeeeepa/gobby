@@ -15,6 +15,7 @@ from gobby.mcp_proxy.tools.task_readiness import (
 )
 from gobby.storage.tasks import LocalTaskManager
 
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def task_manager(temp_db):
@@ -31,7 +32,7 @@ def project_id(sample_project):
 class TestGetAncestryChain:
     """Tests for _get_ancestry_chain helper function."""
 
-    def test_root_task_returns_single_element(self, task_manager, project_id):
+    def test_root_task_returns_single_element(self, task_manager, project_id) -> None:
         """Root tasks with no parent return just themselves."""
         task = task_manager.create_task(project_id, "Root task", task_type="epic")
 
@@ -39,7 +40,7 @@ class TestGetAncestryChain:
 
         assert chain == [task.id]
 
-    def test_child_task_returns_parent_chain(self, task_manager, project_id):
+    def test_child_task_returns_parent_chain(self, task_manager, project_id) -> None:
         """Child tasks return themselves and all ancestors."""
         parent = task_manager.create_task(project_id, "Parent", task_type="epic")
         child = task_manager.create_task(
@@ -50,7 +51,7 @@ class TestGetAncestryChain:
 
         assert chain == [child.id, parent.id]
 
-    def test_deep_hierarchy_returns_full_chain(self, task_manager, project_id):
+    def test_deep_hierarchy_returns_full_chain(self, task_manager, project_id) -> None:
         """Deep hierarchies return the complete ancestry chain."""
         grandparent = task_manager.create_task(project_id, "Grandparent", task_type="epic")
         parent = task_manager.create_task(
@@ -67,7 +68,7 @@ class TestGetAncestryChain:
 
         assert chain == [grandchild.id, child.id, parent.id, grandparent.id]
 
-    def test_nonexistent_task_returns_empty(self, task_manager, project_id):
+    def test_nonexistent_task_returns_empty(self, task_manager, project_id) -> None:
         """Non-existent task IDs return empty chain."""
         chain = _get_ancestry_chain(task_manager, "gt-nonexistent")
 
@@ -77,7 +78,7 @@ class TestGetAncestryChain:
 class TestComputeProximityBoost:
     """Tests for _compute_proximity_boost helper function."""
 
-    def test_same_task_gets_max_boost(self):
+    def test_same_task_gets_max_boost(self) -> None:
         """Same task as active gets maximum boost."""
         task_chain = ["gt-a"]
         active_chain = ["gt-a"]
@@ -86,7 +87,7 @@ class TestComputeProximityBoost:
 
         assert boost == 50  # max boost for depth 0
 
-    def test_child_of_active_task(self):
+    def test_child_of_active_task(self) -> None:
         """Child of active task gets high boost."""
         # Task is child, active is parent
         task_chain = ["gt-child", "gt-parent"]
@@ -96,7 +97,7 @@ class TestComputeProximityBoost:
 
         assert boost == 50  # depth 0 from common ancestor (parent)
 
-    def test_sibling_tasks(self):
+    def test_sibling_tasks(self) -> None:
         """Sibling tasks (same parent) get moderate boost."""
         # Both share parent as common ancestor
         task_chain = ["gt-sibling1", "gt-parent"]
@@ -108,7 +109,7 @@ class TestComputeProximityBoost:
         # depth from common ancestor to task, which is 1
         assert boost == 40  # depth 1: 50 - 10 = 40
 
-    def test_cousin_tasks(self):
+    def test_cousin_tasks(self) -> None:
         """Cousin tasks (same grandparent) get lower boost."""
         task_chain = ["gt-cousin1", "gt-uncle", "gt-grandparent"]
         active_chain = ["gt-cousin2", "gt-aunt", "gt-grandparent"]
@@ -118,7 +119,7 @@ class TestComputeProximityBoost:
         # Common ancestor is grandparent, task is 2 levels below
         assert boost == 30  # depth 2: 50 - 20 = 30
 
-    def test_distant_relatives_get_minimum_boost(self):
+    def test_distant_relatives_get_minimum_boost(self) -> None:
         """Tasks 5+ levels from common ancestor get no boost."""
         task_chain = ["gt-1", "gt-2", "gt-3", "gt-4", "gt-5", "gt-root"]
         active_chain = ["gt-other", "gt-root"]
@@ -128,7 +129,7 @@ class TestComputeProximityBoost:
         # Depth 5: 50 - 50 = 0
         assert boost == 0
 
-    def test_no_common_ancestor_returns_zero(self):
+    def test_no_common_ancestor_returns_zero(self) -> None:
         """Tasks with no common ancestor get zero boost."""
         task_chain = ["gt-a", "gt-b", "gt-c"]
         active_chain = ["gt-x", "gt-y", "gt-z"]
@@ -137,7 +138,7 @@ class TestComputeProximityBoost:
 
         assert boost == 0
 
-    def test_empty_chains_return_zero(self):
+    def test_empty_chains_return_zero(self) -> None:
         """Empty chains return zero boost."""
         assert _compute_proximity_boost([], ["gt-a"]) == 0
         assert _compute_proximity_boost(["gt-a"], []) == 0

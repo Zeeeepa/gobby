@@ -6,6 +6,7 @@ import pytest
 
 from gobby.llm.base import LLMProvider
 
+pytestmark = pytest.mark.unit
 
 class ConcreteProvider(LLMProvider):
     """Concrete implementation for testing abstract base class."""
@@ -69,12 +70,12 @@ class IncompleteProviderMissingDescribeImage(LLMProvider):
 class TestLLMProvider:
     """Tests for LLMProvider abstract base class."""
 
-    def test_default_auth_mode_is_subscription(self):
+    def test_default_auth_mode_is_subscription(self) -> None:
         """Test that default auth_mode returns 'subscription'."""
         provider = ConcreteProvider()
         assert provider.auth_mode == "subscription"
 
-    def test_provider_name(self):
+    def test_provider_name(self) -> None:
         """Test that provider_name is implemented correctly."""
         provider = ConcreteProvider()
         assert provider.provider_name == "test_provider"
@@ -104,7 +105,7 @@ class TestLLMProvider:
 class TestDescribeImageAbstractMethod:
     """TDD tests for describe_image abstract method on LLMProvider."""
 
-    def test_describe_image_is_abstract_method(self):
+    def test_describe_image_is_abstract_method(self) -> None:
         """Test that describe_image is defined as an abstract method on LLMProvider."""
         # Verify that describe_image exists on the ABC
         assert hasattr(LLMProvider, "describe_image"), (
@@ -115,7 +116,7 @@ class TestDescribeImageAbstractMethod:
             "describe_image should be an abstract method"
         )
 
-    def test_cannot_instantiate_without_describe_image(self):
+    def test_cannot_instantiate_without_describe_image(self) -> None:
         """Test that LLMProvider subclass must implement describe_image."""
         # IncompleteProviderMissingDescribeImage doesn't implement describe_image
         # Should raise TypeError when trying to instantiate
@@ -148,7 +149,7 @@ class TestDescribeImageAbstractMethod:
         # Should return a string (the description)
         assert isinstance(result, str)
 
-    def test_describe_image_signature(self):
+    def test_describe_image_signature(self) -> None:
         """Test describe_image has correct method signature."""
         import inspect
 
