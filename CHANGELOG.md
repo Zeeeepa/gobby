@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improvements
 
+- Refactored Gemini spawn to use preflight+resume pattern (#6532)
+- Applied sandbox config in Gemini terminal spawn (#6534)
+- Added `session_ref` to `additionalContext` for hooks (#6546, #6547, #6548)
+- Optimized hook metadata token usage with first-hook tracking (#6549)
+- Disabled PreCompress hook handling for Gemini (#6533)
+- Added database fallback to `kill_agent` for session lookup (#6455)
+- `work-task-gemini` workflow now supports tasks without file edits (#6529)
+- Excluded `.gobby/` files from `had_edits` tracking (#6541)
+- Excluded `.gobby/` files from CI/CD and pre-commit triggers (#6543)
 - Standardized `session_id` to accept `#N` format across all MCP tools (#6459)
 - Refactored messaging tools to database-primary architecture (#6456)
 - Added database fallback to `send_to_parent` for Gemini agents (#6451)
@@ -21,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fixed memory duplicates, NULL project_id, and JSONL export (#6553)
+- Return graceful responses for hook errors instead of HTTP 500 (#6539)
+- Fixed session ID vs external ID clarification in context injection (#6536)
+- Fixed workflow instructions for Gemini tool calling (#6535)
+- Fixed spawn_agent opening two terminal windows on macOS (#6531)
+- Fixed template, error handling, and documentation issues (#6544)
+- Fixed failing tests in test_cli.py and test_skill_sync.py (#6542)
+- Fixed newline corruption in get_current_session references
+- Fixed syntax error in session messages coverage test
 - Fixed async lock, template conditionals, and workflow transitions (#6450)
 - Fixed documentation drift, caching issues, and workflow config errors (#6460)
 - Fixed async/blocking issues and code quality problems (#6458)
@@ -31,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Documented agent lifecycle and shutdown mechanisms (#6540)
+- Added Codex app-server hook parity plan (#6552)
+- Added personal workspace plan for project-optional tasks (#6545)
 - Added remote access implementation plan (#6461)
 - Added missing param docs to `register_session` docstring (#6440)
 

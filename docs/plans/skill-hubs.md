@@ -29,6 +29,7 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 **CLI Tool**: `npm i -g clawdhub` ([docs](https://docs.molt.bot/tools/clawdhub))
 
 **Available Commands:**
+
 - `clawdhub search "query"` - Vector search for skills
 - `clawdhub install <slug>` - Install a skill to workspace
 - `clawdhub update <slug>` / `--all` - Update installed skills
@@ -38,12 +39,14 @@ Add a generic hub/registry abstraction to Gobby's skill system that supports mul
 - `clawdhub login` / `logout` / `whoami` - Authentication
 
 **Environment Variables:**
+
 - `CLAWDHUB_SITE` - Override site URL
 - `CLAWDHUB_REGISTRY` - Override registry API URL
 - `CLAWDHUB_CONFIG_PATH` - Token/config storage location
 - `CLAWDHUB_WORKDIR` - Default working directory
 
 **Authentication:**
+
 - Browser-based: `clawdhub login`
 - Token-based: `clawdhub login --token <token>`
 
@@ -55,16 +58,19 @@ Wrap CLI commands via subprocess, parse output into `HubSkillInfo` objects.
 > **Verified**: SkillHub has both REST API and CLI.
 
 **CLI Tool**: `npx @skill-hub/cli`
+
 - `npx @skill-hub/cli search "query"`
 - `npx @skill-hub/cli install <slug>`
 
 **REST API:**
+
 - **Base**: `https://www.skillhub.club/api/v1`
 - **Search**: `POST /skills/search` body: `{query, limit, category, method}` → `{skills: [...]}`
 - **Catalog**: `GET /skills/catalog?limit=<n>&sort=score|stars|recent`
 - **Auth**: `Authorization: Bearer <SKILLHUB_API_KEY>` header (required for all requests)
 
 **Rate Limits:**
+
 - Free tier: 2 queries/day
 - Pro: 50 queries/day
 

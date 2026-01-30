@@ -23,7 +23,7 @@ Returns server names and connection status. This shows what MCP servers are avai
 
 Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context (injected by SessionStart hook):
 
-```
+```text
 Gobby Session Ref: #5
 Gobby Session ID: <uuid>
 ```

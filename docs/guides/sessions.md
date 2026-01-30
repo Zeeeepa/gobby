@@ -52,7 +52,7 @@ created → active → paused → handoff_ready → completed
 Gobby tracks which CLI created each session:
 
 | Source | Description |
-|--------|-------------|
+| :--- | :--- |
 | `claude` | Claude Code |
 | `gemini` | Gemini CLI |
 | `codex` | OpenAI Codex CLI |
@@ -92,7 +92,7 @@ gobby sessions list [OPTIONS]
 ```
 
 | Option | Description |
-|--------|-------------|
+| :--- | :--- |
 | `--project REF` | Filter by project |
 | `--status STATUS` | Filter by status |
 | `--limit N` | Max sessions (default: 20) |
@@ -116,9 +116,9 @@ View session transcript.
 gobby sessions messages SESSION_ID [--limit N] [--role ROLE]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--limit N` | Max messages (default: 50) |
+| Option        | Description                           |
+| :------------ | :------------------------------------ |
+| `--limit N`   | Max messages (default: 50)            |
 | `--role ROLE` | Filter by role: user, assistant, tool |
 
 ### `gobby sessions search`
@@ -326,7 +326,7 @@ Sessions work seamlessly across Claude Code, Gemini CLI, and Codex CLI.
 ### Hook Events
 
 | Event | Trigger | Action |
-|-------|---------|--------|
+| :--- | :--- | :--- |
 | `SessionStart` | CLI starts | Register session, restore context |
 | `PromptSubmit` | User sends message | Update title, track message |
 | `Stop` | CLI pauses | Mark session as paused |
@@ -370,7 +370,7 @@ Sessions work seamlessly across Claude Code, Gemini CLI, and Codex CLI.
 ## Data Storage
 
 | Path | Description |
-|------|-------------|
+| :--- | :--- |
 | `~/.gobby/gobby-hub.db` | SQLite database with sessions table |
 | `~/.gobby/logs/` | Session-related logs |
 

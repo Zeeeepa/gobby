@@ -13,7 +13,7 @@ This skill helps when you're blocked from using Edit, Write, or NotebookEdit too
 
 The workflow system requires an active task before using Edit, Write, or NotebookEdit. If you see:
 
-```
+```text
 Blocked: No active task. Create or claim a task before using Edit, Write, or NotebookEdit tools.
 ```
 
@@ -58,7 +58,7 @@ call_tool("gobby-tasks", "claim_task", {
 
 Your `session_id` is injected at session start. Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 
-```
+```text
 Gobby Session Ref: #5
 Gobby Session ID: <uuid>
 ```
@@ -77,6 +77,7 @@ call_tool("gobby-sessions", "get_current_session", {
 ## Why This Matters
 
 Tasks ensure:
+
 - All code changes are tracked
 - Work can be reviewed and linked to commits
 - Dependencies between tasks are respected

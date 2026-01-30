@@ -13,7 +13,7 @@ This skill manages agent sessions via the gobby-sessions MCP server. Parse the u
 **IMPORTANT**: Use the `session_id` from your SessionStart hook context for most calls.
 
 Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
-```
+```text
 Gobby Session Ref: #5
 Gobby Session ID: <uuid>
 ```
@@ -26,6 +26,7 @@ This is the **internal Gobby session ID** - use it for task creation, parent_ses
 
 ### `/gobby sessions get-current` - Look up your session ID
 Call `get_current_session` with:
+
 - `external_id`: (required) Your CLI's session ID
 - `source`: (required) CLI source - "claude", "antigravity", "gemini", or "codex"
 
@@ -34,7 +35,8 @@ Returns your internal Gobby session_id from the external CLI session ID.
 **How to find your external_id by CLI:**
 
 | CLI | How to find external_id |
-|-----|------------------------|
+| :--- | :--- |
+
 | **Claude Code** | Extract from your JSONL transcript path: `/path/to/<external_id>.jsonl` |
 | **Antigravity** | Same as Claude Code - extract from JSONL path |
 | **Gemini** | Extract from your transcript path filename |
@@ -52,6 +54,7 @@ Example: `/gobby sessions get-current ea13ad4f-ca32-48e6-9000-e5e6af35a397 claud
 
 ### `/gobby sessions list` - List all sessions
 Call `list_sessions` with:
+
 - `limit`: Max results (default 20)
 - `status`: Filter by status (active, ended)
 - `source`: Filter by source (claude, gemini, codex)
@@ -65,6 +68,7 @@ Example: `/gobby sessions list claude` → `list_sessions(source="claude")`
 
 ### `/gobby sessions show <session-id>` - Show session details
 Call `get_session` with:
+
 - `session_id`: (required) The session ID to retrieve
 
 Returns full session details including:
@@ -78,6 +82,7 @@ Example: `/gobby sessions show sess-abc123` → `get_session(session_id="sess-ab
 
 ### `/gobby sessions messages <session-id>` - Get session messages
 Call `get_session_messages` with:
+
 - `session_id`: (required) Session ID
 - `limit`: Max messages to return
 - `offset`: Skip first N messages
@@ -89,6 +94,7 @@ Example: `/gobby sessions messages` → `get_session_messages(session_id="<curre
 
 ### `/gobby sessions search <query>` - Search messages
 Call `search_messages` with:
+
 - `query`: (required) Search query (uses FTS)
 - `session_id`: Optional - scope to specific session
 - `limit`: Max results
@@ -101,6 +107,7 @@ Example: `/gobby sessions search error --session=sess-abc123` → `search_messag
 
 ### `/gobby sessions handoff` - Create session handoff
 Call `create_handoff` with:
+
 - `session_id`: (REQUIRED) Your session ID - from injected context or `get_current_session()`
 - `notes`: Optional notes to include
 - `compact`: Generate compact markdown
@@ -115,6 +122,7 @@ Example: `/gobby sessions handoff --notes="Continue with auth feature"` → `cre
 
 ### `/gobby sessions get-handoff <session-id>` - Get existing handoff
 Call `get_handoff_context` with:
+
 - `session_id`: (required) Session ID
 
 Retrieves the handoff context (compact_markdown) for a session.
@@ -123,6 +131,7 @@ Example: `/gobby sessions get-handoff sess-abc123` → `get_handoff_context(sess
 
 ### `/gobby sessions pickup [session-id]` - Resume a previous session
 Call `pickup` with:
+
 - `session_id`: Optional specific session ID (defaults to most recent)
 - `source`: Filter by source (claude, gemini, codex)
 - `project_id`: Optional project scope
@@ -135,6 +144,7 @@ Example: `/gobby sessions pickup sess-abc123` → `pickup(session_id="sess-abc12
 
 ### `/gobby sessions commits <session-id>` - Get session commits
 Call `get_session_commits` with:
+
 - `session_id`: (required) Session ID
 - `max_commits`: Max commits to return
 
@@ -144,6 +154,7 @@ Example: `/gobby sessions commits` → `get_session_commits(session_id="<current
 
 ### `/gobby sessions stats` - Get session statistics
 Call `session_stats` with:
+
 - `project_id`: Optional project scope
 
 Returns session statistics for the project.
@@ -152,6 +163,7 @@ Example: `/gobby sessions stats` → `session_stats()`
 
 ### `/gobby sessions mark-complete` - Mark loop complete
 Call `mark_loop_complete` with:
+
 - `session_id`: (REQUIRED) Your session ID - from injected context or `get_current_session()`
 
 Marks the autonomous loop as complete, preventing session chaining.

@@ -111,7 +111,7 @@ call_tool("gobby-tasks", "close_task", {
 
 Your `session_id` is injected at session start. Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
 
-```
+```text
 Gobby Session Ref: #5
 Gobby Session ID: <uuid>
 ```
@@ -179,7 +179,7 @@ call_tool("gobby-agents", "kill_agent", {
 ## Troubleshooting
 
 | Issue | Solution |
-|-------|----------|
+| ------- | ---------- |
 | "Edit/Write blocked" | Create or claim a task first (see **claiming-tasks** skill) |
 | "Task has no commits" | Commit with `[task-id]` in message before closing |
 | "Agent depth exceeded" | Max nesting is 3 - reduce agent spawning depth |

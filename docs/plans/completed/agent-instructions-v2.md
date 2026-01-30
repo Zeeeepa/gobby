@@ -5,6 +5,7 @@
 Based on [Anthropic's Skill Authoring Best Practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices):
 
 **Key Guidelines:**
+
 - **Concise is key** - Every token must justify its existence
 - **SKILL.md under 500 lines** - Split into bundled files if larger
 - **Progressive disclosure is core** - SKILL.md points to bundled reference files
@@ -19,6 +20,7 @@ Anthropic doesn't explicitly distinguish "micro vs macro" skills, but says:
 - Split when approaching 500 lines
 
 **Conclusion for Gobby:**
+
 - **Keep macro-skills** (gobby-tasks at 305 lines is within best practices)
 - **Add micro-skills for guardrails** (claiming-tasks, discovering-tools)
 - **Extract duplicated context** to reduce token waste
@@ -31,6 +33,7 @@ Anthropic doesn't explicitly distinguish "micro vs macro" skills, but says:
 **Decision**: Skills are stored in Gobby database only, NOT installed to `.claude/skills/`.
 
 **Rationale**:
+
 - Avoids slash command pollution (could have 100+ skills)
 - Enforces progressive skill disclosure pattern
 - Skills are accessed via `gobby-skills` MCP server: `list_skills()` → `get_skill(name="...")`
@@ -108,7 +111,7 @@ This causes:
 ## Solution: Separate the Concerns
 
 | Concern | Where | Audience |
-|---------|-------|----------|
+| :--- | :--- | :--- |
 | **Building Gobby** | `CLAUDE.md` | Agents developing Gobby itself |
 | **Building WITH Gobby** | FastMCP `instructions` | Agents in ANY project using Gobby |
 
@@ -129,6 +132,7 @@ Create small, focused skills for common pain points. These are "remediation skil
 **Naming**: Following Anthropic's gerund-form convention.
 
 ### 1.1 `starting-sessions` (~50 lines)
+
 **Purpose**: First 5 things every session should do
 **Triggers**: Session start, "how do I begin", initialization questions
 
@@ -142,6 +146,7 @@ Create small, focused skills for common pain points. These are "remediation skil
 ```
 
 ### 1.2 `claiming-tasks` (~40 lines)
+
 **Purpose**: Quick reference when blocked by "no active task" error
 **Triggers**: Hook blocks edit, "no active task" error, task-related questions
 
@@ -157,6 +162,7 @@ The workflow system requires an active task before file modifications.
 ```
 
 ### 1.3 `discovering-tools` (~60 lines)
+
 **Purpose**: The dual pattern for MCP tools AND skills
 **Triggers**: Tool not found, schema questions, "what tools exist"
 
@@ -178,6 +184,7 @@ NEVER load all schemas/skills upfront - it wastes context.
 ```
 
 ### 1.4 `committing-changes` (~40 lines)
+
 **Purpose**: Commit message format and close flow
 **Triggers**: Ready to commit, closing tasks, "how do I commit"
 
@@ -272,7 +279,8 @@ When hooks block actions, include skill references:
 ### 3.1 Edit/Write Blocked (No Active Task)
 **Current**: Generic error
 **New**:
-```
+
+```text
 Blocked: No active task. Create or claim a task before editing files.
 See skill (MCP): claiming-tasks
 ```
@@ -280,7 +288,8 @@ See skill (MCP): claiming-tasks
 ### 3.2 Unknown Tool Called
 **Current**: Tool not found
 **New**:
-```
+
+```text
 Tool not found. Use progressive disclosure:
 1. list_tools(server="...") to discover tools
 2. get_tool_schema(server, tool) for full schema
@@ -438,19 +447,21 @@ mcp = FastMCP("gobby", instructions=build_gobby_instructions())
 ### Installation Architecture Change
 
 **Old approach** (slash commands):
-```
+
+```text
 gobby install → copies skills to .claude/skills/ → exposed as /skill-name
 ```
 
 **New approach** (MCP-only):
-```
+
+```text
 gobby install → skills bundled in package → synced to DB on startup → accessed via list_skills()/get_skill()
 ```
 
 **Skill locations**:
 
 | Location | Purpose | Audience |
-|----------|---------|----------|
+| :--- | :--- | :--- |
 | `src/gobby/install/shared/skills/` | Bundled with package (pip/uvx) | Internal - auto-synced to DB |
 | `docs/skills/` | Reference for GitHub users | External - manual reference |
 | `.claude/skills/` | **REMOVED** - backup existing | N/A |
