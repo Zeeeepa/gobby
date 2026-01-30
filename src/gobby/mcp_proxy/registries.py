@@ -138,14 +138,18 @@ def setup_internal_registries(
         manager.add_registry(memory_registry)
         logger.debug("Memory registry initialized")
 
-    # Initialize workflows registry (always available)
-    from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+    # Initialize workflows registry (requires db and session_manager)
+    if local_session_manager is not None:
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
 
-    workflows_registry = create_workflows_registry(
-        session_manager=local_session_manager,
-    )
-    manager.add_registry(workflows_registry)
-    logger.debug("Workflows registry initialized")
+        workflows_registry = create_workflows_registry(
+            session_manager=local_session_manager,
+            db=local_session_manager.db,
+        )
+        manager.add_registry(workflows_registry)
+        logger.debug("Workflows registry initialized")
+    else:
+        logger.warning("Workflows registry not initialized: local_session_manager is None")
 
     # Initialize metrics registry if metrics_manager is available
     if metrics_manager is not None:

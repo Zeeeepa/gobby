@@ -3,6 +3,7 @@ name: discovering-tools
 description: Progressive disclosure pattern for MCP tools and skills. Use when tools aren't found or you need to discover available capabilities.
 category: core
 alwaysApply: true
+injectionFormat: full
 ---
 
 # Discovering Tools - Progressive Disclosure Pattern
@@ -11,9 +12,9 @@ This skill teaches the progressive disclosure pattern for both MCP tools and ski
 
 ## Core Principle
 
-**NEVER load all schemas/skills upfront** - it wastes your context window.
+**NEVER load all schemas upfront** - loading 50+ tool schemas can consume 30-40K tokens.
 
-Instead, use a layered approach: discover servers, then tools, then schemas only when needed.
+Instead, use a layered approach: discover servers, then tools, then schemas only when needed. This reduces token usage by ~95%.
 
 ## MCP Tool Discovery
 
@@ -84,18 +85,25 @@ Finds relevant skills by semantic search.
 ### Wrong: Loading Everything Upfront
 
 ```python
-# Don't do this - wastes 5000+ tokens
+# Don't do this - wastes 30-40K tokens
 for server in servers:
     for tool in list_tools(server):
         get_tool_schema(server, tool)  # Unnecessary!
 ```
 
+### Wrong: Calling Tools Without Schema
+
+```python
+# Don't guess at parameters
+call_tool("gobby-tasks", "create_task", {"name": "Fix bug"})  # Wrong param!
+```
+
 ### Right: Just-in-Time Discovery
 
 ```python
-# Only get schema when you're about to call the tool
-get_tool_schema("gobby-tasks", "create_task")
-call_tool("gobby-tasks", "create_task", {...})
+# Check schema first, then call
+get_tool_schema("gobby-tasks", "create_task")  # Learn: needs "title" not "name"
+call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123"})
 ```
 
 ## Available Internal Servers

@@ -101,6 +101,8 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
                 source_ref=None,
                 project_id=None,  # Global scope
                 enabled=True,
+                always_apply=parsed.always_apply,
+                injection_format=parsed.injection_format,
             )
 
             logger.info(f"Synced bundled skill: {parsed.name}")

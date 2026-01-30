@@ -19,6 +19,89 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# MCP discovery tools that don't require prior schema lookup
+DISCOVERY_TOOLS = {
+    "list_mcp_servers",
+    "list_tools",
+    "get_tool_schema",
+    "search_tools",
+    "recommend_tools",
+    "list_skills",
+    "get_skill",
+    "search_skills",
+}
+
+
+def is_discovery_tool(tool_name: str | None) -> bool:
+    """Check if the tool is a discovery/introspection tool.
+
+    These tools are allowed without prior schema lookup since they ARE
+    the discovery mechanism.
+
+    Args:
+        tool_name: The MCP tool name (from tool_input.tool_name)
+
+    Returns:
+        True if this is a discovery tool that doesn't need schema unlock
+    """
+    return tool_name in DISCOVERY_TOOLS if tool_name else False
+
+
+def is_tool_unlocked(
+    tool_input: dict[str, Any],
+    variables: dict[str, Any],
+) -> bool:
+    """Check if a tool has been unlocked via prior get_tool_schema call.
+
+    Args:
+        tool_input: The tool input containing server_name and tool_name
+        variables: Workflow state variables containing unlocked_tools list
+
+    Returns:
+        True if the server:tool combo was previously unlocked via get_tool_schema
+    """
+    server = tool_input.get("server_name", "")
+    tool = tool_input.get("tool_name", "")
+    if not server or not tool:
+        return False
+    key = f"{server}:{tool}"
+    unlocked = variables.get("unlocked_tools", [])
+    return key in unlocked
+
+
+def track_schema_lookup(
+    tool_input: dict[str, Any],
+    workflow_state: WorkflowState | None,
+) -> dict[str, Any] | None:
+    """Track a successful get_tool_schema call by adding to unlocked_tools.
+
+    Called from on_after_tool when tool_name is get_tool_schema and succeeded.
+
+    Args:
+        tool_input: The tool input containing server_name and tool_name
+        workflow_state: Workflow state to update
+
+    Returns:
+        Dict with tracking result or None
+    """
+    if not workflow_state:
+        return None
+
+    server = tool_input.get("server_name", "")
+    tool = tool_input.get("tool_name", "")
+    if not server or not tool:
+        return None
+
+    key = f"{server}:{tool}"
+    unlocked = workflow_state.variables.setdefault("unlocked_tools", [])
+
+    if key not in unlocked:
+        unlocked.append(key)
+        logger.debug(f"Unlocked tool schema: {key}")
+        return {"unlocked": key, "total_unlocked": len(unlocked)}
+
+    return {"already_unlocked": key}
+
 
 def _is_plan_file(file_path: str, source: str | None = None) -> bool:
     """Check if file path is a Claude Code plan file (platform-agnostic).
@@ -99,6 +182,8 @@ def _evaluate_block_condition(
     # Allowed functions for safe evaluation
     allowed_funcs: dict[str, Callable[..., Any]] = {
         "is_plan_file": _is_plan_file,
+        "is_discovery_tool": is_discovery_tool,
+        "is_tool_unlocked": lambda ti: is_tool_unlocked(ti, variables),
         "bool": bool,
         "str": str,
         "int": int,

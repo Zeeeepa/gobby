@@ -17,6 +17,13 @@ variables:
   # Clear task_claimed variable on successful close_task
   clear_task_on_close: true
 
+  # Progressive tool discovery - require get_tool_schema before call_tool
+  # Set to false to disable this enforcement
+  enforce_tool_schema_check: true
+  # List of server:tool combos that have been unlocked via get_tool_schema
+  # Reset on compact/clear since context is lost
+  unlocked_tools: []
+
 triggers:
   on_stop:
     # Task closure enforcement - block stop if task is still in_progress
@@ -33,6 +40,13 @@ triggers:
       when: "event.data.get('source') in ['clear', 'compact', 'startup']"
       name: plan_mode
       value: false
+
+    # Reset unlocked_tools on compact/clear since context is lost
+    # Agent must re-learn schemas after context compaction
+    - action: set_variable
+      when: "event.data.get('source') in ['clear', 'compact']"
+      name: unlocked_tools
+      value: []
 
     # Capture baseline dirty files for session-aware commit detection
     # Must run FIRST so baseline is captured before any modifications
@@ -137,6 +151,21 @@ triggers:
             - Task is no longer needed: reason="obsolete"
             - Task duplicates another: reason="duplicate"
             - Decided not to do it: reason="wont_fix"
+
+        # Block call_tool if schema wasn't fetched first (progressive disclosure)
+        # Skip for discovery tools (list_tools, get_tool_schema, etc.)
+        - mcp_tools: ["gobby:call_tool"]
+          when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+          reason: |
+
+            Schema required before calling {{ tool_input.get('server_name') }}:{{ tool_input.get('tool_name') }}.
+
+            Run first:
+              get_tool_schema("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}")
+
+  on_after_tool:
+    # Track successful get_tool_schema calls to unlock tools for call_tool
+    - action: track_schema_lookup
 
   on_session_end:
     # Session summary generation - always runs on session end

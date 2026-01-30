@@ -387,6 +387,9 @@ class SessionEventHandlerMixin(EventHandlersBase):
         """Build skill injection context for session-start.
 
         Combines alwaysApply skills with skills restored from parent session.
+        Uses per-skill injection_format to control how each skill is injected:
+        - "summary": name + description only
+        - "full" or "content": name + description + full content
 
         Args:
             parent_session_id: Optional parent session ID to restore skills from
@@ -402,17 +405,19 @@ class SessionEventHandlerMixin(EventHandlersBase):
         if not self._skills_config.inject_core_skills:
             return None
 
-        # Check injection format
+        # Check injection format (global config level)
         if self._skills_config.injection_format == "none":
             return None
 
-        # Get alwaysApply skills
+        # Get alwaysApply skills (efficiently via column query)
         try:
-            core_skills = self._skill_manager.discover_core_skills()
-            always_apply_skills = [s for s in core_skills if s.is_always_apply()]
+            always_apply_skills = self._skill_manager.discover_core_skills()
 
             # Get restored skills from parent session
             restored_skills = self._restore_skills_from_parent(parent_session_id)
+
+            # Build a map of always_apply skills for quick lookup
+            always_apply_map = {s.name: s for s in always_apply_skills}
 
             # Combine: alwaysApply skills + any additional restored skills
             skill_names = [s.name for s in always_apply_skills]
@@ -423,29 +428,36 @@ class SessionEventHandlerMixin(EventHandlersBase):
             if not skill_names:
                 return None
 
-            # Build context based on format
-            if self._skills_config.injection_format == "summary":
-                return (
-                    "\n## Available Skills\n"
-                    f"The following skills are always available: {', '.join(skill_names)}\n"
-                    "Use the /skill-name syntax to invoke them."
-                )
-            elif self._skills_config.injection_format == "full":
-                parts = ["\n## Available Skills\n"]
-                # Build a map of always_apply skills for quick lookup
-                always_apply_map = {s.name: s for s in always_apply_skills}
-                # Iterate over combined skill_names list (always_apply + restored)
-                for skill_name in skill_names:
+            # Build context with per-skill injection format
+            parts = ["\n## Available Skills\n"]
+
+            for skill_name in skill_names:
+                skill = always_apply_map.get(skill_name)
+                if not skill:
+                    # Restored skill not in always_apply - just list the name
+                    parts.append(f"- **{skill_name}**")
+                    continue
+
+                # Determine injection format for this skill
+                # Use per-skill injection_format, fallback to global config
+                skill_format = skill.injection_format or self._skills_config.injection_format
+
+                if skill_format in ("full", "content"):
+                    # Full injection: name + description + content
                     parts.append(f"### {skill_name}")
-                    # Get description from always_apply skill if available
-                    if skill_name in always_apply_map:
-                        skill = always_apply_map[skill_name]
-                        if skill.description:
-                            parts.append(skill.description)
+                    if skill.description:
+                        parts.append(f"*{skill.description}*\n")
+                    if skill.content:
+                        parts.append(skill.content)
                     parts.append("")
-                return "\n".join(parts)
-            else:
-                return None
+                else:
+                    # Summary injection: name + description only
+                    if skill.description:
+                        parts.append(f"- **{skill_name}**: {skill.description}")
+                    else:
+                        parts.append(f"- **{skill_name}**")
+
+            return "\n".join(parts)
 
         except Exception as e:
             self.logger.warning(f"Failed to build skill injection context: {e}")
