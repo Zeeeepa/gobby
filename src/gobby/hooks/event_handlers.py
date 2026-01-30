@@ -864,9 +864,22 @@ class EventHandlers:
     # ==================== COMPACT HANDLER ====================
 
     def handle_pre_compact(self, event: HookEvent) -> HookResponse:
-        """Handle PRE_COMPACT event."""
+        """Handle PRE_COMPACT event.
+
+        Note: Gemini fires PreCompress constantly during normal operation,
+        unlike Claude which fires it only when approaching context limits.
+        We skip handoff logic and workflow execution for Gemini to avoid
+        excessive state changes and workflow interruptions.
+        """
+        from gobby.hooks.events import SessionSource
+
         trigger = event.data.get("trigger", "auto")
         session_id = event.metadata.get("_platform_session_id")
+
+        # Skip handoff logic for Gemini - it fires PreCompress too frequently
+        if event.source == SessionSource.GEMINI:
+            self.logger.debug(f"PRE_COMPACT ({trigger}): session {session_id} [Gemini - skipped]")
+            return HookResponse(decision="allow")
 
         if session_id:
             self.logger.debug(f"PRE_COMPACT ({trigger}): session {session_id}")

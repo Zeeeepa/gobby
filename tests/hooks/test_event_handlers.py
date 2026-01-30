@@ -1389,6 +1389,28 @@ class TestPreCompactHandlerEdgeCases:
 
         assert "Compact context" in response.context
 
+    def test_pre_compact_gemini_skips_handoff(self, mock_dependencies: dict) -> None:
+        """Test PRE_COMPACT skips handoff logic for Gemini source.
+
+        Gemini fires PreCompress constantly during normal operation,
+        unlike Claude which fires it only when approaching context limits.
+        """
+        handlers = EventHandlers(**mock_dependencies)
+        event = make_event(
+            HookEventType.PRE_COMPACT,
+            source="gemini",
+            data={"trigger": "auto"},
+            metadata={"_platform_session_id": "sess-123"},
+        )
+
+        response = handlers.handle_pre_compact(event)
+
+        assert response.decision == "allow"
+        # Should NOT update session status for Gemini
+        mock_dependencies["session_manager"].update_session_status.assert_not_called()
+        # Should NOT execute workflow handler for Gemini
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.assert_not_called()
+
 
 class TestSubagentHandlerEdgeCases:
     """Test SUBAGENT_START and SUBAGENT_STOP edge cases."""
