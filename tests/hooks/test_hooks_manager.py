@@ -14,6 +14,7 @@ from gobby.storage.projects import LocalProjectManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_daemon_client():
     """Create a mock daemon client."""
@@ -254,7 +255,7 @@ class TestHookManagerSessionStart:
         # Response should include system message indicating session enhancement
         assert response.system_message is not None
         assert "Gobby Session ID:" in response.system_message
-        assert "External ID:" in response.system_message
+        assert "CLI-Specific Session ID (external_id):" in response.system_message
 
     def test_session_resume_no_handoff_message(
         self,
@@ -289,7 +290,7 @@ class TestHookManagerSessionStart:
         # Parent finding only runs on source='clear'
         assert response.system_message is not None
         assert "Gobby Session ID:" in response.system_message
-        assert "External ID:" in response.system_message
+        assert "CLI-Specific Session ID (external_id):" in response.system_message
         assert "Context restored" not in (response.system_message or "")
 
 
@@ -532,7 +533,9 @@ class TestHookManagerCachedDaemonStatus:
 class TestHookManagerConfigLoadError:
     """Tests for config loading error handling."""
 
-    def test_init_handles_config_load_error(self, temp_dir: Path, mock_daemon_client: MagicMock) -> None:
+    def test_init_handles_config_load_error(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ) -> None:
         """Test that init handles config loading errors gracefully."""
         with (
             patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
@@ -1434,7 +1437,9 @@ class TestHookManagerShutdownWebhook:
 
         assert manager._health_monitor._is_shutdown is True
 
-    def test_shutdown_handles_webhook_close_error(self, hook_manager_with_mocks: HookManager) -> None:
+    def test_shutdown_handles_webhook_close_error(
+        self, hook_manager_with_mocks: HookManager
+    ) -> None:
         """Test that shutdown handles webhook dispatcher close errors."""
         manager = hook_manager_with_mocks
 
@@ -1454,7 +1459,9 @@ class TestHookManagerShutdownWebhook:
 class TestHookManagerResolveProjectId:
     """Tests for project ID resolution."""
 
-    def test_resolve_project_id_returns_provided_id(self, hook_manager_with_mocks: HookManager) -> None:
+    def test_resolve_project_id_returns_provided_id(
+        self, hook_manager_with_mocks: HookManager
+    ) -> None:
         """Test that provided project ID is returned directly."""
         manager = hook_manager_with_mocks
 
@@ -1559,7 +1566,9 @@ class TestHookManagerLogging:
 class TestHookManagerPluginLoading:
     """Tests for plugin loading during initialization."""
 
-    def test_init_loads_plugins_when_enabled(self, temp_dir: Path, mock_daemon_client: MagicMock) -> None:
+    def test_init_loads_plugins_when_enabled(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ) -> None:
         """Test that plugins are loaded when enabled in config."""
         from gobby.config.extensions import PluginsConfig
 
@@ -1596,7 +1605,9 @@ class TestHookManagerPluginLoading:
 
             manager.shutdown()
 
-    def test_init_handles_plugin_load_error(self, temp_dir: Path, mock_daemon_client: MagicMock) -> None:
+    def test_init_handles_plugin_load_error(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ) -> None:
         """Test that plugin loading errors are handled gracefully."""
         from gobby.config.extensions import PluginsConfig
 
@@ -1665,7 +1676,9 @@ class TestHookManagerContextMerging:
 class TestHookManagerMachineIdFallback:
     """Tests for machine ID fallback behavior."""
 
-    def test_get_machine_id_returns_unknown_on_none(self, hook_manager_with_mocks: HookManager) -> None:
+    def test_get_machine_id_returns_unknown_on_none(
+        self, hook_manager_with_mocks: HookManager
+    ) -> None:
         """Test that get_machine_id returns 'unknown-machine' when underlying returns None."""
         manager = hook_manager_with_mocks
 

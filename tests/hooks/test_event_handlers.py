@@ -357,7 +357,7 @@ class TestSessionStartPreCreatedSession:
         assert "Parent session: sess-parent-456" in response.context
         assert response.metadata["parent_session_id"] == "sess-parent-456"
         assert "Gobby Session ID:" in response.system_message
-        assert "External ID:" in response.system_message
+        assert "CLI-Specific Session ID (external_id):" in response.system_message
 
     def test_pre_created_session_with_agent_run_id(self, mock_dependencies: dict) -> None:
         """Test pre-created session with agent_run_id starts the agent run."""
@@ -1258,7 +1258,9 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_edit_marks_had_edits(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL marks had_edits for edit tools on regular files."""
-        mock_dependencies["task_manager"].list_tasks.return_value = [MagicMock()]  # Has claimed task
+        mock_dependencies["task_manager"].list_tasks.return_value = [
+            MagicMock()
+        ]  # Has claimed task
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
             HookEventType.AFTER_TOOL,
@@ -1275,7 +1277,9 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_edit_skips_gobby_internal_files(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL does NOT mark had_edits for .gobby/ internal files."""
-        mock_dependencies["task_manager"].list_tasks.return_value = [MagicMock()]  # Has claimed task
+        mock_dependencies["task_manager"].list_tasks.return_value = [
+            MagicMock()
+        ]  # Has claimed task
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
             HookEventType.AFTER_TOOL,
@@ -1292,7 +1296,9 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_edit_skips_relative_gobby_path(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL does NOT mark had_edits for relative .gobby/ paths."""
-        mock_dependencies["task_manager"].list_tasks.return_value = [MagicMock()]  # Has claimed task
+        mock_dependencies["task_manager"].list_tasks.return_value = [
+            MagicMock()
+        ]  # Has claimed task
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
             HookEventType.AFTER_TOOL,

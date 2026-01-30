@@ -240,13 +240,14 @@ class ClaudeCodeAdapter(BaseAdapter):
             external_id = response.metadata.get("external_id")
             if gobby_session_id:
                 # Build context with all available identifiers
-                # Use clear naming: Session Ref for MCP calls, External ID for transcripts
+                # Format: "Gobby Session ID: #N (or UUID)" so agents know both work
                 context_lines = []
                 if session_ref:
-                    context_lines.append(f"Gobby Session Ref: {session_ref}")
-                context_lines.append(f"Gobby Session ID: {gobby_session_id}")
+                    context_lines.append(f"Gobby Session ID: {session_ref} (or {gobby_session_id})")
+                else:
+                    context_lines.append(f"Gobby Session ID: {gobby_session_id}")
                 if external_id:
-                    context_lines.append(f"External ID: {external_id}")
+                    context_lines.append(f"CLI-Specific Session ID (external_id): {external_id}")
                 if response.metadata.get("parent_session_id"):
                     context_lines.append(
                         f"parent_session_id: {response.metadata['parent_session_id']}"
