@@ -13,7 +13,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -238,6 +238,39 @@ class ClaudeLLMProvider(LLMProvider):
 
         return prompt_template.format(**formatted_context)
 
+    async def _retry_async(
+        self,
+        operation: Any,
+        max_retries: int = 3,
+        delay: float = 1.0,
+        on_retry: Any | None = None,
+    ) -> Any:
+        """
+        Execute an async operation with retry logic.
+
+        Args:
+            operation: Callable that returns an awaitable (coroutine factory).
+            max_retries: Maximum number of attempts (default: 3).
+            delay: Delay in seconds between retries (default: 1.0).
+            on_retry: Optional callback(attempt: int, error: Exception) called on retry.
+
+        Returns:
+            Result of the operation if successful.
+
+        Raises:
+            Exception: The last exception if all retries fail.
+        """
+        for attempt in range(max_retries):
+            try:
+                return await operation()
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    if on_retry:
+                        on_retry(attempt, e)
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+
     async def generate_summary(
         self, context: dict[str, Any], prompt_template: str | None = None
     ) -> str:
@@ -360,22 +393,16 @@ class ClaudeLLMProvider(LLMProvider):
                             title_text = block.text
             return title_text.strip()
 
+        def _on_retry(attempt: int, error: Exception) -> None:
+            self.logger.warning(
+                f"Title synthesis failed (attempt {attempt + 1}), retrying: {error}"
+            )
+
         try:
-            # Retry logic for title synthesis
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    return await _run_query()
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        self.logger.warning(
-                            f"Title synthesis failed (attempt {attempt + 1}), retrying: {e}"
-                        )
-                        await asyncio.sleep(1)
-                    else:
-                        raise e
-            # This should be unreachable, but mypy can't prove it
-            return None  # pragma: no cover
+            result = await self._retry_async(
+                _run_query, max_retries=3, delay=1.0, on_retry=_on_retry
+            )
+            return cast(str, result)
         except Exception as e:
             self.logger.error(f"Failed to synthesize title with Claude: {e}")
             return None
@@ -395,32 +422,30 @@ class ClaudeLLMProvider(LLMProvider):
             )
         prompt = prompt_template.format(user_prompt=user_prompt)
 
+        async def _run_query() -> str:
+            response = await self._litellm.acompletion(
+                model=f"anthropic/{self.config.title_synthesis.model}",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a session title generator. Create concise, descriptive titles.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=100,
+            )
+            return (response.choices[0].message.content or "").strip()
+
+        def _on_retry(attempt: int, error: Exception) -> None:
+            self.logger.warning(
+                f"Title synthesis failed (attempt {attempt + 1}), retrying: {error}"
+            )
+
         try:
-            # Retry logic for title synthesis
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    response = await self._litellm.acompletion(
-                        model=f"anthropic/{self.config.title_synthesis.model}",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a session title generator. Create concise, descriptive titles.",
-                            },
-                            {"role": "user", "content": prompt},
-                        ],
-                        max_tokens=100,
-                    )
-                    return (response.choices[0].message.content or "").strip()
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        self.logger.warning(
-                            f"Title synthesis failed (attempt {attempt + 1}), retrying: {e}"
-                        )
-                        await asyncio.sleep(1)
-                    else:
-                        raise e
-            return None  # pragma: no cover
+            result = await self._retry_async(
+                _run_query, max_retries=3, delay=1.0, on_retry=_on_retry
+            )
+            return cast(str, result)
         except Exception as e:
             self.logger.error(f"Failed to synthesize title with LiteLLM: {e}")
             return None
@@ -725,19 +750,19 @@ class ClaudeLLMProvider(LLMProvider):
         else:
             return await self._describe_image_litellm(image_path, context)
 
-    async def _describe_image_sdk(
-        self,
-        image_path: str,
-        context: str | None = None,
-    ) -> str:
-        """Describe image using Claude Agent SDK (subscription mode)."""
+    def _prepare_image_data(self, image_path: str) -> tuple[str, str] | str:
+        """
+        Validate and prepare image data for API calls.
+
+        Args:
+            image_path: Path to the image file.
+
+        Returns:
+            Tuple of (image_base64, mime_type) on success, or error string on failure.
+        """
         import base64
         import mimetypes
         from pathlib import Path
-
-        cli_path = self._verify_cli_path()
-        if not cli_path:
-            return "Image description unavailable (Claude CLI not found)"
 
         # Validate image exists
         path = Path(image_path)
@@ -756,6 +781,24 @@ class ClaudeLLMProvider(LLMProvider):
         mime_type, _ = mimetypes.guess_type(str(path))
         if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
             mime_type = "image/png"
+
+        return (image_base64, mime_type)
+
+    async def _describe_image_sdk(
+        self,
+        image_path: str,
+        context: str | None = None,
+    ) -> str:
+        """Describe image using Claude Agent SDK (subscription mode)."""
+        cli_path = self._verify_cli_path()
+        if not cli_path:
+            return "Image description unavailable (Claude CLI not found)"
+
+        # Prepare image data
+        result = self._prepare_image_data(image_path)
+        if isinstance(result, str):
+            return result
+        image_base64, mime_type = result
 
         # Build prompt with image
         text_prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
@@ -815,30 +858,14 @@ class ClaudeLLMProvider(LLMProvider):
         context: str | None = None,
     ) -> str:
         """Describe image using LiteLLM (api_key mode)."""
-        import base64
-        import mimetypes
-        from pathlib import Path
-
         if not self._litellm:
             return "Image description unavailable (LiteLLM not initialized)"
 
-        # Validate image exists
-        path = Path(image_path)
-        if not path.exists():
-            return f"Image not found: {image_path}"
-
-        # Read and encode image
-        try:
-            image_data = path.read_bytes()
-            image_base64 = base64.standard_b64encode(image_data).decode("utf-8")
-        except Exception as e:
-            self.logger.error(f"Failed to read image {image_path}: {e}")
-            return f"Failed to read image: {e}"
-
-        # Determine media type
-        mime_type, _ = mimetypes.guess_type(str(path))
-        if mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
-            mime_type = "image/png"
+        # Prepare image data
+        result = self._prepare_image_data(image_path)
+        if isinstance(result, str):
+            return result
+        image_base64, mime_type = result
 
         # Build prompt
         prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
