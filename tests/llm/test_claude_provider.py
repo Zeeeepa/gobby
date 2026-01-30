@@ -235,7 +235,12 @@ class MockLiteLLM:
 
 def test_auth_mode_default_is_subscription(claude_config):
     """Test default auth_mode is subscription."""
-    with mock_claude_sdk(lambda p, o: iter([])):
+
+    async def mock_query(prompt, options):
+        return
+        yield  # Make this an async generator that yields nothing
+
+    with mock_claude_sdk(mock_query):
         provider = ClaudeLLMProvider(claude_config)
         assert provider.auth_mode == "subscription"
 

@@ -10,7 +10,7 @@ from gobby.mcp_proxy.tools.workflows._types import (
     resolve_session_id,
     resolve_session_task_value,
 )
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.definitions import WorkflowState
@@ -22,7 +22,7 @@ def activate_workflow(
     loader: WorkflowLoader,
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     name: str,
     session_id: str | None = None,
     initial_step: str | None = None,
@@ -106,7 +106,12 @@ def activate_workflow(
             }
         step = initial_step
     else:
-        step = definition.steps[0].name if definition.steps else "default"
+        if not definition.steps:
+            return {
+                "success": False,
+                "error": f"Workflow '{name}' has no steps defined. Cannot activate a workflow without steps.",
+            }
+        step = definition.steps[0].name
 
     # Merge workflow default variables with passed-in variables
     merged_variables = dict(definition.variables)  # Start with workflow defaults
@@ -190,9 +195,25 @@ def end_workflow(
     if not state:
         return {"success": False, "error": "No workflow active for session"}
 
+    # Check if this is a lifecycle workflow - those cannot be ended manually
+    # Auto-discover project path if not provided (needed to load workflow definition)
+    discovered = get_workflow_project_path()
+    proj = Path(discovered) if discovered else None
+
+    # We need a loader to check the workflow type
+    loader = WorkflowLoader()
+    definition = loader.load_workflow(state.workflow_name, proj)
+
+    # If definition exists and is lifecycle type, block manual ending
+    if definition and definition.type == "lifecycle":
+        return {
+            "success": False,
+            "error": f"Workflow '{state.workflow_name}' is lifecycle type (auto-runs on events, cannot be manually ended).",
+        }
+
     state_manager.delete_state(resolved_session_id)
 
-    return {"success": True}
+    return {"success": True, "workflow": state.workflow_name, "reason": reason}
 
 
 def request_step_transition(
