@@ -9,6 +9,7 @@ from gobby.prompts import PromptLoader, PromptTemplate
 
 pytestmark = pytest.mark.unit
 
+
 class TestPromptLoader:
     """Tests for PromptLoader class."""
 
@@ -23,20 +24,6 @@ class TestPromptLoader:
         assert template.name == "expansion/system"
         assert "senior technical project manager" in template.content
         assert template.source_path is not None
-
-    def test_load_from_fallback(self) -> None:
-        """Test loading prompt from registered fallback."""
-        loader = PromptLoader()
-        fallback_content = "This is the fallback content"
-
-        # Register a fallback for a non-existent template
-        loader.register_fallback("test/nonexistent", lambda: fallback_content)
-
-        template = loader.load("test/nonexistent")
-
-        assert template is not None
-        assert template.content == fallback_content
-        assert template.source_path is None
 
     def test_load_file_not_found(self) -> None:
         """Test that FileNotFoundError is raised for non-existent templates."""
@@ -185,10 +172,6 @@ Extra content here.
 
         assert loader.exists("expansion/system") is True
         assert loader.exists("nonexistent/path") is False
-
-        # Register fallback
-        loader.register_fallback("test/fallback", lambda: "content")
-        assert loader.exists("test/fallback") is True
 
     def test_frontmatter_parsing(self) -> None:
         """Test YAML frontmatter parsing."""

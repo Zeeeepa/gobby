@@ -8,6 +8,9 @@ settings:
 # Session-scoped variables (can be overridden per session)
 # These provide runtime control over behavior settings
 variables:
+  # Debug: echo additionalContext to system_message for terminal visibility
+  debug_echo_context: true
+
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
 
@@ -159,7 +162,7 @@ triggers:
           when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
           reason: |
 
-            Schema required before calling {{ tool_input.get('server_name') }}:{{ tool_input.get('tool_name') }}.
+            Schema required before calling call_tool("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}").
 
             Run first:
               get_tool_schema("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}")

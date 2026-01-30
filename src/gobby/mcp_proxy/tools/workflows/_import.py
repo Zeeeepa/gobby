@@ -44,7 +44,7 @@ def import_workflow(
         return {"success": False, "error": "Workflow file must have .yaml extension"}
 
     try:
-        with open(source) as f:
+        with open(source, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not data or "name" not in data:

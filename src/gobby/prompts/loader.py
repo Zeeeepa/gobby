@@ -12,7 +12,6 @@ Implements prompt loading with precedence:
 
 import logging
 import re
-from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -65,21 +64,6 @@ class PromptLoader:
 
         # Template cache
         self._cache: dict[str, PromptTemplate] = {}
-
-        # Fallback registry for strangler fig pattern
-        self._fallbacks: dict[str, Callable[[], str]] = {}
-
-    def register_fallback(self, path: str, getter: Callable[[], str]) -> None:
-        """Register a Python constant fallback for a template path.
-
-        Used for strangler fig pattern - if template file doesn't exist,
-        fall back to the original Python constant.
-
-        Args:
-            path: Template path (e.g., "expansion/system")
-            getter: Callable that returns the fallback string
-        """
-        self._fallbacks[path] = getter
 
     def clear_cache(self) -> None:
         """Clear the template cache."""
@@ -160,19 +144,6 @@ class PromptLoader:
             )
             self._cache[path] = template
             logger.debug(f"Loaded prompt template '{path}' from {template_file}")
-            return template
-
-        # Fall back to registered Python constant
-        if path in self._fallbacks:
-            fallback_content = self._fallbacks[path]()
-            template = PromptTemplate(
-                name=path,
-                description=f"Fallback for {path}",
-                content=fallback_content,
-                source_path=None,
-            )
-            self._cache[path] = template
-            logger.debug(f"Using fallback for prompt template '{path}'")
             return template
 
         raise FileNotFoundError(f"Prompt template not found: {path}")
@@ -280,7 +251,7 @@ class PromptLoader:
         Returns:
             True if template exists (file or fallback)
         """
-        return self._find_template_file(path) is not None or path in self._fallbacks
+        return self._find_template_file(path) is not None
 
     def list_templates(self, category: str | None = None) -> list[str]:
         """List available template paths.
@@ -304,11 +275,6 @@ class PromptLoader:
 
                 if category is None or template_path.startswith(f"{category}/"):
                     templates.add(template_path)
-
-        # Add registered fallbacks
-        for fallback_path in self._fallbacks:
-            if category is None or fallback_path.startswith(f"{category}/"):
-                templates.add(fallback_path)
 
         return sorted(templates)
 

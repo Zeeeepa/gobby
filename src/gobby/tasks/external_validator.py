@@ -46,12 +46,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Default system prompt for external validators
-DEFAULT_EXTERNAL_SYSTEM_PROMPT = (
-    "You are an objective QA validator reviewing code changes. "
-    "You have no prior context about this task - evaluate purely based on "
-    "the acceptance criteria and the changes provided. "
-    "Be thorough but fair in your assessment."
-)
+
 
 # Module-level loader (initialized lazily)
 _loader: PromptLoader | None = None
@@ -62,10 +57,7 @@ def _get_loader(project_dir: Path | None = None) -> PromptLoader:
     global _loader
     if _loader is None:
         _loader = PromptLoader(project_dir=project_dir)
-        # Register fallbacks for strangler fig pattern
-        _loader.register_fallback(
-            "external_validation/system", lambda: DEFAULT_EXTERNAL_SYSTEM_PROMPT
-        )
+
     return _loader
 
 
@@ -218,13 +210,8 @@ async def _run_llm_validation(
     # Build the validation prompt
     prompt = _build_external_validation_prompt(task, changes_context)
 
-    # System prompt emphasizing objectivity
-    system_prompt = (
-        "You are an objective QA validator reviewing code changes. "
-        "You have no prior context about this task - evaluate purely based on "
-        "the acceptance criteria and the changes provided. "
-        "Be thorough but fair in your assessment."
-    )
+    # Render system prompt
+    system_prompt = _loader.render("external_validation/system", {})
 
     try:
         provider = llm_service.get_provider(config.provider)

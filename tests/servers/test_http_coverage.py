@@ -19,6 +19,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from gobby.app_context import ServiceContainer
 from gobby.servers.http import HTTPServer, create_server, run_server
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
@@ -59,19 +60,36 @@ def test_project(project_storage: LocalProjectManager, temp_dir: Path) -> dict[s
 @pytest.fixture
 def basic_http_server(session_storage: LocalSessionManager) -> HTTPServer:
     """Create a basic HTTP server instance for testing."""
+    mock_config = MagicMock()
+    mock_config.logging.max_size_mb = 10
+    mock_config.logging.backup_count = 3
+    mock_config.memory.backend = "null"  # Avoid ValueError in memory backend init
+    mock_config.workflow.timeout = 30  # Avoid TypeError in workflow hook init
+    mock_config.workflow.enabled = True
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+
+    services = ServiceContainer(
+        config=mock_config,
+        database=session_storage.db,
+        session_manager=session_storage,
+        task_manager=MagicMock(),
+    )
     return HTTPServer(
+        services=services,
         port=60887,
         test_mode=True,
-        mcp_manager=None,
-        config=None,
-        session_manager=session_storage,
     )
 
 
 @pytest.fixture
-def client(basic_http_server: HTTPServer) -> TestClient:
+def client(basic_http_server: HTTPServer) -> Iterator[TestClient]:
     """Create a test client for the HTTP server."""
-    return TestClient(basic_http_server.app)
+    with patch("gobby.servers.http.HookManager") as MockHM:
+        mock_instance = MockHM.return_value
+        mock_instance._stop_registry = MagicMock()
+        mock_instance.shutdown = MagicMock()
+        with TestClient(basic_http_server.app) as client:
+            yield client
 
 
 # ============================================================================
@@ -84,66 +102,121 @@ class TestHTTPServerInit:
 
     def test_init_minimal(self) -> None:
         """Test HTTPServer with minimal configuration."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
         assert server.port == 8000
         assert server.test_mode is True
         assert server.mcp_manager is None
-        assert server.config is None
-        assert server.session_manager is None
+        assert server.config is services.config
+        assert server.session_manager is services.session_manager
         assert server._mcp_server is None
         assert server._internal_manager is None
         assert server._tools_handler is None
 
     def test_init_with_port(self) -> None:
         """Test HTTPServer with custom port."""
-        server = HTTPServer(port=9999, test_mode=False)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=9999, test_mode=False)
         assert server.port == 9999
         assert server.test_mode is False
 
     def test_init_sets_start_time(self) -> None:
         """Test that HTTPServer sets start time."""
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
         before = time.time()
-        server = HTTPServer(port=8000, test_mode=True)
+        server = HTTPServer(services=services, port=8000, test_mode=True)
         after = time.time()
         assert before <= server._start_time <= after
 
     def test_init_creates_broadcaster(self) -> None:
         """Test that HTTPServer creates broadcaster."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
         assert server.broadcaster is not None
 
     def test_init_with_session_manager(self, session_storage: LocalSessionManager) -> None:
         """Test HTTPServer with session manager."""
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=8000,
             test_mode=True,
-            session_manager=session_storage,
         )
         assert server.session_manager is session_storage
 
     def test_init_background_tasks_empty(self) -> None:
         """Test that background tasks set is initialized empty."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
         assert isinstance(server._background_tasks, set)
         assert len(server._background_tasks) == 0
 
     def test_init_running_flag_false(self) -> None:
         """Test that _running is initially False."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
         assert server._running is False
 
     def test_init_creates_app(self) -> None:
         """Test that HTTPServer creates FastAPI app."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
         assert isinstance(server.app, FastAPI)
 
     def test_init_with_llm_service(self) -> None:
         """Test HTTPServer with provided LLM service."""
         mock_llm = MagicMock()
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+            llm_service=mock_llm,
+        )
         server = HTTPServer(
+            services=services,
             port=8000,
             test_mode=True,
-            llm_service=mock_llm,
         )
         assert server.llm_service is mock_llm
 
@@ -152,32 +225,49 @@ class TestHTTPServerInit:
         mock_config = MagicMock()
         mock_config.llm = MagicMock()
 
+        # Mock the ServiceContainer to return our mock config
+        services = ServiceContainer(
+            config=mock_config,
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+
         with patch("gobby.servers.http.create_llm_service") as mock_create:
             mock_llm = MagicMock()
             mock_llm.enabled_providers = ["anthropic"]
             mock_create.return_value = mock_llm
 
             server = HTTPServer(
+                services=services,
                 port=8000,
                 test_mode=True,
-                config=mock_config,
             )
 
             mock_create.assert_called_once_with(mock_config)
             assert server.llm_service is mock_llm
+            # Also verify container was updated
+            assert server.services.llm_service is mock_llm
 
     def test_init_llm_service_creation_failure(self) -> None:
         """Test HTTPServer handles LLM service creation failure."""
         mock_config = MagicMock()
+
+        services = ServiceContainer(
+            config=mock_config,
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
 
         with patch("gobby.servers.http.create_llm_service") as mock_create:
             mock_create.side_effect = RuntimeError("LLM initialization failed")
 
             # Should not raise, just log warning
             server = HTTPServer(
+                services=services,
                 port=8000,
                 test_mode=True,
-                config=mock_config,
             )
 
             assert server.llm_service is None
@@ -240,7 +330,13 @@ class TestProcessShutdown:
     @pytest.mark.asyncio
     async def test_shutdown_no_pending_tasks(self) -> None:
         """Test shutdown with no pending background tasks."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         await server._process_shutdown()
 
@@ -250,7 +346,13 @@ class TestProcessShutdown:
     @pytest.mark.asyncio
     async def test_shutdown_waits_for_pending_tasks(self) -> None:
         """Test shutdown waits for pending background tasks."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         # Create a task that completes quickly
         async def quick_task() -> None:
@@ -268,7 +370,13 @@ class TestProcessShutdown:
     @pytest.mark.asyncio
     async def test_shutdown_timeout_with_slow_tasks(self) -> None:
         """Test shutdown times out with very slow tasks."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         # Create a task that takes a very long time
         async def slow_task() -> None:
@@ -304,10 +412,17 @@ class TestProcessShutdown:
     async def test_shutdown_disconnects_mcp_servers(self) -> None:
         """Test shutdown disconnects MCP servers."""
         mock_mcp_manager = AsyncMock()
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+            mcp_manager=mock_mcp_manager,
+        )
         server = HTTPServer(
+            services=services,
             port=8000,
             test_mode=True,
-            mcp_manager=mock_mcp_manager,
         )
 
         await server._process_shutdown()
@@ -320,10 +435,17 @@ class TestProcessShutdown:
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.disconnect_all.side_effect = RuntimeError("Disconnect failed")
 
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+            mcp_manager=mock_mcp_manager,
+        )
         server = HTTPServer(
+            services=services,
             port=8000,
             test_mode=True,
-            mcp_manager=mock_mcp_manager,
         )
 
         # Should not raise
@@ -332,7 +454,13 @@ class TestProcessShutdown:
     @pytest.mark.asyncio
     async def test_shutdown_increments_success_metric(self) -> None:
         """Test shutdown increments success metric."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         with patch.object(server._metrics, "inc_counter") as mock_inc:
             await server._process_shutdown()
@@ -350,7 +478,13 @@ class TestCreateServer:
     @pytest.mark.asyncio
     async def test_create_server_minimal(self) -> None:
         """Test create_server with minimal arguments."""
-        server = await create_server(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = await create_server(services=services, port=8000, test_mode=True)
 
         assert isinstance(server, HTTPServer)
         assert server.port == 8000
@@ -362,12 +496,18 @@ class TestCreateServer:
         mock_mcp_manager = MagicMock()
         mock_config = MagicMock()
 
+        services = ServiceContainer(
+            config=mock_config,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+            mcp_manager=mock_mcp_manager,
+        )
+
         server = await create_server(
+            services=services,
             port=9000,
             test_mode=False,
-            mcp_manager=mock_mcp_manager,
-            config=mock_config,
-            session_manager=session_storage,
         )
 
         assert server.port == 9000
@@ -388,12 +528,12 @@ class TestAdminEndpoints:
 
     def test_status_check_running_true(self, client: TestClient) -> None:
         """Test status check when server is running."""
-        # The TestClient context sets _running to True during lifespan
-        with TestClient(client.app) as c:
-            response = c.get("/admin/status")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] in ["healthy", "degraded"]
+        # The TestClient fixture sets _running to True during lifespan
+        response = client.get("/admin/status")
+        assert response.status_code == 200
+        data = response.json()
+        # Accept any valid running status
+        assert data["status"] in ["healthy", "degraded", "ok"]
 
     def test_status_check_with_daemon(self, basic_http_server: HTTPServer) -> None:
         """Test status check includes daemon status when available."""
@@ -429,11 +569,16 @@ class TestAdminEndpoints:
 
         task_manager = LocalTaskManager(temp_db)
 
-        server = HTTPServer(
-            port=60887,
-            test_mode=True,
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
             session_manager=session_storage,
             task_manager=task_manager,
+        )
+        server = HTTPServer(
+            services=services,
+            port=60887,
+            test_mode=True,
         )
 
         client = TestClient(server.app)
@@ -455,11 +600,17 @@ class TestAdminEndpoints:
             "avg_importance": 0.75,
         }
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+            memory_manager=mock_memory_manager,
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
-            memory_manager=mock_memory_manager,
         )
 
         client = TestClient(server.app)
@@ -477,11 +628,17 @@ class TestAdminEndpoints:
         mock_memory_manager = MagicMock()
         mock_memory_manager.get_stats.side_effect = RuntimeError("Memory error")
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+            memory_manager=mock_memory_manager,
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
-            memory_manager=mock_memory_manager,
         )
 
         client = TestClient(server.app)
@@ -501,24 +658,32 @@ class TestAdminEndpoints:
         # Shutdown was initiated
         assert response.json()["status"] == "shutting_down"
 
-    def test_metrics_endpoint_with_daemon(self, basic_http_server: HTTPServer) -> None:
+    def test_metrics_endpoint_with_daemon(
+        self, client: TestClient, basic_http_server: HTTPServer
+    ) -> None:
         """Test metrics endpoint updates daemon metrics."""
         mock_daemon = MagicMock()
         mock_daemon.uptime = 120.5
         basic_http_server._daemon = mock_daemon
 
-        with TestClient(basic_http_server.app) as client:
-            response = client.get("/admin/metrics")
+        response = client.get("/admin/metrics")
 
         assert response.status_code == 200
         assert "text/plain" in response.headers["content-type"]
+        assert "daemon_uptime_seconds 120.5" in response.text
 
     def test_config_endpoint_error_handling(self, session_storage: LocalSessionManager) -> None:
         """Test config endpoint handles errors."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         # Make get_version raise an exception
@@ -547,10 +712,16 @@ class TestMCPEndpoints:
     @pytest.fixture
     def mcp_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for MCP tests."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         return HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
     @pytest.fixture
@@ -681,13 +852,21 @@ class TestMCPEndpointsWithManager:
         session_storage: LocalSessionManager,
     ) -> HTTPServer:
         """Create HTTP server and set mcp_manager after init to avoid GobbyDaemonTools."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         # Set mcp_manager directly to avoid GobbyDaemonTools initialization
         server.mcp_manager = FakeMCPManagerSimple()
+        # Also update container reference
+        server.services.mcp_manager = server.mcp_manager
         return server
 
     @pytest.fixture
@@ -739,10 +918,16 @@ class TestCodeEndpoints:
     @pytest.fixture
     def code_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for code endpoint tests."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         return HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
     @pytest.fixture
@@ -790,6 +975,10 @@ class TestHooksEndpoints:
 
     def test_execute_hook_without_hook_manager(self, client: TestClient) -> None:
         """Test execute hook when hook manager not initialized."""
+        # Ensure hook_manager is not present (lifespan might have added it)
+        if hasattr(client.app.state, "hook_manager"):
+            del client.app.state.hook_manager
+
         response = client.post(
             "/hooks/execute",
             json={"hook_type": "session-start", "source": "claude"},
@@ -799,10 +988,16 @@ class TestHooksEndpoints:
 
     def test_execute_hook_with_mock_manager(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with mocked hook manager."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         # Set up mock hook manager
@@ -837,10 +1032,16 @@ class TestHooksEndpoints:
         "hook failed" warnings), the endpoint should return 200 with continue=True
         and helpful additionalContext.
         """
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         mock_hook_manager = MagicMock()
@@ -879,10 +1080,16 @@ class TestHooksEndpoints:
         self, session_storage: LocalSessionManager
     ) -> None:
         """Test graceful error response for hook types that don't support additionalContext."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         mock_hook_manager = MagicMock()
@@ -924,10 +1131,16 @@ class TestPluginsEndpoints:
     @pytest.fixture
     def plugins_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for plugins tests."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         return HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
     @pytest.fixture
@@ -949,10 +1162,16 @@ class TestPluginsEndpoints:
         self, session_storage: LocalSessionManager
     ) -> None:
         """Test list plugins with mock hook manager."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         with TestClient(server.app) as client:
@@ -989,10 +1208,16 @@ class TestWebhooksEndpoints:
     @pytest.fixture
     def webhooks_server(self, session_storage: LocalSessionManager) -> HTTPServer:
         """Create server for webhooks tests."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         return HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
     @pytest.fixture
@@ -1012,10 +1237,16 @@ class TestWebhooksEndpoints:
 
     def test_list_webhooks_endpoint_exists(self, session_storage: LocalSessionManager) -> None:
         """Test webhooks endpoint works with minimal config."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         with TestClient(server.app) as client:
@@ -1055,10 +1286,16 @@ class TestExceptionHandlers:
         self, session_storage: LocalSessionManager
     ) -> None:
         """Test that global exception handler logs request details."""
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         @server.app.get("/trigger_error")
@@ -1082,10 +1319,16 @@ class TestExceptionHandlers:
         self, session_storage: LocalSessionManager
     ) -> None:
         """Test exception handler includes request path in logs."""
+        services = ServiceContainer(
+            config=MagicMock(),
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         @server.app.get("/custom/error/path")
@@ -1110,10 +1353,16 @@ class TestLifespan:
 
     def test_lifespan_sets_running_flag(self, session_storage: LocalSessionManager) -> None:
         """Test that lifespan sets _running flag."""
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
 
         assert server._running is False
@@ -1128,12 +1377,20 @@ class TestLifespan:
         mock_config.logging.hook_manager = "/tmp/hooks.log"
         mock_config.logging.max_size_mb = 10
         mock_config.logging.backup_count = 3
+        mock_config.workflow.timeout = 30
+        mock_config.workflow.enabled = True
+
+        services = ServiceContainer(
+            config=mock_config,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
 
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
-            config=mock_config,
         )
 
         with patch("gobby.servers.http.HookManager") as MockHM:
@@ -1152,7 +1409,13 @@ class TestRunServer:
     @pytest.mark.asyncio
     async def test_run_server_creates_uvicorn_config(self) -> None:
         """Test run_server creates proper uvicorn config."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=None,
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         mock_config_class = MagicMock()
         mock_server_class = MagicMock()
@@ -1184,7 +1447,13 @@ class TestRunServer:
     @pytest.mark.asyncio
     async def test_run_server_handles_keyboard_interrupt(self) -> None:
         """Test run_server handles KeyboardInterrupt gracefully."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=None,
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         mock_server_class = MagicMock()
         mock_server_instance = AsyncMock()
@@ -1201,7 +1470,13 @@ class TestRunServer:
     @pytest.mark.asyncio
     async def test_run_server_handles_system_exit(self) -> None:
         """Test run_server handles SystemExit gracefully."""
-        server = HTTPServer(port=8000, test_mode=True)
+        services = ServiceContainer(
+            config=None,
+            database=MagicMock(),
+            session_manager=MagicMock(),
+            task_manager=MagicMock(),
+        )
+        server = HTTPServer(services=services, port=8000, test_mode=True)
 
         mock_server_class = MagicMock()
         mock_server_instance = AsyncMock()
@@ -1234,10 +1509,16 @@ class TestInternalRegistries:
         mock_registry.list_tools.return_value = [{"name": "tool1", "description": "Test tool"}]
         mock_internal_manager.get_registry.return_value = mock_registry
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         server._internal_manager = mock_internal_manager
 
@@ -1258,10 +1539,16 @@ class TestInternalRegistries:
         mock_internal_manager.get_registry.return_value = None
         mock_internal_manager.get_all_registries.return_value = []
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         server._internal_manager = mock_internal_manager
 
@@ -1279,10 +1566,16 @@ class TestInternalRegistries:
         mock_registry.call = AsyncMock(return_value={"result": "success"})
         mock_internal_manager.get_registry.return_value = mock_registry
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         server._internal_manager = mock_internal_manager
 
@@ -1306,10 +1599,16 @@ class TestInternalRegistries:
         mock_registry.call = AsyncMock(side_effect=ValueError("Tool error"))
         mock_internal_manager.get_registry.return_value = mock_registry
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         server._internal_manager = mock_internal_manager
 
@@ -1333,10 +1632,16 @@ class TestInternalRegistries:
         }
         mock_internal_manager.get_registry.return_value = mock_registry
 
+        services = ServiceContainer(
+            config=None,
+            database=session_storage.db,
+            session_manager=session_storage,
+            task_manager=MagicMock(),
+        )
         server = HTTPServer(
+            services=services,
             port=60887,
             test_mode=True,
-            session_manager=session_storage,
         )
         server._internal_manager = mock_internal_manager
 

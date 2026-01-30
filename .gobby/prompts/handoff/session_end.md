@@ -48,9 +48,7 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 {{ git_status }}
 ```
 
-{% if todo_list %}
 {{ todo_list }}
-{% endif %}
 
 ## Next Steps
 [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]

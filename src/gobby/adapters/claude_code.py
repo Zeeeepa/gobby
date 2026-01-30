@@ -61,13 +61,10 @@ class ClaudeCodeAdapter(BaseAdapter):
         """Initialize the Claude Code adapter.
 
         Args:
-            hook_manager: Reference to HookManager for strangler fig delegation.
+            hook_manager: Reference to HookManager for delegation.
                          If None, the adapter can only translate (not handle events).
         """
         self._hook_manager = hook_manager
-        # Phase 2C: Use new handle() path with unified HookEvent model
-        # Note: systemMessage handoff notification bug exists in both paths (see plan-multi-cli.md)
-        self._use_legacy = False
 
     def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent:
         """Convert Claude Code native event to unified HookEvent.
@@ -310,14 +307,6 @@ class ClaudeCodeAdapter(BaseAdapter):
     ) -> dict[str, Any]:
         """Main entry point for HTTP endpoint.
 
-        Strangler fig pattern:
-        - Phase 2A-2B: Delegates to existing execute() — validates translation only
-        - Phase 2C+: Calls new handle() with HookEvent
-
-        Note: This method is synchronous for Phase 2A-2B compatibility with
-        the existing execute() method. In Phase 2C+, it will become async
-        when handle() is implemented as async.
-
         Args:
             native_event: Raw payload from Claude Code's hook_dispatcher.py
             hook_manager: HookManager instance for processing.
@@ -325,22 +314,10 @@ class ClaudeCodeAdapter(BaseAdapter):
         Returns:
             Response dict in Claude Code's expected format.
         """
-        # Always translate (validates our mapping is correct)
+        # Translate to HookEvent
         hook_event = self.translate_to_hook_event(native_event)
 
-        # Phase 2C+: Use new HookEvent-based handler
-        # Legacy execute() path removed as HookManager.execute is deprecated/removed.
+        # Use HookEvent-based handler
         hook_type = native_event.get("hook_type", "")
         hook_response = hook_manager.handle(hook_event)
         return self.translate_from_hook_response(hook_response, hook_type=hook_type)
-
-    def set_legacy_mode(self, use_legacy: bool) -> None:
-        """Toggle between legacy and new code paths.
-
-        This method is used during the strangler fig migration to switch
-        between delegating to execute() and calling handle() directly.
-
-        Args:
-            use_legacy: If True, use legacy execute() path. If False, use new handle() path.
-        """
-        self._use_legacy = use_legacy

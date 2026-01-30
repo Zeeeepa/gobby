@@ -19,17 +19,16 @@ from fastapi.responses import JSONResponse
 from gobby.adapters.codex_impl.adapter import CodexAdapter
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
-from gobby.llm import LLMService, create_llm_service
+from gobby.llm import create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.mcp_proxy.services.tool_filter import ToolFilterService
-from gobby.memory.manager import MemoryManager
-from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.tasks import LocalTaskManager
-from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.metrics import get_metrics_collector
 from gobby.utils.version import get_version
+
+if True:  # Type checking hack or just import
+    from gobby.app_context import ServiceContainer
 
 logger = logging.getLogger(__name__)
 
@@ -44,82 +43,49 @@ class HTTPServer:
 
     def __init__(
         self,
+        services: "ServiceContainer",
         port: int = 8000,
         test_mode: bool = False,
-        mcp_manager: Any | None = None,
-        mcp_db_manager: Any | None = None,
-        config: Any | None = None,
         codex_client: Any | None = None,
-        session_manager: LocalSessionManager | None = None,
-        websocket_server: Any | None = None,
-        task_manager: LocalTaskManager | None = None,
-        task_sync_manager: TaskSyncManager | None = None,
-        message_processor: Any | None = None,
-        message_manager: Any | None = None,  # LocalSessionMessageManager
-        memory_manager: "MemoryManager | None" = None,
-        llm_service: "LLMService | None" = None,
-        memory_sync_manager: Any | None = None,
-        task_validator: Any | None = None,
-        metrics_manager: Any | None = None,
-        agent_runner: Any | None = None,
-        worktree_storage: Any | None = None,
-        clone_storage: Any | None = None,
-        git_manager: Any | None = None,
-        project_id: str | None = None,
     ) -> None:
         """
         Initialize HTTP server.
 
         Args:
+            services: ServiceContainer holding all dependencies
             port: Server port
             test_mode: Run in test mode (disable features that conflict with testing)
-            mcp_manager: MCPClientManager instance for multi-server support
-            mcp_db_manager: LocalMCPManager instance for SQLite-based storage of MCP
-                server configurations and tool schemas. Used by ToolsHandler for
-                progressive tool discovery. Optional; defaults to None.
-            config: DaemonConfig instance for configuration
             codex_client: CodexAppServerClient instance for Codex integration
-            session_manager: LocalSessionManager for session storage
-            websocket_server: Optional WebSocketServer instance for event broadcasting
-            task_manager: LocalTaskManager instance
-            task_sync_manager: TaskSyncManager instance
-            message_processor: SessionMessageProcessor instance
-            message_manager: LocalSessionMessageManager instance for retrieval
-            memory_manager: MemoryManager instance
-            llm_service: LLMService instance
         """
+        self.services = services
         self.port = port
         self.test_mode = test_mode
-        self.mcp_manager = mcp_manager
-        self.config = config
         self.codex_client = codex_client
-        self.session_manager = session_manager
-        self.task_manager = task_manager
-        self.task_sync_manager = task_sync_manager
-        self.message_processor = message_processor
-        self.message_manager = message_manager
-        self.memory_manager = memory_manager
-        self.websocket_server = websocket_server
-        self.llm_service = llm_service
-        self.memory_sync_manager = memory_sync_manager
-        self.task_validator = task_validator
-        self.metrics_manager = metrics_manager
-        self.agent_runner = agent_runner
-        self.worktree_storage = worktree_storage
-        self.clone_storage = clone_storage
-        self.git_manager = git_manager
-        self.project_id = project_id
 
-        # Initialize WebSocket broadcaster
-        # Note: websocket_server might be None if disabled
-        self.broadcaster = HookEventBroadcaster(websocket_server, config)
+        # Unpack commonly used services for easier access and backward compat
+        self.config = services.config
+        self.session_manager = services.session_manager
+        self.task_manager = services.task_manager
+        self.mcp_manager = services.mcp_manager
+        self.llm_service = services.llm_service
+        self.websocket_server = services.websocket_server
+        self.task_sync_manager = services.task_sync_manager
+        self.message_processor = services.message_processor
+        self.message_manager = services.message_manager
+        self.memory_manager = services.memory_manager
+        self.memory_sync_manager = services.memory_sync_manager
+        self.metrics_manager = services.metrics_manager
+
+        self.broadcaster = HookEventBroadcaster(self.websocket_server, self.config)
 
         self._start_time: float = time.time()
 
-        # Create LLM service if not provided
-        if not self.llm_service and config:
+        # Create LLM service if not provided in container (fallback)
+        if not self.llm_service and self.config:
             try:
-                self.llm_service = create_llm_service(config)
+                self.llm_service = create_llm_service(self.config)
+                # Update container
+                self.services.llm_service = self.llm_service
                 logger.debug(
                     f"LLM service initialized with providers: {self.llm_service.enabled_providers}"
                 )
@@ -130,12 +96,13 @@ class HTTPServer:
         self._mcp_server = None
         self._internal_manager = None
         self._tools_handler = None
-        self._mcp_db_manager = mcp_db_manager
-        if mcp_manager:
+        self._mcp_db_manager = self.services.mcp_db_manager
+
+        if self.mcp_manager:
             # Determine WebSocket port
             ws_port = 60888
-            if config and hasattr(config, "websocket") and config.websocket:
-                ws_port = config.websocket.port
+            if self.config and hasattr(self.config, "websocket") and self.config.websocket:
+                ws_port = self.config.websocket.port
 
             # Create a lazy getter for tool_proxy that will be available after
             # GobbyDaemonTools is created. This allows in-process agents to route
@@ -149,36 +116,38 @@ class HTTPServer:
             merge_storage = None
             merge_resolver = None
             inter_session_message_manager = None
-            if mcp_db_manager:
+            if self.services.mcp_db_manager:
                 from gobby.storage.inter_session_messages import InterSessionMessageManager
                 from gobby.storage.merge_resolutions import MergeResolutionManager
                 from gobby.worktrees.merge.resolver import MergeResolver
 
-                merge_storage = MergeResolutionManager(mcp_db_manager.db)
+                merge_storage = MergeResolutionManager(self.services.mcp_db_manager.db)
                 merge_resolver = MergeResolver()
                 merge_resolver._llm_service = self.llm_service
-                inter_session_message_manager = InterSessionMessageManager(mcp_db_manager.db)
+                inter_session_message_manager = InterSessionMessageManager(
+                    self.services.mcp_db_manager.db
+                )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
             # Setup internal registries (gobby-tasks, gobby-memory, etc.)
             self._internal_manager = setup_internal_registries(
-                _config=config,
+                _config=self.config,
                 _session_manager=None,  # Not needed for internal registries
-                memory_manager=memory_manager,
-                task_manager=task_manager,
-                sync_manager=task_sync_manager,
-                task_validator=self.task_validator,
-                message_manager=message_manager,
-                local_session_manager=session_manager,
+                memory_manager=self.memory_manager,
+                task_manager=self.task_manager,
+                sync_manager=self.task_sync_manager,
+                task_validator=self.services.task_validator,
+                message_manager=self.services.message_manager,
+                local_session_manager=self.session_manager,
                 metrics_manager=self.metrics_manager,
                 llm_service=self.llm_service,
-                agent_runner=self.agent_runner,
-                worktree_storage=self.worktree_storage,
-                clone_storage=self.clone_storage,
-                git_manager=self.git_manager,
+                agent_runner=self.services.agent_runner,
+                worktree_storage=self.services.worktree_storage,
+                clone_storage=self.services.clone_storage,
+                git_manager=self.services.git_manager,
                 merge_storage=merge_storage,
                 merge_resolver=merge_resolver,
-                project_id=self.project_id,
+                project_id=self.services.project_id,
                 tool_proxy_getter=tool_proxy_getter,
                 inter_session_message_manager=inter_session_message_manager,
             )
@@ -186,22 +155,22 @@ class HTTPServer:
             logger.debug(f"Internal registries initialized: {registry_count} registries")
 
             # Initialize tool summarizer config
-            if config:
+            if self.config:
                 from gobby.tools.summarizer import init_summarizer_config
 
-                init_summarizer_config(config.tool_summarizer)
+                init_summarizer_config(self.config.tool_summarizer)
                 logger.debug("Tool summarizer config initialized")
 
             # Create semantic search instance if db available
             semantic_search = None
-            if mcp_db_manager:
-                semantic_search = SemanticToolSearch(db=mcp_db_manager.db)
+            if self.services.mcp_db_manager:
+                semantic_search = SemanticToolSearch(db=self.services.mcp_db_manager.db)
                 logger.debug("Semantic tool search initialized")
 
             # Create tool filter for workflow phase restrictions
             tool_filter = None
-            if mcp_db_manager:
-                tool_filter = ToolFilterService(db=mcp_db_manager.db)
+            if self.services.mcp_db_manager:
+                tool_filter = ToolFilterService(db=self.services.mcp_db_manager.db)
                 logger.debug("Tool filter service initialized")
 
             # Create fallback resolver for alternative tool suggestions on error
@@ -217,16 +186,16 @@ class HTTPServer:
 
             # Create tools handler
             self._tools_handler = GobbyDaemonTools(
-                mcp_manager=mcp_manager,
+                mcp_manager=self.mcp_manager,
                 daemon_port=port,
                 websocket_port=ws_port,
                 start_time=self._start_time,
                 internal_manager=self._internal_manager,
-                config=config,
+                config=self.config,
                 llm_service=self.llm_service,
-                session_manager=session_manager,
-                memory_manager=memory_manager,
-                config_manager=mcp_db_manager,
+                session_manager=self.session_manager,
+                memory_manager=self.memory_manager,
+                config_manager=self.services.mcp_db_manager,
                 semantic_search=semantic_search,
                 tool_filter=tool_filter,
                 fallback_resolver=fallback_resolver,
@@ -560,31 +529,25 @@ class HTTPServer:
 
 
 async def create_server(
+    services: "ServiceContainer",
     port: int = 60887,
     test_mode: bool = False,
-    mcp_manager: Any | None = None,
-    config: Any | None = None,
-    session_manager: LocalSessionManager | None = None,
 ) -> HTTPServer:
     """
     Create HTTP server instance.
 
     Args:
+        services: ServiceContainer holding dependencies
         port: Port to listen on
         test_mode: Enable test mode
-        mcp_manager: MCP client manager
-        config: Daemon configuration
-        session_manager: Local session manager
 
     Returns:
         Configured HTTPServer instance
     """
     return HTTPServer(
+        services=services,
         port=port,
         test_mode=test_mode,
-        mcp_manager=mcp_manager,
-        config=config,
-        session_manager=session_manager,
     )
 
 

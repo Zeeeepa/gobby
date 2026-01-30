@@ -6,11 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.config.persistence import MemoryConfig
 from gobby.memory.backends import get_backend
+from gobby.memory.components.ingestion import IngestionService
+from gobby.memory.components.search import SearchService
 from gobby.memory.context import build_memory_context
-from gobby.memory.ingestion import MultimodalIngestor
 from gobby.memory.protocol import MemoryBackendProtocol
-from gobby.memory.search.coordinator import SearchCoordinator
-from gobby.memory.services.crossref import CrossrefService
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
@@ -46,20 +45,13 @@ class MemoryManager:
         self.storage = LocalMemoryManager(db)
 
         # Initialize extracted components
-        self._search_coordinator = SearchCoordinator(
+        self._search_service = SearchService(
             storage=self.storage,
             config=config,
             db=db,
         )
 
-        self._crossref_service = CrossrefService(
-            storage=self.storage,
-            config=config,
-            search_backend_getter=lambda: self._search_coordinator.search_backend,
-            ensure_fitted=self._search_coordinator.ensure_fitted,
-        )
-
-        self._multimodal_ingestor = MultimodalIngestor(
+        self._ingestion_service = IngestionService(
             storage=self.storage,
             backend=self._backend,
             llm_service=llm_service,
@@ -68,14 +60,13 @@ class MemoryManager:
     @property
     def llm_service(self) -> LLMService | None:
         """Get the LLM service for image description."""
-        return self._llm_service
+        return self._ingestion_service.llm_service
 
     @llm_service.setter
     def llm_service(self, service: LLMService | None) -> None:
         """Set the LLM service for image description."""
         self._llm_service = service
-        # Keep multimodal ingestor in sync
-        self._multimodal_ingestor.llm_service = service
+        self._ingestion_service.llm_service = service
 
     @property
     def search_backend(self) -> Any:
@@ -86,15 +77,15 @@ class MemoryManager:
         - "tfidf" (default): Zero-dependency TF-IDF search
         - "text": Simple text substring matching
         """
-        return self._search_coordinator.search_backend
+        return self._search_service.backend
 
     def _ensure_search_backend_fitted(self) -> None:
         """Ensure the search backend is fitted with current memories."""
-        self._search_coordinator.ensure_fitted()
+        self._search_service.ensure_fitted()
 
     def mark_search_refit_needed(self) -> None:
         """Mark that the search backend needs to be refitted."""
-        self._search_coordinator.mark_refit_needed()
+        self._search_service.mark_refit_needed()
 
     def reindex_search(self) -> dict[str, Any]:
         """
@@ -109,7 +100,7 @@ class MemoryManager:
         Returns:
             Dict with index statistics including memory_count, backend_type, etc.
         """
-        return self._search_coordinator.reindex()
+        return self._search_service.reindex()
 
     async def remember(
         self,
@@ -161,7 +152,7 @@ class MemoryManager:
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
             try:
-                await self._crossref_service.create_crossrefs(memory)
+                await self._search_service.create_crossrefs(memory)
             except Exception as e:
                 # Don't fail the remember if crossref fails
                 logger.warning(f"Auto-crossref failed for {memory.id}: {e}")
@@ -202,7 +193,7 @@ class MemoryManager:
         Raises:
             ValueError: If LLM service is not configured or image not found
         """
-        memory = await self._multimodal_ingestor.remember_with_image(
+        memory = await self._ingestion_service.remember_with_image(
             image_path=image_path,
             context=context,
             memory_type=memory_type,
@@ -249,7 +240,7 @@ class MemoryManager:
         Raises:
             ValueError: If LLM service is not configured or screenshot bytes are empty
         """
-        memory = await self._multimodal_ingestor.remember_screenshot(
+        memory = await self._ingestion_service.remember_screenshot(
             screenshot_bytes=screenshot_bytes,
             context=context,
             memory_type=memory_type,
@@ -283,7 +274,7 @@ class MemoryManager:
         Returns:
             Number of cross-references created
         """
-        return await self._crossref_service.create_crossrefs(
+        return await self._search_service.create_crossrefs(
             memory=memory,
             threshold=threshold,
             max_links=max_links,
@@ -306,7 +297,7 @@ class MemoryManager:
         Returns:
             List of related Memory objects, sorted by similarity
         """
-        return await self._crossref_service.get_related(
+        return await self._search_service.get_related(
             memory_id=memory_id,
             limit=limit,
             min_similarity=min_similarity,
@@ -398,7 +389,7 @@ class MemoryManager:
         if use_semantic is not None:
             logger.warning("use_semantic argument is deprecated and ignored")
 
-        return self._search_coordinator.search(
+        return self._search_service.search(
             query=query,
             project_id=project_id,
             limit=limit,

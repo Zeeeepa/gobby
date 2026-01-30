@@ -9,6 +9,7 @@ from typing import Any
 import uvicorn
 
 from gobby.agents.runner import AgentRunner
+from gobby.app_context import ServiceContainer
 from gobby.config.app import load_config
 from gobby.llm import LLMService, create_llm_service
 from gobby.llm.resolver import ExecutorRegistry
@@ -212,28 +213,37 @@ class GobbyRunner:
         )
 
         # HTTP Server
-        self.http_server = HTTPServer(
-            port=self.config.daemon_port,
-            test_mode=self.config.test_mode,
-            mcp_manager=self.mcp_proxy,
-            mcp_db_manager=self.mcp_db_manager,
+        # Bundle services into container
+        services = ServiceContainer(
             config=self.config,
+            database=self.database,
             session_manager=self.session_manager,
             task_manager=self.task_manager,
             task_sync_manager=self.task_sync_manager,
-            message_manager=self.message_manager,
+            memory_sync_manager=self.memory_sync_manager,
             memory_manager=self.memory_manager,
             llm_service=self.llm_service,
-            message_processor=self.message_processor,
-            memory_sync_manager=self.memory_sync_manager,
-            task_validator=self.task_validator,
+            mcp_manager=self.mcp_proxy,
+            mcp_db_manager=self.mcp_db_manager,
             metrics_manager=self.metrics_manager,
             agent_runner=self.agent_runner,
+            message_processor=self.message_processor,
+            message_manager=self.message_manager,
+            task_validator=self.task_validator,
             worktree_storage=self.worktree_storage,
             clone_storage=self.clone_storage,
             git_manager=self.git_manager,
             project_id=self.project_id,
         )
+
+        self.http_server = HTTPServer(
+            services=services,
+            port=self.config.daemon_port,
+            test_mode=self.config.test_mode,
+        )
+
+        # Inject server into container for circular ref if needed later
+        # self.http_server.services = services
 
         # Ensure message_processor property is set (redundant but explicit):
         self.http_server.message_processor = self.message_processor
