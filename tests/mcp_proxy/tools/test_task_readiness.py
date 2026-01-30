@@ -546,7 +546,8 @@ class TestSuggestNextTaskWithParentTaskId:
         other_task.id = "other-1"
         other_task.parent_task_id = "other-epic"
 
-        task_manager.list_ready_tasks.return_value = [other_task]
+        # Parent task must appear in list_ready_tasks for it to be considered ready
+        task_manager.list_ready_tasks.return_value = [other_task, parent_task]
         task_manager.list_tasks.return_value = []  # No children of epic-1
         task_manager.get_task.return_value = parent_task
         task_manager.get_blocking_tasks.return_value = []  # No blockers

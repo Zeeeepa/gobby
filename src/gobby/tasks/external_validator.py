@@ -211,7 +211,7 @@ async def _run_llm_validation(
     prompt = _build_external_validation_prompt(task, changes_context)
 
     # Render system prompt
-    system_prompt = _loader.render("external_validation/system", {})
+    system_prompt = _get_loader().render("external_validation/system", {})
 
     try:
         provider = llm_service.get_provider(config.provider)

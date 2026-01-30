@@ -29,6 +29,11 @@ from gobby.utils.version import get_version
 
 if TYPE_CHECKING:
     from gobby.app_context import ServiceContainer
+    from gobby.config.app import DaemonConfig
+    from gobby.llm import LLMService
+    from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.servers.websocket import WebSocketServer
+    from gobby.utils.tool_metrics import ToolMetricsManager
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,9 @@ class HTTPServer:
         self.port = port
         self.test_mode = test_mode
         self.codex_client = codex_client
+
+        # WebSocket server reference (set by GobbyRunner after construction)
+        self.websocket_server: WebSocketServer | None = None
 
         self.broadcaster = HookEventBroadcaster(services.websocket_server, services.config)
 
@@ -105,11 +113,11 @@ class HTTPServer:
                 from gobby.storage.merge_resolutions import MergeResolutionManager
                 from gobby.worktrees.merge.resolver import MergeResolver
 
-                merge_storage = MergeResolutionManager(services.mcp_db_manager.db)
+                merge_storage = MergeResolutionManager(self.services.mcp_db_manager.db)
                 merge_resolver = MergeResolver()
                 merge_resolver._llm_service = services.llm_service
                 inter_session_message_manager = InterSessionMessageManager(
-                    services.mcp_db_manager.db
+                    self.services.mcp_db_manager.db
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
@@ -195,7 +203,7 @@ class HTTPServer:
 
     # Property accessors for services (delegate to container)
     @property
-    def config(self) -> Any:
+    def config(self) -> "DaemonConfig | None":
         return self.services.config
 
     @property
@@ -215,19 +223,19 @@ class HTTPServer:
         self.services.task_manager = value
 
     @property
-    def mcp_manager(self) -> Any:
+    def mcp_manager(self) -> "MCPClientManager | None":
         return self.services.mcp_manager
 
     @mcp_manager.setter
-    def mcp_manager(self, value: Any) -> None:
+    def mcp_manager(self, value: "MCPClientManager | None") -> None:
         self.services.mcp_manager = value
 
     @property
-    def llm_service(self) -> Any:
+    def llm_service(self) -> "LLMService | None":
         return self.services.llm_service
 
     @llm_service.setter
-    def llm_service(self, value: Any) -> None:
+    def llm_service(self, value: "LLMService | None") -> None:
         self.services.llm_service = value
 
     @property
@@ -255,11 +263,11 @@ class HTTPServer:
         self.services.message_processor = value
 
     @property
-    def metrics_manager(self) -> Any:
+    def metrics_manager(self) -> "ToolMetricsManager | None":
         return self.services.metrics_manager
 
     @metrics_manager.setter
-    def metrics_manager(self, value: Any) -> None:
+    def metrics_manager(self, value: "ToolMetricsManager | None") -> None:
         self.services.metrics_manager = value
 
     @property

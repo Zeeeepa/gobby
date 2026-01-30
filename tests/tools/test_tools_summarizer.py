@@ -204,10 +204,14 @@ class TestSummarizeDescriptionWithClaude:
 
         mock_sdk.query = MagicMock(side_effect=async_gen)
 
+        mock_loader = MagicMock()
+        mock_loader.render.return_value = "Long description " * 10
+
         with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
             with patch("gobby.tools.summarizer._get_config", return_value=mock_config):
-                result = await _summarize_description_with_claude("Long description " * 10)
-                assert result == "Summarized text"
+                with patch("gobby.tools.summarizer._loader", mock_loader):
+                    result = await _summarize_description_with_claude("Long description " * 10)
+                    assert result == "Summarized text"
 
     @pytest.mark.asyncio
     async def test_summarize_description_failure_fallback(self):
@@ -264,10 +268,14 @@ class TestGenerateServerDescription:
 
         mock_sdk.query = MagicMock(side_effect=async_gen)
 
+        mock_loader = MagicMock()
+        mock_loader.render.return_value = "Describe server1"
+
         with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
             with patch("gobby.tools.summarizer._get_config", return_value=mock_config):
-                result = await generate_server_description("server1", tool_summaries)
-                assert result == "Server does things."
+                with patch("gobby.tools.summarizer._loader", mock_loader):
+                    result = await generate_server_description("server1", tool_summaries)
+                    assert result == "Server does things."
 
     @pytest.mark.asyncio
     async def test_generate_server_description_failure_fallback(self):

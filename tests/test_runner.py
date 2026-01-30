@@ -828,7 +828,8 @@ class TestGobbyRunnerShutdown:
 
                 with patch.object(runner, "_setup_signal_handlers"):
                     # Should complete without hanging due to timeout handling
-                    await asyncio.wait_for(runner.run(), timeout=10.0)
+                    # Timeout must exceed graceful_shutdown_timeout (15) + buffer (5) + cleanup
+                    await asyncio.wait_for(runner.run(), timeout=25.0)
 
     @pytest.mark.asyncio
     async def test_run_handles_lifecycle_manager_shutdown_timeout(self, mock_config):

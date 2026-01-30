@@ -116,6 +116,7 @@ def daemon_tools(mock_mcp_manager, mock_llm_service):
     mock_rec_tools.enabled = True
     mock_rec_tools.provider = "claude"
     mock_rec_tools.prompt = "rec prompt"
+    mock_rec_tools.llm_prompt_path = None  # Use default prompt path
     mock_config.get_recommend_tools_config.return_value = mock_rec_tools
     mock_config.recommend_tools = mock_rec_tools  # Direct property access
 
