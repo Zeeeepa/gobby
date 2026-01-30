@@ -102,22 +102,23 @@ Legend:
 
 ### Skill enhancements
 
-- 🚧 Unified `/gobby` router skill (routes to skills and MCP servers)
+- ✅ Unified `/gobby` router skill (routes to skills and MCP servers)
+- ✅ Add `category` and top-level `alwaysApply` support
 - 🚧 Remove `gobby-` prefix from skill names
-- 🚧 Add `category` and top-level `alwaysApply` support
 
 ### Agent spawning v2
 
-- 🚧 Consolidate `start_agent`, `spawn_agent_in_worktree`, `spawn_agent_in_clone` into unified `spawn_agent` API
-- 🚧 Add `isolation` parameter: `current`, `worktree`, `clone`
+- ✅ Consolidate `start_agent`, `spawn_agent_in_worktree`, `spawn_agent_in_clone` into unified `spawn_agent` API
+- ✅ Add `isolation` parameter: `current`, `worktree`, `clone`
 - 🚧 Auto-generate branch names from task titles
 
 ### Code decomposition (strangler fig)
 
-- 🚧 Break up `mcp/tools.py` (1512 lines) into domain-specific endpoints
-- 🚧 Break up `workflows/actions.py` (1385 lines) into action handlers
-- 🚧 Break up `mcp_proxy/tools/worktrees.py` (1270 lines) into granular toolsets
-- 🚧 Break up `adapters/codex.py` (1333 lines) into types/client/adapter
+- ✅ Break up `mcp/tools.py` into domain-specific endpoints
+- ✅ Break up `workflows/actions.py` into action handlers
+- ✅ Break up `event_handlers.py` into domain-specific modules
+- ✅ Break up `adapters/codex.py` into `codex_impl/` package (types/client/adapter)
+- 🚧 Break up `mcp_proxy/tools/worktrees.py` into granular toolsets
 
 ### API versioning
 
@@ -126,7 +127,7 @@ Legend:
 
 ### Migration flattening
 
-- 🚧 Flatten migrations into baseline schema
+- ✅ Flatten migrations into baseline schema (BASELINE_SCHEMA_V2)
 - 🚧 Delete `migrations_legacy.py`
 
 ---
