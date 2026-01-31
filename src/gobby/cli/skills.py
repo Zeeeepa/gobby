@@ -239,10 +239,14 @@ def install(ctx: click.Context, source: str, project: bool) -> None:
     """Install a skill from a source.
 
     SOURCE can be:
+    - A hub reference (e.g., clawdhub:commit-message, skillhub:code-review)
     - A local directory path (e.g., ./my-skill or /path/to/skill)
     - A path to a SKILL.md file (e.g., ./SKILL.md)
     - A GitHub URL (owner/repo, github:owner/repo, https://github.com/owner/repo)
     - A ZIP archive path (e.g., ./skills.zip)
+
+    Use 'gobby skills hub list' to see available hubs.
+    Use 'gobby skills search <query>' to find skills.
 
     Use --project to scope the skill to the current project.
 

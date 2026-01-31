@@ -409,6 +409,41 @@ class TestSkillsInstallCommand:
         assert result.exit_code == 1
         assert "not found" in result.output.lower() or "error" in result.output.lower()
 
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_install_from_hub(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test installing from a hub using hub:slug syntax."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "skill_name": "commit-message",
+            "source_type": "hub",
+        }
+
+        result = runner.invoke(cli, ["skills", "install", "clawdhub:commit-message"])
+
+        assert result.exit_code == 0
+        assert "Installed skill: commit-message" in result.output
+        assert "hub" in result.output.lower()
+        mock_call_tool.assert_called_once()
+        call_args = mock_call_tool.call_args
+        assert call_args[0][1] == "install_skill"
+        assert call_args[0][2]["source"] == "clawdhub:commit-message"
+
+    def test_install_help_shows_hub_syntax(self, runner: CliRunner) -> None:
+        """Test that install help shows hub:slug syntax."""
+        result = runner.invoke(cli, ["skills", "install", "--help"])
+        assert result.exit_code == 0
+        # Should mention hub:slug format in help
+        assert "hub" in result.output.lower()
+
 
 class TestSkillsEnableDisableCommands:
     """Tests for gobby skills enable/disable commands."""
