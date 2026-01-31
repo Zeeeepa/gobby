@@ -98,10 +98,11 @@ Built-in workflows: `auto-task`, `plan-execute`, `test-driven`. Or write your ow
 Spawn agents in isolated git worktrees. Run tasks in parallel without stepping on each other. Gobby tracks which agent is where and what they're doing.
 
 ```python
-call_tool("gobby-worktrees", "spawn_agent_in_worktree", {
+call_tool("gobby", "spawn_agent", {
     "prompt": "Implement OAuth flow",
-    "branch_name": "feature/oauth",
-    "task_id": "task-123"
+    "task_id": "#123",
+    "isolation": "worktree",
+    "branch_name": "feature/oauth"
 })
 ```
 
@@ -296,23 +297,32 @@ Everything runs locally. No cloud. No API keys required (beyond what your AI CLI
 
 Gobby exposes tools via MCP that your AI coding assistant can use:
 
-**Task Management** (`gobby-tasks`)  
-`create_task`, `expand_task`, `validate_task`, `close_task`, `list_ready_tasks`, `suggest_next_task`, `add_dependency`, `get_dependency_tree`, and more.
+**Task Management** (`gobby-tasks`)
+`create_task`, `expand_task`, `validate_task`, `close_task`, `claim_task`, `list_ready_tasks`, `suggest_next_task`, `link_commit`, and more.
 
-**Session Management** (`gobby-sessions`)  
-`pickup` (restore context), `get_handoff_context`, `list_sessions`
+**Session Management** (`gobby-sessions`)
+`get_current_session`, `pickup` (restore context), `get_handoff_context`, `list_sessions`, `send_message`
 
-**Memory** (`gobby-memory`)  
+**Memory** (`gobby-memory`)
 `remember`, `recall`, `forget` — persistent facts across sessions
 
-**Workflows** (`gobby-workflows`)  
-`activate`, `advance`, `set_variable`, `get_status`
+**Workflows** (`gobby-workflows`)
+`activate`, `advance`, `set_variable`, `get_status`, `end_workflow`
 
-**Worktrees** (`gobby-worktrees`)  
-`create_worktree`, `spawn_agent_in_worktree`, `list_worktrees`
+**Agents** (`gobby-agents`)
+`spawn_agent` (unified API with `isolation`: current/worktree/clone), `list_agents`, `get_agent`, `kill_agent`
+
+**Worktrees** (`gobby-worktrees`)
+`create_worktree`, `list_worktrees`, `delete_worktree`, `merge_worktree`
+
+**Clones** (`gobby-clones`)
+`create_clone`, `list_clones`, `delete_clone`, `merge_clone_to_target`
+
+**Artifacts** (`gobby-artifacts`)
+`save_artifact`, `get_artifact`, `list_artifacts` — capture and retrieve session artifacts
 
 **MCP Proxy**
-`list_mcp_servers`, `add_mcp_server`, `import_mcp_server`, `list_tools`, `get_tool_schema`, `call_tool`, `recommend_tools`
+`list_mcp_servers`, `add_mcp_server`, `import_mcp_server`, `list_tools`, `get_tool_schema`, `call_tool`, `recommend_tools`, `search_tools`
 
 **Skills** (`gobby-skills`)
 `list_skills`, `get_skill`, `search_skills`, `install_skill`, `remove_skill`, `update_skill`
@@ -325,13 +335,13 @@ Gobby exposes tools via MCP that your AI coding assistant can use:
 
 See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
-**Shipped:** Task system v2 (commit linking, validation gates), TDD expansion v2 (red/green/blue generation), workflow engine, MCP proxy with progressive discovery, session tracking and handoffs, memory, hooks integration, worktree primitives
+**Shipped:** Task system v2 (commit linking, validation gates, Claude Code interop), TDD expansion v2 (red/green/blue generation), workflow engine (state machines, tool restrictions, exit conditions), MCP proxy with progressive discovery, session tracking and handoffs, memory v3 (backend abstraction), hooks integration for all CLIs, unified agent spawning, worktree and clone orchestration, skills system, artifacts capture
 
-**In Progress:** Memory v3 (backend abstraction layer for external memory solutions: MemU, Mem0, OpenMemory)
+**Beta:** Autonomous orchestration (conductor daemon, inter-agent messaging, token budget tracking, review gates)
 
-**Next:** Autonomous orchestration, TUI, Web UI (for remote access to your agents), Observability (tool call tracing, OpenTelemetry), Security posture for MCP (allow/deny lists, audit logging)
+**Next:** Security posture for MCP (allow/deny lists, audit logging), Observability (tool call tracing, session timelines), Web UI (read-only dashboard)
 
-**Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management (manage sessions across multiple machines), Plugin ecosystem, Team workflows, Enterprise hardening
+**Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management, Plugin ecosystem, Team workflows, Enterprise hardening
 
 ## Changelog
 
