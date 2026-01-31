@@ -241,9 +241,9 @@ args = ["mcp-server"]
 
 | CLI | Hooks | Status |
 | :--- | :--- | :--- |
-| **Claude Code** | ✅ Full support | All 14 hook types |
+| **Claude Code** | ✅ Full support | All hook types |
 | **Gemini CLI** | ✅ Full support | All hook types |
-| **Codex CLI** | ✅ Full support | Via app-server integration |
+| **Codex CLI** | ✅ Full support | Via app-server |
 
 ## How It Compares
 
