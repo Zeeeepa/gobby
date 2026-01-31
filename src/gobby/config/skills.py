@@ -16,9 +16,9 @@ class HubConfig(BaseModel):
     Configuration for a skill hub or collection.
     """
 
-    type: Literal["clawdhub", "skillhub", "github-collection"] = Field(
+    type: Literal["clawdhub", "skillhub", "github-collection", "claude-plugins"] = Field(
         ...,
-        description="Type of the hub: 'clawdhub', 'skillhub', or 'github-collection'",
+        description="Type of the hub: 'clawdhub', 'skillhub', 'github-collection', or 'claude-plugins'",
     )
 
     base_url: str | None = Field(
@@ -34,6 +34,11 @@ class HubConfig(BaseModel):
     branch: str | None = Field(
         default=None,
         description="Git branch to use",
+    )
+
+    path: str | None = Field(
+        default=None,
+        description="Subdirectory path within the repository where skills are located",
     )
 
     auth_key_name: str | None = Field(
@@ -66,10 +71,15 @@ class SkillsConfig(BaseModel):
 
     hubs: dict[str, HubConfig] = Field(
         default_factory=lambda: {
-            "gobby-skills": HubConfig(
+            "anthropic-skills": HubConfig(
                 type="github-collection",
-                repo="anthropics/gobby-skills",
+                repo="anthropics/skills",
                 branch="main",
+                path="skills",
+            ),
+            "claude-plugins": HubConfig(
+                type="claude-plugins",
+                base_url="https://claude-plugins.dev",
             ),
         },
         description="Configured skill hubs keyed by hub name",

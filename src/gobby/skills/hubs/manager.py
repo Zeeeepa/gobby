@@ -154,12 +154,21 @@ class HubManager:
         # Determine base_url - use config value or derive from hub type
         base_url = config.base_url or ""
 
+        # Build provider kwargs based on hub type
+        kwargs: dict[str, Any] = {
+            "hub_name": hub_name,
+            "base_url": base_url,
+            "auth_token": auth_token,
+        }
+
+        # Add type-specific config
+        if config.type == "github-collection":
+            kwargs["repo"] = config.repo
+            kwargs["branch"] = config.branch or "main"
+            kwargs["path"] = config.path
+
         # Create the provider
-        provider = factory(
-            hub_name=hub_name,
-            base_url=base_url,
-            auth_token=auth_token,
-        )
+        provider = factory(**kwargs)
         logger.debug(f"Created provider for hub: {hub_name} (type: {config.type})")
 
         return provider

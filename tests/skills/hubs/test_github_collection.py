@@ -69,6 +69,25 @@ class TestGitHubCollectionProvider:
         )
         assert provider.auth_token == "ghp_token123"
 
+    def test_init_with_path(self) -> None:
+        """Test initialization with path for subdirectory."""
+        provider = GitHubCollectionProvider(
+            hub_name="collection",
+            base_url="",
+            repo="anthropics/skills",
+            path="skills",
+        )
+        assert provider.path == "skills"
+
+    def test_init_default_path(self) -> None:
+        """Test default path is None."""
+        provider = GitHubCollectionProvider(
+            hub_name="collection",
+            base_url="",
+            repo="user/skills",
+        )
+        assert provider.path is None
+
 
 class TestGitHubCollectionProviderDiscover:
     """Tests for GitHubCollectionProvider discover functionality."""
@@ -322,6 +341,35 @@ class TestGitHubCollectionProviderFetchSkillList:
             call_kwargs = mock_client.get.call_args[1]
             assert "params" in call_kwargs
             assert call_kwargs["params"].get("ref") == "develop"
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_list_uses_path(self) -> None:
+        """Test _fetch_skill_list includes path in URL for subdirectory."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            path="skills",
+        )
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            await provider._fetch_skill_list()
+
+            # Should include path in URL
+            call_url = mock_client.get.call_args[0][0]
+            assert "anthropics/skills/contents/skills" in call_url
 
     @pytest.mark.asyncio
     async def test_fetch_skill_list_includes_auth_header(self) -> None:

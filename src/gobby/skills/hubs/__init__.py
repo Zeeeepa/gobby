@@ -6,12 +6,14 @@ from gobby.skills.hubs.base import (
     HubSkillDetails,
     HubSkillInfo,
 )
+from gobby.skills.hubs.claude_plugins import ClaudePluginsProvider
 from gobby.skills.hubs.clawdhub import ClawdHubProvider
 from gobby.skills.hubs.github_collection import GitHubCollectionProvider
 from gobby.skills.hubs.manager import HubManager
 from gobby.skills.hubs.skillhub import SkillHubProvider
 
 __all__ = [
+    "ClaudePluginsProvider",
     "ClawdHubProvider",
     "DownloadResult",
     "GitHubCollectionProvider",
