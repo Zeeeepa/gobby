@@ -540,10 +540,11 @@ async def evaluate_all_lifecycle_workflows(
 
             # Merge workflow definition's default variables (lower priority than session state)
             # Precedence: session state > workflow YAML defaults
-            workflow_context = {**workflow.variables, **context_data}
+            # Update context_data directly so workflow variables propagate to response metadata
+            context_data = {**workflow.variables, **context_data}
 
             response = await evaluate_workflow_triggers(
-                workflow, event, workflow_context, state_manager, action_executor, evaluator
+                workflow, event, context_data, state_manager, action_executor, evaluator
             )
 
             # Accumulate context
