@@ -154,7 +154,9 @@ class TestSkillsListCommand:
         assert "skill-no-tag" not in result.output
 
     @patch("gobby.cli.skills.get_skill_storage")
-    def test_list_with_category_display(self, mock_get_storage: MagicMock, runner: CliRunner) -> None:
+    def test_list_with_category_display(
+        self, mock_get_storage: MagicMock, runner: CliRunner
+    ) -> None:
         """Test that category is displayed in list output."""
         mock_storage = MagicMock()
         mock_skill = MagicMock()
@@ -561,7 +563,9 @@ class TestSkillsDocCommand:
         assert "--format" in result.output
 
     @patch("gobby.cli.skills.get_skill_storage")
-    def test_doc_outputs_markdown_table(self, mock_get_storage: MagicMock, runner: CliRunner) -> None:
+    def test_doc_outputs_markdown_table(
+        self, mock_get_storage: MagicMock, runner: CliRunner
+    ) -> None:
         """Test that doc outputs markdown table."""
         mock_storage = MagicMock()
         mock_skill = MagicMock()
@@ -1451,3 +1455,47 @@ class TestSkillsHubListCommand:
 
         assert result.exit_code == 0
         assert "No hubs configured" in result.output
+
+
+class TestSkillsHubAddCommand:
+    """Tests for gobby skills hub add command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_hub_add_help(self, runner: CliRunner) -> None:
+        """Test skills hub add --help."""
+        result = runner.invoke(cli, ["skills", "hub", "add", "--help"])
+        assert result.exit_code == 0
+        assert "Add" in result.output or "add" in result.output
+
+    def test_hub_add_requires_name(self, runner: CliRunner) -> None:
+        """Test that hub add requires name argument."""
+        result = runner.invoke(cli, ["skills", "hub", "add"])
+        assert result.exit_code != 0
+
+    def test_hub_add_requires_type(self, runner: CliRunner) -> None:
+        """Test that hub add requires --type option."""
+        result = runner.invoke(cli, ["skills", "hub", "add", "my-hub"])
+        assert result.exit_code != 0
+        assert "type" in result.output.lower() or "required" in result.output.lower()
+
+    def test_hub_add_help_shows_type_option(self, runner: CliRunner) -> None:
+        """Test that help shows --type option."""
+        result = runner.invoke(cli, ["skills", "hub", "add", "--help"])
+        assert result.exit_code == 0
+        assert "--type" in result.output
+
+    def test_hub_add_help_shows_url_option(self, runner: CliRunner) -> None:
+        """Test that help shows --url option."""
+        result = runner.invoke(cli, ["skills", "hub", "add", "--help"])
+        assert result.exit_code == 0
+        assert "--url" in result.output
+
+    def test_hub_add_help_shows_repo_option(self, runner: CliRunner) -> None:
+        """Test that help shows --repo option."""
+        result = runner.invoke(cli, ["skills", "hub", "add", "--help"])
+        assert result.exit_code == 0
+        assert "--repo" in result.output

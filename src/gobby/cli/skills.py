@@ -971,3 +971,97 @@ def hub_list(ctx: click.Context, json_output: bool) -> None:
         base_url = h.get("base_url", "")
         url_str = f" ({base_url})" if base_url else ""
         click.echo(f"  {name} [{hub_type}]{url_str}")
+
+
+@hub.command("add")
+@click.argument("name")
+@click.option("--type", "hub_type", required=True, help="Hub type (clawdhub, skillhub, github)")
+@click.option("--url", "base_url", default=None, help="Base URL for skillhub type")
+@click.option("--repo", default=None, help="GitHub repo (owner/repo) for github type")
+@click.option("--branch", default=None, help="Branch for github type (default: main)")
+@click.option(
+    "--auth-key", "auth_key_name", default=None, help="Environment variable name for auth key"
+)
+@click.pass_context
+def hub_add(
+    ctx: click.Context,
+    name: str,
+    hub_type: str,
+    base_url: str | None,
+    repo: str | None,
+    branch: str | None,
+    auth_key_name: str | None,
+) -> None:
+    """Add a new skill hub.
+
+    NAME is the hub name (e.g., 'my-skills', 'company-hub').
+
+    Hub types:
+    - clawdhub: ClawdHub CLI-based hub
+    - skillhub: REST API-based skill hub (requires --url)
+    - github: GitHub repository collection (requires --repo)
+
+    Examples:
+        gobby skills hub add my-skillhub --type skillhub --url https://skillhub.example.com
+        gobby skills hub add company-skills --type github --repo myorg/skills
+    """
+    import yaml
+
+    # Validate hub type
+    valid_types = ["clawdhub", "skillhub", "github"]
+    if hub_type not in valid_types:
+        click.echo(
+            f"Error: Invalid hub type '{hub_type}'. Must be one of: {', '.join(valid_types)}",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Validate required options for each type
+    if hub_type == "skillhub" and not base_url:
+        click.echo("Error: --url is required for skillhub type", err=True)
+        sys.exit(1)
+
+    if hub_type == "github" and not repo:
+        click.echo("Error: --repo is required for github type", err=True)
+        sys.exit(1)
+
+    # Build hub config
+    hub_config: dict[str, Any] = {"type": hub_type}
+    if base_url:
+        hub_config["base_url"] = base_url
+    if repo:
+        hub_config["repo"] = repo
+    if branch:
+        hub_config["branch"] = branch
+    if auth_key_name:
+        hub_config["auth_key_name"] = auth_key_name
+
+    # Load existing config
+    config_path = Path.home() / ".gobby" / "config.yaml"
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+    else:
+        config = {}
+
+    # Ensure hubs section exists
+    if "hubs" not in config:
+        config["hubs"] = {}
+
+    # Check if hub already exists
+    if name in config["hubs"]:
+        click.echo(
+            f"Error: Hub '{name}' already exists. Use 'hub remove' first to replace it.", err=True
+        )
+        sys.exit(1)
+
+    # Add the hub
+    config["hubs"][name] = hub_config
+
+    # Write config
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(config, f, default_flow_style=False)
+
+    click.echo(f"Added hub: {name} [{hub_type}]")
+    click.echo("\nRestart the daemon for changes to take effect: gobby restart")
