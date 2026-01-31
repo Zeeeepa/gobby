@@ -194,9 +194,7 @@ class TestGitHubCollectionProviderDownload:
             repo="user/my-skills",
         )
 
-        with patch.object(
-            provider, "_clone_skill", return_value="/tmp/skills/commit-message"
-        ):
+        with patch.object(provider, "_clone_skill", return_value="/tmp/skills/commit-message"):
             result = await provider.download_skill("commit-message")
             assert result["success"] is True
             assert result["path"] == "/tmp/skills/commit-message"
@@ -219,6 +217,172 @@ class TestGitHubCollectionProviderDownload:
             assert result["version"] == "v1.0.0"
             # Verify version was passed to _clone_skill
             mock_clone.assert_called_once()
+
+
+class TestGitHubCollectionProviderFetchSkillList:
+    """Tests for GitHubCollectionProvider _fetch_skill_list functionality."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_list_calls_github_api(self) -> None:
+        """Test _fetch_skill_list calls GitHub API with correct URL."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            branch="main",
+        )
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"name": "commit-message", "type": "dir", "path": "commit-message"},
+            {"name": "code-review", "type": "dir", "path": "code-review"},
+            {"name": "README.md", "type": "file", "path": "README.md"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            await provider._fetch_skill_list()
+
+            # Should call GitHub API
+            mock_client.get.assert_called_once()
+            call_url = mock_client.get.call_args[0][0]
+            assert "api.github.com" in call_url
+            assert "anthropics/skills" in call_url
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_list_filters_directories(self) -> None:
+        """Test _fetch_skill_list only returns directories, not files."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+        )
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"name": "skill-1", "type": "dir", "path": "skill-1"},
+            {"name": "skill-2", "type": "dir", "path": "skill-2"},
+            {"name": "README.md", "type": "file", "path": "README.md"},
+            {"name": ".gitignore", "type": "file", "path": ".gitignore"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            result = await provider._fetch_skill_list()
+
+            # Only directories should be returned
+            assert len(result) == 2
+            slugs = [r["slug"] for r in result]
+            assert "skill-1" in slugs
+            assert "skill-2" in slugs
+            assert "README.md" not in slugs
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_list_uses_branch(self) -> None:
+        """Test _fetch_skill_list includes branch in API call."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            branch="develop",
+        )
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            await provider._fetch_skill_list()
+
+            # Should include branch/ref in params
+            call_kwargs = mock_client.get.call_args[1]
+            assert "params" in call_kwargs
+            assert call_kwargs["params"].get("ref") == "develop"
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_list_includes_auth_header(self) -> None:
+        """Test _fetch_skill_list includes auth token in headers."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            auth_token="ghp_test_token",
+        )
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            await provider._fetch_skill_list()
+
+            # Should include auth header
+            call_kwargs = mock_client.get.call_args[1]
+            assert "headers" in call_kwargs
+            assert "Authorization" in call_kwargs["headers"]
+            assert "ghp_test_token" in call_kwargs["headers"]["Authorization"]
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_list_handles_api_error(self) -> None:
+        """Test _fetch_skill_list handles API errors gracefully."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import httpx
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/nonexistent",
+        )
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found",
+                    request=MagicMock(),
+                    response=MagicMock(status_code=404),
+                )
+            )
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            # Should return empty list on error, not raise
+            result = await provider._fetch_skill_list()
+            assert result == []
 
 
 class TestGitHubCollectionProviderCloneSkill:
@@ -302,9 +466,7 @@ class TestGitHubCollectionProviderCloneSkill:
                 "gobby.skills.hubs.github_collection.clone_skill_repo",
                 return_value=mock_repo_path,
             ):
-                result = await provider._clone_skill(
-                    "commit-message", target_dir=str(target_dir)
-                )
+                result = await provider._clone_skill("commit-message", target_dir=str(target_dir))
 
                 # Should return target directory
                 assert result == str(target_dir)

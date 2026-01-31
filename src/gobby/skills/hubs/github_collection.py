@@ -11,6 +11,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from gobby.skills.hubs.base import HubProvider, HubSkillDetails, HubSkillInfo
 from gobby.skills.loader import GitHubRef, clone_skill_repo
 
@@ -88,12 +90,64 @@ class GitHubCollectionProvider(HubProvider):
     async def _fetch_skill_list(self) -> list[dict[str, Any]]:
         """Fetch the list of skills from the repository.
 
+        Uses the GitHub API to list contents of the repository root,
+        filtering for directories which represent skills.
+
         Returns:
-            List of skill metadata dictionaries
+            List of skill metadata dictionaries with 'slug', 'name' keys
         """
-        # TODO: Implement actual GitHub API call or git ls-tree
-        # For now, return empty list - will be implemented with actual git ops
-        return []
+        if not self._repo or "/" not in self._repo:
+            logger.warning(f"Invalid repo format: {self._repo}")
+            return []
+
+        owner, repo = self._repo.split("/", 1)
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents"
+
+        headers: dict[str, str] = {
+            "Accept": "application/vnd.github.v3+json",
+        }
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+
+        params: dict[str, str] = {}
+        if self._branch:
+            params["ref"] = self._branch
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                contents: list[dict[str, Any]] = response.json()
+
+            # Filter for directories only (skills are directories)
+            skills = []
+            for item in contents:
+                if item.get("type") == "dir":
+                    name = item.get("name", "")
+                    # Skip hidden directories
+                    if name.startswith("."):
+                        continue
+                    skills.append(
+                        {
+                            "slug": name,
+                            "name": name,
+                            "description": "",
+                        }
+                    )
+
+            return skills
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"GitHub API error: {e.response.status_code} for {url}")
+            return []
+        except httpx.RequestError as e:
+            logger.error(f"GitHub API request failed: {e}")
+            return []
 
     async def _clone_skill(
         self,
