@@ -271,3 +271,147 @@ Content
         assert result["success"] is True
         assert result["count"] > 0
         assert any(r["skill_name"] == "test-skill" for r in result["results"])
+
+
+class TestInstallSkillFromHub:
+    """Tests for install_skill with hub:slug syntax."""
+
+    @pytest.fixture
+    def mock_hub_manager(self):
+        """Create a mock HubManager for hub installs."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from gobby.config.skills import HubConfig
+
+        manager = MagicMock()
+
+        # Configure list_hubs and has_hub
+        manager.list_hubs.return_value = ["clawdhub", "skillhub"]
+        manager.has_hub.side_effect = lambda name: name in ["clawdhub", "skillhub"]
+
+        # Configure get_config
+        configs = {
+            "clawdhub": HubConfig(type="clawdhub"),
+            "skillhub": HubConfig(type="skillhub", base_url="https://skillhub.dev"),
+        }
+        manager.get_config.side_effect = lambda name: configs.get(name)
+
+        # Configure get_provider to return a mock provider
+        mock_provider = MagicMock()
+        mock_provider.download_skill = AsyncMock(
+            return_value={
+                "success": True,
+                "path": "/tmp/skills/commit-message",
+                "version": "1.0.0",
+                "slug": "commit-message",
+            }
+        )
+        manager.get_provider.return_value = mock_provider
+
+        return manager
+
+    @pytest.mark.asyncio
+    async def test_install_skill_hub_syntax_parsed(self, db, mock_hub_manager, tmp_path):
+        """Test that 'clawdhub:commit-message' is parsed as hub install."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        # Create a mock skill at the download path
+        skill_dir = tmp_path / "commit-message"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("""---
+name: commit-message
+description: Generate conventional commits
+version: "1.0.0"
+---
+
+# Commit Message
+
+Content here.
+""")
+        # Use AsyncMock for async method
+        mock_hub_manager.get_provider.return_value.download_skill = AsyncMock(
+            return_value={
+                "success": True,
+                "path": str(skill_dir),
+                "version": "1.0.0",
+                "slug": "commit-message",
+            }
+        )
+
+        registry = create_skills_registry(db, hub_manager=mock_hub_manager)
+        tool = registry.get_tool("install_skill")
+
+        result = await tool(source="clawdhub:commit-message")
+
+        assert result["success"] is True
+        assert result["skill_name"] == "commit-message"
+        assert result["source_type"] == "hub"
+
+    @pytest.mark.asyncio
+    async def test_install_skill_hub_calls_provider(self, db, mock_hub_manager, tmp_path):
+        """Test that hub install calls hub_manager.get_provider and download_skill."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        # Create a mock skill at the download path
+        skill_dir = tmp_path / "commit-message"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("""---
+name: commit-message
+description: Generate conventional commits
+version: "1.0.0"
+---
+
+# Commit Message
+
+Content here.
+""")
+
+        mock_provider = mock_hub_manager.get_provider.return_value
+        mock_provider.download_skill = AsyncMock(
+            return_value={
+                "success": True,
+                "path": str(skill_dir),
+                "version": "1.0.0",
+                "slug": "commit-message",
+            }
+        )
+
+        registry = create_skills_registry(db, hub_manager=mock_hub_manager)
+        tool = registry.get_tool("install_skill")
+
+        await tool(source="clawdhub:commit-message")
+
+        # Verify provider was fetched for correct hub
+        mock_hub_manager.get_provider.assert_called_with("clawdhub")
+        # Verify download_skill was called
+        mock_provider.download_skill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_install_skill_hub_unknown_hub(self, db, mock_hub_manager):
+        """Test that unknown hub returns error."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(db, hub_manager=mock_hub_manager)
+        tool = registry.get_tool("install_skill")
+
+        result = await tool(source="unknown-hub:some-skill")
+
+        assert result["success"] is False
+        assert "unknown" in result["error"].lower() or "hub" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_install_skill_hub_no_manager(self, db):
+        """Test that hub:slug syntax fails when no hub manager configured."""
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        registry = create_skills_registry(db)  # No hub_manager
+        tool = registry.get_tool("install_skill")
+
+        result = await tool(source="clawdhub:commit-message")
+
+        assert result["success"] is False
+        assert "hub" in result["error"].lower()

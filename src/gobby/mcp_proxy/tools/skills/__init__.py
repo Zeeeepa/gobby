@@ -488,40 +488,87 @@ def create_skills_registry(
             source = source.strip()
 
             # Determine source type and load skill
+            from gobby.skills.parser import ParsedSkill
             from gobby.storage.skills import SkillSourceType
 
-            parsed_skill = None
+            parsed_skill: ParsedSkill | list[ParsedSkill] | None = None
             source_type: SkillSourceType | None = None
 
-            # Check if it's a GitHub URL/reference
-            # Pattern for owner/repo format (e.g., "anthropic/claude-code")
-            # Must match owner/repo pattern without path traversal or absolute paths
-            github_owner_repo_pattern = re.compile(
-                r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$"
-            )
+            # Check for hub:slug syntax (e.g., "clawdhub:commit-message")
+            # Must have exactly one colon, not be a URL, and the hub part must be alphanumeric
+            hub_pattern = re.compile(r"^([A-Za-z0-9_-]+):([A-Za-z0-9_-]+)$")
+            hub_match = hub_pattern.match(source)
 
-            # Explicit GitHub references (always treated as GitHub, no filesystem check)
-            is_explicit_github = (
-                source.startswith("github:")
-                or source.startswith("https://github.com/")
-                or source.startswith("http://github.com/")
-            )
+            if hub_match and not source.startswith("http"):
+                # Hub reference: hub_name:skill_slug
+                hub_name, skill_slug = hub_match.groups()
 
-            # For implicit owner/repo patterns, check local filesystem first
-            is_implicit_github_pattern = (
-                not is_explicit_github
-                and github_owner_repo_pattern.match(source)
-                and not source.startswith("/")
-                and ".." not in source  # Reject path traversal
-            )
+                if hub_manager is None:
+                    return {
+                        "success": False,
+                        "error": "No hub manager configured. Add hubs to config to enable hub installs.",
+                    }
 
-            # Determine if this is a GitHub reference:
-            # - Explicit refs are always GitHub
-            # - Implicit patterns are GitHub only if local path doesn't exist
-            is_github_ref = is_explicit_github or (
-                is_implicit_github_pattern and not Path(source).exists()
-            )
-            if is_github_ref:
+                if not hub_manager.has_hub(hub_name):
+                    return {
+                        "success": False,
+                        "error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs.",
+                    }
+
+                try:
+                    # Get the provider and download the skill
+                    provider = hub_manager.get_provider(hub_name)
+                    download_result = await provider.download_skill(skill_slug)
+
+                    if not download_result.get("success"):
+                        return {
+                            "success": False,
+                            "error": f"Failed to download from hub: {download_result.get('error', 'Unknown error')}",
+                        }
+
+                    # Load the skill from the downloaded path
+                    skill_path = Path(download_result["path"])
+                    parsed_skill = loader.load_skill(skill_path)
+                    source_type = "hub"
+
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to install from hub {hub_name}: {e}",
+                    }
+
+            # Check if it's a GitHub URL/reference (only if not already parsed from hub)
+            is_github_ref = False
+            if parsed_skill is None:
+                # Pattern for owner/repo format (e.g., "anthropic/claude-code")
+                # Must match owner/repo pattern without path traversal or absolute paths
+                github_owner_repo_pattern = re.compile(
+                    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$"
+                )
+
+                # Explicit GitHub references (always treated as GitHub, no filesystem check)
+                is_explicit_github = (
+                    source.startswith("github:")
+                    or source.startswith("https://github.com/")
+                    or source.startswith("http://github.com/")
+                )
+
+                # For implicit owner/repo patterns, check local filesystem first
+                is_implicit_github_pattern = (
+                    not is_explicit_github
+                    and github_owner_repo_pattern.match(source)
+                    and not source.startswith("/")
+                    and ".." not in source  # Reject path traversal
+                )
+
+                # Determine if this is a GitHub reference:
+                # - Explicit refs are always GitHub
+                # - Implicit patterns are GitHub only if local path doesn't exist
+                is_github_ref = is_explicit_github or bool(
+                    is_implicit_github_pattern and not Path(source).exists()
+                )
+
+            if parsed_skill is None and is_github_ref:
                 # GitHub URL
                 try:
                     parsed_skill = loader.load_from_github(source)
@@ -533,7 +580,7 @@ def create_skills_registry(
                     }
 
             # Check if it's a ZIP file
-            elif source.endswith(".zip"):
+            elif parsed_skill is None and source.endswith(".zip"):
                 zip_path = Path(source)
                 if not zip_path.exists():
                     return {
@@ -550,7 +597,7 @@ def create_skills_registry(
                     }
 
             # Assume it's a local path
-            else:
+            elif parsed_skill is None:
                 local_path = Path(source)
                 if not local_path.exists():
                     return {
