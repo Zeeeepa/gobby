@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 _UNSET: Any = object()
 
 # Valid source types for skills
-SkillSourceType = Literal["local", "github", "url", "zip", "filesystem"]
+SkillSourceType = Literal["local", "github", "url", "zip", "filesystem", "hub"]
 
 
 @dataclass
