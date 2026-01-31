@@ -65,7 +65,13 @@ class SkillsConfig(BaseModel):
     )
 
     hubs: dict[str, HubConfig] = Field(
-        default_factory=dict,
+        default_factory=lambda: {
+            "gobby-skills": HubConfig(
+                type="github-collection",
+                repo="anthropics/gobby-skills",
+                branch="main",
+            ),
+        },
         description="Configured skill hubs keyed by hub name",
     )
 
