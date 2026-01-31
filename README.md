@@ -242,7 +242,7 @@ args = ["mcp-server"]
 | CLI | Hooks | Status |
 | :--- | :--- | :--- |
 | **Claude Code** | ✅ All 14 types | Full support |
-| **Gemini CLI** | ⏳ Ready | Waiting on upstream PR (see [#9070](https://github.com/google-gemini/gemini-cli/issues/9070)) |
+| **Gemini CLI** | ✅ Full support | All hook types supported |
 | **Codex CLI** | 🔸 Basic | `after_agent` only |
 
 ## How It Compares
