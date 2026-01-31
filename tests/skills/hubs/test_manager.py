@@ -262,3 +262,147 @@ class TestCreateProvider:
         provider = manager._create_provider("my-hub")
         assert provider.hub_name == "my-hub"
         assert provider.base_url == "https://example.com"
+
+
+class TestSearchAll:
+    """Tests for HubManager.search_all parallel search."""
+
+    @pytest.mark.asyncio
+    async def test_search_all_returns_combined_results(self) -> None:
+        """Test search_all combines results from multiple hubs."""
+        from unittest.mock import AsyncMock
+
+        configs = {
+            "hub-a": HubConfig(type="clawdhub", base_url="https://a.com"),
+            "hub-b": HubConfig(type="clawdhub", base_url="https://b.com"),
+        }
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", MockProvider)
+
+        # Mock provider search results
+        mock_result_a = HubSkillInfo(
+            slug="skill-a", display_name="Skill A", description="From hub A", hub_name="hub-a"
+        )
+        mock_result_b = HubSkillInfo(
+            slug="skill-b", display_name="Skill B", description="From hub B", hub_name="hub-b"
+        )
+
+        provider_a = manager.get_provider("hub-a")
+        provider_b = manager.get_provider("hub-b")
+        provider_a.search = AsyncMock(return_value=[mock_result_a])
+        provider_b.search = AsyncMock(return_value=[mock_result_b])
+
+        results = await manager.search_all("test")
+
+        assert len(results) == 2
+        slugs = [r["slug"] for r in results]
+        assert "skill-a" in slugs
+        assert "skill-b" in slugs
+
+    @pytest.mark.asyncio
+    async def test_search_all_uses_asyncio_gather(self) -> None:
+        """Test search_all uses asyncio.gather for parallel execution."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        configs = {
+            "hub-a": HubConfig(type="clawdhub", base_url="https://a.com"),
+            "hub-b": HubConfig(type="clawdhub", base_url="https://b.com"),
+        }
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", MockProvider)
+
+        # Mock providers
+        provider_a = manager.get_provider("hub-a")
+        provider_b = manager.get_provider("hub-b")
+        provider_a.search = AsyncMock(return_value=[])
+        provider_b.search = AsyncMock(return_value=[])
+
+        with patch("asyncio.gather", wraps=asyncio.gather) as mock_gather:
+            await manager.search_all("test")
+            # asyncio.gather should be called
+            mock_gather.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_all_handles_provider_errors(self) -> None:
+        """Test search_all handles errors from individual providers gracefully."""
+        from unittest.mock import AsyncMock
+
+        configs = {
+            "good-hub": HubConfig(type="clawdhub", base_url="https://good.com"),
+            "bad-hub": HubConfig(type="clawdhub", base_url="https://bad.com"),
+        }
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", MockProvider)
+
+        good_result = HubSkillInfo(
+            slug="good-skill", display_name="Good", description="Works", hub_name="good-hub"
+        )
+
+        provider_good = manager.get_provider("good-hub")
+        provider_bad = manager.get_provider("bad-hub")
+        provider_good.search = AsyncMock(return_value=[good_result])
+        provider_bad.search = AsyncMock(side_effect=RuntimeError("Provider error"))
+
+        # Should not raise, should return results from working providers
+        results = await manager.search_all("test")
+
+        # Should have result from good hub only
+        assert len(results) == 1
+        assert results[0]["slug"] == "good-skill"
+
+    @pytest.mark.asyncio
+    async def test_search_all_with_specific_hubs(self) -> None:
+        """Test search_all with specific hub_names filter."""
+        from unittest.mock import AsyncMock
+
+        configs = {
+            "hub-a": HubConfig(type="clawdhub", base_url="https://a.com"),
+            "hub-b": HubConfig(type="clawdhub", base_url="https://b.com"),
+            "hub-c": HubConfig(type="clawdhub", base_url="https://c.com"),
+        }
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", MockProvider)
+
+        for hub_name in ["hub-a", "hub-b", "hub-c"]:
+            provider = manager.get_provider(hub_name)
+            result = HubSkillInfo(
+                slug=f"skill-{hub_name[-1]}",
+                display_name=f"Skill {hub_name[-1].upper()}",
+                description=f"From {hub_name}",
+                hub_name=hub_name,
+            )
+            provider.search = AsyncMock(return_value=[result])
+
+        # Only search hub-a and hub-c
+        results = await manager.search_all("test", hub_names=["hub-a", "hub-c"])
+
+        assert len(results) == 2
+        slugs = [r["slug"] for r in results]
+        assert "skill-a" in slugs
+        assert "skill-c" in slugs
+        assert "skill-b" not in slugs
+
+    @pytest.mark.asyncio
+    async def test_search_all_skips_unknown_hubs(self) -> None:
+        """Test search_all skips unknown hubs in hub_names filter."""
+        from unittest.mock import AsyncMock
+
+        configs = {
+            "hub-a": HubConfig(type="clawdhub", base_url="https://a.com"),
+        }
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", MockProvider)
+
+        provider_a = manager.get_provider("hub-a")
+        provider_a.search = AsyncMock(
+            return_value=[
+                HubSkillInfo(slug="skill-a", display_name="A", description="test", hub_name="hub-a")
+            ]
+        )
+
+        # Include unknown hub - should not raise
+        results = await manager.search_all("test", hub_names=["hub-a", "unknown-hub"])
+
+        assert len(results) == 1
+        assert results[0]["slug"] == "skill-a"
