@@ -54,9 +54,7 @@ class TestHubProvider:
             async def search(self, query: str, limit: int = 20) -> list[HubSkillInfo]:
                 return []
 
-            async def list_skills(
-                self, limit: int = 50, offset: int = 0
-            ) -> list[HubSkillInfo]:
+            async def list_skills(self, limit: int = 50, offset: int = 0) -> list[HubSkillInfo]:
                 return []
 
             async def get_skill_details(self, slug: str) -> HubSkillDetails | None:
@@ -86,9 +84,7 @@ class TestHubProvider:
             async def search(self, query: str, limit: int = 20) -> list[HubSkillInfo]:
                 return []
 
-            async def list_skills(
-                self, limit: int = 50, offset: int = 0
-            ) -> list[HubSkillInfo]:
+            async def list_skills(self, limit: int = 50, offset: int = 0) -> list[HubSkillInfo]:
                 return []
 
             async def get_skill_details(self, slug: str) -> HubSkillDetails | None:
@@ -116,9 +112,7 @@ class TestHubProvider:
             async def search(self, query: str, limit: int = 20) -> list[HubSkillInfo]:
                 return []
 
-            async def list_skills(
-                self, limit: int = 50, offset: int = 0
-            ) -> list[HubSkillInfo]:
+            async def list_skills(self, limit: int = 50, offset: int = 0) -> list[HubSkillInfo]:
                 return []
 
             async def get_skill_details(self, slug: str) -> HubSkillDetails | None:
