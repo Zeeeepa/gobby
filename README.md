@@ -243,7 +243,7 @@ args = ["mcp-server"]
 | :--- | :--- | :--- |
 | **Claude Code** | ✅ All 14 types | Full support |
 | **Gemini CLI** | ✅ Full support | All hook types supported |
-| **Codex CLI** | 🔸 Basic | `after_agent` only |
+| **Codex CLI** | ✅ App-server | Full support via app-server integration |
 
 ## How It Compares
 
