@@ -7,6 +7,7 @@ from gobby.skills.hubs.base import (
 )
 from gobby.skills.hubs.clawdhub import ClawdHubProvider
 from gobby.skills.hubs.manager import HubManager
+from gobby.skills.hubs.skillhub import SkillHubProvider
 
 __all__ = [
     "ClawdHubProvider",
@@ -14,4 +15,5 @@ __all__ = [
     "HubProvider",
     "HubSkillDetails",
     "HubSkillInfo",
+    "SkillHubProvider",
 ]
