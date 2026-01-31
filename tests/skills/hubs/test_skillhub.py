@@ -176,6 +176,163 @@ class TestSkillHubProviderListSkills:
             assert results[0].hub_name == "skillhub"
 
 
+class TestSkillHubProviderDownloadAndExtract:
+    """Tests for SkillHubProvider _download_and_extract functionality."""
+
+    @pytest.mark.asyncio
+    async def test_download_and_extract_fetches_url(self) -> None:
+        """Test _download_and_extract makes GET request to download URL."""
+        from io import BytesIO
+        from unittest.mock import MagicMock
+        from zipfile import ZipFile
+
+        provider = SkillHubProvider(
+            hub_name="skillhub",
+            base_url="https://skillhub.dev",
+        )
+
+        # Create a valid ZIP in memory
+        zip_buffer = BytesIO()
+        with ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("commit-message/SKILL.md", "# Test Skill")
+        zip_content = zip_buffer.getvalue()
+
+        mock_response = MagicMock()
+        mock_response.content = zip_content
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            await provider._download_and_extract(
+                "https://skillhub.dev/download/commit-message/1.0.0"
+            )
+
+            # Should have called GET on the download URL
+            mock_client.get.assert_called_once()
+            call_url = mock_client.get.call_args[0][0]
+            assert "skillhub.dev" in call_url
+
+    @pytest.mark.asyncio
+    async def test_download_and_extract_extracts_to_temp(self) -> None:
+        """Test _download_and_extract extracts ZIP to temp directory."""
+        import os
+        from io import BytesIO
+        from unittest.mock import MagicMock
+        from zipfile import ZipFile
+
+        provider = SkillHubProvider(
+            hub_name="skillhub",
+            base_url="https://skillhub.dev",
+        )
+
+        # Create a valid ZIP in memory
+        zip_buffer = BytesIO()
+        with ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("commit-message/SKILL.md", "# Test Skill\nContent here.")
+        zip_content = zip_buffer.getvalue()
+
+        mock_response = MagicMock()
+        mock_response.content = zip_content
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            result_path = await provider._download_and_extract(
+                "https://skillhub.dev/download/commit-message/1.0.0"
+            )
+
+            # Should return a valid path
+            assert result_path is not None
+            assert os.path.exists(result_path)
+            # Should have extracted the skill
+            assert os.path.exists(os.path.join(result_path, "commit-message", "SKILL.md"))
+
+    @pytest.mark.asyncio
+    async def test_download_and_extract_with_target_dir(self) -> None:
+        """Test _download_and_extract extracts to specified target directory."""
+        import tempfile
+        from io import BytesIO
+        from pathlib import Path
+        from unittest.mock import MagicMock
+        from zipfile import ZipFile
+
+        provider = SkillHubProvider(
+            hub_name="skillhub",
+            base_url="https://skillhub.dev",
+        )
+
+        # Create a valid ZIP in memory
+        zip_buffer = BytesIO()
+        with ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("my-skill/SKILL.md", "# My Skill")
+        zip_content = zip_buffer.getvalue()
+
+        mock_response = MagicMock()
+        mock_response.content = zip_content
+        mock_response.raise_for_status = MagicMock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target_dir = Path(tmpdir) / "target"
+
+            with patch("httpx.AsyncClient") as mock_client_class:
+                mock_client = AsyncMock()
+                mock_client.get = AsyncMock(return_value=mock_response)
+                mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+                mock_client.__aexit__ = AsyncMock(return_value=None)
+                mock_client_class.return_value = mock_client
+
+                result_path = await provider._download_and_extract(
+                    "https://skillhub.dev/download/my-skill/1.0.0",
+                    target_dir=str(target_dir),
+                )
+
+                # Should return the target directory
+                assert result_path == str(target_dir)
+                # Skill should be extracted there
+                assert (target_dir / "my-skill" / "SKILL.md").exists()
+
+    @pytest.mark.asyncio
+    async def test_download_and_extract_handles_http_error(self) -> None:
+        """Test _download_and_extract handles HTTP errors."""
+        from unittest.mock import MagicMock
+
+        import httpx
+
+        provider = SkillHubProvider(
+            hub_name="skillhub",
+            base_url="https://skillhub.dev",
+        )
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found",
+                    request=MagicMock(),
+                    response=MagicMock(status_code=404),
+                )
+            )
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            # Should raise RuntimeError on download failure
+            with pytest.raises(RuntimeError, match="download"):
+                await provider._download_and_extract(
+                    "https://skillhub.dev/download/nonexistent/1.0.0"
+                )
+
+
 class TestSkillHubProviderDownload:
     """Tests for SkillHubProvider download functionality."""
 
@@ -193,6 +350,8 @@ class TestSkillHubProviderDownload:
         }
 
         with patch.object(provider, "_make_request", return_value=mock_response):
-            with patch.object(provider, "_download_and_extract", return_value="/tmp/skills/commit-message"):
+            with patch.object(
+                provider, "_download_and_extract", return_value="/tmp/skills/commit-message"
+            ):
                 result = await provider.download_skill("commit-message")
                 assert result["success"] is True

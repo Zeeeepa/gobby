@@ -7,6 +7,10 @@ SkillHub REST API for skill search, listing, and download functionality.
 from __future__ import annotations
 
 import logging
+import tempfile
+import zipfile
+from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -124,16 +128,63 @@ class SkillHubProvider(HubProvider):
     ) -> str:
         """Download and extract a skill from a URL.
 
+        Downloads a ZIP file from the given URL and extracts it safely,
+        preventing path traversal attacks.
+
         Args:
-            download_url: URL to download the skill from
-            target_dir: Optional target directory
+            download_url: URL to download the skill ZIP from
+            target_dir: Optional target directory to extract to
 
         Returns:
-            Path to the extracted skill
+            Path to the extracted skill directory
+
+        Raises:
+            RuntimeError: If download or extraction fails
         """
-        # TODO: Implement actual download and extraction
-        # For now, return a placeholder
-        return target_dir or "/tmp/skills"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    download_url,
+                    headers=self._get_headers(),
+                    timeout=60.0,
+                    follow_redirects=True,
+                )
+                response.raise_for_status()
+                zip_content = response.content
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Failed to download skill: {e.response.status_code}")
+            raise RuntimeError(f"Failed to download skill: {e.response.status_code}") from e
+        except httpx.RequestError as e:
+            logger.error(f"Download request failed: {e}")
+            raise RuntimeError(f"Download request failed: {e}") from e
+
+        # Determine extraction directory
+        if target_dir:
+            extract_path = Path(target_dir)
+            extract_path.mkdir(parents=True, exist_ok=True)
+        else:
+            extract_path = Path(tempfile.mkdtemp(prefix="skillhub_"))
+
+        # Extract ZIP safely
+        try:
+            zip_buffer = BytesIO(zip_content)
+            with zipfile.ZipFile(zip_buffer, "r") as zf:
+                # Check for path traversal attacks
+                for member in zf.namelist():
+                    member_path = Path(member)
+                    # Reject absolute paths or paths with ..
+                    if member_path.is_absolute() or ".." in member_path.parts:
+                        raise RuntimeError(f"Unsafe path in ZIP: {member}")
+
+                # Extract all files
+                zf.extractall(extract_path)
+
+        except zipfile.BadZipFile as e:
+            logger.error(f"Invalid ZIP file: {e}")
+            raise RuntimeError(f"Invalid ZIP file: {e}") from e
+
+        return str(extract_path)
 
     async def discover(self) -> dict[str, Any]:
         """Discover hub capabilities.
