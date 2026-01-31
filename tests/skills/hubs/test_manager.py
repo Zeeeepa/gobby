@@ -3,7 +3,7 @@
 import pytest
 
 from gobby.config.skills import HubConfig
-from gobby.skills.hubs.base import HubProvider, HubSkillDetails, HubSkillInfo
+from gobby.skills.hubs.base import DownloadResult, HubProvider, HubSkillDetails, HubSkillInfo
 from gobby.skills.hubs.manager import HubManager
 
 pytestmark = pytest.mark.unit
@@ -30,8 +30,8 @@ class MockProvider(HubProvider):
 
     async def download_skill(
         self, slug: str, version: str | None = None, target_dir: str | None = None
-    ) -> dict:
-        return {"success": True}
+    ) -> DownloadResult:
+        return DownloadResult(success=True, slug=slug)
 
 
 class TestHubManager:

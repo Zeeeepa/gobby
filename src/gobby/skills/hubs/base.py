@@ -12,6 +12,38 @@ from typing import Any
 
 
 @dataclass
+class DownloadResult:
+    """Result of downloading a skill from a hub.
+
+    Provides a typed structure for download results, ensuring consistent
+    return values across all hub providers.
+
+    Attributes:
+        success: Whether the download succeeded
+        slug: The skill's unique identifier
+        path: Path to the extracted skill (if successful)
+        version: The version that was downloaded
+        error: Error message (if failed)
+    """
+
+    success: bool
+    slug: str
+    path: str | None = None
+    version: str | None = None
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            "success": self.success,
+            "path": self.path,
+            "slug": self.slug,
+            "version": self.version,
+            "error": self.error,
+        }
+
+
+@dataclass
 class HubSkillInfo:
     """Basic information about a skill from a hub.
 
@@ -188,7 +220,7 @@ class HubProvider(ABC):
         slug: str,
         version: str | None = None,
         target_dir: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> DownloadResult:
         """Download and extract a skill from the hub.
 
         Args:
@@ -197,6 +229,6 @@ class HubProvider(ABC):
             target_dir: Directory to extract to (None for temp dir)
 
         Returns:
-            Dictionary with download result including skill_path
+            DownloadResult with success status, path, version, or error
         """
         ...

@@ -1,12 +1,14 @@
 """Tests for HubProvider ABC and related dataclasses."""
 
-import pytest
 from abc import ABC
 
+import pytest
+
 from gobby.skills.hubs.base import (
+    DownloadResult,
     HubProvider,
-    HubSkillInfo,
     HubSkillDetails,
+    HubSkillInfo,
 )
 
 pytestmark = pytest.mark.unit
@@ -62,8 +64,8 @@ class TestHubProvider:
 
             async def download_skill(
                 self, slug: str, version: str | None = None, target_dir: str | None = None
-            ) -> dict:
-                return {}
+            ) -> DownloadResult:
+                return DownloadResult(success=True, slug=slug)
 
         provider = CompleteProvider(hub_name="test-hub", base_url="https://example.com")
         assert provider.hub_name == "test-hub"
@@ -92,8 +94,8 @@ class TestHubProvider:
 
             async def download_skill(
                 self, slug: str, version: str | None = None, target_dir: str | None = None
-            ) -> dict:
-                return {}
+            ) -> DownloadResult:
+                return DownloadResult(success=True, slug=slug)
 
         provider = TestProvider(hub_name="my-hub", base_url="https://hub.example.com")
         assert provider.hub_name == "my-hub"
@@ -120,8 +122,8 @@ class TestHubProvider:
 
             async def download_skill(
                 self, slug: str, version: str | None = None, target_dir: str | None = None
-            ) -> dict:
-                return {}
+            ) -> DownloadResult:
+                return DownloadResult(success=True, slug=slug)
 
         # Without auth token
         provider1 = TestProvider(hub_name="hub1", base_url="https://example.com")
@@ -236,3 +238,66 @@ class TestHubSkillDetails:
         d = details.to_dict()
         assert d["latest_version"] == "2.0.0"
         assert d["versions"] == ["1.0.0", "2.0.0"]
+
+
+class TestDownloadResult:
+    """Tests for the DownloadResult dataclass."""
+
+    def test_success_download_result(self) -> None:
+        """Test DownloadResult for successful download."""
+        result = DownloadResult(
+            success=True,
+            path="/tmp/skills/commit-message",
+            slug="commit-message",
+            version="1.0.0",
+        )
+        assert result.success is True
+        assert result.path == "/tmp/skills/commit-message"
+        assert result.slug == "commit-message"
+        assert result.version == "1.0.0"
+        assert result.error is None
+
+    def test_failed_download_result(self) -> None:
+        """Test DownloadResult for failed download."""
+        result = DownloadResult(
+            success=False,
+            slug="bad-skill",
+            error="Network error: connection refused",
+        )
+        assert result.success is False
+        assert result.slug == "bad-skill"
+        assert result.error == "Network error: connection refused"
+        assert result.path is None
+
+    def test_optional_fields_default_to_none(self) -> None:
+        """Test that optional fields default to None."""
+        result = DownloadResult(success=True, slug="test")
+        assert result.path is None
+        assert result.version is None
+        assert result.error is None
+
+    def test_to_dict(self) -> None:
+        """Test DownloadResult.to_dict() conversion."""
+        result = DownloadResult(
+            success=True,
+            path="/tmp/skill",
+            slug="my-skill",
+            version="2.0.0",
+        )
+        d = result.to_dict()
+        assert d["success"] is True
+        assert d["path"] == "/tmp/skill"
+        assert d["slug"] == "my-skill"
+        assert d["version"] == "2.0.0"
+        assert d["error"] is None
+
+    def test_to_dict_with_error(self) -> None:
+        """Test DownloadResult.to_dict() with error."""
+        result = DownloadResult(
+            success=False,
+            slug="failed",
+            error="Download failed",
+        )
+        d = result.to_dict()
+        assert d["success"] is False
+        assert d["error"] == "Download failed"

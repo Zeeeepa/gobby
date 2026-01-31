@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from gobby.skills.hubs.base import HubProvider, HubSkillDetails, HubSkillInfo
+from gobby.skills.hubs.base import DownloadResult, HubProvider, HubSkillDetails, HubSkillInfo
 from gobby.skills.loader import GitHubRef, clone_skill_repo
 
 logger = logging.getLogger(__name__)
@@ -306,7 +306,7 @@ class GitHubCollectionProvider(HubProvider):
         slug: str,
         version: str | None = None,
         target_dir: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> DownloadResult:
         """Download and extract a skill from the repository.
 
         Args:
@@ -315,20 +315,20 @@ class GitHubCollectionProvider(HubProvider):
             target_dir: Directory to extract to
 
         Returns:
-            Dictionary with download result including path
+            DownloadResult with success status, path, version, or error
         """
         try:
             path = await self._clone_skill(slug, target_dir, version)
-            return {
-                "success": True,
-                "path": path,
-                "version": version or self.branch,
-                "slug": slug,
-            }
+            return DownloadResult(
+                success=True,
+                slug=slug,
+                path=path,
+                version=version or self.branch,
+            )
         except Exception as e:
             logger.error(f"Failed to download skill {slug}: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "slug": slug,
-            }
+            return DownloadResult(
+                success=False,
+                slug=slug,
+                error=str(e),
+            )

@@ -354,4 +354,4 @@ class TestSkillHubProviderDownload:
                 provider, "_download_and_extract", return_value="/tmp/skills/commit-message"
             ):
                 result = await provider.download_skill("commit-message")
-                assert result["success"] is True
+                assert result.success is True

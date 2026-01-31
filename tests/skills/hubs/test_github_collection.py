@@ -196,8 +196,8 @@ class TestGitHubCollectionProviderDownload:
 
         with patch.object(provider, "_clone_skill", return_value="/tmp/skills/commit-message"):
             result = await provider.download_skill("commit-message")
-            assert result["success"] is True
-            assert result["path"] == "/tmp/skills/commit-message"
+            assert result.success is True
+            assert result.path == "/tmp/skills/commit-message"
 
     @pytest.mark.asyncio
     async def test_download_skill_with_version(self) -> None:
@@ -213,8 +213,8 @@ class TestGitHubCollectionProviderDownload:
             provider, "_clone_skill", return_value="/tmp/skills/commit-message"
         ) as mock_clone:
             result = await provider.download_skill("commit-message", version="v1.0.0")
-            assert result["success"] is True
-            assert result["version"] == "v1.0.0"
+            assert result.success is True
+            assert result.version == "v1.0.0"
             # Verify version was passed to _clone_skill
             mock_clone.assert_called_once()
 

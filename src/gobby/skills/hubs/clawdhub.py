@@ -11,7 +11,7 @@ import json
 import logging
 from typing import Any
 
-from gobby.skills.hubs.base import HubProvider, HubSkillDetails, HubSkillInfo
+from gobby.skills.hubs.base import DownloadResult, HubProvider, HubSkillDetails, HubSkillInfo
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ class ClawdHubProvider(HubProvider):
         slug: str,
         version: str | None = None,
         target_dir: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> DownloadResult:
         """Download and extract a skill from the hub.
 
         Args:
@@ -263,7 +263,7 @@ class ClawdHubProvider(HubProvider):
             target_dir: Directory to extract to
 
         Returns:
-            Dictionary with download result including path
+            DownloadResult with success status, path, version, or error
         """
         args = [slug]
 
@@ -273,11 +273,17 @@ class ClawdHubProvider(HubProvider):
         if target_dir:
             args.extend(["--output", target_dir])
 
-        result = await self._run_cli_command("install", args)
-
-        return {
-            "success": result.get("success", True),
-            "path": result.get("path", target_dir),
-            "version": result.get("version", version),
-            "slug": slug,
-        }
+        try:
+            result = await self._run_cli_command("install", args)
+            return DownloadResult(
+                success=result.get("success", True),
+                slug=slug,
+                path=result.get("path", target_dir),
+                version=result.get("version", version),
+            )
+        except RuntimeError as e:
+            return DownloadResult(
+                success=False,
+                slug=slug,
+                error=str(e),
+            )

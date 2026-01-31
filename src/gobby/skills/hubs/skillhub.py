@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from gobby.skills.hubs.base import HubProvider, HubSkillDetails, HubSkillInfo
+from gobby.skills.hubs.base import DownloadResult, HubProvider, HubSkillDetails, HubSkillInfo
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +302,7 @@ class SkillHubProvider(HubProvider):
         slug: str,
         version: str | None = None,
         target_dir: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> DownloadResult:
         """Download and extract a skill from the hub.
 
         Args:
@@ -311,7 +311,7 @@ class SkillHubProvider(HubProvider):
             target_dir: Directory to extract to
 
         Returns:
-            Dictionary with download result including path
+            DownloadResult with success status, path, version, or error
         """
         # Get download URL from API
         params: dict[str, Any] = {}
@@ -328,15 +328,15 @@ class SkillHubProvider(HubProvider):
 
         if download_url:
             path = await self._download_and_extract(download_url, target_dir)
-            return {
-                "success": True,
-                "path": path,
-                "version": result.get("version", version),
-                "slug": slug,
-            }
+            return DownloadResult(
+                success=True,
+                slug=slug,
+                path=path,
+                version=result.get("version", version),
+            )
 
-        return {
-            "success": False,
-            "error": "No download URL provided",
-            "slug": slug,
-        }
+        return DownloadResult(
+            success=False,
+            slug=slug,
+            error="No download URL provided",
+        )

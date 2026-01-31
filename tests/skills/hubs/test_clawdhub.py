@@ -226,5 +226,5 @@ class TestClawdHubProviderDownload:
 
         with patch.object(provider, "_run_cli_command", return_value=install_result):
             result = await provider.download_skill("commit-message")
-            assert result["success"] is True
-            assert "path" in result
+            assert result.success is True
+            assert result.path is not None
