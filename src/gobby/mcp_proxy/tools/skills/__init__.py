@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.skills.hubs.manager import HubManager
 from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.search import SearchFilters, SkillSearch
 from gobby.skills.updater import SkillUpdater
@@ -45,6 +46,7 @@ class SkillsToolRegistry(InternalToolRegistry):
 def create_skills_registry(
     db: DatabaseProtocol,
     project_id: str | None = None,
+    hub_manager: HubManager | None = None,
 ) -> SkillsToolRegistry:
     """
     Create a skills management tool registry.
@@ -52,13 +54,14 @@ def create_skills_registry(
     Args:
         db: Database connection for storage
         project_id: Optional default project scope for skill operations
+        hub_manager: Optional HubManager for hub operations (list_hubs, search_hub)
 
     Returns:
         SkillsToolRegistry with skill management tools registered
     """
     registry = SkillsToolRegistry(
         name="gobby-skills",
-        description="Skill management - list_skills, get_skill, search_skills, install_skill, update_skill, remove_skill",
+        description="Skill management - list_skills, get_skill, search_skills, install_skill, update_skill, remove_skill, list_hubs, search_hub",
     )
 
     # Initialize change notifier and storage
@@ -606,6 +609,110 @@ def create_skills_registry(
                 "skill_id": skill.id,
                 "skill_name": skill.name,
                 "source_type": source_type,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- list_hubs tool ---
+
+    @registry.tool(
+        name="list_hubs",
+        description="List all configured skill hubs. Returns hub names and types.",
+    )
+    async def list_hubs() -> dict[str, Any]:
+        """
+        List all configured skill hubs.
+
+        Returns hub name, type, and base_url for each configured hub.
+
+        Returns:
+            Dict with success status and list of hub info
+        """
+        try:
+            if hub_manager is None:
+                return {
+                    "success": True,
+                    "count": 0,
+                    "hubs": [],
+                }
+
+            hub_names = hub_manager.list_hubs()
+            hubs_list = []
+
+            for name in hub_names:
+                config = hub_manager.get_config(name)
+                hubs_list.append(
+                    {
+                        "name": name,
+                        "type": config.type,
+                        "base_url": config.base_url,
+                    }
+                )
+
+            return {
+                "success": True,
+                "count": len(hubs_list),
+                "hubs": hubs_list,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- search_hub tool ---
+
+    @registry.tool(
+        name="search_hub",
+        description="Search for skills across configured hubs. Returns ranked results from all or specific hubs.",
+    )
+    async def search_hub(
+        query: str,
+        hub_name: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """
+        Search for skills across configured hubs.
+
+        Args:
+            query: Search query (required, non-empty)
+            hub_name: Optional specific hub to search (None for all hubs)
+            limit: Maximum results per hub (default 20)
+
+        Returns:
+            Dict with success status and search results
+        """
+        try:
+            # Validate query
+            if not query or not query.strip():
+                return {
+                    "success": False,
+                    "error": "Query is required and cannot be empty",
+                }
+
+            if hub_manager is None:
+                return {
+                    "success": False,
+                    "error": "No hub manager configured. Add hubs to config to enable hub search.",
+                }
+
+            # Build hub filter
+            hub_names_filter = [hub_name] if hub_name else None
+
+            # Perform search
+            results = await hub_manager.search_all(
+                query=query.strip(),
+                limit=limit,
+                hub_names=hub_names_filter,
+            )
+
+            return {
+                "success": True,
+                "count": len(results),
+                "results": results,
             }
         except Exception as e:
             return {
