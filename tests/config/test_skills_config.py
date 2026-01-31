@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from gobby.config.skills import HubConfig
+from gobby.config.skills import HubConfig, SkillsConfig
 
 pytestmark = pytest.mark.unit
 
@@ -55,3 +55,67 @@ class TestHubConfig:
         with pytest.raises(ValidationError) as excinfo:
             HubConfig()
         assert "Field required" in str(excinfo.value)
+
+
+class TestSkillsConfigHubs:
+    """Tests for SkillsConfig.hubs field."""
+
+    def test_hubs_empty_default(self) -> None:
+        """Test that hubs defaults to empty dict."""
+        config = SkillsConfig()
+        assert config.hubs == {}
+        assert isinstance(config.hubs, dict)
+
+    def test_hubs_single_hub(self) -> None:
+        """Test parsing a single hub config."""
+        config = SkillsConfig(
+            hubs={
+                "clawdhub": HubConfig(type="clawdhub", base_url="https://clawdhub.com")
+            }
+        )
+        assert len(config.hubs) == 1
+        assert "clawdhub" in config.hubs
+        assert config.hubs["clawdhub"].type == "clawdhub"
+        assert config.hubs["clawdhub"].base_url == "https://clawdhub.com"
+
+    def test_hubs_multiple_hubs(self) -> None:
+        """Test parsing multiple hub configs."""
+        config = SkillsConfig(
+            hubs={
+                "clawdhub": HubConfig(type="clawdhub", base_url="https://clawdhub.com"),
+                "skillhub": HubConfig(type="skillhub", auth_key_name="SKILLHUB_KEY"),
+                "my-collection": HubConfig(
+                    type="github-collection",
+                    repo="user/my-skills",
+                    branch="main",
+                ),
+            }
+        )
+        assert len(config.hubs) == 3
+        assert config.hubs["clawdhub"].type == "clawdhub"
+        assert config.hubs["skillhub"].type == "skillhub"
+        assert config.hubs["skillhub"].auth_key_name == "SKILLHUB_KEY"
+        assert config.hubs["my-collection"].type == "github-collection"
+        assert config.hubs["my-collection"].repo == "user/my-skills"
+
+    def test_hubs_from_dict(self) -> None:
+        """Test parsing hubs from raw dict (simulating YAML input)."""
+        raw_config = {
+            "hubs": {
+                "clawdhub": {"type": "clawdhub", "base_url": "https://clawdhub.com"},
+                "skillhub": {"type": "skillhub"},
+            }
+        }
+        config = SkillsConfig(**raw_config)
+        assert len(config.hubs) == 2
+        assert config.hubs["clawdhub"].type == "clawdhub"
+        assert config.hubs["skillhub"].type == "skillhub"
+
+    def test_hubs_invalid_hub_config(self) -> None:
+        """Test that invalid hub config raises ValidationError."""
+        with pytest.raises(ValidationError):
+            SkillsConfig(
+                hubs={
+                    "bad": {"type": "invalid-type"}  # Invalid type
+                }
+            )

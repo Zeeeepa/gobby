@@ -4,9 +4,50 @@ import pytest
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
-from gobby.storage.skills import ChangeEvent, LocalSkillManager, Skill, SkillChangeNotifier
+from gobby.storage.skills import (
+    ChangeEvent,
+    LocalSkillManager,
+    Skill,
+    SkillChangeNotifier,
+    SkillSourceType,
+)
 
 pytestmark = pytest.mark.unit
+
+
+class TestSkillSourceType:
+    """Tests for SkillSourceType Literal."""
+
+    def test_hub_is_valid_source_type(self) -> None:
+        """Test that 'hub' is a valid source type."""
+        # Create a skill with source_type='hub'
+        skill = Skill(
+            id="skl-hub-test",
+            name="hub-skill",
+            description="A skill from a hub",
+            content="# Hub Skill\n\nContent here.",
+            source_type="hub",
+            hub_name="clawdhub",
+            hub_slug="commit-message",
+            hub_version="1.0.0",
+        )
+        assert skill.source_type == "hub"
+
+    def test_skill_with_hub_source_type_to_dict(self) -> None:
+        """Test that a skill with source_type='hub' serializes correctly."""
+        skill = Skill(
+            id="skl-hub-test",
+            name="hub-skill",
+            description="A skill from a hub",
+            content="Content",
+            source_type="hub",
+            hub_name="skillhub",
+            hub_slug="code-review",
+        )
+        d = skill.to_dict()
+        assert d["source_type"] == "hub"
+        assert d["hub_name"] == "skillhub"
+        assert d["hub_slug"] == "code-review"
 
 @pytest.fixture
 def db(tmp_path):

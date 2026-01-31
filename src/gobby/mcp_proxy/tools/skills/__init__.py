@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.skills.hubs.manager import HubManager
 from gobby.skills.loader import SkillLoader, SkillLoadError
 from gobby.skills.search import SearchFilters, SkillSearch
 from gobby.skills.updater import SkillUpdater
@@ -45,6 +46,7 @@ class SkillsToolRegistry(InternalToolRegistry):
 def create_skills_registry(
     db: DatabaseProtocol,
     project_id: str | None = None,
+    hub_manager: HubManager | None = None,
 ) -> SkillsToolRegistry:
     """
     Create a skills management tool registry.
@@ -52,13 +54,14 @@ def create_skills_registry(
     Args:
         db: Database connection for storage
         project_id: Optional default project scope for skill operations
+        hub_manager: Optional HubManager for hub operations (list_hubs, search_hub)
 
     Returns:
         SkillsToolRegistry with skill management tools registered
     """
     registry = SkillsToolRegistry(
         name="gobby-skills",
-        description="Skill management - list_skills, get_skill, search_skills, install_skill, update_skill, remove_skill",
+        description="Skill management - list_skills, get_skill, search_skills, install_skill, update_skill, remove_skill, list_hubs, search_hub",
     )
 
     # Initialize change notifier and storage
@@ -485,40 +488,87 @@ def create_skills_registry(
             source = source.strip()
 
             # Determine source type and load skill
+            from gobby.skills.parser import ParsedSkill
             from gobby.storage.skills import SkillSourceType
 
-            parsed_skill = None
+            parsed_skill: ParsedSkill | list[ParsedSkill] | None = None
             source_type: SkillSourceType | None = None
 
-            # Check if it's a GitHub URL/reference
-            # Pattern for owner/repo format (e.g., "anthropic/claude-code")
-            # Must match owner/repo pattern without path traversal or absolute paths
-            github_owner_repo_pattern = re.compile(
-                r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$"
-            )
+            # Check for hub:slug syntax (e.g., "clawdhub:commit-message")
+            # Must have exactly one colon, not be a URL, and the hub part must be alphanumeric
+            hub_pattern = re.compile(r"^([A-Za-z0-9_-]+):([A-Za-z0-9_-]+)$")
+            hub_match = hub_pattern.match(source)
 
-            # Explicit GitHub references (always treated as GitHub, no filesystem check)
-            is_explicit_github = (
-                source.startswith("github:")
-                or source.startswith("https://github.com/")
-                or source.startswith("http://github.com/")
-            )
+            if hub_match and not source.startswith("http"):
+                # Hub reference: hub_name:skill_slug
+                hub_name, skill_slug = hub_match.groups()
 
-            # For implicit owner/repo patterns, check local filesystem first
-            is_implicit_github_pattern = (
-                not is_explicit_github
-                and github_owner_repo_pattern.match(source)
-                and not source.startswith("/")
-                and ".." not in source  # Reject path traversal
-            )
+                if hub_manager is None:
+                    return {
+                        "success": False,
+                        "error": "No hub manager configured. Add hubs to config to enable hub installs.",
+                    }
 
-            # Determine if this is a GitHub reference:
-            # - Explicit refs are always GitHub
-            # - Implicit patterns are GitHub only if local path doesn't exist
-            is_github_ref = is_explicit_github or (
-                is_implicit_github_pattern and not Path(source).exists()
-            )
-            if is_github_ref:
+                if not hub_manager.has_hub(hub_name):
+                    return {
+                        "success": False,
+                        "error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs.",
+                    }
+
+                try:
+                    # Get the provider and download the skill
+                    provider = hub_manager.get_provider(hub_name)
+                    download_result = await provider.download_skill(skill_slug)
+
+                    if not download_result.get("success"):
+                        return {
+                            "success": False,
+                            "error": f"Failed to download from hub: {download_result.get('error', 'Unknown error')}",
+                        }
+
+                    # Load the skill from the downloaded path
+                    skill_path = Path(download_result["path"])
+                    parsed_skill = loader.load_skill(skill_path)
+                    source_type = "hub"
+
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to install from hub {hub_name}: {e}",
+                    }
+
+            # Check if it's a GitHub URL/reference (only if not already parsed from hub)
+            is_github_ref = False
+            if parsed_skill is None:
+                # Pattern for owner/repo format (e.g., "anthropic/claude-code")
+                # Must match owner/repo pattern without path traversal or absolute paths
+                github_owner_repo_pattern = re.compile(
+                    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$"
+                )
+
+                # Explicit GitHub references (always treated as GitHub, no filesystem check)
+                is_explicit_github = (
+                    source.startswith("github:")
+                    or source.startswith("https://github.com/")
+                    or source.startswith("http://github.com/")
+                )
+
+                # For implicit owner/repo patterns, check local filesystem first
+                is_implicit_github_pattern = (
+                    not is_explicit_github
+                    and github_owner_repo_pattern.match(source)
+                    and not source.startswith("/")
+                    and ".." not in source  # Reject path traversal
+                )
+
+                # Determine if this is a GitHub reference:
+                # - Explicit refs are always GitHub
+                # - Implicit patterns are GitHub only if local path doesn't exist
+                is_github_ref = is_explicit_github or bool(
+                    is_implicit_github_pattern and not Path(source).exists()
+                )
+
+            if parsed_skill is None and is_github_ref:
                 # GitHub URL
                 try:
                     parsed_skill = loader.load_from_github(source)
@@ -530,7 +580,7 @@ def create_skills_registry(
                     }
 
             # Check if it's a ZIP file
-            elif source.endswith(".zip"):
+            elif parsed_skill is None and source.endswith(".zip"):
                 zip_path = Path(source)
                 if not zip_path.exists():
                     return {
@@ -547,7 +597,7 @@ def create_skills_registry(
                     }
 
             # Assume it's a local path
-            else:
+            elif parsed_skill is None:
                 local_path = Path(source)
                 if not local_path.exists():
                     return {
@@ -606,6 +656,110 @@ def create_skills_registry(
                 "skill_id": skill.id,
                 "skill_name": skill.name,
                 "source_type": source_type,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- list_hubs tool ---
+
+    @registry.tool(
+        name="list_hubs",
+        description="List all configured skill hubs. Returns hub names and types.",
+    )
+    async def list_hubs() -> dict[str, Any]:
+        """
+        List all configured skill hubs.
+
+        Returns hub name, type, and base_url for each configured hub.
+
+        Returns:
+            Dict with success status and list of hub info
+        """
+        try:
+            if hub_manager is None:
+                return {
+                    "success": True,
+                    "count": 0,
+                    "hubs": [],
+                }
+
+            hub_names = hub_manager.list_hubs()
+            hubs_list = []
+
+            for name in hub_names:
+                config = hub_manager.get_config(name)
+                hubs_list.append(
+                    {
+                        "name": name,
+                        "type": config.type,
+                        "base_url": config.base_url,
+                    }
+                )
+
+            return {
+                "success": True,
+                "count": len(hubs_list),
+                "hubs": hubs_list,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    # --- search_hub tool ---
+
+    @registry.tool(
+        name="search_hub",
+        description="Search for skills across configured hubs. Returns ranked results from all or specific hubs.",
+    )
+    async def search_hub(
+        query: str,
+        hub_name: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """
+        Search for skills across configured hubs.
+
+        Args:
+            query: Search query (required, non-empty)
+            hub_name: Optional specific hub to search (None for all hubs)
+            limit: Maximum results per hub (default 20)
+
+        Returns:
+            Dict with success status and search results
+        """
+        try:
+            # Validate query
+            if not query or not query.strip():
+                return {
+                    "success": False,
+                    "error": "Query is required and cannot be empty",
+                }
+
+            if hub_manager is None:
+                return {
+                    "success": False,
+                    "error": "No hub manager configured. Add hubs to config to enable hub search.",
+                }
+
+            # Build hub filter
+            hub_names_filter = [hub_name] if hub_name else None
+
+            # Perform search
+            results = await hub_manager.search_all(
+                query=query.strip(),
+                limit=limit,
+                hub_names=hub_names_filter,
+            )
+
+            return {
+                "success": True,
+                "count": len(results),
+                "results": results,
             }
         except Exception as e:
             return {

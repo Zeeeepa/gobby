@@ -77,6 +77,23 @@ class TestCreateSkillsRegistry:
 
         assert registry is not None
 
+    def test_create_skills_registry_accepts_hub_manager(self, db) -> None:
+        """Test that factory accepts optional hub_manager parameter."""
+        from unittest.mock import MagicMock
+
+        from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+        mock_hub_manager = MagicMock()
+        mock_hub_manager.list_hubs.return_value = ["test-hub"]
+
+        # Should not raise
+        registry = create_skills_registry(db, hub_manager=mock_hub_manager)
+
+        assert registry is not None
+        # Verify hub tools can access the hub_manager
+        list_hubs_tool = registry.get_tool("list_hubs")
+        assert list_hubs_tool is not None
+
 
 class TestSkillsToolRegistry:
     """Tests for SkillsToolRegistry class."""

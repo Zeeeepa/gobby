@@ -64,6 +64,11 @@ class SkillsConfig(BaseModel):
         description="Format for skill injection: 'summary' (names only), 'full' (with content), 'none' (disabled)",
     )
 
+    hubs: dict[str, HubConfig] = Field(
+        default_factory=dict,
+        description="Configured skill hubs keyed by hub name",
+    )
+
     @field_validator("injection_format")
     @classmethod
     def validate_injection_format(cls, v: str) -> str:
