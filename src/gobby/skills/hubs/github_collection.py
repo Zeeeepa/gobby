@@ -7,9 +7,12 @@ access to skill collections hosted in GitHub repositories.
 from __future__ import annotations
 
 import logging
+import shutil
+from pathlib import Path
 from typing import Any
 
 from gobby.skills.hubs.base import HubProvider, HubSkillDetails, HubSkillInfo
+from gobby.skills.loader import GitHubRef, clone_skill_repo
 
 logger = logging.getLogger(__name__)
 
@@ -96,18 +99,53 @@ class GitHubCollectionProvider(HubProvider):
         self,
         slug: str,
         target_dir: str | None = None,
+        version: str | None = None,
     ) -> str:
         """Clone a specific skill from the repository.
 
+        Uses clone_skill_repo to clone the entire repository, then
+        returns the path to the specific skill directory within it.
+        If target_dir is specified, copies the skill directory there.
+
         Args:
             slug: The skill's directory name
-            target_dir: Optional target directory
+            target_dir: Optional target directory to copy skill to
+            version: Optional version/branch to checkout (overrides default branch)
 
         Returns:
-            Path to the cloned skill
+            Path to the skill directory
         """
-        # TODO: Implement actual git clone/sparse checkout
-        return target_dir or f"/tmp/skills/{slug}"
+        # Parse repo into owner/repo
+        if "/" not in self._repo:
+            raise ValueError(f"Invalid repo format: {self._repo}, expected owner/repo")
+
+        owner, repo = self._repo.split("/", 1)
+
+        # Build GitHubRef with optional version override
+        ref = GitHubRef(
+            owner=owner,
+            repo=repo,
+            branch=version or self._branch,
+            path=slug,
+        )
+
+        # Clone/update the repository
+        repo_path = clone_skill_repo(ref)
+
+        # Path to the skill within the repo
+        skill_path = repo_path / slug
+
+        # If target_dir specified, copy skill there
+        if target_dir:
+            target = Path(target_dir)
+            if skill_path.exists():
+                # Copy skill directory contents to target
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.copytree(skill_path, target)
+            return target_dir
+
+        return str(skill_path)
 
     async def discover(self) -> dict[str, Any]:
         """Discover hub capabilities.
@@ -226,7 +264,7 @@ class GitHubCollectionProvider(HubProvider):
             Dictionary with download result including path
         """
         try:
-            path = await self._clone_skill(slug, target_dir)
+            path = await self._clone_skill(slug, target_dir, version)
             return {
                 "success": True,
                 "path": path,

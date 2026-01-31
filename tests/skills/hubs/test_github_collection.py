@@ -1,6 +1,6 @@
 """Tests for GitHubCollectionProvider."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -200,3 +200,113 @@ class TestGitHubCollectionProviderDownload:
             result = await provider.download_skill("commit-message")
             assert result["success"] is True
             assert result["path"] == "/tmp/skills/commit-message"
+
+    @pytest.mark.asyncio
+    async def test_download_skill_with_version(self) -> None:
+        """Test download with specific version/branch."""
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/my-skills",
+            branch="main",
+        )
+
+        with patch.object(
+            provider, "_clone_skill", return_value="/tmp/skills/commit-message"
+        ) as mock_clone:
+            result = await provider.download_skill("commit-message", version="v1.0.0")
+            assert result["success"] is True
+            assert result["version"] == "v1.0.0"
+            # Verify version was passed to _clone_skill
+            mock_clone.assert_called_once()
+
+
+class TestGitHubCollectionProviderCloneSkill:
+    """Tests for GitHubCollectionProvider _clone_skill functionality."""
+
+    @pytest.mark.asyncio
+    async def test_clone_skill_uses_clone_skill_repo(self) -> None:
+        """Test _clone_skill calls clone_skill_repo with correct GitHubRef."""
+        from pathlib import Path
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            branch="main",
+        )
+
+        mock_repo_path = Path("/tmp/cache/anthropics/skills")
+        with patch(
+            "gobby.skills.hubs.github_collection.clone_skill_repo",
+            return_value=mock_repo_path,
+        ) as mock_clone:
+            result = await provider._clone_skill("commit-message")
+
+            # Verify clone_skill_repo was called
+            mock_clone.assert_called_once()
+            call_args = mock_clone.call_args[0][0]  # First positional arg is GitHubRef
+            assert call_args.owner == "anthropics"
+            assert call_args.repo == "skills"
+            assert call_args.branch == "main"
+
+            # Result should be path to skill directory within repo
+            assert "commit-message" in result
+
+    @pytest.mark.asyncio
+    async def test_clone_skill_with_version_override(self) -> None:
+        """Test _clone_skill uses version as branch when provided."""
+        from pathlib import Path
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            branch="main",
+        )
+
+        mock_repo_path = Path("/tmp/cache/anthropics/skills")
+        with patch(
+            "gobby.skills.hubs.github_collection.clone_skill_repo",
+            return_value=mock_repo_path,
+        ) as mock_clone:
+            await provider._clone_skill("commit-message", version="v2.0.0")
+
+            call_args = mock_clone.call_args[0][0]
+            # When version is provided, it should be used as the branch
+            assert call_args.branch == "v2.0.0"
+
+    @pytest.mark.asyncio
+    async def test_clone_skill_with_target_dir_copies_skill(self) -> None:
+        """Test _clone_skill copies skill to target directory when specified."""
+        import tempfile
+        from pathlib import Path
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            branch="main",
+        )
+
+        # Create mock repo structure with skill directory
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_repo_path = Path(tmpdir) / "repo"
+            skill_dir = mock_repo_path / "commit-message"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("# Test Skill")
+
+            target_dir = Path(tmpdir) / "target"
+
+            with patch(
+                "gobby.skills.hubs.github_collection.clone_skill_repo",
+                return_value=mock_repo_path,
+            ):
+                result = await provider._clone_skill(
+                    "commit-message", target_dir=str(target_dir)
+                )
+
+                # Should return target directory
+                assert result == str(target_dir)
+                # Skill should be copied to target
+                assert (Path(target_dir) / "SKILL.md").exists()
