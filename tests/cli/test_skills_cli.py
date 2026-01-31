@@ -1258,3 +1258,161 @@ class TestSkillsRemoveCommand:
         call_args = mock_call_tool.call_args
         assert call_args[0][1] == "remove_skill"
         assert call_args[0][2]["name"] == "test-skill"
+
+
+class TestSkillsSearchCommand:
+    """Tests for gobby skills search command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_search_help(self, runner: CliRunner) -> None:
+        """Test skills search --help."""
+        result = runner.invoke(cli, ["skills", "search", "--help"])
+        assert result.exit_code == 0
+        assert "Search" in result.output or "search" in result.output
+
+    def test_search_help_shows_hub_option(self, runner: CliRunner) -> None:
+        """Test skills search --help shows --hub option."""
+        result = runner.invoke(cli, ["skills", "search", "--help"])
+        assert result.exit_code == 0
+        assert "--hub" in result.output
+
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_search_calls_search_hub(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test search command calls search_hub tool."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "results": [
+                {
+                    "slug": "commit-message",
+                    "display_name": "Commit Message Generator",
+                    "description": "Generate conventional commits",
+                    "hub_name": "clawdhub",
+                },
+            ],
+        }
+
+        result = runner.invoke(cli, ["skills", "search", "commit"])
+
+        assert result.exit_code == 0
+        mock_call_tool.assert_called_once()
+        call_args = mock_call_tool.call_args
+        assert call_args[0][1] == "search_hub"
+        assert call_args[0][2]["query"] == "commit"
+
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_search_with_hub_filter(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test search command passes hub filter."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {"success": True, "results": []}
+
+        result = runner.invoke(cli, ["skills", "search", "commit", "--hub", "clawdhub"])
+
+        assert result.exit_code == 0
+        call_args = mock_call_tool.call_args
+        assert call_args[0][2]["hub_name"] == "clawdhub"
+
+
+class TestSkillsHubListCommand:
+    """Tests for gobby skills hub list command."""
+
+    @pytest.fixture
+    def runner(self) -> CliRunner:
+        """Create a CLI test runner."""
+        return CliRunner()
+
+    def test_hub_list_help(self, runner: CliRunner) -> None:
+        """Test skills hub list --help."""
+        result = runner.invoke(cli, ["skills", "hub", "list", "--help"])
+        assert result.exit_code == 0
+        assert "List" in result.output or "list" in result.output
+
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_hub_list_calls_list_hubs(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test hub list command calls list_hubs tool."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "hubs": [
+                {"name": "clawdhub", "type": "clawdhub", "base_url": ""},
+                {"name": "skillhub", "type": "skillhub", "base_url": "https://skillhub.dev"},
+            ],
+        }
+
+        result = runner.invoke(cli, ["skills", "hub", "list"])
+
+        assert result.exit_code == 0
+        mock_call_tool.assert_called_once()
+        call_args = mock_call_tool.call_args
+        assert call_args[0][1] == "list_hubs"
+
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_hub_list_shows_hubs(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test hub list displays hub names and types."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {
+            "success": True,
+            "hubs": [
+                {"name": "clawdhub", "type": "clawdhub", "base_url": ""},
+            ],
+        }
+
+        result = runner.invoke(cli, ["skills", "hub", "list"])
+
+        assert result.exit_code == 0
+        assert "clawdhub" in result.output
+
+    @patch("gobby.cli.skills.call_skills_tool")
+    @patch("gobby.cli.skills.check_daemon")
+    @patch("gobby.cli.skills.get_daemon_client")
+    def test_hub_list_no_hubs(
+        self,
+        mock_get_client: MagicMock,
+        mock_check_daemon: MagicMock,
+        mock_call_tool: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """Test hub list with no configured hubs."""
+        mock_check_daemon.return_value = True
+        mock_call_tool.return_value = {"success": True, "hubs": []}
+
+        result = runner.invoke(cli, ["skills", "hub", "list"])
+
+        assert result.exit_code == 0
+        assert "No hubs configured" in result.output
