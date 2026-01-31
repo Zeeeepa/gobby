@@ -6,7 +6,7 @@ for task operations.
 
 # Reasons for which commit linking and validation are skipped when closing tasks
 SKIP_REASONS: frozenset[str] = frozenset(
-    {"duplicate", "already_implemented", "wont_fix", "obsolete"}
+    {"duplicate", "already_implemented", "wont_fix", "obsolete", "out_of_repo"}
 )
 
 # Category inference patterns mapping category to keywords/phrases
