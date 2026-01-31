@@ -115,6 +115,54 @@ class HubManager:
             raise KeyError(f"Unknown hub: {hub_name}")
         return self._configs[hub_name]
 
+    def _create_provider(self, hub_name: str) -> HubProvider:
+        """Create a provider instance for a hub.
+
+        This is the factory method that instantiates the correct provider
+        type based on the hub's configuration. It resolves auth tokens
+        and passes all necessary configuration to the provider.
+
+        Args:
+            hub_name: Name of the hub
+
+        Returns:
+            A new provider instance (not cached)
+
+        Raises:
+            KeyError: If hub is not configured
+            ValueError: If no factory is registered for the hub type
+        """
+        if hub_name not in self._configs:
+            raise KeyError(f"Unknown hub: {hub_name}")
+
+        config = self._configs[hub_name]
+        factory = self._factories.get(config.type)
+
+        if factory is None:
+            raise ValueError(f"No provider factory registered for hub type: {config.type}")
+
+        # Resolve auth token from api_keys if auth_key_name is set
+        auth_token: str | None = None
+        if config.auth_key_name:
+            auth_token = self._api_keys.get(config.auth_key_name)
+            if auth_token is None:
+                logger.warning(
+                    f"Auth key '{config.auth_key_name}' not found in api_keys for hub '{hub_name}'"
+                )
+
+        # Determine base_url - use config value or derive from hub type
+        base_url = config.base_url or ""
+
+        # Create the provider
+        provider = factory(
+            hub_name=hub_name,
+            base_url=base_url,
+            auth_token=auth_token,
+        )
+        logger.debug(f"Created provider for hub: {hub_name} (type: {config.type})")
+
+        return provider
+
     def get_provider(self, hub_name: str) -> HubProvider:
         """Get or create a provider for a hub.
 
@@ -138,33 +186,9 @@ class HubManager:
         if hub_name in self._providers:
             return self._providers[hub_name]
 
-        # Create new provider
-        config = self._configs[hub_name]
-        factory = self._factories.get(config.type)
-
-        if factory is None:
-            raise ValueError(f"No provider factory registered for hub type: {config.type}")
-
-        # Resolve auth token from api_keys if auth_key_name is set
-        auth_token: str | None = None
-        if config.auth_key_name:
-            auth_token = self._api_keys.get(config.auth_key_name)
-            if auth_token is None:
-                logger.warning(
-                    f"Auth key '{config.auth_key_name}' not found in api_keys for hub '{hub_name}'"
-                )
-
-        # Determine base_url - use config value or derive from hub type
-        base_url = config.base_url or ""
-
         # Create and cache the provider
-        provider = factory(
-            hub_name=hub_name,
-            base_url=base_url,
-            auth_token=auth_token,
-        )
+        provider = self._create_provider(hub_name)
         self._providers[hub_name] = provider
-        logger.debug(f"Created provider for hub: {hub_name} (type: {config.type})")
 
         return provider
 

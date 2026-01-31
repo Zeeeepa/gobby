@@ -175,3 +175,90 @@ class TestHubManager:
         manager = HubManager(configs={})
         with pytest.raises(KeyError):
             manager.get_config("unknown")
+
+
+class TestCreateProvider:
+    """Tests for HubManager._create_provider factory method."""
+
+    def test_create_provider_returns_correct_type_for_clawdhub(self) -> None:
+        """Test _create_provider returns correct provider for clawdhub type."""
+
+        class ClawdHubMock(MockProvider):
+            @property
+            def provider_type(self) -> str:
+                return "clawdhub"
+
+        configs = {"hub": HubConfig(type="clawdhub", base_url="https://clawdhub.com")}
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", ClawdHubMock)
+
+        provider = manager._create_provider("hub")
+        assert provider.provider_type == "clawdhub"
+        assert isinstance(provider, ClawdHubMock)
+
+    def test_create_provider_returns_correct_type_for_skillhub(self) -> None:
+        """Test _create_provider returns correct provider for skillhub type."""
+
+        class SkillHubMock(MockProvider):
+            @property
+            def provider_type(self) -> str:
+                return "skillhub"
+
+        configs = {"hub": HubConfig(type="skillhub", base_url="https://skillhub.dev")}
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("skillhub", SkillHubMock)
+
+        provider = manager._create_provider("hub")
+        assert provider.provider_type == "skillhub"
+        assert isinstance(provider, SkillHubMock)
+
+    def test_create_provider_returns_correct_type_for_github_collection(self) -> None:
+        """Test _create_provider returns correct provider for github-collection type."""
+
+        class GitHubCollectionMock(MockProvider):
+            @property
+            def provider_type(self) -> str:
+                return "github-collection"
+
+        configs = {"hub": HubConfig(type="github-collection", repo="user/skills")}
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("github-collection", GitHubCollectionMock)
+
+        provider = manager._create_provider("hub")
+        assert provider.provider_type == "github-collection"
+        assert isinstance(provider, GitHubCollectionMock)
+
+    def test_create_provider_raises_valueerror_for_unknown_type(self) -> None:
+        """Test _create_provider raises ValueError for unknown hub type."""
+        configs = {"hub": HubConfig(type="clawdhub", base_url="https://x.com")}
+        manager = HubManager(configs=configs)
+        # Don't register any factory
+
+        with pytest.raises(ValueError, match="No provider factory registered"):
+            manager._create_provider("hub")
+
+    def test_create_provider_passes_auth_token(self) -> None:
+        """Test _create_provider passes auth token from api_keys."""
+        configs = {
+            "hub": HubConfig(
+                type="skillhub",
+                base_url="https://hub.com",
+                auth_key_name="API_KEY",
+            )
+        }
+        api_keys = {"API_KEY": "secret-token"}
+        manager = HubManager(configs=configs, api_keys=api_keys)
+        manager.register_provider_factory("skillhub", MockProvider)
+
+        provider = manager._create_provider("hub")
+        assert provider.auth_token == "secret-token"
+
+    def test_create_provider_passes_hub_name_and_base_url(self) -> None:
+        """Test _create_provider passes hub_name and base_url to provider."""
+        configs = {"my-hub": HubConfig(type="clawdhub", base_url="https://example.com")}
+        manager = HubManager(configs=configs)
+        manager.register_provider_factory("clawdhub", MockProvider)
+
+        provider = manager._create_provider("my-hub")
+        assert provider.hub_name == "my-hub"
+        assert provider.base_url == "https://example.com"
