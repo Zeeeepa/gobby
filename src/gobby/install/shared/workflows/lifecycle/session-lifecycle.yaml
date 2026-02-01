@@ -182,10 +182,9 @@ triggers:
         - pending_tasks
       prompt: handoff/session_end
 
-    # Extract memories from session (before sync export)
-    - action: memory_extract
-      min_importance: 0.7
-      max_memories: 5
+    # Memory capture is now agent-driven via proactive-memory skill
+    # Agents save memories during work when they discover valuable insights
+    # The memory_extract action remains available for manual/workflow use
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
