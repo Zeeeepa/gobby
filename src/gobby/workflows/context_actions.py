@@ -137,7 +137,7 @@ def inject_context(
     if not source and template:
         # Render static template directly
         logger.debug("inject_context: entering template-only path")
-        render_context: dict[str, Any] = {
+        render_context = {
             "session": session_manager.get(session_id),
             "state": state,
             "artifacts": state.artifacts if state else {},
