@@ -114,13 +114,6 @@ triggers:
         If the user's request involves non-trivial changes, use `/plan` or
         suggest entering plan mode before proceeding with edits.
 
-        Do not assume you know any of the downstream mcp servers proxied by the gobby mcp server, 
-        or their tool schemas. Use progressive disclosure to minimize tokens:
-
-        1. `list_tools(server="...")` - Brief metadata only
-        2. `get_tool_schema(server_name, tool_name)` - Full schema when needed
-        3. `call_tool(server_name, tool_name, arguments)` - Execute
-
   on_before_agent:
     # Title synthesis on first prompt
     - action: synthesize_title
