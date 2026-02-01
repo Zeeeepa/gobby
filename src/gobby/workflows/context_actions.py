@@ -28,6 +28,8 @@ def inject_context(
     source: str | None = None,
     template: str | None = None,
     require: bool = False,
+    skill_manager: Any | None = None,
+    filter: str | None = None,
 ) -> dict[str, Any] | None:
     """Inject context from a source.
 
@@ -36,9 +38,11 @@ def inject_context(
         session_id: Current session ID
         state: WorkflowState instance
         template_engine: Template engine for rendering
-        source: Source type (previous_session_summary, handoff, artifacts, etc.)
+        source: Source type (previous_session_summary, handoff, artifacts, skills, etc.)
         template: Optional template for rendering
         require: If True, block session when no content found (default: False)
+        skill_manager: HookSkillManager instance (required for source='skills')
+        filter: Optional filter for skills source ('always_apply' to only include always-apply skills)
 
     Returns:
         Dict with inject_context key, blocking decision, or None
@@ -152,6 +156,22 @@ def inject_context(
                 f"Loaded compact_markdown ({len(content)} chars) from current session {session_id}"
             )
 
+    elif source == "skills":
+        # Inject skill context from skill_manager
+        if skill_manager is None:
+            logger.debug("inject_context: skills source requires skill_manager")
+            return None
+
+        skills = skill_manager.discover_core_skills()
+
+        # Apply filter if specified
+        if filter == "always_apply":
+            skills = [s for s in skills if s.is_always_apply()]
+
+        if skills:
+            content = _format_skills(skills)
+            logger.debug(f"Formatted {len(skills)} skills for injection")
+
     if content:
         if template:
             render_context = {
@@ -173,6 +193,8 @@ def inject_context(
             elif source == "compact_handoff":
                 # Pass content to template (like /clear does with summary)
                 render_context["handoff"] = content
+            elif source == "skills":
+                render_context["skills_list"] = content
 
             content = template_engine.render(template, render_context)
 
@@ -327,6 +349,26 @@ def extract_handoff_context(
         return {"error": str(e)}
 
 
+def _format_skills(skills: list[Any]) -> str:
+    """Format a list of ParsedSkill objects as markdown for injection.
+
+    Args:
+        skills: List of ParsedSkill objects
+
+    Returns:
+        Formatted markdown string with skill names and descriptions
+    """
+    lines = ["## Available Skills"]
+    for skill in skills:
+        name = getattr(skill, "name", "unknown")
+        description = getattr(skill, "description", "")
+        if description:
+            lines.append(f"- **{name}**: {description}")
+        else:
+            lines.append(f"- **{name}**")
+    return "\n".join(lines)
+
+
 def recommend_skills_for_task(task: dict[str, Any] | None) -> list[str]:
     """Recommend relevant skills based on task category.
 
@@ -453,6 +495,8 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
         source=kwargs.get("source"),
         template=kwargs.get("template"),
         require=kwargs.get("require", False),
+        skill_manager=context.skill_manager,
+        filter=kwargs.get("filter"),
     )
 
 

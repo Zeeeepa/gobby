@@ -1585,3 +1585,218 @@ class TestRecommendSkillsForTask:
 
         result = recommend_skills_for_task({})
         assert isinstance(result, list)
+
+
+# --- Tests for inject_context with source='skills' ---
+
+
+class TestInjectContextSkillsSource:
+    """Tests for inject_context with source='skills'.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_skill_manager(self):
+        """Create a mock skill manager with test skills."""
+        manager = MagicMock()
+
+        # Create mock ParsedSkill objects
+        always_apply_skill = MagicMock()
+        always_apply_skill.name = "claiming-tasks"
+        always_apply_skill.description = "Quick reference for claiming tasks"
+        always_apply_skill.is_always_apply.return_value = True
+
+        regular_skill = MagicMock()
+        regular_skill.name = "gobby-tasks"
+        regular_skill.description = "Task management skill"
+        regular_skill.is_always_apply.return_value = False
+
+        another_skill = MagicMock()
+        another_skill.name = "gobby-sessions"
+        another_skill.description = "Session management skill"
+        another_skill.is_always_apply.return_value = False
+
+        manager.discover_core_skills.return_value = [
+            always_apply_skill,
+            regular_skill,
+            another_skill,
+        ]
+
+        return manager
+
+    def test_skills_source_returns_formatted_skill_list(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should return formatted skill list when source is 'skills'."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=mock_skill_manager,
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain skill names
+        assert "claiming-tasks" in content
+        assert "gobby-tasks" in content
+        assert "gobby-sessions" in content
+
+    def test_skills_source_filters_always_apply_skills(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should only include always_apply skills when filter='always_apply'."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=mock_skill_manager,
+            filter="always_apply",
+        )
+
+        assert result is not None
+        content = result["inject_context"]
+        # Should contain always_apply skill
+        assert "claiming-tasks" in content
+        # Should NOT contain non-always_apply skills
+        assert "gobby-tasks" not in content
+        assert "gobby-sessions" not in content
+
+    def test_skills_source_returns_none_without_skill_manager(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when skill_manager is not provided."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=None,
+        )
+
+        assert result is None
+
+    def test_skills_source_returns_none_when_no_skills_discovered(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when skill manager returns empty list."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.discover_core_skills.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=empty_manager,
+        )
+
+        assert result is None
+
+    def test_skills_source_with_template_rendering(
+        self, mock_session_manager, mock_skill_manager
+    ) -> None:
+        """Should render template with skills_list for skills source."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        template_engine = MagicMock()
+        template_engine.render.return_value = "Rendered skills"
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=template_engine,
+            source="skills",
+            template="Skills: {{ skills_list }}",
+            skill_manager=mock_skill_manager,
+        )
+
+        assert result is not None
+        assert result["inject_context"] == "Rendered skills"
+        call_args = template_engine.render.call_args
+        assert "skills_list" in call_args[0][1]
+
+    def test_skills_source_sets_context_injected_flag(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should set context_injected flag on state when skills injected."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=mock_skill_manager,
+        )
+
+        assert state.context_injected is True
+
+    def test_skills_source_require_blocks_when_no_skills(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return block decision when require=True and no skills found."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.discover_core_skills.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=empty_manager,
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]
