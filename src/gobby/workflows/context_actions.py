@@ -31,6 +31,10 @@ def inject_context(
     skill_manager: Any | None = None,
     filter: str | None = None,
     session_task_manager: Any | None = None,
+    memory_manager: Any | None = None,
+    prompt_text: str | None = None,
+    limit: int = 5,
+    min_importance: float = 0.3,
 ) -> dict[str, Any] | None:
     """Inject context from a source.
 
@@ -39,12 +43,16 @@ def inject_context(
         session_id: Current session ID
         state: WorkflowState instance
         template_engine: Template engine for rendering
-        source: Source type (previous_session_summary, handoff, artifacts, skills, task_context, etc.)
+        source: Source type (previous_session_summary, handoff, artifacts, skills, task_context, memories, etc.)
         template: Optional template for rendering
         require: If True, block session when no content found (default: False)
         skill_manager: HookSkillManager instance (required for source='skills')
         filter: Optional filter for skills source ('always_apply' to only include always-apply skills)
         session_task_manager: SessionTaskManager instance (required for source='task_context')
+        memory_manager: MemoryManager instance (required for source='memories')
+        prompt_text: User prompt text for memory recall (required for source='memories')
+        limit: Max memories to retrieve (default: 5, used with source='memories')
+        min_importance: Minimum importance threshold (default: 0.3, used with source='memories')
 
     Returns:
         Dict with inject_context key, blocking decision, or None
@@ -189,6 +197,38 @@ def inject_context(
             content = _format_task_context(worked_on_tasks)
             logger.debug(f"Formatted {len(worked_on_tasks)} active tasks for injection")
 
+    elif source == "memories":
+        # Inject relevant memories from memory_manager
+        if memory_manager is None:
+            logger.debug("inject_context: memories source requires memory_manager")
+            return None
+
+        if not memory_manager.config.enabled:
+            logger.debug("inject_context: memory manager is disabled")
+            return None
+
+        # Get project_id from session
+        project_id = None
+        session = session_manager.get(session_id)
+        if session:
+            project_id = getattr(session, "project_id", None)
+
+        try:
+            memories = memory_manager.recall(
+                query=prompt_text or "",
+                project_id=project_id,
+                limit=limit,
+                min_importance=min_importance,
+                use_semantic=True,
+            )
+
+            if memories:
+                content = _format_memories(memories)
+                logger.debug(f"Formatted {len(memories)} memories for injection")
+        except Exception as e:
+            logger.error(f"inject_context: memory recall failed: {e}")
+            return None
+
     if content:
         if template:
             render_context = {
@@ -214,6 +254,8 @@ def inject_context(
                 render_context["skills_list"] = content
             elif source == "task_context":
                 render_context["task_context"] = content
+            elif source == "memories":
+                render_context["memories_list"] = content
 
             content = template_engine.render(template, render_context)
 
@@ -366,6 +408,32 @@ def extract_handoff_context(
     except Exception as e:
         logger.error(f"extract_handoff_context: Failed: {e}")
         return {"error": str(e)}
+
+
+def _format_memories(memories: list[Any]) -> str:
+    """Format memory objects as markdown for injection.
+
+    Args:
+        memories: List of Memory objects
+
+    Returns:
+        Formatted markdown string with memory content
+    """
+    lines = ["## Relevant Memories"]
+    for memory in memories:
+        content = getattr(memory, "content", str(memory))
+        memory_type = getattr(memory, "memory_type", None)
+        importance = getattr(memory, "importance", None)
+
+        if memory_type:
+            lines.append(f"- [{memory_type}] {content}")
+        else:
+            lines.append(f"- {content}")
+
+        if importance and importance >= 0.8:
+            lines[-1] += " *(high importance)*"
+
+    return "\n".join(lines)
 
 
 def _format_task_context(task_entries: list[dict[str, Any]]) -> str:
@@ -540,6 +608,11 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
 
 async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
     """ActionHandler wrapper for inject_context."""
+    # Get prompt_text from event_data if not explicitly passed
+    prompt_text = kwargs.get("prompt_text")
+    if prompt_text is None and context.event_data:
+        prompt_text = context.event_data.get("prompt_text")
+
     return await asyncio.to_thread(
         inject_context,
         session_manager=context.session_manager,
@@ -552,6 +625,10 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
         skill_manager=context.skill_manager,
         filter=kwargs.get("filter"),
         session_task_manager=context.session_task_manager,
+        memory_manager=context.memory_manager,
+        prompt_text=prompt_text,
+        limit=kwargs.get("limit", 5),
+        min_importance=kwargs.get("min_importance", 0.3),
     )
 
 

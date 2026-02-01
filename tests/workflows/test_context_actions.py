@@ -2030,3 +2030,276 @@ class TestInjectContextTaskContextSource:
         assert result is not None
         assert result["decision"] == "block"
         assert "Required handoff context not found" in result["reason"]
+
+
+# --- Tests for inject_context with source='memories' ---
+
+
+class TestInjectContextMemoriesSource:
+    """Tests for inject_context with source='memories'.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_memory_manager(self):
+        """Create a mock memory manager."""
+        manager = MagicMock()
+        # Enable config
+        manager.config.enabled = True
+
+        # Create mock memory objects
+        memory1 = MagicMock()
+        memory1.id = "mem-1"
+        memory1.content = "User prefers dark mode for all UIs"
+        memory1.importance = 0.8
+        memory1.memory_type = "preference"
+
+        memory2 = MagicMock()
+        memory2.id = "mem-2"
+        memory2.content = "Project uses pytest for testing"
+        memory2.importance = 0.7
+        memory2.memory_type = "fact"
+
+        manager.recall.return_value = [memory1, memory2]
+
+        return manager
+
+    def test_memories_source_returns_formatted_memories(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should return formatted memories when source is 'memories'."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="What UI theme should I use?",
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain memory content
+        assert "dark mode" in content
+        assert "pytest" in content
+
+    def test_memories_source_returns_none_without_memory_manager(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when memory_manager is not provided."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=None,
+            prompt_text="test prompt",
+        )
+
+        assert result is None
+
+    def test_memories_source_returns_none_when_disabled(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when memory manager is disabled."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        disabled_manager = MagicMock()
+        disabled_manager.config.enabled = False
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=disabled_manager,
+            prompt_text="test prompt",
+        )
+
+        assert result is None
+
+    def test_memories_source_returns_none_when_no_memories_found(
+        self, mock_session_manager, mock_template_engine, mock_session
+    ) -> None:
+        """Should return None when no memories are found."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.config.enabled = True
+        empty_manager.recall.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=empty_manager,
+            prompt_text="find something",
+        )
+
+        assert result is None
+
+    def test_memories_source_uses_limit_parameter(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should pass limit parameter to memory recall."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+            limit=10,
+        )
+
+        # Verify limit was passed to recall
+        mock_memory_manager.recall.assert_called_once()
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["limit"] == 10
+
+    def test_memories_source_uses_min_importance_parameter(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should pass min_importance parameter to memory recall."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+            min_importance=0.5,
+        )
+
+        # Verify min_importance was passed to recall
+        mock_memory_manager.recall.assert_called_once()
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["min_importance"] == 0.5
+
+    def test_memories_source_with_template_rendering(
+        self, mock_session_manager, mock_memory_manager, mock_session
+    ) -> None:
+        """Should render template with memories_list for memories source."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        template_engine = MagicMock()
+        template_engine.render.return_value = "Rendered memories"
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=template_engine,
+            source="memories",
+            template="Memories: {{ memories_list }}",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+        )
+
+        assert result is not None
+        assert result["inject_context"] == "Rendered memories"
+        call_args = template_engine.render.call_args
+        assert "memories_list" in call_args[0][1]
+
+    def test_memories_source_sets_context_injected_flag(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should set context_injected flag on state when memories injected."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+        )
+
+        assert state.context_injected is True
+
+    def test_memories_source_require_blocks_when_no_memories(
+        self, mock_session_manager, mock_template_engine, mock_session
+    ) -> None:
+        """Should return block decision when require=True and no memories found."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.config.enabled = True
+        empty_manager.recall.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=empty_manager,
+            prompt_text="find something",
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]
