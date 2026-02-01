@@ -12,6 +12,8 @@ Gobby uses a unified internal event model (`HookEvent`) that normalizes hooks fr
 | Gemini CLI | PascalCase (`SessionStart`) | `session_id` | HTTP hooks |
 | Codex CLI | JSON-RPC (`thread/started`) | `threadId` | WebSocket events |
 
+> **Note:** Skill injection during session start is now handled by the workflow engine's `inject_context` action with `source: skills`, not by hooks directly. This applies to all CLIs. See [Workflows Guide](workflows.md#inject_context-sources) for details.
+
 ## Event Types
 
 ### Unified Event Types
@@ -107,8 +109,6 @@ All Claude Code hooks use this wrapper format:
 #### session-start
 
 Fired when a new Claude Code session begins.
-
-> **Note:** Skill injection during session-start is now handled by the workflow engine's `inject_context` action with `source: skills`, not by hooks directly. See [Workflows Guide](workflows.md#inject_context-sources) for details.
 
 ```json
 {
