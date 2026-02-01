@@ -174,6 +174,21 @@ def test_create_memory_returns_existing(memory_manager) -> None:
     assert memory1.content == memory2.content
 
 
+def test_create_memory_dedup_across_projects(memory_manager, db) -> None:
+    """Test that same content with different project_ids returns same memory (global dedup)."""
+    db.execute("INSERT INTO projects (id, name) VALUES ('proj1', 'Project 1')")
+    db.execute("INSERT INTO projects (id, name) VALUES ('proj2', 'Project 2')")
+
+    memory1 = memory_manager.create_memory(content="Global dedup test", project_id="proj1")
+    memory2 = memory_manager.create_memory(content="Global dedup test", project_id="proj2")
+    memory3 = memory_manager.create_memory(content="Global dedup test", project_id=None)
+
+    # All should return the same memory ID (global deduplication)
+    assert memory1.id == memory2.id == memory3.id
+    # First project_id should be preserved
+    assert memory1.project_id == "proj1"
+
+
 def test_memory_exists(memory_manager) -> None:
     """Test memory_exists method."""
     memory = memory_manager.create_memory(content="Exists test")
