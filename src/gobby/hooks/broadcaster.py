@@ -117,6 +117,15 @@ class HookEventBroadcaster:
                 if "permission_type" not in raw_input:
                     raw_input["permission_type"] = "unknown"
 
+            # Ensure 'tool_name' has a default for before_tool_selection events
+            # These events fire before a specific tool is selected, so tool_name is not available
+            if (
+                enum_hook_type == HookType.PRE_TOOL_USE
+                and event.event_type.value == "before_tool_selection"
+            ):
+                if "tool_name" not in raw_input:
+                    raw_input["tool_name"] = "(tool_selection)"
+
             # Validate input data structure matches Pydantic model
             # Use construct/model_validate to avoid strict validation errors if possible,
             # or just try/except. Let's rely on standard validation.
