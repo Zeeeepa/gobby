@@ -51,6 +51,8 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
       - Glob
       - Grep
@@ -91,6 +93,8 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -138,6 +142,8 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -181,6 +187,8 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -218,6 +226,8 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -252,6 +262,8 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
