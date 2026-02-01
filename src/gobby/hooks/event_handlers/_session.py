@@ -36,12 +36,18 @@ class SessionEventHandlerMixin(EventHandlersBase):
         )
 
         # Step 0: Check if this is a pre-created session (terminal mode agent)
-        # When we spawn an agent in terminal mode, we pass --session-id <internal_id>
-        # to Claude, so external_id here might actually be our internal session ID
+        # Two cases:
+        # 1. Claude: We pass --session-id <internal_id>, so external_id IS our internal ID
+        # 2. Gemini: We pass GOBBY_SESSION_ID env var, hook_dispatcher includes it in terminal_context
         existing_session = None
+        terminal_context = input_data.get("terminal_context")
+        gobby_session_id_from_env = (
+            terminal_context.get("gobby_session_id") if terminal_context else None
+        )
+
         if self._session_storage:
             try:
-                # Try to find by internal ID first (terminal mode case)
+                # Try to find by internal ID first (Claude case - external_id IS internal_id)
                 existing_session = self._session_storage.get(external_id)
                 if existing_session:
                     return self._handle_pre_created_session(
@@ -53,7 +59,32 @@ class SessionEventHandlerMixin(EventHandlersBase):
                         cwd=cwd,
                     )
             except Exception as e:
-                self.logger.debug(f"No pre-created session found: {e}")
+                self.logger.debug(f"No pre-created session found by external_id: {e}")
+
+            # Gemini case: Look up by gobby_session_id from terminal_context
+            if gobby_session_id_from_env and not existing_session:
+                try:
+                    existing_session = self._session_storage.get(gobby_session_id_from_env)
+                    if existing_session:
+                        self.logger.info(
+                            f"Found pre-created session {gobby_session_id_from_env} via "
+                            f"terminal_context, updating external_id to {external_id}"
+                        )
+                        # Update the session's external_id with CLI's native session_id
+                        self._session_storage.update(
+                            gobby_session_id_from_env,
+                            external_id=external_id,
+                        )
+                        return self._handle_pre_created_session(
+                            existing_session=existing_session,
+                            external_id=external_id,
+                            transcript_path=transcript_path,
+                            cli_source=cli_source,
+                            event=event,
+                            cwd=cwd,
+                        )
+                except Exception as e:
+                    self.logger.debug(f"No pre-created session found by gobby_session_id: {e}")
 
         # Step 1: Find parent session
         # Check env vars first (spawned agent case), then handoff (source='clear')
@@ -76,8 +107,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Error finding parent session: {e}")
 
         # Step 2: Register new session with parent if found
-        # Extract terminal context (injected by hook_dispatcher for terminal correlation)
-        terminal_context = input_data.get("terminal_context")
+        # terminal_context already extracted in Step 0
         # Parse agent_depth as int if provided
         agent_depth_val = 0
         if agent_depth:

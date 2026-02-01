@@ -108,6 +108,14 @@ def get_terminal_context() -> dict[str, str | int | bool | None]:
     # Generic terminal program identifier (set by many terminals)
     context["term_program"] = os.environ.get("TERM_PROGRAM")
 
+    # Gobby session context (set when spawned by Gobby)
+    # These allow the daemon to link this Gemini session to a pre-created Gobby session
+    context["gobby_session_id"] = os.environ.get("GOBBY_SESSION_ID")
+    context["gobby_parent_session_id"] = os.environ.get("GOBBY_PARENT_SESSION_ID")
+    context["gobby_agent_run_id"] = os.environ.get("GOBBY_AGENT_RUN_ID")
+    context["gobby_project_id"] = os.environ.get("GOBBY_PROJECT_ID")
+    context["gobby_workflow_name"] = os.environ.get("GOBBY_WORKFLOW_NAME")
+
     return context
 
 
