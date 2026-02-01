@@ -15,6 +15,7 @@ from gobby.skills.hubs.base import HubProvider
 
 if TYPE_CHECKING:
     from gobby.config.skills import HubConfig
+    from gobby.llm.service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +56,18 @@ class HubManager:
         self,
         configs: dict[str, HubConfig] | None = None,
         api_keys: dict[str, str] | None = None,
+        llm_service: LLMService | None = None,
     ) -> None:
         """Initialize the hub manager.
 
         Args:
             configs: Dictionary of hub configurations keyed by hub name
             api_keys: Dictionary of API keys keyed by key name
+            llm_service: Optional LLM service for providers that need it
         """
         self._configs: dict[str, HubConfig] = configs or {}
         self._api_keys: dict[str, str] = api_keys or {}
+        self._llm_service = llm_service
         self._providers: dict[str, HubProvider] = {}
         self._factories: dict[str, ProviderFactory] = {}
 
@@ -166,6 +170,7 @@ class HubManager:
             kwargs["repo"] = config.repo
             kwargs["branch"] = config.branch or "main"
             kwargs["path"] = config.path
+            kwargs["llm_service"] = self._llm_service
 
         # Create the provider
         provider = factory(**kwargs)

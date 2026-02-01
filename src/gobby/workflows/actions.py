@@ -101,6 +101,7 @@ class ActionContext:
     memory_sync_manager: Any | None = None
     task_sync_manager: Any | None = None
     session_task_manager: Any | None = None
+    skill_manager: Any | None = None
     event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
 
 
@@ -131,6 +132,7 @@ class ActionExecutor:
         progress_tracker: Any | None = None,
         stuck_detector: Any | None = None,
         websocket_server: Any | None = None,
+        skill_manager: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -148,6 +150,7 @@ class ActionExecutor:
         self.progress_tracker = progress_tracker
         self.stuck_detector = stuck_detector
         self.websocket_server = websocket_server
+        self.skill_manager = skill_manager
         self._handlers: dict[str, ActionHandler] = {}
 
         self._register_defaults()

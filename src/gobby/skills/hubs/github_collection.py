@@ -8,13 +8,17 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from gobby.skills.hubs.base import DownloadResult, HubProvider, HubSkillDetails, HubSkillInfo
 from gobby.skills.loader import GitHubRef, clone_skill_repo
+
+if TYPE_CHECKING:
+    from gobby.llm.service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +55,9 @@ class GitHubCollectionProvider(HubProvider):
         ```
     """
 
+    # Cache TTL for synthesized descriptions (1 hour)
+    CACHE_TTL = 3600
+
     def __init__(
         self,
         hub_name: str,
@@ -59,6 +66,7 @@ class GitHubCollectionProvider(HubProvider):
         branch: str = "main",
         path: str | None = None,
         auth_token: str | None = None,
+        llm_service: LLMService | None = None,
     ) -> None:
         """Initialize the GitHub Collection provider.
 
@@ -69,11 +77,14 @@ class GitHubCollectionProvider(HubProvider):
             branch: Git branch to use (default: 'main')
             path: Subdirectory path within repo where skills are located
             auth_token: Optional GitHub token for private repos
+            llm_service: Optional LLM service for synthesizing descriptions
         """
         super().__init__(hub_name=hub_name, base_url=base_url, auth_token=auth_token)
         self._repo = repo or ""
         self._branch = branch
         self._path = path
+        self._llm_service = llm_service
+        self._description_cache: dict[str, tuple[str, float]] = {}
 
     @property
     def provider_type(self) -> str:
@@ -158,6 +169,83 @@ class GitHubCollectionProvider(HubProvider):
         except httpx.RequestError as e:
             logger.error(f"GitHub API request failed: {e}")
             return []
+
+    async def _fetch_skill_content(self, slug: str) -> str | None:
+        """Fetch SKILL.md content for a skill.
+
+        Args:
+            slug: The skill's directory name
+
+        Returns:
+            SKILL.md content as string, or None if not found
+        """
+        if not self._repo or "/" not in self._repo:
+            return None
+
+        owner, repo = self._repo.split("/", 1)
+        skill_path = f"{self._path.strip('/')}/{slug}" if self._path else slug
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{skill_path}/SKILL.md"
+
+        headers: dict[str, str] = {
+            "Accept": "application/vnd.github.v3.raw",  # Get raw content
+        }
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+
+        params: dict[str, str] = {}
+        if self._branch:
+            params["ref"] = self._branch
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                return response.text
+        except httpx.HTTPStatusError as e:
+            logger.debug(f"Could not fetch SKILL.md for {slug}: {e.response.status_code}")
+            return None
+        except httpx.RequestError as e:
+            logger.debug(f"Request failed fetching SKILL.md for {slug}: {e}")
+            return None
+
+    async def _synthesize_description(self, slug: str, content: str) -> str:
+        """Use LLM to synthesize a concise description from SKILL.md content.
+
+        Args:
+            slug: The skill's directory name (for context)
+            content: SKILL.md content
+
+        Returns:
+            Synthesized description string (empty if LLM unavailable)
+        """
+        if not self._llm_service:
+            return ""
+
+        # Truncate content to fit in prompt
+        snippet = content[:1500]
+
+        prompt = f"""Generate a concise 1-sentence description (max 100 chars) for this skill.
+
+Skill name: {slug}
+
+SKILL.md content:
+{snippet}
+
+Output ONLY the description text, no quotes, no explanation, no preamble."""
+
+        try:
+            provider = self._llm_service.get_default_provider()
+            description = await provider.generate_text(prompt)
+            # Clean up LLM output
+            return description.strip().strip('"').strip("'")[:150]
+        except Exception as e:
+            logger.warning(f"Failed to synthesize description for {slug}: {e}")
+            return ""
 
     async def _clone_skill(
         self,
@@ -294,26 +382,55 @@ class GitHubCollectionProvider(HubProvider):
     ) -> HubSkillDetails | None:
         """Get detailed information about a specific skill.
 
+        Fetches SKILL.md content and uses LLM to synthesize a concise
+        description. Results are cached for CACHE_TTL seconds.
+
         Args:
             slug: The skill's unique identifier
 
         Returns:
-            Detailed skill info, or None if not found
+            Detailed skill info with synthesized description, or None if not found
         """
-        # Find the skill in the list
+        # Verify skill exists in the list
         all_skills = await self.list_skills(limit=1000)
-        for skill in all_skills:
-            if skill.slug == slug:
+        skill_exists = any(skill.slug == slug for skill in all_skills)
+        if not skill_exists:
+            return None
+
+        # Check cache first
+        cache_key = f"{self._repo}:{slug}"
+        if cache_key in self._description_cache:
+            cached_desc, cached_at = self._description_cache[cache_key]
+            if time.time() - cached_at < self.CACHE_TTL:
                 return HubSkillDetails(
-                    slug=skill.slug,
-                    display_name=skill.display_name,
-                    description=skill.description,
+                    slug=slug,
+                    display_name=slug,
+                    description=cached_desc,
                     hub_name=self.hub_name,
-                    version=skill.version,
-                    latest_version=skill.version,
-                    versions=[skill.version] if skill.version else [],
+                    version=self._branch,
+                    latest_version=self._branch,
+                    versions=[self._branch],
                 )
-        return None
+
+        # Fetch SKILL.md content
+        content = await self._fetch_skill_content(slug)
+        description = ""
+
+        if content:
+            # Synthesize description using LLM
+            description = await self._synthesize_description(slug, content)
+            # Cache the result
+            self._description_cache[cache_key] = (description, time.time())
+
+        return HubSkillDetails(
+            slug=slug,
+            display_name=slug,
+            description=description,
+            hub_name=self.hub_name,
+            version=self._branch,
+            latest_version=self._branch,
+            versions=[self._branch],
+        )
 
     async def download_skill(
         self,
