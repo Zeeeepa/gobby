@@ -520,14 +520,14 @@ def create_skills_registry(
                     provider = hub_manager.get_provider(hub_name)
                     download_result = await provider.download_skill(skill_slug)
 
-                    if not download_result.get("success"):
+                    if not download_result.success or not download_result.path:
                         return {
                             "success": False,
-                            "error": f"Failed to download from hub: {download_result.get('error', 'Unknown error')}",
+                            "error": f"Failed to download from hub: {download_result.error or 'Unknown error'}",
                         }
 
                     # Load the skill from the downloaded path
-                    skill_path = Path(download_result["path"])
+                    skill_path = Path(download_result.path)
                     parsed_skill = loader.load_skill(skill_path)
                     source_type = "hub"
 
