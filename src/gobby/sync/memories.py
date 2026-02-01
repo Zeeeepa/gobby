@@ -289,7 +289,8 @@ class MemoryBackupManager:
             return 0
 
         try:
-            memories = self.memory_manager.list_memories()
+            # Use high limit to export all memories for backup (default is 50)
+            memories = self.memory_manager.list_memories(limit=10000)
 
             # Deduplicate by content before export
             unique_memories = self._deduplicate_memories(memories)

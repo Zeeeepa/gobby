@@ -153,7 +153,7 @@ triggers:
 
         # Block close_task without a linked commit (unless using special close reasons)
         - mcp_tools: ["gobby-tasks:close_task"]
-          when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix']"
+          when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
           reason: |
 
             A commit is required before closing this task.
@@ -167,6 +167,7 @@ triggers:
             - Task is no longer needed: reason="obsolete"
             - Task duplicates another: reason="duplicate"
             - Decided not to do it: reason="wont_fix"
+            - Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"
 
   on_after_tool:
     # Track successful get_tool_schema calls to unlock tools for call_tool

@@ -57,6 +57,7 @@ class GitHubCollectionProvider(HubProvider):
         base_url: str,
         repo: str | None = None,
         branch: str = "main",
+        path: str | None = None,
         auth_token: str | None = None,
     ) -> None:
         """Initialize the GitHub Collection provider.
@@ -66,11 +67,13 @@ class GitHubCollectionProvider(HubProvider):
             base_url: Not used for GitHub (kept for interface compatibility)
             repo: GitHub repository in 'owner/repo' format
             branch: Git branch to use (default: 'main')
+            path: Subdirectory path within repo where skills are located
             auth_token: Optional GitHub token for private repos
         """
         super().__init__(hub_name=hub_name, base_url=base_url, auth_token=auth_token)
         self._repo = repo or ""
         self._branch = branch
+        self._path = path
 
     @property
     def provider_type(self) -> str:
@@ -87,6 +90,11 @@ class GitHubCollectionProvider(HubProvider):
         """Git branch to use."""
         return self._branch
 
+    @property
+    def path(self) -> str | None:
+        """Subdirectory path within repo where skills are located."""
+        return self._path
+
     async def _fetch_skill_list(self) -> list[dict[str, Any]]:
         """Fetch the list of skills from the repository.
 
@@ -102,6 +110,8 @@ class GitHubCollectionProvider(HubProvider):
 
         owner, repo = self._repo.split("/", 1)
         url = f"https://api.github.com/repos/{owner}/{repo}/contents"
+        if self._path:
+            url = f"{url}/{self._path.strip('/')}"
 
         headers: dict[str, str] = {
             "Accept": "application/vnd.github.v3+json",
@@ -175,19 +185,22 @@ class GitHubCollectionProvider(HubProvider):
 
         owner, repo = self._repo.split("/", 1)
 
+        # Build skill path within repo (accounting for subdirectory)
+        skill_subpath = f"{self._path.strip('/')}/{slug}" if self._path else slug
+
         # Build GitHubRef with optional version override
         ref = GitHubRef(
             owner=owner,
             repo=repo,
             branch=version or self._branch,
-            path=slug,
+            path=skill_subpath,
         )
 
         # Clone/update the repository
         repo_path = clone_skill_repo(ref)
 
         # Path to the skill within the repo
-        skill_path = repo_path / slug
+        skill_path = repo_path / skill_subpath
 
         # If target_dir specified, copy skill there
         if target_dir:
@@ -212,6 +225,7 @@ class GitHubCollectionProvider(HubProvider):
             "provider_type": self.provider_type,
             "repo": self.repo,
             "branch": self.branch,
+            "path": self.path,
             "authenticated": self.auth_token is not None,
         }
 

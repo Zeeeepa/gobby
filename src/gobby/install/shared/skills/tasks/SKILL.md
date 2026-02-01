@@ -99,7 +99,7 @@ Example: `/gobby tasks list in_progress` → `list_tasks(status="in_progress")`
 ### `/gobby tasks close <task-id>` - Close a task
 Call `close_task` with:
 - `task_id`: (required) Task reference
-- `reason`: "completed" (default), "duplicate", "already_implemented", "wont_fix", "obsolete"
+- `reason`: "completed" (default), "duplicate", "already_implemented", "wont_fix", "obsolete", "out_of_repo"
 - `changes_summary`: Summary of changes (triggers validation)
 - `commit_sha`: Git commit SHA to link
 - `skip_validation`: Skip LLM validation (requires justification)
@@ -113,6 +113,7 @@ Call `close_task` with:
 - `reason="obsolete"` - Task is no longer needed
 - `reason="duplicate"` - Task duplicates another
 - `reason="wont_fix"` - Decided not to do it
+- `reason="out_of_repo"` - Changes outside repo (e.g., ~/.gobby/config.yaml)
 
 **Review routing**: Tasks may route to `review` status instead of `closed` when:
 - Task has `requires_user_review=true`, OR

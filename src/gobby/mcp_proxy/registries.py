@@ -271,11 +271,32 @@ def setup_internal_registries(
     # Initialize skills registry using the existing database from task_manager
     # to avoid creating a duplicate connection that would leak
     if task_manager is not None:
+        from gobby.config.skills import SkillsConfig
         from gobby.mcp_proxy.tools.skills import create_skills_registry
+        from gobby.skills.hubs import (
+            ClaudePluginsProvider,
+            ClawdHubProvider,
+            GitHubCollectionProvider,
+            HubManager,
+            SkillHubProvider,
+        )
+
+        # Get skills config (or use defaults)
+        skills_config = _config.skills if _config and hasattr(_config, "skills") else SkillsConfig()
+
+        # Create hub manager with configured hubs
+        hub_manager = HubManager(configs=skills_config.hubs)
+
+        # Register provider factories
+        hub_manager.register_provider_factory("clawdhub", ClawdHubProvider)
+        hub_manager.register_provider_factory("skillhub", SkillHubProvider)
+        hub_manager.register_provider_factory("github-collection", GitHubCollectionProvider)
+        hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
 
         skills_registry = create_skills_registry(
             db=task_manager.db,
             project_id=project_id,
+            hub_manager=hub_manager,
         )
         manager.add_registry(skills_registry)
         logger.debug("Skills registry initialized")

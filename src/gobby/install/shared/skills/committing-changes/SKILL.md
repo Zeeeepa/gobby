@@ -70,7 +70,7 @@ For tasks that don't require code changes (research, planning, obsolete tasks):
 ```python
 call_tool("gobby-tasks", "close_task", {
     "task_id": "<task-id>",
-    "reason": "obsolete"  # or "already_implemented", "duplicate", "wont_fix"
+    "reason": "obsolete"  # or "already_implemented", "duplicate", "wont_fix", "out_of_repo"
 })
 ```
 

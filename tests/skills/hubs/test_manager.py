@@ -12,6 +12,14 @@ pytestmark = pytest.mark.unit
 class MockProvider(HubProvider):
     """Mock provider for testing."""
 
+    def __init__(
+        self, hub_name: str, base_url: str, auth_token: str | None = None, **kwargs
+    ) -> None:
+        """Initialize mock provider, accepting any extra kwargs."""
+        super().__init__(hub_name=hub_name, base_url=base_url, auth_token=auth_token)
+        # Store extra kwargs for inspection in tests
+        self._extra_kwargs = kwargs
+
     @property
     def provider_type(self) -> str:
         return "mock"
