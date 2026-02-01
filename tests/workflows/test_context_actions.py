@@ -1800,3 +1800,233 @@ class TestInjectContextSkillsSource:
         assert result is not None
         assert result["decision"] == "block"
         assert "Required handoff context not found" in result["reason"]
+
+
+# --- Tests for inject_context with source='task_context' ---
+
+
+class TestInjectContextTaskContextSource:
+    """Tests for inject_context with source='task_context'.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_session_task_manager(self):
+        """Create a mock session task manager."""
+        manager = MagicMock()
+
+        # Create mock task object
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-123"
+        mock_task.seq_num = 6644
+        mock_task.title = "Implement user authentication"
+        mock_task.status = "in_progress"
+        mock_task.description = "Add login/logout functionality"
+        mock_task.validation_criteria = "Tests pass and login works"
+
+        # Return task in the worked_on action format
+        manager.get_session_tasks.return_value = [
+            {
+                "task": mock_task,
+                "action": "worked_on",
+                "link_created_at": "2026-01-15T10:00:00Z",
+            }
+        ]
+
+        return manager
+
+    def test_task_context_source_returns_formatted_task_info(
+        self, mock_session_manager, mock_template_engine, mock_session_task_manager
+    ) -> None:
+        """Should return formatted task info when source is 'task_context'."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain task details
+        assert "#6644" in content or "6644" in content
+        assert "Implement user authentication" in content
+        assert "in_progress" in content
+
+    def test_task_context_source_returns_none_without_session_task_manager(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when session_task_manager is not provided."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=None,
+        )
+
+        assert result is None
+
+    def test_task_context_source_returns_none_when_no_active_task(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when session has no tasks."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=empty_manager,
+        )
+
+        assert result is None
+
+    def test_task_context_source_filters_worked_on_tasks(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should only include tasks with 'worked_on' action."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        # Create mock tasks with different actions
+        worked_on_task = MagicMock()
+        worked_on_task.id = "task-1"
+        worked_on_task.seq_num = 100
+        worked_on_task.title = "Active task"
+        worked_on_task.status = "in_progress"
+        worked_on_task.description = "The active task"
+        worked_on_task.validation_criteria = None
+
+        mentioned_task = MagicMock()
+        mentioned_task.id = "task-2"
+        mentioned_task.seq_num = 200
+        mentioned_task.title = "Mentioned task"
+        mentioned_task.status = "open"
+
+        manager = MagicMock()
+        manager.get_session_tasks.return_value = [
+            {"task": worked_on_task, "action": "worked_on", "link_created_at": "2026-01-15T10:00:00Z"},
+            {"task": mentioned_task, "action": "mentioned", "link_created_at": "2026-01-15T09:00:00Z"},
+        ]
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=manager,
+        )
+
+        assert result is not None
+        content = result["inject_context"]
+        # Should contain worked_on task
+        assert "Active task" in content
+        # Should NOT contain mentioned task
+        assert "Mentioned task" not in content
+
+    def test_task_context_source_with_template_rendering(
+        self, mock_session_manager, mock_session_task_manager
+    ) -> None:
+        """Should render template with task_context for task_context source."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        template_engine = MagicMock()
+        template_engine.render.return_value = "Rendered task context"
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=template_engine,
+            source="task_context",
+            template="Task: {{ task_context }}",
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert result["inject_context"] == "Rendered task context"
+        call_args = template_engine.render.call_args
+        assert "task_context" in call_args[0][1]
+
+    def test_task_context_source_sets_context_injected_flag(
+        self, mock_session_manager, mock_template_engine, mock_session_task_manager
+    ) -> None:
+        """Should set context_injected flag on state when task context injected."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert state.context_injected is True
+
+    def test_task_context_source_require_blocks_when_no_task(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return block decision when require=True and no task found."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=empty_manager,
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]

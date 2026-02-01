@@ -30,6 +30,7 @@ def inject_context(
     require: bool = False,
     skill_manager: Any | None = None,
     filter: str | None = None,
+    session_task_manager: Any | None = None,
 ) -> dict[str, Any] | None:
     """Inject context from a source.
 
@@ -38,11 +39,12 @@ def inject_context(
         session_id: Current session ID
         state: WorkflowState instance
         template_engine: Template engine for rendering
-        source: Source type (previous_session_summary, handoff, artifacts, skills, etc.)
+        source: Source type (previous_session_summary, handoff, artifacts, skills, task_context, etc.)
         template: Optional template for rendering
         require: If True, block session when no content found (default: False)
         skill_manager: HookSkillManager instance (required for source='skills')
         filter: Optional filter for skills source ('always_apply' to only include always-apply skills)
+        session_task_manager: SessionTaskManager instance (required for source='task_context')
 
     Returns:
         Dict with inject_context key, blocking decision, or None
@@ -172,6 +174,21 @@ def inject_context(
             content = _format_skills(skills)
             logger.debug(f"Formatted {len(skills)} skills for injection")
 
+    elif source == "task_context":
+        # Inject current task context from session_task_manager
+        if session_task_manager is None:
+            logger.debug("inject_context: task_context source requires session_task_manager")
+            return None
+
+        session_tasks = session_task_manager.get_session_tasks(session_id)
+
+        # Filter for "worked_on" tasks (the active task)
+        worked_on_tasks = [t for t in session_tasks if t.get("action") == "worked_on"]
+
+        if worked_on_tasks:
+            content = _format_task_context(worked_on_tasks)
+            logger.debug(f"Formatted {len(worked_on_tasks)} active tasks for injection")
+
     if content:
         if template:
             render_context = {
@@ -195,6 +212,8 @@ def inject_context(
                 render_context["handoff"] = content
             elif source == "skills":
                 render_context["skills_list"] = content
+            elif source == "task_context":
+                render_context["task_context"] = content
 
             content = template_engine.render(template, render_context)
 
@@ -349,6 +368,41 @@ def extract_handoff_context(
         return {"error": str(e)}
 
 
+def _format_task_context(task_entries: list[dict[str, Any]]) -> str:
+    """Format task entries as markdown for injection.
+
+    Args:
+        task_entries: List of dicts with 'task' key containing Task objects
+
+    Returns:
+        Formatted markdown string with task info
+    """
+    lines = ["## Active Task"]
+    for entry in task_entries:
+        task = entry.get("task")
+        if task is None:
+            continue
+
+        seq_num = getattr(task, "seq_num", None)
+        title = getattr(task, "title", "Untitled")
+        status = getattr(task, "status", "unknown")
+        description = getattr(task, "description", "")
+        validation = getattr(task, "validation_criteria", "")
+
+        # Format task reference
+        ref = f"#{seq_num}" if seq_num else task.id[:8] if hasattr(task, "id") else "unknown"
+        lines.append(f"**{ref}**: {title}")
+        lines.append(f"Status: {status}")
+
+        if description:
+            lines.append(f"\n{description}")
+
+        if validation:
+            lines.append(f"\n**Validation Criteria**: {validation}")
+
+    return "\n".join(lines)
+
+
 def _format_skills(skills: list[Any]) -> str:
     """Format a list of ParsedSkill objects as markdown for injection.
 
@@ -497,6 +551,7 @@ async def handle_inject_context(context: ActionContext, **kwargs: Any) -> dict[s
         require=kwargs.get("require", False),
         skill_manager=context.skill_manager,
         filter=kwargs.get("filter"),
+        session_task_manager=context.session_task_manager,
     )
 
 
