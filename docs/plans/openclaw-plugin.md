@@ -1,4 +1,4 @@
-# Plan: Gobby as MCP Server for Moltbot
+# Plan: Gobby as MCP Server for OpenClaw
 
 **Session**: #640
 **Status**: Approved
@@ -6,12 +6,12 @@
 
 ## Summary
 
-Create a Moltbot plugin that exposes Gobby's MCP tools to the Pi agent. The plugin connects to Gobby's HTTP endpoint (`http://localhost:60887/mcp`) and registers a meta-tool that provides access to all Gobby capabilities.
+Create an OpenClaw plugin that exposes Gobby's MCP tools to the Pi agent. The plugin connects to Gobby's HTTP endpoint (`http://localhost:60887/mcp`) and registers a meta-tool that provides access to all Gobby capabilities.
 
 ## Architecture
 
 ```
-Moltbot Pi Agent
+OpenClaw Pi Agent
        ↓
    gobby plugin (meta-tool)
        ↓
@@ -27,21 +27,35 @@ Moltbot Pi Agent
 ### File Structure
 
 ```
-~/Projects/moltbot/extensions/gobby/
+~/Projects/openclaw/extensions/gobby/
+├── openclaw.plugin.json  # Plugin manifest
 ├── index.ts              # Plugin registration
 ├── src/
 │   ├── gobby-client.ts   # HTTP client for Gobby MCP
 │   └── gobby-tool.ts     # Meta-tool implementation
 ```
 
-### 1. Plugin Entry Point (`index.ts`)
+### 1. Plugin Manifest (`openclaw.plugin.json`)
+
+```json
+{
+  "name": "@openclaw/gobby",
+  "version": "0.1.0",
+  "description": "Gobby MCP integration for OpenClaw",
+  "main": "index.ts",
+  "optional": true,
+  "sandbox": false
+}
+```
+
+### 2. Plugin Entry Point (`index.ts`)
 
 Follow the lobster plugin pattern:
 - Register tool factory with `optional: true`
 - Disable in sandboxed mode
-- Pass plugin API to tool creator
+- Pass plugin API (`OpenClawPluginApi`) to tool creator
 
-### 2. Gobby Client (`src/gobby-client.ts`)
+### 3. Gobby Client (`src/gobby-client.ts`)
 
 HTTP client wrapping Gobby's MCP endpoint:
 - `status()` - Check daemon availability
@@ -52,7 +66,7 @@ HTTP client wrapping Gobby's MCP endpoint:
 
 Uses `fetch` to POST to `http://localhost:60887/mcp` with MCP JSON-RPC format.
 
-### 3. Meta-Tool (`src/gobby-tool.ts`)
+### 4. Meta-Tool (`src/gobby-tool.ts`)
 
 Single tool with action dispatch:
 
@@ -124,27 +138,30 @@ Arguments passed to `callTool` should be sanitized:
 
 ## Files to Create
 
-1. **`~/Projects/moltbot/extensions/gobby/index.ts`**
+1. **`~/Projects/openclaw/extensions/gobby/openclaw.plugin.json`**
+   - Plugin manifest
+
+2. **`~/Projects/openclaw/extensions/gobby/index.ts`**
    - Plugin entry, registers gobby tool
 
-2. **`~/Projects/moltbot/extensions/gobby/src/gobby-client.ts`**
+3. **`~/Projects/openclaw/extensions/gobby/src/gobby-client.ts`**
    - HTTP client for MCP endpoint
 
-3. **`~/Projects/moltbot/extensions/gobby/src/gobby-tool.ts`**
+4. **`~/Projects/openclaw/extensions/gobby/src/gobby-tool.ts`**
    - Meta-tool with action dispatch
 
 ## Reference Files
 
-- `~/Projects/moltbot/extensions/lobster/index.ts` - Plugin pattern
-- `~/Projects/moltbot/extensions/lobster/src/lobster-tool.ts` - Tool structure
-- `~/Projects/moltbot/src/plugins/types.ts` - API types
+- `~/Projects/openclaw/extensions/lobster/index.ts` - Plugin pattern
+- `~/Projects/openclaw/extensions/lobster/src/lobster-tool.ts` - Tool structure
+- `~/Projects/openclaw/src/plugins/types.ts` - OpenClawPluginApi types
 - `~/Projects/gobby/src/gobby/mcp_proxy/server.py` - MCP interface
 
 ## Verification
 
 1. Start Gobby daemon: `cd ~/Projects/gobby && uv run gobby start`
-2. Build plugin: `cd ~/Projects/moltbot && bun run build`
-3. Test via Moltbot gateway:
+2. Build plugin: `cd ~/Projects/openclaw && bun run build`
+3. Test via OpenClaw gateway:
    ```
    gobby action=status
    gobby action=list_servers
@@ -156,5 +173,5 @@ Arguments passed to `callTool` should be sanitized:
 ## Future Enhancements (Out of Scope)
 
 - Direct tool wrappers for high-frequency tools
-- Session correlation between Moltbot and Gobby
-- Bidirectional integration (Moltbot channels in Gobby)
+- Session correlation between OpenClaw and Gobby
+- Bidirectional integration (OpenClaw channels in Gobby)
