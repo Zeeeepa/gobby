@@ -25,7 +25,7 @@ def inject_context(
     session_id: str,
     state: Any,
     template_engine: Any,
-    source: str | None = None,
+    source: str | list[str] | None = None,
     template: str | None = None,
     require: bool = False,
     skill_manager: Any | None = None,
@@ -36,14 +36,15 @@ def inject_context(
     limit: int = 5,
     min_importance: float = 0.3,
 ) -> dict[str, Any] | None:
-    """Inject context from a source.
+    """Inject context from a source or multiple sources.
 
     Args:
         session_manager: The session manager instance
         session_id: Current session ID
         state: WorkflowState instance
         template_engine: Template engine for rendering
-        source: Source type (previous_session_summary, handoff, artifacts, skills, task_context, memories, etc.)
+        source: Source type(s). Can be a string or list of strings.
+                Supported: previous_session_summary, handoff, artifacts, skills, task_context, memories, etc.
         template: Optional template for rendering
         require: If True, block session when no content found (default: False)
         skill_manager: HookSkillManager instance (required for source='skills')
@@ -72,6 +73,51 @@ def inject_context(
 
     if not session_id:
         logger.warning("inject_context: session_id is empty or None")
+        return None
+
+    # Handle list of sources - recursively call for each source and combine
+    if isinstance(source, list):
+        combined_content: list[str] = []
+        for single_source in source:
+            result = inject_context(
+                session_manager=session_manager,
+                session_id=session_id,
+                state=state,
+                template_engine=template_engine,
+                source=single_source,
+                template=None,  # Don't render template for individual sources
+                require=False,  # Don't block for individual sources
+                skill_manager=skill_manager,
+                filter=filter,
+                session_task_manager=session_task_manager,
+                memory_manager=memory_manager,
+                prompt_text=prompt_text,
+                limit=limit,
+                min_importance=min_importance,
+            )
+            if result and result.get("inject_context"):
+                combined_content.append(result["inject_context"])
+
+        if combined_content:
+            content = "\n\n".join(combined_content)
+            if template:
+                render_context: dict[str, Any] = {
+                    "session": session_manager.get(session_id),
+                    "state": state,
+                    "artifacts": state.artifacts if state else {},
+                    "observations": state.observations if state else {},
+                    "combined_content": content,
+                }
+                content = template_engine.render(template, render_context)
+            state.context_injected = True
+            return {"inject_context": content}
+
+        # No content from any source - block if required
+        if require:
+            reason = f"Required handoff context not found (sources={source})"
+            logger.warning(f"inject_context: {reason}")
+            return {"decision": "block", "reason": reason}
+
         return None
 
     # Debug logging for troubleshooting
