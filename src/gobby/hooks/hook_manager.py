@@ -256,6 +256,10 @@ class HookManager:
         # But 'TemplateEngine' constructor takes optional dirs.
         self._template_engine = TemplateEngine()
 
+        # Skill manager for core skill injection
+        # Initialized before ActionExecutor so it can be passed through
+        self._skill_manager = HookSkillManager()
+
         # Get websocket_server from broadcaster if available
         websocket_server = None
         if self.broadcaster and hasattr(self.broadcaster, "websocket_server"):
@@ -278,6 +282,7 @@ class HookManager:
             progress_tracker=self._progress_tracker,
             stuck_detector=self._stuck_detector,
             websocket_server=websocket_server,
+            skill_manager=self._skill_manager,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
@@ -365,9 +370,6 @@ class HookManager:
             health_check_interval=health_check_interval,
             logger=self.logger,
         )
-
-        # Skill manager for core skill injection
-        self._skill_manager = HookSkillManager()
 
         # Track sessions that have received full metadata injection
         # Key: "{platform_session_id}:{source}" - cleared on daemon restart
