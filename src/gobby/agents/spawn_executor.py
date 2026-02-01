@@ -256,15 +256,10 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     gobby_session_id = spawn_context.session_id
 
     # Build command for fresh Gemini session (not resume)
-    # Include Gobby session context in the prompt for agent awareness
-    context_prefix = (
-        f"Your Gobby session_id is: {gobby_session_id}\nUse this when calling Gobby MCP tools.\n\n"
-    )
-    full_prompt = context_prefix + (request.prompt or "")
-
+    # Session context is injected via additionalContext at SessionStart by the daemon
     cmd = build_cli_command(
         cli="gemini",
-        prompt=full_prompt,
+        prompt=request.prompt,
         auto_approve=True,
         mode="terminal",
     )
