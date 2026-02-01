@@ -83,6 +83,22 @@ triggers:
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
 
+    # Skill and task context injection - inject always-apply skills for all session starts
+    # Uses array syntax to combine multiple sources
+    - action: inject_context
+      source: skills
+      filter: always_apply
+      template: |
+        The following skills are available for use with the Skill tool:
+
+        {{ skills_list }}
+
+    # Inject active task context if session has a claimed task
+    - action: inject_context
+      source: task_context
+      template: |
+        {{ task_context }}
+
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
       when: "event.data.get('source') == 'startup'"
@@ -138,9 +154,22 @@ triggers:
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
             - claim_task(task_id, session_id) - Claim existing unclaimed task.
 
+        # Block call_tool if schema wasn't fetched first (progressive disclosure)
+        # Skip for discovery tools (list_tools, get_tool_schema, etc.)
+        # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
+        # NOTE: This rule MUST come before mcp_tools rules so schema check fires first
+        - tools: ["mcp__gobby__call_tool"]
+          when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+          reason: |
+
+            Schema required before calling call_tool("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}").
+
+            Run first:
+              get_tool_schema("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}")
+
         # Block close_task without a linked commit (unless using special close reasons)
         - mcp_tools: ["gobby-tasks:close_task"]
-          when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix']"
+          when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
           reason: |
 
             A commit is required before closing this task.
@@ -154,18 +183,7 @@ triggers:
             - Task is no longer needed: reason="obsolete"
             - Task duplicates another: reason="duplicate"
             - Decided not to do it: reason="wont_fix"
-
-        # Block call_tool if schema wasn't fetched first (progressive disclosure)
-        # Skip for discovery tools (list_tools, get_tool_schema, etc.)
-        # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
-        - tools: ["mcp__gobby__call_tool"]
-          when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
-          reason: |
-
-            Schema required before calling call_tool("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}").
-
-            Run first:
-              get_tool_schema("{{ tool_input.get('server_name') }}", "{{ tool_input.get('tool_name') }}")
+            - Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"
 
   on_after_tool:
     # Track successful get_tool_schema calls to unlock tools for call_tool
@@ -180,10 +198,9 @@ triggers:
         - pending_tasks
       prompt: handoff/session_end
 
-    # Extract memories from session (before sync export)
-    - action: memory_extract
-      min_importance: 0.7
-      max_memories: 5
+    # Memory capture is now agent-driven via proactive-memory skill
+    # Agents save memories during work when they discover valuable insights
+    # The memory_extract action remains available for manual/workflow use
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export

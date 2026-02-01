@@ -83,6 +83,22 @@ triggers:
     # Task sync - import from JSONL for Git persistence
     - action: task_sync_import
 
+    # Skill and task context injection - inject always-apply skills for all session starts
+    # Uses array syntax to combine multiple sources
+    - action: inject_context
+      source: skills
+      filter: always_apply
+      template: |
+        The following skills are available for use with the Skill tool:
+
+        {{ skills_list }}
+
+    # Inject active task context if session has a claimed task
+    - action: inject_context
+      source: task_context
+      template: |
+        {{ task_context }}
+
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
       when: "event.data.get('source') == 'startup'"
