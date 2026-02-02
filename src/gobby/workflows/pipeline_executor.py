@@ -108,14 +108,52 @@ class PipelineExecutor:
             "steps": {},  # Will hold step outputs as they complete
         }
 
+        # Fetch existing steps if resuming
+        existing_steps = {}
+        if execution_id:
+            steps = self.execution_manager.get_steps_for_execution(execution_id)
+            existing_steps = {s.step_id: s for s in steps}
+
         try:
             # 4. Iterate through steps in order
             for step in pipeline.steps:
-                step_execution = self.execution_manager.create_step_execution(
-                    execution_id=execution.id,
-                    step_id=step.id,
-                    input_json=json.dumps(context) if context else None,
-                )
+                # Check for existing execution
+                step_execution = existing_steps.get(step.id)
+
+                if step_execution:
+                    # If completed, load output into context and skip
+                    if step_execution.status == StepStatus.COMPLETED:
+                        logger.info(f"Skipping completed step {step.id}")
+                        output = None
+                        if step_execution.output_json:
+                            try:
+                                output = json.loads(step_execution.output_json)
+                            except json.JSONDecodeError:
+                                output = step_execution.output_json
+                        context["steps"][step.id] = {"output": output}
+                        continue
+
+                    # If skipped, just skip
+                    if step_execution.status == StepStatus.SKIPPED:
+                        logger.info(f"Skipping previously skipped step {step.id}")
+                        continue
+
+                    # If waiting approval, check if we should check gate again
+                    # If we are resuming, it might have been approved
+                    if step_execution.status == StepStatus.WAITING_APPROVAL:
+                        # If the step is still marked as waiting approval in DB,
+                        # checking the gate will just re-raise ApprovalRequired.
+                        # If it was approved, status should be COMPLETED.
+                        # So we can just proceed to check/execute.
+                        pass
+
+                # Create new step execution if not exists
+                if not step_execution:
+                    step_execution = self.execution_manager.create_step_execution(
+                        execution_id=execution.id,
+                        step_id=step.id,
+                        input_json=json.dumps(context) if context else None,
+                    )
 
                 # Check if step should run based on condition
                 if not self._should_run_step(step, context):
@@ -355,6 +393,41 @@ class PipelineExecutor:
 
         # Get the execution
         execution = self.execution_manager.get_execution(step.execution_id)
+        if not execution:
+            raise ValueError(f"Execution {step.execution_id} not found")
+
+        # Resume execution
+        if self.loader:
+            try:
+                pipeline = self.loader.load_pipeline(execution.pipeline_name)
+                if pipeline:
+                    inputs = {}
+                    if execution.inputs_json:
+                        try:
+                            inputs = json.loads(execution.inputs_json)
+                        except json.JSONDecodeError:
+                            pass
+
+                    # Execute (resume)
+                    execution = await self.execute(
+                        pipeline=pipeline,
+                        inputs=inputs,
+                        project_id=execution.project_id,
+                        execution_id=execution.id,
+                    )
+            except ApprovalRequired:
+                # Pipeline paused again for another approval - this is expected
+                # Refresh execution to get latest status
+                execution = self.execution_manager.get_execution(execution.id)
+                if not execution:
+                    raise ValueError(
+                        f"Execution {step.execution_id} not found after resume"
+                    ) from None
+            except Exception as e:
+                logger.error(f"Failed to resume execution after approval: {e}", exc_info=True)
+                # Don't fail the approval if resume fails, but log it
+        else:
+            logger.warning("No loader configured, cannot resume execution automatically")
 
         return execution
 
@@ -381,10 +454,14 @@ class PipelineExecutor:
             raise ValueError(f"Invalid approval token: {token}")
 
         # Mark step as failed
+        error_msg = "Rejected"
+        if rejected_by:
+            error_msg += f" by {rejected_by}"
+
         self.execution_manager.update_step_execution(
             step_execution_id=step.id,
             status=StepStatus.FAILED,
-            rejected_by=rejected_by,
+            error=error_msg,
         )
 
         # Set execution status to CANCELLED
@@ -392,6 +469,9 @@ class PipelineExecutor:
             execution_id=step.execution_id,
             status=ExecutionStatus.CANCELLED,
         )
+
+        if not execution:
+            raise ValueError(f"Execution {step.execution_id} not found")
 
         return execution
 
