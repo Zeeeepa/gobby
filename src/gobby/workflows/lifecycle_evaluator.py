@@ -123,8 +123,10 @@ async def evaluate_workflow_triggers(
     session_id = event.metadata.get("_platform_session_id") or "global"
 
     # Try to load existing state, or create new one
+    # Track whether we created a new state to determine save behavior later
     state = state_manager.get_state(session_id)
-    if state is None:
+    state_was_created = state is None
+    if state_was_created:
         state = WorkflowState(
             session_id=session_id,
             workflow_name=workflow.name,
@@ -236,23 +238,27 @@ async def evaluate_workflow_triggers(
                 exc_info=True,
             )
 
-    # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant)
+    # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant,
+    # unlocked_tools from track_schema_lookup)
     # Only save if we have a real session ID (not "global" fallback)
     # The workflow_states table has a FK to sessions, so we can't save for non-existent sessions
-    #
-    # IMPORTANT: Only save if this is a lifecycle-managed state, not a step workflow state.
-    # Step workflows (activated via activate_workflow) have their own workflow_name.
-    # We must not overwrite them with lifecycle trigger state, as that would lose
-    # variables like assigned_task_id set during activation.
     if session_id != "global":
-        # Re-fetch current state to check if it's a step workflow
-        current_state = state_manager.get_state(session_id)
-        is_step_workflow = (
-            current_state is not None
-            and current_state.workflow_name != "__lifecycle__"
-            and current_state.workflow_name != workflow.name
-        )
-        if not is_step_workflow:
+        if state_was_created:
+            # We created a new lifecycle state - check for existing step workflow
+            # to avoid overwriting it with our new lifecycle state.
+            # Step workflows (activated via activate_workflow) have their own workflow_name.
+            current_state = state_manager.get_state(session_id)
+            is_step_workflow = (
+                current_state is not None
+                and current_state.workflow_name != "__lifecycle__"
+                and current_state.workflow_name != workflow.name
+            )
+            if not is_step_workflow:
+                state_manager.save_state(state)
+        else:
+            # We fetched an existing state (possibly a step workflow) and updated
+            # its variables. Safe to save since we're just persisting variable
+            # changes (like unlocked_tools), not changing workflow_name or step.
             state_manager.save_state(state)
 
     final_context = "\n\n".join(injected_context) if injected_context else None
