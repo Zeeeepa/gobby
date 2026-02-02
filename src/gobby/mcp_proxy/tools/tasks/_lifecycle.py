@@ -587,6 +587,17 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         except Exception:
             pass  # nosec B110 - best-effort linking
 
+        # Set task_claimed workflow variable (enables Edit/Write hooks)
+        # This mirrors create_task behavior in _crud.py
+        try:
+            state = ctx.workflow_state_manager.get_state(resolved_session_id)
+            if state:
+                state.variables["task_claimed"] = True
+                state.variables["claimed_task_id"] = resolved_id  # Always use UUID
+                ctx.workflow_state_manager.save_state(state)
+        except Exception:
+            pass  # nosec B110 - best-effort variable setting
+
         return {}
 
     registry.register(
