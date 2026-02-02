@@ -882,6 +882,101 @@ class TestFormatToolDescription:
         }
         assert analyzer._format_tool_description(block) == "Called context7.get_docs"
 
+    def test_mcp_call_tool_generic_with_query(self) -> None:
+        """Test generic MCP calls extract query argument."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "context7",
+                "tool_name": "search_docs",
+                "arguments": {"query": "how to use websockets"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block)
+            == "context7.search_docs: how to use websockets"
+        )
+
+    def test_mcp_call_tool_generic_with_title(self) -> None:
+        """Test generic MCP calls extract title argument."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "some-server",
+                "tool_name": "create_item",
+                "arguments": {"title": "New Feature Request"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block)
+            == "some-server.create_item: New Feature Request"
+        )
+
+    def test_mcp_call_tool_generic_with_path(self) -> None:
+        """Test generic MCP calls extract path argument."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "filesystem",
+                "tool_name": "read_file",
+                "arguments": {"path": "/etc/config.yaml"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block) == "filesystem.read_file: /etc/config.yaml"
+        )
+
+    def test_mcp_call_tool_generic_truncates_long_values(self) -> None:
+        """Test generic MCP calls truncate long argument values."""
+        analyzer = TranscriptAnalyzer()
+        long_query = "a" * 60  # 60 chars, should be truncated to 50
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "search",
+                "tool_name": "find",
+                "arguments": {"query": long_query},
+            },
+        }
+        result = analyzer._format_tool_description(block)
+        assert result.startswith("search.find: ")
+        assert result.endswith("...")
+        assert len(result) <= 70  # "search.find: " + 50 chars max
+
+    def test_mcp_call_tool_generic_priority_order(self) -> None:
+        """Test generic MCP calls use priority order (query > title > path)."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "test",
+                "tool_name": "mixed",
+                "arguments": {
+                    "path": "/some/path",
+                    "title": "Some Title",
+                    "query": "search term",  # Should win (highest priority)
+                },
+            },
+        }
+        assert analyzer._format_tool_description(block) == "test.mixed: search term"
+
+    def test_mcp_call_tool_generic_ignores_session_id(self) -> None:
+        """Test generic MCP calls ignore session_id in fallback."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "test",
+                "tool_name": "do_thing",
+                "arguments": {"session_id": "abc123"},  # Should be ignored
+            },
+        }
+        # No meaningful context extracted, falls back to basic format
+        assert analyzer._format_tool_description(block) == "Called test.do_thing"
+
     def test_bash_command(self) -> None:
         """Test Bash commands show the actual command."""
         analyzer = TranscriptAnalyzer()

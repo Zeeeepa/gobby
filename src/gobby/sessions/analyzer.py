@@ -262,6 +262,10 @@ class TranscriptAnalyzer:
                     task_id = args.get("task_id", "?")
                     return f"Fetched task {task_id}"
 
+            # Generic MCP call formatting - extract meaningful context from args
+            context = self._extract_mcp_context(args)
+            if context:
+                return f"{server}.{tool}: {context}"
             return f"Called {server}.{tool}"
 
         # Bash - show the command (truncated)
@@ -318,6 +322,56 @@ class TranscriptAnalyzer:
 
         # Default - just show the tool name
         return f"Called {tool_name}"
+
+    def _extract_mcp_context(self, args: dict[str, Any]) -> str:
+        """
+        Extract meaningful context from MCP tool arguments.
+
+        Looks for common argument patterns and returns the most relevant value
+        to describe what the tool call is doing.
+
+        Args:
+            args: Tool arguments dict
+
+        Returns:
+            Extracted context string (truncated to 50 chars) or empty string
+        """
+        if not args:
+            return ""
+
+        # Priority order for extracting context
+        # 1. Search/query related - what are we looking for?
+        for key in ("query", "search", "pattern", "topic"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 50)
+
+        # 2. Identity/naming - what entity are we working with?
+        for key in ("title", "name", "task_id", "id", "ref"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 50)
+
+        # 3. Resource paths - what file/resource?
+        for key in ("path", "file_path", "uri", "url", "file"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 50)
+
+        # 4. Descriptive content - why/what?
+        for key in ("description", "reason", "message", "content"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 50)
+
+        # 5. Fallback: first non-empty string value
+        for key, value in args.items():
+            if isinstance(value, str) and value and key not in ("session_id", "server_name"):
+                return self._truncate(value, 50)
+
+        return ""
+
+    def _truncate(self, text: str, max_len: int) -> str:
+        """Truncate text to max_len, adding ellipsis if needed."""
+        if len(text) <= max_len:
+            return text
+        return text[: max_len - 3] + "..."
 
     def _extract_todowrite(self, turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
