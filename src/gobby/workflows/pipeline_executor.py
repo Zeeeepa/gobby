@@ -242,13 +242,21 @@ class PipelineExecutor:
             context: Execution context
 
         Returns:
-            Dict with response text
+            Dict with response text or error
         """
         logger.info("Executing prompt step")
-        response = await self.llm_service.generate(prompt)
-        return {
-            "response": response,
-        }
+
+        try:
+            response = await self.llm_service.generate(prompt)
+            return {
+                "response": response,
+            }
+        except Exception as e:
+            logger.error(f"LLM prompt execution failed: {e}", exc_info=True)
+            return {
+                "response": "",
+                "error": str(e),
+            }
 
     async def _execute_nested_pipeline(
         self,

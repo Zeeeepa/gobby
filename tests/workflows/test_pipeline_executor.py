@@ -474,3 +474,114 @@ class TestExecuteExecStep:
         assert "stdout" in result
         assert "stderr" in result
         assert "exit_code" in result
+
+
+class TestExecutePromptStep:
+    """Tests for _execute_prompt_step() method."""
+
+    @pytest.mark.asyncio
+    async def test_prompt_step_calls_llm_service(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that prompt step calls the LLM service."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_llm_service.generate.return_value = "LLM response text"
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        await executor._execute_prompt_step("Analyze this data", context)
+
+        mock_llm_service.generate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_prompt_step_returns_response(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that prompt step returns the LLM response."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_llm_service.generate.return_value = "Generated analysis"
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_prompt_step("Analyze this", context)
+
+        assert result is not None
+        assert "response" in result
+        assert result["response"] == "Generated analysis"
+
+    @pytest.mark.asyncio
+    async def test_prompt_step_passes_prompt_to_llm(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that prompt step passes the prompt text to LLM."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_llm_service.generate.return_value = "Response"
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        await executor._execute_prompt_step("Generate a report", context)
+
+        # Check the prompt was passed
+        call_args = mock_llm_service.generate.call_args
+        assert "Generate a report" in str(call_args)
+
+    @pytest.mark.asyncio
+    async def test_prompt_step_handles_llm_error(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that prompt step handles LLM errors gracefully."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_llm_service.generate.side_effect = Exception("LLM API error")
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_prompt_step("Generate something", context)
+
+        # Should return error in response
+        assert result is not None
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_prompt_step_returns_dict_structure(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that prompt step returns proper dict structure."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_llm_service.generate.return_value = "Test response"
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_prompt_step("Test prompt", context)
+
+        assert isinstance(result, dict)
+        assert "response" in result
