@@ -1,6 +1,48 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ChatMessage, ToolCall } from '../components/Message'
 
+const STORAGE_KEY = 'gobby-chat-history'
+const MAX_STORED_MESSAGES = 100
+
+// Serialized message format for localStorage
+interface StoredMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: string // ISO string
+  toolCalls?: ToolCall[]
+}
+
+function loadMessages(): ChatMessage[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      const parsed: StoredMessage[] = JSON.parse(stored)
+      return parsed.map((m) => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      }))
+    }
+  } catch (e) {
+    console.error('Failed to load chat history:', e)
+  }
+  return []
+}
+
+function saveMessages(messages: ChatMessage[]): void {
+  try {
+    // Only keep the last N messages
+    const toStore = messages.slice(-MAX_STORED_MESSAGES)
+    const serialized: StoredMessage[] = toStore.map((m) => ({
+      ...m,
+      timestamp: m.timestamp.toISOString(),
+    }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized))
+  } catch (e) {
+    console.error('Failed to save chat history:', e)
+  }
+}
+
 interface WebSocketMessage {
   type: string
   [key: string]: unknown
@@ -33,7 +75,7 @@ interface ToolStatusMessage {
 }
 
 export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages())
   const [isConnected, setIsConnected] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
@@ -200,6 +242,17 @@ export function useChat() {
     handleToolStatusRef.current = handleToolStatus
   }, [handleChatStream, handleChatError, handleToolStatus])
 
+  // Persist messages to localStorage
+  useEffect(() => {
+    saveMessages(messages)
+  }, [messages])
+
+  // Clear chat history
+  const clearHistory = useCallback(() => {
+    setMessages([])
+    localStorage.removeItem(STORAGE_KEY)
+  }, [])
+
   // Send a message
   const sendMessage = useCallback((content: string, model?: string | null) => {
     console.log('sendMessage called:', content, 'model:', model)
@@ -256,5 +309,6 @@ export function useChat() {
     isConnected,
     isStreaming,
     sendMessage,
+    clearHistory,
   }
 }
