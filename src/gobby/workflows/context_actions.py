@@ -619,7 +619,20 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
     # Files modified section - only show files still dirty (not yet committed)
     if ctx.files_modified and ctx.git_status:
         # Filter to files that appear in git status (still uncommitted)
-        dirty_files = [f for f in ctx.files_modified if f in ctx.git_status]
+        # Normalize paths: files_modified may have absolute paths, git_status has relative
+        cwd = Path.cwd()
+        dirty_files = []
+        for f in ctx.files_modified:
+            # Try to make path relative to cwd for comparison
+            try:
+                rel_path = Path(f).relative_to(cwd)
+                rel_str = str(rel_path)
+            except ValueError:
+                # Path not relative to cwd, use as-is
+                rel_str = f
+            # Check if relative path appears in git status
+            if rel_str in ctx.git_status:
+                dirty_files.append(rel_str)
         if dirty_files:
             lines = ["### Files Being Modified"]
             for f in dirty_files:

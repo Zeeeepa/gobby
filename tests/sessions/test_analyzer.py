@@ -794,16 +794,87 @@ class TestFormatToolDescription:
     """Tests for _format_tool_description method."""
 
     def test_mcp_call_tool(self) -> None:
-        """Test MCP tool calls show server.tool format."""
+        """Test gobby-tasks create_task shows enhanced format with title."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "Fix the bug"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "Created task: Fix the bug"
+
+    def test_mcp_call_tool_create_task_with_parent(self) -> None:
+        """Test gobby-tasks create_task shows parent when provided."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "Subtask", "parent_task_id": "#123"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block) == "Created task: Subtask (parent: #123)"
+        )
+
+    def test_mcp_call_tool_create_task_no_title(self) -> None:
+        """Test gobby-tasks create_task defaults to 'Untitled' when no title."""
         analyzer = TranscriptAnalyzer()
         block = {
             "name": "mcp__gobby__call_tool",
             "input": {"server_name": "gobby-tasks", "tool_name": "create_task"},
         }
-        assert analyzer._format_tool_description(block) == "Called gobby-tasks.create_task"
+        assert analyzer._format_tool_description(block) == "Created task: Untitled"
+
+    def test_mcp_call_tool_update_task_status(self) -> None:
+        """Test gobby-tasks update_task shows status change."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "update_task",
+                "arguments": {"task_id": "#456", "status": "in_progress"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block) == "Updated task #456: status → in_progress"
+        )
+
+    def test_mcp_call_tool_close_task(self) -> None:
+        """Test gobby-tasks close_task shows reason."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "close_task",
+                "arguments": {"task_id": "#789", "reason": "Completed implementation"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block) == "Closed task #789: Completed implementation"
+        )
+
+    def test_mcp_call_tool_claim_task(self) -> None:
+        """Test gobby-tasks claim_task shows task ID."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "claim_task",
+                "arguments": {"task_id": "#100"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "Claimed task #100"
 
     def test_mcp_call_tool_alternative_name(self) -> None:
-        """Test alternative MCP tool name format."""
+        """Test alternative MCP tool name format for non-gobby-tasks servers."""
         analyzer = TranscriptAnalyzer()
         block = {
             "name": "mcp_call_tool",

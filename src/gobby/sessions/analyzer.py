@@ -226,10 +226,42 @@ class TranscriptAnalyzer:
         tool_name = block.get("name", "unknown")
         tool_input = block.get("input", {})
 
-        # MCP tool calls - show server.tool
+        # MCP tool calls - show server.tool with details for gobby-tasks
         if tool_name in ("mcp__gobby__call_tool", "mcp_call_tool"):
             server = tool_input.get("server_name", "unknown")
             tool = tool_input.get("tool_name", "unknown")
+            args = tool_input.get("arguments", {})
+
+            # Enhanced formatting for gobby-tasks operations
+            if server == "gobby-tasks":
+                if tool == "create_task":
+                    title = args.get("title", "Untitled")
+                    parent = args.get("parent_task_id", "")
+                    if parent:
+                        return f"Created task: {title} (parent: {parent})"
+                    return f"Created task: {title}"
+                elif tool == "update_task":
+                    task_id = args.get("task_id", "?")
+                    status = args.get("status")
+                    if status:
+                        return f"Updated task {task_id}: status → {status}"
+                    return f"Updated task {task_id}"
+                elif tool == "close_task":
+                    task_id = args.get("task_id", "?")
+                    reason = args.get("reason", "")
+                    if reason:
+                        # Truncate long reasons
+                        if len(reason) > 40:
+                            reason = reason[:37] + "..."
+                        return f"Closed task {task_id}: {reason}"
+                    return f"Closed task {task_id}"
+                elif tool == "claim_task":
+                    task_id = args.get("task_id", "?")
+                    return f"Claimed task {task_id}"
+                elif tool == "get_task":
+                    task_id = args.get("task_id", "?")
+                    return f"Fetched task {task_id}"
+
             return f"Called {server}.{tool}"
 
         # Bash - show the command (truncated)
