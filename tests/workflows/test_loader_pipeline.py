@@ -273,3 +273,216 @@ steps:
         result = loader.load_pipeline("no-type")
         # Should return None because it's not type: pipeline
         assert result is None
+
+
+class TestValidatePipelineReferences:
+    """Tests for _validate_pipeline_references method."""
+
+    def test_valid_back_reference(self, loader, temp_workflow_dir) -> None:
+        """Test that $earlier_step.output references are accepted."""
+        pipeline_yaml = """
+name: valid-refs
+type: pipeline
+steps:
+  - id: step1
+    exec: echo hello
+  - id: step2
+    prompt: Process the output from $step1.output
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "valid-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Should load successfully - references are valid
+        result = loader.load_pipeline("valid-refs")
+        assert result is not None
+        assert len(result.steps) == 2
+
+    def test_rejects_forward_reference(self, loader, temp_workflow_dir) -> None:
+        """Test that $later_step.output (forward ref) is rejected."""
+        pipeline_yaml = """
+name: forward-ref
+type: pipeline
+steps:
+  - id: step1
+    prompt: Use output from $step2.output
+  - id: step2
+    exec: echo hello
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "forward-ref.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Should fail - step1 references step2 which comes later
+        with pytest.raises(ValueError) as exc_info:
+            loader.load_pipeline("forward-ref")
+        assert "step2" in str(exc_info.value)
+        assert "later" in str(exc_info.value).lower() or "forward" in str(exc_info.value).lower()
+
+    def test_rejects_nonexistent_reference(self, loader, temp_workflow_dir) -> None:
+        """Test that $nonexistent.output is rejected."""
+        pipeline_yaml = """
+name: nonexistent-ref
+type: pipeline
+steps:
+  - id: step1
+    prompt: Use output from $doesnotexist.output
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "nonexistent-ref.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Should fail - doesnotexist is not a valid step
+        with pytest.raises(ValueError) as exc_info:
+            loader.load_pipeline("nonexistent-ref")
+        assert "doesnotexist" in str(exc_info.value)
+
+    def test_validates_prompt_references(self, loader, temp_workflow_dir) -> None:
+        """Test that references in prompt fields are validated."""
+        pipeline_yaml = """
+name: prompt-refs
+type: pipeline
+steps:
+  - id: analyze
+    exec: ./analyze.sh
+  - id: report
+    prompt: |
+      Generate a report based on:
+      - Analysis: $analyze.output
+      - Summary: $analyze.output.summary
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "prompt-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Should load successfully - all references are to earlier steps
+        result = loader.load_pipeline("prompt-refs")
+        assert result is not None
+
+    def test_validates_condition_references(self, loader, temp_workflow_dir) -> None:
+        """Test that references in condition fields are validated."""
+        pipeline_yaml = """
+name: condition-refs
+type: pipeline
+steps:
+  - id: test
+    exec: pytest
+  - id: deploy
+    exec: ./deploy.sh
+    condition: $test.output.exit_code == 0
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "condition-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Should load successfully
+        result = loader.load_pipeline("condition-refs")
+        assert result is not None
+
+    def test_validates_input_references(self, loader, temp_workflow_dir) -> None:
+        """Test that references in input fields are validated."""
+        pipeline_yaml = """
+name: input-refs
+type: pipeline
+steps:
+  - id: step1
+    exec: echo start
+  - id: step2
+    exec: process
+    input: $step1.output
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "input-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.load_pipeline("input-refs")
+        assert result is not None
+
+    def test_validates_output_references(self, loader, temp_workflow_dir) -> None:
+        """Test that references in pipeline outputs are validated."""
+        pipeline_yaml = """
+name: output-refs
+type: pipeline
+outputs:
+  result: $final.output
+  summary: $analyze.output.summary
+steps:
+  - id: analyze
+    exec: ./analyze.sh
+  - id: final
+    exec: ./finish.sh
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "output-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.load_pipeline("output-refs")
+        assert result is not None
+
+    def test_rejects_invalid_output_reference(self, loader, temp_workflow_dir) -> None:
+        """Test that invalid references in outputs are rejected."""
+        pipeline_yaml = """
+name: bad-output-refs
+type: pipeline
+outputs:
+  result: $missing_step.output
+steps:
+  - id: step1
+    exec: echo hello
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "bad-output-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        with pytest.raises(ValueError) as exc_info:
+            loader.load_pipeline("bad-output-refs")
+        assert "missing_step" in str(exc_info.value)
+
+    def test_allows_inputs_reference(self, loader, temp_workflow_dir) -> None:
+        """Test that $inputs.field references are allowed (not step refs)."""
+        pipeline_yaml = """
+name: inputs-ref
+type: pipeline
+inputs:
+  target:
+    type: string
+steps:
+  - id: step1
+    exec: echo $inputs.target
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "inputs-ref.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.load_pipeline("inputs-ref")
+        assert result is not None
+
+    def test_multiple_refs_all_valid(self, loader, temp_workflow_dir) -> None:
+        """Test pipeline with multiple valid references."""
+        pipeline_yaml = """
+name: multi-refs
+type: pipeline
+steps:
+  - id: step1
+    exec: echo one
+  - id: step2
+    exec: echo two
+  - id: step3
+    prompt: Combine $step1.output and $step2.output
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "multi-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.load_pipeline("multi-refs")
+        assert result is not None
+
+    def test_multiple_refs_one_invalid(self, loader, temp_workflow_dir) -> None:
+        """Test that one invalid ref among valid ones is caught."""
+        pipeline_yaml = """
+name: mixed-refs
+type: pipeline
+steps:
+  - id: step1
+    exec: echo one
+  - id: step2
+    prompt: Use $step1.output and $step3.output
+  - id: step3
+    exec: echo three
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "mixed-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        with pytest.raises(ValueError) as exc_info:
+            loader.load_pipeline("mixed-refs")
+        assert "step3" in str(exc_info.value)
