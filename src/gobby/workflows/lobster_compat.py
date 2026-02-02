@@ -11,7 +11,10 @@ Lobster field mappings:
 """
 
 import re
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from gobby.workflows.definitions import PipelineApproval, PipelineDefinition, PipelineStep
 
@@ -87,9 +90,18 @@ class LobsterImporter:
 
         Returns:
             PipelineDefinition with converted steps
+
+        Field mappings:
+            - name: preserved as-is
+            - description: preserved as-is
+            - args → inputs
+            - steps: converted via convert_step()
         """
         name = lobster_pipeline.get("name", "")
         description = lobster_pipeline.get("description", "")
+
+        # Map args → inputs
+        inputs = lobster_pipeline.get("args", {})
 
         steps = []
         for lobster_step in lobster_pipeline.get("steps", []):
@@ -98,5 +110,24 @@ class LobsterImporter:
         return PipelineDefinition(
             name=name,
             description=description,
+            inputs=inputs,
             steps=steps,
         )
+
+    def import_file(self, path: str | Path) -> PipelineDefinition:
+        """Import a Lobster pipeline from a YAML file.
+
+        Args:
+            path: Path to the .lobster or .yaml file
+
+        Returns:
+            PipelineDefinition with converted pipeline
+
+        Example:
+            importer = LobsterImporter()
+            pipeline = importer.import_file("ci.lobster")
+        """
+        file_path = Path(path)
+        content = file_path.read_text()
+        lobster_pipeline = yaml.safe_load(content)
+        return self.convert_pipeline(lobster_pipeline)

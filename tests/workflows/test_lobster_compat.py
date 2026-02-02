@@ -1,5 +1,7 @@
 """Tests for Lobster compatibility/migration utilities."""
 
+from pathlib import Path
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -198,3 +200,147 @@ class TestLobsterImporterConvertPipeline:
 
         assert result.name == "my-pipeline"
         assert result.description == "Test description"
+
+
+class TestLobsterImporterImportFile:
+    """Tests for LobsterImporter.import_file() method."""
+
+    def test_import_file_reads_yaml(self, tmp_path: Path) -> None:
+        """Verify import_file reads YAML from .lobster file."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        # Create a test .lobster file
+        lobster_file = tmp_path / "test.lobster"
+        lobster_file.write_text("""
+name: file-pipeline
+description: Pipeline from file
+steps:
+  - id: build
+    command: npm run build
+  - id: test
+    command: npm test
+""")
+
+        importer = LobsterImporter()
+        result = importer.import_file(lobster_file)
+
+        assert result.name == "file-pipeline"
+        assert result.description == "Pipeline from file"
+        assert len(result.steps) == 2
+        assert result.steps[0].id == "build"
+        assert result.steps[0].exec == "npm run build"
+
+    def test_import_file_converts_all_steps(self, tmp_path: Path) -> None:
+        """Verify import_file converts all steps with field mappings."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        lobster_file = tmp_path / "pipeline.lobster"
+        lobster_file.write_text("""
+name: full-pipeline
+description: Full conversion test
+steps:
+  - id: fetch
+    command: fetch-data
+  - id: process
+    command: process-data
+    stdin: $fetch.stdout
+  - id: deploy
+    command: deploy
+    approval: true
+    condition: $process.status == 'success'
+""")
+
+        importer = LobsterImporter()
+        result = importer.import_file(lobster_file)
+
+        assert len(result.steps) == 3
+        # First step - basic
+        assert result.steps[0].exec == "fetch-data"
+        # Second step - stdin conversion
+        assert result.steps[1].input == "$fetch.output"
+        # Third step - approval and condition
+        assert result.steps[2].approval is not None
+        assert result.steps[2].approval.required is True
+        assert result.steps[2].condition == "$process.status == 'success'"
+
+    def test_import_file_maps_args_to_inputs(self, tmp_path: Path) -> None:
+        """Verify import_file maps Lobster 'args' to Gobby 'inputs'."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        lobster_file = tmp_path / "with-args.lobster"
+        lobster_file.write_text("""
+name: args-pipeline
+description: Pipeline with args
+args:
+  environment: staging
+  version: "1.0.0"
+steps:
+  - id: deploy
+    command: deploy --env $environment --version $version
+""")
+
+        importer = LobsterImporter()
+        result = importer.import_file(lobster_file)
+
+        assert result.name == "args-pipeline"
+        assert result.inputs is not None
+        assert result.inputs.get("environment") == "staging"
+        assert result.inputs.get("version") == "1.0.0"
+
+    def test_import_file_returns_valid_pipeline_definition(self, tmp_path: Path) -> None:
+        """Verify import_file returns a valid PipelineDefinition."""
+        from gobby.workflows.definitions import PipelineDefinition
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        lobster_file = tmp_path / "valid.lobster"
+        lobster_file.write_text("""
+name: valid-pipeline
+description: Validation test
+steps:
+  - id: step1
+    command: echo hello
+""")
+
+        importer = LobsterImporter()
+        result = importer.import_file(lobster_file)
+
+        assert isinstance(result, PipelineDefinition)
+        assert result.name == "valid-pipeline"
+
+    def test_import_file_handles_yaml_extension(self, tmp_path: Path) -> None:
+        """Verify import_file also works with .yaml extension."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        yaml_file = tmp_path / "pipeline.yaml"
+        yaml_file.write_text("""
+name: yaml-pipeline
+description: YAML file test
+steps:
+  - id: build
+    command: make build
+""")
+
+        importer = LobsterImporter()
+        result = importer.import_file(yaml_file)
+
+        assert result.name == "yaml-pipeline"
+        assert result.steps[0].exec == "make build"
+
+    def test_import_file_path_as_string(self, tmp_path: Path) -> None:
+        """Verify import_file accepts path as string."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        lobster_file = tmp_path / "string-path.lobster"
+        lobster_file.write_text("""
+name: string-path-pipeline
+description: String path test
+steps:
+  - id: step1
+    command: echo test
+""")
+
+        importer = LobsterImporter()
+        # Pass as string instead of Path
+        result = importer.import_file(str(lobster_file))
+
+        assert result.name == "string-path-pipeline"
