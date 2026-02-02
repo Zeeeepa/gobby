@@ -265,6 +265,24 @@ class HookManager:
         if self.broadcaster and hasattr(self.broadcaster, "websocket_server"):
             websocket_server = self.broadcaster.websocket_server
 
+        # Initialize pipeline executor for run_pipeline action support
+        self._pipeline_executor = None
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+            from gobby.workflows.pipeline_executor import PipelineExecutor
+
+            pipeline_execution_manager = LocalPipelineExecutionManager(
+                self._database, self._project_id or ""
+            )
+            self._pipeline_executor = PipelineExecutor(
+                db=self._database,
+                execution_manager=pipeline_execution_manager,
+                llm_service=self._llm_service,
+                loader=self._workflow_loader,
+            )
+        except Exception as e:
+            logging.getLogger(__name__).debug(f"Pipeline executor not available: {e}")
+
         self._action_executor = ActionExecutor(
             db=self._database,
             session_manager=self._session_storage,
@@ -283,6 +301,8 @@ class HookManager:
             stuck_detector=self._stuck_detector,
             websocket_server=websocket_server,
             skill_manager=self._skill_manager,
+            pipeline_executor=self._pipeline_executor,
+            workflow_loader=self._workflow_loader,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
