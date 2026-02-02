@@ -12,7 +12,11 @@ from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.pipelines._discovery import list_pipelines
-from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
+from gobby.mcp_proxy.tools.pipelines._execution import (
+    approve_pipeline,
+    reject_pipeline,
+    run_pipeline,
+)
 
 __all__ = [
     "create_pipelines_registry",
@@ -68,6 +72,34 @@ def create_pipelines_registry(
             name=name,
             inputs=inputs or {},
             project_id=project_id or "",
+        )
+
+    @registry.tool(
+        name="approve_pipeline",
+        description="Approve a pipeline execution that is waiting for approval.",
+    )
+    async def _approve_pipeline(
+        token: str,
+        approved_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await approve_pipeline(
+            executor=_executor,
+            token=token,
+            approved_by=approved_by,
+        )
+
+    @registry.tool(
+        name="reject_pipeline",
+        description="Reject a pipeline execution that is waiting for approval.",
+    )
+    async def _reject_pipeline(
+        token: str,
+        rejected_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await reject_pipeline(
+            executor=_executor,
+            token=token,
+            rejected_by=rejected_by,
         )
 
     return registry

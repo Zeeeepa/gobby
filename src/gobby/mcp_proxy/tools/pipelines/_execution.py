@@ -85,3 +85,97 @@ async def run_pipeline(
             "success": False,
             "error": f"Execution failed: {e}",
         }
+
+
+async def approve_pipeline(
+    executor: Any,
+    token: str,
+    approved_by: str | None = None,
+) -> dict[str, Any]:
+    """
+    Approve a pipeline execution waiting for approval.
+
+    Args:
+        executor: PipelineExecutor instance
+        token: Approval token from the waiting execution
+        approved_by: Identifier of who approved (email, user ID, etc.)
+
+    Returns:
+        Dict with success status and execution status
+    """
+    if not executor:
+        return {
+            "success": False,
+            "error": "No executor configured",
+        }
+
+    try:
+        execution = await executor.approve(
+            token=token,
+            approved_by=approved_by,
+        )
+
+        return {
+            "success": True,
+            "status": execution.status.value,
+            "execution_id": execution.id,
+        }
+
+    except ValueError as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Approval failed: {e}",
+        }
+
+
+async def reject_pipeline(
+    executor: Any,
+    token: str,
+    rejected_by: str | None = None,
+) -> dict[str, Any]:
+    """
+    Reject a pipeline execution waiting for approval.
+
+    Args:
+        executor: PipelineExecutor instance
+        token: Approval token from the waiting execution
+        rejected_by: Identifier of who rejected (email, user ID, etc.)
+
+    Returns:
+        Dict with success status and execution status (cancelled)
+    """
+    if not executor:
+        return {
+            "success": False,
+            "error": "No executor configured",
+        }
+
+    try:
+        execution = await executor.reject(
+            token=token,
+            rejected_by=rejected_by,
+        )
+
+        return {
+            "success": True,
+            "status": execution.status.value,
+            "execution_id": execution.id,
+        }
+
+    except ValueError as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Rejection failed: {e}",
+        }

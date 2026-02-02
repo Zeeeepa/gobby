@@ -509,3 +509,284 @@ class TestRunPipelineTool:
 
         assert result["success"] is False
         assert "executor" in result["error"].lower()
+
+
+class TestApprovePipelineTool:
+    """Tests for the approve_pipeline MCP tool."""
+
+    def test_registry_has_approve_pipeline_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that approve_pipeline tool is registered."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "approve_pipeline" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_approve_pipeline_calls_executor_approve(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that approve_pipeline calls executor.approve()."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+        )
+        mock_executor.approve = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        await registry.call(
+            "approve_pipeline",
+            {"token": "approval-token-xyz", "approved_by": "user@example.com"},
+        )
+
+        mock_executor.approve.assert_called_once_with(
+            token="approval-token-xyz",
+            approved_by="user@example.com",
+        )
+
+    @pytest.mark.asyncio
+    async def test_approve_pipeline_returns_execution_status(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that approve_pipeline returns execution status after approval."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+            outputs_json='{"result": "deployed"}',
+        )
+        mock_executor.approve = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "approve_pipeline",
+            {"token": "approval-token-xyz"},
+        )
+
+        assert result["success"] is True
+        assert result["status"] == "completed"
+        assert result["execution_id"] == "pe-abc123"
+
+    @pytest.mark.asyncio
+    async def test_approve_pipeline_invalid_token(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that approve_pipeline returns error for invalid token."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        mock_executor.approve = AsyncMock(
+            side_effect=ValueError("Invalid or expired token")
+        )
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "approve_pipeline",
+            {"token": "invalid-token"},
+        )
+
+        assert result["success"] is False
+        assert "invalid" in result["error"].lower() or "token" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_approve_pipeline_no_executor(
+        self, mock_loader, mock_execution_manager
+    ) -> None:
+        """Test that approve_pipeline returns error when no executor configured."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=None,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "approve_pipeline",
+            {"token": "approval-token-xyz"},
+        )
+
+        assert result["success"] is False
+        assert "executor" in result["error"].lower()
+
+
+class TestRejectPipelineTool:
+    """Tests for the reject_pipeline MCP tool."""
+
+    def test_registry_has_reject_pipeline_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that reject_pipeline tool is registered."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "reject_pipeline" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_reject_pipeline_calls_executor_reject(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that reject_pipeline calls executor.reject()."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.CANCELLED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+        )
+        mock_executor.reject = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        await registry.call(
+            "reject_pipeline",
+            {"token": "approval-token-xyz", "rejected_by": "user@example.com"},
+        )
+
+        mock_executor.reject.assert_called_once_with(
+            token="approval-token-xyz",
+            rejected_by="user@example.com",
+        )
+
+    @pytest.mark.asyncio
+    async def test_reject_pipeline_returns_cancelled_status(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that reject_pipeline returns cancelled status."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.CANCELLED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+        )
+        mock_executor.reject = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "reject_pipeline",
+            {"token": "approval-token-xyz"},
+        )
+
+        assert result["success"] is True
+        assert result["status"] == "cancelled"
+        assert result["execution_id"] == "pe-abc123"
+
+    @pytest.mark.asyncio
+    async def test_reject_pipeline_invalid_token(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that reject_pipeline returns error for invalid token."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        mock_executor.reject = AsyncMock(
+            side_effect=ValueError("Invalid or expired token")
+        )
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "reject_pipeline",
+            {"token": "invalid-token"},
+        )
+
+        assert result["success"] is False
+        assert "invalid" in result["error"].lower() or "token" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_reject_pipeline_no_executor(
+        self, mock_loader, mock_execution_manager
+    ) -> None:
+        """Test that reject_pipeline returns error when no executor configured."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=None,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "reject_pipeline",
+            {"token": "approval-token-xyz"},
+        )
+
+        assert result["success"] is False
+        assert "executor" in result["error"].lower()
