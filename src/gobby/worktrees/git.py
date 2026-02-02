@@ -114,6 +114,7 @@ class WorktreeGitManager:
         branch_name: str,
         base_branch: str = "main",
         create_branch: bool = True,
+        use_local: bool = False,
     ) -> GitOperationResult:
         """
         Create a new git worktree.
@@ -123,6 +124,8 @@ class WorktreeGitManager:
             branch_name: Name of the branch for the worktree
             base_branch: Branch to base the new branch on (if create_branch=True)
             create_branch: Whether to create a new branch or use existing
+            use_local: If True, create from local branch ref instead of origin/
+                       This preserves unpushed commits in the worktree.
 
         Returns:
             GitOperationResult with success status and message
@@ -141,28 +144,52 @@ class WorktreeGitManager:
 
         try:
             if create_branch:
-                # Create worktree with new branch based on base_branch
-                # First, fetch to ensure we have latest refs
-                fetch_result = self._run_git(["fetch", "origin", base_branch], timeout=60)
-                if fetch_result.returncode != 0:
-                    return GitOperationResult(
-                        success=False,
-                        message=f"Failed to fetch origin/{base_branch}: {fetch_result.stderr}",
-                        error=fetch_result.stderr,
-                    )
+                if use_local:
+                    # Create worktree from local branch (preserves unpushed commits)
+                    # Verify local branch exists
+                    verify_result = self._run_git(["rev-parse", "--verify", base_branch], timeout=5)
+                    if verify_result.returncode != 0:
+                        return GitOperationResult(
+                            success=False,
+                            message=f"Local branch '{base_branch}' not found",
+                            error=verify_result.stderr,
+                        )
 
-                # Create worktree with new branch
-                result = self._run_git(
-                    [
-                        "worktree",
-                        "add",
-                        "-b",
-                        branch_name,
-                        str(worktree_path),
-                        f"origin/{base_branch}",
-                    ],
-                    timeout=60,
-                )
+                    # Create worktree with new branch based on local ref
+                    result = self._run_git(
+                        [
+                            "worktree",
+                            "add",
+                            "-b",
+                            branch_name,
+                            str(worktree_path),
+                            base_branch,  # Local ref, not origin/
+                        ],
+                        timeout=60,
+                    )
+                else:
+                    # Create worktree with new branch based on origin (original behavior)
+                    # First, fetch to ensure we have latest refs
+                    fetch_result = self._run_git(["fetch", "origin", base_branch], timeout=60)
+                    if fetch_result.returncode != 0:
+                        return GitOperationResult(
+                            success=False,
+                            message=f"Failed to fetch origin/{base_branch}: {fetch_result.stderr}",
+                            error=fetch_result.stderr,
+                        )
+
+                    # Create worktree with new branch
+                    result = self._run_git(
+                        [
+                            "worktree",
+                            "add",
+                            "-b",
+                            branch_name,
+                            str(worktree_path),
+                            f"origin/{base_branch}",
+                        ],
+                        timeout=60,
+                    )
             else:
                 # Use existing branch
                 result = self._run_git(
@@ -688,3 +715,91 @@ class WorktreeGitManager:
         # Method 3: Fall back to "main"
         logger.debug("Could not detect default branch, falling back to 'main'")
         return "main"
+
+    def get_current_branch(self) -> str | None:
+        """
+        Get the current branch of the repository.
+
+        Returns:
+            Branch name, or None if in detached HEAD state
+        """
+        try:
+            result = self._run_git(
+                ["branch", "--show-current"],
+                timeout=5,
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+                return branch if branch else None
+            return None
+        except Exception:
+            return None
+
+    def has_unpushed_commits(self, branch: str | None = None) -> tuple[bool, int]:
+        """
+        Check if the branch has commits not pushed to origin.
+
+        Args:
+            branch: Branch to check (defaults to current branch)
+
+        Returns:
+            Tuple of (has_unpushed, count) where:
+            - has_unpushed: True if there are unpushed commits
+            - count: Number of unpushed commits (0 if none or error)
+        """
+        if branch is None:
+            branch = self.get_current_branch()
+        if not branch:
+            return False, 0
+
+        try:
+            # Check if remote tracking branch exists
+            result = self._run_git(
+                ["rev-parse", "--verify", f"origin/{branch}"],
+                timeout=5,
+            )
+            if result.returncode != 0:
+                # No remote tracking branch - all local commits are "unpushed"
+                # Count commits on the branch
+                count_result = self._run_git(
+                    ["rev-list", "--count", branch],
+                    timeout=5,
+                )
+                if count_result.returncode == 0:
+                    count = int(count_result.stdout.strip())
+                    return count > 0, count
+                return True, 0
+
+            # Count commits ahead of origin
+            result = self._run_git(
+                ["rev-list", "--count", f"origin/{branch}..{branch}"],
+                timeout=5,
+            )
+            if result.returncode == 0:
+                count = int(result.stdout.strip())
+                return count > 0, count
+            return False, 0
+        except Exception as e:
+            logger.warning(f"Error checking unpushed commits: {e}")
+            return False, 0
+
+    def get_local_commit(self, branch: str) -> str | None:
+        """
+        Get the commit SHA of a local branch.
+
+        Args:
+            branch: Branch name
+
+        Returns:
+            Commit SHA, or None if branch doesn't exist
+        """
+        try:
+            result = self._run_git(
+                ["rev-parse", branch],
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return None
+        except Exception:
+            return None

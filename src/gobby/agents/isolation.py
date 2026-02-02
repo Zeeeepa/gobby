@@ -154,6 +154,8 @@ class WorktreeIsolationHandler(IsolationHandler):
 
         - Generate branch name if not provided
         - Check for existing worktree for the branch
+        - Determine base branch (use parent's current branch if not specified)
+        - Check for unpushed commits and use local ref if needed
         - Create new worktree if needed
         - Return IsolationContext with worktree info
         """
@@ -171,6 +173,29 @@ class WorktreeIsolationHandler(IsolationHandler):
                 extra={"main_repo_path": self._git_manager.repo_path},
             )
 
+        # Determine base branch - use parent's current branch if default "main" was passed
+        base_branch = config.base_branch
+        use_local = False
+
+        # If base_branch is the default "main", check if parent is on a different branch
+        current_branch = self._git_manager.get_current_branch()
+        if current_branch and base_branch == "main" and current_branch != "main":
+            # Use parent's current branch instead
+            base_branch = current_branch
+
+        # Check for unpushed commits on the base branch
+        has_unpushed, unpushed_count = self._git_manager.has_unpushed_commits(base_branch)
+        if has_unpushed:
+            # Use local branch ref to preserve unpushed commits
+            use_local = True
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"Using local branch '{base_branch}' for worktree "
+                f"({unpushed_count} unpushed commits)"
+            )
+
         # Generate worktree path
         from pathlib import Path
 
@@ -181,8 +206,9 @@ class WorktreeIsolationHandler(IsolationHandler):
         result = self._git_manager.create_worktree(
             worktree_path=worktree_path,
             branch_name=branch_name,
-            base_branch=config.base_branch,
+            base_branch=base_branch,
             create_branch=True,
+            use_local=use_local,
         )
 
         if not result.success:
