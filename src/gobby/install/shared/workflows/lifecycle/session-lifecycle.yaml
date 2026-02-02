@@ -44,12 +44,21 @@ triggers:
       name: plan_mode
       value: false
 
-    # Reset unlocked_tools on compact/clear since context is lost
+    # Reset unlocked_tools on compact/clear/resume since context is lost
     # Agent must re-learn schemas after context compaction
+    # - Claude: 'clear', 'compact'
+    # - Gemini: 'clear', 'resume' (after compress)
     - action: set_variable
-      when: "event.data.get('source') in ['clear', 'compact']"
+      when: "event.data.get('source') in ['clear', 'compact', 'resume']"
       name: unlocked_tools
       value: []
+
+    # Reset memory injection tracking on compact/clear/resume since context is lost
+    # Allows previously injected memories to be re-injected after context loss
+    # - Claude: 'clear' (after /clear), 'compact' (after auto/manual compact)
+    # - Gemini: 'clear' (after /clear), 'resume' (after /compress or auto-compress)
+    - action: reset_memory_injection_tracking
+      when: "event.data.get('source') in ['clear', 'compact', 'resume']"
 
     # Capture baseline dirty files for session-aware commit detection
     # Must run FIRST so baseline is captured before any modifications
