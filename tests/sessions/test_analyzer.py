@@ -932,7 +932,7 @@ class TestFormatToolDescription:
     def test_mcp_call_tool_generic_truncates_long_values(self) -> None:
         """Test generic MCP calls truncate long argument values."""
         analyzer = TranscriptAnalyzer()
-        long_query = "a" * 60  # 60 chars, should be truncated to 50
+        long_query = "a" * 120  # 120 chars, should be truncated to 100
         block = {
             "name": "mcp__gobby__call_tool",
             "input": {
@@ -944,7 +944,7 @@ class TestFormatToolDescription:
         result = analyzer._format_tool_description(block)
         assert result.startswith("search.find: ")
         assert result.endswith("...")
-        assert len(result) <= 70  # "search.find: " + 50 chars max
+        assert len(result) <= 120  # "search.find: " + 100 chars max
 
     def test_mcp_call_tool_generic_priority_order(self) -> None:
         """Test generic MCP calls use priority order (query > title > path)."""

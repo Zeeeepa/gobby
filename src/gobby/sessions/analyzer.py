@@ -343,27 +343,27 @@ class TranscriptAnalyzer:
         # 1. Search/query related - what are we looking for?
         for key in ("query", "search", "pattern", "topic"):
             if key in args and args[key]:
-                return self._truncate(str(args[key]), 50)
+                return self._truncate(str(args[key]), 100)
 
         # 2. Identity/naming - what entity are we working with?
         for key in ("title", "name", "task_id", "id", "ref"):
             if key in args and args[key]:
-                return self._truncate(str(args[key]), 50)
+                return self._truncate(str(args[key]), 100)
 
         # 3. Resource paths - what file/resource?
         for key in ("path", "file_path", "uri", "url", "file"):
             if key in args and args[key]:
-                return self._truncate(str(args[key]), 50)
+                return self._truncate(str(args[key]), 100)
 
         # 4. Descriptive content - why/what?
         for key in ("description", "reason", "message", "content"):
             if key in args and args[key]:
-                return self._truncate(str(args[key]), 50)
+                return self._truncate(str(args[key]), 100)
 
         # 5. Fallback: first non-empty string value
         for key, value in args.items():
             if isinstance(value, str) and value and key not in ("session_id", "server_name"):
-                return self._truncate(value, 50)
+                return self._truncate(value, 100)
 
         return ""
 
