@@ -300,4 +300,6 @@ on_premature_stop:
   message: |
     Task orchestration incomplete. Options:
     1. Continue working: use suggest_next_task() or wait for workers
-    2. Stop anyway: use `/g workflows deactivate` to end the workflow first
+    2. Stop anyway: first fetch schema, then call end_workflow:
+       mcp__gobby__get_tool_schema(server_name="gobby-workflows", tool_name="end_workflow")
+       mcp__gobby__call_tool(server_name="gobby-workflows", tool_name="end_workflow", arguments={"session_id": "<your_session_id>"})
