@@ -28,6 +28,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 from gobby.utils.machine_id import get_machine_id
 from gobby.utils.project_context import get_project_context
+from gobby.workflows.loader import WorkflowLoader
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -323,6 +324,7 @@ def create_spawn_agent_registry(
     clone_storage: Any | None = None,
     clone_manager: Any | None = None,
     session_manager: Any | None = None,
+    workflow_loader: WorkflowLoader | None = None,
 ) -> InternalToolRegistry:
     """
     Create a spawn_agent tool registry with the unified spawn_agent tool.
@@ -336,6 +338,7 @@ def create_spawn_agent_registry(
         clone_storage: Storage for clone records.
         clone_manager: Git manager for clone operations.
         session_manager: Session manager for resolving session references.
+        workflow_loader: Loader for workflow validation.
 
     Returns:
         InternalToolRegistry with spawn_agent tool registered.
@@ -354,8 +357,9 @@ def create_spawn_agent_registry(
         description="Unified agent spawning with isolation support",
     )
 
-    # Use provided loader or create default
+    # Use provided loaders or create defaults
     loader = agent_loader or AgentDefinitionLoader()
+    wf_loader = workflow_loader or WorkflowLoader()
 
     @registry.tool(
         name="spawn_agent",
@@ -431,6 +435,26 @@ def create_spawn_agent_registry(
         agent_def = loader.load(agent)
         if agent_def is None and agent != "generic":
             return {"success": False, "error": f"Agent '{agent}' not found"}
+
+        # Determine effective workflow (param overrides agent_def)
+        effective_workflow = workflow
+        if effective_workflow is None and agent_def:
+            effective_workflow = agent_def.workflow
+
+        # Validate workflow exists if specified
+        if effective_workflow:
+            # Get project_path for workflow lookup
+            ctx = get_project_context(Path(project_path) if project_path else None)
+            wf_project_path = ctx.get("project_path") if ctx else None
+            loaded_workflow = wf_loader.load_workflow(
+                effective_workflow, project_path=wf_project_path
+            )
+            if loaded_workflow is None:
+                return {
+                    "success": False,
+                    "error": f"Workflow '{effective_workflow}' not found. "
+                    f"Check available workflows with list_workflows().",
+                }
 
         # Delegate to spawn_agent_impl
         return await spawn_agent_impl(

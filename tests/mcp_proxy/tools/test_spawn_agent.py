@@ -330,9 +330,14 @@ class TestSpawnAgentParamOverrides:
         mock_loader = MagicMock()
         mock_loader.load.return_value = mock_agent_def
 
+        # Mock workflow loader to validate workflow exists
+        mock_wf_loader = MagicMock()
+        mock_wf_loader.load_workflow.return_value = MagicMock()  # Return a valid workflow
+
         registry = create_spawn_agent_registry(
             mock_runner,
             agent_loader=mock_loader,
+            workflow_loader=mock_wf_loader,
         )
 
         with (
