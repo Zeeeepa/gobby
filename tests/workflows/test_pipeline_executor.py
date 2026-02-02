@@ -808,3 +808,299 @@ class TestConditionEvaluation:
             c for c in update_calls if c.kwargs.get("status") == StepStatus.SKIPPED
         ]
         assert len(skipped_calls) >= 1
+
+
+class TestApprovalGateHandling:
+    """Tests for approval gate handling in PipelineExecutor."""
+
+    @pytest.fixture
+    def pipeline_with_approval(self):
+        """Create a pipeline with an approval gate step."""
+        from gobby.workflows.definitions import PipelineApproval
+
+        return PipelineDefinition(
+            name="approval-pipeline",
+            steps=[
+                PipelineStep(id="build", exec="echo build"),
+                PipelineStep(
+                    id="deploy",
+                    exec="echo deploy",
+                    approval=PipelineApproval(
+                        required=True,
+                        message="Approve deployment to production?",
+                    ),
+                ),
+            ],
+        )
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_raises_approval_required(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that step with approval=required=True raises ApprovalRequired."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired) as exc_info:
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # Check exception has required fields
+        assert exc_info.value.execution_id == "pe-test-123"
+        assert exc_info.value.step_id == "deploy"
+        assert exc_info.value.token is not None
+        assert len(exc_info.value.token) > 0
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_generates_unique_token(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that approval gate generates a unique approval token."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired) as exc_info:
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # Token should be non-empty and unique-ish (at least 16 chars for URL-safe token)
+        token = exc_info.value.token
+        assert token is not None
+        assert len(token) >= 16
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_includes_message(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that approval gate includes the approval message."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired) as exc_info:
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        assert exc_info.value.message == "Approve deployment to production?"
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_stores_token_in_step_execution(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that approval token is stored in step execution record."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired) as exc_info:
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # Check that step execution was updated with approval token
+        update_calls = mock_execution_manager.update_step_execution.call_args_list
+        # Find call that sets approval_token
+        token_calls = [
+            c for c in update_calls if c.kwargs.get("approval_token") is not None
+        ]
+        assert len(token_calls) >= 1
+        # Token in step record should match exception token
+        assert token_calls[-1].kwargs["approval_token"] == exc_info.value.token
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_updates_execution_status_to_waiting(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that execution status is set to WAITING_APPROVAL when hitting approval gate."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired, ExecutionStatus
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired):
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # Check that execution status was updated to WAITING_APPROVAL
+        status_calls = mock_execution_manager.update_execution_status.call_args_list
+        waiting_calls = [
+            c for c in status_calls if c.kwargs.get("status") == ExecutionStatus.WAITING_APPROVAL
+        ]
+        assert len(waiting_calls) >= 1
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_updates_step_status_to_waiting(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that step status is set to WAITING_APPROVAL when approval required."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired, StepStatus
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired):
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # Check that step status was updated to WAITING_APPROVAL
+        step_calls = mock_execution_manager.update_step_execution.call_args_list
+        waiting_calls = [
+            c for c in step_calls if c.kwargs.get("status") == StepStatus.WAITING_APPROVAL
+        ]
+        assert len(waiting_calls) >= 1
+
+    @pytest.mark.asyncio
+    async def test_step_without_approval_does_not_pause(
+        self, mock_db, mock_execution_manager, mock_llm_service, simple_pipeline
+    ) -> None:
+        """Test that steps without approval gate do not pause."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        # Should complete without raising ApprovalRequired
+        result = await executor.execute(
+            pipeline=simple_pipeline,
+            inputs={},
+            project_id="proj-123",
+        )
+
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_approval_required_false_does_not_pause(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that approval.required=False does not pause execution."""
+        from gobby.workflows.definitions import PipelineApproval
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        pipeline = PipelineDefinition(
+            name="no-approval-pipeline",
+            steps=[
+                PipelineStep(
+                    id="step1",
+                    exec="echo step",
+                    approval=PipelineApproval(required=False),
+                ),
+            ],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        # Should complete without raising ApprovalRequired
+        result = await executor.execute(
+            pipeline=pipeline,
+            inputs={},
+            project_id="proj-123",
+        )
+
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_executes_previous_steps_first(
+        self, mock_db, mock_execution_manager, mock_llm_service, pipeline_with_approval
+    ) -> None:
+        """Test that steps before approval gate are executed first."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ApprovalRequired):
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # First step (build) should have been executed and completed
+        step_calls = mock_execution_manager.create_step_execution.call_args_list
+        assert len(step_calls) >= 1
+        first_step = step_calls[0].kwargs["step_id"]
+        assert first_step == "build"
+
+    @pytest.mark.asyncio
+    async def test_approval_gate_calls_webhook_notifier(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_webhook_notifier, pipeline_with_approval
+    ) -> None:
+        """Test that approval gate calls webhook notifier if configured."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+            webhook_notifier=mock_webhook_notifier,
+        )
+
+        with pytest.raises(ApprovalRequired):
+            await executor.execute(
+                pipeline=pipeline_with_approval,
+                inputs={},
+                project_id="proj-123",
+            )
+
+        # Webhook notifier should have been called
+        mock_webhook_notifier.notify_approval_pending.assert_called_once()
