@@ -219,31 +219,29 @@ steps:
         content: |
           WORKER: Shutdown sequence.
 
-          Update your session status to completed using the update_session tool:
-          - server_name: "gobby-sessions"
-          - tool_name: "update_session"
-          - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "status": "completed"}
+          Close your terminal using the close_terminal MCP tool:
+          - server_name: "gobby-workflows"
+          - tool_name: "close_terminal"
+          - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
 
           NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
-          Do NOT use the CLI-specific external_id or call get_current_session - you already have the ID.
+          Do NOT use the CLI-specific external_id.
 
-          Then run the shutdown script (if available):
-          ~/.gobby/scripts/agent_shutdown.sh
-
-          This will terminate your terminal session.
+          This will terminate your terminal session cleanly.
 
     allowed_tools:
-      - Bash
       - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
 
     blocked_tools:
       - Edit
       - Write
       - NotebookEdit
+      - Bash
 
     transitions:
       - to: complete
-        when: "mcp_called('gobby-sessions', 'update_session')"
+        when: "mcp_called('gobby-workflows', 'close_terminal')"
 
   - name: complete
     description: "Worker done"
