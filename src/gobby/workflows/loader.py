@@ -5,7 +5,7 @@ from typing import Any
 
 import yaml
 
-from .definitions import WorkflowDefinition
+from .definitions import PipelineDefinition, WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class WorkflowLoader:
     def __init__(self, workflow_dirs: list[Path] | None = None):
         # Default global workflow directory
         self.global_dirs = workflow_dirs or [Path.home() / ".gobby" / "workflows"]
-        self._cache: dict[str, WorkflowDefinition] = {}
+        self._cache: dict[str, WorkflowDefinition | PipelineDefinition] = {}
         # Cache for discovered workflows per project path
         self._discovery_cache: dict[str, list[DiscoveredWorkflow]] = {}
 
@@ -59,7 +59,10 @@ class WorkflowLoader:
         # Build cache key including project path for project-specific caching
         cache_key = f"{project_path or 'global'}:{name}"
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            cached = self._cache[cache_key]
+            if isinstance(cached, WorkflowDefinition):
+                return cached
+            return None
 
         # Build search directories: project-specific first, then global
         search_dirs = list(self.global_dirs)
@@ -104,6 +107,90 @@ class WorkflowLoader:
             logger.error(f"Failed to load workflow '{name}' from {path}: {e}", exc_info=True)
             return None
 
+    def load_pipeline(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+        _inheritance_chain: list[str] | None = None,
+    ) -> PipelineDefinition | None:
+        """
+        Load a pipeline workflow by name (without extension).
+        Only returns workflows with type='pipeline'.
+
+        Args:
+            name: Pipeline name (without .yaml extension)
+            project_path: Optional project directory for project-specific pipelines.
+                         Searches: 1) {project_path}/.gobby/workflows/  2) ~/.gobby/workflows/
+            _inheritance_chain: Internal parameter for cycle detection. Do not pass directly.
+
+        Returns:
+            PipelineDefinition if found and type is 'pipeline', None otherwise.
+        """
+        # Initialize or check inheritance chain for cycle detection
+        if _inheritance_chain is None:
+            _inheritance_chain = []
+
+        if name in _inheritance_chain:
+            cycle_path = " -> ".join(_inheritance_chain + [name])
+            logger.error(f"Circular pipeline inheritance detected: {cycle_path}")
+            raise ValueError(f"Circular pipeline inheritance detected: {cycle_path}")
+
+        # Build cache key including project path for project-specific caching
+        cache_key = f"pipeline:{project_path or 'global'}:{name}"
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, PipelineDefinition):
+                return cached
+            return None
+
+        # Build search directories: project-specific first, then global
+        search_dirs = list(self.global_dirs)
+        if project_path:
+            project_dir = Path(project_path) / ".gobby" / "workflows"
+            search_dirs.insert(0, project_dir)
+
+        # 1. Find file
+        path = self._find_workflow_file(name, search_dirs)
+        if not path:
+            logger.debug(f"Pipeline '{name}' not found in {search_dirs}")
+            return None
+
+        try:
+            # 2. Parse YAML
+            with open(path) as f:
+                data = yaml.safe_load(f)
+
+            # 3. Check if this is a pipeline type
+            if data.get("type") != "pipeline":
+                logger.debug(f"'{name}' is not a pipeline (type={data.get('type')})")
+                return None
+
+            # 4. Handle inheritance with cycle detection
+            if "extends" in data:
+                parent_name = data["extends"]
+                # Add current pipeline to chain before loading parent
+                parent = self.load_pipeline(
+                    parent_name,
+                    project_path=project_path,
+                    _inheritance_chain=_inheritance_chain + [name],
+                )
+                if parent:
+                    data = self._merge_workflows(parent.model_dump(), data)
+                else:
+                    logger.error(f"Parent pipeline '{parent_name}' not found for '{name}'")
+
+            # 5. Validate and create model
+            definition = PipelineDefinition(**data)
+            self._cache[cache_key] = definition
+            return definition
+
+        except ValueError:
+            # Re-raise ValueError (used for cycle detection)
+            raise
+        except Exception as e:
+            logger.error(f"Failed to load pipeline '{name}' from {path}: {e}", exc_info=True)
+            return None
+
     def _find_workflow_file(self, name: str, search_dirs: list[Path]) -> Path | None:
         filename = f"{name}.yaml"
         for d in search_dirs:
@@ -142,22 +229,28 @@ class WorkflowLoader:
 
     def _merge_steps(self, parent_steps: list[Any], child_steps: list[Any]) -> list[Any]:
         """
-        Merge step lists by step name.
+        Merge step lists by step name or id.
+        Supports both workflow steps (name key) and pipeline steps (id key).
         """
-        # Convert parent list to dict by name, creating copies to avoid mutating originals
+        # Determine which key to use: 'id' for pipelines, 'name' for workflows
+        key_field = "id" if (parent_steps and "id" in parent_steps[0]) else "name"
+        if not parent_steps and child_steps:
+            key_field = "id" if "id" in child_steps[0] else "name"
+
+        # Convert parent list to dict by key, creating copies to avoid mutating originals
         parent_map: dict[str, dict[str, Any]] = {}
         for s in parent_steps:
-            if "name" not in s:
-                logger.warning("Skipping parent step without 'name' key")
+            if key_field not in s:
+                logger.warning(f"Skipping parent step without '{key_field}' key")
                 continue
             # Create a shallow copy to avoid mutating the original
-            parent_map[s["name"]] = dict(s)
+            parent_map[s[key_field]] = dict(s)
 
         for child_step in child_steps:
-            if "name" not in child_step:
-                logger.warning("Skipping child step without 'name' key")
+            if key_field not in child_step:
+                logger.warning(f"Skipping child step without '{key_field}' key")
                 continue
-            name = child_step["name"]
+            name = child_step[key_field]
             if name in parent_map:
                 # Merge existing step by updating the copy with child values
                 parent_map[name].update(child_step)
