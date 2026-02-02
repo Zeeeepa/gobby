@@ -103,6 +103,8 @@ class ActionContext:
     session_task_manager: Any | None = None
     skill_manager: Any | None = None
     event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
+    pipeline_executor: Any | None = None  # PipelineExecutor
+    workflow_loader: Any | None = None  # WorkflowLoader
 
 
 class ActionHandler(Protocol):

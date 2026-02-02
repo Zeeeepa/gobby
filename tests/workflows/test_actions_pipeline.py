@@ -69,6 +69,67 @@ def action_context(mock_db, mock_session_manager):
     )
 
 
+class TestActionContextPipelineAttributes:
+    """Tests for ActionContext pipeline attributes."""
+
+    def test_action_context_has_pipeline_executor(self, mock_db, mock_session_manager) -> None:
+        """Verify ActionContext has pipeline_executor attribute."""
+        mock_executor = MagicMock()
+        ctx = ActionContext(
+            session_id="test-session",
+            state=WorkflowState(
+                session_id="test-session",
+                workflow_name="test",
+                step="step1",
+                variables={},
+            ),
+            db=mock_db,
+            session_manager=mock_session_manager,
+            template_engine=TemplateEngine(),
+            pipeline_executor=mock_executor,
+        )
+        assert ctx.pipeline_executor is mock_executor
+
+    def test_action_context_has_workflow_loader(self, mock_db, mock_session_manager) -> None:
+        """Verify ActionContext has workflow_loader attribute."""
+        mock_loader = MagicMock()
+        ctx = ActionContext(
+            session_id="test-session",
+            state=WorkflowState(
+                session_id="test-session",
+                workflow_name="test",
+                step="step1",
+                variables={},
+            ),
+            db=mock_db,
+            session_manager=mock_session_manager,
+            template_engine=TemplateEngine(),
+            workflow_loader=mock_loader,
+        )
+        assert ctx.workflow_loader is mock_loader
+
+    def test_pipeline_attributes_accessible_in_context(self, mock_db, mock_session_manager) -> None:
+        """Verify both attributes are accessible together."""
+        mock_executor = MagicMock()
+        mock_loader = MagicMock()
+        ctx = ActionContext(
+            session_id="test-session",
+            state=WorkflowState(
+                session_id="test-session",
+                workflow_name="test",
+                step="step1",
+                variables={},
+            ),
+            db=mock_db,
+            session_manager=mock_session_manager,
+            template_engine=TemplateEngine(),
+            pipeline_executor=mock_executor,
+            workflow_loader=mock_loader,
+        )
+        assert ctx.pipeline_executor is mock_executor
+        assert ctx.workflow_loader is mock_loader
+
+
 class TestRunPipelineActionRegistration:
     """Tests for run_pipeline action registration."""
 
