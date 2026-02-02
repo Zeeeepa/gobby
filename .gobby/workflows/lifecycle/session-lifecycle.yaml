@@ -166,7 +166,7 @@ triggers:
         # Uses 'tools' (not mcp_tools) since we're intercepting the actual tool name
         # NOTE: This rule MUST come before mcp_tools rules so schema check fires first
         - tools: ["mcp__gobby__call_tool"]
-          when: "variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
+          when: "variables.get('enforce_tool_schema_check') and tool_input.get('arguments') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
           reason: 'Schema required before calling call_tool("{{ tool_input.get(''server_name'') }}", "{{ tool_input.get(''tool_name'') }}"). Run first: get_tool_schema("{{ tool_input.get(''server_name'') }}", "{{ tool_input.get(''tool_name'') }}")'
 
         # Block close_task without a linked commit (unless using special close reasons)
