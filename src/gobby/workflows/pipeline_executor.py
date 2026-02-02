@@ -318,6 +318,77 @@ class PipelineExecutor:
             message=message,
         )
 
+    async def approve(
+        self,
+        token: str,
+        approved_by: str | None = None,
+    ) -> PipelineExecution:
+        """Approve a pipeline execution that is waiting for approval.
+
+        Args:
+            token: The approval token from the ApprovalRequired exception
+            approved_by: Optional identifier of the approver
+
+        Returns:
+            The updated PipelineExecution record
+
+        Raises:
+            ValueError: If the token is invalid or not found
+        """
+        # Find the step by approval token
+        step = self.execution_manager.get_step_by_approval_token(token)
+        if not step:
+            raise ValueError(f"Invalid approval token: {token}")
+
+        # Mark step as approved
+        self.execution_manager.update_step_execution(
+            step_execution_id=step.id,
+            status=StepStatus.COMPLETED,
+            approved_by=approved_by,
+        )
+
+        # Get the execution
+        execution = self.execution_manager.get_execution(step.execution_id)
+
+        return execution
+
+    async def reject(
+        self,
+        token: str,
+        rejected_by: str | None = None,
+    ) -> PipelineExecution:
+        """Reject a pipeline execution that is waiting for approval.
+
+        Args:
+            token: The approval token from the ApprovalRequired exception
+            rejected_by: Optional identifier of the rejector
+
+        Returns:
+            The updated PipelineExecution record
+
+        Raises:
+            ValueError: If the token is invalid or not found
+        """
+        # Find the step by approval token
+        step = self.execution_manager.get_step_by_approval_token(token)
+        if not step:
+            raise ValueError(f"Invalid approval token: {token}")
+
+        # Mark step as failed
+        self.execution_manager.update_step_execution(
+            step_execution_id=step.id,
+            status=StepStatus.FAILED,
+            rejected_by=rejected_by,
+        )
+
+        # Set execution status to CANCELLED
+        execution = self.execution_manager.update_execution_status(
+            execution_id=step.execution_id,
+            status=ExecutionStatus.CANCELLED,
+        )
+
+        return execution
+
     async def _execute_exec_step(self, command: str, context: dict[str, Any]) -> dict[str, Any]:
         """Execute a shell command step.
 

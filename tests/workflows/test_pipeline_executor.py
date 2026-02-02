@@ -1104,3 +1104,315 @@ class TestApprovalGateHandling:
 
         # Webhook notifier should have been called
         mock_webhook_notifier.notify_approval_pending.assert_called_once()
+
+
+class TestApproveMethod:
+    """Tests for PipelineExecutor.approve() method."""
+
+    @pytest.fixture
+    def pipeline_with_approval(self):
+        """Create a pipeline with an approval gate step."""
+        from gobby.workflows.definitions import PipelineApproval
+
+        return PipelineDefinition(
+            name="approval-pipeline",
+            steps=[
+                PipelineStep(id="build", exec="echo build"),
+                PipelineStep(
+                    id="deploy",
+                    exec="echo deploy",
+                    approval=PipelineApproval(
+                        required=True,
+                        message="Approve deployment?",
+                    ),
+                ),
+                PipelineStep(id="notify", exec="echo done"),
+            ],
+        )
+
+    @pytest.mark.asyncio
+    async def test_approve_finds_execution_by_token(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that approve() finds the execution by approval token."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        # Setup mock to return an execution when searched by token
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.WAITING_APPROVAL
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.approve("test-token-xyz", approved_by="user@example.com")
+
+        mock_execution_manager.get_step_by_approval_token.assert_called_once_with("test-token-xyz")
+
+    @pytest.mark.asyncio
+    async def test_approve_invalid_token_raises_error(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that approve() raises ValueError for invalid token."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        # Setup mock to return None (token not found)
+        mock_execution_manager.get_step_by_approval_token.return_value = None
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ValueError, match="Invalid.*token"):
+            await executor.approve("invalid-token", approved_by=None)
+
+    @pytest.mark.asyncio
+    async def test_approve_marks_step_as_approved(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that approve() marks the step as approved."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.WAITING_APPROVAL
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.approve("test-token-xyz", approved_by="user@example.com")
+
+        # Check that step was marked as approved
+        update_calls = mock_execution_manager.update_step_execution.call_args_list
+        approval_calls = [c for c in update_calls if c.kwargs.get("approved_by") is not None]
+        assert len(approval_calls) >= 1
+        assert approval_calls[0].kwargs["approved_by"] == "user@example.com"
+
+    @pytest.mark.asyncio
+    async def test_approve_returns_execution(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that approve() returns the updated execution."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.COMPLETED
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        result = await executor.approve("test-token-xyz", approved_by=None)
+
+        assert result is not None
+        assert result.id == "pe-test-123"
+
+
+class TestRejectMethod:
+    """Tests for PipelineExecutor.reject() method."""
+
+    @pytest.mark.asyncio
+    async def test_reject_finds_execution_by_token(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that reject() finds the execution by approval token."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.CANCELLED
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.reject("test-token-xyz", rejected_by="user@example.com")
+
+        mock_execution_manager.get_step_by_approval_token.assert_called_once_with("test-token-xyz")
+
+    @pytest.mark.asyncio
+    async def test_reject_invalid_token_raises_error(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that reject() raises ValueError for invalid token."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_execution_manager.get_step_by_approval_token.return_value = None
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        with pytest.raises(ValueError, match="Invalid.*token"):
+            await executor.reject("invalid-token", rejected_by=None)
+
+    @pytest.mark.asyncio
+    async def test_reject_sets_status_to_cancelled(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that reject() sets execution status to CANCELLED."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.CANCELLED
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.reject("test-token-xyz", rejected_by=None)
+
+        # Check that execution status was set to CANCELLED
+        status_calls = mock_execution_manager.update_execution_status.call_args_list
+        cancelled_calls = [
+            c for c in status_calls if c.kwargs.get("status") == ExecutionStatus.CANCELLED
+        ]
+        assert len(cancelled_calls) >= 1
+
+    @pytest.mark.asyncio
+    async def test_reject_returns_execution(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that reject() returns the updated execution."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.CANCELLED
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        result = await executor.reject("test-token-xyz", rejected_by=None)
+
+        assert result is not None
+        assert result.id == "pe-test-123"
+
+    @pytest.mark.asyncio
+    async def test_reject_marks_step_as_failed(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that reject() marks the step as failed/rejected."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+        from gobby.workflows.pipeline_state import ExecutionStatus, StepStatus
+
+        mock_step = MagicMock()
+        mock_step.id = 1
+        mock_step.execution_id = "pe-test-123"
+        mock_step.step_id = "deploy"
+        mock_step.approval_token = "test-token-xyz"
+        mock_step.status = StepStatus.WAITING_APPROVAL
+        mock_execution_manager.get_step_by_approval_token.return_value = mock_step
+
+        mock_execution = MagicMock()
+        mock_execution.id = "pe-test-123"
+        mock_execution.pipeline_name = "approval-pipeline"
+        mock_execution.status = ExecutionStatus.CANCELLED
+        mock_execution_manager.get_execution.return_value = mock_execution
+        mock_execution_manager.update_execution_status.return_value = mock_execution
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.reject("test-token-xyz", rejected_by="admin@example.com")
+
+        # Check that step was marked with error
+        step_calls = mock_execution_manager.update_step_execution.call_args_list
+        failed_calls = [c for c in step_calls if c.kwargs.get("status") == StepStatus.FAILED]
+        assert len(failed_calls) >= 1
