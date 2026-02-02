@@ -401,3 +401,126 @@ class TestPipelinesRun:
             data = json.loads(result.output)
             assert data["execution_id"] == "pe-abc123"
             assert data["status"] == "completed"
+
+
+class TestPipelinesStatus:
+    """Tests for gobby pipelines status command."""
+
+    @pytest.fixture
+    def mock_execution(self):
+        """Create a mock pipeline execution."""
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        return PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.RUNNING,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+            inputs_json='{"env": "prod"}',
+        )
+
+    @pytest.fixture
+    def mock_step_executions(self):
+        """Create mock step executions."""
+        from gobby.workflows.pipeline_state import StepExecution, StepStatus
+
+        return [
+            StepExecution(
+                id=1,
+                execution_id="pe-abc123",
+                step_id="build",
+                status=StepStatus.COMPLETED,
+            ),
+            StepExecution(
+                id=2,
+                execution_id="pe-abc123",
+                step_id="test",
+                status=StepStatus.RUNNING,
+            ),
+        ]
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_status_subcommand_exists(self, runner) -> None:
+        """Verify 'status' subcommand is registered."""
+        result = runner.invoke(cli, ["pipelines", "--help"])
+        assert "status" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_status_fetches_execution(self, runner, mock_execution, mock_step_executions) -> None:
+        """Verify 'gobby pipelines status <id>' fetches execution."""
+        mock_manager = MagicMock()
+        mock_manager.get_execution.return_value = mock_execution
+        mock_manager.get_steps_for_execution.return_value = mock_step_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "status", "pe-abc123"])
+
+            assert result.exit_code == 0
+            mock_manager.get_execution.assert_called_once_with("pe-abc123")
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_status_displays_execution_details(
+        self, runner, mock_execution, mock_step_executions
+    ) -> None:
+        """Verify status command displays execution details."""
+        mock_manager = MagicMock()
+        mock_manager.get_execution.return_value = mock_execution
+        mock_manager.get_steps_for_execution.return_value = mock_step_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "status", "pe-abc123"])
+
+            assert result.exit_code == 0
+            assert "pe-abc123" in result.output
+            assert "deploy" in result.output
+            assert "running" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_status_shows_step_statuses(
+        self, runner, mock_execution, mock_step_executions
+    ) -> None:
+        """Verify status command shows step statuses."""
+        mock_manager = MagicMock()
+        mock_manager.get_execution.return_value = mock_execution
+        mock_manager.get_steps_for_execution.return_value = mock_step_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "status", "pe-abc123"])
+
+            assert result.exit_code == 0
+            assert "build" in result.output
+            assert "test" in result.output
+            assert "completed" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_status_not_found(self, runner) -> None:
+        """Verify status returns error for nonexistent execution."""
+        mock_manager = MagicMock()
+        mock_manager.get_execution.return_value = None
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "status", "pe-nonexistent"])
+
+            assert result.exit_code != 0 or "not found" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_status_json_format(
+        self, runner, mock_execution, mock_step_executions
+    ) -> None:
+        """Verify status command supports --json output."""
+        import json
+
+        mock_manager = MagicMock()
+        mock_manager.get_execution.return_value = mock_execution
+        mock_manager.get_steps_for_execution.return_value = mock_step_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "status", "pe-abc123", "--json"])
+
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["execution"]["id"] == "pe-abc123"
+            assert data["execution"]["status"] == "running"
+            assert len(data["steps"]) == 2

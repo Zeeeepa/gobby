@@ -291,3 +291,101 @@ def run_pipeline(ctx: click.Context, name: str, inputs: tuple[str, ...], json_fo
     except Exception as e:
         click.echo(f"Pipeline execution failed: {e}", err=True)
         raise SystemExit(1) from None
+
+
+def get_execution_manager() -> Any:
+    """Get pipeline execution manager instance."""
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
+
+    db = LocalDatabase()
+
+    # Get project_id from current project if available
+    project_path = get_project_path()
+    project_id = ""
+    if project_path:
+        project_json = project_path / ".gobby" / "project.json"
+        if project_json.exists():
+            try:
+                with open(project_json) as f:
+                    project_data = json.load(f)
+                    project_id = project_data.get("id", "")
+            except Exception:
+                pass
+
+    return LocalPipelineExecutionManager(db, project_id)
+
+
+@pipelines.command("status")
+@click.argument("execution_id")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def status_pipeline(ctx: click.Context, execution_id: str, json_format: bool) -> None:
+    """Show status of a pipeline execution.
+
+    Examples:
+
+        gobby pipelines status pe-abc123
+
+        gobby pipelines status pe-abc123 --json
+    """
+    execution_manager = get_execution_manager()
+
+    # Fetch execution
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        click.echo(f"Execution '{execution_id}' not found.", err=True)
+        raise SystemExit(1)
+
+    # Fetch step executions
+    steps = execution_manager.get_steps_for_execution(execution_id)
+
+    if json_format:
+        result = {
+            "execution": {
+                "id": execution.id,
+                "pipeline_name": execution.pipeline_name,
+                "status": execution.status.value,
+                "created_at": execution.created_at,
+                "updated_at": execution.updated_at,
+            },
+            "steps": [
+                {
+                    "id": step.id,
+                    "step_id": step.step_id,
+                    "status": step.status.value,
+                }
+                for step in steps
+            ],
+        }
+        if execution.inputs_json:
+            try:
+                result["execution"]["inputs"] = json.loads(execution.inputs_json)
+            except json.JSONDecodeError:
+                result["execution"]["inputs"] = execution.inputs_json
+        if execution.outputs_json:
+            try:
+                result["execution"]["outputs"] = json.loads(execution.outputs_json)
+            except json.JSONDecodeError:
+                result["execution"]["outputs"] = execution.outputs_json
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    # Human-readable output
+    click.echo(f"Execution: {execution.id}")
+    click.echo(f"Pipeline: {execution.pipeline_name}")
+    click.echo(f"Status: {execution.status.value}")
+    click.echo(f"Created: {execution.created_at}")
+    click.echo(f"Updated: {execution.updated_at}")
+
+    if steps:
+        click.echo(f"\nSteps ({len(steps)}):")
+        for step in steps:
+            status_icon = (
+                "✓"
+                if step.status.value == "completed"
+                else "→"
+                if step.status.value == "running"
+                else "○"
+            )
+            click.echo(f"  {status_icon} {step.step_id} ({step.status.value})")
