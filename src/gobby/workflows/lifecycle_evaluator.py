@@ -144,9 +144,10 @@ async def evaluate_workflow_triggers(
             files_modified_this_task=0,
         )
 
-    # Merge context_data into state variables (context_data has session vars from earlier load)
+    # Merge context_data (workflow defaults) into state variables
+    # Persisted state values take precedence over workflow defaults
     if context_data:
-        state.variables.update(context_data)
+        state.variables = {**context_data, **state.variables}
 
     action_ctx = ActionContext(
         session_id=session_id,
