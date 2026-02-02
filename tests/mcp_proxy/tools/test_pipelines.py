@@ -102,6 +102,9 @@ class TestListPipelinesTool:
             execution_manager=mock_execution_manager,
         )
 
+        # Reset mock after registry creation (which also calls discover for dynamic tools)
+        mock_loader.discover_pipeline_workflows.reset_mock()
+
         # Call the tool
         await registry.call("list_pipelines", {})
 
@@ -214,6 +217,9 @@ class TestListPipelinesTool:
             executor=mock_executor,
             execution_manager=mock_execution_manager,
         )
+
+        # Reset mock after registry creation (which also calls discover for dynamic tools)
+        mock_loader.discover_pipeline_workflows.reset_mock()
 
         await registry.call("list_pipelines", {"project_path": "/my/project"})
 
@@ -950,3 +956,285 @@ class TestGetPipelineStatusTool:
 
         assert result["success"] is False
         assert "manager" in result["error"].lower() or "configured" in result["error"].lower()
+
+
+class TestDynamicPipelineTools:
+    """Tests for dynamic tool generation from pipelines with expose_as_tool=True."""
+
+    @pytest.mark.asyncio
+    async def test_expose_as_tool_creates_dynamic_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that pipelines with expose_as_tool=True are exposed as tools."""
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        # Create a pipeline with expose_as_tool=True
+        pipeline = PipelineDefinition(
+            name="run-tests",
+            description="Run the test suite",
+            steps=[PipelineStep(id="test", exec="pytest")],
+            expose_as_tool=True,
+        )
+
+        mock_loader.discover_pipeline_workflows.return_value = [
+            DiscoveredWorkflow(
+                name="run-tests",
+                definition=pipeline,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/run-tests.yaml"),
+            ),
+        ]
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "pipeline:run-tests" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_expose_as_tool_false_not_exposed(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that pipelines with expose_as_tool=False are NOT exposed as tools."""
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        # Create a pipeline without expose_as_tool (defaults to False)
+        pipeline = PipelineDefinition(
+            name="internal-pipeline",
+            description="Internal pipeline not exposed",
+            steps=[PipelineStep(id="step1", exec="echo internal")],
+        )
+
+        mock_loader.discover_pipeline_workflows.return_value = [
+            DiscoveredWorkflow(
+                name="internal-pipeline",
+                definition=pipeline,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/internal.yaml"),
+            ),
+        ]
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "pipeline:internal-pipeline" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_dynamic_tool_has_correct_description(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that dynamic pipeline tools have the pipeline's description."""
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            description="Deploy to production environment",
+            steps=[PipelineStep(id="deploy", exec="deploy-app")],
+            expose_as_tool=True,
+        )
+
+        mock_loader.discover_pipeline_workflows.return_value = [
+            DiscoveredWorkflow(
+                name="deploy",
+                definition=pipeline,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/deploy.yaml"),
+            ),
+        ]
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        # Use get_schema to get the full schema with description
+        schema = registry.get_schema("pipeline:deploy")
+        assert schema is not None
+        assert schema["description"] == "Deploy to production environment"
+
+    @pytest.mark.asyncio
+    async def test_dynamic_tool_includes_input_schema(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that dynamic pipeline tools include input schema from pipeline inputs."""
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            description="Deploy to environment",
+            steps=[PipelineStep(id="deploy", exec="deploy-app")],
+            expose_as_tool=True,
+            inputs={
+                "environment": {"type": "string", "default": "staging"},
+                "version": {"type": "string", "description": "Version to deploy"},
+            },
+        )
+
+        mock_loader.discover_pipeline_workflows.return_value = [
+            DiscoveredWorkflow(
+                name="deploy",
+                definition=pipeline,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/deploy.yaml"),
+            ),
+        ]
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        # Use get_schema to get the full schema with inputSchema
+        schema = registry.get_schema("pipeline:deploy")
+        assert schema is not None
+        assert "inputSchema" in schema
+        input_schema = schema["inputSchema"]
+        assert "properties" in input_schema
+        assert "environment" in input_schema["properties"]
+        assert "version" in input_schema["properties"]
+
+    @pytest.mark.asyncio
+    async def test_dynamic_tool_executes_pipeline(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that calling a dynamic pipeline tool executes the pipeline."""
+        from pathlib import Path
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        pipeline = PipelineDefinition(
+            name="run-tests",
+            description="Run tests",
+            steps=[PipelineStep(id="test", exec="pytest")],
+            expose_as_tool=True,
+            inputs={"filter": {"type": "string", "default": ""}},
+        )
+
+        mock_loader.discover_pipeline_workflows.return_value = [
+            DiscoveredWorkflow(
+                name="run-tests",
+                definition=pipeline,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/run-tests.yaml"),
+            ),
+        ]
+        mock_loader.load_pipeline.return_value = pipeline
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="run-tests",
+            project_id="",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+            outputs_json='{"tests_passed": 42}',
+        )
+        mock_executor.execute = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "pipeline:run-tests",
+            {"filter": "test_api"},
+        )
+
+        assert result["success"] is True
+        assert result["status"] == "completed"
+        mock_executor.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_multiple_exposed_pipelines(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that multiple pipelines with expose_as_tool=True all get tools."""
+        from pathlib import Path
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        pipeline1 = PipelineDefinition(
+            name="build",
+            description="Build project",
+            steps=[PipelineStep(id="build", exec="npm run build")],
+            expose_as_tool=True,
+        )
+        pipeline2 = PipelineDefinition(
+            name="test",
+            description="Run tests",
+            steps=[PipelineStep(id="test", exec="npm test")],
+            expose_as_tool=True,
+        )
+        pipeline3 = PipelineDefinition(
+            name="internal",
+            description="Internal only",
+            steps=[PipelineStep(id="internal", exec="echo internal")],
+            expose_as_tool=False,
+        )
+
+        mock_loader.discover_pipeline_workflows.return_value = [
+            DiscoveredWorkflow(
+                name="build",
+                definition=pipeline1,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/build.yaml"),
+            ),
+            DiscoveredWorkflow(
+                name="test",
+                definition=pipeline2,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/test.yaml"),
+            ),
+            DiscoveredWorkflow(
+                name="internal",
+                definition=pipeline3,
+                priority=100,
+                is_project=True,
+                path=Path("/project/.gobby/workflows/internal.yaml"),
+            ),
+        ]
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "pipeline:build" in tool_names
+        assert "pipeline:test" in tool_names
+        assert "pipeline:internal" not in tool_names

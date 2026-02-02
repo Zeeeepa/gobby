@@ -180,6 +180,9 @@ class PipelineDefinition(BaseModel):
     # Webhook notifications
     webhooks: WebhookConfig | None = None
 
+    # Expose as MCP tool
+    expose_as_tool: bool = False
+
     @field_validator("steps", mode="after")
     @classmethod
     def validate_steps(cls, v: list[PipelineStep]) -> list[PipelineStep]:
