@@ -129,8 +129,9 @@ def list_pipelines(ctx: click.Context, json_format: bool) -> None:
 def show_pipeline(ctx: click.Context, name: str, json_format: bool) -> None:
     """Show pipeline definition details."""
     loader = get_workflow_loader()
+    project_path = get_project_path()
 
-    pipeline = loader.load_pipeline(name)
+    pipeline = loader.load_pipeline(name, project_path=project_path)
     if not pipeline:
         click.echo(f"Pipeline '{name}' not found.", err=True)
         raise SystemExit(1)
@@ -241,7 +242,8 @@ def run_pipeline(
             raise SystemExit(1)
 
         loader = get_workflow_loader()
-        pipeline = loader.load_pipeline(name)
+        project_path = get_project_path()
+        pipeline = loader.load_pipeline(name, project_path=project_path)
         if not pipeline:
             click.echo(f"Pipeline '{name}' not found.", err=True)
             raise SystemExit(1)
