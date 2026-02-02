@@ -201,4 +201,30 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         except ValueError as e:
             raise HTTPException(status_code=404, detail=f"Invalid token: {e}") from None
 
+    @router.post("/reject/{token}")
+    async def reject_execution(token: str) -> dict[str, Any]:
+        """
+        Reject a pipeline execution waiting for approval.
+
+        Returns:
+            200: Execution rejected/cancelled
+            404: Invalid token
+        """
+        executor = server.services.pipeline_executor
+
+        if executor is None:
+            raise HTTPException(status_code=500, detail="Pipeline executor not configured")
+
+        try:
+            execution = await executor.reject(token, rejected_by=None)
+
+            return {
+                "status": execution.status.value,
+                "execution_id": execution.id,
+                "pipeline_name": execution.pipeline_name,
+            }
+
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=f"Invalid token: {e}") from None
+
     return router

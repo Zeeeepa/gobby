@@ -360,3 +360,42 @@ class TestPipelinesApproveEndpoint:
         data = response.json()
         assert data["status"] == "waiting_approval"
         assert data["token"] == "next-approval-token"
+
+
+class TestPipelinesRejectEndpoint:
+    """Tests for POST /api/pipelines/reject/{token} endpoint."""
+
+    def test_reject_success(self, client, http_server) -> None:
+        """Verify POST /api/pipelines/reject/{token} calls executor.reject()."""
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        mock_execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.FAILED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+        )
+        http_server.services.pipeline_executor.reject = AsyncMock(return_value=mock_execution)
+
+        response = client.post("/api/pipelines/reject/approval-token-xyz")
+
+        assert response.status_code == 200
+        http_server.services.pipeline_executor.reject.assert_called_once_with(
+            "approval-token-xyz", rejected_by=None
+        )
+        data = response.json()
+        assert data["status"] == "failed"
+        assert data["execution_id"] == "pe-abc123"
+
+    def test_reject_invalid_token(self, client, http_server) -> None:
+        """Verify POST /api/pipelines/reject/{token} returns 404 for invalid token."""
+        http_server.services.pipeline_executor.reject = AsyncMock(
+            side_effect=ValueError("Invalid token")
+        )
+
+        response = client.post("/api/pipelines/reject/invalid-token")
+
+        assert response.status_code == 404
+        assert "invalid" in response.json()["detail"].lower()
