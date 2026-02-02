@@ -470,7 +470,7 @@ def create_spawn_agent_registry(
             git_manager=git_manager,
             clone_storage=clone_storage,
             clone_manager=clone_manager,
-            workflow=workflow,
+            workflow=effective_workflow,
             mode=mode,
             terminal=terminal,
             provider=provider,
