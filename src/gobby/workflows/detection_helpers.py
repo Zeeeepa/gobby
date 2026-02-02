@@ -103,30 +103,42 @@ def detect_task_claim(
         if isinstance(result, dict) and result.get("error"):
             return
 
-    # Extract task_id based on tool type
+    # Extract task_id based on tool type - MUST resolve to UUID
+    # Refs like '#123' will fail comparison with task.id (UUID) in close_task logic
     arguments = tool_input.get("arguments", {}) or {}
+    task_id: str | None = None
+
     if inner_tool_name in ("update_task", "claim_task"):
-        task_id = arguments.get("task_id")
-        # Resolve to UUID for consistent comparison with close_task
-        if task_id and task_manager:
+        raw_task_id = arguments.get("task_id")
+        # MUST resolve to UUID - refs like '#123' break comparisons in close_task
+        if raw_task_id and task_manager:
             try:
-                task = task_manager.get_task(task_id)
+                task = task_manager.get_task(raw_task_id)
                 if task:
                     task_id = task.id  # Use UUID
-            except Exception:  # nosec B110 - best effort resolution, keep original if fails
-                pass
+                else:
+                    logger.warning(
+                        f"Cannot resolve task ref '{raw_task_id}' to UUID - task not found"
+                    )
+            except Exception as e:
+                logger.warning(f"Cannot resolve task ref '{raw_task_id}' to UUID: {e}")
+        elif raw_task_id and not task_manager:
+            logger.warning(f"Cannot resolve task ref '{raw_task_id}' to UUID - no task_manager")
     elif inner_tool_name == "create_task":
-        # For create_task, the id is in the result
+        # For create_task, the id is in the result (already a UUID)
         result = tool_output.get("result", {}) if isinstance(tool_output, dict) else {}
         task_id = result.get("id") if isinstance(result, dict) else None
         # Skip if we can't get the task ID (e.g., Claude Code doesn't include tool results)
         # The MCP tool itself handles state updates in this case via _crud.py
         if not task_id:
             return
-    else:
-        task_id = None
 
-    # All conditions met - set task_claimed and claimed_task_id
+    # Only set claimed_task_id if we have a valid UUID
+    if not task_id:
+        logger.debug(f"Skipping task claim state update - no valid UUID for {inner_tool_name}")
+        return
+
+    # All conditions met - set task_claimed and claimed_task_id (UUID)
     state.variables["task_claimed"] = True
     state.variables["claimed_task_id"] = task_id
     logger.info(

@@ -3,6 +3,7 @@
 Provides task lifecycle tools: close, reopen, delete, and label management.
 """
 
+import uuid
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -18,6 +19,15 @@ from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.storage.worktrees import LocalWorktreeManager
+
+
+def _is_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID (not a ref like #123)."""
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
@@ -235,7 +245,17 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if resolved_session_id:
             try:
                 state = ctx.workflow_state_manager.get_state(resolved_session_id)
-                if state and state.variables.get("claimed_task_id") == resolved_id:
+                if state:
+                    # Resolve claimed_task_id to UUID if it's a ref (backward compat)
+                    claimed_task_id = state.variables.get("claimed_task_id")
+                    if claimed_task_id and not _is_uuid(claimed_task_id):
+                        try:
+                            claimed_task = ctx.task_manager.get_task(claimed_task_id)
+                            if claimed_task:
+                                claimed_task_id = claimed_task.id
+                        except Exception:
+                            pass  # Keep original if resolution fails
+                if state and claimed_task_id == resolved_id:
                     # Check if clear_task_on_close is enabled (default: True)
                     clear_on_close = state.variables.get("clear_task_on_close", True)
                     if clear_on_close:

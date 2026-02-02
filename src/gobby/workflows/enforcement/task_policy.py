@@ -6,6 +6,7 @@ Provides actions that enforce task tracking and scoping requirements.
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
@@ -19,6 +20,15 @@ if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+def _is_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID (not a ref like #123)."""
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 async def require_task_complete(
@@ -84,6 +94,14 @@ async def require_task_complete(
     if workflow_state:
         has_claimed_task = workflow_state.variables.get("task_claimed", False)
         claimed_task_id = workflow_state.variables.get("claimed_task_id")
+        # Resolve claimed_task_id to UUID if it's a ref (backward compat)
+        if claimed_task_id and not _is_uuid(claimed_task_id):
+            try:
+                claimed_task = task_manager.get_task(claimed_task_id)
+                if claimed_task:
+                    claimed_task_id = claimed_task.id
+            except Exception:
+                pass  # Keep original if resolution fails
 
     try:
         # Collect incomplete tasks across all specified task IDs
