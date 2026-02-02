@@ -243,3 +243,161 @@ class TestPipelinesShow:
             data = json.loads(result.output)
             assert data["name"] == "deploy"
             assert "steps" in data
+
+
+class TestPipelinesRun:
+    """Tests for gobby pipelines run command."""
+
+    @pytest.fixture
+    def mock_execution(self):
+        """Create a mock pipeline execution."""
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        return PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+            outputs_json='{"result": "success"}',
+        )
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_subcommand_exists(self, runner) -> None:
+        """Verify 'run' subcommand is registered."""
+        result = runner.invoke(cli, ["pipelines", "--help"])
+        assert "run" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_loads_and_executes(self, runner, mock_pipeline, mock_execution) -> None:
+        """Verify 'gobby pipelines run <name>' loads and executes pipeline."""
+        from unittest.mock import AsyncMock
+
+        mock_loader = MagicMock()
+        mock_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(return_value=mock_execution)
+
+        with (
+            patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader),
+            patch("gobby.cli.pipelines.get_pipeline_executor", return_value=mock_executor),
+        ):
+            result = runner.invoke(cli, ["pipelines", "run", "deploy"])
+
+            assert result.exit_code == 0
+            mock_loader.load_pipeline.assert_called_once_with("deploy")
+            mock_executor.execute.assert_called_once()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_parses_inputs(self, runner, mock_pipeline, mock_execution) -> None:
+        """Verify '-i key=value' parses inputs correctly."""
+        from unittest.mock import AsyncMock
+
+        mock_loader = MagicMock()
+        mock_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(return_value=mock_execution)
+
+        with (
+            patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader),
+            patch("gobby.cli.pipelines.get_pipeline_executor", return_value=mock_executor),
+        ):
+            result = runner.invoke(
+                cli,
+                ["pipelines", "run", "deploy", "-i", "env=prod", "-i", "version=1.0"],
+            )
+
+            assert result.exit_code == 0
+            # Verify inputs were passed to execute
+            call_kwargs = mock_executor.execute.call_args
+            inputs = call_kwargs.kwargs.get("inputs", {})
+            assert inputs.get("env") == "prod"
+            assert inputs.get("version") == "1.0"
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_outputs_execution_id(self, runner, mock_pipeline, mock_execution) -> None:
+        """Verify run command outputs execution_id and status."""
+        from unittest.mock import AsyncMock
+
+        mock_loader = MagicMock()
+        mock_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(return_value=mock_execution)
+
+        with (
+            patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader),
+            patch("gobby.cli.pipelines.get_pipeline_executor", return_value=mock_executor),
+        ):
+            result = runner.invoke(cli, ["pipelines", "run", "deploy"])
+
+            assert result.exit_code == 0
+            assert "pe-abc123" in result.output
+            assert "completed" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_handles_approval_required(self, runner, mock_pipeline) -> None:
+        """Verify run command handles ApprovalRequired with token display."""
+        from unittest.mock import AsyncMock
+
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        mock_loader = MagicMock()
+        mock_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(
+            side_effect=ApprovalRequired(
+                execution_id="pe-abc123",
+                step_id="deploy-step",
+                token="approval-token-xyz",
+                message="Manual approval required",
+            )
+        )
+
+        with (
+            patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader),
+            patch("gobby.cli.pipelines.get_pipeline_executor", return_value=mock_executor),
+        ):
+            result = runner.invoke(cli, ["pipelines", "run", "deploy"])
+
+            assert result.exit_code == 0
+            assert "approval" in result.output.lower()
+            assert "approval-token-xyz" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_pipeline_not_found(self, runner) -> None:
+        """Verify run returns error for nonexistent pipeline."""
+        mock_loader = MagicMock()
+        mock_loader.load_pipeline.return_value = None
+
+        with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
+            result = runner.invoke(cli, ["pipelines", "run", "nonexistent"])
+
+            assert result.exit_code != 0 or "not found" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_run_json_format(self, runner, mock_pipeline, mock_execution) -> None:
+        """Verify run command supports --json output."""
+        import json
+        from unittest.mock import AsyncMock
+
+        mock_loader = MagicMock()
+        mock_loader.load_pipeline.return_value = mock_pipeline
+
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(return_value=mock_execution)
+
+        with (
+            patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader),
+            patch("gobby.cli.pipelines.get_pipeline_executor", return_value=mock_executor),
+        ):
+            result = runner.invoke(cli, ["pipelines", "run", "deploy", "--json"])
+
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert data["execution_id"] == "pe-abc123"
+            assert data["status"] == "completed"

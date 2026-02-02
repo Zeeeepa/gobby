@@ -2,13 +2,16 @@
 CLI commands for managing Gobby pipelines.
 """
 
+import asyncio
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import click
 
 from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.pipeline_state import ApprovalRequired
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,51 @@ def get_project_path() -> Path | None:
     if (cwd / ".gobby").exists():
         return cwd
     return None
+
+
+def get_pipeline_executor() -> Any:
+    """Get pipeline executor instance.
+
+    Returns a mock executor for CLI use. In production, this would be
+    connected to the daemon via HTTP API.
+    """
+    # For CLI, we create a lightweight executor
+    # The actual execution happens through the daemon
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.workflows.pipeline_executor import PipelineExecutor
+
+    db = LocalDatabase()
+
+    # Get project_id from current project if available
+    project_path = get_project_path()
+    project_id = ""
+    if project_path:
+        project_json = project_path / ".gobby" / "project.json"
+        if project_json.exists():
+            try:
+                with open(project_json) as f:
+                    project_data = json.load(f)
+                    project_id = project_data.get("id", "")
+            except Exception:
+                pass
+
+    execution_manager = LocalPipelineExecutionManager(db, project_id)
+
+    return PipelineExecutor(
+        db=db,
+        execution_manager=execution_manager,
+        llm_service=None,  # Not needed for exec steps
+        loader=get_workflow_loader(),
+    )
+
+
+def parse_input(input_str: str) -> tuple[str, str]:
+    """Parse a key=value input string."""
+    if "=" not in input_str:
+        raise click.BadParameter(f"Input must be in 'key=value' format: {input_str}")
+    key, value = input_str.split("=", 1)
+    return key.strip(), value.strip()
 
 
 @click.group()
@@ -137,3 +185,109 @@ def show_pipeline(ctx: click.Context, name: str, json_format: bool) -> None:
         click.echo("\nOutputs:")
         for output_name, output_expr in pipeline.outputs.items():
             click.echo(f"  - {output_name}: {output_expr}")
+
+
+@pipelines.command("run")
+@click.argument("name")
+@click.option(
+    "-i",
+    "--input",
+    "inputs",
+    multiple=True,
+    help="Input values as key=value (can be repeated)",
+)
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def run_pipeline(ctx: click.Context, name: str, inputs: tuple[str, ...], json_format: bool) -> None:
+    """Run a pipeline by name.
+
+    Examples:
+
+        gobby pipelines run deploy
+
+        gobby pipelines run deploy -i env=prod -i version=1.0
+    """
+    loader = get_workflow_loader()
+
+    # Load the pipeline
+    pipeline = loader.load_pipeline(name)
+    if not pipeline:
+        click.echo(f"Pipeline '{name}' not found.", err=True)
+        raise SystemExit(1)
+
+    # Parse inputs
+    input_dict: dict[str, str] = {}
+    for input_str in inputs:
+        try:
+            key, value = parse_input(input_str)
+            input_dict[key] = value
+        except click.BadParameter as e:
+            click.echo(str(e), err=True)
+            raise SystemExit(1) from None
+
+    # Get executor and run
+    executor = get_pipeline_executor()
+
+    # Get project_id
+    project_path = get_project_path()
+    project_id = ""
+    if project_path:
+        project_json = project_path / ".gobby" / "project.json"
+        if project_json.exists():
+            try:
+                with open(project_json) as f:
+                    project_data = json.load(f)
+                    project_id = project_data.get("id", "")
+            except Exception:
+                pass
+
+    try:
+        # Run the pipeline
+        execution = asyncio.run(
+            executor.execute(
+                pipeline=pipeline,
+                inputs=input_dict,
+                project_id=project_id,
+            )
+        )
+
+        # Output result
+        if json_format:
+            result = {
+                "execution_id": execution.id,
+                "status": execution.status.value,
+                "pipeline_name": execution.pipeline_name,
+            }
+            if execution.outputs_json:
+                try:
+                    result["outputs"] = json.loads(execution.outputs_json)
+                except json.JSONDecodeError:
+                    result["outputs"] = execution.outputs_json
+            click.echo(json.dumps(result, indent=2))
+        else:
+            click.echo(f"✓ Pipeline '{name}' completed")
+            click.echo(f"  Execution ID: {execution.id}")
+            click.echo(f"  Status: {execution.status.value}")
+
+    except ApprovalRequired as e:
+        # Pipeline paused for approval
+        if json_format:
+            result = {
+                "execution_id": e.execution_id,
+                "status": "waiting_approval",
+                "step_id": e.step_id,
+                "token": e.token,
+                "message": e.message,
+            }
+            click.echo(json.dumps(result, indent=2))
+        else:
+            click.echo(f"⏸ Pipeline '{name}' waiting for approval")
+            click.echo(f"  Execution ID: {e.execution_id}")
+            click.echo(f"  Step: {e.step_id}")
+            click.echo(f"  Message: {e.message}")
+            click.echo(f"\nTo approve: gobby pipelines approve {e.token}")
+            click.echo(f"To reject:  gobby pipelines reject {e.token}")
+
+    except Exception as e:
+        click.echo(f"Pipeline execution failed: {e}", err=True)
+        raise SystemExit(1) from None
