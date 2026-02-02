@@ -24,6 +24,51 @@ variables:
   parent_notified: false
 
 steps:
+  - name: activate
+    description: "Activate workflow - MUST be called first"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKER: Workflow activation required.
+
+          You MUST activate this workflow before proceeding. All tools are blocked
+          until you call activate_workflow.
+
+          Call:
+          mcp__gobby__call_tool(
+            server_name="gobby-workflows",
+            tool_name="activate_workflow",
+            arguments={
+              "name": "work-task-gemini",
+              "session_id": "<your_gobby_session_id>",
+              "variables": {"assigned_task_id": "<your_assigned_task_id>"}
+            }
+          )
+
+          Your Gobby Session ID is shown at session start (e.g., "Gobby Session ID: #N").
+          Your assigned task ID was provided in the spawn prompt.
+
+    # Only allow the MCP tool for activation - block everything else
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+      - Read
+      - Glob
+      - Grep
+      - Task
+      - spawn_agent
+
+    transitions:
+      - to: claim_task
+        when: "mcp_called('gobby-workflows', 'activate_workflow')"
+
   - name: claim_task
     description: "Claim the assigned task"
     on_enter:
@@ -36,10 +81,10 @@ steps:
 
           Assigned task: {{ variables.assigned_task_id }}
 
-          First, claim the task by calling the gobby-tasks server's update_task tool:
+          First, claim the task by calling claim_task:
           - server_name: "gobby-tasks"
-          - tool_name: "update_task"
-          - arguments: {"task_id": "{{ variables.assigned_task_id }}", "status": "in_progress"}
+          - tool_name: "claim_task"
+          - arguments: {"task_id": "{{ variables.assigned_task_id }}", "session_id": "<your_session_id>"}
 
           Then read the task details using the get_task tool:
           - server_name: "gobby-tasks"
@@ -63,7 +108,7 @@ steps:
 
     on_mcp_success:
       - server: gobby-tasks
-        tool: update_task
+        tool: claim_task
         action: set_variable
         variable: task_claimed
         value: true
