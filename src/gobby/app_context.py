@@ -57,6 +57,7 @@ class ServiceContainer:
     # Pipelines
     pipeline_executor: Any | None = None  # PipelineExecutor
     workflow_loader: Any | None = None  # WorkflowLoader
+    pipeline_execution_manager: Any | None = None  # LocalPipelineExecutionManager
 
     # Context
     project_id: str | None = None

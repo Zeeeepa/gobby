@@ -117,4 +117,44 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Pipeline execution failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Execution error: {e}") from None
 
+    @router.get("/{execution_id}")
+    async def get_execution(execution_id: str) -> dict[str, Any]:
+        """
+        Get execution details by ID.
+
+        Returns:
+            200: Execution details with steps
+            404: Execution not found
+        """
+        # Get execution manager from services
+        execution_manager = server.services.pipeline_execution_manager
+
+        if execution_manager is None:
+            raise HTTPException(status_code=500, detail="Pipeline execution manager not configured")
+
+        # Fetch execution
+        execution = execution_manager.get_execution(execution_id)
+        if execution is None:
+            raise HTTPException(status_code=404, detail=f"Execution '{execution_id}' not found")
+
+        # Fetch steps
+        steps = execution_manager.get_steps_for_execution(execution_id)
+
+        return {
+            "id": execution.id,
+            "pipeline_name": execution.pipeline_name,
+            "project_id": execution.project_id,
+            "status": execution.status.value,
+            "created_at": execution.created_at,
+            "updated_at": execution.updated_at,
+            "steps": [
+                {
+                    "id": step.id,
+                    "step_id": step.step_id,
+                    "status": step.status.value,
+                }
+                for step in steps
+            ],
+        }
+
     return router
