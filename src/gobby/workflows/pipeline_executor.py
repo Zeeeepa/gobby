@@ -255,8 +255,51 @@ class PipelineExecutor:
         if not self.template_engine:
             return step
 
-        # For now, return step as-is - template rendering will be added later
-        return step
+        template_engine = self.template_engine
+
+        import os
+        import re
+
+        # Build render context
+        render_context = {
+            "inputs": context.get("inputs", {}),
+            "steps": context.get("steps", {}),
+            "env": os.environ,
+        }
+
+        def render_string(s: str) -> str:
+            if not s:
+                return s
+            # Replace ${{ ... }} with {{ ... }} for Jinja2
+            # Use dotall to allow multi-line expressions
+            jinja_template = re.sub(r"\$\{\{(.*?)\}\}", r"{{\1}}", s, flags=re.DOTALL)
+
+            # If no changes (no ${{ }}), we might still want to run it through jinja
+            # if we wanted to support direct {{ }} syntax too.
+            # But the requirement highlights ${{ }}.
+            # If the user provides {{ }}, it will also be rendered by Jinja.
+
+            return template_engine.render(jinja_template, render_context)
+
+        # Create a copy of the step to avoid modifying the definition
+        rendered_step = step.model_copy()
+
+        try:
+            if rendered_step.exec:
+                rendered_step.exec = render_string(rendered_step.exec)
+
+            if rendered_step.prompt:
+                rendered_step.prompt = render_string(rendered_step.prompt)
+
+            # We could also render 'input' field if needed, but requirements mention exec and prompt
+
+        except Exception as e:
+            # If rendering fails, we log it but might want to let it bubble up
+            # or fail the step execution later.
+            # For now, let's allow the exception to bubble up so the step fails immediately.
+            raise ValueError(f"Failed to render step {step.id}: {e}") from e
+
+        return rendered_step
 
     def _should_run_step(self, step: Any, context: dict[str, Any]) -> bool:
         """Check if a step should run based on its condition.
