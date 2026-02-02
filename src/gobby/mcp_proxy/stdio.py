@@ -116,6 +116,16 @@ class DaemonProxy:
             "validate_task",
         ):
             timeout = 300.0
+        # Wait tools: use the requested timeout plus a buffer
+        elif tool_name in (
+            "wait_for_task",
+            "wait_for_any_task",
+            "wait_for_all_tasks",
+        ):
+            # Extract timeout from arguments, default to 300s if not specified
+            arg_timeout = float((arguments or {}).get("timeout", 300.0))
+            # Add 30s buffer for HTTP overhead
+            timeout = arg_timeout + 30.0
 
         return await self._request(
             "POST",
