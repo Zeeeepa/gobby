@@ -19,12 +19,15 @@ if TYPE_CHECKING:
     from gobby.storage.clones import LocalCloneManager
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.merge_resolutions import MergeResolutionManager
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.sync.tasks import TaskSyncManager
     from gobby.tasks.validation import TaskValidator
+    from gobby.workflows.loader import WorkflowLoader
+    from gobby.workflows.pipeline_executor import PipelineExecutor
     from gobby.worktrees.git import WorktreeGitManager
     from gobby.worktrees.merge import MergeResolver
 
@@ -51,6 +54,9 @@ def setup_internal_registries(
     project_id: str | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
     inter_session_message_manager: InterSessionMessageManager | None = None,
+    pipeline_executor: PipelineExecutor | None = None,
+    workflow_loader: WorkflowLoader | None = None,
+    pipeline_execution_manager: LocalPipelineExecutionManager | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
@@ -75,6 +81,9 @@ def setup_internal_registries(
         tool_proxy_getter: Callable that returns ToolProxyService for routing
             tool calls in in-process agents. Called lazily during agent execution.
         inter_session_message_manager: Inter-session message manager for agent messaging
+        pipeline_executor: Pipeline executor for running pipelines
+        workflow_loader: Workflow loader for loading pipeline definitions
+        pipeline_execution_manager: Pipeline execution manager for tracking executions
 
     Returns:
         InternalRegistryManager containing all registries
@@ -315,6 +324,18 @@ def setup_internal_registries(
         logger.debug("Artifacts registry initialized")
     else:
         logger.debug("Artifacts registry not initialized: task_manager is None")
+
+    # Initialize pipelines registry if pipeline_executor is available
+    if pipeline_executor is not None:
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        pipelines_registry = create_pipelines_registry(
+            loader=workflow_loader,
+            executor=pipeline_executor,
+            execution_manager=pipeline_execution_manager,
+        )
+        manager.add_registry(pipelines_registry)
+        logger.debug("Pipelines registry initialized")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
