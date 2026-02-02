@@ -24,6 +24,7 @@ from .projects import projects
 from .sessions import sessions
 from .skills import skills
 from .tasks import tasks
+from .ui import ui
 from .workflows import workflows
 from .worktrees import worktrees
 
@@ -69,3 +70,4 @@ cli.add_command(conductor)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)
+cli.add_command(ui)

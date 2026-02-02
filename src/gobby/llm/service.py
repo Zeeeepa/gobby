@@ -6,7 +6,9 @@ Gemini, LiteLLM) based on the multi-provider config structure with feature-speci
 provider routing.
 """
 
+import asyncio
 import logging
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -234,3 +236,73 @@ class LLMService:
         enabled = self.enabled_providers
         initialized = self.initialized_providers
         return f"LLMService(enabled={enabled}, initialized={initialized})"
+
+    async def stream_chat(
+        self,
+        messages: list[dict[str, str]],
+        provider_name: str | None = None,
+        model: str | None = None,
+    ) -> AsyncIterator[str]:
+        """
+        Stream a chat response from the LLM.
+
+        Takes messages in OpenAI-style format and yields response chunks.
+        Currently simulates streaming by chunking the full response.
+        Real streaming support can be added per-provider later.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            provider_name: Optional provider to use (defaults to default provider)
+            model: Optional model override
+
+        Yields:
+            String chunks of the response
+
+        Example:
+            messages = [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Hello!"}
+            ]
+            async for chunk in service.stream_chat(messages):
+                print(chunk, end="", flush=True)
+        """
+        # Get provider
+        if provider_name:
+            provider = self.get_provider(provider_name)
+        else:
+            provider = self.get_default_provider()
+
+        # Build prompt from messages
+        system_prompt = None
+        user_messages = []
+
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "system":
+                system_prompt = content
+            else:
+                prefix = "User: " if role == "user" else "Assistant: "
+                user_messages.append(f"{prefix}{content}")
+
+        prompt = "\n\n".join(user_messages)
+        if user_messages:
+            prompt += "\n\nAssistant:"
+
+        # Generate full response
+        response = await provider.generate_text(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            model=model,
+        )
+
+        # Simulate streaming by yielding words with small delays
+        # This provides a better UX while we add real streaming later
+        words = response.split(" ")
+        for i, word in enumerate(words):
+            if i > 0:
+                yield " "
+            yield word
+            # Small delay to simulate streaming (5-15ms per word)
+            await asyncio.sleep(0.008)

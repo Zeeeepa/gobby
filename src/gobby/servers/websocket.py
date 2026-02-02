@@ -14,7 +14,7 @@ import os
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
@@ -24,6 +24,9 @@ from websockets.http11 import Response
 
 from gobby.agents.registry import get_running_agent_registry
 from gobby.mcp_proxy.manager import MCPClientManager
+
+if TYPE_CHECKING:
+    from gobby.llm import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +82,7 @@ class WebSocketServer:
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
+        llm_service: "LLMService | None" = None,
     ):
         """
         Initialize WebSocket server.
@@ -89,14 +93,19 @@ class WebSocketServer:
             auth_callback: Optional async function that validates token and returns user_id.
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
+            llm_service: Optional LLM service for chat message handling.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
+        self.llm_service = llm_service
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}
+
+        # Chat conversation history per client (simple in-memory for now)
+        self._chat_history: dict[str, list[dict[str, str]]] = {}
 
         # Server instance (set when started)
         self._server: Any = None
@@ -260,6 +269,9 @@ class WebSocketServer:
 
         elif msg_type == "terminal_input":
             await self._handle_terminal_input(websocket, data)
+
+        elif msg_type == "chat_message":
+            await self._handle_chat_message(websocket, data)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -556,6 +568,122 @@ class WebSocketServer:
             await asyncio.to_thread(os.write, agent.master_fd, encoded_data)
         except OSError as e:
             logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
+
+    async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
+        """
+        Handle chat_message and stream LLM response.
+
+        Message format:
+        {
+            "type": "chat_message",
+            "content": "user message",
+            "message_id": "client-generated-id"
+        }
+
+        Response format (streamed):
+        {
+            "type": "chat_stream",
+            "message_id": "assistant-uuid",
+            "content": "chunk of text",
+            "done": false
+        }
+
+        Args:
+            websocket: Client WebSocket connection
+            data: Parsed chat message
+        """
+        content = data.get("content")
+        user_message_id = data.get("message_id")
+
+        if not content or not isinstance(content, str):
+            await self._send_error(websocket, "Missing or invalid 'content' field")
+            return
+
+        if not self.llm_service:
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat_error",
+                        "message_id": user_message_id,
+                        "error": "LLM service not configured",
+                    }
+                )
+            )
+            return
+
+        # Get or create conversation history for this client
+        client_info = self.clients.get(websocket)
+        client_id = client_info["id"] if client_info else "unknown"
+
+        if client_id not in self._chat_history:
+            self._chat_history[client_id] = []
+
+        history = self._chat_history[client_id]
+
+        # Add user message to history
+        history.append({"role": "user", "content": content})
+
+        # Generate assistant message ID
+        assistant_message_id = f"assistant-{uuid4().hex[:12]}"
+
+        try:
+            # Build messages for LLM
+            system_prompt = (
+                "You are Gobby, a helpful AI assistant. "
+                "You help users with coding, development tasks, and general questions. "
+                "Be concise and helpful."
+            )
+
+            messages = [{"role": "system", "content": system_prompt}] + history[
+                -20:
+            ]  # Last 20 messages
+
+            # Stream the response
+            full_response = ""
+
+            async for chunk in self.llm_service.stream_chat(messages):
+                full_response += chunk
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "chat_stream",
+                            "message_id": assistant_message_id,
+                            "content": chunk,
+                            "done": False,
+                        }
+                    )
+                )
+
+            # Send final done message
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat_stream",
+                        "message_id": assistant_message_id,
+                        "content": "",
+                        "done": True,
+                    }
+                )
+            )
+
+            # Add assistant response to history
+            history.append({"role": "assistant", "content": full_response})
+
+            # Trim history if too long
+            if len(history) > 100:
+                self._chat_history[client_id] = history[-50:]
+
+        except Exception as e:
+            logger.exception(f"Chat error for client {client_id}")
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat_error",
+                        "message_id": assistant_message_id,
+                        "error": str(e),
+                    }
+                )
+            )
 
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
