@@ -288,13 +288,23 @@ class GobbyRunner:
         return hub_db
 
     def _setup_agent_event_broadcasting(self) -> None:
-        """Set up WebSocket broadcasting for agent lifecycle events."""
+        """Set up WebSocket broadcasting for agent lifecycle events and PTY reading."""
+        from gobby.agents.pty_reader import get_pty_reader_manager
         from gobby.agents.registry import get_running_agent_registry
 
         if not self.websocket_server:
             return
 
         registry = get_running_agent_registry()
+        pty_manager = get_pty_reader_manager()
+
+        # Set up PTY output callback to broadcast via WebSocket
+        async def broadcast_terminal_output(run_id: str, data: str) -> None:
+            """Broadcast terminal output via WebSocket."""
+            if self.websocket_server:
+                await self.websocket_server.broadcast_terminal_output(run_id, data)
+
+        pty_manager.set_output_callback(broadcast_terminal_output)
 
         def broadcast_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
             """Broadcast agent events via WebSocket (non-blocking)."""
@@ -309,6 +319,32 @@ class GobbyRunner:
                     pass
                 except Exception as e:
                     logger.warning(f"Failed to broadcast agent event {event_type}: {e}")
+
+            # Handle PTY reader start/stop for embedded agents
+            if event_type == "agent_started" and data.get("mode") == "embedded":
+                # Start PTY reader for embedded agents
+                agent = registry.get(run_id)
+                if agent and agent.master_fd is not None:
+
+                    async def start_pty_reader() -> None:
+                        await pty_manager.start_reader(agent)
+
+                    task = asyncio.create_task(start_pty_reader())
+                    task.add_done_callback(_log_broadcast_exception)
+
+            elif event_type in (
+                "agent_completed",
+                "agent_failed",
+                "agent_cancelled",
+                "agent_timeout",
+            ):
+                # Stop PTY reader when agent finishes
+
+                async def stop_pty_reader() -> None:
+                    await pty_manager.stop_reader(run_id)
+
+                task = asyncio.create_task(stop_pty_reader())
+                task.add_done_callback(_log_broadcast_exception)
 
             # Create async task to broadcast and attach exception callback
             task = asyncio.create_task(
@@ -325,7 +361,7 @@ class GobbyRunner:
             task.add_done_callback(_log_broadcast_exception)
 
         registry.add_event_callback(broadcast_agent_event)
-        logger.debug("Agent event broadcasting enabled")
+        logger.debug("Agent event broadcasting and PTY reading enabled")
 
     async def _metrics_cleanup_loop(self) -> None:
         """Background loop for periodic metrics cleanup (every 24 hours)."""

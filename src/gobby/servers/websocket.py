@@ -946,6 +946,46 @@ class WebSocketServer:
 
         await self.broadcast(message)
 
+    async def broadcast_terminal_output(
+        self,
+        run_id: str,
+        data: str,
+    ) -> None:
+        """
+        Broadcast terminal output to subscribed clients.
+
+        Used for streaming PTY output from embedded agents to web terminals.
+
+        Args:
+            run_id: Agent run ID
+            data: Raw terminal output data
+        """
+        if not self.clients:
+            return  # No clients connected
+
+        message = {
+            "type": "terminal_output",
+            "run_id": run_id,
+            "data": data,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+
+        message_str = json.dumps(message)
+
+        for websocket in list(self.clients.keys()):
+            try:
+                # Only send to clients subscribed to terminal_output or *
+                subs = getattr(websocket, "subscriptions", None)
+                if subs is not None:
+                    if "terminal_output" not in subs and "*" not in subs:
+                        continue
+
+                await websocket.send(message_str)
+            except ConnectionClosed:
+                pass
+            except Exception as e:
+                logger.warning(f"Terminal broadcast failed: {e}")
+
     async def start(self) -> None:
         """
         Start WebSocket server.
