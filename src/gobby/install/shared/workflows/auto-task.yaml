@@ -86,4 +86,7 @@ exit_condition: "task_tree_complete(variables.session_task)"
 # Triggered when agent tries to stop but exit_condition is not met
 on_premature_stop:
   action: guide_continuation
-  message: "Task has incomplete subtasks. Use suggest_next_task() and continue working. Do not wait for user confirmation to proceed."
+  message: |
+    Task has incomplete subtasks. Options:
+    1. Continue working: use suggest_next_task() to find the next task
+    2. Stop anyway: use `/g workflows deactivate` to end the workflow first

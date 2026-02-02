@@ -30,7 +30,11 @@ class PrematureStopHandler(BaseModel):
     """Handler for when an agent attempts to stop before task completion."""
 
     action: Literal["guide_continuation", "block", "warn"] = "guide_continuation"
-    message: str = "Task has incomplete subtasks. Use suggest_next_task() to continue."
+    message: str = (
+        "Task has incomplete subtasks. Options: "
+        "1) Continue: use suggest_next_task() to find the next task. "
+        "2) Stop anyway: use `/g workflows deactivate` to end the workflow first."
+    )
     condition: str | None = None  # Optional condition to check (e.g., task_tree_complete)
 
 
