@@ -465,3 +465,59 @@ def reject_pipeline(ctx: click.Context, token: str, json_format: bool) -> None:
     except Exception as e:
         click.echo(f"Rejection failed: {e}", err=True)
         raise SystemExit(1) from None
+
+
+@pipelines.command("history")
+@click.argument("name")
+@click.option("--limit", default=20, help="Maximum number of executions to show")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def history_pipeline(ctx: click.Context, name: str, limit: int, json_format: bool) -> None:
+    """Show execution history for a pipeline.
+
+    Examples:
+
+        gobby pipelines history deploy
+
+        gobby pipelines history deploy --limit 10
+
+        gobby pipelines history deploy --json
+    """
+    execution_manager = get_execution_manager()
+
+    # List executions filtered by pipeline name
+    executions = execution_manager.list_executions(pipeline_name=name, limit=limit)
+
+    if json_format:
+        result = {
+            "pipeline_name": name,
+            "executions": [
+                {
+                    "id": ex.id,
+                    "status": ex.status.value,
+                    "created_at": ex.created_at,
+                    "updated_at": ex.updated_at,
+                }
+                for ex in executions
+            ],
+            "count": len(executions),
+        }
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    if not executions:
+        click.echo(f"No executions found for pipeline '{name}'.")
+        return
+
+    click.echo(f"Execution history for '{name}' ({len(executions)} executions):\n")
+    for ex in executions:
+        status_icon = (
+            "✓"
+            if ex.status.value == "completed"
+            else "✗"
+            if ex.status.value == "failed"
+            else "→"
+            if ex.status.value == "running"
+            else "○"
+        )
+        click.echo(f"  {status_icon} {ex.id} ({ex.status.value}) - {ex.created_at}")

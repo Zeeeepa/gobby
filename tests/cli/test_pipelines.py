@@ -717,3 +717,116 @@ class TestPipelinesReject:
             data = json.loads(result.output)
             assert data["execution_id"] == "pe-abc123"
             assert data["status"] == "failed"
+
+
+class TestPipelinesHistory:
+    """Tests for gobby pipelines history command."""
+
+    @pytest.fixture
+    def mock_executions(self):
+        """Create mock pipeline executions."""
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        return [
+            PipelineExecution(
+                id="pe-abc123",
+                pipeline_name="deploy",
+                project_id="proj-1",
+                status=ExecutionStatus.COMPLETED,
+                created_at="2026-01-01T00:00:00Z",
+                updated_at="2026-01-01T00:01:00Z",
+            ),
+            PipelineExecution(
+                id="pe-def456",
+                pipeline_name="deploy",
+                project_id="proj-1",
+                status=ExecutionStatus.FAILED,
+                created_at="2026-01-02T00:00:00Z",
+                updated_at="2026-01-02T00:01:00Z",
+            ),
+            PipelineExecution(
+                id="pe-ghi789",
+                pipeline_name="deploy",
+                project_id="proj-1",
+                status=ExecutionStatus.RUNNING,
+                created_at="2026-01-03T00:00:00Z",
+                updated_at="2026-01-03T00:01:00Z",
+            ),
+        ]
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_history_subcommand_exists(self, runner) -> None:
+        """Verify 'history' subcommand is registered."""
+        result = runner.invoke(cli, ["pipelines", "--help"])
+        assert "history" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_history_lists_executions(self, runner, mock_executions) -> None:
+        """Verify 'gobby pipelines history <name>' lists executions."""
+        mock_manager = MagicMock()
+        mock_manager.list_executions.return_value = mock_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "history", "deploy"])
+
+            assert result.exit_code == 0
+            mock_manager.list_executions.assert_called_once()
+            call_kwargs = mock_manager.list_executions.call_args
+            assert call_kwargs.kwargs.get("pipeline_name") == "deploy"
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_history_shows_id_status_created(self, runner, mock_executions) -> None:
+        """Verify history shows id, status, and created_at."""
+        mock_manager = MagicMock()
+        mock_manager.list_executions.return_value = mock_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "history", "deploy"])
+
+            assert result.exit_code == 0
+            assert "pe-abc123" in result.output
+            assert "pe-def456" in result.output
+            assert "completed" in result.output.lower()
+            assert "failed" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_history_supports_limit(self, runner, mock_executions) -> None:
+        """Verify history supports --limit flag."""
+        mock_manager = MagicMock()
+        mock_manager.list_executions.return_value = mock_executions[:2]
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "history", "deploy", "--limit", "2"])
+
+            assert result.exit_code == 0
+            call_kwargs = mock_manager.list_executions.call_args
+            assert call_kwargs.kwargs.get("limit") == 2
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_history_empty_result(self, runner) -> None:
+        """Verify history handles no executions gracefully."""
+        mock_manager = MagicMock()
+        mock_manager.list_executions.return_value = []
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "history", "deploy"])
+
+            assert result.exit_code == 0
+            assert "no executions" in result.output.lower() or "0" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_history_json_format(self, runner, mock_executions) -> None:
+        """Verify history command supports --json output."""
+        import json
+
+        mock_manager = MagicMock()
+        mock_manager.list_executions.return_value = mock_executions
+
+        with patch("gobby.cli.pipelines.get_execution_manager", return_value=mock_manager):
+            result = runner.invoke(cli, ["pipelines", "history", "deploy", "--json"])
+
+            assert result.exit_code == 0
+            data = json.loads(result.output)
+            assert "executions" in data
+            assert len(data["executions"]) == 3
+            assert data["executions"][0]["id"] == "pe-abc123"
