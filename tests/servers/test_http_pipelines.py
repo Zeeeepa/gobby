@@ -301,3 +301,62 @@ class TestPipelinesGetEndpoint:
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
+
+
+class TestPipelinesApproveEndpoint:
+    """Tests for POST /api/pipelines/approve/{token} endpoint."""
+
+    def test_approve_success(self, client, http_server) -> None:
+        """Verify POST /api/pipelines/approve/{token} calls executor.approve()."""
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        mock_execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+        )
+        http_server.services.pipeline_executor.approve = AsyncMock(return_value=mock_execution)
+
+        response = client.post("/api/pipelines/approve/approval-token-xyz")
+
+        assert response.status_code == 200
+        http_server.services.pipeline_executor.approve.assert_called_once_with(
+            "approval-token-xyz", approved_by=None
+        )
+        data = response.json()
+        assert data["status"] == "completed"
+        assert data["execution_id"] == "pe-abc123"
+
+    def test_approve_invalid_token(self, client, http_server) -> None:
+        """Verify POST /api/pipelines/approve/{token} returns 404 for invalid token."""
+        http_server.services.pipeline_executor.approve = AsyncMock(
+            side_effect=ValueError("Invalid token")
+        )
+
+        response = client.post("/api/pipelines/approve/invalid-token")
+
+        assert response.status_code == 404
+        assert "invalid" in response.json()["detail"].lower()
+
+    def test_approve_returns_next_approval(self, client, http_server) -> None:
+        """Verify POST /api/pipelines/approve returns 202 if more approvals needed."""
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        http_server.services.pipeline_executor.approve = AsyncMock(
+            side_effect=ApprovalRequired(
+                execution_id="pe-abc123",
+                step_id="deploy-step",
+                token="next-approval-token",
+                message="Another approval required",
+            )
+        )
+
+        response = client.post("/api/pipelines/approve/approval-token-xyz")
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["status"] == "waiting_approval"
+        assert data["token"] == "next-approval-token"

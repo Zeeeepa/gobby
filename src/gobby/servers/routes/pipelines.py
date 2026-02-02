@@ -157,4 +157,48 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             ],
         }
 
+    @router.post("/approve/{token}")
+    async def approve_execution(token: str) -> dict[str, Any]:
+        """
+        Approve a pipeline execution waiting for approval.
+
+        Returns:
+            200: Execution resumed and completed (or continued)
+            202: Execution resumed but needs another approval
+            404: Invalid token
+        """
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        executor = server.services.pipeline_executor
+
+        if executor is None:
+            raise HTTPException(status_code=500, detail="Pipeline executor not configured")
+
+        try:
+            execution = await executor.approve(token, approved_by=None)
+
+            return {
+                "status": execution.status.value,
+                "execution_id": execution.id,
+                "pipeline_name": execution.pipeline_name,
+            }
+
+        except ApprovalRequired as e:
+            # Pipeline needs another approval
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "status": "waiting_approval",
+                    "execution_id": e.execution_id,
+                    "step_id": e.step_id,
+                    "token": e.token,
+                    "message": e.message,
+                },
+            )
+
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=f"Invalid token: {e}") from None
+
     return router
