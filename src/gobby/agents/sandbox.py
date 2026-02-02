@@ -7,6 +7,7 @@ built-in sandbox implementation - Gobby just passes the right flags.
 """
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -249,8 +250,9 @@ def compute_sandbox_paths(
         if path not in write_paths:
             write_paths.append(path)
 
-    # Collect read paths
-    read_paths = list(config.extra_read_paths)
+    # Collect read paths - always include ~/.gobby/ for machine_id access
+    gobby_home = str(Path("~/.gobby").expanduser())
+    read_paths = [gobby_home] + list(config.extra_read_paths)
 
     return ResolvedSandboxPaths(
         workspace_path=workspace_path,
