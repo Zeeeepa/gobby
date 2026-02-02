@@ -4,6 +4,42 @@
 
 Extend Gobby's workflow engine to support **typed pipelines** with explicit data flow between steps, approval gates with resume tokens, webhook notifications, and MCP tool exposure. This provides **feature parity+ with Lobster** (OpenClaw's workflow engine).
 
+## Context: Why Pipelines First
+
+This implementation enables future agent orchestration patterns. The current meeseeks pattern uses three layers:
+```
+auto-task-claude.yaml (Claude parent)
+    → spawns meeseeks.yaml (agent definition)
+        → activates work-task-gemini.yaml (Gemini worker)
+```
+
+Once pipelines exist, orchestration patterns become simpler and more deterministic:
+
+```yaml
+# task-orchestration.yaml (future example)
+type: pipeline
+
+steps:
+  - id: find_tasks
+    exec: gobby task list --status=open --json
+
+  - id: spawn_workers
+    prompt: |
+      For each task in $find_tasks.output, spawn a meeseeks worker.
+      Use spawn_agent with isolation=worktree.
+    tools: [mcp__gobby__call_tool]
+
+  - id: wait_for_completion
+    exec: gobby task wait {{ inputs.task_id }}
+
+  - id: review
+    approval:
+      required: true
+      message: "All tasks complete. Approve to finalize?"
+```
+
+**Key benefit**: Pipelines are deterministic - the orchestration logic is explicit and predictable, while workers remain interactive.
+
 ## Lobster Feature Parity Matrix
 
 | Lobster Feature | Gobby Implementation | Status |
