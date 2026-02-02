@@ -206,13 +206,33 @@ class PipelineExecutor:
         Returns:
             Dict with stdout, stderr, exit_code
         """
-        # Placeholder - actual subprocess execution will be added
+        import asyncio
+
         logger.info(f"Executing command: {command}")
-        return {
-            "stdout": "",
-            "stderr": "",
-            "exit_code": 0,
-        }
+
+        try:
+            # Run command via shell
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            stdout_bytes, stderr_bytes = await proc.communicate()
+
+            return {
+                "stdout": stdout_bytes.decode("utf-8", errors="replace"),
+                "stderr": stderr_bytes.decode("utf-8", errors="replace"),
+                "exit_code": proc.returncode or 0,
+            }
+
+        except Exception as e:
+            logger.error(f"Command execution failed: {e}", exc_info=True)
+            return {
+                "stdout": "",
+                "stderr": str(e),
+                "exit_code": 1,
+            }
 
     async def _execute_prompt_step(self, prompt: str, context: dict[str, Any]) -> dict[str, Any]:
         """Execute an LLM prompt step.

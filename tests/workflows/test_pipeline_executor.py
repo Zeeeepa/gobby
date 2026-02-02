@@ -4,7 +4,7 @@ TDD tests for executing pipeline workflows.
 """
 
 import json
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -351,3 +351,126 @@ class TestPipelineExecutorStepExecution:
         update_calls = mock_execution_manager.update_step_execution.call_args_list
         has_output = any(call.kwargs.get("output_json") is not None for call in update_calls)
         assert has_output
+
+
+class TestExecuteExecStep:
+    """Tests for _execute_exec_step() method."""
+
+    @pytest.mark.asyncio
+    async def test_exec_step_runs_shell_command(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that exec step runs a shell command."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_exec_step("echo hello", context)
+
+        assert result is not None
+        assert "stdout" in result
+        assert "hello" in result["stdout"]
+
+    @pytest.mark.asyncio
+    async def test_exec_step_captures_stdout(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that exec step captures stdout."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_exec_step("echo 'test output'", context)
+
+        assert result["stdout"].strip() == "test output"
+        assert result["exit_code"] == 0
+
+    @pytest.mark.asyncio
+    async def test_exec_step_captures_stderr(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that exec step captures stderr."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        # Redirect to stderr
+        result = await executor._execute_exec_step("echo 'error' >&2", context)
+
+        assert "stderr" in result
+        assert "error" in result["stderr"]
+
+    @pytest.mark.asyncio
+    async def test_exec_step_handles_command_failure(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that exec step handles command failure gracefully."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_exec_step("exit 1", context)
+
+        assert result["exit_code"] == 1
+
+    @pytest.mark.asyncio
+    async def test_exec_step_handles_nonexistent_command(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that exec step handles non-existent commands."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_exec_step(
+            "nonexistent_command_xyz_123", context
+        )
+
+        # Should have non-zero exit code
+        assert result["exit_code"] != 0
+
+    @pytest.mark.asyncio
+    async def test_exec_step_returns_dict_output(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that exec step returns dict with stdout, stderr, exit_code."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_exec_step("echo test", context)
+
+        assert isinstance(result, dict)
+        assert "stdout" in result
+        assert "stderr" in result
+        assert "exit_code" in result
