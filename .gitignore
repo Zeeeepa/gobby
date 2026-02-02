@@ -240,3 +240,4 @@ docs/archive/
 
 # Claude backup files
 *.backup
+scripts/
