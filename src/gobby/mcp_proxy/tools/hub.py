@@ -45,7 +45,7 @@ def create_hub_registry(
     """
     registry = HubToolRegistry(
         name="gobby-hub",
-        description="Hub (cross-project) queries - list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
+        description="Hub (cross-project) queries and system info - get_machine_id, list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
     )
 
     def _get_hub_db() -> LocalDatabase | None:
@@ -53,6 +53,55 @@ def create_hub_registry(
         if not hub_db_path.exists():
             return None
         return LocalDatabase(hub_db_path)
+
+    def _get_machine_id_from_file() -> str | None:
+        """Read machine_id from ~/.gobby/machine_id if it exists."""
+        machine_id_path = Path.home() / ".gobby" / "machine_id"
+        if machine_id_path.exists():
+            return machine_id_path.read_text().strip()
+        return None
+
+    @registry.tool(
+        name="get_machine_id",
+        description="Get the daemon's machine identifier. Use this from sandboxed agents that cannot read ~/.gobby/machine_id directly.",
+    )
+    async def get_machine_id() -> dict[str, Any]:
+        """
+        Get the machine identifier used by this Gobby daemon.
+
+        The machine_id is stored in ~/.gobby/machine_id and is used to
+        identify sessions from this machine. Sandboxed agents can call
+        this tool to get the correct machine_id instead of generating
+        a different one.
+
+        Returns:
+            Dict with machine_id or error.
+        """
+        import platform
+        import uuid
+
+        machine_id = _get_machine_id_from_file()
+        if machine_id:
+            return {
+                "success": True,
+                "machine_id": machine_id,
+                "source": "file",
+            }
+
+        # Fallback: generate from hostname (same logic as adapters)
+        node = platform.node()
+        if node:
+            machine_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, node))
+            return {
+                "success": True,
+                "machine_id": machine_id,
+                "source": "hostname",
+            }
+
+        return {
+            "success": False,
+            "error": "Could not determine machine_id",
+        }
 
     @registry.tool(
         name="list_all_projects",

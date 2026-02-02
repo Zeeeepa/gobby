@@ -286,6 +286,10 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
     if sandbox_env:
         env.update(sandbox_env)
 
+    # Pass machine_id as env var for sandboxed agents that can't read ~/.gobby/machine_id
+    if request.machine_id:
+        env["GOBBY_MACHINE_ID"] = request.machine_id
+
     # Spawn in terminal with env vars
     terminal_spawner = TerminalSpawner()
     terminal_result = terminal_spawner.spawn(
