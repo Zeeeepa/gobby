@@ -20,6 +20,7 @@ from .mcp import mcp_server
 from .mcp_proxy import mcp_proxy
 from .memory import memory
 from .merge import merge
+from .pipelines import pipelines
 from .projects import projects
 from .sessions import sessions
 from .skills import skills
@@ -62,6 +63,7 @@ cli.add_command(mcp_proxy)
 cli.add_command(projects)
 cli.add_command(workflows)
 cli.add_command(merge)
+cli.add_command(pipelines)
 cli.add_command(artifacts)
 cli.add_command(github)
 cli.add_command(linear)
