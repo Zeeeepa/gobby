@@ -1,0 +1,102 @@
+"""Lobster compatibility utilities for pipeline migration.
+
+This module provides utilities to convert Lobster-format pipelines
+to Gobby's native PipelineDefinition format.
+
+Lobster field mappings:
+- command → exec
+- stdin: $step.stdout → input: $step.output
+- approval: true → approval: {required: true}
+- condition: $step.approved → condition (preserved as string)
+"""
+
+import re
+from typing import Any
+
+from gobby.workflows.definitions import PipelineApproval, PipelineDefinition, PipelineStep
+
+
+class LobsterImporter:
+    """Converts Lobster-format pipelines to Gobby PipelineDefinition.
+
+    Example:
+        importer = LobsterImporter()
+        lobster_step = {"id": "build", "command": "npm run build"}
+        gobby_step = importer.convert_step(lobster_step)
+    """
+
+    def convert_step(self, lobster_step: dict[str, Any]) -> PipelineStep:
+        """Convert a Lobster step to a Gobby PipelineStep.
+
+        Args:
+            lobster_step: Dictionary with Lobster step format
+
+        Returns:
+            PipelineStep with converted fields
+
+        Field mappings:
+            - id: preserved as-is
+            - command → exec
+            - stdin: $step.stdout → input: $step.output
+            - approval: true → approval: {required: true}
+            - approval: {required: true, message: "..."} → approval object
+            - condition: preserved as-is
+        """
+        step_id = lobster_step.get("id", "")
+
+        # Map command → exec
+        exec_cmd = lobster_step.get("command")
+
+        # Map stdin: $step.stdout → input: $step.output
+        input_ref = None
+        stdin_value = lobster_step.get("stdin")
+        if stdin_value:
+            # Replace .stdout with .output in the reference
+            input_ref = re.sub(r"\.stdout\b", ".output", stdin_value)
+
+        # Map approval
+        approval = None
+        approval_value = lobster_step.get("approval")
+        if approval_value is True:
+            # Simple boolean approval
+            approval = PipelineApproval(required=True)
+        elif isinstance(approval_value, dict):
+            # Detailed approval object
+            approval = PipelineApproval(
+                required=approval_value.get("required", True),
+                message=approval_value.get("message"),
+                timeout_seconds=approval_value.get("timeout_seconds"),
+            )
+
+        # Preserve condition as-is
+        condition = lobster_step.get("condition")
+
+        return PipelineStep(
+            id=step_id,
+            exec=exec_cmd,
+            input=input_ref,
+            approval=approval,
+            condition=condition,
+        )
+
+    def convert_pipeline(self, lobster_pipeline: dict[str, Any]) -> PipelineDefinition:
+        """Convert a Lobster pipeline to a Gobby PipelineDefinition.
+
+        Args:
+            lobster_pipeline: Dictionary with Lobster pipeline format
+
+        Returns:
+            PipelineDefinition with converted steps
+        """
+        name = lobster_pipeline.get("name", "")
+        description = lobster_pipeline.get("description", "")
+
+        steps = []
+        for lobster_step in lobster_pipeline.get("steps", []):
+            steps.append(self.convert_step(lobster_step))
+
+        return PipelineDefinition(
+            name=name,
+            description=description,
+            steps=steps,
+        )

@@ -1,0 +1,200 @@
+"""Tests for Lobster compatibility/migration utilities."""
+
+import pytest
+
+pytestmark = pytest.mark.unit
+
+
+class TestLobsterImporterConvertStep:
+    """Tests for LobsterImporter.convert_step() method."""
+
+    def test_command_maps_to_exec(self) -> None:
+        """Verify Lobster 'command' field maps to Gobby 'exec' field."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "build",
+            "command": "npm run build",
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.id == "build"
+        assert result.exec == "npm run build"
+
+    def test_stdin_step_stdout_maps_to_input_step_output(self) -> None:
+        """Verify Lobster 'stdin: $step.stdout' maps to Gobby 'input: $step.output'."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "process",
+            "command": "process-data",
+            "stdin": "$build.stdout",
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.id == "process"
+        assert result.exec == "process-data"
+        assert result.input == "$build.output"
+
+    def test_approval_true_maps_to_approval_required_true(self) -> None:
+        """Verify Lobster 'approval: true' maps to Gobby 'approval: {required: true}'."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "deploy",
+            "command": "deploy-app",
+            "approval": True,
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.id == "deploy"
+        assert result.exec == "deploy-app"
+        assert result.approval is not None
+        assert result.approval.required is True
+
+    def test_condition_step_approved_preserved(self) -> None:
+        """Verify Lobster 'condition: $step.approved' is preserved as condition string."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "post-deploy",
+            "command": "notify-team",
+            "condition": "$deploy.approved",
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.id == "post-deploy"
+        assert result.exec == "notify-team"
+        assert result.condition == "$deploy.approved"
+
+    def test_approval_with_message(self) -> None:
+        """Verify Lobster approval with message is preserved."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "deploy",
+            "command": "deploy-app",
+            "approval": {
+                "required": True,
+                "message": "Approve production deployment?",
+            },
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.approval is not None
+        assert result.approval.required is True
+        assert result.approval.message == "Approve production deployment?"
+
+    def test_stdin_with_complex_reference(self) -> None:
+        """Verify complex stdin references are properly converted."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "analyze",
+            "command": "analyze-output",
+            "stdin": "$test_run.stdout",
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.input == "$test_run.output"
+
+    def test_step_without_optional_fields(self) -> None:
+        """Verify minimal step conversion works."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_step = {
+            "id": "simple",
+            "command": "echo hello",
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.id == "simple"
+        assert result.exec == "echo hello"
+        assert result.input is None
+        assert result.approval is None
+        assert result.condition is None
+
+    def test_multiple_stdin_stdout_conversions(self) -> None:
+        """Verify all .stdout references are converted to .output."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        # Test that pattern replacement handles underscores and various step names
+        lobster_step = {
+            "id": "merge",
+            "command": "merge-outputs",
+            "stdin": "$step_one.stdout",
+        }
+
+        result = importer.convert_step(lobster_step)
+
+        assert result.input == "$step_one.output"
+
+
+class TestLobsterImporterConvertPipeline:
+    """Tests for LobsterImporter.convert_pipeline() method."""
+
+    def test_convert_full_pipeline(self) -> None:
+        """Verify full Lobster pipeline conversion."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_pipeline = {
+            "name": "ci-pipeline",
+            "description": "CI/CD pipeline",
+            "steps": [
+                {"id": "build", "command": "npm run build"},
+                {"id": "test", "command": "npm test", "stdin": "$build.stdout"},
+                {"id": "deploy", "command": "deploy", "approval": True},
+            ],
+        }
+
+        result = importer.convert_pipeline(lobster_pipeline)
+
+        assert result.name == "ci-pipeline"
+        assert result.description == "CI/CD pipeline"
+        assert len(result.steps) == 3
+        assert result.steps[0].exec == "npm run build"
+        assert result.steps[1].input == "$build.output"
+        assert result.steps[2].approval is not None
+        assert result.steps[2].approval.required is True
+
+    def test_convert_pipeline_preserves_metadata(self) -> None:
+        """Verify pipeline metadata is preserved."""
+        from gobby.workflows.lobster_compat import LobsterImporter
+
+        importer = LobsterImporter()
+
+        lobster_pipeline = {
+            "name": "my-pipeline",
+            "description": "Test description",
+            "steps": [{"id": "step1", "command": "echo test"}],
+        }
+
+        result = importer.convert_pipeline(lobster_pipeline)
+
+        assert result.name == "my-pipeline"
+        assert result.description == "Test description"
