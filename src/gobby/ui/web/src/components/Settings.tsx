@@ -37,7 +37,7 @@ export function Settings({
               id="font-size"
               type="range"
               min="12"
-              max="24"
+              max="48"
               step="1"
               value={settings.fontSize}
               onChange={(e) => onFontSizeChange(Number(e.target.value))}
@@ -45,7 +45,7 @@ export function Settings({
             />
             <div className="slider-labels">
               <span>12px</span>
-              <span>24px</span>
+              <span>48px</span>
             </div>
           </div>
 
