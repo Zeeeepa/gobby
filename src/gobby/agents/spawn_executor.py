@@ -51,6 +51,7 @@ class SpawnRequest:
     step_variables: dict[str, Any] | None = None  # Variables for step workflow activation
     worktree_id: str | None = None
     clone_id: str | None = None
+    branch_name: str | None = None  # Git branch for worktree/clone isolation
     agent_depth: int = 0
     max_agent_depth: int = 3
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
@@ -253,6 +254,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         step_variables=request.step_variables,
         prompt=request.prompt,
         max_agent_depth=request.max_agent_depth,
+        git_branch=request.branch_name,
     )
 
     gobby_session_id = spawn_context.session_id
@@ -336,7 +338,7 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
             machine_id=request.machine_id or "unknown",
             workflow_name=request.workflow,
             step_variables=request.step_variables,
-            git_branch=None,  # Will be detected by hook
+            git_branch=request.branch_name,
         )
     except FileNotFoundError as e:
         return SpawnResult(
