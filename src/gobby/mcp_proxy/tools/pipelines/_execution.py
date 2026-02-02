@@ -179,3 +179,103 @@ async def reject_pipeline(
             "success": False,
             "error": f"Rejection failed: {e}",
         }
+
+
+def get_pipeline_status(
+    execution_manager: Any,
+    execution_id: str,
+) -> dict[str, Any]:
+    """
+    Get the status of a pipeline execution.
+
+    Args:
+        execution_manager: LocalPipelineExecutionManager instance
+        execution_id: Execution ID to query
+
+    Returns:
+        Dict with execution details and step statuses
+    """
+    if not execution_manager:
+        return {
+            "success": False,
+            "error": "No execution manager configured",
+        }
+
+    try:
+        execution = execution_manager.get_execution(execution_id)
+        if not execution:
+            return {
+                "success": False,
+                "error": f"Execution '{execution_id}' not found",
+            }
+
+        # Get step executions
+        steps = execution_manager.get_steps_for_execution(execution_id)
+
+        # Parse inputs if available
+        inputs = None
+        if execution.inputs_json:
+            try:
+                inputs = json.loads(execution.inputs_json)
+            except json.JSONDecodeError:
+                inputs = execution.inputs_json
+
+        # Parse outputs if available
+        outputs = None
+        if execution.outputs_json:
+            try:
+                outputs = json.loads(execution.outputs_json)
+            except json.JSONDecodeError:
+                outputs = execution.outputs_json
+
+        # Build execution dict
+        execution_dict = {
+            "id": execution.id,
+            "pipeline_name": execution.pipeline_name,
+            "project_id": execution.project_id,
+            "status": execution.status.value,
+            "inputs": inputs,
+            "outputs": outputs,
+            "created_at": execution.created_at,
+            "updated_at": execution.updated_at,
+            "completed_at": execution.completed_at,
+            "resume_token": execution.resume_token,
+            "session_id": execution.session_id,
+        }
+
+        # Build steps list
+        steps_list = []
+        for step in steps:
+            step_output = None
+            if step.output_json:
+                try:
+                    step_output = json.loads(step.output_json)
+                except json.JSONDecodeError:
+                    step_output = step.output_json
+
+            steps_list.append(
+                {
+                    "id": step.id,
+                    "step_id": step.step_id,
+                    "status": step.status.value,
+                    "started_at": step.started_at,
+                    "completed_at": step.completed_at,
+                    "output": step_output,
+                    "error": step.error,
+                    "approval_token": step.approval_token,
+                    "approved_by": step.approved_by,
+                    "approved_at": step.approved_at,
+                }
+            )
+
+        return {
+            "success": True,
+            "execution": execution_dict,
+            "steps": steps_list,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get status: {e}",
+        }

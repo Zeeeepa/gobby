@@ -14,6 +14,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.pipelines._discovery import list_pipelines
 from gobby.mcp_proxy.tools.pipelines._execution import (
     approve_pipeline,
+    get_pipeline_status,
     reject_pipeline,
     run_pipeline,
 )
@@ -100,6 +101,18 @@ def create_pipelines_registry(
             executor=_executor,
             token=token,
             rejected_by=rejected_by,
+        )
+
+    @registry.tool(
+        name="get_pipeline_status",
+        description="Get the status of a pipeline execution including step details.",
+    )
+    def _get_pipeline_status(
+        execution_id: str,
+    ) -> dict[str, Any]:
+        return get_pipeline_status(
+            execution_manager=_execution_manager,
+            execution_id=execution_id,
         )
 
     return registry

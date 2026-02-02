@@ -790,3 +790,163 @@ class TestRejectPipelineTool:
 
         assert result["success"] is False
         assert "executor" in result["error"].lower()
+
+
+class TestGetPipelineStatusTool:
+    """Tests for the get_pipeline_status MCP tool."""
+
+    def test_registry_has_get_pipeline_status_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that get_pipeline_status tool is registered."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "get_pipeline_status" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_status_returns_execution_details(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that get_pipeline_status returns execution with all fields."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.RUNNING,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+            inputs_json='{"env": "prod"}',
+        )
+        mock_execution_manager.get_execution.return_value = execution
+        mock_execution_manager.get_steps_for_execution.return_value = []
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "get_pipeline_status",
+            {"execution_id": "pe-abc123"},
+        )
+
+        assert result["success"] is True
+        assert result["execution"]["id"] == "pe-abc123"
+        assert result["execution"]["pipeline_name"] == "deploy"
+        assert result["execution"]["status"] == "running"
+        assert result["execution"]["inputs"] == {"env": "prod"}
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_status_includes_step_executions(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that get_pipeline_status includes step_executions list."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import (
+            ExecutionStatus,
+            PipelineExecution,
+            StepExecution,
+            StepStatus,
+        )
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.RUNNING,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:01:00Z",
+        )
+
+        step1 = StepExecution(
+            id=1,
+            execution_id="pe-abc123",
+            step_id="step1",
+            status=StepStatus.COMPLETED,
+            output_json='{"stdout": "done"}',
+        )
+        step2 = StepExecution(
+            id=2,
+            execution_id="pe-abc123",
+            step_id="step2",
+            status=StepStatus.RUNNING,
+        )
+
+        mock_execution_manager.get_execution.return_value = execution
+        mock_execution_manager.get_steps_for_execution.return_value = [step1, step2]
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "get_pipeline_status",
+            {"execution_id": "pe-abc123"},
+        )
+
+        assert result["success"] is True
+        assert "steps" in result
+        assert len(result["steps"]) == 2
+        assert result["steps"][0]["step_id"] == "step1"
+        assert result["steps"][0]["status"] == "completed"
+        assert result["steps"][1]["step_id"] == "step2"
+        assert result["steps"][1]["status"] == "running"
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_status_not_found(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that get_pipeline_status returns error when not found."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        mock_execution_manager.get_execution.return_value = None
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "get_pipeline_status",
+            {"execution_id": "pe-nonexistent"},
+        )
+
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_status_no_execution_manager(
+        self, mock_loader, mock_executor
+    ) -> None:
+        """Test that get_pipeline_status returns error when no manager configured."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=None,
+        )
+
+        result = await registry.call(
+            "get_pipeline_status",
+            {"execution_id": "pe-abc123"},
+        )
+
+        assert result["success"] is False
+        assert "manager" in result["error"].lower() or "configured" in result["error"].lower()
