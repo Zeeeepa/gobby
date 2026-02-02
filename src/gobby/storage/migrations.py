@@ -43,9 +43,9 @@ class MigrationUnsupportedError(Exception):
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
 
-# Baseline version - the schema state at v79 (flattened)
+# Baseline version - the schema state at v80 (flattened)
 # This is applied for new databases directly
-BASELINE_VERSION = 79
+BASELINE_VERSION = 80
 
 # Baseline schema - flattened from v78 production state, includes hub tracking fields
 # This is applied for new databases directly
@@ -620,6 +620,42 @@ CREATE INDEX idx_clones_status ON clones(status);
 CREATE INDEX idx_clones_task ON clones(task_id);
 CREATE INDEX idx_clones_session ON clones(agent_session_id);
 CREATE UNIQUE INDEX idx_clones_path ON clones(clone_path);
+
+CREATE TABLE pipeline_executions (
+    id TEXT PRIMARY KEY,
+    pipeline_name TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    inputs_json TEXT,
+    outputs_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT,
+    resume_token TEXT UNIQUE,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
+CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
+CREATE INDEX idx_pipeline_executions_resume_token ON pipeline_executions(resume_token);
+
+CREATE TABLE step_executions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    execution_id TEXT NOT NULL REFERENCES pipeline_executions(id) ON DELETE CASCADE,
+    step_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    started_at TEXT,
+    completed_at TEXT,
+    input_json TEXT,
+    output_json TEXT,
+    error TEXT,
+    approval_token TEXT UNIQUE,
+    approved_by TEXT,
+    approved_at TEXT,
+    UNIQUE(execution_id, step_id)
+);
+CREATE INDEX idx_step_executions_execution ON step_executions(execution_id);
+CREATE INDEX idx_step_executions_approval_token ON step_executions(approval_token);
 """
 
 # Future migrations (v61+)
@@ -739,6 +775,48 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (78, "Add hub tracking fields to skills", _migrate_add_hub_tracking_to_skills),
     # Skill injection: Add always_apply and injection_format columns
     (79, "Add skill injection columns", _migrate_add_skill_injection_columns),
+    # Pipeline system: Add pipeline_executions and step_executions tables
+    (
+        80,
+        "Add pipeline execution tables",
+        """
+        CREATE TABLE pipeline_executions (
+            id TEXT PRIMARY KEY,
+            pipeline_name TEXT NOT NULL,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            status TEXT NOT NULL DEFAULT 'pending',
+            inputs_json TEXT,
+            outputs_json TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            completed_at TEXT,
+            resume_token TEXT UNIQUE,
+            session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+            parent_execution_id TEXT REFERENCES pipeline_executions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX idx_pipeline_executions_project ON pipeline_executions(project_id);
+        CREATE INDEX idx_pipeline_executions_status ON pipeline_executions(status);
+        CREATE INDEX idx_pipeline_executions_resume_token ON pipeline_executions(resume_token);
+
+        CREATE TABLE step_executions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            execution_id TEXT NOT NULL REFERENCES pipeline_executions(id) ON DELETE CASCADE,
+            step_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            started_at TEXT,
+            completed_at TEXT,
+            input_json TEXT,
+            output_json TEXT,
+            error TEXT,
+            approval_token TEXT UNIQUE,
+            approved_by TEXT,
+            approved_at TEXT,
+            UNIQUE(execution_id, step_id)
+        );
+        CREATE INDEX idx_step_executions_execution ON step_executions(execution_id);
+        CREATE INDEX idx_step_executions_approval_token ON step_executions(approval_token);
+        """,
+    ),
 ]
 
 
