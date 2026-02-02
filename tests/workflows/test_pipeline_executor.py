@@ -686,3 +686,125 @@ class TestExecuteNestedPipeline:
 
         # Should indicate nested execution not available
         assert "error" in result or "pipeline" in result
+
+
+class TestConditionEvaluation:
+    """Tests for step condition evaluation."""
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_returns_true_without_condition(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that steps without condition always run."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(id="step1", exec="echo test")
+        context: dict = {"inputs": {}, "steps": {}}
+
+        result = executor._should_run_step(step, context)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_evaluates_true_condition(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that step with true condition returns True."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(id="step1", exec="echo test", condition="True")
+        context: dict = {"inputs": {}, "steps": {}}
+
+        result = executor._should_run_step(step, context)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_evaluates_false_condition(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that step with false condition returns False."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(id="step1", exec="echo test", condition="False")
+        context: dict = {"inputs": {}, "steps": {}}
+
+        result = executor._should_run_step(step, context)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_should_run_step_uses_context_values(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that condition can reference context values."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        step = PipelineStep(
+            id="step1", exec="echo test", condition="inputs.get('mode') == 'deploy'"
+        )
+        context: dict = {"inputs": {"mode": "deploy"}, "steps": {}}
+
+        result = executor._should_run_step(step, context)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_step_skipped_when_condition_false(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that step is skipped when condition is false."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        # Pipeline with conditional step
+        pipeline = PipelineDefinition(
+            name="conditional-pipeline",
+            steps=[
+                PipelineStep(id="always", exec="echo always"),
+                PipelineStep(id="conditional", exec="echo conditional", condition="False"),
+            ],
+        )
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+
+        await executor.execute(
+            pipeline=pipeline,
+            inputs={},
+            project_id="proj-123",
+        )
+
+        # Check that the conditional step was marked as skipped
+        update_calls = mock_execution_manager.update_step_execution.call_args_list
+        # Find calls with SKIPPED status
+        skipped_calls = [
+            c for c in update_calls if c.kwargs.get("status") == StepStatus.SKIPPED
+        ]
+        assert len(skipped_calls) >= 1

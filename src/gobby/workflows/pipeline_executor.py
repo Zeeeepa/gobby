@@ -109,6 +109,16 @@ class PipelineExecutor:
                     input_json=json.dumps(context) if context else None,
                 )
 
+                # Check if step should run based on condition
+                if not self._should_run_step(step, context):
+                    # Skip this step
+                    self.execution_manager.update_step_execution(
+                        step_execution_id=step_execution.id,
+                        status=StepStatus.SKIPPED,
+                    )
+                    logger.info(f"Skipping step {step.id}: condition not met")
+                    continue
+
                 # Update step status to RUNNING
                 self.execution_manager.update_step_execution(
                     step_execution_id=step_execution.id,
@@ -198,6 +208,37 @@ class PipelineExecutor:
 
         # For now, return step as-is - template rendering will be added later
         return step
+
+    def _should_run_step(self, step: Any, context: dict[str, Any]) -> bool:
+        """Check if a step should run based on its condition.
+
+        Args:
+            step: The step to check
+            context: Current execution context
+
+        Returns:
+            True if step should run, False if it should be skipped
+        """
+        # No condition means always run
+        if not step.condition:
+            return True
+
+        try:
+            # Evaluate the condition with context variables available
+            # Use a simple eval with restricted namespace
+            namespace = {
+                "inputs": context.get("inputs", {}),
+                "steps": context.get("steps", {}),
+                "True": True,
+                "False": False,
+                "None": None,
+            }
+            result = eval(step.condition, {"__builtins__": {}}, namespace)
+            return bool(result)
+        except Exception as e:
+            logger.warning(f"Condition evaluation failed for step {step.id}: {e}")
+            # Default to running the step if condition evaluation fails
+            return True
 
     async def _execute_exec_step(self, command: str, context: dict[str, Any]) -> dict[str, Any]:
         """Execute a shell command step.
