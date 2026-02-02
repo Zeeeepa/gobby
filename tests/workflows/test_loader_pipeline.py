@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from gobby.workflows.definitions import PipelineDefinition
+from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
 from gobby.workflows.loader import WorkflowLoader
 
 pytestmark = pytest.mark.unit
@@ -486,3 +486,103 @@ steps:
         with pytest.raises(ValueError) as exc_info:
             loader.load_pipeline("mixed-refs")
         assert "step3" in str(exc_info.value)
+
+
+class TestLoadWorkflowPipelineIntegration:
+    """Tests for load_workflow() auto-detecting and handling pipelines."""
+
+    def test_load_workflow_auto_detects_pipeline(self, loader, temp_workflow_dir) -> None:
+        """Test that load_workflow() auto-detects type=pipeline."""
+        pipeline_yaml = """
+name: auto-detect
+type: pipeline
+steps:
+  - id: step1
+    exec: echo hello
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "auto-detect.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.load_workflow("auto-detect")
+
+        assert result is not None
+        assert isinstance(result, PipelineDefinition)
+        assert result.type == "pipeline"
+
+    def test_load_workflow_validates_pipeline_references(self, loader, temp_workflow_dir) -> None:
+        """Test that load_workflow() validates references for pipelines."""
+        pipeline_yaml = """
+name: validate-refs
+type: pipeline
+steps:
+  - id: step1
+    prompt: Use $step2.output
+  - id: step2
+    exec: echo hello
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "validate-refs.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Should fail due to forward reference
+        with pytest.raises(ValueError) as exc_info:
+            loader.load_workflow("validate-refs")
+        assert "step2" in str(exc_info.value)
+
+    def test_load_workflow_returns_workflow_definition_for_step(
+        self, loader, temp_workflow_dir
+    ) -> None:
+        """Test that load_workflow() returns WorkflowDefinition for step type."""
+        workflow_yaml = """
+name: step-workflow
+type: step
+steps:
+  - name: work
+    allowed_tools: all
+"""
+        workflow_path = temp_workflow_dir / "global" / "workflows" / "step-workflow.yaml"
+        workflow_path.write_text(workflow_yaml)
+
+        result = loader.load_workflow("step-workflow")
+
+        assert result is not None
+        assert isinstance(result, WorkflowDefinition)
+        assert result.type == "step"
+
+    def test_load_workflow_returns_workflow_definition_for_lifecycle(
+        self, loader, temp_workflow_dir
+    ) -> None:
+        """Test that load_workflow() returns WorkflowDefinition for lifecycle type."""
+        workflow_yaml = """
+name: lifecycle-workflow
+type: lifecycle
+triggers:
+  on_session_start: []
+"""
+        workflow_path = temp_workflow_dir / "global" / "workflows" / "lifecycle-workflow.yaml"
+        workflow_path.write_text(workflow_yaml)
+
+        result = loader.load_workflow("lifecycle-workflow")
+
+        assert result is not None
+        assert isinstance(result, WorkflowDefinition)
+        assert result.type == "lifecycle"
+
+    def test_load_workflow_pipeline_with_valid_refs(self, loader, temp_workflow_dir) -> None:
+        """Test load_workflow() succeeds for pipeline with valid references."""
+        pipeline_yaml = """
+name: valid-pipeline
+type: pipeline
+steps:
+  - id: analyze
+    exec: ./analyze.sh
+  - id: report
+    prompt: Generate report from $analyze.output
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "valid-pipeline.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.load_workflow("valid-pipeline")
+
+        assert result is not None
+        assert isinstance(result, PipelineDefinition)
+        assert len(result.steps) == 2

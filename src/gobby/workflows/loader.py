@@ -34,10 +34,11 @@ class WorkflowLoader:
         name: str,
         project_path: Path | str | None = None,
         _inheritance_chain: list[str] | None = None,
-    ) -> WorkflowDefinition | None:
+    ) -> WorkflowDefinition | PipelineDefinition | None:
         """
         Load a workflow by name (without extension).
         Supports inheritance via 'extends' field with cycle detection.
+        Auto-detects pipeline type and returns PipelineDefinition for type='pipeline'.
 
         Args:
             name: Workflow name (without .yaml extension)
@@ -46,7 +47,7 @@ class WorkflowLoader:
             _inheritance_chain: Internal parameter for cycle detection. Do not pass directly.
 
         Raises:
-            ValueError: If circular inheritance is detected.
+            ValueError: If circular inheritance is detected or pipeline references are invalid.
         """
         # Initialize or check inheritance chain for cycle detection
         if _inheritance_chain is None:
@@ -60,7 +61,7 @@ class WorkflowLoader:
         cache_key = f"{project_path or 'global'}:{name}"
         if cache_key in self._cache:
             cached = self._cache[cache_key]
-            if isinstance(cached, WorkflowDefinition):
+            if isinstance(cached, (WorkflowDefinition, PipelineDefinition)):
                 return cached
             return None
 
@@ -95,13 +96,19 @@ class WorkflowLoader:
                 else:
                     logger.error(f"Parent workflow '{parent_name}' not found for '{name}'")
 
-            # 4. Validate and create model
-            definition = WorkflowDefinition(**data)
+            # 4. Auto-detect pipeline type
+            if data.get("type") == "pipeline":
+                # Validate step references for pipelines
+                self._validate_pipeline_references(data)
+                definition: WorkflowDefinition | PipelineDefinition = PipelineDefinition(**data)
+            else:
+                definition = WorkflowDefinition(**data)
+
             self._cache[cache_key] = definition
             return definition
 
         except ValueError:
-            # Re-raise ValueError (used for cycle detection)
+            # Re-raise ValueError (used for cycle detection and reference validation)
             raise
         except Exception as e:
             logger.error(f"Failed to load workflow '{name}' from {path}: {e}", exc_info=True)
