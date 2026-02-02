@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         DaemonConfig,
     )
     from gobby.llm.base import LLMProvider
+    from gobby.llm.claude import ChatEvent
 
 logger = logging.getLogger(__name__)
 
@@ -306,3 +307,79 @@ class LLMService:
             yield word
             # Small delay to simulate streaming (5-15ms per word)
             await asyncio.sleep(0.008)
+
+    async def stream_chat_with_tools(
+        self,
+        messages: list[dict[str, str]],
+        allowed_tools: list[str],
+        model: str | None = None,
+        max_turns: int = 10,
+    ) -> AsyncIterator["ChatEvent"]:
+        """
+        Stream a chat response with MCP tool support.
+
+        Takes messages in OpenAI-style format and streams response events
+        including text chunks and tool call/result events.
+
+        This method uses the Claude provider's stream_with_mcp_tools(),
+        which requires subscription mode (Claude Agent SDK).
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            allowed_tools: List of allowed MCP tool patterns.
+                Tools should be in format "mcp__{server}__{tool}" or patterns
+                like "mcp__gobby-tasks__*" for all tools from a server.
+            model: Optional model override
+            max_turns: Maximum number of agentic turns (default: 10)
+
+        Yields:
+            ChatEvent: One of TextChunk, ToolCallEvent, ToolResultEvent, or DoneEvent.
+
+        Example:
+            >>> allowed_tools = ["mcp__gobby-tasks__*", "mcp__gobby-memory__*"]
+            >>> async for event in service.stream_chat_with_tools(messages, allowed_tools):
+            ...     if isinstance(event, TextChunk):
+            ...         print(event.content, end="")
+        """
+        from gobby.llm.claude import ClaudeLLMProvider, DoneEvent, TextChunk
+
+        # Get Claude provider (required for MCP tools)
+        try:
+            provider = self.get_provider("claude")
+        except ValueError:
+            yield TextChunk(content="Claude provider not configured. MCP tools require Claude.")
+            yield DoneEvent(tool_calls_count=0)
+            return
+
+        if not isinstance(provider, ClaudeLLMProvider):
+            yield TextChunk(content="MCP tools require Claude provider.")
+            yield DoneEvent(tool_calls_count=0)
+            return
+
+        # Build system prompt and user prompt from messages
+        system_prompt = None
+        user_messages = []
+
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "system":
+                system_prompt = content
+            else:
+                prefix = "User: " if role == "user" else "Assistant: "
+                user_messages.append(f"{prefix}{content}")
+
+        prompt = "\n\n".join(user_messages)
+        if user_messages:
+            prompt += "\n\nAssistant:"
+
+        # Stream with MCP tools
+        async for event in provider.stream_with_mcp_tools(
+            prompt=prompt,
+            allowed_tools=allowed_tools,
+            system_prompt=system_prompt,
+            model=model,
+            max_turns=max_turns,
+        ):
+            yield event

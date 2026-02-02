@@ -10,7 +10,15 @@ Usage:
 """
 
 from gobby.llm.base import AuthMode, LLMProvider
-from gobby.llm.claude import MCPToolResult, ToolCall
+from gobby.llm.claude import (
+    ChatEvent,
+    DoneEvent,
+    MCPToolResult,
+    TextChunk,
+    ToolCall,
+    ToolCallEvent,
+    ToolResultEvent,
+)
 from gobby.llm.claude_executor import ClaudeExecutor
 from gobby.llm.executor import (
     AgentExecutor,
@@ -27,14 +35,19 @@ __all__ = [
     "AgentExecutor",
     "AgentResult",
     "AuthMode",
+    "ChatEvent",
     "ClaudeExecutor",
+    "DoneEvent",
     "LLMProvider",
     "LLMService",
     "MCPToolResult",
+    "TextChunk",
     "ToolCall",
+    "ToolCallEvent",
     "ToolCallRecord",
     "ToolHandler",
     "ToolResult",
+    "ToolResultEvent",
     "ToolSchema",
     "create_llm_service",
 ]

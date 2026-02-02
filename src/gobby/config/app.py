@@ -141,6 +141,11 @@ class DaemonConfig(BaseModel):
         default=60887,
         description="Port for daemon to listen on",
     )
+    bind_host: str = Field(
+        default="localhost",
+        description="Host/IP to bind servers to. Use 'localhost' for local-only access, "
+        "'0.0.0.0' for all interfaces, or a specific IP (e.g., Tailscale IP) for restricted access.",
+    )
     daemon_health_check_interval: float = Field(
         default=10.0,
         description="Daemon health check interval in seconds",

@@ -572,13 +572,14 @@ class WebSocketServer:
 
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
         """
-        Handle chat_message and stream LLM response.
+        Handle chat_message and stream LLM response with MCP tool support.
 
         Message format:
         {
             "type": "chat_message",
             "content": "user message",
-            "message_id": "client-generated-id"
+            "message_id": "client-generated-id",
+            "use_tools": true  // optional, enables MCP tools
         }
 
         Response format (streamed):
@@ -589,12 +590,26 @@ class WebSocketServer:
             "done": false
         }
 
+        Tool status format:
+        {
+            "type": "tool_status",
+            "message_id": "assistant-uuid",
+            "tool_call_id": "unique-id",
+            "status": "calling" | "completed" | "error",
+            "tool_name": "mcp__gobby-tasks__create_task",
+            "server_name": "gobby-tasks",
+            "arguments": {...},
+            "result": {...},  // when completed
+            "error": "..."    // when error
+        }
+
         Args:
             websocket: Client WebSocket connection
             data: Parsed chat message
         """
         content = data.get("content")
         user_message_id = data.get("message_id")
+        use_tools = data.get("use_tools", True)  # Default to using tools
 
         if not content or not isinstance(content, str):
             await self._send_error(websocket, "Missing or invalid 'content' field")
@@ -633,8 +648,9 @@ class WebSocketServer:
         try:
             # Build messages for LLM
             system_prompt = (
-                "You are Gobby, a helpful AI assistant. "
+                "You are Gobby, a helpful AI assistant with access to tools. "
                 "You help users with coding, development tasks, and general questions. "
+                "You can use tools to manage tasks, store memories, and access session info. "
                 "Be concise and helpful."
             )
 
@@ -642,33 +658,104 @@ class WebSocketServer:
                 -20:
             ]  # Last 20 messages
 
-            # Stream the response
             full_response = ""
+            tool_calls_count = 0
 
-            async for chunk in self.llm_service.stream_chat(messages):
-                full_response += chunk
+            if use_tools:
+                # Stream with MCP tools
+                from gobby.llm.claude import (
+                    DoneEvent,
+                    TextChunk,
+                    ToolCallEvent,
+                    ToolResultEvent,
+                )
+
+                # Default allowed tools - gobby MCP server from .mcp.json
+                # The server name is "gobby" which exposes all gobby tools
+                allowed_tools = [
+                    "mcp__gobby__*",
+                ]
+
+                async for event in self.llm_service.stream_chat_with_tools(messages, allowed_tools):
+                    if isinstance(event, TextChunk):
+                        full_response += event.content
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "chat_stream",
+                                    "message_id": assistant_message_id,
+                                    "content": event.content,
+                                    "done": False,
+                                }
+                            )
+                        )
+                    elif isinstance(event, ToolCallEvent):
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "tool_status",
+                                    "message_id": assistant_message_id,
+                                    "tool_call_id": event.tool_call_id,
+                                    "status": "calling",
+                                    "tool_name": event.tool_name,
+                                    "server_name": event.server_name,
+                                    "arguments": event.arguments,
+                                }
+                            )
+                        )
+                    elif isinstance(event, ToolResultEvent):
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "tool_status",
+                                    "message_id": assistant_message_id,
+                                    "tool_call_id": event.tool_call_id,
+                                    "status": "completed" if event.success else "error",
+                                    "result": event.result,
+                                    "error": event.error,
+                                }
+                            )
+                        )
+                    elif isinstance(event, DoneEvent):
+                        tool_calls_count = event.tool_calls_count
+                        # Send final done message
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "chat_stream",
+                                    "message_id": assistant_message_id,
+                                    "content": "",
+                                    "done": True,
+                                    "tool_calls_count": tool_calls_count,
+                                }
+                            )
+                        )
+            else:
+                # Stream without tools (original behavior)
+                async for chunk in self.llm_service.stream_chat(messages):
+                    full_response += chunk
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "chat_stream",
+                                "message_id": assistant_message_id,
+                                "content": chunk,
+                                "done": False,
+                            }
+                        )
+                    )
+
+                # Send final done message
                 await websocket.send(
                     json.dumps(
                         {
                             "type": "chat_stream",
                             "message_id": assistant_message_id,
-                            "content": chunk,
-                            "done": False,
+                            "content": "",
+                            "done": True,
                         }
                     )
                 )
-
-            # Send final done message
-            await websocket.send(
-                json.dumps(
-                    {
-                        "type": "chat_stream",
-                        "message_id": assistant_message_id,
-                        "content": "",
-                        "done": True,
-                    }
-                )
-            )
 
             # Add assistant response to history
             history.append({"role": "assistant", "content": full_response})

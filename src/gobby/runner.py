@@ -252,7 +252,7 @@ class GobbyRunner:
         self.websocket_server: WebSocketServer | None = None
         if self.config.websocket and getattr(self.config.websocket, "enabled", True):
             websocket_config = WebSocketConfig(
-                host="localhost",
+                host=self.config.bind_host,
                 port=self.config.websocket.port,
                 ping_interval=self.config.websocket.ping_interval,
                 ping_timeout=self.config.websocket.ping_timeout,
@@ -434,11 +434,10 @@ class GobbyRunner:
                 websocket_task = asyncio.create_task(self.websocket_server.start())
 
             # Start HTTP server
-            # nosec B104: 0.0.0.0 binding is intentional - daemon serves local network
             graceful_shutdown_timeout = 15
             config = uvicorn.Config(
                 self.http_server.app,
-                host="0.0.0.0",  # nosec B104 - local daemon needs network access
+                host=self.config.bind_host,
                 port=self.http_server.port,
                 log_level="warning",
                 access_log=False,

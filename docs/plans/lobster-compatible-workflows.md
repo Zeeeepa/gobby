@@ -7,7 +7,8 @@ Extend Gobby's workflow engine to support **typed pipelines** with explicit data
 ## Context: Why Pipelines First
 
 This implementation enables future agent orchestration patterns. The current meeseeks pattern uses three layers:
-```
+
+```text
 auto-task-claude.yaml (Claude parent)
     → spawns meeseeks.yaml (agent definition)
         → activates work-task-gemini.yaml (Gemini worker)
@@ -43,7 +44,7 @@ steps:
 ## Lobster Feature Parity Matrix
 
 | Lobster Feature | Gobby Implementation | Status |
-|-----------------|---------------------|--------|
+| ----------------- | --------------------- | -------- |
 | Typed pipelines (JSON data flow) | `$step.output` references with JSON | Parity |
 | Approval gates with resume tokens | `ApprovalRequired` exception + token | Parity |
 | Deterministic execution | Sequential step execution | Parity |
@@ -68,6 +69,7 @@ After analyzing the codebase, pipelines should be implemented as a **third workf
 - Enables gradual adoption without breaking existing workflows
 
 However, pipelines need a **dedicated executor** because their execution model differs:
+
 - Step workflows: event-driven state machine, reacts to hooks
 - Pipelines: sequential execution with data flow, runs to completion or approval pause
 
@@ -77,7 +79,7 @@ However, pipelines need a **dedicated executor** because their execution model d
 
 Pipelines are built **inside the existing `workflows/` module** as a third workflow type, maximizing code reuse:
 
-```
+```text
 src/gobby/
 ├── workflows/                    # EXTEND existing module
 │   ├── definitions.py           # MODIFY: Add PipelineDefinition, PipelineStep models
@@ -103,6 +105,7 @@ src/gobby/
 ```
 
 **Why inside `workflows/`:**
+
 - Pipelines ARE workflows - just a different execution model
 - Reuses: `WorkflowLoader`, `ConditionEvaluator`, `TemplateEngine`, `ActionExecutor`
 - `WorkflowDefinition.type` already supports multiple values - just add `"pipeline"`
@@ -116,10 +119,12 @@ src/gobby/
 ### Phase 1: Data Models & Storage
 
 **Files to create:**
+
 - `src/gobby/workflows/pipeline_state.py` - Execution state dataclasses
 - `src/gobby/storage/pipelines.py` - `LocalPipelineExecutionManager`
 
 **Files to modify:**
+
 - `src/gobby/workflows/definitions.py` - Add `PipelineDefinition`, `PipelineStep` models
 - `src/gobby/storage/migrations.py` - Add migration 80:
 
@@ -165,6 +170,7 @@ CREATE INDEX idx_step_executions_approval_token ON step_executions(approval_toke
 ### Phase 2: Parser & Loader Integration
 
 **Files to modify:**
+
 - `src/gobby/workflows/loader.py` - Extend to handle `type: pipeline`:
 
 ```python
@@ -176,11 +182,13 @@ if data.get('type') == 'pipeline':
 ```
 
 **Loader additions:**
+
 - `_validate_pipeline_references()` - Ensure steps only reference earlier steps
 - `_extract_step_refs()` - Parse `$step_id.output` patterns from prompts/conditions
 - `load_pipeline()` - Public method to load pipeline by name
 
 **Reused infrastructure:**
+
 - YAML parsing (already exists)
 - Inheritance via `extends:` (already exists)
 - Discovery and caching (already exists)
@@ -190,10 +198,12 @@ if data.get('type') == 'pipeline':
 ### Phase 3: Executor & Webhooks
 
 **Files to create:**
+
 - `src/gobby/workflows/pipeline_executor.py` - `PipelineExecutor` class
 - `src/gobby/workflows/webhooks.py` - `WebhookNotifier` class
 
 **Key components:**
+
 ```python
 class ApprovalRequired(Exception):
     """Raised when a step requires approval."""
@@ -222,6 +232,7 @@ class PipelineExecutor:
 ```
 
 **Execution flow:**
+
 1. Create/load execution record
 2. Build context with inputs and completed step outputs
 3. For each step:
@@ -236,6 +247,7 @@ class PipelineExecutor:
 6. **Send webhook notification** for completion/failure
 
 **Step execution modes** (Parity+ with Lobster):
+
 - **exec**: Run shell command, capture stdout/stderr as JSON
 - **prompt**: Call LLM with prompt template and tool restrictions
 - **invoke_pipeline**: Nested pipeline execution (composability)
@@ -243,6 +255,7 @@ class PipelineExecutor:
 ### Phase 3b: Webhook Notifications
 
 **Webhook configuration** (in pipeline YAML or global config):
+
 ```yaml
 # Pipeline-level webhook config
 webhooks:
@@ -258,6 +271,7 @@ webhooks:
 ```
 
 **WebhookNotifier class:**
+
 ```python
 class WebhookNotifier:
     async def notify_approval_pending(
@@ -273,6 +287,7 @@ class WebhookNotifier:
 ```
 
 **Webhook payload format:**
+
 ```json
 {
   "event": "approval_pending",
@@ -290,10 +305,12 @@ class WebhookNotifier:
 ### Phase 4: MCP Tool Exposure
 
 **Files to create:**
+
 - `src/gobby/mcp_proxy/tools/pipelines/__init__.py`
 - `src/gobby/mcp_proxy/tools/pipelines/_execution.py`
 
 **Files to modify:**
+
 - `src/gobby/mcp_proxy/registries.py` - Add to `setup_internal_registries()`:
 
 ```python
@@ -308,6 +325,7 @@ if pipeline_executor is not None:
 ```
 
 **Tools to expose:**
+
 - `run_pipeline(name, inputs, project_path)` - Execute a pipeline
 - `approve_pipeline(token, approved_by)` - Approve pending step
 - `reject_pipeline(token, rejected_by)` - Reject and cancel
@@ -315,18 +333,22 @@ if pipeline_executor is not None:
 - `list_pipelines(project_path)` - List available pipelines
 
 **Dynamic tool generation** for `expose_as_tool: true` pipelines:
+
 - Generate `pipeline_{name}` tools at startup
 - Input schema derived from pipeline `inputs` definition
 
 ### Phase 5: CLI Commands
 
 **Files to create:**
+
 - `src/gobby/cli/pipelines.py`
 
 **Files to modify:**
+
 - `src/gobby/cli/__init__.py` - Register `pipelines` group
 
 **Commands:**
+
 ```bash
 gobby pipeline list              # List available pipelines
 gobby pipeline show <name>       # Show pipeline definition
@@ -341,10 +363,12 @@ gobby pipeline export <id>       # Export for replay/audit
 ### Phase 6: HTTP API Endpoints
 
 **Files to modify:**
+
 - `src/gobby/servers/http.py` - Add pipeline routes
 
 **Endpoints** (for webhook approve/reject links):
-```
+
+```text
 POST /api/pipelines/run
   Body: { "name": "...", "inputs": {...}, "project_id": "..." }
   Response: { "status": "ok"|"needs_approval", "execution_id": "...", ... }
@@ -360,6 +384,7 @@ POST /api/pipelines/reject/{token}
 ```
 
 These endpoints enable:
+
 - Webhook-triggered approvals (click link in Slack/email to approve)
 - External system integration
 - Web UI for pipeline management (future)
@@ -367,9 +392,11 @@ These endpoints enable:
 ### Phase 7: Workflow Integration (run_pipeline action)
 
 **Files to modify:**
+
 - `src/gobby/workflows/actions.py` - Add `run_pipeline` action handler
 
 **New action for step/lifecycle workflows:**
+
 ```yaml
 # In a lifecycle workflow trigger
 triggers:
@@ -394,6 +421,7 @@ steps:
 ```
 
 **Action handler:**
+
 ```python
 # In ActionExecutor._register_defaults()
 @self.register("run_pipeline")
@@ -422,6 +450,7 @@ async def run_pipeline_action(
 ```
 
 **Use cases enabled:**
+
 - Trigger code review pipeline when task closes
 - Run TDD pipeline when entering "implement" step
 - Chain pipelines from lifecycle events (pre-commit, post-push)
@@ -430,9 +459,11 @@ async def run_pipeline_action(
 ### Phase 8: Lobster Workflow Import
 
 **Files to create:**
+
 - `src/gobby/workflows/lobster_compat.py` - Lobster format compatibility
 
 **Import capability:**
+
 ```python
 class LobsterImporter:
     def import_file(self, path: Path) -> PipelineDefinition:
@@ -448,6 +479,7 @@ class LobsterImporter:
 ```
 
 **CLI command:**
+
 ```bash
 gobby pipeline import path/to/workflow.lobster    # Import and save as .yaml
 gobby pipeline run --lobster path/to/workflow.lobster  # Run directly
@@ -456,7 +488,7 @@ gobby pipeline run --lobster path/to/workflow.lobster  # Run directly
 **Lobster → Gobby mapping:**
 
 | Lobster Syntax | Gobby Equivalent |
-|----------------|------------------|
+| ---------------- | ------------------ |
 | `stdin: $step.stdout` | `input: $step.output` |
 | `stdin: $step.json` | `input: $step.output` (JSON is default) |
 | `command: "..."` | `exec: "..."` step type |
@@ -465,6 +497,7 @@ gobby pipeline run --lobster path/to/workflow.lobster  # Run directly
 | `args` (workflow inputs) | `inputs` section |
 
 **Native .lobster execution:**
+
 - Parser detects `.lobster` extension
 - Auto-converts to internal `PipelineDefinition`
 - No conversion step needed for users migrating from OpenClaw
@@ -472,6 +505,7 @@ gobby pipeline run --lobster path/to/workflow.lobster  # Run directly
 ### Phase 9: Documentation
 
 **Files to create:**
+
 - `docs/workflows/pipelines.md` - Pipeline workflow guide
 - `docs/workflows/lobster-migration.md` - Migration guide from Lobster/OpenClaw
 
@@ -500,6 +534,7 @@ gobby pipeline run --lobster path/to/workflow.lobster  # Run directly
 ```
 
 **Update existing docs:**
+
 - `docs/workflows/README.md` - Add pipeline type to overview
 - `CLAUDE.md` - Add pipeline commands to quick reference
 
@@ -542,7 +577,7 @@ gobby pipeline run --lobster path/to/workflow.lobster  # Run directly
 ## Critical Files Reference
 
 | File | Purpose |
-|------|---------|
+| ------ | --------- |
 | `src/gobby/workflows/definitions.py` | Add PipelineDefinition, PipelineStep models |
 | `src/gobby/workflows/loader.py` | Extend to load type: pipeline workflows |
 | `src/gobby/workflows/engine.py` | Reference for execution patterns |
