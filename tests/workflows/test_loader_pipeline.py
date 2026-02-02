@@ -586,3 +586,172 @@ steps:
         assert result is not None
         assert isinstance(result, PipelineDefinition)
         assert len(result.steps) == 2
+
+
+class TestDiscoverPipelineWorkflows:
+    """Tests for discover_pipeline_workflows() method."""
+
+    def test_discovers_pipelines_in_global_dir(self, loader, temp_workflow_dir) -> None:
+        """Test that pipelines in global workflows dir are discovered."""
+        pipeline_yaml = """
+name: global-pipeline
+type: pipeline
+steps:
+  - id: step1
+    exec: echo global
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "global-pipeline.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.discover_pipeline_workflows()
+
+        assert len(result) == 1
+        assert result[0].name == "global-pipeline"
+        assert result[0].is_project is False
+        assert result[0].definition.type == "pipeline"
+
+    def test_discovers_pipelines_in_project_dir(self, loader, temp_workflow_dir) -> None:
+        """Test that pipelines in project workflows dir are discovered."""
+        pipeline_yaml = """
+name: project-pipeline
+type: pipeline
+steps:
+  - id: step1
+    exec: echo project
+"""
+        project_workflows = temp_workflow_dir / "project" / ".gobby" / "workflows"
+        pipeline_path = project_workflows / "project-pipeline.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.discover_pipeline_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
+
+        # Should find the project pipeline
+        project_pipelines = [p for p in result if p.is_project]
+        assert len(project_pipelines) == 1
+        assert project_pipelines[0].name == "project-pipeline"
+
+    def test_project_shadows_global_pipeline(self, loader, temp_workflow_dir) -> None:
+        """Test that project pipelines shadow global pipelines with same name."""
+        # Global pipeline
+        global_yaml = """
+name: deploy
+type: pipeline
+description: Global deploy
+steps:
+  - id: step1
+    exec: echo global
+"""
+        global_path = temp_workflow_dir / "global" / "workflows" / "deploy.yaml"
+        global_path.write_text(global_yaml)
+
+        # Project pipeline with same name
+        project_yaml = """
+name: deploy
+type: pipeline
+description: Project deploy
+steps:
+  - id: step1
+    exec: echo project
+"""
+        project_workflows = temp_workflow_dir / "project" / ".gobby" / "workflows"
+        project_path = project_workflows / "deploy.yaml"
+        project_path.write_text(project_yaml)
+
+        result = loader.discover_pipeline_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
+
+        # Should only have one "deploy" pipeline (project shadows global)
+        deploy_pipelines = [p for p in result if p.name == "deploy"]
+        assert len(deploy_pipelines) == 1
+        assert deploy_pipelines[0].is_project is True
+        assert deploy_pipelines[0].definition.description == "Project deploy"
+
+    def test_ignores_non_pipeline_workflows(self, loader, temp_workflow_dir) -> None:
+        """Test that step/lifecycle workflows are not returned."""
+        # Pipeline workflow
+        pipeline_yaml = """
+name: my-pipeline
+type: pipeline
+steps:
+  - id: step1
+    exec: echo pipeline
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "my-pipeline.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # Step workflow (should be ignored)
+        step_yaml = """
+name: my-step
+type: step
+steps:
+  - name: work
+    allowed_tools: all
+"""
+        step_path = temp_workflow_dir / "global" / "workflows" / "my-step.yaml"
+        step_path.write_text(step_yaml)
+
+        # Lifecycle workflow (should be ignored)
+        lifecycle_yaml = """
+name: my-lifecycle
+type: lifecycle
+triggers:
+  on_session_start: []
+"""
+        lifecycle_dir = temp_workflow_dir / "global" / "workflows" / "lifecycle"
+        lifecycle_dir.mkdir(parents=True, exist_ok=True)
+        lifecycle_path = lifecycle_dir / "my-lifecycle.yaml"
+        lifecycle_path.write_text(lifecycle_yaml)
+
+        result = loader.discover_pipeline_workflows()
+
+        # Should only find the pipeline
+        assert len(result) == 1
+        assert result[0].name == "my-pipeline"
+        assert result[0].definition.type == "pipeline"
+
+    def test_returns_discovered_workflow_structure(self, loader, temp_workflow_dir) -> None:
+        """Test that result has correct DiscoveredWorkflow structure."""
+        pipeline_yaml = """
+name: structured-pipeline
+type: pipeline
+settings:
+  priority: 50
+steps:
+  - id: step1
+    exec: echo test
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "structured-pipeline.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        result = loader.discover_pipeline_workflows()
+
+        assert len(result) == 1
+        discovered = result[0]
+        # Check DiscoveredWorkflow fields
+        assert discovered.name == "structured-pipeline"
+        assert discovered.priority == 50
+        assert discovered.is_project is False
+        assert discovered.path == pipeline_path
+        assert isinstance(discovered.definition, PipelineDefinition)
+
+    def test_discovers_multiple_pipelines(self, loader, temp_workflow_dir) -> None:
+        """Test discovering multiple pipelines."""
+        for i in range(3):
+            pipeline_yaml = f"""
+name: pipeline-{i}
+type: pipeline
+steps:
+  - id: step1
+    exec: echo {i}
+"""
+            path = temp_workflow_dir / "global" / "workflows" / f"pipeline-{i}.yaml"
+            path.write_text(pipeline_yaml)
+
+        result = loader.discover_pipeline_workflows()
+
+        assert len(result) == 3
+        names = {p.name for p in result}
+        assert names == {"pipeline-0", "pipeline-1", "pipeline-2"}
