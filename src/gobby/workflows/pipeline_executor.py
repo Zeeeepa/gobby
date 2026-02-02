@@ -13,6 +13,7 @@ from gobby.workflows.pipeline_state import (
     PipelineExecution,
     StepStatus,
 )
+from gobby.workflows.safe_evaluator import SafeExpressionEvaluator
 
 if TYPE_CHECKING:
     from gobby.storage.database import DatabaseProtocol
@@ -233,17 +234,21 @@ class PipelineExecutor:
             return True
 
         try:
-            # Evaluate the condition with context variables available
-            # Use a simple eval with restricted namespace
-            namespace = {
+            # Evaluate the condition using safe AST-based evaluator
+            # This avoids eval() security risks while supporting common expressions
+            eval_context = {
                 "inputs": context.get("inputs", {}),
                 "steps": context.get("steps", {}),
-                "True": True,
-                "False": False,
-                "None": None,
             }
-            result = eval(step.condition, {"__builtins__": {}}, namespace)
-            return bool(result)
+            # Allow common helper functions for conditions
+            allowed_funcs: dict[str, Any] = {
+                "len": len,
+                "bool": bool,
+                "str": str,
+                "int": int,
+            }
+            evaluator = SafeExpressionEvaluator(eval_context, allowed_funcs)
+            return evaluator.evaluate(step.condition)
         except Exception as e:
             logger.warning(f"Condition evaluation failed for step {step.id}: {e}")
             # Default to running the step if condition evaluation fails
