@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ToolCallDisplay } from './ToolCallDisplay'
+import { markdownComponents } from './CodeBlock'
 
 export interface ToolCall {
   id: string
@@ -40,7 +41,7 @@ export function Message({ message, isStreaming = false }: MessageProps) {
         <ToolCallDisplay toolCalls={message.toolCalls} />
       )}
       <div className="message-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {message.content}
         </ReactMarkdown>
         {isStreaming && <span className="cursor" />}

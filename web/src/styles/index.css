@@ -212,6 +212,48 @@ body {
   padding: 0;
 }
 
+/* Code block with syntax highlighting */
+.code-block-wrapper {
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: #141414;
+  border-bottom: 1px solid var(--border);
+}
+
+.code-block-language {
+  font-family: var(--font-mono);
+  font-size: calc(var(--font-size-base) * 0.75);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.code-block-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: all 0.15s;
+}
+
+.code-block-copy:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
 .message-content ul, .message-content ol {
   margin: 0.5rem 0;
   padding-left: 1.5rem;
