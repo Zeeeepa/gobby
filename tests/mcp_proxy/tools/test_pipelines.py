@@ -240,3 +240,272 @@ class TestListPipelinesTool:
 
         assert result["success"] is True
         assert result["pipelines"] == []
+
+
+class TestRunPipelineTool:
+    """Tests for the run_pipeline MCP tool."""
+
+    def test_registry_has_run_pipeline_tool(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline tool is registered."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        tools = registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        assert "run_pipeline" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_loads_pipeline(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline loads the pipeline via loader."""
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            steps=[PipelineStep(id="step1", exec="echo deploy")],
+        )
+        mock_loader.load_pipeline.return_value = pipeline
+
+        # Mock executor.execute as async
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+            outputs_json='{"result": "success"}',
+        )
+        mock_executor.execute = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        await registry.call(
+            "run_pipeline",
+            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+        )
+
+        mock_loader.load_pipeline.assert_called_once_with("deploy")
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_calls_executor(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline calls executor.execute() with pipeline and inputs."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            steps=[PipelineStep(id="step1", exec="echo deploy")],
+        )
+        mock_loader.load_pipeline.return_value = pipeline
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+            outputs_json='{"result": "success"}',
+        )
+        mock_executor.execute = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        await registry.call(
+            "run_pipeline",
+            {"name": "deploy", "inputs": {"env": "prod"}, "project_id": "proj-1"},
+        )
+
+        mock_executor.execute.assert_called_once_with(
+            pipeline=pipeline,
+            inputs={"env": "prod"},
+            project_id="proj-1",
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_returns_completed_status(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline returns execution status and outputs for completed."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ExecutionStatus, PipelineExecution
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            steps=[PipelineStep(id="step1", exec="echo deploy")],
+        )
+        mock_loader.load_pipeline.return_value = pipeline
+
+        execution = PipelineExecution(
+            id="pe-abc123",
+            pipeline_name="deploy",
+            project_id="proj-1",
+            status=ExecutionStatus.COMPLETED,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+            outputs_json='{"result": "success"}',
+        )
+        mock_executor.execute = AsyncMock(return_value=execution)
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "run_pipeline",
+            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+        )
+
+        assert result["success"] is True
+        assert result["status"] == "completed"
+        assert result["execution_id"] == "pe-abc123"
+        assert result["outputs"] == {"result": "success"}
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_returns_waiting_approval(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline returns waiting_approval status when approval required."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+        from gobby.workflows.pipeline_state import ApprovalRequired
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            steps=[PipelineStep(id="step1", exec="echo deploy")],
+        )
+        mock_loader.load_pipeline.return_value = pipeline
+
+        # Executor raises ApprovalRequired
+        mock_executor.execute = AsyncMock(
+            side_effect=ApprovalRequired(
+                execution_id="pe-abc123",
+                step_id="step1",
+                token="approval-token-xyz",
+                message="Manual approval required for deployment",
+            )
+        )
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "run_pipeline",
+            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+        )
+
+        assert result["success"] is True
+        assert result["status"] == "waiting_approval"
+        assert result["execution_id"] == "pe-abc123"
+        assert result["token"] == "approval-token-xyz"
+        assert result["message"] == "Manual approval required for deployment"
+        assert result["step_id"] == "step1"
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_not_found(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline returns error when pipeline not found."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        mock_loader.load_pipeline.return_value = None
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "run_pipeline",
+            {"name": "nonexistent", "inputs": {}, "project_id": "proj-1"},
+        )
+
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_execution_error(
+        self, mock_loader, mock_executor, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline returns error when execution fails."""
+        from unittest.mock import AsyncMock
+
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        pipeline = PipelineDefinition(
+            name="deploy",
+            steps=[PipelineStep(id="step1", exec="echo deploy")],
+        )
+        mock_loader.load_pipeline.return_value = pipeline
+
+        mock_executor.execute = AsyncMock(side_effect=RuntimeError("Execution failed"))
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=mock_executor,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "run_pipeline",
+            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+        )
+
+        assert result["success"] is False
+        assert "execution failed" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_no_executor_configured(
+        self, mock_loader, mock_execution_manager
+    ) -> None:
+        """Test that run_pipeline returns error when no executor configured."""
+        from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
+
+        registry = create_pipelines_registry(
+            loader=mock_loader,
+            executor=None,
+            execution_manager=mock_execution_manager,
+        )
+
+        result = await registry.call(
+            "run_pipeline",
+            {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
+        )
+
+        assert result["success"] is False
+        assert "executor" in result["error"].lower()

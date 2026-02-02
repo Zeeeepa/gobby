@@ -12,6 +12,7 @@ from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.pipelines._discovery import list_pipelines
+from gobby.mcp_proxy.tools.pipelines._execution import run_pipeline
 
 __all__ = [
     "create_pipelines_registry",
@@ -51,5 +52,22 @@ def create_pipelines_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         return list_pipelines(_loader, project_path)
+
+    @registry.tool(
+        name="run_pipeline",
+        description="Run a pipeline by name with given inputs.",
+    )
+    async def _run_pipeline(
+        name: str,
+        inputs: dict[str, Any] | None = None,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        return await run_pipeline(
+            loader=_loader,
+            executor=_executor,
+            name=name,
+            inputs=inputs or {},
+            project_id=project_id or "",
+        )
 
     return registry
