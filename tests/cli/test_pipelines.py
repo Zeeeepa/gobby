@@ -830,3 +830,193 @@ class TestPipelinesHistory:
             assert "executions" in data
             assert len(data["executions"]) == 3
             assert data["executions"][0]["id"] == "pe-abc123"
+
+
+class TestPipelinesImport:
+    """Tests for gobby pipelines import command."""
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_subcommand_exists(self, runner) -> None:
+        """Verify 'import' subcommand is registered."""
+        result = runner.invoke(cli, ["pipelines", "--help"])
+        assert "import" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_reads_lobster_file(self, runner, tmp_path) -> None:
+        """Verify 'gobby pipelines import path.lobster' reads file."""
+        # Create a test .lobster file
+        lobster_file = tmp_path / "test.lobster"
+        lobster_file.write_text("""
+name: imported-pipeline
+description: Imported from Lobster
+steps:
+  - id: build
+    command: npm run build
+  - id: test
+    command: npm test
+""")
+
+        # Create project directory structure
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        workflows_dir = gobby_dir / "workflows"
+        workflows_dir.mkdir()
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=tmp_path):
+            result = runner.invoke(cli, ["pipelines", "import", str(lobster_file)])
+
+            assert result.exit_code == 0
+            assert "imported-pipeline" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_saves_to_workflows_dir(self, runner, tmp_path) -> None:
+        """Verify import saves converted pipeline to .gobby/workflows/."""
+        # Create a test .lobster file
+        lobster_file = tmp_path / "deploy.lobster"
+        lobster_file.write_text("""
+name: deploy
+description: Deploy pipeline
+steps:
+  - id: deploy
+    command: deploy-app
+""")
+
+        # Create project directory structure
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        workflows_dir = gobby_dir / "workflows"
+        workflows_dir.mkdir()
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=tmp_path):
+            result = runner.invoke(cli, ["pipelines", "import", str(lobster_file)])
+
+            assert result.exit_code == 0
+            # Verify file was created
+            saved_file = workflows_dir / "deploy.yaml"
+            assert saved_file.exists()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_converts_lobster_format(self, runner, tmp_path) -> None:
+        """Verify import converts Lobster format to Gobby format."""
+        import yaml
+
+        # Create a test .lobster file with Lobster-specific fields
+        lobster_file = tmp_path / "convert.lobster"
+        lobster_file.write_text("""
+name: convert-test
+description: Test conversion
+steps:
+  - id: build
+    command: npm run build
+  - id: process
+    command: process-data
+    stdin: $build.stdout
+  - id: deploy
+    command: deploy
+    approval: true
+""")
+
+        # Create project directory structure
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        workflows_dir = gobby_dir / "workflows"
+        workflows_dir.mkdir()
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=tmp_path):
+            result = runner.invoke(cli, ["pipelines", "import", str(lobster_file)])
+
+            assert result.exit_code == 0
+
+            # Read the saved file and verify conversion
+            saved_file = workflows_dir / "convert-test.yaml"
+            saved_content = yaml.safe_load(saved_file.read_text())
+
+            # Verify command -> exec conversion
+            assert saved_content["steps"][0]["exec"] == "npm run build"
+            # Verify stdin -> input conversion
+            assert saved_content["steps"][1]["input"] == "$build.output"
+            # Verify approval: true -> approval.required: true
+            assert saved_content["steps"][2]["approval"]["required"] is True
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_outputs_saved_path(self, runner, tmp_path) -> None:
+        """Verify import outputs the saved file path."""
+        # Create a test .lobster file
+        lobster_file = tmp_path / "test.lobster"
+        lobster_file.write_text("""
+name: test-pipeline
+description: Test
+steps:
+  - id: step1
+    command: echo test
+""")
+
+        # Create project directory structure
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+        workflows_dir = gobby_dir / "workflows"
+        workflows_dir.mkdir()
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=tmp_path):
+            result = runner.invoke(cli, ["pipelines", "import", str(lobster_file)])
+
+            assert result.exit_code == 0
+            assert "test-pipeline.yaml" in result.output
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_file_not_found(self, runner, tmp_path) -> None:
+        """Verify import handles file not found error."""
+        # Create project directory structure
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=tmp_path):
+            result = runner.invoke(cli, ["pipelines", "import", "/nonexistent/path.lobster"])
+
+            assert result.exit_code != 0 or "not found" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_no_project(self, runner, tmp_path) -> None:
+        """Verify import handles no project context."""
+        # Create a test .lobster file
+        lobster_file = tmp_path / "test.lobster"
+        lobster_file.write_text("""
+name: test
+description: Test
+steps:
+  - id: step1
+    command: echo test
+""")
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=None):
+            result = runner.invoke(cli, ["pipelines", "import", str(lobster_file)])
+
+            # Should fail or warn when no project context
+            assert result.exit_code != 0 or "project" in result.output.lower()
+
+    @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
+    def test_import_custom_output(self, runner, tmp_path) -> None:
+        """Verify import supports --output flag for custom destination."""
+        # Create a test .lobster file
+        lobster_file = tmp_path / "test.lobster"
+        lobster_file.write_text("""
+name: test
+description: Test
+steps:
+  - id: step1
+    command: echo test
+""")
+
+        custom_output = tmp_path / "custom-output.yaml"
+
+        # Create project directory structure (not needed for custom output)
+        gobby_dir = tmp_path / ".gobby"
+        gobby_dir.mkdir()
+
+        with patch("gobby.cli.pipelines.get_project_path", return_value=tmp_path):
+            result = runner.invoke(
+                cli, ["pipelines", "import", str(lobster_file), "-o", str(custom_output)]
+            )
+
+            assert result.exit_code == 0
+            assert custom_output.exists()
