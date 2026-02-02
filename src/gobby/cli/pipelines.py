@@ -389,3 +389,79 @@ def status_pipeline(ctx: click.Context, execution_id: str, json_format: bool) ->
                 else "○"
             )
             click.echo(f"  {status_icon} {step.step_id} ({step.status.value})")
+
+
+@pipelines.command("approve")
+@click.argument("token")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def approve_pipeline(ctx: click.Context, token: str, json_format: bool) -> None:
+    """Approve a pipeline execution waiting for approval.
+
+    Examples:
+
+        gobby pipelines approve approval-token-xyz
+
+        gobby pipelines approve approval-token-xyz --json
+    """
+    executor = get_pipeline_executor()
+
+    try:
+        execution = asyncio.run(executor.approve(token, approved_by=None))
+
+        if json_format:
+            result = {
+                "execution_id": execution.id,
+                "pipeline_name": execution.pipeline_name,
+                "status": execution.status.value,
+            }
+            click.echo(json.dumps(result, indent=2))
+        else:
+            click.echo("✓ Pipeline approved")
+            click.echo(f"  Execution ID: {execution.id}")
+            click.echo(f"  Status: {execution.status.value}")
+
+    except ValueError as e:
+        click.echo(f"Invalid token: {e}", err=True)
+        raise SystemExit(1) from None
+    except Exception as e:
+        click.echo(f"Approval failed: {e}", err=True)
+        raise SystemExit(1) from None
+
+
+@pipelines.command("reject")
+@click.argument("token")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def reject_pipeline(ctx: click.Context, token: str, json_format: bool) -> None:
+    """Reject a pipeline execution waiting for approval.
+
+    Examples:
+
+        gobby pipelines reject approval-token-xyz
+
+        gobby pipelines reject approval-token-xyz --json
+    """
+    executor = get_pipeline_executor()
+
+    try:
+        execution = asyncio.run(executor.reject(token, rejected_by=None))
+
+        if json_format:
+            result = {
+                "execution_id": execution.id,
+                "pipeline_name": execution.pipeline_name,
+                "status": execution.status.value,
+            }
+            click.echo(json.dumps(result, indent=2))
+        else:
+            click.echo("✗ Pipeline rejected")
+            click.echo(f"  Execution ID: {execution.id}")
+            click.echo(f"  Status: {execution.status.value}")
+
+    except ValueError as e:
+        click.echo(f"Invalid token: {e}", err=True)
+        raise SystemExit(1) from None
+    except Exception as e:
+        click.echo(f"Rejection failed: {e}", err=True)
+        raise SystemExit(1) from None
