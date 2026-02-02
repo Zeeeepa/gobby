@@ -1,0 +1,57 @@
+"""Pipeline discovery tools."""
+
+from typing import Any
+
+
+def list_pipelines(
+    loader: Any,
+    project_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    List available pipeline definitions.
+
+    Args:
+        loader: WorkflowLoader instance
+        project_path: Optional project path for project-specific pipelines
+
+    Returns:
+        Dict with success status and list of pipeline info
+    """
+    if not loader:
+        return {
+            "success": False,
+            "error": "No loader configured",
+            "pipelines": [],
+        }
+
+    try:
+        discovered = loader.discover_pipeline_workflows(project_path=project_path)
+
+        pipelines = []
+        for workflow in discovered:
+            pipeline_info = {
+                "name": workflow.name,
+                "description": workflow.definition.description,
+                "is_project": workflow.is_project,
+                "path": str(workflow.path),
+                "priority": workflow.priority,
+            }
+
+            # Add step count if available
+            if hasattr(workflow.definition, "steps"):
+                pipeline_info["step_count"] = len(workflow.definition.steps)
+
+            pipelines.append(pipeline_info)
+
+        return {
+            "success": True,
+            "pipelines": pipelines,
+            "count": len(pipelines),
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "pipelines": [],
+        }
