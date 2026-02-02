@@ -271,9 +271,11 @@ class HookManager:
             from gobby.storage.pipelines import LocalPipelineExecutionManager
             from gobby.workflows.pipeline_executor import PipelineExecutor
 
-            pipeline_execution_manager = LocalPipelineExecutionManager(
-                self._database, self._project_id or ""
+            # Resolve project_id dynamically since it's not stored on the instance
+            project_id = (
+                self._resolve_project_id(None, None) if hasattr(self, "_resolve_project_id") else ""
             )
+            pipeline_execution_manager = LocalPipelineExecutionManager(self._database, project_id)
             self._pipeline_executor = PipelineExecutor(
                 db=self._database,
                 execution_manager=pipeline_execution_manager,

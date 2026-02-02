@@ -409,8 +409,10 @@ class TestExecuteExecStep:
         )
 
         context: dict = {"inputs": {}, "steps": {}}
-        # Redirect to stderr
-        result = await executor._execute_exec_step("echo 'error' >&2", context)
+        # Use Python to write to stderr (no shell redirection needed)
+        result = await executor._execute_exec_step(
+            "python -c \"import sys; sys.stderr.write('error\\n')\"", context
+        )
 
         assert "stderr" in result
         assert "error" in result["stderr"]
@@ -447,9 +449,7 @@ class TestExecuteExecStep:
         )
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_exec_step(
-            "nonexistent_command_xyz_123", context
-        )
+        result = await executor._execute_exec_step("nonexistent_command_xyz_123", context)
 
         # Should have non-zero exit code
         assert result["exit_code"] != 0
@@ -636,9 +636,7 @@ class TestExecuteNestedPipeline:
         executor.loader = mock_loader
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_nested_pipeline(
-            "child-pipeline", context, "proj-123"
-        )
+        result = await executor._execute_nested_pipeline("child-pipeline", context, "proj-123")
 
         assert isinstance(result, dict)
 
@@ -680,9 +678,7 @@ class TestExecuteNestedPipeline:
         # No loader set
 
         context: dict = {"inputs": {}, "steps": {}}
-        result = await executor._execute_nested_pipeline(
-            "child-pipeline", context, "proj-123"
-        )
+        result = await executor._execute_nested_pipeline("child-pipeline", context, "proj-123")
 
         # Should indicate nested execution not available
         assert "error" in result or "pipeline" in result
@@ -804,9 +800,7 @@ class TestConditionEvaluation:
         # Check that the conditional step was marked as skipped
         update_calls = mock_execution_manager.update_step_execution.call_args_list
         # Find calls with SKIPPED status
-        skipped_calls = [
-            c for c in update_calls if c.kwargs.get("status") == StepStatus.SKIPPED
-        ]
+        skipped_calls = [c for c in update_calls if c.kwargs.get("status") == StepStatus.SKIPPED]
         assert len(skipped_calls) >= 1
 
 
@@ -933,9 +927,7 @@ class TestApprovalGateHandling:
         # Check that step execution was updated with approval token
         update_calls = mock_execution_manager.update_step_execution.call_args_list
         # Find call that sets approval_token
-        token_calls = [
-            c for c in update_calls if c.kwargs.get("approval_token") is not None
-        ]
+        token_calls = [c for c in update_calls if c.kwargs.get("approval_token") is not None]
         assert len(token_calls) >= 1
         # Token in step record should match exception token
         assert token_calls[-1].kwargs["approval_token"] == exc_info.value.token
@@ -1082,7 +1074,12 @@ class TestApprovalGateHandling:
 
     @pytest.mark.asyncio
     async def test_approval_gate_calls_webhook_notifier(
-        self, mock_db, mock_execution_manager, mock_llm_service, mock_webhook_notifier, pipeline_with_approval
+        self,
+        mock_db,
+        mock_execution_manager,
+        mock_llm_service,
+        mock_webhook_notifier,
+        pipeline_with_approval,
     ) -> None:
         """Test that approval gate calls webhook notifier if configured."""
         from gobby.workflows.pipeline_executor import PipelineExecutor

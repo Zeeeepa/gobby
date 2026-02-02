@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
+import shlex
 from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.pipeline_state import (
@@ -397,8 +398,15 @@ class PipelineExecutor:
     async def _execute_exec_step(self, command: str, context: dict[str, Any]) -> dict[str, Any]:
         """Execute a shell command step.
 
+        Commands are parsed using shlex.split and executed via create_subprocess_exec
+        to avoid shell injection vulnerabilities. The command string is treated as a
+        space-separated list of arguments, not a shell script.
+
+        Note: Pipeline commands are defined by the pipeline author, not end users.
+        This is a defense-in-depth measure.
+
         Args:
-            command: The command to execute
+            command: The command to execute (space-separated arguments)
             context: Execution context
 
         Returns:
@@ -409,9 +417,18 @@ class PipelineExecutor:
         logger.info(f"Executing command: {command}")
 
         try:
-            # Run command via shell
-            proc = await asyncio.create_subprocess_shell(
-                command,
+            # Parse command into arguments to avoid shell injection
+            args = shlex.split(command)
+            if not args:
+                return {
+                    "stdout": "",
+                    "stderr": "Empty command",
+                    "exit_code": 1,
+                }
+
+            # Run command without shell
+            proc = await asyncio.create_subprocess_exec(
+                *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

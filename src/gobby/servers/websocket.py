@@ -234,6 +234,7 @@ class WebSocketServer:
         finally:
             # Always cleanup client state
             self.clients.pop(websocket, None)
+            self._chat_history.pop(client_id, None)
             logger.debug(f"Client {client_id} cleaned up. Remaining clients: {len(self.clients)}")
 
     async def _handle_message(self, websocket: Any, message: str) -> None:
@@ -613,7 +614,10 @@ class WebSocketServer:
 
         # Get or create conversation history for this client
         client_info = self.clients.get(websocket)
-        client_id = client_info["id"] if client_info else "unknown"
+        if not client_info:
+            logger.warning("Chat message from unregistered client")
+            return
+        client_id = client_info["id"]
 
         if client_id not in self._chat_history:
             self._chat_history[client_id] = []

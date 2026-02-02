@@ -52,26 +52,27 @@ class LocalPipelineExecutionManager:
         execution_id = generate_prefixed_id("pe")
         now = datetime.now(UTC).isoformat()
 
-        self.db.execute(
-            """
-            INSERT INTO pipeline_executions (
-                id, pipeline_name, project_id, status, inputs_json,
-                session_id, parent_execution_id, created_at, updated_at
+        with self.db.transaction():
+            self.db.execute(
+                """
+                INSERT INTO pipeline_executions (
+                    id, pipeline_name, project_id, status, inputs_json,
+                    session_id, parent_execution_id, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    execution_id,
+                    pipeline_name,
+                    self.project_id,
+                    ExecutionStatus.PENDING.value,
+                    inputs_json,
+                    session_id,
+                    parent_execution_id,
+                    now,
+                    now,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                execution_id,
-                pipeline_name,
-                self.project_id,
-                ExecutionStatus.PENDING.value,
-                inputs_json,
-                session_id,
-                parent_execution_id,
-                now,
-                now,
-            ),
-        )
 
         execution = self.get_execution(execution_id)
         if execution is None:
@@ -279,14 +280,13 @@ class LocalPipelineExecutionManager:
         """
         now = datetime.now(UTC).isoformat()
 
-        # Build update parts dynamically
-        updates = ["updated_at = ?"]
-        params: list[Any] = [now]
+        # Build update parts dynamically (step_executions has no updated_at column)
+        updates: list[str] = []
+        params: list[Any] = []
 
         if status is not None:
             updates.append("status = ?")
             params.append(status.value)
-
             # Set timestamps based on status
             if status == StepStatus.RUNNING:
                 updates.append("started_at = COALESCE(started_at, ?)")
@@ -313,22 +313,16 @@ class LocalPipelineExecutionManager:
             updates.append("approved_at = ?")
             params.append(now)
 
+        if not updates:
+            # Nothing to update
+            row = self.db.fetchone(
+                "SELECT * FROM step_executions WHERE id = ?",
+                (step_execution_id,),
+            )
+            return StepExecution.from_row(row) if row else None
+
+        # Append step_execution_id for WHERE clause
         params.append(step_execution_id)
-
-        # Note: step_executions doesn't have updated_at column, remove it
-        updates = [u for u in updates if not u.startswith("updated_at")]
-        params = params[1:]  # Remove the now that was for updated_at
-
-        # Re-add timestamps
-        if status is not None:
-            if status == StepStatus.RUNNING:
-                if "started_at = COALESCE(started_at, ?)" not in updates:
-                    updates.append("started_at = COALESCE(started_at, ?)")
-                    params.insert(-1, now)
-            elif status in (StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.SKIPPED):
-                if "completed_at = COALESCE(completed_at, ?)" not in updates:
-                    updates.append("completed_at = COALESCE(completed_at, ?)")
-                    params.insert(-1, now)
 
         self.db.execute(
             f"UPDATE step_executions SET {', '.join(updates)} WHERE id = ?",

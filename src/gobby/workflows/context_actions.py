@@ -101,12 +101,18 @@ def inject_context(
         if combined_content:
             content = "\n\n".join(combined_content)
             if template:
+                # Build source_contents mapping for individual source access
+                source_contents: dict[str, str] = {}
+                for i, single_source in enumerate(source):
+                    if i < len(combined_content):
+                        source_contents[single_source] = combined_content[i]
                 render_context: dict[str, Any] = {
                     "session": session_manager.get(session_id),
                     "state": state,
                     "artifacts": state.artifacts if state else {},
                     "observations": state.observations if state else {},
                     "combined_content": content,
+                    "source_contents": source_contents,
                 }
                 content = template_engine.render(template, render_context)
             state.context_injected = True

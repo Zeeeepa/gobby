@@ -31,6 +31,23 @@ def get_project_path() -> Path | None:
     return None
 
 
+def _get_project_id() -> str:
+    """Get project ID from current project if available."""
+    project_path = get_project_path()
+    if not project_path:
+        return ""
+    project_json = project_path / ".gobby" / "project.json"
+    if not project_json.exists():
+        return ""
+    try:
+        with open(project_json) as f:
+            project_data = json.load(f)
+            project_id = project_data.get("id", "")
+            return str(project_id) if project_id else ""
+    except Exception:
+        return ""
+
+
 def get_pipeline_executor() -> Any:
     """Get pipeline executor instance.
 
@@ -45,19 +62,7 @@ def get_pipeline_executor() -> Any:
 
     db = LocalDatabase()
 
-    # Get project_id from current project if available
-    project_path = get_project_path()
-    project_id = ""
-    if project_path:
-        project_json = project_path / ".gobby" / "project.json"
-        if project_json.exists():
-            try:
-                with open(project_json) as f:
-                    project_data = json.load(f)
-                    project_id = project_data.get("id", "")
-            except Exception:
-                pass
-
+    project_id = _get_project_id()
     execution_manager = LocalPipelineExecutionManager(db, project_id)
 
     return PipelineExecutor(
@@ -261,18 +266,7 @@ def run_pipeline(
     # Get executor and run
     executor = get_pipeline_executor()
 
-    # Get project_id
-    project_path = get_project_path()
-    project_id = ""
-    if project_path:
-        project_json = project_path / ".gobby" / "project.json"
-        if project_json.exists():
-            try:
-                with open(project_json) as f:
-                    project_data = json.load(f)
-                    project_id = project_data.get("id", "")
-            except Exception:
-                pass
+    project_id = _get_project_id()
 
     try:
         # Run the pipeline
@@ -333,19 +327,7 @@ def get_execution_manager() -> Any:
 
     db = LocalDatabase()
 
-    # Get project_id from current project if available
-    project_path = get_project_path()
-    project_id = ""
-    if project_path:
-        project_json = project_path / ".gobby" / "project.json"
-        if project_json.exists():
-            try:
-                with open(project_json) as f:
-                    project_data = json.load(f)
-                    project_id = project_data.get("id", "")
-            except Exception:
-                pass
-
+    project_id = _get_project_id()
     return LocalPipelineExecutionManager(db, project_id)
 
 

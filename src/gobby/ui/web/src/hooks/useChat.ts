@@ -26,6 +26,10 @@ export function useChat() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
 
+  // Refs for handlers to avoid stale closures in WebSocket callbacks
+  const handleChatStreamRef = useRef<(chunk: ChatStreamChunk) => void>(() => {})
+  const handleChatErrorRef = useRef<(error: ChatError) => void>(() => {})
+
   // Connect to WebSocket
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -73,9 +77,9 @@ export function useChat() {
         console.log('WebSocket message:', data.type, data)
 
         if (data.type === 'chat_stream') {
-          handleChatStream(data as unknown as ChatStreamChunk)
+          handleChatStreamRef.current(data as unknown as ChatStreamChunk)
         } else if (data.type === 'chat_error') {
-          handleChatError(data as unknown as ChatError)
+          handleChatErrorRef.current(data as unknown as ChatError)
         } else if (data.type === 'connection_established') {
           console.log('Connection established:', data)
         } else if (data.type === 'subscribe_success') {
@@ -132,6 +136,12 @@ export function useChat() {
       },
     ])
   }, [])
+
+  // Keep refs updated to avoid stale closures
+  useEffect(() => {
+    handleChatStreamRef.current = handleChatStream
+    handleChatErrorRef.current = handleChatError
+  }, [handleChatStream, handleChatError])
 
   // Send a message
   const sendMessage = useCallback((content: string) => {
