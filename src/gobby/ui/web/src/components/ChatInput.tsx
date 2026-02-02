@@ -28,8 +28,8 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      // Ctrl+Enter or Cmd+Enter to send
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      // Enter to send, Shift+Enter for newline
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         handleSubmit()
       }
@@ -45,7 +45,7 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={disabled ? 'Waiting...' : 'Type a message... (Ctrl+Enter to send)'}
+        placeholder={disabled ? 'Waiting...' : 'Type a message... (Shift+Enter for newline)'}
         disabled={disabled}
         rows={1}
       />

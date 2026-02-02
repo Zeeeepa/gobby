@@ -30,10 +30,14 @@ export function useChat() {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    // Use relative path - Vite will proxy to the daemon
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws`
+    // In development, connect directly to daemon WebSocket port
+    // In production, use relative path through reverse proxy
+    const isDev = import.meta.env.DEV
+    const wsUrl = isDev
+      ? 'ws://localhost:60888'
+      : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
 
+    console.log('Connecting to WebSocket:', wsUrl)
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
@@ -66,11 +70,16 @@ export function useChat() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as WebSocketMessage
+        console.log('WebSocket message:', data.type, data)
 
         if (data.type === 'chat_stream') {
           handleChatStream(data as unknown as ChatStreamChunk)
         } else if (data.type === 'chat_error') {
           handleChatError(data as unknown as ChatError)
+        } else if (data.type === 'connection_established') {
+          console.log('Connection established:', data)
+        } else if (data.type === 'subscribe_success') {
+          console.log('Subscribed to events:', data)
         }
       } catch (e) {
         console.error('Failed to parse WebSocket message:', e)
@@ -126,8 +135,9 @@ export function useChat() {
 
   // Send a message
   const sendMessage = useCallback((content: string) => {
+    console.log('sendMessage called:', content)
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('WebSocket not connected')
+      console.error('WebSocket not connected, state:', wsRef.current?.readyState)
       return
     }
 
@@ -145,13 +155,13 @@ export function useChat() {
     ])
 
     // Send to server
-    wsRef.current.send(
-      JSON.stringify({
-        type: 'chat_message',
-        content,
-        message_id: messageId,
-      })
-    )
+    const payload = {
+      type: 'chat_message',
+      content,
+      message_id: messageId,
+    }
+    console.log('Sending WebSocket message:', payload)
+    wsRef.current.send(JSON.stringify(payload))
 
     setIsStreaming(true)
   }, [])
