@@ -201,8 +201,8 @@ export function useChat() {
   }, [handleChatStream, handleChatError, handleToolStatus])
 
   // Send a message
-  const sendMessage = useCallback((content: string) => {
-    console.log('sendMessage called:', content)
+  const sendMessage = useCallback((content: string, model?: string | null) => {
+    console.log('sendMessage called:', content, 'model:', model)
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected, state:', wsRef.current?.readyState)
       return
@@ -222,11 +222,17 @@ export function useChat() {
     ])
 
     // Send to server
-    const payload = {
+    const payload: Record<string, unknown> = {
       type: 'chat_message',
       content,
       message_id: messageId,
     }
+
+    // Include model if specified
+    if (model) {
+      payload.model = model
+    }
+
     console.log('Sending WebSocket message:', payload)
     wsRef.current.send(JSON.stringify(payload))
 

@@ -1,10 +1,13 @@
-import type { Settings } from '../hooks/useSettings'
+import type { Settings, ModelInfo } from '../hooks/useSettings'
 
 interface SettingsProps {
   isOpen: boolean
   onClose: () => void
   settings: Settings
+  modelInfo: ModelInfo | null
+  modelsLoading: boolean
   onFontSizeChange: (size: number) => void
+  onModelChange: (model: string, provider: string) => void
   onReset: () => void
 }
 
@@ -12,10 +15,39 @@ export function Settings({
   isOpen,
   onClose,
   settings,
+  modelInfo,
+  modelsLoading,
   onFontSizeChange,
+  onModelChange,
   onReset,
 }: SettingsProps) {
   if (!isOpen) return null
+
+  // Build list of all models with provider info
+  const allModels: Array<{ model: string; provider: string; label: string }> = []
+  if (modelInfo?.providers) {
+    for (const [provider, config] of Object.entries(modelInfo.providers)) {
+      for (const model of config.models) {
+        allModels.push({
+          model,
+          provider,
+          label: `${model} (${provider})`,
+        })
+      }
+    }
+  }
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    const selected = allModels.find(m => `${m.provider}:${m.model}` === value)
+    if (selected) {
+      onModelChange(selected.model, selected.provider)
+    }
+  }
+
+  const currentValue = settings.provider && settings.model
+    ? `${settings.provider}:${settings.model}`
+    : ''
 
   return (
     <>
@@ -29,6 +61,28 @@ export function Settings({
         </div>
 
         <div className="settings-content">
+          <div className="setting-item">
+            <label htmlFor="model-select">Model</label>
+            {modelsLoading ? (
+              <span className="loading-text">Loading models...</span>
+            ) : allModels.length > 0 ? (
+              <select
+                id="model-select"
+                value={currentValue}
+                onChange={handleModelChange}
+                className="model-select"
+              >
+                {allModels.map(({ model, provider, label }) => (
+                  <option key={`${provider}:${model}`} value={`${provider}:${model}`}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="no-models-text">No models available</span>
+            )}
+          </div>
+
           <div className="setting-item">
             <label htmlFor="font-size">
               Font Size: {settings.fontSize}px

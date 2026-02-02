@@ -610,6 +610,7 @@ class WebSocketServer:
         content = data.get("content")
         user_message_id = data.get("message_id")
         use_tools = data.get("use_tools", True)  # Default to using tools
+        model = data.get("model")  # Optional model override
 
         if not content or not isinstance(content, str):
             await self._send_error(websocket, "Missing or invalid 'content' field")
@@ -676,7 +677,9 @@ class WebSocketServer:
                     "mcp__gobby__*",
                 ]
 
-                async for event in self.llm_service.stream_chat_with_tools(messages, allowed_tools):
+                async for event in self.llm_service.stream_chat_with_tools(
+                    messages, allowed_tools, model=model
+                ):
                     if isinstance(event, TextChunk):
                         full_response += event.content
                         await websocket.send(

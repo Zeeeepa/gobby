@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    allowedHosts: ['.ts.net'],  // Allow Tailscale hostnames
     proxy: {
       // Proxy API requests to Gobby daemon
       '/api': {

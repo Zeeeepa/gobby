@@ -63,6 +63,20 @@ body {
   gap: 0.75rem;
 }
 
+.model-indicator {
+  font-size: calc(var(--font-size-base) * 0.75);
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status {
   font-size: calc(var(--font-size-base) * 0.75);
   padding: 0.25rem 0.75rem;
@@ -486,6 +500,45 @@ body {
   margin-bottom: 0.75rem;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+.model-select {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: calc(var(--font-size-base) * 0.9);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.model-select:hover {
+  border-color: var(--text-muted);
+}
+
+.model-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 0.5rem;
+}
+
+.loading-text,
+.no-models-text {
+  color: var(--text-muted);
+  font-size: calc(var(--font-size-base) * 0.875);
 }
 
 .slider {

@@ -7,14 +7,24 @@ import { Settings, SettingsIcon } from './components/Settings'
 
 export default function App() {
   const { messages, isConnected, isStreaming, sendMessage } = useChat()
-  const { settings, updateFontSize, resetSettings } = useSettings()
+  const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // Wrap sendMessage to include the selected model
+  const handleSendMessage = (content: string) => {
+    sendMessage(content, settings.model)
+  }
 
   return (
     <div className="app">
       <header className="header">
         <h1>Gobby</h1>
         <div className="header-actions">
+          {settings.model && (
+            <span className="model-indicator" title={`Using ${settings.model}`}>
+              {settings.model}
+            </span>
+          )}
           <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
@@ -30,14 +40,17 @@ export default function App() {
 
       <main className="chat-container">
         <ChatMessages messages={messages} isStreaming={isStreaming} />
-        <ChatInput onSend={sendMessage} disabled={!isConnected || isStreaming} />
+        <ChatInput onSend={handleSendMessage} disabled={!isConnected || isStreaming} />
       </main>
 
       <Settings
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         settings={settings}
+        modelInfo={modelInfo}
+        modelsLoading={modelsLoading}
         onFontSizeChange={updateFontSize}
+        onModelChange={updateModel}
         onReset={resetSettings}
       />
     </div>
