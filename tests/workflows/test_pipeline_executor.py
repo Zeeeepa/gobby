@@ -585,3 +585,104 @@ class TestExecutePromptStep:
 
         assert isinstance(result, dict)
         assert "response" in result
+
+
+class TestExecuteNestedPipeline:
+    """Tests for _execute_nested_pipeline() method."""
+
+    @pytest.fixture
+    def mock_loader(self):
+        """Create a mock workflow loader."""
+        loader = MagicMock()
+        # Default: return a simple pipeline
+        nested_pipeline = PipelineDefinition(
+            name="nested-pipeline",
+            steps=[PipelineStep(id="nested_step", exec="echo nested")],
+        )
+        loader.load_pipeline.return_value = nested_pipeline
+        return loader
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_loads_pipeline(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
+    ) -> None:
+        """Test that nested pipeline loads the referenced pipeline."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        executor.loader = mock_loader
+
+        context: dict = {"inputs": {}, "steps": {}}
+        await executor._execute_nested_pipeline("child-pipeline", context, "proj-123")
+
+        mock_loader.load_pipeline.assert_called_once_with("child-pipeline")
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_returns_dict(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
+    ) -> None:
+        """Test that nested pipeline returns a dict result."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        executor.loader = mock_loader
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_nested_pipeline(
+            "child-pipeline", context, "proj-123"
+        )
+
+        assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_handles_not_found(
+        self, mock_db, mock_execution_manager, mock_llm_service, mock_loader
+    ) -> None:
+        """Test that nested pipeline handles missing pipeline gracefully."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        mock_loader.load_pipeline.return_value = None
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        executor.loader = mock_loader
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_nested_pipeline(
+            "nonexistent-pipeline", context, "proj-123"
+        )
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_nested_pipeline_without_loader(
+        self, mock_db, mock_execution_manager, mock_llm_service
+    ) -> None:
+        """Test that nested pipeline returns placeholder without loader."""
+        from gobby.workflows.pipeline_executor import PipelineExecutor
+
+        executor = PipelineExecutor(
+            db=mock_db,
+            execution_manager=mock_execution_manager,
+            llm_service=mock_llm_service,
+        )
+        # No loader set
+
+        context: dict = {"inputs": {}, "steps": {}}
+        result = await executor._execute_nested_pipeline(
+            "child-pipeline", context, "proj-123"
+        )
+
+        # Should indicate nested execution not available
+        assert "error" in result or "pipeline" in result

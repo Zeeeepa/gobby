@@ -35,6 +35,7 @@ class PipelineExecutor:
         llm_service: Any,
         template_engine: TemplateEngine | None = None,
         webhook_notifier: Any | None = None,
+        loader: Any | None = None,
     ):
         """Initialize the pipeline executor.
 
@@ -44,12 +45,14 @@ class PipelineExecutor:
             llm_service: LLM service for prompt steps
             template_engine: Optional template engine for variable substitution
             webhook_notifier: Optional notifier for webhook callbacks
+            loader: Optional workflow loader for nested pipelines
         """
         self.db = db
         self.execution_manager = execution_manager
         self.llm_service = llm_service
         self.template_engine = template_engine
         self.webhook_notifier = webhook_notifier
+        self.loader = loader
 
     async def execute(
         self,
@@ -274,12 +277,48 @@ class PipelineExecutor:
         Returns:
             Dict with nested pipeline outputs
         """
-        # Placeholder - nested pipeline execution will be added
         logger.info(f"Invoking nested pipeline: {pipeline_name}")
-        return {
-            "pipeline": pipeline_name,
-            "status": "not_implemented",
-        }
+
+        # Check if loader is available
+        if not self.loader:
+            logger.warning("No loader configured for nested pipeline execution")
+            return {
+                "pipeline": pipeline_name,
+                "error": "No loader configured for nested pipeline execution",
+            }
+
+        try:
+            # Load the nested pipeline
+            nested_pipeline = self.loader.load_pipeline(pipeline_name)
+
+            if not nested_pipeline:
+                return {
+                    "pipeline": pipeline_name,
+                    "error": f"Pipeline '{pipeline_name}' not found",
+                }
+
+            # Execute the nested pipeline recursively
+            # Use inputs from context as the nested pipeline's inputs
+            nested_inputs = context.get("inputs", {})
+
+            result = await self.execute(
+                pipeline=nested_pipeline,
+                inputs=nested_inputs,
+                project_id=project_id,
+            )
+
+            return {
+                "pipeline": pipeline_name,
+                "execution_id": result.id,
+                "status": result.status.value,
+            }
+
+        except Exception as e:
+            logger.error(f"Nested pipeline execution failed: {e}", exc_info=True)
+            return {
+                "pipeline": pipeline_name,
+                "error": str(e),
+            }
 
     def _build_outputs(self, pipeline: Any, context: dict[str, Any]) -> dict[str, Any]:
         """Build pipeline outputs from context.
