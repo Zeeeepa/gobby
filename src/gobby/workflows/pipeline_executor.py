@@ -255,6 +255,8 @@ class PipelineExecutor:
         if not self.template_engine:
             return step
 
+        template_engine = self.template_engine
+
         import os
         import re
 
@@ -277,7 +279,7 @@ class PipelineExecutor:
             # But the requirement highlights ${{ }}.
             # If the user provides {{ }}, it will also be rendered by Jinja.
 
-            return self.template_engine.render(jinja_template, render_context)
+            return template_engine.render(jinja_template, render_context)
 
         # Create a copy of the step to avoid modifying the definition
         rendered_step = step.model_copy()
