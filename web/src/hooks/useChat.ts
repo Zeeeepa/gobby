@@ -48,12 +48,13 @@ export function useChat() {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    // In development, connect directly to daemon WebSocket port on the same host
-    // In production, use relative path through reverse proxy
-    const isDev = import.meta.env.DEV
-    const wsUrl = isDev
-      ? `ws://${window.location.hostname}:60888`
-      : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+    // Determine WebSocket URL based on context:
+    // - HTTPS (e.g., Tailscale Serve): use wss:// with /ws path
+    // - HTTP dev mode: connect directly to daemon port 60888
+    const isSecure = window.location.protocol === 'https:'
+    const wsUrl = isSecure
+      ? `wss://${window.location.host}/ws`
+      : `ws://${window.location.hostname}:60888`
 
     console.log('Connecting to WebSocket:', wsUrl)
     const ws = new WebSocket(wsUrl)
