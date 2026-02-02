@@ -88,6 +88,117 @@ class WorkflowDefinition(BaseModel):
         return None
 
 
+# --- Pipeline Definition Models (YAML) ---
+
+
+class WebhookEndpoint(BaseModel):
+    """Configuration for a webhook endpoint."""
+
+    url: str
+    method: str = "POST"
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
+class WebhookConfig(BaseModel):
+    """Webhook configuration for pipeline events."""
+
+    on_approval_pending: WebhookEndpoint | None = None
+    on_complete: WebhookEndpoint | None = None
+    on_failure: WebhookEndpoint | None = None
+
+
+class PipelineApproval(BaseModel):
+    """Approval gate configuration for a pipeline step."""
+
+    required: bool = False
+    message: str | None = None
+    timeout_seconds: int | None = None
+
+
+class PipelineStep(BaseModel):
+    """A single step in a pipeline workflow.
+
+    Steps must have exactly one execution type: exec, prompt, or invoke_pipeline.
+    """
+
+    id: str
+
+    # Execution types (mutually exclusive - exactly one required)
+    exec: str | None = None  # Shell command to run
+    prompt: str | None = None  # LLM prompt template
+    invoke_pipeline: str | None = None  # Name of pipeline to invoke
+
+    # Optional fields
+    condition: str | None = None  # Condition for step execution
+    approval: PipelineApproval | None = None  # Approval gate
+    tools: list[str] = Field(default_factory=list)  # Tool restrictions for prompt steps
+    input: str | None = None  # Explicit input reference (e.g., $prev_step.output)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Validate that exactly one execution type is specified."""
+        exec_types = [self.exec, self.prompt, self.invoke_pipeline]
+        specified = [t for t in exec_types if t is not None]
+
+        if len(specified) == 0:
+            raise ValueError(
+                "PipelineStep requires at least one execution type: exec, prompt, or invoke_pipeline"
+            )
+        if len(specified) > 1:
+            raise ValueError(
+                "PipelineStep exec, prompt, and invoke_pipeline are mutually exclusive - only one allowed"
+            )
+
+
+class PipelineDefinition(BaseModel):
+    """Definition for a pipeline workflow with typed data flow between steps.
+
+    Pipelines execute steps sequentially with explicit data flow via $step.output references.
+    """
+
+    name: str
+    description: str | None = None
+    version: str = "1.0"
+    type: Literal["pipeline"] = "pipeline"
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def coerce_version_to_string(cls, v: Any) -> str:
+        """Accept numeric versions (1.0, 2) and coerce to string."""
+        return str(v) if v is not None else "1.0"
+
+    # Input/output schema
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    outputs: dict[str, Any] = Field(default_factory=dict)
+
+    # Pipeline steps
+    steps: list[PipelineStep] = Field(default_factory=list)
+
+    # Webhook notifications
+    webhooks: WebhookConfig | None = None
+
+    @field_validator("steps", mode="after")
+    @classmethod
+    def validate_steps(cls, v: list[PipelineStep]) -> list[PipelineStep]:
+        """Validate pipeline steps."""
+        if len(v) == 0:
+            raise ValueError("Pipeline requires at least one step")
+
+        # Check for duplicate step IDs
+        ids = [step.id for step in v]
+        if len(ids) != len(set(ids)):
+            duplicates = [id for id in ids if ids.count(id) > 1]
+            raise ValueError(f"Pipeline step IDs must be unique. Duplicates: {set(duplicates)}")
+
+        return v
+
+    def get_step(self, step_id: str) -> PipelineStep | None:
+        """Get a step by its ID."""
+        for step in self.steps:
+            if step.id == step_id:
+                return step
+        return None
+
+
 # --- Workflow State Models (Runtime) ---
 
 
