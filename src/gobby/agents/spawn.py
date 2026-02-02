@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
@@ -366,6 +367,7 @@ def prepare_terminal_spawn(
     source: str = "claude",
     agent_id: str | None = None,
     workflow_name: str | None = None,
+    step_variables: dict[str, Any] | None = None,
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
@@ -408,6 +410,7 @@ def prepare_terminal_spawn(
         source=source,
         agent_id=agent_id,
         workflow_name=workflow_name,
+        step_variables=step_variables,
         title=title,
         git_branch=git_branch,
     )
@@ -460,6 +463,7 @@ async def prepare_gemini_spawn_with_preflight(
     machine_id: str,
     agent_id: str | None = None,
     workflow_name: str | None = None,
+    step_variables: dict[str, Any] | None = None,
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
@@ -512,6 +516,7 @@ async def prepare_gemini_spawn_with_preflight(
         source="gemini",
         agent_id=agent_id,
         workflow_name=workflow_name,
+        step_variables=step_variables,
         title=title,
         git_branch=git_branch,
         external_id=gemini_info.session_id,  # Link to Gemini's session
@@ -569,6 +574,7 @@ async def prepare_codex_spawn_with_preflight(
     machine_id: str,
     agent_id: str | None = None,
     workflow_name: str | None = None,
+    step_variables: dict[str, Any] | None = None,
     title: str | None = None,
     git_branch: str | None = None,
     prompt: str | None = None,
@@ -621,6 +627,7 @@ async def prepare_codex_spawn_with_preflight(
         source="codex",
         agent_id=agent_id,
         workflow_name=workflow_name,
+        step_variables=step_variables,
         title=title,
         git_branch=git_branch,
         external_id=codex_info.session_id,  # Link to Codex's session

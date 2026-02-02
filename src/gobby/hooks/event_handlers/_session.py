@@ -339,7 +339,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Auto-activate workflow if specified for this session
         if existing_session.workflow_name and session_id:
-            self._auto_activate_workflow(existing_session.workflow_name, session_id, cwd)
+            self._auto_activate_workflow(
+                existing_session.workflow_name,
+                session_id,
+                cwd,
+                variables=existing_session.step_variables,
+            )
 
         # Update event metadata
         event.metadata["_platform_session_id"] = session_id

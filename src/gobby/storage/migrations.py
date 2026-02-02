@@ -221,6 +221,7 @@ CREATE TABLE sessions (
     agent_depth INTEGER DEFAULT 0,
     spawned_by_agent_id TEXT,
     workflow_name TEXT,
+    step_variables TEXT,
     agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
     context_injected INTEGER DEFAULT 0,
     original_prompt TEXT,
@@ -817,6 +818,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX IF NOT EXISTS idx_step_executions_execution ON step_executions(execution_id);
         CREATE INDEX IF NOT EXISTS idx_step_executions_approval_token ON step_executions(approval_token);
         """,
+    ),
+    # Add step_variables JSON column to sessions for spawn-time variable passing
+    (
+        81,
+        "Add step_variables to sessions",
+        "ALTER TABLE sessions ADD COLUMN step_variables TEXT",
     ),
 ]
 

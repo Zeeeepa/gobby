@@ -48,6 +48,7 @@ class SpawnRequest:
 
     # Optional fields
     workflow: str | None = None
+    step_variables: dict[str, Any] | None = None  # Variables for step workflow activation
     worktree_id: str | None = None
     clone_id: str | None = None
     agent_depth: int = 0
@@ -249,6 +250,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         machine_id=request.machine_id or "unknown",
         source="gemini",
         workflow_name=request.workflow,
+        step_variables=request.step_variables,
         prompt=request.prompt,
         max_agent_depth=request.max_agent_depth,
     )
@@ -333,6 +335,7 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
             project_id=request.project_id,
             machine_id=request.machine_id or "unknown",
             workflow_name=request.workflow,
+            step_variables=request.step_variables,
             git_branch=None,  # Will be detected by hook
         )
     except FileNotFoundError as e:

@@ -250,7 +250,14 @@ async def spawn_agent_impl(
     session_id = str(uuid.uuid4())
     run_id = str(uuid.uuid4())
 
-    # 10. Execute spawn via SpawnExecutor
+    # 10. Build step_variables for workflow activation (e.g., assigned_task_id)
+    step_variables: dict[str, Any] | None = None
+    if resolved_task_id:
+        step_variables = {
+            "assigned_task_id": f"#{task_seq_num}" if task_seq_num else resolved_task_id
+        }
+
+    # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
         prompt=enhanced_prompt,
         cwd=isolation_ctx.cwd,
@@ -262,6 +269,7 @@ async def spawn_agent_impl(
         parent_session_id=parent_session_id,
         project_id=project_id,
         workflow=effective_workflow,
+        step_variables=step_variables,
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
         session_manager=runner._child_session_manager,

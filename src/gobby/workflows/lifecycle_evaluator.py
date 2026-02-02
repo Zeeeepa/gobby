@@ -239,8 +239,21 @@ async def evaluate_workflow_triggers(
     # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant)
     # Only save if we have a real session ID (not "global" fallback)
     # The workflow_states table has a FK to sessions, so we can't save for non-existent sessions
+    #
+    # IMPORTANT: Only save if this is a lifecycle-managed state, not a step workflow state.
+    # Step workflows (activated via activate_workflow) have their own workflow_name.
+    # We must not overwrite them with lifecycle trigger state, as that would lose
+    # variables like assigned_task_id set during activation.
     if session_id != "global":
-        state_manager.save_state(state)
+        # Re-fetch current state to check if it's a step workflow
+        current_state = state_manager.get_state(session_id)
+        is_step_workflow = (
+            current_state is not None
+            and current_state.workflow_name != "__lifecycle__"
+            and current_state.workflow_name != workflow.name
+        )
+        if not is_step_workflow:
+            state_manager.save_state(state)
 
     final_context = "\n\n".join(injected_context) if injected_context else None
     logger.debug(
@@ -595,6 +608,7 @@ async def evaluate_all_lifecycle_workflows(
                 )
             detect_task_claim_fn(event, state)
             detect_plan_mode_fn(event, state)
+            # Safe to save - we're updating variables on existing state, not changing workflow_name
             state_manager.save_state(state)
 
     # Detect plan mode from system reminders for BEFORE_AGENT events
@@ -610,6 +624,7 @@ async def evaluate_all_lifecycle_workflows(
                     step="",
                 )
             detect_plan_mode_from_context_fn(event, state)
+            # Safe to save - we're updating variables on existing state, not changing workflow_name
             state_manager.save_state(state)
 
     # Check for premature stop in active step workflows on STOP events
