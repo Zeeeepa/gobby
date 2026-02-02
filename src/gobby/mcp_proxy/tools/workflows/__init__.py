@@ -254,13 +254,20 @@ def create_workflows_registry(
         description=(
             "Close the current terminal window/pane (agent self-termination). "
             "Launches ~/.gobby/scripts/agent_shutdown.sh which handles "
-            "terminal-specific shutdown (tmux, iTerm, etc.). Rebuilds script if missing."
+            "terminal-specific shutdown (tmux, iTerm, etc.). Rebuilds script if missing. "
+            "Pass session_id to reliably target the correct terminal PID."
         ),
     )
     async def _close_terminal(
+        session_id: str | None = None,
         signal: str = "TERM",
         delay_ms: int = 0,
     ) -> dict[str, Any]:
-        return await close_terminal(signal, delay_ms)
+        return await close_terminal(
+            session_id=session_id,
+            session_manager=_session_manager,
+            signal=signal,
+            delay_ms=delay_ms,
+        )
 
     return registry
