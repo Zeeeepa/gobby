@@ -344,6 +344,8 @@ class WorkflowEngine:
             memory_sync_manager=self.action_executor.memory_sync_manager,
             task_sync_manager=self.action_executor.task_sync_manager,
             session_task_manager=self.action_executor.session_task_manager,
+            pipeline_executor=self.action_executor.pipeline_executor,
+            workflow_loader=self.action_executor.workflow_loader,
         )
 
         for action_def in actions:
