@@ -6,7 +6,7 @@ Workflows transform Gobby from a passive session tracker into an **enforcement l
 
 ## Workflow Types
 
-Gobby supports two types of workflows that can coexist:
+Gobby supports three types of workflows:
 
 ### Lifecycle Workflows
 
@@ -46,9 +46,30 @@ State machine workflows that enforce steps with tool restrictions, transition co
 - Plan-Act-Reflect
 - TDD (Test-Driven Development)
 
+### Pipeline Workflows
+
+Sequential execution workflows with typed data flow between steps, approval gates, and deterministic execution.
+
+**Characteristics:**
+
+- `type: pipeline`
+- Sequential step execution with `$step.output` data flow
+- Approval gates with resume tokens
+- Runs to completion or pauses at approval
+- Can be triggered from lifecycle/step workflows via `run_pipeline` action
+
+**Use cases:**
+
+- CI/CD automation
+- Deployment with approval gates
+- Data processing pipelines
+- Multi-agent orchestration
+
+See [Pipelines Guide](./pipelines.md) for complete documentation.
+
 ### Coexistence
 
-Lifecycle and step-based workflows run together:
+Lifecycle, step-based, and pipeline workflows work together:
 
 - The `session-handoff` lifecycle workflow is always active (by default)
 - You can activate ONE step-based workflow (like `plan-execute`) on top
