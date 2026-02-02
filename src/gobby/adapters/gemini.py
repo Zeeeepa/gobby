@@ -20,8 +20,6 @@ Key differences from Claude Code:
 - Different tool names (RunShellCommand vs Bash)
 """
 
-import platform
-import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -119,37 +117,6 @@ class GeminiAdapter(BaseAdapter):
                          If None, the adapter can only translate (not handle events).
         """
         self._hook_manager = hook_manager
-        # Cache machine_id since Gemini doesn't always send it
-        self._machine_id: str | None = None
-
-    def _get_machine_id(self) -> str:
-        """Get or generate a machine identifier.
-
-        Priority:
-        1. GOBBY_MACHINE_ID env var (set by spawn_executor for sandboxed agents)
-        2. platform.node() based UUID (hostname/MAC address)
-        3. Random UUID fallback
-
-        Returns:
-            A stable machine identifier.
-        """
-        import os
-
-        if self._machine_id is None:
-            # Check env var first (for sandboxed agents spawned by Gobby)
-            env_machine_id = os.environ.get("GOBBY_MACHINE_ID")
-            if env_machine_id:
-                self._machine_id = env_machine_id
-            else:
-                # Use platform.node() which returns hostname or MAC-based ID
-                node = platform.node()
-                if node:
-                    # Create a deterministic UUID from the node name
-                    self._machine_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, node))
-                else:
-                    # Fallback to a random UUID (less ideal but works)
-                    self._machine_id = str(uuid.uuid4())
-        return self._machine_id
 
     def normalize_tool_name(self, gemini_tool_name: str) -> str:
         """Normalize Gemini tool name to standard format.
@@ -263,8 +230,8 @@ class GeminiAdapter(BaseAdapter):
         else:
             timestamp = datetime.now(UTC)
 
-        # Get machine_id (Gemini might not send it)
-        machine_id = input_data.get("machine_id") or self._get_machine_id()
+        # Get machine_id from payload (base adapter injects daemon's ID if missing)
+        machine_id = input_data.get("machine_id")
 
         # Normalize tool name if present (for tool-related hooks)
         if "tool_name" in input_data:

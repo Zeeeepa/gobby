@@ -13,8 +13,6 @@ from __future__ import annotations
 import glob as glob_module
 import logging
 import os
-import platform
-import uuid
 from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -40,46 +38,15 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-def _get_machine_id() -> str:
-    """Get or generate a stable machine identifier.
+def _get_daemon_machine_id() -> str | None:
+    """Get machine ID from the daemon's centralized utility.
 
-    Priority:
-    1. Hostname (if available)
-    2. MAC address (if real, not random)
-    3. Persisted UUID file (created on first run)
+    This adapter runs in the daemon process, so we use the centralized
+    machine_id management from utils.machine_id.
     """
-    from pathlib import Path
+    from gobby.utils.machine_id import get_machine_id
 
-    # Try hostname first
-    node = platform.node()
-    if node:
-        return str(uuid.uuid5(uuid.NAMESPACE_DNS, node))
-
-    # Try MAC address - getnode() returns random value with multicast bit set if unavailable
-    mac = uuid.getnode()
-    # Check if MAC is real (multicast bit / bit 0 of first octet is 0)
-    if not (mac >> 40) & 1:
-        return str(uuid.uuid5(uuid.NAMESPACE_DNS, str(mac)))
-
-    # Fall back to persisted ID file for stability across restarts
-    machine_id_file = Path.home() / ".gobby" / ".machine_id"
-    try:
-        if machine_id_file.exists():
-            stored_id = machine_id_file.read_text().strip()
-            if stored_id:
-                return stored_id
-    except OSError:
-        pass  # Fall through to generate new ID
-
-    # Generate and persist a new ID
-    new_id = str(uuid.uuid4())
-    try:
-        machine_id_file.parent.mkdir(parents=True, exist_ok=True)
-        machine_id_file.write_text(new_id)
-    except OSError:
-        pass  # Use the generated ID even if we can't persist it
-
-    return new_id
+    return get_machine_id()
 
 
 # =============================================================================
@@ -163,7 +130,6 @@ class CodexAdapter(BaseAdapter):
         """
         self._hook_manager = hook_manager
         self._codex_client: CodexAppServerClient | None = None
-        self._machine_id: str | None = None
         self._attached = False
 
     @staticmethod
@@ -177,11 +143,9 @@ class CodexAdapter(BaseAdapter):
 
         return shutil.which("codex") is not None
 
-    def _get_machine_id(self) -> str:
-        """Get or generate a machine identifier."""
-        if self._machine_id is None:
-            self._machine_id = _get_machine_id()
-        return self._machine_id
+    def _get_machine_id(self) -> str | None:
+        """Get machine ID from daemon's centralized utility."""
+        return _get_daemon_machine_id()
 
     def normalize_tool_name(self, codex_tool_name: str) -> str:
         """Normalize Codex tool name to canonical CC-style format.
@@ -532,16 +496,13 @@ class CodexNotifyAdapter(BaseAdapter):
             max_seen_threads: Max threads to track (default 1000). Oldest evicted when full.
         """
         self._hook_manager = hook_manager
-        self._machine_id: str | None = None
         # Track threads we've seen using LRU cache to avoid unbounded growth
         self._max_seen_threads = max_seen_threads or self.DEFAULT_MAX_SEEN_THREADS
         self._seen_threads: OrderedDict[str, bool] = OrderedDict()
 
-    def _get_machine_id(self) -> str:
-        """Get or generate a machine identifier."""
-        if self._machine_id is None:
-            self._machine_id = _get_machine_id()
-        return self._machine_id
+    def _get_machine_id(self) -> str | None:
+        """Get machine ID from daemon's centralized utility."""
+        return _get_daemon_machine_id()
 
     def _mark_thread_seen(self, thread_id: str) -> None:
         """Mark a thread as seen, evicting oldest if cache is full.
@@ -716,7 +677,6 @@ class CodexNotifyAdapter(BaseAdapter):
 
 
 __all__ = [
-    "_get_machine_id",
     "CodexAdapter",
     "CodexNotifyAdapter",
 ]

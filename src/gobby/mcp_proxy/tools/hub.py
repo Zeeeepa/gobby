@@ -54,13 +54,6 @@ def create_hub_registry(
             return None
         return LocalDatabase(hub_db_path)
 
-    def _get_machine_id_from_file() -> str | None:
-        """Read machine_id from ~/.gobby/machine_id if it exists."""
-        machine_id_path = Path.home() / ".gobby" / "machine_id"
-        if machine_id_path.exists():
-            return machine_id_path.read_text().strip()
-        return None
-
     @registry.tool(
         name="get_machine_id",
         description="Get the daemon's machine identifier. Use this from sandboxed agents that cannot read ~/.gobby/machine_id directly.",
@@ -69,38 +62,25 @@ def create_hub_registry(
         """
         Get the machine identifier used by this Gobby daemon.
 
-        The machine_id is stored in ~/.gobby/machine_id and is used to
-        identify sessions from this machine. Sandboxed agents can call
-        this tool to get the correct machine_id instead of generating
-        a different one.
+        The machine_id is stored in ~/.gobby/machine_id and is generated
+        once on first daemon run. This tool provides read-only access to
+        the daemon's authoritative machine_id.
 
         Returns:
-            Dict with machine_id or error.
+            Dict with machine_id or error if not found.
         """
-        import platform
-        import uuid
+        from gobby.utils.machine_id import get_machine_id as _get_machine_id
 
-        machine_id = _get_machine_id_from_file()
+        machine_id = _get_machine_id()
         if machine_id:
             return {
                 "success": True,
                 "machine_id": machine_id,
-                "source": "file",
-            }
-
-        # Fallback: generate from hostname (same logic as adapters)
-        node = platform.node()
-        if node:
-            machine_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, node))
-            return {
-                "success": True,
-                "machine_id": machine_id,
-                "source": "hostname",
             }
 
         return {
             "success": False,
-            "error": "Could not determine machine_id",
+            "error": "machine_id not found - daemon may not have initialized properly",
         }
 
     @registry.tool(
