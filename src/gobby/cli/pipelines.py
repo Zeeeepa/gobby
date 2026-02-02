@@ -190,7 +190,7 @@ def show_pipeline(ctx: click.Context, name: str, json_format: bool) -> None:
 
 
 @pipelines.command("run")
-@click.argument("name")
+@click.argument("name", required=False)
 @click.option(
     "-i",
     "--input",
@@ -198,24 +198,53 @@ def show_pipeline(ctx: click.Context, name: str, json_format: bool) -> None:
     multiple=True,
     help="Input values as key=value (can be repeated)",
 )
+@click.option(
+    "--lobster",
+    "lobster_path",
+    type=click.Path(exists=True),
+    help="Run a Lobster file directly without saving",
+)
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
-def run_pipeline(ctx: click.Context, name: str, inputs: tuple[str, ...], json_format: bool) -> None:
-    """Run a pipeline by name.
+def run_pipeline(
+    ctx: click.Context,
+    name: str | None,
+    inputs: tuple[str, ...],
+    lobster_path: str | None,
+    json_format: bool,
+) -> None:
+    """Run a pipeline by name or Lobster file.
 
     Examples:
 
         gobby pipelines run deploy
 
         gobby pipelines run deploy -i env=prod -i version=1.0
-    """
-    loader = get_workflow_loader()
 
-    # Load the pipeline
-    pipeline = loader.load_pipeline(name)
-    if not pipeline:
-        click.echo(f"Pipeline '{name}' not found.", err=True)
-        raise SystemExit(1)
+        gobby pipelines run --lobster ci.lobster
+    """
+    # Handle --lobster flag: import and run directly without saving
+    if lobster_path:
+        importer = LobsterImporter()
+        try:
+            pipeline = importer.import_file(lobster_path)
+        except FileNotFoundError:
+            click.echo(f"File not found: {lobster_path}", err=True)
+            raise SystemExit(1) from None
+        except Exception as e:
+            click.echo(f"Failed to import Lobster file: {e}", err=True)
+            raise SystemExit(1) from None
+    else:
+        # Standard mode: load by name
+        if not name:
+            click.echo("Pipeline name is required (or use --lobster).", err=True)
+            raise SystemExit(1)
+
+        loader = get_workflow_loader()
+        pipeline = loader.load_pipeline(name)
+        if not pipeline:
+            click.echo(f"Pipeline '{name}' not found.", err=True)
+            raise SystemExit(1)
 
     # Parse inputs
     input_dict: dict[str, str] = {}
