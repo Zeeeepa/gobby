@@ -697,8 +697,8 @@ class WorkflowLoader:
             if isinstance(cached, (WorkflowDefinition, PipelineDefinition)):
                 return cached
 
-        # Ensure name is set in data
-        if "name" not in data:
+        # Ensure name is set in data (handle both missing and None)
+        if "name" not in data or data.get("name") is None:
             data["name"] = name
 
         # Create definition based on type
