@@ -108,7 +108,7 @@ Creates `.gobby/project.json`.
 Install Gobby hooks to AI coding CLIs and Git.
 
 ```bash
-gobby install [--claude] [--gemini] [--codex] [--all]
+gobby install [OPTIONS]
 ```
 
 | Option | Description |
@@ -116,17 +116,41 @@ gobby install [--claude] [--gemini] [--codex] [--all]
 | `--claude` | Install Claude Code hooks only |
 | `--gemini` | Install Gemini CLI hooks only |
 | `--codex` | Configure Codex notify integration |
+| `--cursor` | Install Cursor hooks only |
+| `--windsurf` | Install Windsurf hooks only |
+| `--copilot` | Install GitHub Copilot hooks only |
 | `--all` | Install to all detected CLIs (default) |
 
-Also installs Git hooks for task sync (pre-commit, post-merge, post-checkout).
+Auto-detects installed CLIs and installs appropriate hooks. Also installs Git hooks for task sync (pre-commit, post-merge, post-checkout).
+
+**What gets installed:**
+
+| CLI | Hook Location | Config File |
+|-----|--------------|-------------|
+| Claude Code | `.claude/hooks/` | `.claude/settings.json` |
+| Gemini CLI | `.gemini/hooks/` | `.gemini/settings.json` |
+| Codex | - | `~/.codex/config.toml` |
+| Cursor | `.cursor/hooks/` | `.cursor/hooks.json` |
+| Windsurf | `.windsurf/hooks/` | `.windsurf/hooks.json` |
+| Copilot | `.copilot/hooks/` | `.copilot/hooks.json` |
 
 ### `gobby uninstall`
 
 Remove Gobby hooks from AI coding CLIs.
 
 ```bash
-gobby uninstall [--claude] [--gemini] [--codex] [--all]
+gobby uninstall [OPTIONS]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--claude` | Remove Claude Code hooks only |
+| `--gemini` | Remove Gemini CLI hooks only |
+| `--codex` | Remove Codex integration |
+| `--cursor` | Remove Cursor hooks only |
+| `--windsurf` | Remove Windsurf hooks only |
+| `--copilot` | Remove GitHub Copilot hooks only |
+| `--all` | Remove from all CLIs (default) |
 
 ### `gobby mcp-server`
 
