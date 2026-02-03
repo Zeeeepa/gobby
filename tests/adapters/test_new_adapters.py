@@ -372,7 +372,11 @@ class TestWindsurfAdapter:
 
 
 class TestCursorAdapter:
-    """Tests for CursorAdapter (documented stub)."""
+    """Tests for CursorAdapter hook translation.
+
+    Cursor uses camelCase event names and a hooks system very similar to Claude Code.
+    See: https://cursor.com/docs/agent/hooks
+    """
 
     def test_source(self) -> None:
         """CursorAdapter reports CURSOR as source."""
@@ -380,100 +384,235 @@ class TestCursorAdapter:
         assert adapter.source == SessionSource.CURSOR
 
     def test_has_documentation(self) -> None:
-        """Module has comprehensive documentation about NDJSON architecture."""
+        """Module has comprehensive documentation about Cursor hooks system."""
         import gobby.adapters.cursor as cursor_module
 
         docstring = cursor_module.__doc__
         assert docstring is not None
-        assert "NDJSON" in docstring
-        assert "streaming" in docstring.lower()
-        assert "Future Integration Options" in docstring
+        assert "camelCase" in docstring
+        assert "hooks.json" in docstring
+        assert "https://cursor.com/docs/agent/hooks" in docstring
 
-    def test_event_map_ndjson_started(self) -> None:
-        """Maps tool_call:started to BEFORE_TOOL."""
+    # Event mapping tests - session lifecycle
+    def test_event_map_session_start(self) -> None:
+        """Maps sessionStart to SESSION_START."""
         adapter = CursorAdapter()
-        assert adapter.EVENT_MAP["tool_call:started"] == HookEventType.BEFORE_TOOL
+        assert adapter.EVENT_MAP["sessionStart"] == HookEventType.SESSION_START
 
-    def test_event_map_ndjson_completed(self) -> None:
-        """Maps tool_call:completed to AFTER_TOOL."""
+    def test_event_map_session_end(self) -> None:
+        """Maps sessionEnd to SESSION_END."""
         adapter = CursorAdapter()
-        assert adapter.EVENT_MAP["tool_call:completed"] == HookEventType.AFTER_TOOL
+        assert adapter.EVENT_MAP["sessionEnd"] == HookEventType.SESSION_END
 
-    def test_event_map_standard_hooks(self) -> None:
-        """Has fallback mappings for standard hook names."""
+    # Event mapping tests - tool lifecycle
+    def test_event_map_pre_tool_use(self) -> None:
+        """Maps preToolUse to BEFORE_TOOL."""
         adapter = CursorAdapter()
-        assert adapter.EVENT_MAP["session-start"] == HookEventType.SESSION_START
-        assert adapter.EVENT_MAP["pre-tool-use"] == HookEventType.BEFORE_TOOL
+        assert adapter.EVENT_MAP["preToolUse"] == HookEventType.BEFORE_TOOL
 
-    def test_translate_ndjson_format(self) -> None:
-        """Translates NDJSON tool_call format."""
+    def test_event_map_post_tool_use(self) -> None:
+        """Maps postToolUse to AFTER_TOOL."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["postToolUse"] == HookEventType.AFTER_TOOL
+
+    def test_event_map_post_tool_use_failure(self) -> None:
+        """Maps postToolUseFailure to AFTER_TOOL."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["postToolUseFailure"] == HookEventType.AFTER_TOOL
+
+    # Event mapping tests - granular hooks
+    def test_event_map_shell_hooks(self) -> None:
+        """Maps shell execution hooks to BEFORE/AFTER_TOOL."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["beforeShellExecution"] == HookEventType.BEFORE_TOOL
+        assert adapter.EVENT_MAP["afterShellExecution"] == HookEventType.AFTER_TOOL
+
+    def test_event_map_mcp_hooks(self) -> None:
+        """Maps MCP execution hooks to BEFORE/AFTER_TOOL."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["beforeMCPExecution"] == HookEventType.BEFORE_TOOL
+        assert adapter.EVENT_MAP["afterMCPExecution"] == HookEventType.AFTER_TOOL
+
+    def test_event_map_file_hooks(self) -> None:
+        """Maps file operation hooks to BEFORE/AFTER_TOOL."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["beforeReadFile"] == HookEventType.BEFORE_TOOL
+        assert adapter.EVENT_MAP["afterFileEdit"] == HookEventType.AFTER_TOOL
+
+    def test_event_map_subagent_hooks(self) -> None:
+        """Maps subagent lifecycle hooks."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["subagentStart"] == HookEventType.SUBAGENT_START
+        assert adapter.EVENT_MAP["subagentStop"] == HookEventType.SUBAGENT_STOP
+
+    def test_event_map_other_hooks(self) -> None:
+        """Maps other hooks (prompt, compact, stop)."""
+        adapter = CursorAdapter()
+        assert adapter.EVENT_MAP["beforeSubmitPrompt"] == HookEventType.BEFORE_AGENT
+        assert adapter.EVENT_MAP["preCompact"] == HookEventType.PRE_COMPACT
+        assert adapter.EVENT_MAP["stop"] == HookEventType.STOP
+
+    # HOOK_TO_TOOL_TYPE mapping tests
+    def test_hook_to_tool_type_shell(self) -> None:
+        """Shell hooks map to Bash tool type."""
+        adapter = CursorAdapter()
+        assert adapter.HOOK_TO_TOOL_TYPE["beforeShellExecution"] == "Bash"
+        assert adapter.HOOK_TO_TOOL_TYPE["afterShellExecution"] == "Bash"
+
+    def test_hook_to_tool_type_mcp(self) -> None:
+        """MCP hooks map to mcp_call tool type."""
+        adapter = CursorAdapter()
+        assert adapter.HOOK_TO_TOOL_TYPE["beforeMCPExecution"] == "mcp_call"
+        assert adapter.HOOK_TO_TOOL_TYPE["afterMCPExecution"] == "mcp_call"
+
+    def test_hook_to_tool_type_file(self) -> None:
+        """File hooks map to Read/Edit tool types."""
+        adapter = CursorAdapter()
+        assert adapter.HOOK_TO_TOOL_TYPE["beforeReadFile"] == "Read"
+        assert adapter.HOOK_TO_TOOL_TYPE["afterFileEdit"] == "Edit"
+
+    # Translation tests - to HookEvent
+    def test_translate_pre_tool_use(self) -> None:
+        """Translates preToolUse event correctly."""
         adapter = CursorAdapter()
         native_event = {
-            "type": "tool_call",
-            "subtype": "started",
-            "call_id": "abc123",
-            "tool_call": {
-                "name": "read_file",
-                "arguments": {"path": "/file.py"},
+            "hook_type": "preToolUse",
+            "input_data": {
+                "session_id": "cursor-session-123",
+                "tool_name": "Shell",
+                "tool_input": {"command": "npm install"},
+                "tool_use_id": "xyz789",
+                "cwd": "/path/to/project",
             },
         }
         hook_event = adapter.translate_to_hook_event(native_event)
         assert hook_event.event_type == HookEventType.BEFORE_TOOL
-        assert hook_event.data["tool_name"] == "Read"
-        assert hook_event.data["tool_input"] == {"path": "/file.py"}
+        assert hook_event.source == SessionSource.CURSOR
+        assert hook_event.session_id == "cursor-session-123"
+        assert hook_event.data["tool_name"] == "Shell"
+        assert hook_event.data["tool_input"] == {"command": "npm install"}
+        assert hook_event.cwd == "/path/to/project"
 
-    def test_translate_ndjson_completed(self) -> None:
-        """Translates NDJSON completed event with result."""
+    def test_translate_shell_execution(self) -> None:
+        """Translates beforeShellExecution with tool_type metadata."""
         adapter = CursorAdapter()
         native_event = {
-            "type": "tool_call",
-            "subtype": "completed",
-            "call_id": "abc123",
-            "tool_call": {
-                "name": "read_file",
-                "arguments": {"path": "/file.py"},
-                "result": "file contents",
+            "hook_type": "beforeShellExecution",
+            "input_data": {
+                "session_id": "test-session",
+                "command": "git status",
+                "cwd": "/project",
+            },
+        }
+        hook_event = adapter.translate_to_hook_event(native_event)
+        assert hook_event.event_type == HookEventType.BEFORE_TOOL
+        assert hook_event.metadata.get("tool_type") == "Bash"
+        # Tool name inferred from hook type
+        assert hook_event.data["tool_name"] == "Bash"
+
+    def test_translate_mcp_execution(self) -> None:
+        """Translates beforeMCPExecution with MCP info extraction."""
+        adapter = CursorAdapter()
+        native_event = {
+            "hook_type": "beforeMCPExecution",
+            "input_data": {
+                "session_id": "test-session",
+                "tool_input": {
+                    "server_name": "gobby",
+                    "tool_name": "create_task",
+                },
+            },
+        }
+        hook_event = adapter.translate_to_hook_event(native_event)
+        assert hook_event.event_type == HookEventType.BEFORE_TOOL
+        assert hook_event.metadata.get("tool_type") == "mcp_call"
+        assert hook_event.data["mcp_server"] == "gobby"
+        assert hook_event.data["mcp_tool"] == "create_task"
+
+    def test_translate_failure_flag(self) -> None:
+        """postToolUseFailure sets is_failure metadata."""
+        adapter = CursorAdapter()
+        native_event = {
+            "hook_type": "postToolUseFailure",
+            "input_data": {
+                "session_id": "test-session",
+                "tool_name": "Shell",
+                "tool_result": "Error: command failed",
             },
         }
         hook_event = adapter.translate_to_hook_event(native_event)
         assert hook_event.event_type == HookEventType.AFTER_TOOL
-        assert hook_event.data["tool_output"] == "file contents"
+        assert hook_event.metadata.get("is_failure") is True
+        assert hook_event.data["tool_output"] == "Error: command failed"
 
-    def test_translate_standard_format(self) -> None:
-        """Also handles standard hook format (for future compatibility)."""
+    def test_translate_unknown_hook_type(self) -> None:
+        """Unknown hook types map to NOTIFICATION (fail-open)."""
         adapter = CursorAdapter()
         native_event = {
-            "hook_type": "pre-tool-use",
-            "input_data": {
-                "session_id": "test-session",
-                "tool_name": "Read",
-            },
+            "hook_type": "unknownHookType",
+            "input_data": {"session_id": "test"},
         }
         hook_event = adapter.translate_to_hook_event(native_event)
-        assert hook_event.event_type == HookEventType.BEFORE_TOOL
-        assert hook_event.session_id == "test-session"
+        assert hook_event.event_type == HookEventType.NOTIFICATION
 
-    def test_response_minimal_format(self) -> None:
-        """Response uses minimal allow/reason format."""
+    # Response translation tests
+    def test_response_pre_tool_use_allow(self) -> None:
+        """preToolUse response uses decision: allow/deny format."""
         adapter = CursorAdapter()
         response = HookResponse(decision="allow")
-        result = adapter.translate_from_hook_response(response)
-        assert result["allow"] is True
+        result = adapter.translate_from_hook_response(response, hook_type="preToolUse")
+        assert result["decision"] == "allow"
 
-    def test_response_deny(self) -> None:
-        """Response allow=False for deny decision."""
+    def test_response_pre_tool_use_deny(self) -> None:
+        """preToolUse deny response includes reason."""
         adapter = CursorAdapter()
-        response = HookResponse(decision="deny", reason="Blocked")
-        result = adapter.translate_from_hook_response(response)
-        assert result["allow"] is False
-        assert result["reason"] == "Blocked"
+        response = HookResponse(decision="deny", reason="Blocked by policy")
+        result = adapter.translate_from_hook_response(response, hook_type="preToolUse")
+        assert result["decision"] == "deny"
+        assert result["reason"] == "Blocked by policy"
 
-    def test_tool_map_normalization(self) -> None:
-        """TOOL_MAP normalizes Cursor tool names."""
+    def test_response_permission_hooks(self) -> None:
+        """Permission hooks use permission: allow/deny format."""
         adapter = CursorAdapter()
-        assert adapter.TOOL_MAP["read_file"] == "Read"
-        assert adapter.TOOL_MAP["write_file"] == "Write"
-        assert adapter.TOOL_MAP["run_command"] == "Bash"
+        response = HookResponse(decision="allow", context="Shell approved")
+        result = adapter.translate_from_hook_response(response, hook_type="beforeShellExecution")
+        assert result["permission"] == "allow"
+        assert result["agent_message"] == "Shell approved"
+
+    def test_response_permission_deny(self) -> None:
+        """Permission deny includes user_message."""
+        adapter = CursorAdapter()
+        response = HookResponse(decision="deny", reason="Command not allowed")
+        result = adapter.translate_from_hook_response(response, hook_type="beforeShellExecution")
+        assert result["permission"] == "deny"
+        assert result["user_message"] == "Command not allowed"
+
+    def test_response_session_start(self) -> None:
+        """sessionStart response uses continue: true/false format."""
+        adapter = CursorAdapter()
+        response = HookResponse(
+            decision="allow",
+            context="Welcome to Gobby",
+            metadata={"session_id": "abc123", "session_ref": "#100"},
+        )
+        result = adapter.translate_from_hook_response(response, hook_type="sessionStart")
+        assert result["continue"] is True
+        assert "Welcome to Gobby" in result["additional_context"]
+        assert "#100" in result["additional_context"]
+
+    def test_response_stop_hook(self) -> None:
+        """stop hook response uses followup_message."""
+        adapter = CursorAdapter()
+        response = HookResponse(decision="allow", context="Continue with next task")
+        result = adapter.translate_from_hook_response(response, hook_type="stop")
+        assert result["followup_message"] == "Continue with next task"
+
+    def test_response_context_to_agent_message(self) -> None:
+        """Context is added to agent_message for tool hooks."""
+        adapter = CursorAdapter()
+        response = HookResponse(decision="allow", context="Additional context here")
+        result = adapter.translate_from_hook_response(response, hook_type="postToolUse")
+        assert result["agent_message"] == "Additional context here"
 
 
 # =============================================================================
@@ -543,17 +682,18 @@ class TestAdapterRoundTrips:
         assert "Edit recorded" in result["context"]
 
     def test_cursor_round_trip(self) -> None:
-        """CursorAdapter translates NDJSON event and response."""
+        """CursorAdapter translates hook event and response correctly."""
         adapter = CursorAdapter()
 
-        # Input event (NDJSON format)
+        # Input event (Cursor hooks format - camelCase)
         native_event = {
-            "type": "tool_call",
-            "subtype": "started",
-            "call_id": "cursor-call-789",
-            "tool_call": {
-                "name": "shell",
-                "arguments": {"command": "npm test"},
+            "hook_type": "preToolUse",
+            "input_data": {
+                "session_id": "cursor-session-789",
+                "cwd": "/projects/myapp",
+                "tool_name": "Shell",
+                "tool_input": {"command": "npm test"},
+                "tool_use_id": "abc123",
             },
         }
 
@@ -561,9 +701,11 @@ class TestAdapterRoundTrips:
         hook_event = adapter.translate_to_hook_event(native_event)
         assert hook_event.event_type == HookEventType.BEFORE_TOOL
         assert hook_event.source == SessionSource.CURSOR
-        assert hook_event.data["tool_name"] == "Bash"
+        assert hook_event.session_id == "cursor-session-789"
+        assert hook_event.data["tool_name"] == "Shell"
 
         # Translate response back
-        response = HookResponse(decision="allow")
-        result = adapter.translate_from_hook_response(response)
-        assert result["allow"] is True
+        response = HookResponse(decision="allow", context="Approved by workflow")
+        result = adapter.translate_from_hook_response(response, hook_type="preToolUse")
+        assert result["decision"] == "allow"
+        assert result["agent_message"] == "Approved by workflow"

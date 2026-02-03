@@ -1,33 +1,37 @@
 """Cursor adapter for hook translation.
 
-IMPORTANT: Cursor uses a fundamentally different architecture than other CLIs.
+This adapter translates between Cursor's native hook format and the unified
+HookEvent/HookResponse models.
 
-Cursor Architecture:
-- Uses NDJSON streaming output, NOT hook interception
-- Tool calls are streamed as JSON objects with type/subtype markers
-- No hook dispatcher or permission system like Claude Code/Copilot
+Cursor Hook Types (17 total):
+- sessionStart, sessionEnd: Session lifecycle
+- beforeSubmitPrompt: Before user prompt validation
+- preToolUse, postToolUse, postToolUseFailure: Generic tool lifecycle
+- beforeShellExecution, afterShellExecution: Shell-specific hooks
+- beforeMCPExecution, afterMCPExecution: MCP tool hooks
+- beforeReadFile, afterFileEdit: File operation hooks
+- preCompact: Context compaction
+- stop: Agent stops
+- subagentStart, subagentStop: Subagent lifecycle
+- beforeTabFileRead, afterTabFileEdit: Tab completion hooks
 
-Example Cursor NDJSON output:
-```json
-{"type":"tool_call","subtype":"started","call_id":"abc123","tool_call":{"name":"Read","arguments":{"path":"/file.py"}}}
-{"type":"tool_call","subtype":"completed","call_id":"abc123","tool_call":{"name":"Read","result":"..."}}
-{"type":"message","content":"Here's the file content..."}
-```
+Cursor Config Format (.cursor/hooks.json):
+{
+    "version": 1,
+    "hooks": {
+        "preToolUse": [{"command": "./script.sh", "matcher": {...}}],
+        ...
+    }
+}
 
-Current Status:
-- This adapter is a STUB that provides minimal functionality
-- It can track sessions if hook events are somehow forwarded to it
-- Full integration would require a stream parser wrapper
+Key Differences from Claude Code:
+- Uses camelCase event names (not kebab-case)
+- Response uses decision: "allow"/"deny" (not "approve"/"block")
+- Has more granular file/shell/MCP hooks
+- Config requires "version": 1 field
+- Loads Claude Code hooks from .claude/settings.json as fallback
 
-Future Integration Options:
-1. Stream Parser: Wrap Cursor's output stream and parse NDJSON events
-2. Wrapper Script: Use a shell wrapper that intercepts and forwards events
-3. Native Support: Wait for Cursor to add hook support
-
-For now, this adapter:
-- Reports CURSOR as source for session differentiation
-- Provides minimal event mapping for any events that arrive
-- Returns pass-through allow responses
+Documentation: https://cursor.com/docs/agent/hooks
 """
 
 from datetime import UTC, datetime
@@ -41,118 +45,119 @@ if TYPE_CHECKING:
 
 
 class CursorAdapter(BaseAdapter):
-    """Stub adapter for Cursor CLI.
+    """Adapter for Cursor CLI hook translation.
 
-    Cursor uses NDJSON streaming rather than hook interception, so this adapter
-    provides minimal functionality for potential future integration.
+    This adapter:
+    1. Translates Cursor's camelCase hook payloads to unified HookEvent
+    2. Translates HookResponse back to Cursor's expected format
+    3. Calls HookManager.handle() with unified HookEvent model
 
-    See module docstring for architecture details and integration options.
+    Cursor's hooks system is very similar to Claude Code but uses camelCase
+    event names and has additional granular hooks for file/shell/MCP operations.
     """
 
     source = SessionSource.CURSOR
 
-    # Minimal event mapping for any events that might be forwarded
-    # These map Cursor's NDJSON type/subtype patterns to unified events
+    # Event type mapping: Cursor hook names -> unified HookEventType
+    # Cursor uses camelCase hook names in the payload's "hook_type" field
     EVENT_MAP: dict[str, HookEventType] = {
-        # NDJSON type markers (if translated by a wrapper)
-        "tool_call:started": HookEventType.BEFORE_TOOL,
-        "tool_call:completed": HookEventType.AFTER_TOOL,
-        "message": HookEventType.NOTIFICATION,
-        "error": HookEventType.NOTIFICATION,
-        # Standard hook names (if Cursor adds hook support)
-        "session-start": HookEventType.SESSION_START,
-        "session-end": HookEventType.SESSION_END,
-        "pre-tool-use": HookEventType.BEFORE_TOOL,
-        "post-tool-use": HookEventType.AFTER_TOOL,
+        # Session lifecycle
+        "sessionStart": HookEventType.SESSION_START,
+        "sessionEnd": HookEventType.SESSION_END,
+        # Prompt submission
+        "beforeSubmitPrompt": HookEventType.BEFORE_AGENT,
+        # Generic tool hooks
+        "preToolUse": HookEventType.BEFORE_TOOL,
+        "postToolUse": HookEventType.AFTER_TOOL,
+        "postToolUseFailure": HookEventType.AFTER_TOOL,  # Same as AFTER_TOOL with error flag
+        # Shell-specific hooks (map to generic BEFORE/AFTER_TOOL with tool_type)
+        "beforeShellExecution": HookEventType.BEFORE_TOOL,
+        "afterShellExecution": HookEventType.AFTER_TOOL,
+        # MCP-specific hooks
+        "beforeMCPExecution": HookEventType.BEFORE_TOOL,
+        "afterMCPExecution": HookEventType.AFTER_TOOL,
+        # File-specific hooks
+        "beforeReadFile": HookEventType.BEFORE_TOOL,
+        "afterFileEdit": HookEventType.AFTER_TOOL,
+        # Compaction and stop
+        "preCompact": HookEventType.PRE_COMPACT,
+        "stop": HookEventType.STOP,
+        # Subagent lifecycle
+        "subagentStart": HookEventType.SUBAGENT_START,
+        "subagentStop": HookEventType.SUBAGENT_STOP,
+        # Tab completion hooks (treated as tool events)
+        "beforeTabFileRead": HookEventType.BEFORE_TOOL,
+        "afterTabFileEdit": HookEventType.AFTER_TOOL,
+        # Response hooks (informational)
+        "afterAgentResponse": HookEventType.NOTIFICATION,
+        "afterAgentThought": HookEventType.NOTIFICATION,
     }
 
-    # Map NDJSON tool names to normalized names
-    TOOL_MAP: dict[str, str] = {
-        "read_file": "Read",
-        "write_file": "Write",
-        "edit_file": "Edit",
-        "run_command": "Bash",
-        "shell": "Bash",
+    # Map Cursor-specific hook types to their tool_type
+    # This helps downstream code identify what kind of tool is being used
+    HOOK_TO_TOOL_TYPE: dict[str, str] = {
+        "beforeShellExecution": "Bash",
+        "afterShellExecution": "Bash",
+        "beforeMCPExecution": "mcp_call",
+        "afterMCPExecution": "mcp_call",
+        "beforeReadFile": "Read",
+        "afterFileEdit": "Edit",
+        "beforeTabFileRead": "Read",
+        "afterTabFileEdit": "Edit",
     }
 
     def __init__(self, hook_manager: "HookManager | None" = None):
         """Initialize the Cursor adapter.
 
         Args:
-            hook_manager: Reference to HookManager for handling events.
+            hook_manager: Reference to HookManager for delegation.
                          If None, the adapter can only translate (not handle events).
         """
         self._hook_manager = hook_manager
 
-    def _normalize_event_data(self, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Normalize Cursor event data for CLI-agnostic processing.
-
-        Cursor NDJSON has a different structure than hook-based CLIs:
-        - tool_call.name -> tool_name
-        - tool_call.arguments -> tool_input
-        - tool_call.result -> tool_output
-
-        Args:
-            input_data: Raw input data (either from NDJSON wrapper or direct)
-
-        Returns:
-            Enriched data dict with normalized fields added
-        """
-        data = dict(input_data)
-
-        # Handle NDJSON tool_call structure
-        tool_call = data.get("tool_call", {})
-        if tool_call:
-            if "tool_name" not in data:
-                raw_name = tool_call.get("name", "")
-                data["tool_name"] = self.TOOL_MAP.get(raw_name, raw_name)
-            if "tool_input" not in data:
-                data["tool_input"] = tool_call.get("arguments", {})
-            if "tool_output" not in data and "result" in tool_call:
-                data["tool_output"] = tool_call["result"]
-
-        return data
-
     def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent:
         """Convert Cursor native event to unified HookEvent.
 
-        Cursor events could arrive in two formats:
-        1. NDJSON format (from stream parser wrapper):
-           {"type": "tool_call", "subtype": "started", "call_id": "...", "tool_call": {...}}
-        2. Standard hook format (if Cursor adds hook support):
-           {"hook_type": "pre-tool-use", "input_data": {...}}
+        Cursor payloads have the structure:
+        {
+            "hook_type": "preToolUse",  # camelCase hook name
+            "input_data": {
+                "session_id": "abc123",
+                "tool_name": "Shell",
+                "tool_input": {"command": "npm install"},
+                "tool_use_id": "xyz789",
+                "cwd": "/path/to/project",
+                "model": "claude-sonnet-4-20250514",
+                "agent_message": "Installing dependencies..."
+            }
+        }
 
         Args:
-            native_event: Raw payload (format depends on integration method)
+            native_event: Raw payload from Cursor's hook dispatcher
 
         Returns:
             Unified HookEvent with normalized fields.
         """
-        # Try standard hook format first
         hook_type = native_event.get("hook_type", "")
         input_data = native_event.get("input_data", {})
 
-        # If not standard format, try NDJSON format
-        if not hook_type:
-            ndjson_type = native_event.get("type", "")
-            ndjson_subtype = native_event.get("subtype", "")
-            if ndjson_type:
-                # Combine type:subtype for event mapping
-                hook_type = f"{ndjson_type}:{ndjson_subtype}" if ndjson_subtype else ndjson_type
-                input_data = native_event  # NDJSON is flat, not nested
-
-        # Map to unified event type
+        # Map Cursor hook type to unified event type
+        # Fall back to NOTIFICATION for unknown types (fail-open)
         event_type = self.EVENT_MAP.get(hook_type, HookEventType.NOTIFICATION)
 
-        # Extract session_id (could be in various places)
-        session_id = (
-            input_data.get("session_id", "")
-            or native_event.get("session_id", "")
-            or native_event.get("call_id", "")  # NDJSON uses call_id
-        )
+        # Extract session_id
+        session_id = input_data.get("session_id", "")
 
-        # Normalize event data
-        normalized_data = self._normalize_event_data(input_data)
+        # Check for failure flag in postToolUseFailure
+        is_failure = hook_type == "postToolUseFailure"
+        metadata: dict[str, Any] = {"is_failure": is_failure} if is_failure else {}
+
+        # Add tool_type for specific hooks
+        if hook_type in self.HOOK_TO_TOOL_TYPE:
+            metadata["tool_type"] = self.HOOK_TO_TOOL_TYPE[hook_type]
+
+        # Normalize event data for CLI-agnostic processing
+        normalized_data = self._normalize_event_data(input_data, hook_type)
 
         return HookEvent(
             event_type=event_type,
@@ -162,38 +167,188 @@ class CursorAdapter(BaseAdapter):
             machine_id=input_data.get("machine_id"),
             cwd=input_data.get("cwd"),
             data=normalized_data,
-            metadata={},
+            metadata=metadata,
         )
+
+    def _normalize_event_data(
+        self, input_data: dict[str, Any], hook_type: str = ""
+    ) -> dict[str, Any]:
+        """Normalize Cursor event data for CLI-agnostic processing.
+
+        This method enriches the input_data with normalized fields so downstream
+        code doesn't need to handle Cursor-specific formats.
+
+        Normalizations performed:
+        1. tool_input.server_name/tool_name → mcp_server/mcp_tool (for MCP calls)
+        2. Infer tool_name from hook_type for specific hooks
+
+        Args:
+            input_data: Raw input data from Cursor
+            hook_type: The hook type (used to infer tool_name for specific hooks)
+
+        Returns:
+            Enriched data dict with normalized fields added
+        """
+        # Start with a copy to avoid mutating original
+        data = dict(input_data)
+
+        # Get tool info
+        tool_name = data.get("tool_name", "")
+        tool_input = data.get("tool_input", {}) or {}
+
+        # Infer tool_name from hook type for specific hooks
+        if not tool_name and hook_type in self.HOOK_TO_TOOL_TYPE:
+            data["tool_name"] = self.HOOK_TO_TOOL_TYPE[hook_type]
+
+        # Extract MCP info from nested tool_input for MCP calls
+        if hook_type in ("beforeMCPExecution", "afterMCPExecution") or tool_name in (
+            "call_tool",
+            "mcp__gobby__call_tool",
+        ):
+            if "mcp_server" not in data:
+                data["mcp_server"] = tool_input.get("server_name")
+            if "mcp_tool" not in data:
+                data["mcp_tool"] = tool_input.get("tool_name")
+
+        # Normalize tool_result → tool_output
+        if "tool_result" in data and "tool_output" not in data:
+            data["tool_output"] = data["tool_result"]
+
+        return data
+
+    # Map Cursor hook types to hookEventName for hookSpecificOutput
+    HOOK_EVENT_NAME_MAP: dict[str, str] = {
+        "sessionStart": "SessionStart",
+        "sessionEnd": "SessionEnd",
+        "beforeSubmitPrompt": "UserPromptSubmit",
+        "preToolUse": "PreToolUse",
+        "postToolUse": "PostToolUse",
+        "postToolUseFailure": "PostToolUse",
+        "beforeShellExecution": "PreToolUse",
+        "afterShellExecution": "PostToolUse",
+        "beforeMCPExecution": "PreToolUse",
+        "afterMCPExecution": "PostToolUse",
+        "beforeReadFile": "PreToolUse",
+        "afterFileEdit": "PostToolUse",
+        "preCompact": "PreCompact",
+        "stop": "Stop",
+        "subagentStart": "SubagentStart",
+        "subagentStop": "SubagentStop",
+        "beforeTabFileRead": "PreToolUse",
+        "afterTabFileEdit": "PostToolUse",
+        "afterAgentResponse": "Notification",
+        "afterAgentThought": "Notification",
+    }
 
     def translate_from_hook_response(
         self, response: HookResponse, hook_type: str | None = None
     ) -> dict[str, Any]:
         """Convert HookResponse to Cursor's expected format.
 
-        Since Cursor doesn't use hooks natively, this returns a minimal response
-        that could be used by a wrapper script or future hook support.
+        Cursor expects responses in this format:
+        {
+            "decision": "allow"/"deny",       # Tool decision
+            "reason": "...",                  # Reason if denied (optional)
+            "updated_input": {...},           # Modified tool input (optional)
+            "user_message": "...",            # Message to show user (optional)
+            "agent_message": "...",           # Message to send to model (optional)
+            "permission": "allow"/"deny"/"ask",  # For permission hooks
+            "followup_message": "...",        # Auto-submit message (for stop hook)
+            "env": {...},                     # Environment variables (sessionStart)
+            "additional_context": "...",      # Context injection (sessionStart)
+            "continue": true/false            # Whether to continue (sessionStart)
+        }
 
         Args:
             response: Unified HookResponse from HookManager.
-            hook_type: Original event type (for logging/debugging)
+            hook_type: Original Cursor hook type (e.g., "preToolUse")
+                      Used to determine response format.
 
         Returns:
-            Minimal response dict.
+            Dict in Cursor's expected format.
         """
-        # Cursor doesn't have a defined response format for hooks
-        # Return a minimal structure that could be parsed by a wrapper
-        result: dict[str, Any] = {
-            "allow": response.decision not in ("deny", "block"),
-        }
+        # Determine response format based on hook type
+        hook_type = hook_type or ""
 
-        if response.reason:
-            result["reason"] = response.reason
+        # Base decision - Cursor uses "allow"/"deny"
+        should_allow = response.decision not in ("deny", "block")
 
-        if response.context:
-            result["context"] = response.context
+        result: dict[str, Any] = {}
 
+        # Permission-based hooks (beforeShellExecution, beforeReadFile, etc.)
+        if hook_type in (
+            "beforeShellExecution",
+            "beforeReadFile",
+            "beforeMCPExecution",
+        ):
+            result["permission"] = "allow" if should_allow else "deny"
+            if response.reason:
+                result["user_message"] = response.reason
+            if response.context:
+                result["agent_message"] = response.context
+
+        # Decision hooks (preToolUse, subagentStart)
+        elif hook_type in ("preToolUse", "subagentStart"):
+            result["decision"] = "allow" if should_allow else "deny"
+            if response.reason:
+                result["reason"] = response.reason
+
+        # Continuation hooks (stop, subagentStop)
+        elif hook_type in ("stop", "subagentStop"):
+            if response.context:
+                result["followup_message"] = response.context
+
+        # Session hooks (sessionStart)
+        elif hook_type == "sessionStart":
+            result["continue"] = should_allow
+            if response.reason:
+                result["user_message"] = response.reason
+
+            # Build additional_context from response context and metadata
+            additional_context_parts: list[str] = []
+            if response.context:
+                additional_context_parts.append(response.context)
+
+            # Add session identifiers from metadata
+            if response.metadata:
+                gobby_session_id = response.metadata.get("session_id")
+                session_ref = response.metadata.get("session_ref")
+                external_id = response.metadata.get("external_id")
+
+                if gobby_session_id:
+                    context_lines = []
+                    if session_ref:
+                        context_lines.append(
+                            f"Gobby Session ID: {session_ref} (or {gobby_session_id})"
+                        )
+                    else:
+                        context_lines.append(f"Gobby Session ID: {gobby_session_id}")
+                    if external_id:
+                        context_lines.append(
+                            f"CLI-Specific Session ID (external_id): {external_id}"
+                        )
+                    if response.metadata.get("machine_id"):
+                        context_lines.append(f"machine_id: {response.metadata['machine_id']}")
+                    if response.metadata.get("project_id"):
+                        context_lines.append(f"project_id: {response.metadata['project_id']}")
+                    additional_context_parts.append("\n".join(context_lines))
+
+            if additional_context_parts:
+                result["additional_context"] = "\n\n".join(additional_context_parts)
+
+        # Default format for other hooks
+        else:
+            result["decision"] = "allow" if should_allow else "deny"
+            if response.reason:
+                result["reason"] = response.reason
+
+        # Add context to agent_message for tool hooks if not already set
+        if response.context and "agent_message" not in result:
+            result["agent_message"] = response.context
+
+        # Add system_message if present
         if response.system_message:
-            result["message"] = response.system_message
+            result["user_message"] = response.system_message
 
         return result
 
@@ -202,19 +357,17 @@ class CursorAdapter(BaseAdapter):
     ) -> dict[str, Any]:
         """Main entry point for HTTP endpoint.
 
-        Since Cursor uses NDJSON streaming, this method is primarily for:
-        1. Testing the adapter
-        2. Future hook support if Cursor adds it
-        3. Events forwarded by a wrapper script
-
         Args:
-            native_event: Raw payload
+            native_event: Raw payload from Cursor's hook dispatcher
             hook_manager: HookManager instance for processing.
 
         Returns:
-            Response dict (minimal format).
+            Response dict in Cursor's expected format.
         """
+        # Translate to HookEvent
         hook_event = self.translate_to_hook_event(native_event)
-        hook_type = native_event.get("hook_type") or native_event.get("type", "")
+
+        # Use HookEvent-based handler
+        hook_type = native_event.get("hook_type", "")
         hook_response = hook_manager.handle(hook_event)
         return self.translate_from_hook_response(hook_response, hook_type=hook_type)
