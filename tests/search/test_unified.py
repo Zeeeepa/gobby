@@ -17,6 +17,7 @@ from gobby.search import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestSearchConfig:
     """Tests for SearchConfig."""
 

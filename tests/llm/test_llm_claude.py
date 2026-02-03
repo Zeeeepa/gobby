@@ -10,6 +10,7 @@ from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 
 pytestmark = pytest.mark.unit
 
+
 # Define mock classes for claude_agent_sdk
 class MockAssistantMessage:
     def __init__(self, content):

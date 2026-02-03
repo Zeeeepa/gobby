@@ -14,6 +14,7 @@ from gobby.workflows.definitions import WorkflowState
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     """Create a mock database."""
@@ -262,7 +263,9 @@ class TestBlockSessionTaskModification:
         assert "warning" in result
         assert "DEPRECATED" in result["warning"]
 
-    def test_allows_session_task_modification_with_no_state(self, registry, mock_state_manager) -> None:
+    def test_allows_session_task_modification_with_no_state(
+        self, registry, mock_state_manager
+    ) -> None:
         """Can set session_task when no workflow state exists."""
         mock_state_manager.get_state.return_value = None
 

@@ -9,6 +9,7 @@ from gobby.workflows.engine import WorkflowEngine
 
 pytestmark = pytest.mark.unit
 
+
 def make_event(
     event_type: HookEventType = HookEventType.BEFORE_TOOL,
     session_id: str = "test-session",

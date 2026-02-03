@@ -11,6 +11,7 @@ from gobby.mcp_proxy.manager import MCPServerConfig
 
 pytestmark = pytest.mark.unit
 
+
 class TestMCPConfigManagerInit:
     """Tests for MCPConfigManager initialization."""
 

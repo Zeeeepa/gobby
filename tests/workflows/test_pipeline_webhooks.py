@@ -111,8 +111,14 @@ class TestNotifyApprovalPending:
             assert payload["message"] == "Approve deployment to production?"
             assert "approve_url" in payload
             assert "reject_url" in payload
-            assert payload["approve_url"] == "https://gobby.local/api/pipelines/approve/approval-token-123"
-            assert payload["reject_url"] == "https://gobby.local/api/pipelines/reject/approval-token-123"
+            assert (
+                payload["approve_url"]
+                == "https://gobby.local/api/pipelines/approve/approval-token-123"
+            )
+            assert (
+                payload["reject_url"]
+                == "https://gobby.local/api/pipelines/reject/approval-token-123"
+            )
 
     @pytest.mark.asyncio
     async def test_expands_env_vars_in_headers(
@@ -284,7 +290,9 @@ class TestWebhookErrors:
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=MagicMock(status_code=500, text="Server Error"))
+            mock_client.post = AsyncMock(
+                return_value=MagicMock(status_code=500, text="Server Error")
+            )
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_class.return_value = mock_client

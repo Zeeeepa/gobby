@@ -10,6 +10,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestTokenTracker:
     """Tests for TokenTracker class."""
 

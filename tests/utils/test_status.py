@@ -7,6 +7,7 @@ from gobby.utils.status import fetch_rich_status, format_status_message
 
 pytestmark = pytest.mark.unit
 
+
 class TestStatusUtils:
     @patch("httpx.get")
     def test_fetch_rich_status_success(self, mock_get) -> None:

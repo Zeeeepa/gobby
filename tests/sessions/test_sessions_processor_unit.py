@@ -16,6 +16,7 @@ from gobby.sessions.transcripts.base import ParsedMessage
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     """Create a mock database."""

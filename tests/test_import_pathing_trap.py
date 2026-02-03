@@ -8,6 +8,7 @@ import gobby.runner
 
 pytestmark = pytest.mark.unit
 
+
 def test_import_pathing_trap_is_fixed(protect_production_resources) -> None:
     """
     Verify that the protect_production_resources fixture successfully patches

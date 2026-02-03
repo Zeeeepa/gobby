@@ -8,6 +8,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path):
     path = tmp_path / "test.db"

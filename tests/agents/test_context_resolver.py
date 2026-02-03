@@ -14,6 +14,7 @@ from gobby.agents.context import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_session_manager():
     """Create a mock session manager."""

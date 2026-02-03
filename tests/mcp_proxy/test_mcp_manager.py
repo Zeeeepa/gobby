@@ -17,6 +17,7 @@ from gobby.mcp_proxy.manager import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestMCPServerConfig:
     """Tests for MCPServerConfig dataclass."""
 

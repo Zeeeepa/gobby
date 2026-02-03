@@ -8,6 +8,7 @@ from gobby.workflows.definitions import WorkflowState
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def runner():
     return CliRunner()

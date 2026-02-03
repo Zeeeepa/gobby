@@ -108,7 +108,9 @@ class TestWorktreeCreation:
         assert worktree.task_id is None
         assert worktree.agent_session_id is None
 
-    def test_create_worktree_with_all_fields(self, worktree_manager, project, session, task) -> None:
+    def test_create_worktree_with_all_fields(
+        self, worktree_manager, project, session, task
+    ) -> None:
         """Create a worktree with all optional fields."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -289,7 +291,9 @@ class TestWorktreeListing:
         worktrees = worktree_manager.list_worktrees(limit=2)
         assert len(worktrees) == 2
 
-    def test_list_combined_filters(self, worktree_manager, project, session, setup_worktrees) -> None:
+    def test_list_combined_filters(
+        self, worktree_manager, project, session, setup_worktrees
+    ) -> None:
         """List worktrees with multiple filters."""
         worktrees = worktree_manager.list_worktrees(
             project_id=project.id,
@@ -302,7 +306,9 @@ class TestWorktreeListing:
 class TestWorktreeStatusTransitions:
     """Integration tests for worktree status transitions."""
 
-    def test_claim_and_release(self, worktree_manager, project, session_manager, project_manager) -> None:
+    def test_claim_and_release(
+        self, worktree_manager, project, session_manager, project_manager
+    ) -> None:
         """Test claiming and releasing a worktree."""
         # Create a fresh project and session for this test
         proj = project_manager.create(
@@ -396,7 +402,9 @@ class TestWorktreeStatusTransitions:
         retrieved = worktree_manager.get(worktree.id)
         assert retrieved.status == WorktreeStatus.ABANDONED.value
 
-    def test_full_lifecycle(self, worktree_manager, project, session_manager, project_manager) -> None:
+    def test_full_lifecycle(
+        self, worktree_manager, project, session_manager, project_manager
+    ) -> None:
         """Test complete worktree lifecycle: active → claimed → released → merged."""
         # Create a fresh project and session for this test
         proj = project_manager.create(

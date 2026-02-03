@@ -12,6 +12,7 @@ from gobby.storage.database import LocalDatabase
 
 pytestmark = pytest.mark.unit
 
+
 class TestInterSessionMessageDataclass:
     """TDD tests for InterSessionMessage dataclass."""
 

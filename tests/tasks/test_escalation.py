@@ -13,6 +13,7 @@ from gobby.tasks.escalation import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     """Create a mock task manager."""
@@ -133,7 +134,9 @@ class TestEscalationManager:
         assert call_kwargs["escalated_at"] is None
         assert call_kwargs["escalation_reason"] is None
 
-    def test_de_escalate_clears_escalation_fields(self, escalation_manager, mock_task_manager) -> None:
+    def test_de_escalate_clears_escalation_fields(
+        self, escalation_manager, mock_task_manager
+    ) -> None:
         """Test that de_escalate clears escalation metadata."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -149,7 +152,9 @@ class TestEscalationManager:
         assert call_kwargs["escalated_at"] is None
         assert call_kwargs["escalation_reason"] is None
 
-    def test_de_escalate_raises_if_not_escalated(self, escalation_manager, mock_task_manager) -> None:
+    def test_de_escalate_raises_if_not_escalated(
+        self, escalation_manager, mock_task_manager
+    ) -> None:
         """Test that de_escalate raises if task is not escalated."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
@@ -218,7 +223,9 @@ class TestGenerateEscalationSummary:
         assert len(summary.recurring_issues) == 1
         assert summary.recurring_issues[0]["title"] == "Test failure"
 
-    def test_summary_as_markdown(self, escalation_manager, mock_task_manager, mock_history_manager) -> None:
+    def test_summary_as_markdown(
+        self, escalation_manager, mock_task_manager, mock_history_manager
+    ) -> None:
         """Test that summary can be rendered as markdown."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"

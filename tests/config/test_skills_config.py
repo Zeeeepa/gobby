@@ -5,6 +5,7 @@ from gobby.config.skills import HubConfig, SkillsConfig
 
 pytestmark = pytest.mark.unit
 
+
 class TestHubConfig:
     def test_hub_config_valid_clawdhub(self) -> None:
         """Test that 'clawdhub' is a valid type."""
@@ -69,9 +70,7 @@ class TestSkillsConfigHubs:
     def test_hubs_single_hub(self) -> None:
         """Test parsing a single hub config."""
         config = SkillsConfig(
-            hubs={
-                "clawdhub": HubConfig(type="clawdhub", base_url="https://clawdhub.com")
-            }
+            hubs={"clawdhub": HubConfig(type="clawdhub", base_url="https://clawdhub.com")}
         )
         assert len(config.hubs) == 1
         assert "clawdhub" in config.hubs

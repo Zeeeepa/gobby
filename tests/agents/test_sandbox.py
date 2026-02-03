@@ -19,6 +19,7 @@ from gobby.agents.sandbox import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.mark.unit
 class TestSandboxConfig:
     """Tests for SandboxConfig Pydantic model."""

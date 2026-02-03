@@ -8,6 +8,7 @@ from gobby.utils.validation import TaskValidator
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def manager(temp_db):
     return LocalTaskManager(temp_db)

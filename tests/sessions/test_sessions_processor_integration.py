@@ -9,6 +9,7 @@ from gobby.storage.database import LocalDatabase
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db(tmp_path) -> LocalDatabase:
     # Use file-based DB for tests (in-memory doesn't work with asyncio.to_thread

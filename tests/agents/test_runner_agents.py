@@ -11,6 +11,7 @@ from gobby.agents.runner import AgentConfig, AgentRunner
 
 pytestmark = pytest.mark.unit
 
+
 class TestAgentRunnerDefinitions:
     """Tests for named agent definition support in AgentRunner."""
 

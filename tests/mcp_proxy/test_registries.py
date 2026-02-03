@@ -6,6 +6,7 @@ from gobby.mcp_proxy.registries import setup_internal_registries
 
 pytestmark = pytest.mark.unit
 
+
 def test_setup_internal_registries_with_merge() -> None:
     merge_storage = MagicMock()
     merge_resolver = MagicMock()

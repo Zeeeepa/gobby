@@ -184,7 +184,9 @@ class TestToolFilteringWithRealWorkflows:
         assert len(result) == 3
         assert result == tools
 
-    def test_filtering_with_allowed_list(self, filter_service, state_manager, session_factory) -> None:
+    def test_filtering_with_allowed_list(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Tools are filtered to allowed list when workflow active."""
         # Create session first (FK constraint)
         session = session_factory("allowed")
@@ -220,7 +222,9 @@ class TestToolFilteringWithRealWorkflows:
         assert "write" not in names
         assert "bash" not in names
 
-    def test_filtering_with_blocked_list(self, filter_service, state_manager, session_factory) -> None:
+    def test_filtering_with_blocked_list(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Blocked tools are removed even when all tools allowed."""
         session = session_factory("blocked")
 
@@ -284,7 +288,9 @@ class TestToolFilteringWithRealWorkflows:
         assert "read_file" in names
         assert "write_plan" in names
 
-    def test_no_filtering_with_open_workflow(self, filter_service, state_manager, session_factory) -> None:
+    def test_no_filtering_with_open_workflow(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Open workflow allows all tools."""
         session = session_factory("open")
 
@@ -319,7 +325,9 @@ class TestIsToolAllowedWithRealWorkflows:
         assert allowed is True
         assert reason is None
 
-    def test_tool_allowed_in_allowed_list(self, filter_service, state_manager, session_factory) -> None:
+    def test_tool_allowed_in_allowed_list(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Tool in allowed list is permitted."""
         session = session_factory("check")
 
@@ -367,7 +375,9 @@ class TestIsToolAllowedWithRealWorkflows:
         assert allowed is False
         assert "blocked" in reason.lower()
 
-    def test_tool_allowed_when_all_allowed(self, filter_service, state_manager, session_factory) -> None:
+    def test_tool_allowed_when_all_allowed(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Any non-blocked tool is allowed when allowed_tools is 'all'."""
         session = session_factory("check4")
 
@@ -414,7 +424,9 @@ class TestGetStepRestrictionsWithRealWorkflows:
         assert "read_file" in result["allowed_tools"]
         assert result["blocked_tools"] == []
 
-    def test_returns_all_for_open_step(self, filter_service, state_manager, session_factory) -> None:
+    def test_returns_all_for_open_step(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Returns 'all' for allowed_tools when step allows all."""
         session = session_factory("open-step")
 
@@ -434,7 +446,9 @@ class TestGetStepRestrictionsWithRealWorkflows:
 class TestFilterServersToolsWithRealWorkflows:
     """Tests for filter_servers_tools with real workflows."""
 
-    def test_filters_across_multiple_servers(self, filter_service, state_manager, session_factory) -> None:
+    def test_filters_across_multiple_servers(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Filters tools across multiple servers correctly."""
         session = session_factory("multi")
 
@@ -570,7 +584,9 @@ class TestMultipleSessions:
         result2 = filter_service.filter_tools(tools, session_id=session2.id)
         assert len(result2) == 3
 
-    def test_sessions_with_different_steps(self, filter_service, state_manager, session_factory) -> None:
+    def test_sessions_with_different_steps(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Same workflow but different steps have different filtering."""
         session_disc = session_factory("disc")
         session_exec = session_factory("exec")
@@ -669,7 +685,9 @@ class TestEdgeCases:
 
         assert result is None
 
-    def test_nonexistent_step_returns_none(self, filter_service, state_manager, session_factory) -> None:
+    def test_nonexistent_step_returns_none(
+        self, filter_service, state_manager, session_factory
+    ) -> None:
         """Nonexistent step in workflow returns None restrictions."""
         session = session_factory("bad-step")
 

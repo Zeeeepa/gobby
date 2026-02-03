@@ -203,7 +203,7 @@ def get_sandbox_resolver(cli: str) -> SandboxResolver:
     Factory function to get the appropriate sandbox resolver for a CLI.
 
     Args:
-        cli: The CLI name ("claude", "codex", or "gemini")
+        cli: The CLI name ("claude", "codex", "gemini", "cursor", "windsurf", or "copilot")
 
     Returns:
         The appropriate SandboxResolver subclass instance.
@@ -215,6 +215,9 @@ def get_sandbox_resolver(cli: str) -> SandboxResolver:
         "claude": ClaudeSandboxResolver,
         "codex": CodexSandboxResolver,
         "gemini": GeminiSandboxResolver,
+        "cursor": ClaudeSandboxResolver,
+        "windsurf": ClaudeSandboxResolver,
+        "copilot": ClaudeSandboxResolver,
     }
 
     if cli not in resolvers:

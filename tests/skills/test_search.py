@@ -7,6 +7,7 @@ from gobby.storage.skills import Skill
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def sample_skills():
     """Create sample skills for testing."""

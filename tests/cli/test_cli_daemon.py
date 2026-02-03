@@ -20,6 +20,7 @@ from gobby.cli import cli
 
 pytestmark = pytest.mark.unit
 
+
 class TestStartCommand:
     """Tests for the 'start' command."""
 

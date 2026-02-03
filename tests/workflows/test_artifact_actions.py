@@ -15,6 +15,7 @@ from gobby.workflows.definitions import WorkflowState
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def workflow_state():
     """Create a fresh WorkflowState for testing."""
@@ -56,7 +57,9 @@ class TestCaptureArtifact:
         result = capture_artifact(workflow_state, pattern="")
         assert result is None
 
-    def test_capture_artifact_returns_none_when_no_match(self, workflow_state, temp_artifact_dir) -> None:
+    def test_capture_artifact_returns_none_when_no_match(
+        self, workflow_state, temp_artifact_dir
+    ) -> None:
         """Should return None when glob pattern doesn't match any files."""
         # Use a pattern that won't match anything
         result = capture_artifact(
@@ -104,7 +107,9 @@ class TestCaptureArtifact:
         assert "captured" in result
         # Should find files in nested directories too
 
-    def test_capture_artifact_saves_to_state_with_save_as(self, workflow_state, temp_artifact_dir) -> None:
+    def test_capture_artifact_saves_to_state_with_save_as(
+        self, workflow_state, temp_artifact_dir
+    ) -> None:
         """Should save artifact path to state.artifacts when save_as is provided."""
         pattern = str(temp_artifact_dir / "plan.md")
         result = capture_artifact(
@@ -147,7 +152,9 @@ class TestCaptureArtifact:
         assert result is not None
         assert workflow_state.artifacts == original_artifacts
 
-    def test_capture_artifact_returns_absolute_path(self, workflow_state, temp_artifact_dir) -> None:
+    def test_capture_artifact_returns_absolute_path(
+        self, workflow_state, temp_artifact_dir
+    ) -> None:
         """Should return absolute file path."""
         pattern = str(temp_artifact_dir / "plan.md")
         result = capture_artifact(workflow_state, pattern=pattern)
@@ -297,7 +304,9 @@ class TestReadArtifact:
         assert workflow_state.variables is not None
         assert "plan_content" in workflow_state.variables
 
-    def test_read_artifact_handles_binary_content_with_replace(self, workflow_state, tmp_path) -> None:
+    def test_read_artifact_handles_binary_content_with_replace(
+        self, workflow_state, tmp_path
+    ) -> None:
         """Should handle non-UTF8 content with error replacement."""
         # Create a file with invalid UTF-8 bytes
         binary_file = tmp_path / "binary.bin"
@@ -328,7 +337,9 @@ class TestReadArtifact:
         # Reading a directory should fail
         assert result is None
 
-    def test_read_artifact_artifact_key_takes_precedence(self, workflow_state, temp_artifact_dir) -> None:
+    def test_read_artifact_artifact_key_takes_precedence(
+        self, workflow_state, temp_artifact_dir
+    ) -> None:
         """Artifact key lookup should take precedence over glob pattern."""
         # Store a file path under an artifact key that looks like a glob pattern
         # The key "*.txt" should be treated as a literal key, not a glob
@@ -478,7 +489,9 @@ class TestIntegrationCaptureAndRead:
 class TestEdgeCases:
     """Edge case tests for artifact actions."""
 
-    def test_capture_artifact_special_characters_in_filename(self, workflow_state, tmp_path) -> None:
+    def test_capture_artifact_special_characters_in_filename(
+        self, workflow_state, tmp_path
+    ) -> None:
         """Should handle filenames with special characters."""
         special_file = tmp_path / "file with spaces & symbols.txt"
         special_file.write_text("Special content")

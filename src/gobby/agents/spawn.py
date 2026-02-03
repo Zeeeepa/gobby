@@ -240,7 +240,7 @@ class TerminalSpawner:
         Spawn a CLI agent in a new terminal with Gobby environment variables.
 
         Args:
-            cli: CLI to run (e.g., "claude", "gemini", "codex")
+            cli: CLI to run (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot")
             cwd: Working directory (usually project root or worktree)
             session_id: Pre-created child session ID
             parent_session_id: Parent session for context resolution
@@ -386,7 +386,7 @@ def prepare_terminal_spawn(
         parent_session_id: Parent session ID
         project_id: Project ID
         machine_id: Machine ID
-        source: CLI source (claude, gemini, codex)
+        source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
         agent_id: Optional agent ID
         workflow_name: Optional workflow to activate
         title: Optional session title

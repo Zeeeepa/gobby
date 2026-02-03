@@ -8,6 +8,7 @@ from gobby.utils.daemon_client import DaemonClient
 
 pytestmark = pytest.mark.unit
 
+
 class TestDaemonClientInit:
     """Tests for DaemonClient initialization."""
 

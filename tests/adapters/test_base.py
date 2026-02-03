@@ -358,7 +358,9 @@ class TestHandleNative:
 
             assert result["decision"] == decision
 
-    def test_handle_native_preserves_native_event(self, sample_hook_event, mock_hook_manager) -> None:
+    def test_handle_native_preserves_native_event(
+        self, sample_hook_event, mock_hook_manager
+    ) -> None:
         """handle_native passes native event unchanged to translate."""
         received_events = []
 

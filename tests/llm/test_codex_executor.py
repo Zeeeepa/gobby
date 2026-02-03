@@ -15,6 +15,7 @@ from gobby.llm.executor import ToolSchema
 
 pytestmark = pytest.mark.unit
 
+
 class TestCodexExecutorInit:
     """Tests for CodexExecutor initialization."""
 

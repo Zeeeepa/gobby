@@ -11,6 +11,7 @@ from gobby.tools.summarizer import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestSummarizeTools:
     """Tests for summarize_tools function."""
 

@@ -3,6 +3,7 @@
 Tests for extract_conflict_hunks function that parses Git conflict markers
 and extracts conflict regions with context windowing.
 """
+
 import pytest
 
 pytestmark = pytest.mark.unit

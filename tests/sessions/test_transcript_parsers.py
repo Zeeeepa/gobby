@@ -15,6 +15,7 @@ from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
 pytestmark = pytest.mark.unit
 
+
 class TestParsedMessage:
     """Tests for ParsedMessage dataclass."""
 

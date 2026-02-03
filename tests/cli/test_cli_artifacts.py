@@ -19,6 +19,7 @@ from gobby.cli import cli
 
 pytestmark = pytest.mark.unit
 
+
 def get_artifacts_module():
     """Import the artifacts CLI module when it exists."""
     try:

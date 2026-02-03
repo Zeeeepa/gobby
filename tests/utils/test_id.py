@@ -6,6 +6,7 @@ from gobby.utils.id import generate_prefixed_id
 
 pytestmark = pytest.mark.unit
 
+
 class TestGeneratePrefixedId:
     """Tests for generate_prefixed_id function."""
 

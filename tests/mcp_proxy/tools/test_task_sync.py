@@ -14,6 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestSyncTasks:
     """Tests for sync_tasks MCP tool."""
 

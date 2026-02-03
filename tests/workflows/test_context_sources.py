@@ -7,6 +7,7 @@ from gobby.workflows.definitions import WorkflowState
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_context():
     context = MagicMock(spec=ActionContext)

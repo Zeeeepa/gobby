@@ -14,6 +14,7 @@ from gobby.workflows.detection_helpers import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def workflow_state():
     """Create a workflow state with empty variables."""
@@ -134,7 +135,9 @@ class TestDetectPlanMode:
 class TestDetectPlanModeFromContext:
     """Tests for detect_plan_mode_from_context function."""
 
-    def test_detects_plan_mode_active_indicator(self, workflow_state, make_before_agent_event) -> None:
+    def test_detects_plan_mode_active_indicator(
+        self, workflow_state, make_before_agent_event
+    ) -> None:
         """Detects 'Plan mode is active' in prompt."""
         event = make_before_agent_event(
             "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
@@ -187,7 +190,9 @@ class TestDetectPlanModeFromContext:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_ignores_prompt_without_indicators(self, workflow_state, make_before_agent_event) -> None:
+    def test_ignores_prompt_without_indicators(
+        self, workflow_state, make_before_agent_event
+    ) -> None:
         """Ignores prompts without plan mode indicators."""
         event = make_before_agent_event("Please fix the bug in the code.")
 
@@ -236,7 +241,9 @@ class TestDetectTaskClaimCloseTaskBehavior:
     - Failed close_task leaves task_claimed unchanged
     """
 
-    def test_successful_close_task_clears_task_claimed(self, workflow_state, make_after_tool_event) -> None:
+    def test_successful_close_task_clears_task_claimed(
+        self, workflow_state, make_after_tool_event
+    ) -> None:
         """Successful close_task should clear task_claimed for CLIs that send tool_result."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
@@ -362,7 +369,9 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in workflow_state.variables
 
-    def test_does_not_set_task_claimed_on_claim_error(self, workflow_state, make_after_tool_event) -> None:
+    def test_does_not_set_task_claimed_on_claim_error(
+        self, workflow_state, make_after_tool_event
+    ) -> None:
         """claim_task with error response does NOT set task_claimed."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",

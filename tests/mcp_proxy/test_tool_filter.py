@@ -8,6 +8,7 @@ from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 
 pytestmark = pytest.mark.unit
 
+
 class TestToolFilterService:
     """Tests for ToolFilterService."""
 
@@ -77,7 +78,9 @@ class TestGetStepRestrictions:
         assert result is None
         mock_state_manager.get_state.assert_called_once_with("session-123")
 
-    def test_returns_none_when_workflow_not_found(self, service, mock_state_manager, mock_loader) -> None:
+    def test_returns_none_when_workflow_not_found(
+        self, service, mock_state_manager, mock_loader
+    ) -> None:
         """Test returns None when workflow definition is not found."""
         mock_state = MagicMock()
         mock_state.workflow_name = "unknown-workflow"
@@ -88,7 +91,9 @@ class TestGetStepRestrictions:
         result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_none_when_step_not_found(self, service, mock_state_manager, mock_loader) -> None:
+    def test_returns_none_when_step_not_found(
+        self, service, mock_state_manager, mock_loader
+    ) -> None:
         """Test returns None when step is not found in workflow."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -102,7 +107,9 @@ class TestGetStepRestrictions:
         result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_restrictions_when_found(self, service, mock_state_manager, mock_loader) -> None:
+    def test_returns_restrictions_when_found(
+        self, service, mock_state_manager, mock_loader
+    ) -> None:
         """Test returns step restrictions when workflow and step found."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -220,7 +227,9 @@ class TestIsToolAllowed:
         assert allowed is True
         assert reason is None
 
-    def test_not_allowed_when_not_in_allowed_list(self, service, mock_state_manager, mock_loader) -> None:
+    def test_not_allowed_when_not_in_allowed_list(
+        self, service, mock_state_manager, mock_loader
+    ) -> None:
         """Test tool is not allowed when not in allowed_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
@@ -385,7 +394,9 @@ class TestFilterTools:
         assert {"name": "tool1", "brief": "desc1"} in result
         assert {"name": "tool3", "brief": "desc3"} in result
 
-    def test_blocked_takes_priority_in_filter(self, service, mock_state_manager, mock_loader) -> None:
+    def test_blocked_takes_priority_in_filter(
+        self, service, mock_state_manager, mock_loader
+    ) -> None:
         """Test blocked tools are filtered even if in allowed list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"

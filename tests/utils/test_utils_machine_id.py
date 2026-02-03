@@ -14,6 +14,7 @@ from gobby.utils.machine_id import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestGetMachineId:
     """Tests for get_machine_id function."""
 

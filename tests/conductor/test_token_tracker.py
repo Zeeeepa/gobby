@@ -11,6 +11,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_session_storage():
     """Create a mock session storage."""
@@ -219,7 +220,9 @@ class TestCanSpawnAgent:
         assert can_spawn is False
         assert "budget exceeded" in reason.lower()
 
-    def test_can_spawn_agent_with_estimated_cost(self, mock_session_storage, sample_sessions) -> None:
+    def test_can_spawn_agent_with_estimated_cost(
+        self, mock_session_storage, sample_sessions
+    ) -> None:
         """Cannot spawn agent when estimated cost would exceed budget."""
         from gobby.conductor.token_tracker import SessionTokenTracker
 

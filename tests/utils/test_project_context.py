@@ -16,6 +16,7 @@ from gobby.utils.project_context import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestFindProjectRoot:
     """Tests for find_project_root function."""
 

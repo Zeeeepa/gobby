@@ -13,6 +13,7 @@ from gobby.agents.sandbox import SandboxConfig
 
 pytestmark = pytest.mark.unit
 
+
 class TestAgentDefinition:
     """Tests for AgentDefinition Pydantic model."""
 

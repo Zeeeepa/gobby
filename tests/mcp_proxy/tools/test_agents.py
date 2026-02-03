@@ -25,6 +25,7 @@ from gobby.mcp_proxy.tools.agents import create_agents_registry
 
 pytestmark = pytest.mark.unit
 
+
 class TestCreateAgentsRegistry:
     """Tests for create_agents_registry factory function."""
 

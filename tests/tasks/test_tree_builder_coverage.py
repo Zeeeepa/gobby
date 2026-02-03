@@ -7,6 +7,7 @@ from gobby.tasks.tree_builder import TaskTreeBuilder
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     """Create a mock task manager."""

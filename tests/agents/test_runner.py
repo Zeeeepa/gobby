@@ -9,6 +9,7 @@ from gobby.llm.executor import AgentResult
 
 pytestmark = pytest.mark.unit
 
+
 class TestAgentRunContext:
     """Tests for AgentRunContext dataclass."""
 
@@ -1057,7 +1058,9 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert "lifecycle workflow" in result.error.lower()
         assert "cannot use" in result.error.lower()
 
-    def test_prepare_run_handles_child_session_creation_failure(self, runner, mock_session_storage) -> None:
+    def test_prepare_run_handles_child_session_creation_failure(
+        self, runner, mock_session_storage
+    ) -> None:
         """prepare_run handles ValueError from create_child_session."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
         runner._child_session_manager.create_child_session = MagicMock(
@@ -1077,7 +1080,9 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert result.status == "error"
         assert "Session creation failed" in result.error
 
-    def test_prepare_run_warns_on_workflow_not_found(self, runner, mock_session_storage, caplog) -> None:
+    def test_prepare_run_warns_on_workflow_not_found(
+        self, runner, mock_session_storage, caplog
+    ) -> None:
         """prepare_run logs warning when workflow not found."""
         import logging
 

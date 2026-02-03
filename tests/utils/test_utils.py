@@ -23,6 +23,7 @@ from gobby.utils.project_context import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestMachineId:
     """Tests for machine_id utility."""
 

@@ -27,6 +27,7 @@ from gobby.mcp_proxy.models import (
 
 pytestmark = pytest.mark.unit
 
+
 class MockDBServer:
     """Mock database server object for testing."""
 

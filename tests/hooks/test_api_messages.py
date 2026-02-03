@@ -14,6 +14,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     db = LocalDatabase(":memory:")

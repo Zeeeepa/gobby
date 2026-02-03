@@ -14,6 +14,7 @@ from gobby.hooks.events import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestHookEventType:
     """Tests for HookEventType enum."""
 
@@ -61,6 +62,9 @@ class TestSessionSource:
         assert SessionSource.GEMINI.value == "gemini"
         assert SessionSource.CODEX.value == "codex"
         assert SessionSource.CLAUDE_SDK.value == "claude_sdk"
+        assert SessionSource.CURSOR.value == "cursor"
+        assert SessionSource.WINDSURF.value == "windsurf"
+        assert SessionSource.COPILOT.value == "copilot"
 
 
 class TestHookEvent:
@@ -213,6 +217,24 @@ class TestEventTypeCLISupport:
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["codex"] == "thread/started"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["codex"] == "requestApproval"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.AFTER_TOOL]["codex"] == "item/completed"
+
+    def test_cursor_support(self) -> None:
+        """Test Cursor support in mapping."""
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["cursor"] == "SessionStart"
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["cursor"] == "PreToolUse"
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.AFTER_TOOL]["cursor"] == "PostToolUse"
+
+    def test_windsurf_support(self) -> None:
+        """Test Windsurf support in mapping."""
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["windsurf"] == "SessionStart"
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["windsurf"] == "PreToolUse"
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.AFTER_TOOL]["windsurf"] == "PostToolUse"
+
+    def test_copilot_support(self) -> None:
+        """Test Copilot support in mapping."""
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["copilot"] == "SessionStart"
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["copilot"] == "PreToolUse"
+        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.AFTER_TOOL]["copilot"] == "PostToolUse"
 
     def test_cli_specific_events(self) -> None:
         """Test CLI-specific event support."""

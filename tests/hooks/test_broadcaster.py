@@ -14,6 +14,7 @@ from gobby.hooks.hook_types import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_websocket_server():
     """Create a mock WebSocket server."""

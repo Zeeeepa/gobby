@@ -8,6 +8,7 @@ from gobby.workflows.definitions import WorkflowState
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_action_context():
     """Create a mock action context."""

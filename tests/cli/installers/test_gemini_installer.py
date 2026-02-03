@@ -10,6 +10,7 @@ from gobby.cli.installers.gemini import install_gemini, uninstall_gemini
 
 pytestmark = pytest.mark.unit
 
+
 class TestInstallGemini:
     """Tests for install_gemini function."""
 
@@ -606,7 +607,9 @@ class TestUninstallGemini:
             backup_file = gemini_path / "settings.json.1234567890.backup"
             assert backup_file.exists()
 
-    def test_uninstall_gemini_removes_all_hook_types(self, project_path: Path, temp_dir: Path) -> None:
+    def test_uninstall_gemini_removes_all_hook_types(
+        self, project_path: Path, temp_dir: Path
+    ) -> None:
         """Test that all Gobby hook types are removed."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -660,7 +663,9 @@ class TestUninstallGemini:
             for hook in expected_hooks:
                 assert hook in result["hooks_removed"]
 
-    def test_uninstall_gemini_preserves_other_settings(self, project_path: Path, temp_dir: Path) -> None:
+    def test_uninstall_gemini_preserves_other_settings(
+        self, project_path: Path, temp_dir: Path
+    ) -> None:
         """Test that non-Gobby settings are preserved."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)
@@ -1036,7 +1041,9 @@ class TestUninstallGeminiEdgeCases:
         project.mkdir(parents=True)
         return project
 
-    def test_uninstall_gemini_hooks_dir_rmdir_error(self, project_path: Path, temp_dir: Path) -> None:
+    def test_uninstall_gemini_hooks_dir_rmdir_error(
+        self, project_path: Path, temp_dir: Path
+    ) -> None:
         """Test uninstall handles error when removing hooks directory."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -1073,7 +1080,9 @@ class TestUninstallGeminiEdgeCases:
             # Should still succeed (rmdir error is caught)
             assert result["success"] is True
 
-    def test_uninstall_gemini_with_enable_hooks_false(self, project_path: Path, temp_dir: Path) -> None:
+    def test_uninstall_gemini_with_enable_hooks_false(
+        self, project_path: Path, temp_dir: Path
+    ) -> None:
         """Test uninstall when enableHooks is False."""
         gemini_path = project_path / ".gemini"
         gemini_path.mkdir(parents=True)

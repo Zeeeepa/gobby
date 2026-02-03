@@ -9,6 +9,7 @@ from gobby.sync.tasks import TaskSyncManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     manager = MagicMock(spec=LocalTaskManager)

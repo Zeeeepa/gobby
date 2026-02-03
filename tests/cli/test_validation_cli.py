@@ -16,6 +16,7 @@ from gobby.cli import cli
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.mark.unit
 class TestValidateCommandWithNewFlags:
     """Tests for gobby tasks validate with enhanced validation flags."""

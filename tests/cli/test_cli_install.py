@@ -21,6 +21,7 @@ from gobby.cli.install import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestEnsureDaemonConfig:
     """Tests for _ensure_daemon_config function."""
 

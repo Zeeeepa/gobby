@@ -9,6 +9,7 @@ from gobby.mcp_proxy.importer import SECRET_PLACEHOLDER_PATTERN, MCPServerImport
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_config() -> DaemonConfig:
     """Create a mock DaemonConfig."""

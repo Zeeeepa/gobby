@@ -19,6 +19,7 @@ from gobby.storage.mcp import LocalMCPManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def semantic_search(temp_db: LocalDatabase) -> SemanticToolSearch:
     """Create a SemanticToolSearch instance with temp database."""

@@ -21,6 +21,7 @@ from gobby.agents.isolation import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestIsolationContext:
     """Tests for IsolationContext dataclass."""
 

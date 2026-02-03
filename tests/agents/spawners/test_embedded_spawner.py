@@ -433,7 +433,9 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_workflow(self, mock_utils, mock_close, mock_fork, mock_pty, spawner) -> None:
+    def test_spawn_agent_with_workflow(
+        self, mock_utils, mock_close, mock_fork, mock_pty, spawner
+    ) -> None:
         """spawn_agent() passes workflow name correctly."""
         mock_pty.openpty.return_value = (10, 11)
         mock_utils.return_value = (MagicMock(return_value=["claude"]), MagicMock(), 4096)
@@ -504,7 +506,9 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_without_prompt(self, mock_utils, mock_close, mock_fork, mock_pty, spawner) -> None:
+    def test_spawn_agent_without_prompt(
+        self, mock_utils, mock_close, mock_fork, mock_pty, spawner
+    ) -> None:
         """spawn_agent() works without a prompt."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -793,7 +797,9 @@ class TestModuleConstants:
 class TestEdgeCasesAndSecurity:
     """Tests for edge cases and security considerations."""
 
-    def test_spawn_with_special_characters_in_command(self, spawner, mock_pty, mock_os_close) -> None:
+    def test_spawn_with_special_characters_in_command(
+        self, spawner, mock_pty, mock_os_close
+    ) -> None:
         """spawn() handles commands with special characters."""
         mock_pty.openpty.return_value = (10, 11)
 

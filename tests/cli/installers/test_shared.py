@@ -26,6 +26,7 @@ from gobby.cli.installers.shared import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestInstallSharedContent:
     """Tests for install_shared_content function."""
 

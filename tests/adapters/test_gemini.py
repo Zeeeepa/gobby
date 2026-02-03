@@ -22,6 +22,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSo
 
 pytestmark = pytest.mark.unit
 
+
 class TestGeminiAdapterInit:
     """Tests for GeminiAdapter initialization."""
 
@@ -29,7 +30,6 @@ class TestGeminiAdapterInit:
         """GeminiAdapter initializes without hook_manager."""
         adapter = GeminiAdapter()
         assert adapter._hook_manager is None
-        assert adapter._machine_id is None
 
     def test_init_with_hook_manager(self) -> None:
         """GeminiAdapter stores hook_manager reference."""
@@ -91,7 +91,9 @@ class TestEventTypeMapping:
             ("notification", "Notification"),
         ],
     )
-    def test_hook_event_name_map_coverage(self, adapter, event_type_value, expected_gemini_name) -> None:
+    def test_hook_event_name_map_coverage(
+        self, adapter, event_type_value, expected_gemini_name
+    ) -> None:
         """HOOK_EVENT_NAME_MAP reverse maps all event types correctly."""
         assert adapter.HOOK_EVENT_NAME_MAP[event_type_value] == expected_gemini_name
 
@@ -153,51 +155,6 @@ class TestToolNameNormalization:
     def test_empty_tool_name(self, adapter) -> None:
         """Empty tool name passes through unchanged."""
         assert adapter.normalize_tool_name("") == ""
-
-
-class TestMachineId:
-    """Tests for machine ID generation and caching."""
-
-    def test_get_machine_id_uses_platform_node(self) -> None:
-        """Machine ID is derived from platform.node()."""
-        adapter = GeminiAdapter()
-        with patch.object(platform, "node", return_value="test-hostname"):
-            machine_id = adapter._get_machine_id()
-
-            # Should be a UUID5 based on hostname
-            expected = str(uuid.uuid5(uuid.NAMESPACE_DNS, "test-hostname"))
-            assert machine_id == expected
-
-    def test_get_machine_id_caches_result(self) -> None:
-        """Machine ID is cached after first generation."""
-        adapter = GeminiAdapter()
-        with patch.object(platform, "node", return_value="hostname1") as mock_node:
-            first_id = adapter._get_machine_id()
-            second_id = adapter._get_machine_id()
-
-            assert first_id == second_id
-            # platform.node() should only be called once
-            assert mock_node.call_count == 1
-
-    def test_get_machine_id_fallback_on_empty_node(self) -> None:
-        """Machine ID falls back to UUID4 when platform.node() is empty."""
-        adapter = GeminiAdapter()
-        with patch.object(platform, "node", return_value=""):
-            machine_id = adapter._get_machine_id()
-
-            # Should be a valid UUID
-            uuid.UUID(machine_id)  # Will raise if invalid
-
-    def test_machine_id_respects_cached_value(self) -> None:
-        """Pre-cached machine_id is returned without regeneration."""
-        adapter = GeminiAdapter()
-        adapter._machine_id = "pre-cached-id"
-
-        with patch.object(platform, "node") as mock_node:
-            result = adapter._get_machine_id()
-
-            assert result == "pre-cached-id"
-            mock_node.assert_not_called()
 
 
 class TestTranslateToHookEvent:
@@ -450,8 +407,8 @@ class TestTranslateToHookEvent:
 
         assert event.machine_id == "provided-machine-id"
 
-    def test_machine_id_generated_when_missing(self, adapter) -> None:
-        """Generates machine_id when not in payload."""
+    def test_machine_id_none_when_missing(self, adapter) -> None:
+        """Returns None for machine_id when not in payload (base adapter injects later)."""
         native_event = {
             "hook_type": "SessionStart",
             "input_data": {
@@ -459,11 +416,10 @@ class TestTranslateToHookEvent:
             },
         }
 
-        with patch.object(platform, "node", return_value="test-host"):
-            event = adapter.translate_to_hook_event(native_event)
+        event = adapter.translate_to_hook_event(native_event)
 
-            expected_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, "test-host"))
-            assert event.machine_id == expected_id
+        # machine_id is None at translation time; base adapter's handle_native() injects it
+        assert event.machine_id is None
 
     def test_empty_session_id(self, adapter) -> None:
         """Handles empty session_id."""
@@ -704,7 +660,9 @@ class TestHandleNative:
         # Verify response format
         assert result["decision"] == "allow"
 
-    def test_handle_native_preserves_hook_type_for_response(self, adapter, mock_hook_manager) -> None:
+    def test_handle_native_preserves_hook_type_for_response(
+        self, adapter, mock_hook_manager
+    ) -> None:
         """handle_native() uses original hook_type for response formatting."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="allow",
@@ -723,7 +681,9 @@ class TestHandleNative:
         # BeforeModel-specific formatting should apply
         assert result["hookSpecificOutput"]["llm_request"]["temperature"] == 0.5
 
-    def test_handle_native_extracts_hook_type_from_input_data(self, adapter, mock_hook_manager) -> None:
+    def test_handle_native_extracts_hook_type_from_input_data(
+        self, adapter, mock_hook_manager
+    ) -> None:
         """handle_native() extracts hook_type from input_data if not in wrapper."""
         mock_hook_manager.handle.return_value = HookResponse(
             decision="allow",

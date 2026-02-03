@@ -8,6 +8,7 @@ from gobby.storage.worktrees import Worktree
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_worktree_manager():
     with patch("gobby.cli.worktrees.get_worktree_manager") as mock:

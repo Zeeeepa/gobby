@@ -11,6 +11,9 @@ Gobby uses a unified internal event model (`HookEvent`) that normalizes hooks fr
 | Claude Code | kebab-case (`session-start`) | `session_id` | HTTP hooks |
 | Gemini CLI | PascalCase (`SessionStart`) | `session_id` | HTTP hooks |
 | Codex CLI | JSON-RPC (`thread/started`) | `threadId` | WebSocket events |
+| Cursor | kebab-case (`session-start`) | `session_id` | HTTP hooks |
+| Windsurf | kebab-case (`session-start`) | `session_id` | HTTP hooks |
+| Copilot | kebab-case (`session-start`) | `session_id` | HTTP hooks |
 
 > **Note:** Skill injection during session start is now handled by the workflow engine's `inject_context` action with `source: skills`, not by hooks directly. This applies to all CLIs. See [Workflows Guide](workflows.md#inject_context-sources) for details.
 
@@ -18,23 +21,23 @@ Gobby uses a unified internal event model (`HookEvent`) that normalizes hooks fr
 
 ### Unified Event Types
 
-| Internal Type | Claude Code | Gemini CLI | Codex CLI |
-|--------------|-------------|------------|-----------|
-| `SESSION_START` | `session-start` | `SessionStart` | `thread/started` |
-| `SESSION_END` | `session-end` | `SessionEnd` | `thread/archive` |
-| `BEFORE_AGENT` | `user-prompt-submit` | `BeforeAgent` | `turn/started` |
-| `AFTER_AGENT` | - | `AfterAgent` | `turn/completed` |
-| `STOP` | `stop` | - | - |
-| `BEFORE_TOOL` | `pre-tool-use` | `BeforeTool` | `item/*/requestApproval` |
-| `AFTER_TOOL` | `post-tool-use` | `AfterTool` | `item/completed` |
-| `BEFORE_TOOL_SELECTION` | - | `BeforeToolSelection` | - |
-| `BEFORE_MODEL` | - | `BeforeModel` | - |
-| `AFTER_MODEL` | - | `AfterModel` | - |
-| `PRE_COMPACT` | `pre-compact` | `PreCompress` | - |
-| `SUBAGENT_START` | `subagent-start` | - | - |
-| `SUBAGENT_STOP` | `subagent-stop` | - | - |
-| `PERMISSION_REQUEST` | `permission-request` | - | - |
-| `NOTIFICATION` | `notification` | `Notification` | - |
+| Internal Type | Claude Code | Gemini CLI | Codex CLI | Cursor/Windsurf/Copilot |
+|--------------|-------------|------------|-----------|-------------------------|
+| `SESSION_START` | `session-start` | `SessionStart` | `thread/started` | `session-start` |
+| `SESSION_END` | `session-end` | `SessionEnd` | `thread/archive` | `session-end` |
+| `BEFORE_AGENT` | `user-prompt-submit` | `BeforeAgent` | `turn/started` | `user-prompt-submit` |
+| `AFTER_AGENT` | - | `AfterAgent` | `turn/completed` | - |
+| `STOP` | `stop` | - | - | `stop` |
+| `BEFORE_TOOL` | `pre-tool-use` | `BeforeTool` | `item/*/requestApproval` | `pre-tool-use` |
+| `AFTER_TOOL` | `post-tool-use` | `AfterTool` | `item/completed` | `post-tool-use` |
+| `BEFORE_TOOL_SELECTION` | - | `BeforeToolSelection` | - | - |
+| `BEFORE_MODEL` | - | `BeforeModel` | - | - |
+| `AFTER_MODEL` | - | `AfterModel` | - | - |
+| `PRE_COMPACT` | `pre-compact` | `PreCompress` | - | `pre-compact` |
+| `SUBAGENT_START` | `subagent-start` | - | - | `subagent-start` |
+| `SUBAGENT_STOP` | `subagent-stop` | - | - | `subagent-stop` |
+| `PERMISSION_REQUEST` | `permission-request` | - | - | `permission-request` |
+| `NOTIFICATION` | `notification` | `Notification` | - | `notification` |
 
 ---
 
@@ -665,12 +668,12 @@ class HookResponse:
 
 The `context` and `system_message` fields are translated differently per CLI:
 
-| HookResponse Field | Claude Code | Gemini CLI |
-|-------------------|-------------|------------|
+| HookResponse Field | Claude Code / Cursor / Windsurf / Copilot | Gemini CLI |
+|-------------------|-------------------------------------------|------------|
 | `context` | → `systemMessage` (agent context) | → `hookSpecificOutput.additionalContext` (agent context) |
 | `system_message` | → `systemMessage` (combined) | → `systemMessage` (user terminal) |
 
-**Claude Code:** Both `context` and `system_message` are combined into `systemMessage` at the top level, which injects content into the agent's conversation.
+**Claude Code / Cursor / Windsurf / Copilot:** Both `context` and `system_message` are combined into `systemMessage` at the top level, which injects content into the agent's conversation.
 
 **Gemini CLI:** `context` goes to `additionalContext` (agent reasoning), while `system_message` goes to `systemMessage` (user terminal display).
 

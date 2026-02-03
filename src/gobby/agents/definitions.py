@@ -93,7 +93,7 @@ class AgentDefinition(BaseModel):
     # Execution parameters
     model: str | None = None
     mode: str = "headless"  # Default to headless for stability
-    provider: str = "claude"  # Provider: claude, gemini, codex
+    provider: str = "claude"  # Provider: claude, gemini, codex, cursor, windsurf, copilot
 
     # Isolation configuration
     isolation: Literal["current", "worktree", "clone"] | None = None

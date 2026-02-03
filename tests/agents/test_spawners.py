@@ -129,7 +129,9 @@ class TestKittySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_is_available_linux_command_not_exists(self, mock_config, mock_which, mock_system) -> None:
+    def test_is_available_linux_command_not_exists(
+        self, mock_config, mock_which, mock_system
+    ) -> None:
         """Kitty not available on Linux when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="kitty", app_path=None
@@ -816,7 +818,9 @@ class TestEmbeddedSpawner:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_long_prompt(self, mock_utils, mock_close, mock_fork, mock_pty) -> None:
+    def test_spawn_agent_with_long_prompt(
+        self, mock_utils, mock_close, mock_fork, mock_pty
+    ) -> None:
         """spawn_agent writes long prompt to file."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -846,7 +850,9 @@ class TestEmbeddedSpawner:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_codex_working_directory(self, mock_utils, mock_close, mock_fork, mock_pty) -> None:
+    def test_spawn_agent_codex_working_directory(
+        self, mock_utils, mock_close, mock_fork, mock_pty
+    ) -> None:
         """spawn_agent passes working directory for Codex."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -981,7 +987,9 @@ class TestGhosttySpawner:
     @patch("platform.system", return_value="Linux")
     @patch("shutil.which", return_value=None)
     @patch("gobby.agents.spawners.macos.get_tty_config")
-    def test_is_available_linux_command_not_exists(self, mock_config, mock_which, mock_system) -> None:
+    def test_is_available_linux_command_not_exists(
+        self, mock_config, mock_which, mock_system
+    ) -> None:
         """Ghostty not available on Linux when command doesn't exist."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="ghostty", app_path=None
@@ -1996,7 +2004,9 @@ class TestTerminalSpawnerSandbox:
 
     @patch("gobby.agents.spawn.TerminalSpawner.spawn")
     @patch("gobby.agents.spawn.build_cli_command")
-    def test_sandbox_config_enabled_adds_sandbox_args_for_claude(self, mock_build_cmd, mock_spawn) -> None:
+    def test_sandbox_config_enabled_adds_sandbox_args_for_claude(
+        self, mock_build_cmd, mock_spawn
+    ) -> None:
         """Test that enabled sandbox_config adds sandbox args for Claude CLI."""
         from gobby.agents.sandbox import SandboxConfig
         from gobby.agents.spawn import TerminalSpawner

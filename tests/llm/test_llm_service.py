@@ -11,6 +11,7 @@ from gobby.llm.service import LLMService
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def llm_config() -> DaemonConfig:
     """Create a DaemonConfig with LLM providers configured."""
@@ -49,7 +50,9 @@ class TestLLMServiceInit:
         assert service._providers == {}
         assert service._initialized_providers == set()
 
-    def test_init_with_empty_providers_succeeds(self, llm_config_empty_providers: DaemonConfig) -> None:
+    def test_init_with_empty_providers_succeeds(
+        self, llm_config_empty_providers: DaemonConfig
+    ) -> None:
         """Test initialization succeeds with empty providers (validation happens later)."""
         # Empty LLMProvidersConfig is still a valid config object
         # Errors occur when trying to get a provider

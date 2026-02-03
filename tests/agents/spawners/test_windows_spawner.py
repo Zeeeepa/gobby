@@ -129,7 +129,9 @@ class TestWindowsTerminalSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\wt.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_default_command_when_none(self, mock_config, mock_which, mock_system) -> None:
+    def test_is_available_default_command_when_none(
+        self, mock_config, mock_which, mock_system
+    ) -> None:
         """Windows Terminal uses 'wt' as default command when config.command is None."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command=None
@@ -581,7 +583,9 @@ class TestPowerShellSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_fallback_to_powershell(self, mock_config, mock_which, mock_system) -> None:
+    def test_is_available_fallback_to_powershell(
+        self, mock_config, mock_which, mock_system
+    ) -> None:
         """PowerShell falls back to Windows PowerShell when pwsh not found."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh"
@@ -696,7 +700,9 @@ class TestPowerShellSpawner:
     @patch("shutil.which", return_value="C:\\pwsh.exe")
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_spawn_escapes_single_quotes_in_title(self, mock_config, mock_popen, mock_which) -> None:
+    def test_spawn_escapes_single_quotes_in_title(
+        self, mock_config, mock_popen, mock_which
+    ) -> None:
         """Spawn properly escapes single quotes in title."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="pwsh", options=[]

@@ -18,6 +18,7 @@ from gobby.agents.constants import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestEnvironmentVariableConstants:
     """Tests for environment variable constant definitions."""
 

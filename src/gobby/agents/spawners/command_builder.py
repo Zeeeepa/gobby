@@ -35,9 +35,9 @@ def build_cli_command(
     - Or: codex -c 'sandbox_permissions=["disk-full-read-access"]' -a never [PROMPT]
 
     Args:
-        cli: CLI name (claude, gemini, codex)
+        cli: CLI name (claude, gemini, codex, cursor, windsurf, copilot)
         prompt: Optional prompt to pass
-        session_id: Optional session ID (used by Claude CLI)
+        session_id: Optional session ID (used by Claude-compatible CLIs)
         auto_approve: If True, add flags to auto-approve actions/permissions
         working_directory: Optional working directory (used by Codex -C flag)
         mode: Execution mode - "terminal" (interactive) or "headless" (non-interactive)
@@ -48,8 +48,8 @@ def build_cli_command(
     """
     command = [cli]
 
-    if cli == "claude":
-        # Claude CLI flags
+    if cli in ("claude", "cursor", "windsurf", "copilot"):
+        # Claude-compatible CLI flags
         if session_id:
             command.extend(["--session-id", session_id])
         if auto_approve:

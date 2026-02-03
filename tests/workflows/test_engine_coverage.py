@@ -30,6 +30,7 @@ from gobby.workflows.state_manager import WorkflowStateManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_loader():
     return MagicMock(spec=WorkflowLoader)

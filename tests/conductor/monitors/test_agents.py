@@ -11,6 +11,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestAgentWatcherStuckAgents:
     """Tests for stuck agent detection."""
 

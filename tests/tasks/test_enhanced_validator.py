@@ -13,6 +13,7 @@ from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     """Create a mock task manager."""

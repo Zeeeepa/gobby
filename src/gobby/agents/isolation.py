@@ -297,6 +297,9 @@ Commit your changes to the worktree branch when done.
             "gemini": ".gemini",
             "claude": ".claude",
             "codex": ".codex",
+            "cursor": ".claude",
+            "windsurf": ".claude",
+            "copilot": ".claude",
         }
 
         cli_dir = cli_dirs.get(provider)
@@ -475,6 +478,9 @@ Push your changes when ready to share with the original.
             "gemini": ".gemini",
             "claude": ".claude",
             "codex": ".codex",
+            "cursor": ".claude",
+            "windsurf": ".claude",
+            "copilot": ".claude",
         }
 
         cli_dir = cli_dirs.get(provider)

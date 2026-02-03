@@ -13,6 +13,7 @@ from gobby.storage.database import LocalDatabase
 
 pytestmark = pytest.mark.unit
 
+
 # Mock WebSocket Server
 class MockWebSocketServer:
     def __init__(self):

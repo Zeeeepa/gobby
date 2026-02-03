@@ -23,6 +23,7 @@ from gobby.utils.logging import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestRequestIDFunctions:
     """Tests for request ID utility functions."""
 

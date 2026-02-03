@@ -12,6 +12,7 @@ from gobby.utils.project_init import InitResult, VerificationCommands
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def runner() -> CliRunner:
     """Create a CLI test runner."""

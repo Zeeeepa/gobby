@@ -282,9 +282,7 @@ class TestWorkflowEngineStepPipelineContext:
         )
 
         # Define actions with run_pipeline
-        actions = [
-            {"action": "run_pipeline", "name": "test-pipeline", "inputs": {}}
-        ]
+        actions = [{"action": "run_pipeline", "name": "test-pipeline", "inputs": {}}]
 
         # Execute actions through engine
         await engine._execute_actions(actions, state)
@@ -348,9 +346,7 @@ class TestWorkflowEngineStepPipelineContext:
         )
 
         # Define actions with run_pipeline
-        actions = [
-            {"action": "run_pipeline", "name": "loader-test-pipeline", "inputs": {}}
-        ]
+        actions = [{"action": "run_pipeline", "name": "loader-test-pipeline", "inputs": {}}]
 
         # Execute actions through engine
         await engine._execute_actions(actions, state)

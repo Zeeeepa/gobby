@@ -9,6 +9,7 @@ from gobby.storage.session_messages import LocalSessionMessageManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     return MagicMock(spec=LocalDatabase)
