@@ -253,6 +253,27 @@ def e2e_project_dir() -> Generator[Path]:
             )
         )
 
+        # Copy shared workflows and agents for spawn_agent tests
+        shared_dir = Path(__file__).parent.parent.parent / "src" / "gobby" / "install" / "shared"
+        if shared_dir.exists():
+            import shutil
+
+            # Copy workflows
+            shared_workflows = shared_dir / "workflows"
+            if shared_workflows.exists():
+                target_workflows = gobby_dir / "workflows"
+                target_workflows.mkdir(parents=True, exist_ok=True)
+                for wf_file in shared_workflows.glob("*.yaml"):
+                    shutil.copy2(wf_file, target_workflows / wf_file.name)
+
+            # Copy agents
+            shared_agents = shared_dir / "agents"
+            if shared_agents.exists():
+                target_agents = gobby_dir / "agents"
+                target_agents.mkdir(parents=True, exist_ok=True)
+                for agent_file in shared_agents.glob("*.yaml"):
+                    shutil.copy2(agent_file, target_agents / agent_file.name)
+
         yield project_dir
 
 
