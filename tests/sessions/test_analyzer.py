@@ -794,22 +794,182 @@ class TestFormatToolDescription:
     """Tests for _format_tool_description method."""
 
     def test_mcp_call_tool(self) -> None:
-        """Test MCP tool calls show server.tool format."""
+        """Test gobby-tasks create_task shows enhanced format with title."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "Fix the bug"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "Created task: Fix the bug"
+
+    def test_mcp_call_tool_create_task_with_parent(self) -> None:
+        """Test gobby-tasks create_task shows parent when provided."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "create_task",
+                "arguments": {"title": "Subtask", "parent_task_id": "#123"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "Created task: Subtask (parent: #123)"
+
+    def test_mcp_call_tool_create_task_no_title(self) -> None:
+        """Test gobby-tasks create_task defaults to 'Untitled' when no title."""
         analyzer = TranscriptAnalyzer()
         block = {
             "name": "mcp__gobby__call_tool",
             "input": {"server_name": "gobby-tasks", "tool_name": "create_task"},
         }
-        assert analyzer._format_tool_description(block) == "Called gobby-tasks.create_task"
+        assert analyzer._format_tool_description(block) == "Created task: Untitled"
+
+    def test_mcp_call_tool_update_task_status(self) -> None:
+        """Test gobby-tasks update_task shows status change."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "update_task",
+                "arguments": {"task_id": "#456", "status": "in_progress"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "Updated task #456: status → in_progress"
+
+    def test_mcp_call_tool_close_task(self) -> None:
+        """Test gobby-tasks close_task shows reason."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "close_task",
+                "arguments": {"task_id": "#789", "reason": "Completed implementation"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block) == "Closed task #789: Completed implementation"
+        )
+
+    def test_mcp_call_tool_claim_task(self) -> None:
+        """Test gobby-tasks claim_task shows task ID."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "gobby-tasks",
+                "tool_name": "claim_task",
+                "arguments": {"task_id": "#100"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "Claimed task #100"
 
     def test_mcp_call_tool_alternative_name(self) -> None:
-        """Test alternative MCP tool name format."""
+        """Test alternative MCP tool name format for non-gobby-tasks servers."""
         analyzer = TranscriptAnalyzer()
         block = {
             "name": "mcp_call_tool",
             "input": {"server_name": "context7", "tool_name": "get_docs"},
         }
         assert analyzer._format_tool_description(block) == "Called context7.get_docs"
+
+    def test_mcp_call_tool_generic_with_query(self) -> None:
+        """Test generic MCP calls extract query argument."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "context7",
+                "tool_name": "search_docs",
+                "arguments": {"query": "how to use websockets"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block)
+            == "context7.search_docs: how to use websockets"
+        )
+
+    def test_mcp_call_tool_generic_with_title(self) -> None:
+        """Test generic MCP calls extract title argument."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "some-server",
+                "tool_name": "create_item",
+                "arguments": {"title": "New Feature Request"},
+            },
+        }
+        assert (
+            analyzer._format_tool_description(block)
+            == "some-server.create_item: New Feature Request"
+        )
+
+    def test_mcp_call_tool_generic_with_path(self) -> None:
+        """Test generic MCP calls extract path argument."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "filesystem",
+                "tool_name": "read_file",
+                "arguments": {"path": "/etc/config.yaml"},
+            },
+        }
+        assert analyzer._format_tool_description(block) == "filesystem.read_file: /etc/config.yaml"
+
+    def test_mcp_call_tool_generic_truncates_long_values(self) -> None:
+        """Test generic MCP calls truncate long argument values."""
+        analyzer = TranscriptAnalyzer()
+        long_query = "a" * 120  # 120 chars, should be truncated to 100
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "search",
+                "tool_name": "find",
+                "arguments": {"query": long_query},
+            },
+        }
+        result = analyzer._format_tool_description(block)
+        assert result.startswith("search.find: ")
+        assert result.endswith("...")
+        assert len(result) <= 120  # "search.find: " + 100 chars max
+
+    def test_mcp_call_tool_generic_priority_order(self) -> None:
+        """Test generic MCP calls use priority order (query > title > path)."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "test",
+                "tool_name": "mixed",
+                "arguments": {
+                    "path": "/some/path",
+                    "title": "Some Title",
+                    "query": "search term",  # Should win (highest priority)
+                },
+            },
+        }
+        assert analyzer._format_tool_description(block) == "test.mixed: search term"
+
+    def test_mcp_call_tool_generic_ignores_session_id(self) -> None:
+        """Test generic MCP calls ignore session_id in fallback."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {
+                "server_name": "test",
+                "tool_name": "do_thing",
+                "arguments": {"session_id": "abc123"},  # Should be ignored
+            },
+        }
+        # No meaningful context extracted, falls back to basic format
+        assert analyzer._format_tool_description(block) == "Called test.do_thing"
 
     def test_bash_command(self) -> None:
         """Test Bash commands show the actual command."""

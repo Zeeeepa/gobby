@@ -1,0 +1,288 @@
+Starting CodeRabbit review in plain text mode...
+
+Connecting to review service
+Setting up
+Analyzing
+Reviewing
+
+============================================================================
+File: web/.gobby/memories.jsonl
+Line: 618
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/.gobby/memories.jsonl at line 618, The memory record with id "mm-d79a184f" contains a truncated content field ("The gobby project uses a standard workflow: edit files → run tf8c78"); locate the JSONL entry with that id and either restore the full original sentence into the content field or delete the entire JSON object to remove the low-signal entry, ensuring the JSONL remains valid (one JSON object per line) after the change.
+
+
+
+============================================================================
+File: web/.gobby/memories.jsonl
+Line: 548
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/.gobby/memories.jsonl at line 548, The memories.jsonl contains an invalid memory record with id "mm-e3b0c442" that has an empty content field; remove the entire JSON line for "mm-e3b0c442" or replace its "content" value with a non-empty, valid string (and ensure "type", "tags", and timestamps remain correct) so downstream code expecting populated memories won't break; after change, run any memory-validation or import routine to confirm the file parses as JSONL and no empty-content entries remain.
+
+
+
+============================================================================
+File: scripts/setup-firewall.sh
+Line: 38 to 39
+Type: potential_issue
+
+Prompt for AI Agent:
+In @scripts/setup-firewall.sh around lines 38 - 39, The current command "sudo pfctl -ef /etc/pf.conf 2>/dev/null || sudo pfctl -f /etc/pf.conf" hides errors and can falsely succeed; change it to run "sudo pfctl -ef /etc/pf.conf" without redirecting stderr, capture its exit code, and if it fails attempt the fallback "sudo pfctl -f /etc/pf.conf", then check that exit code too—if both fail print a clear error to stderr (including the command outputs or exit codes) and exit non‑zero so the script fails visibly. Ensure you reference the exact commands "sudo pfctl -ef /etc/pf.conf" and "sudo pfctl -f /etc/pf.conf" when implementing the checks and error messages.
+
+
+
+============================================================================
+File: web/public/log-viewer.html
+Line: 165 to 169
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/public/log-viewer.html around lines 165 - 169, The catch block currently writes error.message directly into document.getElementById('log-container').innerHTML causing an XSS risk; change this to safely render the message by avoiding innerHTML (e.g., set element.textContent or create a child text node) and include a static wrapper element/class (keep 'Error loading logs: ' but append the escaped error text via textContent) while still logging the full error to console.error; update the code around the catch handler that references error and document.getElementById('log-container').innerHTML accordingly.
+
+
+
+============================================================================
+File: web/public/log-viewer.html
+Line: 201 to 210
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/public/log-viewer.html around lines 201 - 210, The template injects unescaped log.level and log.name into HTML causing XSS; update the logs rendering (the container.innerHTML assignment and logs.map usage) to sanitize both values: 1) validate/sanitize log.level before using it in the CSS class (e.g., map against an allowlist of levels and fallback to a safe value) to avoid injecting arbitrary class names, and 2) escape log.name with the existing escapeHtml function (like escapeHtml(log.name)) before interpolation; keep formatTime(log.time) and escapeHtml(log.message) as is. Ensure both the class suffix and the displayed name use the sanitized/escaped values so no untrusted input is directly injected into markup.
+
+
+
+============================================================================
+File: src/gobby/hooks/hook_manager.py
+Line: 274 to 278
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/hooks/hook_manager.py around lines 274 - 278, Remove the redundant hasattr check and avoid calling _resolve_project_id(None, None) during initialization; instead set project_id to an empty string (or accept it as an explicit parameter) when creating the LocalPipelineExecutionManager in the constructor so no auto-project initialization occurs. Update the __init__ (or factory) that constructs LocalPipelineExecutionManager(self._database, project_id) to either accept a passed-in project_id or default to "" and reference the _resolve_project_id method only where a real project context is required (not during object construction).
+
+
+
+============================================================================
+File: .gobby/memories.jsonl
+Line: 548
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/memories.jsonl at line 548, The memory entry with id "mm-e3b0c442" contains an empty "content" field which breaks ingestion validation; either populate the "content" value with the intended text for that memory or delete the entire JSON object (the entry with id mm-e3b0c442) so the importer won't attempt to ingest a blank record, then re-run validation/import to confirm no empty "content" fields remain.
+
+
+
+============================================================================
+File: src/gobby/mcp_proxy/tools/pipelines/_discovery.py
+Line: 52 to 57
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/mcp_proxy/tools/pipelines/_discovery.py around lines 52 - 57, The catch-all "except Exception as e" that returns {"success": False, "error": str(e), "pipelines": []} should be replaced so we don't swallow stack traces or unexpected errors: catch only expected exceptions (e.g., FileNotFoundError, ValueError) in place of the broad except, and for those return the same dict; for anything else either re-raise or log the full traceback before returning. Concretely, update the except block currently written as "except Exception as e" to specific except clauses for expected errors and/or call logging.exception(...) (to capture the traceback) before returning the error dict, and ensure unexpected exceptions are not silently converted to strings.
+
+
+
+============================================================================
+File: .gobby/memories.jsonl
+Line: 618
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/memories.jsonl at line 618, Entry with id "mm-d79a184f" contains a truncated memory string ending with "run tf8c78"; either restore the original full content for this memory (retrieve the source/original import and replace the partial "content" value) or remove the entire JSON object with id "mm-d79a184f" from the memories file to prevent corrupted data; ensure the JSON remains valid (no partial lines) and, if restoring, preserve the existing metadata fields ("id", "type", "importance", "tags", "created_at", "updated_at", "source", "source_id") exactly.
+
+
+
+============================================================================
+File: src/gobby/cli/pipelines.py
+Line: 294 to 316
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/cli/pipelines.py around lines 294 - 316, The output uses the local variable name which can be None when --lobster is used; compute a display_name fallback and use it everywhere instead: set display_name = name or getattr(pipeline, "name", None) or getattr(execution, "pipeline_name", None) (or a sensible default like ""), then replace f"Pipeline '{name}' ..." and the ApprovalRequired branch uses e to print pipeline info with f"Pipeline '{display_name}' ..." so both the success block (using execution) and the ApprovalRequired handler (using e.execution_id / e.step_id / e.token) print the real pipeline name from the imported pipeline object when name is None.
+
+
+
+============================================================================
+File: web/vite.config.ts
+Line: 7 to 9
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/vite.config.ts around lines 7 - 9, The allowedHosts array in vite.config.ts's server config currently contains a hardcoded IP (100.97.1.54) which is likely machine-specific; remove the literal IP and instead read an optional environment variable (e.g., VITE_ALLOWED_HOST) into server.allowedHosts or omit it entirely for CI/dev neutrality so that server.allowedHosts = ['localhost', '.ts.net', ...(process.env.VITE_ALLOWED_HOST ? [process.env.VITE_ALLOWED_HOST] : [])] (or simply drop the IP) and update any README/env docs accordingly; target the server.allowedHosts declaration in vite.config.ts to make this change.
+
+
+
+============================================================================
+File: web/src/hooks/useTerminal.ts
+Line: 47 to 50
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/src/hooks/useTerminal.ts around lines 47 - 50, The wsUrl construction in useTerminal.ts is inconsistent: the isSecure branch uses wss://${window.location.host}/ws but the non-secure branch hardcodes ws://${window.location.hostname}:60888 and omits /ws; update the non-secure branch to mirror the secure pattern by using ws://${window.location.host}/ws (so it preserves any port from window.location.host and includes the /ws path) and ensure the variable wsUrl and the isSecure check are used to choose between these two consistent URLs.
+
+
+
+============================================================================
+File: src/gobby/sessions/analyzer.py
+Line: 326 to 338
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/sessions/analyzer.py around lines 326 - 338, Docstring for _extract_mcp_context says extracted context is "truncated to 50 chars" but the implementation calls self._truncate(..., 100); update the docstring or the truncate calls to match. Locate the _extract_mcp_context method and either change the docstring to state "truncated to 100 chars" or change every self._truncate(...) invocation inside _extract_mcp_context to use 50 so the implementation matches the docstring; ensure you only modify the description/number and keep calls to self._truncate intact.
+
+
+
+============================================================================
+File: web/src/components/Terminal.tsx
+Line: 164 to 177
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/src/components/Terminal.tsx around lines 164 - 177, The TerminalPanelProps interface declares an unused runId property; remove runId: string | null from the interface definition (TerminalPanelProps) and ensure any references to runId in props consumers (e.g., the Terminal/TerminalPanel component or callers that pass runId) are updated to use selectedAgent or the actual prop name used (selectedAgent) instead; update any type references and imports that referenced TerminalPanelProps so they reflect the new shape and runType mismatches are fixed.
+
+
+
+============================================================================
+File: web/src/hooks/usePipeline.ts
+Line: 254 to 287
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/src/hooks/usePipeline.ts around lines 254 - 287, approvePipeline and rejectPipeline currently use hardcoded "http://localhost:60887" which breaks non-local deployments; change both functions to call relative endpoints (e.g., "/api/pipelines/approve" and "/api/pipelines/reject") or construct the base from a runtime value (window.location.origin or a configurable env/baseUrl) and use that base when building the fetch URL in usePipeline.ts so the requests work in production and different hosts.
+
+
+
+============================================================================
+File: web/src/hooks/usePipeline.ts
+Line: 81 to 100
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/src/hooks/usePipeline.ts around lines 81 - 100, The handler for 'step_started' mutates execution.steps in place (execution.steps[stepIndex] = ...) which can prevent React from detecting updates; instead create a new steps array and a new execution object when updating (e.g. copy execution.steps into a new array, replace the entry at stepIndex with a shallow-copied updated step object, or append a new step to the new array) and then set execution to the new object; apply the same non-mutating pattern to the other event cases mentioned ('step_completed', 'step_skipped', 'step_failed', 'approval_required') so every update replaces execution.steps with a new array rather than mutating existing elements.
+
+
+
+============================================================================
+File: src/gobby/skills/hubs/github_collection.py
+Line: 232 to 245
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/skills/hubs/github_collection.py around lines 232 - 245, The prompt asks for a description "max 100 chars" but the code in the method that builds prompt and calls provider.generate_text later truncates the LLM output to 150 chars (the description variable), causing a mismatch; update the truncation to 100 characters to match the prompt by changing the final slice on description (from [:150] to [:100]) after the provider.generate_text call (referencing prompt, slug, snippet, provider = self._llm_service.get_default_provider(), and description) so the returned string honors the intended 100-char limit and still strips surrounding quotes/whitespace.
+
+
+
+============================================================================
+File: .gobby/workflows/meeseeks-box.yaml
+Line: 395 to 399
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/workflows/meeseeks-box.yaml around lines 395 - 399, The git merge line uses --squash together with -m, which is invalid because --squash stages changes but does not create a commit; update the instructions to either (A) perform a two-step squash merge by running git merge --squash {{ variables.current_branch }} followed by git commit -m "[{{ variables.current_task_id }}] Merge from worktree" or (B) if you intend an actual merge commit, remove --squash and keep git merge {{ variables.current_branch }} -m "[{{ variables.current_task_id }}] Merge from worktree", and replace the single-line merge instruction accordingly.
+
+
+
+============================================================================
+File: src/gobby/workflows/lobster_compat.py
+Line: 117 to 133
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/workflows/lobster_compat.py around lines 117 - 133, The import_file method lacks error handling for file I/O and YAML parsing; update LobsterImporter.import_file to wrap Path(path).read_text() and yaml.safe_load(content) in a try/except that catches FileNotFoundError, UnicodeDecodeError, and yaml.YAMLError (or generic Exception as fallback), log or raise a more descriptive exception that mentions the path and re-raises or raises a custom error so callers of import_file/convert_pipeline receive clear failure reasons; ensure the docstring for import_file (return type PipelineDefinition) is updated to document these possible exceptions.
+
+
+
+============================================================================
+File: src/gobby/servers/websocket.py
+Line: 770 to 780
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/servers/websocket.py around lines 770 - 780, The handler currently sends the raw exception string to clients (using str(e)) which can leak internals; change the response sent over websocket in the except block (referencing websocket, client_id, assistant_message_id and logger.exception) to return a generic error payload (e.g., {"type":"chat_error","message_id": assistant_message_id,"error":"An internal error occurred"} or include a non-sensitive error_code) while keeping the full exception logged via logger.exception for server diagnostics.
+
+
+
+============================================================================
+File: src/gobby/servers/routes/pipelines.py
+Line: 59
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/servers/routes/pipelines.py at line 59, The return type for run_pipeline (accepting PipelineRunRequest) is wrong: the function sometimes returns a fastapi.responses.JSONResponse when approval is required but is annotated as dict[str, Any]; update the annotation to reflect both possibilities (e.g., use typing.Union or Response/JSONResponse from fastapi) or refactor the approval branch to return a plain dict so the signature remains dict[str, Any]; reference run_pipeline and JSONResponse to locate the branch to change and ensure the OpenAPI/type hints are consistent.
+
+
+
+============================================================================
+File: .gobby/workflows/meeseeks-box-pipeline.yaml
+Line: 109 to 119
+Type: potential_issue
+
+Prompt for AI Agent:
+In @.gobby/workflows/meeseeks-box-pipeline.yaml around lines 109 - 119, The recursive invocation in the next_iteration step (id: next_iteration) can loop forever if check_complete.output.all_complete stays false; add a max_iterations input and an iteration counter (e.g., inputs._current_iteration) and change the invocation condition to require inputs._current_iteration < inputs.max_iterations, and when invoking meeseeks-box-pipeline increment _current_iteration in the input payload so each recursive call increments the counter and stops once the limit is reached.
+
+
+
+============================================================================
+File: src/gobby/workflows/context_actions.py
+Line: 104 to 116
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/workflows/context_actions.py around lines 104 - 116, The source_contents mapping is misaligned because the later loop pairs every entry in source with items from combined_content, but combined_content only contains entries for sources that returned content; fix this by constructing source_contents at the time you produce combined_content (inside the original loop where you handle each single_source and append to combined_content), e.g. when you get a non-None result assign source_contents[single_source] = result instead of trying to realign afterward; ensure you remove the faulty second loop that iterates over source using indices and instead rely on the mapping built during the first pass (symbols: source_contents, source, combined_content, single_source, the original loop that builds combined_content).
+
+
+
+============================================================================
+File: web/src/vite-env.d.ts
+Line: 1 to 6
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/src/vite-env.d.ts around lines 1 - 6, The custom declaration block "declare module '.css' { const content: Record; export default content }" treats all .css files as CSS Modules and conflicts with vite/client's types; either remove that entire declare module block so Vite's built-in handling is used, or restrict it to "declare module '.module.css' { ... }" to only type actual CSS modules (update the existing declare module '*.css' declaration accordingly).
+
+
+
+============================================================================
+File: web/src/hooks/useChat.ts
+Line: 257 to 262
+Type: potential_issue
+
+Prompt for AI Agent:
+In @web/src/hooks/useChat.ts around lines 257 - 262, sendMessage currently just returns when wsRef is not connected, causing silent failures; update sendMessage to surface the error by (1) returning a clear result (e.g., boolean or Promise) or throwing an Error when wsRef.current is missing or its readyState !== WebSocket.OPEN, and (2) notify the UI by invoking a visible error handler/callback or updating a connection/error state so the chat shows an error (e.g., call an onSendError callback or set a connectionError state). Adjust callers to handle the new return/throw accordingly; key symbols to change are sendMessage, wsRef.current, and the readyState check against WebSocket.OPEN.
+
+
+
+============================================================================
+File: tests/mcp_proxy/tools/test_pipelines.py
+Line: 16 to 34
+Type: potential_issue
+
+Prompt for AI Agent:
+In @tests/mcp_proxy/tools/test_pipelines.py around lines 16 - 34, The three pytest fixtures mock_loader, mock_executor, and mock_execution_manager need explicit return type annotations to satisfy the project's typing rules; update their signatures to include a return type (e.g., def mock_loader() -> MagicMock:, def mock_executor() -> MagicMock:, def mock_execution_manager() -> MagicMock:) and ensure MagicMock is imported/available for type use so the fixtures are properly typed.
+
+
+
+============================================================================
+File: src/gobby/workflows/actions.py
+Line: 404 to 460
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/workflows/actions.py around lines 404 - 460, The run_pipeline handler should guard against None for inputs and state variables: coerce inputs = kw.get("inputs") or {} before the rendering loop, set variables = context.state.variables or {} and use variables for rendering and for project_id (project_id = variables.get("project_id", "")); if context.state.variables is None and you later need to write (e.g. pending_pipeline when catching ApprovalRequired), assign context.state.variables = variables so writes succeed; update all places using context.state.variables and inputs (including the rendering loop and execute call) to use these non-None locals.
+
+
+
+============================================================================
+File: src/gobby/mcp_proxy/tools/pipelines/__init__.py
+Line: 147 to 151
+Type: potential_issue
+
+Prompt for AI Agent:
+In @src/gobby/mcp_proxy/tools/pipelines/__init__.py around lines 147 - 151, The logger.warning call in the exception handler for loader.discover_pipeline_workflows should use structured logging via the extra parameter instead of interpolating the exception into the message; catch the Exception as e and call logger.warning with a concise message (e.g., "Failed to discover pipelines for dynamic tools") and pass {"exception": str(e)} or the exception object under extra (or a project-standard key) so structured logs include the error details; update the block that references loader.discover_pipeline_workflows and logger.warning to follow the project's logging pattern.
+
+
+
+Review completed ✔

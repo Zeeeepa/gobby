@@ -335,6 +335,25 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         except ValueError as e:
             return {"error": str(e)}
 
+        # Block closing tasks via update_task - must use close_task for proper workflow
+        if status is not None and status.lower() == "closed":
+            return {
+                "error": "Cannot set status to 'closed' via update_task. "
+                "Use close_task(task_id, commit_sha='...') to properly close tasks with commit linking."
+            }
+
+        # Block claiming tasks via update_task - must use claim_task for proper workflow
+        if status is not None and status.lower() == "in_progress":
+            return {
+                "error": "Cannot set status to 'in_progress' via update_task. "
+                "Use claim_task(task_id, session_id='...') to properly claim tasks with session tracking."
+            }
+        if assignee is not None:
+            return {
+                "error": "Cannot set assignee via update_task. "
+                "Use claim_task(task_id, session_id='...') to properly claim tasks with session tracking."
+            }
+
         # Build kwargs only for non-None values to avoid overwriting with NULL
         kwargs: dict[str, Any] = {}
         if title is not None:

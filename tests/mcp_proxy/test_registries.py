@@ -6,6 +6,7 @@ from gobby.mcp_proxy.registries import setup_internal_registries
 
 pytestmark = pytest.mark.unit
 
+
 def test_setup_internal_registries_with_merge() -> None:
     merge_storage = MagicMock()
     merge_resolver = MagicMock()
@@ -364,3 +365,74 @@ def test_setup_hub_registry_accepts_project_id(tmp_path) -> None:
     registry_names = [r.name for r in registries]
     # Hub registry should be present
     assert "gobby-hub" in registry_names
+
+
+# --- Pipelines Registry Tests ---
+
+
+def test_setup_with_pipeline_executor() -> None:
+    """Test pipelines registry is created when pipeline_executor is provided."""
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    pipeline_executor = MagicMock()
+    workflow_loader = MagicMock()
+    execution_manager = MagicMock()
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        pipeline_executor=pipeline_executor,
+        workflow_loader=workflow_loader,
+        pipeline_execution_manager=execution_manager,
+    )
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-pipelines" in registry_names
+
+
+def test_setup_pipelines_not_created_without_executor() -> None:
+    """Test pipelines registry is not created when executor is None."""
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        pipeline_executor=None,
+    )
+
+    registries = manager.get_all_registries()
+    registry_names = [r.name for r in registries]
+    assert "gobby-pipelines" not in registry_names
+
+
+def test_setup_pipelines_tools_accessible() -> None:
+    """Test that pipelines tools are accessible via registry."""
+    mock_config = MagicMock()
+    mock_config.get_gobby_tasks_config.return_value.enabled = False
+    pipeline_executor = MagicMock()
+    workflow_loader = MagicMock()
+    execution_manager = MagicMock()
+
+    manager = setup_internal_registries(
+        _config=mock_config,
+        pipeline_executor=pipeline_executor,
+        workflow_loader=workflow_loader,
+        pipeline_execution_manager=execution_manager,
+    )
+
+    # Find the pipelines registry
+    pipelines_registry = None
+    for registry in manager.get_all_registries():
+        if registry.name == "gobby-pipelines":
+            pipelines_registry = registry
+            break
+
+    assert pipelines_registry is not None
+
+    # Verify expected tools are registered
+    tool_names = [t["name"] for t in pipelines_registry.list_tools()]
+    assert "list_pipelines" in tool_names
+    assert "run_pipeline" in tool_names
+    assert "get_pipeline_status" in tool_names
+    assert "approve_pipeline" in tool_names
+    assert "reject_pipeline" in tool_names

@@ -83,7 +83,9 @@ def mock_parent_session():
 class TestInjectContext:
     """Tests for the inject_context function."""
 
-    def test_returns_none_when_session_manager_is_none(self, workflow_state, mock_template_engine) -> None:
+    def test_returns_none_when_session_manager_is_none(
+        self, workflow_state, mock_template_engine
+    ) -> None:
         """Should return None and log warning when session_manager is None."""
         result = inject_context(
             session_manager=None,
@@ -94,7 +96,9 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_state_is_none(self, mock_session_manager, mock_template_engine) -> None:
+    def test_returns_none_when_state_is_none(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
         """Should return None and log warning when state is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -105,7 +109,9 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_template_engine_is_none(self, mock_session_manager, workflow_state) -> None:
+    def test_returns_none_when_template_engine_is_none(
+        self, mock_session_manager, workflow_state
+    ) -> None:
         """Should return None and log warning when template_engine is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -312,7 +318,9 @@ class TestInjectContext:
         assert result["inject_context"] == "# Recovered Summary\nRecovered from failback file."
         assert workflow_state.context_injected is True
 
-    def test_artifacts_source_with_artifacts(self, mock_session_manager, mock_template_engine) -> None:
+    def test_artifacts_source_with_artifacts(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
         """Should format artifacts as markdown when source is artifacts."""
         state = WorkflowState(
             session_id="test-session",
@@ -453,7 +461,9 @@ class TestInjectContext:
         assert "## Workflow State" in result["inject_context"]
         assert test_state.dict_called is True
 
-    def test_compact_handoff_source(self, mock_session_manager, mock_template_engine, mock_session) -> None:
+    def test_compact_handoff_source(
+        self, mock_session_manager, mock_template_engine, mock_session
+    ) -> None:
         """Should return compact_markdown from current session."""
         mock_session.compact_markdown = "# Compact handoff content"
         mock_session_manager.get.return_value = mock_session
@@ -598,7 +608,9 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "workflow_state_text" in call_args[0][1]
 
-    def test_with_template_rendering_for_compact_handoff(self, mock_session_manager, mock_session) -> None:
+    def test_with_template_rendering_for_compact_handoff(
+        self, mock_session_manager, mock_session
+    ) -> None:
         """Should render template with handoff for compact_handoff source."""
         mock_session.compact_markdown = "Compact content"
         mock_session_manager.get.return_value = mock_session
@@ -656,7 +668,9 @@ class TestInjectContext:
         assert call_args["summary"] == "Parent session summary content"
         assert call_args["handoff"]["notes"] == "Parent session summary content"
 
-    def test_require_blocks_when_no_content(self, mock_session_manager, mock_template_engine) -> None:
+    def test_require_blocks_when_no_content(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
         """Should return block decision when require=True and no content found."""
         state = WorkflowState(
             session_id="test-session",
@@ -751,7 +765,9 @@ class TestInjectMessage:
         )
         assert result is None
 
-    def test_renders_and_returns_message(self, mock_session_manager, workflow_state, mock_session) -> None:
+    def test_renders_and_returns_message(
+        self, mock_session_manager, workflow_state, mock_session
+    ) -> None:
         """Should render template and return inject_message dict."""
         mock_session_manager.get.return_value = mock_session
         template_engine = MagicMock()
@@ -870,7 +886,9 @@ class TestExtractHandoffContext:
 
         assert result == {"error": "Session not found"}
 
-    def test_returns_error_when_no_transcript_path(self, mock_session_manager, mock_session) -> None:
+    def test_returns_error_when_no_transcript_path(
+        self, mock_session_manager, mock_session
+    ) -> None:
         """Should return error when session has no jsonl_path."""
         mock_session.jsonl_path = None
         mock_session_manager.get.return_value = mock_session
@@ -1140,7 +1158,9 @@ class TestExtractHandoffContext:
 
                     assert result.get("handoff_context_extracted") is True
 
-    def test_handles_extraction_exception(self, mock_session_manager, mock_session, tmp_path) -> None:
+    def test_handles_extraction_exception(
+        self, mock_session_manager, mock_session, tmp_path
+    ) -> None:
         """Should return error dict when extraction raises exception."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1197,7 +1217,9 @@ class TestExtractHandoffContext:
 
                     assert result.get("handoff_context_extracted") is True
 
-    def test_skips_empty_lines_in_transcript(self, mock_session_manager, mock_session, tmp_path) -> None:
+    def test_skips_empty_lines_in_transcript(
+        self, mock_session_manager, mock_session, tmp_path
+    ) -> None:
         """Should skip empty lines when reading transcript file."""
         transcript_path = tmp_path / "transcript.jsonl"
         # Create transcript with empty lines
@@ -1585,3 +1607,965 @@ class TestRecommendSkillsForTask:
 
         result = recommend_skills_for_task({})
         assert isinstance(result, list)
+
+
+# --- Tests for inject_context with source='skills' ---
+
+
+class TestInjectContextSkillsSource:
+    """Tests for inject_context with source='skills'.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_skill_manager(self):
+        """Create a mock skill manager with test skills."""
+        manager = MagicMock()
+
+        # Create mock ParsedSkill objects
+        always_apply_skill = MagicMock()
+        always_apply_skill.name = "claiming-tasks"
+        always_apply_skill.description = "Quick reference for claiming tasks"
+        always_apply_skill.is_always_apply.return_value = True
+
+        regular_skill = MagicMock()
+        regular_skill.name = "gobby-tasks"
+        regular_skill.description = "Task management skill"
+        regular_skill.is_always_apply.return_value = False
+
+        another_skill = MagicMock()
+        another_skill.name = "gobby-sessions"
+        another_skill.description = "Session management skill"
+        another_skill.is_always_apply.return_value = False
+
+        manager.discover_core_skills.return_value = [
+            always_apply_skill,
+            regular_skill,
+            another_skill,
+        ]
+
+        return manager
+
+    def test_skills_source_returns_formatted_skill_list(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should return formatted skill list when source is 'skills'."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=mock_skill_manager,
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain skill names
+        assert "claiming-tasks" in content
+        assert "gobby-tasks" in content
+        assert "gobby-sessions" in content
+
+    def test_skills_source_filters_always_apply_skills(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should only include always_apply skills when filter='always_apply'."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=mock_skill_manager,
+            filter="always_apply",
+        )
+
+        assert result is not None
+        content = result["inject_context"]
+        # Should contain always_apply skill
+        assert "claiming-tasks" in content
+        # Should NOT contain non-always_apply skills
+        assert "gobby-tasks" not in content
+        assert "gobby-sessions" not in content
+
+    def test_skills_source_returns_none_without_skill_manager(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when skill_manager is not provided."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=None,
+        )
+
+        assert result is None
+
+    def test_skills_source_returns_none_when_no_skills_discovered(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when skill manager returns empty list."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.discover_core_skills.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=empty_manager,
+        )
+
+        assert result is None
+
+    def test_skills_source_with_template_rendering(
+        self, mock_session_manager, mock_skill_manager
+    ) -> None:
+        """Should render template with skills_list for skills source."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        template_engine = MagicMock()
+        template_engine.render.return_value = "Rendered skills"
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=template_engine,
+            source="skills",
+            template="Skills: {{ skills_list }}",
+            skill_manager=mock_skill_manager,
+        )
+
+        assert result is not None
+        assert result["inject_context"] == "Rendered skills"
+        call_args = template_engine.render.call_args
+        assert "skills_list" in call_args[0][1]
+
+    def test_skills_source_sets_context_injected_flag(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should set context_injected flag on state when skills injected."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=mock_skill_manager,
+        )
+
+        assert state.context_injected is True
+
+    def test_skills_source_require_blocks_when_no_skills(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return block decision when require=True and no skills found."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.discover_core_skills.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",
+            skill_manager=empty_manager,
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]
+
+
+# --- Tests for inject_context with source='task_context' ---
+
+
+class TestInjectContextTaskContextSource:
+    """Tests for inject_context with source='task_context'.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_session_task_manager(self):
+        """Create a mock session task manager."""
+        manager = MagicMock()
+
+        # Create mock task object
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-123"
+        mock_task.seq_num = 6644
+        mock_task.title = "Implement user authentication"
+        mock_task.status = "in_progress"
+        mock_task.description = "Add login/logout functionality"
+        mock_task.validation_criteria = "Tests pass and login works"
+
+        # Return task in the worked_on action format
+        manager.get_session_tasks.return_value = [
+            {
+                "task": mock_task,
+                "action": "worked_on",
+                "link_created_at": "2026-01-15T10:00:00Z",
+            }
+        ]
+
+        return manager
+
+    def test_task_context_source_returns_formatted_task_info(
+        self, mock_session_manager, mock_template_engine, mock_session_task_manager
+    ) -> None:
+        """Should return formatted task info when source is 'task_context'."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain task details
+        assert "#6644" in content or "6644" in content
+        assert "Implement user authentication" in content
+        assert "in_progress" in content
+
+    def test_task_context_source_returns_none_without_session_task_manager(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when session_task_manager is not provided."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=None,
+        )
+
+        assert result is None
+
+    def test_task_context_source_returns_none_when_no_active_task(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when session has no tasks."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=empty_manager,
+        )
+
+        assert result is None
+
+    def test_task_context_source_filters_worked_on_tasks(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should only include tasks with 'worked_on' action."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        # Create mock tasks with different actions
+        worked_on_task = MagicMock()
+        worked_on_task.id = "task-1"
+        worked_on_task.seq_num = 100
+        worked_on_task.title = "Active task"
+        worked_on_task.status = "in_progress"
+        worked_on_task.description = "The active task"
+        worked_on_task.validation_criteria = None
+
+        mentioned_task = MagicMock()
+        mentioned_task.id = "task-2"
+        mentioned_task.seq_num = 200
+        mentioned_task.title = "Mentioned task"
+        mentioned_task.status = "open"
+
+        manager = MagicMock()
+        manager.get_session_tasks.return_value = [
+            {
+                "task": worked_on_task,
+                "action": "worked_on",
+                "link_created_at": "2026-01-15T10:00:00Z",
+            },
+            {
+                "task": mentioned_task,
+                "action": "mentioned",
+                "link_created_at": "2026-01-15T09:00:00Z",
+            },
+        ]
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=manager,
+        )
+
+        assert result is not None
+        content = result["inject_context"]
+        # Should contain worked_on task
+        assert "Active task" in content
+        # Should NOT contain mentioned task
+        assert "Mentioned task" not in content
+
+    def test_task_context_source_with_template_rendering(
+        self, mock_session_manager, mock_session_task_manager
+    ) -> None:
+        """Should render template with task_context for task_context source."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        template_engine = MagicMock()
+        template_engine.render.return_value = "Rendered task context"
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=template_engine,
+            source="task_context",
+            template="Task: {{ task_context }}",
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert result["inject_context"] == "Rendered task context"
+        call_args = template_engine.render.call_args
+        assert "task_context" in call_args[0][1]
+
+    def test_task_context_source_sets_context_injected_flag(
+        self, mock_session_manager, mock_template_engine, mock_session_task_manager
+    ) -> None:
+        """Should set context_injected flag on state when task context injected."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert state.context_injected is True
+
+    def test_task_context_source_require_blocks_when_no_task(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return block decision when require=True and no task found."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="task_context",
+            session_task_manager=empty_manager,
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]
+
+
+# --- Tests for inject_context with source='memories' ---
+
+
+class TestInjectContextMemoriesSource:
+    """Tests for inject_context with source='memories'.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_memory_manager(self):
+        """Create a mock memory manager."""
+        manager = MagicMock()
+        # Enable config
+        manager.config.enabled = True
+
+        # Create mock memory objects
+        memory1 = MagicMock()
+        memory1.id = "mem-1"
+        memory1.content = "User prefers dark mode for all UIs"
+        memory1.importance = 0.8
+        memory1.memory_type = "preference"
+
+        memory2 = MagicMock()
+        memory2.id = "mem-2"
+        memory2.content = "Project uses pytest for testing"
+        memory2.importance = 0.7
+        memory2.memory_type = "fact"
+
+        manager.recall.return_value = [memory1, memory2]
+
+        return manager
+
+    def test_memories_source_returns_formatted_memories(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should return formatted memories when source is 'memories'."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="What UI theme should I use?",
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain memory content
+        assert "dark mode" in content
+        assert "pytest" in content
+
+    def test_memories_source_returns_none_without_memory_manager(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when memory_manager is not provided."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=None,
+            prompt_text="test prompt",
+        )
+
+        assert result is None
+
+    def test_memories_source_returns_none_when_disabled(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when memory manager is disabled."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        disabled_manager = MagicMock()
+        disabled_manager.config.enabled = False
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=disabled_manager,
+            prompt_text="test prompt",
+        )
+
+        assert result is None
+
+    def test_memories_source_returns_none_when_no_memories_found(
+        self, mock_session_manager, mock_template_engine, mock_session
+    ) -> None:
+        """Should return None when no memories are found."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.config.enabled = True
+        empty_manager.recall.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=empty_manager,
+            prompt_text="find something",
+        )
+
+        assert result is None
+
+    def test_memories_source_uses_limit_parameter(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should pass limit parameter to memory recall."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+            limit=10,
+        )
+
+        # Verify limit was passed to recall
+        mock_memory_manager.recall.assert_called_once()
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["limit"] == 10
+
+    def test_memories_source_uses_min_importance_parameter(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should pass min_importance parameter to memory recall."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+            min_importance=0.5,
+        )
+
+        # Verify min_importance was passed to recall
+        mock_memory_manager.recall.assert_called_once()
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["min_importance"] == 0.5
+
+    def test_memories_source_with_template_rendering(
+        self, mock_session_manager, mock_memory_manager, mock_session
+    ) -> None:
+        """Should render template with memories_list for memories source."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        template_engine = MagicMock()
+        template_engine.render.return_value = "Rendered memories"
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=template_engine,
+            source="memories",
+            template="Memories: {{ memories_list }}",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+        )
+
+        assert result is not None
+        assert result["inject_context"] == "Rendered memories"
+        call_args = template_engine.render.call_args
+        assert "memories_list" in call_args[0][1]
+
+    def test_memories_source_sets_context_injected_flag(
+        self, mock_session_manager, mock_template_engine, mock_memory_manager, mock_session
+    ) -> None:
+        """Should set context_injected flag on state when memories injected."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=mock_memory_manager,
+            prompt_text="test prompt",
+        )
+
+        assert state.context_injected is True
+
+    def test_memories_source_require_blocks_when_no_memories(
+        self, mock_session_manager, mock_template_engine, mock_session
+    ) -> None:
+        """Should return block decision when require=True and no memories found."""
+        mock_session_manager.get.return_value = mock_session
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        empty_manager = MagicMock()
+        empty_manager.config.enabled = True
+        empty_manager.recall.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="memories",
+            memory_manager=empty_manager,
+            prompt_text="find something",
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]
+
+
+# --- Tests for inject_context with array source syntax ---
+
+
+class TestInjectContextArraySource:
+    """Tests for inject_context with source as list.
+
+    Part of epic #6640: Consolidate Skill Injection into Workflows.
+    """
+
+    @pytest.fixture
+    def mock_skill_manager(self):
+        """Create a mock skill manager with test skills."""
+        manager = MagicMock()
+        skill = MagicMock()
+        skill.name = "gobby-tasks"
+        skill.description = "Task management skill"
+        skill.is_always_apply.return_value = False
+        manager.discover_core_skills.return_value = [skill]
+        return manager
+
+    @pytest.fixture
+    def mock_session_task_manager(self):
+        """Create a mock session task manager."""
+        manager = MagicMock()
+        mock_task = MagicMock()
+        mock_task.id = "task-uuid-123"
+        mock_task.seq_num = 100
+        mock_task.title = "Test task"
+        mock_task.status = "in_progress"
+        mock_task.description = "Test description"
+        mock_task.validation_criteria = None
+        manager.get_session_tasks.return_value = [
+            {"task": mock_task, "action": "worked_on", "link_created_at": "2026-01-15T10:00:00Z"}
+        ]
+        return manager
+
+    def test_array_source_combines_multiple_sources(
+        self,
+        mock_session_manager,
+        mock_template_engine,
+        mock_skill_manager,
+        mock_session_task_manager,
+    ) -> None:
+        """Should combine content from multiple sources when source is a list."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source=["skills", "task_context"],
+            skill_manager=mock_skill_manager,
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        content = result["inject_context"]
+        # Should contain content from both sources
+        assert "gobby-tasks" in content  # From skills
+        assert "Test task" in content  # From task_context
+
+    def test_array_source_skips_empty_sources(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should skip sources that return no content."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        # session_task_manager returns empty
+        empty_task_manager = MagicMock()
+        empty_task_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source=["skills", "task_context"],
+            skill_manager=mock_skill_manager,
+            session_task_manager=empty_task_manager,
+        )
+
+        assert result is not None
+        content = result["inject_context"]
+        # Should contain skills content but not task_context
+        assert "gobby-tasks" in content
+
+    def test_array_source_returns_none_when_all_sources_empty(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should return None when all sources in list return no content."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        # Empty skill manager
+        empty_skill_manager = MagicMock()
+        empty_skill_manager.discover_core_skills.return_value = []
+
+        # Empty task manager
+        empty_task_manager = MagicMock()
+        empty_task_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source=["skills", "task_context"],
+            skill_manager=empty_skill_manager,
+            session_task_manager=empty_task_manager,
+        )
+
+        assert result is None
+
+    def test_array_source_separates_content_with_newlines(
+        self,
+        mock_session_manager,
+        mock_template_engine,
+        mock_skill_manager,
+        mock_session_task_manager,
+    ) -> None:
+        """Should separate content from different sources with newlines."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source=["skills", "task_context"],
+            skill_manager=mock_skill_manager,
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        content = result["inject_context"]
+        # Content from different sources should be separated
+        assert "\n\n" in content
+
+    def test_array_source_sets_context_injected_flag(
+        self,
+        mock_session_manager,
+        mock_template_engine,
+        mock_skill_manager,
+        mock_session_task_manager,
+    ) -> None:
+        """Should set context_injected flag when any source provides content."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+        assert state.context_injected is False
+
+        inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source=["skills", "task_context"],
+            skill_manager=mock_skill_manager,
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert state.context_injected is True
+
+    def test_single_string_source_still_works(
+        self, mock_session_manager, mock_template_engine, mock_skill_manager
+    ) -> None:
+        """Should still work with single string source (backward compatibility)."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source="skills",  # Single string, not list
+            skill_manager=mock_skill_manager,
+        )
+
+        assert result is not None
+        assert "gobby-tasks" in result["inject_context"]
+
+    def test_array_source_require_blocks_when_all_empty(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
+        """Should block when require=True and all sources are empty."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="test",
+        )
+
+        # Empty managers
+        empty_skill_manager = MagicMock()
+        empty_skill_manager.discover_core_skills.return_value = []
+        empty_task_manager = MagicMock()
+        empty_task_manager.get_session_tasks.return_value = []
+
+        result = inject_context(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            state=state,
+            template_engine=mock_template_engine,
+            source=["skills", "task_context"],
+            skill_manager=empty_skill_manager,
+            session_task_manager=empty_task_manager,
+            require=True,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "Required handoff context not found" in result["reason"]

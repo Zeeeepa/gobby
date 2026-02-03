@@ -12,6 +12,7 @@ from gobby.skills.parser import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestParseFrontmatter:
     """Tests for parse_frontmatter function."""
 

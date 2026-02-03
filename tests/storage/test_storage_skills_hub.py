@@ -6,6 +6,7 @@ from gobby.storage.skills import Skill
 
 pytestmark = pytest.mark.unit
 
+
 class TestSkillHubFields:
     """Tests for hub tracking fields in the Skill dataclass."""
 

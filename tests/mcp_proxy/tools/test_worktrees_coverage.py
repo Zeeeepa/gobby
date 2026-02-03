@@ -15,6 +15,7 @@ from gobby.storage.worktrees import Worktree
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_worktree_storage():
     return MagicMock()

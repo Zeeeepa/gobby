@@ -283,6 +283,9 @@ class ConditionEvaluator:
                 "None": None,
                 "True": True,
                 "False": False,
+                # YAML/JSON use lowercase booleans
+                "true": True,
+                "false": False,
             }
 
             # Add plugin conditions as callable functions

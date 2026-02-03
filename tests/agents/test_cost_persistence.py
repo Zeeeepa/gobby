@@ -13,6 +13,7 @@ from gobby.llm.executor import AgentResult, CostInfo
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     """Create a mock database."""

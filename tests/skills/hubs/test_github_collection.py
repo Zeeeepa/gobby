@@ -520,3 +520,357 @@ class TestGitHubCollectionProviderCloneSkill:
                 assert result == str(target_dir)
                 # Skill should be copied to target
                 assert (Path(target_dir) / "SKILL.md").exists()
+
+
+class TestGitHubCollectionProviderFetchSkillContent:
+    """Tests for GitHubCollectionProvider _fetch_skill_content functionality."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_content_success(self) -> None:
+        """Test _fetch_skill_content returns SKILL.md content."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            branch="main",
+        )
+
+        mock_response = MagicMock()
+        mock_response.text = "# My Skill\n\nThis skill does something useful."
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            result = await provider._fetch_skill_content("commit-message")
+
+            assert result == "# My Skill\n\nThis skill does something useful."
+            # Verify correct URL was called
+            call_url = mock_client.get.call_args[0][0]
+            assert "anthropics/skills/contents/commit-message/SKILL.md" in call_url
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_content_with_path(self) -> None:
+        """Test _fetch_skill_content includes subdirectory path."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+            branch="main",
+            path="skills",
+        )
+
+        mock_response = MagicMock()
+        mock_response.text = "# Skill content"
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            await provider._fetch_skill_content("my-skill")
+
+            call_url = mock_client.get.call_args[0][0]
+            assert "skills/my-skill/SKILL.md" in call_url
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_content_not_found(self) -> None:
+        """Test _fetch_skill_content returns None on 404."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import httpx
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="anthropics/skills",
+        )
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found",
+                    request=MagicMock(),
+                    response=MagicMock(status_code=404),
+                )
+            )
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            result = await provider._fetch_skill_content("nonexistent-skill")
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_skill_content_invalid_repo(self) -> None:
+        """Test _fetch_skill_content returns None for invalid repo format."""
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="invalid-repo",  # Missing owner/repo format
+        )
+
+        result = await provider._fetch_skill_content("some-skill")
+        assert result is None
+
+
+class TestGitHubCollectionProviderSynthesizeDescription:
+    """Tests for GitHubCollectionProvider _synthesize_description functionality."""
+
+    @pytest.mark.asyncio
+    async def test_synthesize_description_success(self) -> None:
+        """Test _synthesize_description returns LLM-generated description."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_llm_service = MagicMock()
+        mock_provider = AsyncMock()
+        mock_provider.generate_text = AsyncMock(return_value="Generates commit messages")
+        mock_llm_service.get_default_provider.return_value = mock_provider
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=mock_llm_service,
+        )
+
+        result = await provider._synthesize_description(
+            "commit-message",
+            "# Commit Message\n\nThis skill generates commit messages.",
+        )
+
+        assert result == "Generates commit messages"
+        mock_provider.generate_text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_synthesize_description_no_llm_service(self) -> None:
+        """Test _synthesize_description returns empty string without LLM service."""
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=None,
+        )
+
+        result = await provider._synthesize_description(
+            "commit-message",
+            "# Commit Message\n\nThis skill generates commit messages.",
+        )
+
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_synthesize_description_cleans_output(self) -> None:
+        """Test _synthesize_description strips quotes and whitespace."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_llm_service = MagicMock()
+        mock_provider = AsyncMock()
+        # LLM returns description with quotes and whitespace
+        mock_provider.generate_text = AsyncMock(return_value='  "Generates commit messages"  ')
+        mock_llm_service.get_default_provider.return_value = mock_provider
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=mock_llm_service,
+        )
+
+        result = await provider._synthesize_description("commit-message", "content")
+
+        assert result == "Generates commit messages"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_description_truncates_long_output(self) -> None:
+        """Test _synthesize_description truncates output to 100 chars."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_llm_service = MagicMock()
+        mock_provider = AsyncMock()
+        # LLM returns very long description
+        mock_provider.generate_text = AsyncMock(return_value="A" * 200)
+        mock_llm_service.get_default_provider.return_value = mock_provider
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=mock_llm_service,
+        )
+
+        result = await provider._synthesize_description("skill", "content")
+
+        assert len(result) == 100
+
+    @pytest.mark.asyncio
+    async def test_synthesize_description_handles_llm_error(self) -> None:
+        """Test _synthesize_description returns empty string on LLM error."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_llm_service = MagicMock()
+        mock_provider = AsyncMock()
+        mock_provider.generate_text = AsyncMock(side_effect=Exception("LLM API error"))
+        mock_llm_service.get_default_provider.return_value = mock_provider
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=mock_llm_service,
+        )
+
+        result = await provider._synthesize_description("skill", "content")
+
+        assert result == ""
+
+
+class TestGitHubCollectionProviderGetSkillDetailsWithSynthesis:
+    """Tests for GitHubCollectionProvider get_skill_details with LLM synthesis."""
+
+    @pytest.mark.asyncio
+    async def test_get_skill_details_synthesizes_description(self) -> None:
+        """Test get_skill_details fetches content and synthesizes description."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_llm_service = MagicMock()
+        mock_provider = AsyncMock()
+        mock_provider.generate_text = AsyncMock(return_value="Helpful commit messages")
+        mock_llm_service.get_default_provider.return_value = mock_provider
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=mock_llm_service,
+        )
+
+        mock_skills = [
+            {"slug": "commit-message", "name": "commit-message", "description": ""},
+        ]
+
+        with (
+            patch.object(provider, "_fetch_skill_list", return_value=mock_skills),
+            patch.object(provider, "_fetch_skill_content", return_value="# Commit Message Skill"),
+        ):
+            result = await provider.get_skill_details("commit-message")
+
+            assert result is not None
+            assert result.slug == "commit-message"
+            assert result.description == "Helpful commit messages"
+
+    @pytest.mark.asyncio
+    async def test_get_skill_details_uses_cache(self) -> None:
+        """Test get_skill_details returns cached description."""
+        import time
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+        )
+
+        # Pre-populate cache
+        provider._description_cache["user/skills:commit-message"] = (
+            "Cached description",
+            time.time(),
+        )
+
+        mock_skills = [
+            {"slug": "commit-message", "name": "commit-message", "description": ""},
+        ]
+
+        with patch.object(provider, "_fetch_skill_list", return_value=mock_skills):
+            result = await provider.get_skill_details("commit-message")
+
+            assert result is not None
+            assert result.description == "Cached description"
+
+    @pytest.mark.asyncio
+    async def test_get_skill_details_ignores_stale_cache(self) -> None:
+        """Test get_skill_details ignores expired cache entries."""
+        import time
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_llm_service = MagicMock()
+        mock_provider = AsyncMock()
+        mock_provider.generate_text = AsyncMock(return_value="Fresh description")
+        mock_llm_service.get_default_provider.return_value = mock_provider
+
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+            llm_service=mock_llm_service,
+        )
+
+        # Pre-populate cache with stale entry (2 hours old)
+        provider._description_cache["user/skills:commit-message"] = (
+            "Stale description",
+            time.time() - 7200,
+        )
+
+        mock_skills = [
+            {"slug": "commit-message", "name": "commit-message", "description": ""},
+        ]
+
+        with (
+            patch.object(provider, "_fetch_skill_list", return_value=mock_skills),
+            patch.object(provider, "_fetch_skill_content", return_value="# Skill content"),
+        ):
+            result = await provider.get_skill_details("commit-message")
+
+            assert result is not None
+            assert result.description == "Fresh description"
+
+    @pytest.mark.asyncio
+    async def test_get_skill_details_skill_not_found(self) -> None:
+        """Test get_skill_details returns None for unknown skill."""
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+        )
+
+        mock_skills = [
+            {"slug": "other-skill", "name": "other-skill", "description": ""},
+        ]
+
+        with patch.object(provider, "_fetch_skill_list", return_value=mock_skills):
+            result = await provider.get_skill_details("nonexistent")
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_skill_details_no_content_empty_description(self) -> None:
+        """Test get_skill_details returns empty description when SKILL.md not found."""
+        provider = GitHubCollectionProvider(
+            hub_name="my-collection",
+            base_url="",
+            repo="user/skills",
+        )
+
+        mock_skills = [
+            {"slug": "empty-skill", "name": "empty-skill", "description": ""},
+        ]
+
+        with (
+            patch.object(provider, "_fetch_skill_list", return_value=mock_skills),
+            patch.object(provider, "_fetch_skill_content", return_value=None),
+        ):
+            result = await provider.get_skill_details("empty-skill")
+
+            assert result is not None
+            assert result.description == ""

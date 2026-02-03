@@ -6,6 +6,7 @@ from gobby.cli.tasks._utils import resolve_task_id
 
 pytestmark = pytest.mark.unit
 
+
 def test_resolve_numeric_string_as_seq_num() -> None:
     """Test that a numeric string '123' is treated as '#123'."""
     mock_manager = MagicMock()

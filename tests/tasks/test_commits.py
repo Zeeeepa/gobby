@@ -16,6 +16,7 @@ from gobby.tasks.commits import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestGetTaskDiff:
     """Tests for get_task_diff function."""
 

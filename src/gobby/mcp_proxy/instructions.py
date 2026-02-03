@@ -6,32 +6,15 @@ These instructions are injected into the MCP server via FastMCP's `instructions`
 
 
 def build_gobby_instructions() -> str:
-    """Build XML-structured instructions for Gobby MCP server.
+    """Build compact instructions for Gobby MCP server.
 
-    These instructions teach agents how to use Gobby correctly.
-    Every agent connecting to Gobby receives these automatically.
-
-    The instructions cover:
-    - Session startup sequence
-    - Progressive tool disclosure pattern
-    - Progressive skill disclosure pattern
-    - Critical rules for task management
+    Provides minimal guidance for progressive tool disclosure, caching, and task rules.
+    Startup sequence and skill discovery are now handled via workflow injection.
 
     Returns:
-        XML-structured instructions string
+        XML-structured instructions string (~120 tokens)
     """
     return """<gobby_system>
-
-<startup>
-At the start of EVERY session:
-1. `list_mcp_servers()` — Discover available servers
-2. `list_skills()` — Discover available skills
-3. Session ID: Look for `Gobby Session Ref:` or `Gobby Session ID:` in your context.
-   If missing, call:
-   `call_tool("gobby-sessions", "get_current_session", {"external_id": "<your-session-id>", "source": "<cli-name>"})`
-
-Session and task references use `#N` format (e.g., `#1`, `#42`) which is project-scoped.
-</startup>
 
 <tool_discovery>
 NEVER assume tool schemas. Use progressive disclosure:
@@ -40,12 +23,11 @@ NEVER assume tool schemas. Use progressive disclosure:
 3. `call_tool(server, tool, args)` — Execute
 </tool_discovery>
 
-<skill_discovery>
-Skills provide detailed guidance. Use progressive disclosure:
-1. `list_skills()` — Already done at startup
-2. `get_skill(name="...")` — Full content when needed
-3. `search_skills(query="...")` — Find by task description
-</skill_discovery>
+<caching>
+Schema fetches are cached per session. Once you call `get_tool_schema(server, tool)`,
+you can `call_tool` that same server:tool repeatedly WITHOUT re-fetching the schema.
+Do NOT call list_tools or get_tool_schema before every call_tool — only on first use.
+</caching>
 
 <rules>
 - Create/claim a task before using Edit, Write, or NotebookEdit tools

@@ -290,6 +290,50 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to export metrics: {e}", exc_info=True)
             raise
 
+    @router.get("/models")
+    async def get_models() -> dict[str, Any]:
+        """
+        Get available LLM providers and their models.
+
+        Returns:
+            Dictionary with providers and their available models
+        """
+        start_time = time.perf_counter()
+
+        providers_data: dict[str, Any] = {}
+        default_provider = None
+        default_model = None
+
+        if server.llm_service is not None:
+            enabled = server.llm_service.enabled_providers
+            if enabled:
+                default_provider = "claude" if "claude" in enabled else enabled[0]
+
+            # Get models for each enabled provider from config
+            if server.services.config and server.services.config.llm_providers:
+                llm_config = server.services.config.llm_providers
+
+                for provider_name in enabled:
+                    provider_config = getattr(llm_config, provider_name, None)
+                    if provider_config:
+                        models = provider_config.get_models_list()
+                        providers_data[provider_name] = {
+                            "models": models,
+                            "auth_mode": provider_config.auth_mode,
+                        }
+                        # Set default model from first provider
+                        if default_model is None and models:
+                            default_model = models[0]
+
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return {
+            "providers": providers_data,
+            "default_provider": default_provider,
+            "default_model": default_model,
+            "response_time_ms": response_time_ms,
+        }
+
     @router.get("/config")
     async def get_config() -> dict[str, Any]:
         """

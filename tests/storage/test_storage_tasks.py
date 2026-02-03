@@ -7,6 +7,7 @@ from gobby.storage.tasks import LocalTaskManager, TaskIDCollisionError
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def dep_manager(temp_db):
     return TaskDependencyManager(temp_db)
@@ -129,7 +130,9 @@ class TestLocalTaskManager:
         with pytest.raises(ValueError):
             task_manager.get_task(child.id)
 
-    def test_delete_with_dependents_no_flags_raises(self, task_manager, dep_manager, project_id) -> None:
+    def test_delete_with_dependents_no_flags_raises(
+        self, task_manager, dep_manager, project_id
+    ) -> None:
         """Test that deleting a task with dependents raises error without cascade/unlink."""
         blocker = task_manager.create_task(project_id=project_id, title="Blocker")
         dependent = task_manager.create_task(project_id=project_id, title="Dependent")
@@ -190,7 +193,9 @@ class TestLocalTaskManager:
         with pytest.raises(ValueError):
             task_manager.get_task(child2.id)
 
-    def test_delete_with_dependents_unlink_preserves(self, task_manager, dep_manager, project_id) -> None:
+    def test_delete_with_dependents_unlink_preserves(
+        self, task_manager, dep_manager, project_id
+    ) -> None:
         """Test that unlink=True deletes task but preserves dependents."""
         blocker = task_manager.create_task(project_id=project_id, title="Blocker")
         dependent = task_manager.create_task(project_id=project_id, title="Dependent")
@@ -270,7 +275,9 @@ class TestLocalTaskManager:
         blocked = task_manager.list_blocked_tasks(project_id=project_id)
         # T1 is no longer blocked by OPEN task
 
-    def test_parent_blocked_by_children_is_still_ready(self, task_manager, dep_manager, project_id) -> None:
+    def test_parent_blocked_by_children_is_still_ready(
+        self, task_manager, dep_manager, project_id
+    ) -> None:
         """Parent tasks blocked by their own children should still be considered 'ready'.
 
         This is because 'blocked by children' means 'cannot close until children done',
@@ -637,7 +644,9 @@ class TestLocalTaskManager:
         closed = task_manager.close_task(parent.id, force=True)
         assert closed.status == "closed"
 
-    def test_close_task_with_session_and_commit(self, task_manager, project_id, session_manager) -> None:
+    def test_close_task_with_session_and_commit(
+        self, task_manager, project_id, session_manager
+    ) -> None:
         """Test closing task records session ID and commit SHA."""
         # Create a session first (foreign key constraint)
         session = session_manager.register(
@@ -887,7 +896,9 @@ class TestLocalTaskManager:
     # List Ready Tasks Filter Tests
     # =========================================================================
 
-    def test_list_ready_tasks_with_task_type_filter(self, task_manager, dep_manager, project_id) -> None:
+    def test_list_ready_tasks_with_task_type_filter(
+        self, task_manager, dep_manager, project_id
+    ) -> None:
         """Test filtering ready tasks by type."""
         task_manager.create_task(project_id, "Bug 1", task_type="bug")
         task_manager.create_task(project_id, "Feature 1", task_type="feature")
@@ -943,7 +954,9 @@ class TestLocalTaskManager:
     # List Blocked Tasks Filter Tests
     # =========================================================================
 
-    def test_list_blocked_tasks_with_parent_filter(self, task_manager, dep_manager, project_id) -> None:
+    def test_list_blocked_tasks_with_parent_filter(
+        self, task_manager, dep_manager, project_id
+    ) -> None:
         """Test filtering blocked tasks by parent."""
         parent = task_manager.create_task(project_id, "Parent")
         child1 = task_manager.create_task(project_id, "Child 1", parent_task_id=parent.id)
@@ -956,7 +969,9 @@ class TestLocalTaskManager:
         assert len(blocked) == 1
         assert blocked[0].id == child1.id
 
-    def test_list_blocked_tasks_with_limit_offset(self, task_manager, dep_manager, project_id) -> None:
+    def test_list_blocked_tasks_with_limit_offset(
+        self, task_manager, dep_manager, project_id
+    ) -> None:
         """Test pagination in blocked tasks."""
         blocker = task_manager.create_task(project_id, "Blocker")
         for i in range(5):
@@ -1452,7 +1467,9 @@ class TestPathCacheComputation:
         path = task_manager.compute_path_cache("nonexistent-id")
         assert path is None
 
-    def test_compute_path_cache_handles_null_seq_num(self, task_manager, project_id, temp_db) -> None:
+    def test_compute_path_cache_handles_null_seq_num(
+        self, task_manager, project_id, temp_db
+    ) -> None:
         """Test path computation returns None when seq_num is NULL (legacy data)."""
         task = task_manager.create_task(project_id=project_id, title="Task")
         # Simulate legacy data by clearing the seq_num
@@ -1461,7 +1478,9 @@ class TestPathCacheComputation:
         path = task_manager.compute_path_cache(task.id)
         assert path is None
 
-    def test_compute_path_cache_parent_null_seq_num(self, task_manager, project_id, temp_db) -> None:
+    def test_compute_path_cache_parent_null_seq_num(
+        self, task_manager, project_id, temp_db
+    ) -> None:
         """Test path computation returns None when parent has NULL seq_num."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
@@ -1530,7 +1549,9 @@ class TestPathCacheComputation:
         )
         assert grandchild_row["path_cache"] == "1.2.4"
 
-    def test_update_descendant_paths_with_null_seq_num(self, task_manager, project_id, temp_db) -> None:
+    def test_update_descendant_paths_with_null_seq_num(
+        self, task_manager, project_id, temp_db
+    ) -> None:
         """Test update_descendant_paths skips tasks with NULL seq_num."""
         root = task_manager.create_task(project_id=project_id, title="Root")
         child = task_manager.create_task(

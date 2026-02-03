@@ -17,6 +17,7 @@ from gobby.tasks.validation import TaskValidator
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_llm():
     """Mock LLM service."""

@@ -11,28 +11,33 @@ Gobby uses a unified internal event model (`HookEvent`) that normalizes hooks fr
 | Claude Code | kebab-case (`session-start`) | `session_id` | HTTP hooks |
 | Gemini CLI | PascalCase (`SessionStart`) | `session_id` | HTTP hooks |
 | Codex CLI | JSON-RPC (`thread/started`) | `threadId` | WebSocket events |
+| Cursor | kebab-case (`session-start`) | `session_id` | HTTP hooks |
+| Windsurf | kebab-case (`session-start`) | `session_id` | HTTP hooks |
+| Copilot | kebab-case (`session-start`) | `session_id` | HTTP hooks |
+
+> **Note:** Skill injection during session start is now handled by the workflow engine's `inject_context` action with `source: skills`, not by hooks directly. This applies to all CLIs. See [Workflows Guide](workflows.md#inject_context-sources) for details.
 
 ## Event Types
 
 ### Unified Event Types
 
-| Internal Type | Claude Code | Gemini CLI | Codex CLI |
-|--------------|-------------|------------|-----------|
-| `SESSION_START` | `session-start` | `SessionStart` | `thread/started` |
-| `SESSION_END` | `session-end` | `SessionEnd` | `thread/archive` |
-| `BEFORE_AGENT` | `user-prompt-submit` | `BeforeAgent` | `turn/started` |
-| `AFTER_AGENT` | - | `AfterAgent` | `turn/completed` |
-| `STOP` | `stop` | - | - |
-| `BEFORE_TOOL` | `pre-tool-use` | `BeforeTool` | `item/*/requestApproval` |
-| `AFTER_TOOL` | `post-tool-use` | `AfterTool` | `item/completed` |
-| `BEFORE_TOOL_SELECTION` | - | `BeforeToolSelection` | - |
-| `BEFORE_MODEL` | - | `BeforeModel` | - |
-| `AFTER_MODEL` | - | `AfterModel` | - |
-| `PRE_COMPACT` | `pre-compact` | `PreCompress` | - |
-| `SUBAGENT_START` | `subagent-start` | - | - |
-| `SUBAGENT_STOP` | `subagent-stop` | - | - |
-| `PERMISSION_REQUEST` | `permission-request` | - | - |
-| `NOTIFICATION` | `notification` | `Notification` | - |
+| Internal Type | Claude Code | Gemini CLI | Codex CLI | Cursor/Windsurf/Copilot |
+|--------------|-------------|------------|-----------|-------------------------|
+| `SESSION_START` | `session-start` | `SessionStart` | `thread/started` | `session-start` |
+| `SESSION_END` | `session-end` | `SessionEnd` | `thread/archive` | `session-end` |
+| `BEFORE_AGENT` | `user-prompt-submit` | `BeforeAgent` | `turn/started` | `user-prompt-submit` |
+| `AFTER_AGENT` | - | `AfterAgent` | `turn/completed` | - |
+| `STOP` | `stop` | - | - | `stop` |
+| `BEFORE_TOOL` | `pre-tool-use` | `BeforeTool` | `item/*/requestApproval` | `pre-tool-use` |
+| `AFTER_TOOL` | `post-tool-use` | `AfterTool` | `item/completed` | `post-tool-use` |
+| `BEFORE_TOOL_SELECTION` | - | `BeforeToolSelection` | - | - |
+| `BEFORE_MODEL` | - | `BeforeModel` | - | - |
+| `AFTER_MODEL` | - | `AfterModel` | - | - |
+| `PRE_COMPACT` | `pre-compact` | `PreCompress` | - | `pre-compact` |
+| `SUBAGENT_START` | `subagent-start` | - | - | `subagent-start` |
+| `SUBAGENT_STOP` | `subagent-stop` | - | - | `subagent-stop` |
+| `PERMISSION_REQUEST` | `permission-request` | - | - | `permission-request` |
+| `NOTIFICATION` | `notification` | `Notification` | - | `notification` |
 
 ---
 
@@ -621,6 +626,173 @@ Item types: `commandExecution`, `fileChange`, `mcpToolCall`, `message`
 
 ---
 
+## Cursor Hooks
+
+Cursor uses a hooks system similar to Claude Code with camelCase event names.
+
+### Request Format
+
+```json
+{
+  "source": "cursor",
+  "hook_type": "sessionStart",
+  "input_data": {
+    "session_id": "cursor-session-123",
+    "cwd": "/path/to/project",
+    "timestamp": "2025-01-15T10:30:00Z",
+    ...hook-specific fields
+  }
+}
+```
+
+### Response Format
+
+```json
+{
+  "decision": "approve",
+  "permission": "allow",
+  "continue": true,
+  "followup_message": "Context for agent",
+  "stopReason": "Reason if blocked"
+}
+```
+
+Exit codes: `0` = allow, `2` = block
+
+### Supported Hooks
+
+| Hook Event | Description | Response Type |
+|------------|-------------|---------------|
+| `sessionStart` | Session begins | decision |
+| `sessionEnd` | Session ends | continue |
+| `preToolUse` | Before tool execution | permission |
+| `postToolUse` | After tool execution | continue |
+| `userPromptSubmitted` | User sends message | decision |
+| `preCompact` | Before context compaction | continue |
+| `stop` | Agent about to stop | continue |
+| `beforeShellExecution` | Before shell command | permission |
+| `afterShellExecution` | After shell command | continue |
+| `fileModified` | File was changed | continue |
+| `mcp_call` | MCP tool invocation | permission |
+| `taskCreated` | Task created | continue |
+| `taskCompleted` | Task completed | continue |
+| `subagentStart` | Subagent spawned | decision |
+| `subagentStop` | Subagent finished | continue |
+
+### Response Types
+
+**decision**: Used for approval gates
+```json
+{"decision": "approve"}  // or "deny"
+```
+
+**permission**: Used for tool/command approval
+```json
+{"permission": "allow"}  // or "deny"
+```
+
+**continue**: Used for informational hooks
+```json
+{"continue": true, "followup_message": "Optional context"}
+```
+
+---
+
+## Windsurf Hooks
+
+Windsurf (Cascade) uses snake_case event names.
+
+### Request Format
+
+```json
+{
+  "source": "windsurf",
+  "hook_type": "pre_user_prompt",
+  "input_data": {
+    "session_id": "windsurf-session-123",
+    "cwd": "/path/to/project",
+    "timestamp": "2025-01-15T10:30:00Z",
+    ...hook-specific fields
+  }
+}
+```
+
+### Response Format
+
+```json
+{
+  "decision": "allow",
+  "continue": true,
+  "followup_message": "Context for agent",
+  "stopReason": "Reason if blocked"
+}
+```
+
+Exit codes: `0` = allow, `2` = block
+
+### Supported Hooks
+
+| Hook Event | Description | Response Type |
+|------------|-------------|---------------|
+| `session_start` | Session begins | decision |
+| `session_end` | Session ends | continue |
+| `pre_user_prompt` | Before processing prompt | decision |
+| `post_user_prompt` | After processing prompt | continue |
+| `pre_run_command` | Before shell command | decision |
+| `post_run_command` | After shell command | continue |
+| `pre_file_edit` | Before file modification | decision |
+| `post_file_edit` | After file modification | continue |
+| `pre_mcp_call` | Before MCP tool call | decision |
+| `post_mcp_call` | After MCP tool call | continue |
+| `context_compaction` | Before context compaction | continue |
+
+---
+
+## GitHub Copilot Hooks
+
+GitHub Copilot uses camelCase event names similar to Cursor.
+
+### Request Format
+
+```json
+{
+  "source": "copilot",
+  "hook_type": "sessionStart",
+  "input_data": {
+    "session_id": "copilot-session-123",
+    "cwd": "/path/to/project",
+    "timestamp": "2025-01-15T10:30:00Z",
+    ...hook-specific fields
+  }
+}
+```
+
+### Response Format
+
+```json
+{
+  "decision": "allow",
+  "continue": true,
+  "followup_message": "Context for agent",
+  "stopReason": "Reason if blocked"
+}
+```
+
+Exit codes: `0` = allow, `2` = block
+
+### Supported Hooks
+
+| Hook Event | Description | Response Type |
+|------------|-------------|---------------|
+| `sessionStart` | Session begins | decision |
+| `sessionEnd` | Session ends | continue |
+| `preToolUse` | Before tool execution | decision |
+| `postToolUse` | After tool execution | continue |
+| `userPromptSubmitted` | User sends message | decision |
+| `commandExecution` | Shell command execution | decision |
+
+---
+
 ## Unified HookEvent Model
 
 All hooks are normalized to this internal model:
@@ -663,12 +835,12 @@ class HookResponse:
 
 The `context` and `system_message` fields are translated differently per CLI:
 
-| HookResponse Field | Claude Code | Gemini CLI |
-|-------------------|-------------|------------|
+| HookResponse Field | Claude Code / Cursor / Windsurf / Copilot | Gemini CLI |
+|-------------------|-------------------------------------------|------------|
 | `context` | → `systemMessage` (agent context) | → `hookSpecificOutput.additionalContext` (agent context) |
 | `system_message` | → `systemMessage` (combined) | → `systemMessage` (user terminal) |
 
-**Claude Code:** Both `context` and `system_message` are combined into `systemMessage` at the top level, which injects content into the agent's conversation.
+**Claude Code / Cursor / Windsurf / Copilot:** Both `context` and `system_message` are combined into `systemMessage` at the top level, which injects content into the agent's conversation.
 
 **Gemini CLI:** `context` goes to `additionalContext` (agent reasoning), while `system_message` goes to `systemMessage` (user terminal display).
 
@@ -756,4 +928,168 @@ adapter.attach_to_client(client)
 await client.start()
 
 # Events are automatically forwarded to HookManager
+```
+
+### Cursor Hook Dispatcher
+
+Location: `.cursor/hooks/hook_dispatcher.py`
+
+```python
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import urllib.request
+import urllib.error
+
+GOBBY_URL = "http://localhost:60887/hooks/cursor"
+
+def main():
+    hook_type = os.environ.get("CURSOR_HOOK_TYPE", "unknown")
+
+    # Read input from stdin
+    input_data = {}
+    if not sys.stdin.isatty():
+        try:
+            input_data = json.load(sys.stdin)
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({
+        "source": "cursor",
+        "hook_type": hook_type,
+        "input_data": input_data
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        GOBBY_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError:
+        # Daemon not running - allow by default
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    print(json.dumps(result))
+
+    # Exit code 2 blocks the action
+    if result.get("decision") == "deny" or result.get("permission") == "deny":
+        sys.exit(2)
+    if result.get("continue") is False:
+        sys.exit(2)
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+```
+
+### Windsurf Hook Dispatcher
+
+Location: `.windsurf/hooks/hook_dispatcher.py`
+
+```python
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import urllib.request
+import urllib.error
+
+GOBBY_URL = "http://localhost:60887/hooks/windsurf"
+
+def main():
+    hook_type = os.environ.get("WINDSURF_HOOK_TYPE", "unknown")
+
+    input_data = {}
+    if not sys.stdin.isatty():
+        try:
+            input_data = json.load(sys.stdin)
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({
+        "source": "windsurf",
+        "hook_type": hook_type,
+        "input_data": input_data
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        GOBBY_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError:
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    print(json.dumps(result))
+
+    if result.get("decision") == "deny" or result.get("continue") is False:
+        sys.exit(2)
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+```
+
+### Copilot Hook Dispatcher
+
+Location: `.copilot/hooks/hook_dispatcher.py`
+
+```python
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import urllib.request
+import urllib.error
+
+GOBBY_URL = "http://localhost:60887/hooks/copilot"
+
+def main():
+    hook_type = os.environ.get("COPILOT_HOOK_TYPE", "unknown")
+
+    input_data = {}
+    if not sys.stdin.isatty():
+        try:
+            input_data = json.load(sys.stdin)
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({
+        "source": "copilot",
+        "hook_type": hook_type,
+        "input_data": input_data
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        GOBBY_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError:
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    print(json.dumps(result))
+
+    if result.get("decision") == "deny" or result.get("continue") is False:
+        sys.exit(2)
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
 ```

@@ -226,10 +226,46 @@ class TranscriptAnalyzer:
         tool_name = block.get("name", "unknown")
         tool_input = block.get("input", {})
 
-        # MCP tool calls - show server.tool
+        # MCP tool calls - show server.tool with details for gobby-tasks
         if tool_name in ("mcp__gobby__call_tool", "mcp_call_tool"):
             server = tool_input.get("server_name", "unknown")
             tool = tool_input.get("tool_name", "unknown")
+            args = tool_input.get("arguments", {})
+
+            # Enhanced formatting for gobby-tasks operations
+            if server == "gobby-tasks":
+                if tool == "create_task":
+                    title = args.get("title", "Untitled")
+                    parent = args.get("parent_task_id", "")
+                    if parent:
+                        return f"Created task: {title} (parent: {parent})"
+                    return f"Created task: {title}"
+                elif tool == "update_task":
+                    task_id = args.get("task_id", "?")
+                    status = args.get("status")
+                    if status:
+                        return f"Updated task {task_id}: status → {status}"
+                    return f"Updated task {task_id}"
+                elif tool == "close_task":
+                    task_id = args.get("task_id", "?")
+                    reason = args.get("reason", "")
+                    if reason:
+                        # Truncate long reasons
+                        if len(reason) > 40:
+                            reason = reason[:37] + "..."
+                        return f"Closed task {task_id}: {reason}"
+                    return f"Closed task {task_id}"
+                elif tool == "claim_task":
+                    task_id = args.get("task_id", "?")
+                    return f"Claimed task {task_id}"
+                elif tool == "get_task":
+                    task_id = args.get("task_id", "?")
+                    return f"Fetched task {task_id}"
+
+            # Generic MCP call formatting - extract meaningful context from args
+            context = self._extract_mcp_context(args)
+            if context:
+                return f"{server}.{tool}: {context}"
             return f"Called {server}.{tool}"
 
         # Bash - show the command (truncated)
@@ -286,6 +322,56 @@ class TranscriptAnalyzer:
 
         # Default - just show the tool name
         return f"Called {tool_name}"
+
+    def _extract_mcp_context(self, args: dict[str, Any]) -> str:
+        """
+        Extract meaningful context from MCP tool arguments.
+
+        Looks for common argument patterns and returns the most relevant value
+        to describe what the tool call is doing.
+
+        Args:
+            args: Tool arguments dict
+
+        Returns:
+            Extracted context string (truncated to 100 chars) or empty string
+        """
+        if not args:
+            return ""
+
+        # Priority order for extracting context
+        # 1. Search/query related - what are we looking for?
+        for key in ("query", "search", "pattern", "topic"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 100)
+
+        # 2. Identity/naming - what entity are we working with?
+        for key in ("title", "name", "task_id", "id", "ref"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 100)
+
+        # 3. Resource paths - what file/resource?
+        for key in ("path", "file_path", "uri", "url", "file"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 100)
+
+        # 4. Descriptive content - why/what?
+        for key in ("description", "reason", "message", "content"):
+            if key in args and args[key]:
+                return self._truncate(str(args[key]), 100)
+
+        # 5. Fallback: first non-empty string value
+        for key, value in args.items():
+            if isinstance(value, str) and value and key not in ("session_id", "server_name"):
+                return self._truncate(value, 100)
+
+        return ""
+
+    def _truncate(self, text: str, max_len: int) -> str:
+        """Truncate text to max_len, adding ellipsis if needed."""
+        if len(text) <= max_len:
+            return text
+        return text[: max_len - 3] + "..."
 
     def _extract_todowrite(self, turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """

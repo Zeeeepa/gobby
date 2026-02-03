@@ -9,6 +9,7 @@ from gobby.cli.installers.antigravity import install_antigravity
 
 pytestmark = pytest.mark.unit
 
+
 class TestInstallAntigravity:
     """Tests for the install_antigravity function."""
 

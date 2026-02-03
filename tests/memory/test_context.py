@@ -10,6 +10,7 @@ from gobby.storage.memories import Memory
 
 pytestmark = pytest.mark.unit
 
+
 class TestStripLeadingBullet:
     """Tests for _strip_leading_bullet function."""
 

@@ -12,6 +12,7 @@ from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def session_storage(temp_db: LocalDatabase) -> LocalSessionManager:
     """Create session storage with temp database."""

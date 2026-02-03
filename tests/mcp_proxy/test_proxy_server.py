@@ -9,6 +9,7 @@ from gobby.mcp_proxy.server import GobbyDaemonTools
 
 pytestmark = pytest.mark.unit
 
+
 # Define dummy classes for mocking imports effectively
 class AssistantMessage:
     def __init__(self, content):

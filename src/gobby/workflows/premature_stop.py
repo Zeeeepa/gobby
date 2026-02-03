@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookResponse
+from gobby.workflows.definitions import WorkflowDefinition
 
 if TYPE_CHECKING:
     from .evaluator import ConditionEvaluator
@@ -66,6 +67,10 @@ async def check_premature_stop(
     workflow = loader.load_workflow(state.workflow_name, project_path=project_path)
     if not workflow:
         logger.warning(f"Workflow '{state.workflow_name}' not found for premature stop check")
+        return None
+
+    # Premature stop handling only applies to WorkflowDefinition, not PipelineDefinition
+    if not isinstance(workflow, WorkflowDefinition):
         return None
 
     # Check if workflow has exit_condition and on_premature_stop

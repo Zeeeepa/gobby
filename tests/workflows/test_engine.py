@@ -4,13 +4,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
-from gobby.workflows.actions import ActionExecutor
+from gobby.workflows.actions import (
+    ActionExecutor,
+)  # keep it if referenced elsewhere? No, fixture was the only user likely.
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
 pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_loader():
@@ -26,7 +29,7 @@ def mock_state_manager():
 
 @pytest.fixture
 def mock_action_executor():
-    executor = AsyncMock(spec=ActionExecutor)
+    executor = AsyncMock()
     executor.db = MagicMock()
     executor.session_manager = MagicMock()
     executor.template_engine = MagicMock()
@@ -38,6 +41,8 @@ def mock_action_executor():
     executor.memory_sync_manager = MagicMock()
     executor.session_task_manager = MagicMock()
     executor.task_sync_manager = MagicMock()
+    executor.pipeline_executor = MagicMock()
+    executor.task_manager = MagicMock()
     return executor
 
 
@@ -454,13 +459,16 @@ class TestDetectTaskClaim:
             metadata={"_platform_session_id": "sess1"},
         )
 
+        # Ensure task manager doesn't interfere
+        mock_action_executor.task_manager = MagicMock()
+
         await workflow_engine.handle_event(event)
 
         assert state.variables.get("task_claimed") is True
         mock_state_manager.save_state.assert_called()
 
     async def test_update_task_in_progress_sets_task_claimed(
-        self, workflow_engine, mock_state_manager, mock_loader
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
     ):
         """update_task with status=in_progress sets task_claimed=True."""
         state = WorkflowState(
@@ -508,7 +516,7 @@ class TestDetectTaskClaim:
         assert state.variables.get("task_claimed") is True
 
     async def test_claim_task_sets_task_claimed(
-        self, workflow_engine, mock_state_manager, mock_loader
+        self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
     ):
         """claim_task sets task_claimed=True."""
         state = WorkflowState(
@@ -532,6 +540,11 @@ class TestDetectTaskClaim:
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
+        # Mock task manager to return a task with the expected UUID
+        task = MagicMock()
+        task.id = "task-uuid-123"
+        mock_action_executor.task_manager.get_task.return_value = task
+
         event = HookEvent(
             event_type=HookEventType.AFTER_TOOL,
             session_id="sess1",
@@ -554,7 +567,7 @@ class TestDetectTaskClaim:
         await workflow_engine.handle_event(event)
 
         assert state.variables.get("task_claimed") is True
-        assert state.variables.get("claimed_task_id") == "#123"
+        assert state.variables.get("claimed_task_id") == "task-uuid-123"
         mock_state_manager.save_state.assert_called()
 
     async def test_update_task_without_status_change_does_not_set_task_claimed(

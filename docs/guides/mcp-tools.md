@@ -11,7 +11,7 @@ Gobby exposes **145+ internal tools** across 11 tool registries, plus direct too
 
 ## Progressive Disclosure Pattern
 
-For token efficiency, use the three-step workflow:
+For token efficiency, use the three-step workflow **on-demand** when you need a tool:
 
 ```python
 # 1. Discover - lightweight metadata (~100 tokens/tool)
@@ -25,6 +25,8 @@ call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "..."
 ```
 
 This pattern is **96% more token-efficient** than loading all schemas upfront.
+
+> **Note:** You don't need to call `list_mcp_servers()` or `list_skills()` at session start. Core skills with `alwaysApply: true` are automatically injected via workflows. Use discovery tools on-demand when you need to find a specific tool or skill.
 
 ---
 

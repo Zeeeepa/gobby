@@ -24,6 +24,7 @@ Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Ge
 - **Task system** with dependency graphs, TDD expansion, and validation gates
 - **MCP proxy** with progressive disclosure (tools stay lightweight until needed)
 - **Workflow engine** that enforces steps, tool restrictions, and transitions
+- **Pipeline system** for deterministic automation with approval gates
 - **Worktree orchestration** for parallel development
 - **Memory system** for persistent facts across sessions
 
@@ -51,6 +52,15 @@ uv run mypy src/                 # Type check
 # Testing (full suite runs pre-push - only run specific tests)
 uv run pytest tests/test_file.py -v    # Run specific test file
 uv run pytest tests/storage/ -v        # Run specific module
+
+# Pipeline management
+uv run gobby pipelines list            # List available pipelines
+uv run gobby pipelines run <name>      # Run a pipeline
+uv run gobby pipelines run --lobster <file>  # Run Lobster file directly
+uv run gobby pipelines status <id>     # Check execution status
+uv run gobby pipelines approve <token> # Approve waiting pipeline
+uv run gobby pipelines reject <token>  # Reject waiting pipeline
+uv run gobby pipelines import <file>   # Import Lobster file
 ```
 
 **Coverage threshold**: 80% (enforced in CI)
@@ -107,7 +117,10 @@ src/gobby/
 ├── workflows/            # Workflow engine
 │   ├── engine.py         # WorkflowEngine (state machine)
 │   ├── loader.py         # YAML workflow loading
-│   └── actions.py        # Workflow action implementations
+│   ├── actions.py        # Workflow action implementations
+│   ├── pipeline_executor.py  # PipelineExecutor (sequential execution)
+│   ├── pipeline_state.py     # Pipeline execution state models
+│   └── lobster_compat.py     # Lobster format import/conversion
 │
 ├── skills/               # Skill management
 │   ├── loader.py         # SkillLoader (filesystem, GitHub, ZIP)

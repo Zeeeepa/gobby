@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.2.9"
+version = "0.2.10"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "MIT"
@@ -194,6 +194,7 @@ dev = [
     "bandit>=1.8.0",
     "black>=24.0.0",
     "mypy>=1.8.0",
+    "pip>=26.0",  # CVE-2026-1703
     "pip-audit>=2.7.0",
     "pre-commit>=4.0.0",
     "pytest>=8.4.2",

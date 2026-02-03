@@ -1,0 +1,59 @@
+{
+  "hooks": {
+    "pre_user_prompt": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=pre_user_prompt"
+      }
+    ],
+    "post_cascade_response": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=post_cascade_response"
+      }
+    ],
+    "pre_read_code": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=pre_read_code"
+      }
+    ],
+    "post_read_code": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=post_read_code"
+      }
+    ],
+    "pre_write_code": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=pre_write_code"
+      }
+    ],
+    "post_write_code": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=post_write_code"
+      }
+    ],
+    "pre_run_command": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=pre_run_command"
+      }
+    ],
+    "post_run_command": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=post_run_command"
+      }
+    ],
+    "pre_mcp_tool_use": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=pre_mcp_tool_use"
+      }
+    ],
+    "post_mcp_tool_use": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=post_mcp_tool_use"
+      }
+    ],
+    "post_setup_worktree": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.windsurf/hooks/hook_dispatcher.py\" --type=post_setup_worktree"
+      }
+    ]
+  }
+}

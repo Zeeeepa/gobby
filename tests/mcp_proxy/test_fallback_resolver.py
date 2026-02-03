@@ -8,6 +8,7 @@ from gobby.mcp_proxy.services.fallback import FallbackSuggestion, ToolFallbackRe
 
 pytestmark = pytest.mark.unit
 
+
 class TestFallbackSuggestion:
     """Tests for FallbackSuggestion dataclass."""
 

@@ -63,6 +63,9 @@ class SessionSource(str, Enum):
     CODEX = "codex"
     CLAUDE_SDK = "claude_sdk"
     ANTIGRAVITY = "antigravity"  # Antigravity IDE (uses Claude Code format)
+    CURSOR = "cursor"
+    WINDSURF = "windsurf"
+    COPILOT = "copilot"
 
 
 @dataclass
@@ -144,75 +147,120 @@ EVENT_TYPE_CLI_SUPPORT: dict[HookEventType, dict[str, str | None]] = {
         "claude": "SessionStart",
         "gemini": "SessionStart",
         "codex": "thread/started",
+        "cursor": "SessionStart",
+        "windsurf": "SessionStart",
+        "copilot": "SessionStart",
     },
     HookEventType.SESSION_END: {
         "claude": "SessionEnd",
         "gemini": "SessionEnd",
         "codex": "thread/archive",
+        "cursor": "SessionEnd",
+        "windsurf": "SessionEnd",
+        "copilot": "SessionEnd",
     },
     HookEventType.BEFORE_AGENT: {
         "claude": "UserPromptSubmit",
         "gemini": "BeforeAgent",
         "codex": "turn/started",
+        "cursor": "UserPromptSubmit",
+        "windsurf": "UserPromptSubmit",
+        "copilot": "UserPromptSubmit",
     },
     HookEventType.AFTER_AGENT: {
         "claude": "Stop",
         "gemini": "AfterAgent",
         "codex": "turn/completed",
+        "cursor": "Stop",
+        "windsurf": "Stop",
+        "copilot": "Stop",
     },
     HookEventType.STOP: {
         "claude": "Stop",
         "gemini": None,
         "codex": None,
+        "cursor": "Stop",
+        "windsurf": "Stop",
+        "copilot": "Stop",
     },
     HookEventType.BEFORE_TOOL: {
         "claude": "PreToolUse",
         "gemini": "BeforeTool",
         "codex": "requestApproval",
+        "cursor": "PreToolUse",
+        "windsurf": "PreToolUse",
+        "copilot": "PreToolUse",
     },
     HookEventType.AFTER_TOOL: {
         "claude": "PostToolUse",
         "gemini": "AfterTool",
         "codex": "item/completed",
+        "cursor": "PostToolUse",
+        "windsurf": "PostToolUse",
+        "copilot": "PostToolUse",
     },
     HookEventType.BEFORE_TOOL_SELECTION: {
         "claude": None,
         "gemini": "BeforeToolSelection",
         "codex": None,
+        "cursor": None,
+        "windsurf": None,
+        "copilot": None,
     },
     HookEventType.BEFORE_MODEL: {
         "claude": None,
         "gemini": "BeforeModel",
         "codex": None,
+        "cursor": None,
+        "windsurf": None,
+        "copilot": None,
     },
     HookEventType.AFTER_MODEL: {
         "claude": None,
         "gemini": "AfterModel",
         "codex": None,
+        "cursor": None,
+        "windsurf": None,
+        "copilot": None,
     },
     HookEventType.PRE_COMPACT: {
         "claude": "PreCompact",
         "gemini": "PreCompress",
         "codex": None,
+        "cursor": "PreCompact",
+        "windsurf": "PreCompact",
+        "copilot": "PreCompact",
     },
     HookEventType.SUBAGENT_START: {
         "claude": "SubagentStart",
         "gemini": None,
         "codex": None,
+        "cursor": "SubagentStart",
+        "windsurf": "SubagentStart",
+        "copilot": "SubagentStart",
     },
     HookEventType.SUBAGENT_STOP: {
         "claude": "SubagentStop",
         "gemini": None,
         "codex": None,
+        "cursor": "SubagentStop",
+        "windsurf": "SubagentStop",
+        "copilot": "SubagentStop",
     },
     HookEventType.PERMISSION_REQUEST: {
         "claude": "PermissionRequest",
         "gemini": None,
         "codex": None,
+        "cursor": "PermissionRequest",
+        "windsurf": "PermissionRequest",
+        "copilot": "PermissionRequest",
     },
     HookEventType.NOTIFICATION: {
         "claude": "Notification",
         "gemini": "Notification",
         "codex": None,
+        "cursor": "Notification",
+        "windsurf": "Notification",
+        "copilot": "Notification",
     },
 }

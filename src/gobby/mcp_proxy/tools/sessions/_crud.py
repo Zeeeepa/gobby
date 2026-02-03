@@ -75,7 +75,7 @@ def register_crud_tools(
         description="""Get YOUR current session ID - the CORRECT way to look up your session.
 
 Use this when session_id wasn't in your injected context. Pass your external_id
-(from transcript path or GOBBY_SESSION_ID env) and source (claude, gemini, codex).
+(from transcript path or GOBBY_SESSION_ID env) and source (claude, gemini, codex, cursor, windsurf, copilot).
 
 DO NOT use list_sessions to find your session - it won't work with multiple active sessions.""",
     )
@@ -87,12 +87,12 @@ DO NOT use list_sessions to find your session - it won't work with multiple acti
         Look up your internal session_id from external_id and source.
 
         The agent passes external_id (from injected context or GOBBY_SESSION_ID env var)
-        and source (claude, gemini, codex). project_id and machine_id are
+        and source (claude, gemini, codex, cursor, windsurf, copilot). project_id and machine_id are
         auto-resolved from config files.
 
         Args:
             external_id: Your CLI's session ID (from context or GOBBY_SESSION_ID env)
-            source: CLI source - "claude", "gemini", or "codex"
+            source: CLI source - "claude", "gemini", "codex", "cursor", "windsurf", or "copilot"
 
         Returns:
             session_id: Internal Gobby session ID (use for parent_session_id, etc.)
@@ -240,7 +240,7 @@ This tool is for browsing/listing sessions, not for self-identification.""",
 
         # Count by source
         by_source: dict[str, int] = {}
-        for src in ["claude_code", "gemini", "codex"]:
+        for src in ["claude", "gemini", "codex", "cursor", "windsurf", "copilot"]:
             count = session_manager.count(project_id=project_id, source=src)
             if count > 0:
                 by_source[src] = count

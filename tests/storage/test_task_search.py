@@ -8,6 +8,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db_with_tasks(tmp_path):
     """Create a database with some tasks for testing."""

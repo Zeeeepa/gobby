@@ -382,7 +382,7 @@ class GobbyDaemonTools:
 
         Args:
             event_type: Hook event type (e.g., "session_start", "before_tool")
-            source: Source CLI to simulate (claude, gemini, codex)
+            source: Source CLI to simulate (claude, gemini, codex, cursor, windsurf, copilot)
             data: Optional additional data for the event
 
         Returns:

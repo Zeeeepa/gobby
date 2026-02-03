@@ -256,10 +256,32 @@ class HookManager:
         # But 'TemplateEngine' constructor takes optional dirs.
         self._template_engine = TemplateEngine()
 
+        # Skill manager for core skill injection
+        # Initialized before ActionExecutor so it can be passed through
+        self._skill_manager = HookSkillManager()
+
         # Get websocket_server from broadcaster if available
         websocket_server = None
         if self.broadcaster and hasattr(self.broadcaster, "websocket_server"):
             websocket_server = self.broadcaster.websocket_server
+
+        # Initialize pipeline executor for run_pipeline action support
+        self._pipeline_executor = None
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+            from gobby.workflows.pipeline_executor import PipelineExecutor
+
+            # Resolve project_id dynamically since it's not stored on the instance
+            project_id = self._resolve_project_id(None, None)
+            pipeline_execution_manager = LocalPipelineExecutionManager(self._database, project_id)
+            self._pipeline_executor = PipelineExecutor(
+                db=self._database,
+                execution_manager=pipeline_execution_manager,
+                llm_service=self._llm_service,
+                loader=self._workflow_loader,
+            )
+        except Exception as e:
+            logging.getLogger(__name__).debug(f"Pipeline executor not available: {e}")
 
         self._action_executor = ActionExecutor(
             db=self._database,
@@ -278,6 +300,9 @@ class HookManager:
             progress_tracker=self._progress_tracker,
             stuck_detector=self._stuck_detector,
             websocket_server=websocket_server,
+            skill_manager=self._skill_manager,
+            pipeline_executor=self._pipeline_executor,
+            workflow_loader=self._workflow_loader,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
@@ -365,9 +390,6 @@ class HookManager:
             health_check_interval=health_check_interval,
             logger=self.logger,
         )
-
-        # Skill manager for core skill injection
-        self._skill_manager = HookSkillManager()
 
         # Track sessions that have received full metadata injection
         # Key: "{platform_session_id}:{source}" - cleared on daemon restart

@@ -49,7 +49,7 @@ class AgentConfig:
     """Machine identifier. Defaults to hostname if not provided."""
 
     source: str = "claude"
-    """CLI source (claude, gemini, codex)."""
+    """CLI source (claude, gemini, codex, cursor, windsurf, copilot)."""
 
     # New spec-aligned parameters
     workflow: str | None = None
@@ -352,6 +352,20 @@ class AgentRunner:
                         ),
                         turns_used=0,
                     )
+                # Agent spawning only supports WorkflowDefinition, not PipelineDefinition
+                if not isinstance(workflow_definition, WorkflowDefinition):
+                    self.logger.error(
+                        f"Cannot use pipeline '{effective_workflow}' for agent spawning"
+                    )
+                    return AgentResult(
+                        output="",
+                        status="error",
+                        error=(
+                            f"'{effective_workflow}' is a pipeline, not a step workflow. "
+                            f"Agent spawning requires a step-based workflow."
+                        ),
+                        turns_used=0,
+                    )
 
         # Create child session (now safe - workflow validated above)
         try:
@@ -377,20 +391,22 @@ class AgentRunner:
             )
 
         # Initialize workflow state if workflow was loaded
+        # workflow_definition is WorkflowDefinition | None at this point (PipelineDefinition rejected above)
         workflow_state = None
-        if workflow_definition:
+        workflow_config: WorkflowDefinition | None = None
+        if workflow_definition and isinstance(workflow_definition, WorkflowDefinition):
+            workflow_config = workflow_definition
             self.logger.info(
-                f"Loaded workflow '{effective_workflow}' for agent "
-                f"(type={workflow_definition.type})"
+                f"Loaded workflow '{effective_workflow}' for agent (type={workflow_config.type})"
             )
 
             # Initialize workflow state for child session
             initial_step = ""
-            if workflow_definition.steps:
-                initial_step = workflow_definition.steps[0].name
+            if workflow_config.steps:
+                initial_step = workflow_config.steps[0].name
 
             # Build initial variables with agent depth information
-            initial_variables = dict(workflow_definition.variables)
+            initial_variables = dict(workflow_config.variables)
             initial_variables["agent_depth"] = child_session.agent_depth
             initial_variables["max_agent_depth"] = self._child_session_manager.max_agent_depth
             initial_variables["can_spawn"] = (
@@ -448,7 +464,7 @@ class AgentRunner:
             session=session_obj,
             run=agent_run,
             workflow_state=workflow_state,
-            workflow_config=workflow_definition,
+            workflow_config=workflow_config,
         )
 
     async def execute_run(

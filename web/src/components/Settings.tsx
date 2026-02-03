@@ -1,0 +1,134 @@
+import type { Settings, ModelInfo } from '../hooks/useSettings'
+
+interface SettingsProps {
+  isOpen: boolean
+  onClose: () => void
+  settings: Settings
+  modelInfo: ModelInfo | null
+  modelsLoading: boolean
+  onFontSizeChange: (size: number) => void
+  onModelChange: (model: string, provider: string) => void
+  onReset: () => void
+}
+
+export function Settings({
+  isOpen,
+  onClose,
+  settings,
+  modelInfo,
+  modelsLoading,
+  onFontSizeChange,
+  onModelChange,
+  onReset,
+}: SettingsProps) {
+  if (!isOpen) return null
+
+  // Build list of all models with provider info
+  const allModels: Array<{ model: string; provider: string; label: string }> = []
+  if (modelInfo?.providers) {
+    for (const [provider, config] of Object.entries(modelInfo.providers)) {
+      for (const model of config.models) {
+        allModels.push({
+          model,
+          provider,
+          label: `${model} (${provider})`,
+        })
+      }
+    }
+  }
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    const selected = allModels.find(m => `${m.provider}:${m.model}` === value)
+    if (selected) {
+      onModelChange(selected.model, selected.provider)
+    }
+  }
+
+  const currentValue = settings.provider && settings.model
+    ? `${settings.provider}:${settings.model}`
+    : ''
+
+  return (
+    <>
+      <div className="settings-overlay" onClick={onClose} />
+      <div className="settings-panel">
+        <div className="settings-header">
+          <h2>Settings</h2>
+          <button className="close-button" onClick={onClose}>
+            &times;
+          </button>
+        </div>
+
+        <div className="settings-content">
+          <div className="setting-item">
+            <label htmlFor="model-select">Model</label>
+            {modelsLoading ? (
+              <span className="loading-text">Loading models...</span>
+            ) : allModels.length > 0 ? (
+              <select
+                id="model-select"
+                value={currentValue}
+                onChange={handleModelChange}
+                className="model-select"
+              >
+                {allModels.map(({ model, provider, label }) => (
+                  <option key={`${provider}:${model}`} value={`${provider}:${model}`}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="no-models-text">No models available</span>
+            )}
+          </div>
+
+          <div className="setting-item">
+            <label htmlFor="font-size">
+              Font Size: {settings.fontSize}px
+            </label>
+            <input
+              id="font-size"
+              type="range"
+              min="12"
+              max="48"
+              step="1"
+              value={settings.fontSize}
+              onChange={(e) => onFontSizeChange(Number(e.target.value))}
+              className="slider"
+            />
+            <div className="slider-labels">
+              <span>12px</span>
+              <span>48px</span>
+            </div>
+          </div>
+
+          <div className="settings-actions">
+            <button className="reset-button" onClick={onReset}>
+              Reset to Defaults
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Settings icon SVG
+export function SettingsIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+    </svg>
+  )
+}

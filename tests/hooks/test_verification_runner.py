@@ -14,6 +14,7 @@ from gobby.hooks.verification_runner import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_verification_config():
     config = MagicMock(spec=ProjectVerificationConfig)
@@ -173,7 +174,9 @@ class TestVerificationRunner:
         assert "No verification commands defined" in result.skip_reason
 
     @patch("gobby.hooks.verification_runner.run_command")
-    def test_run_stage_success(self, mock_run_cmd, mock_verification_config, mock_hooks_config) -> None:
+    def test_run_stage_success(
+        self, mock_run_cmd, mock_verification_config, mock_hooks_config
+    ) -> None:
         runner = VerificationRunner(
             verification_config=mock_verification_config, hooks_config=mock_hooks_config
         )
@@ -201,7 +204,9 @@ class TestVerificationRunner:
         assert "not defined" in result.results[0].skip_reason
 
     @patch("gobby.hooks.verification_runner.run_command")
-    def test_run_stage_fail_fast(self, mock_run_cmd, mock_verification_config, mock_hooks_config) -> None:
+    def test_run_stage_fail_fast(
+        self, mock_run_cmd, mock_verification_config, mock_hooks_config
+    ) -> None:
         stage_config = mock_hooks_config.get_stage("pre-commit")
         stage_config.fail_fast = True
 

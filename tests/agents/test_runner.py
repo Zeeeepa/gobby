@@ -9,6 +9,7 @@ from gobby.llm.executor import AgentResult
 
 pytestmark = pytest.mark.unit
 
+
 class TestAgentRunContext:
     """Tests for AgentRunContext dataclass."""
 
@@ -1057,7 +1058,9 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert "lifecycle workflow" in result.error.lower()
         assert "cannot use" in result.error.lower()
 
-    def test_prepare_run_handles_child_session_creation_failure(self, runner, mock_session_storage) -> None:
+    def test_prepare_run_handles_child_session_creation_failure(
+        self, runner, mock_session_storage
+    ) -> None:
         """prepare_run handles ValueError from create_child_session."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
         runner._child_session_manager.create_child_session = MagicMock(
@@ -1077,7 +1080,9 @@ class TestAgentRunnerPrepareRunWorkflows:
         assert result.status == "error"
         assert "Session creation failed" in result.error
 
-    def test_prepare_run_warns_on_workflow_not_found(self, runner, mock_session_storage, caplog) -> None:
+    def test_prepare_run_warns_on_workflow_not_found(
+        self, runner, mock_session_storage, caplog
+    ) -> None:
         """prepare_run logs warning when workflow not found."""
         import logging
 
@@ -1111,6 +1116,8 @@ class TestAgentRunnerPrepareRunWorkflows:
 
     def test_prepare_run_initializes_workflow_state(self, runner, mock_session_storage) -> None:
         """prepare_run initializes workflow state for step workflows."""
+        from gobby.workflows.definitions import WorkflowDefinition
+
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
@@ -1122,10 +1129,10 @@ class TestAgentRunnerPrepareRunWorkflows:
         agent_run.id = "run-123"
         runner._run_storage.create = MagicMock(return_value=agent_run)
 
-        # Mock workflow loader to return a step workflow
+        # Mock workflow loader to return a step workflow (must pass isinstance check)
         mock_step = MagicMock()
         mock_step.name = "plan"
-        mock_workflow = MagicMock()
+        mock_workflow = MagicMock(spec=WorkflowDefinition)
         mock_workflow.type = "step"
         mock_workflow.steps = [mock_step]
         mock_workflow.variables = {"initial_var": "value"}
@@ -1150,6 +1157,8 @@ class TestAgentRunnerPrepareRunWorkflows:
 
     def test_prepare_run_handles_workflow_with_no_steps(self, runner, mock_session_storage) -> None:
         """prepare_run handles workflow with empty steps list."""
+        from gobby.workflows.definitions import WorkflowDefinition
+
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
@@ -1161,8 +1170,8 @@ class TestAgentRunnerPrepareRunWorkflows:
         agent_run.id = "run-123"
         runner._run_storage.create = MagicMock(return_value=agent_run)
 
-        # Mock workflow loader to return a workflow with NO steps
-        mock_workflow = MagicMock()
+        # Mock workflow loader to return a workflow with NO steps (must pass isinstance check)
+        mock_workflow = MagicMock(spec=WorkflowDefinition)
         mock_workflow.type = "step"
         mock_workflow.steps = []  # Empty steps list
         mock_workflow.variables = {}

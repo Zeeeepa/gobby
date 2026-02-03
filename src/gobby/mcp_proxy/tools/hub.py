@@ -45,7 +45,7 @@ def create_hub_registry(
     """
     registry = HubToolRegistry(
         name="gobby-hub",
-        description="Hub (cross-project) queries - list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
+        description="Hub (cross-project) queries and system info - get_machine_id, list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
     )
 
     def _get_hub_db() -> LocalDatabase | None:
@@ -53,6 +53,35 @@ def create_hub_registry(
         if not hub_db_path.exists():
             return None
         return LocalDatabase(hub_db_path)
+
+    @registry.tool(
+        name="get_machine_id",
+        description="Get the daemon's machine identifier. Use this from sandboxed agents that cannot read ~/.gobby/machine_id directly.",
+    )
+    async def get_machine_id() -> dict[str, Any]:
+        """
+        Get the machine identifier used by this Gobby daemon.
+
+        The machine_id is stored in ~/.gobby/machine_id and is generated
+        once on first daemon run. This tool provides read-only access to
+        the daemon's authoritative machine_id.
+
+        Returns:
+            Dict with machine_id or error if not found.
+        """
+        from gobby.utils.machine_id import get_machine_id as _get_machine_id
+
+        machine_id = _get_machine_id()
+        if machine_id:
+            return {
+                "success": True,
+                "machine_id": machine_id,
+            }
+
+        return {
+            "success": False,
+            "error": "machine_id not found - daemon may not have initialized properly",
+        }
 
     @registry.tool(
         name="list_all_projects",

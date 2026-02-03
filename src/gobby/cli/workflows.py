@@ -11,6 +11,7 @@ import yaml
 
 from gobby.cli.utils import resolve_session_id
 from gobby.storage.database import LocalDatabase
+from gobby.workflows.definitions import WorkflowDefinition
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -151,23 +152,34 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
 
     if definition.steps:
         click.echo(f"\nSteps ({len(definition.steps)}):")
-        for step in definition.steps:
-            click.echo(f"  - {step.name}")
-            if step.description:
-                click.echo(f"      {step.description}")
-            if step.allowed_tools:
-                if step.allowed_tools == "all":
-                    click.echo("      Allowed tools: all")
-                else:
-                    tools = step.allowed_tools[:5]
-                    more = (
-                        f" (+{len(step.allowed_tools) - 5})" if len(step.allowed_tools) > 5 else ""
-                    )
-                    click.echo(f"      Allowed tools: {', '.join(tools)}{more}")
-            if step.blocked_tools:
-                click.echo(f"      Blocked tools: {', '.join(step.blocked_tools[:5])}")
+        if isinstance(definition, WorkflowDefinition):
+            for step in definition.steps:
+                click.echo(f"  - {step.name}")
+                if step.description:
+                    click.echo(f"      {step.description}")
+                if step.allowed_tools:
+                    if step.allowed_tools == "all":
+                        click.echo("      Allowed tools: all")
+                    else:
+                        tools = step.allowed_tools[:5]
+                        more = (
+                            f" (+{len(step.allowed_tools) - 5})"
+                            if len(step.allowed_tools) > 5
+                            else ""
+                        )
+                        click.echo(f"      Allowed tools: {', '.join(tools)}{more}")
+                if step.blocked_tools:
+                    click.echo(f"      Blocked tools: {', '.join(step.blocked_tools[:5])}")
+        else:
+            # PipelineDefinition
+            for pstep in definition.steps:
+                click.echo(f"  - {pstep.id}")
+                if pstep.exec:
+                    click.echo(f"      exec: {pstep.exec[:60]}...")
+                elif pstep.prompt:
+                    click.echo(f"      prompt: {pstep.prompt[:60]}...")
 
-    if definition.triggers:
+    if isinstance(definition, WorkflowDefinition) and definition.triggers:
         click.echo("\nTriggers:")
         for trigger_name, actions in definition.triggers.items():
             click.echo(f"  {trigger_name}: {len(actions)} action(s)")
@@ -271,6 +283,11 @@ def set_workflow(
         click.echo("Use 'gobby workflows set' only for step-based workflows.", err=True)
         raise SystemExit(1)
 
+    if not isinstance(definition, WorkflowDefinition):
+        click.echo(f"'{name}' is a pipeline, not a step-based workflow.", err=True)
+        click.echo("Use 'gobby pipelines run' for pipelines.", err=True)
+        raise SystemExit(1)
+
     # Get session
     try:
         session_id = resolve_session_id(session_id)
@@ -372,6 +389,10 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
     definition = loader.load_workflow(state.workflow_name, project_path)
     if not definition:
         click.echo(f"Workflow '{state.workflow_name}' not found.", err=True)
+        raise SystemExit(1)
+
+    if not isinstance(definition, WorkflowDefinition):
+        click.echo(f"'{state.workflow_name}' is a pipeline, not a step-based workflow.", err=True)
         raise SystemExit(1)
 
     if not any(s.name == step_name for s in definition.steps):

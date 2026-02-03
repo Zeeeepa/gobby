@@ -11,6 +11,7 @@ from gobby.runner import GobbyRunner, main, run_gobby
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_config():
     """Create a mock config with WebSocket disabled by default."""
@@ -629,7 +630,9 @@ class TestGobbyRunnerInitialization:
 class TestAgentEventBroadcasting:
     """Tests for _setup_agent_event_broadcasting method."""
 
-    def test_setup_agent_event_broadcasting_with_websocket(self, mock_config_with_websocket) -> None:
+    def test_setup_agent_event_broadcasting_with_websocket(
+        self, mock_config_with_websocket
+    ) -> None:
         """Test agent event broadcasting setup when WebSocket is enabled."""
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
@@ -680,7 +683,9 @@ class TestAgentEventBroadcasting:
             # Callback should NOT be registered since no websocket
             mock_registry.add_event_callback.assert_not_called()
 
-    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self, mock_config) -> None:
+    def test_setup_agent_event_broadcasting_direct_call_without_websocket(
+        self, mock_config
+    ) -> None:
         """Test _setup_agent_event_broadcasting returns early when websocket_server is None."""
         mock_registry = MagicMock()
         mock_registry.add_event_callback = MagicMock()

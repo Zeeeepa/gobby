@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import uvicorn
 
@@ -36,6 +38,12 @@ from gobby.utils.machine_id import get_machine_id
 from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Type hints for pipeline components (imported lazily at runtime)
+if TYPE_CHECKING:
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.workflows.loader import WorkflowLoader
+    from gobby.workflows.pipeline_executor import PipelineExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +190,36 @@ class GobbyRunner:
         except Exception as e:
             logger.debug(f"Could not initialize git manager: {e}")
 
+        # Initialize Pipeline Components
+        self.workflow_loader: WorkflowLoader | None = None
+        self.pipeline_execution_manager: LocalPipelineExecutionManager | None = None
+        self.pipeline_executor: PipelineExecutor | None = None
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+            from gobby.workflows.loader import WorkflowLoader
+            from gobby.workflows.pipeline_executor import PipelineExecutor
+
+            self.workflow_loader = WorkflowLoader()
+            if self.project_id:
+                self.pipeline_execution_manager = LocalPipelineExecutionManager(
+                    db=self.database,
+                    project_id=self.project_id,
+                )
+                if self.llm_service:
+                    self.pipeline_executor = PipelineExecutor(
+                        db=self.database,
+                        execution_manager=self.pipeline_execution_manager,
+                        llm_service=self.llm_service,
+                        loader=self.workflow_loader,
+                    )
+                    logger.debug("Pipeline executor initialized")
+                else:
+                    logger.debug("Pipeline executor not initialized: LLM service not available")
+            else:
+                logger.debug("Pipeline execution manager not initialized: no project context")
+        except Exception as e:
+            logger.warning(f"Failed to initialize pipeline components: {e}")
+
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
         self.executor_registry = ExecutorRegistry(config=self.config)
@@ -234,6 +272,9 @@ class GobbyRunner:
             clone_storage=self.clone_storage,
             git_manager=self.git_manager,
             project_id=self.project_id,
+            pipeline_executor=self.pipeline_executor,
+            workflow_loader=self.workflow_loader,
+            pipeline_execution_manager=self.pipeline_execution_manager,
         )
 
         self.http_server = HTTPServer(
@@ -252,7 +293,7 @@ class GobbyRunner:
         self.websocket_server: WebSocketServer | None = None
         if self.config.websocket and getattr(self.config.websocket, "enabled", True):
             websocket_config = WebSocketConfig(
-                host="localhost",
+                host=self.config.bind_host,
                 port=self.config.websocket.port,
                 ping_interval=self.config.websocket.ping_interval,
                 ping_timeout=self.config.websocket.ping_timeout,
@@ -260,6 +301,7 @@ class GobbyRunner:
             self.websocket_server = WebSocketServer(
                 config=websocket_config,
                 mcp_manager=self.mcp_proxy,
+                llm_service=self.llm_service,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
@@ -272,6 +314,9 @@ class GobbyRunner:
 
             # Register agent event callback for WebSocket broadcasting
             self._setup_agent_event_broadcasting()
+
+            # Register pipeline event callback for WebSocket broadcasting
+            self._setup_pipeline_event_broadcasting()
 
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""
@@ -287,13 +332,23 @@ class GobbyRunner:
         return hub_db
 
     def _setup_agent_event_broadcasting(self) -> None:
-        """Set up WebSocket broadcasting for agent lifecycle events."""
+        """Set up WebSocket broadcasting for agent lifecycle events and PTY reading."""
+        from gobby.agents.pty_reader import get_pty_reader_manager
         from gobby.agents.registry import get_running_agent_registry
 
         if not self.websocket_server:
             return
 
         registry = get_running_agent_registry()
+        pty_manager = get_pty_reader_manager()
+
+        # Set up PTY output callback to broadcast via WebSocket
+        async def broadcast_terminal_output(run_id: str, data: str) -> None:
+            """Broadcast terminal output via WebSocket."""
+            if self.websocket_server:
+                await self.websocket_server.broadcast_terminal_output(run_id, data)
+
+        pty_manager.set_output_callback(broadcast_terminal_output)
 
         def broadcast_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
             """Broadcast agent events via WebSocket (non-blocking)."""
@@ -308,6 +363,32 @@ class GobbyRunner:
                     pass
                 except Exception as e:
                     logger.warning(f"Failed to broadcast agent event {event_type}: {e}")
+
+            # Handle PTY reader start/stop for embedded agents
+            if event_type == "agent_started" and data.get("mode") == "embedded":
+                # Start PTY reader for embedded agents
+                agent = registry.get(run_id)
+                if agent and agent.master_fd is not None:
+
+                    async def start_pty_reader() -> None:
+                        await pty_manager.start_reader(agent)
+
+                    task = asyncio.create_task(start_pty_reader())
+                    task.add_done_callback(_log_broadcast_exception)
+
+            elif event_type in (
+                "agent_completed",
+                "agent_failed",
+                "agent_cancelled",
+                "agent_timeout",
+            ):
+                # Stop PTY reader when agent finishes
+
+                async def stop_pty_reader() -> None:
+                    await pty_manager.stop_reader(run_id)
+
+                task = asyncio.create_task(stop_pty_reader())
+                task.add_done_callback(_log_broadcast_exception)
 
             # Create async task to broadcast and attach exception callback
             task = asyncio.create_task(
@@ -324,7 +405,29 @@ class GobbyRunner:
             task.add_done_callback(_log_broadcast_exception)
 
         registry.add_event_callback(broadcast_agent_event)
-        logger.debug("Agent event broadcasting enabled")
+        logger.debug("Agent event broadcasting and PTY reading enabled")
+
+    def _setup_pipeline_event_broadcasting(self) -> None:
+        """Set up WebSocket broadcasting for pipeline execution events."""
+        if not self.websocket_server:
+            return
+
+        if not self.pipeline_executor:
+            logger.debug("Pipeline event broadcasting skipped: no pipeline executor")
+            return
+
+        async def broadcast_pipeline_event(event: str, execution_id: str, **kwargs: Any) -> None:
+            """Broadcast pipeline events via WebSocket."""
+            if self.websocket_server:
+                await self.websocket_server.broadcast_pipeline_event(
+                    event=event,
+                    execution_id=execution_id,
+                    **kwargs,
+                )
+
+        # Set the callback on the pipeline executor
+        self.pipeline_executor.event_callback = broadcast_pipeline_event
+        logger.debug("Pipeline event broadcasting enabled")
 
     async def _metrics_cleanup_loop(self) -> None:
         """Background loop for periodic metrics cleanup (every 24 hours)."""
@@ -433,11 +536,10 @@ class GobbyRunner:
                 websocket_task = asyncio.create_task(self.websocket_server.start())
 
             # Start HTTP server
-            # nosec B104: 0.0.0.0 binding is intentional - daemon serves local network
             graceful_shutdown_timeout = 15
             config = uvicorn.Config(
                 self.http_server.app,
-                host="0.0.0.0",  # nosec B104 - local daemon needs network access
+                host=self.config.bind_host,
                 port=self.http_server.port,
                 log_level="warning",
                 access_log=False,

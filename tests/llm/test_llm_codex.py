@@ -12,6 +12,7 @@ from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def codex_config() -> DaemonConfig:
     """Create a DaemonConfig with Codex provider configured."""
@@ -183,7 +184,9 @@ class TestCodexProviderGetApiKey:
             # Should handle corrupt JSON gracefully
             assert provider._client is None
 
-    def test_get_api_key_subscription_missing_key(self, codex_config: DaemonConfig, tmp_path: Path) -> None:
+    def test_get_api_key_subscription_missing_key(
+        self, codex_config: DaemonConfig, tmp_path: Path
+    ) -> None:
         """Test _get_api_key handles auth.json without OPENAI_API_KEY."""
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir()

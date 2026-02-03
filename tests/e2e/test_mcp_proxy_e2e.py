@@ -148,13 +148,19 @@ class TestMCPProxyToolInvocation:
             },
         )
 
-        # Should get an error response (400, 404, 500, or 503 for unavailable)
-        assert response.status_code in [
-            400,
-            404,
-            500,
-            503,
-        ], f"Invalid server should return error, got {response.status_code}"
+        # MCP errors return 200 with {success: False, ...} in body
+        # for better MCP client compatibility (see execution.py _process_tool_proxy_result)
+        # or HTTP error codes for malformed requests
+        if response.status_code == 200:
+            data = response.json()
+            assert data.get("success") is False, "Invalid server should return success=False"
+        else:
+            assert response.status_code in [
+                400,
+                404,
+                500,
+                503,
+            ], f"Invalid server should return error, got {response.status_code}"
 
     def test_invalid_tool_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
@@ -300,7 +306,9 @@ class TestMCPProxyErrorHandling:
 class TestMCPProxyToolSchema:
     """Tests for MCP proxy tool schema retrieval."""
 
-    def test_get_tool_schema(self, daemon_instance: DaemonInstance, daemon_client: httpx.Client) -> None:
+    def test_get_tool_schema(
+        self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
+    ) -> None:
         """Verify tool schema can be retrieved."""
         # Schema endpoint is POST /mcp/tools/schema with JSON body
         response = daemon_client.post(

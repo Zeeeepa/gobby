@@ -10,6 +10,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.integration
 
+
 def test_edit_history_flow(temp_db) -> None:
     """Test full flow: session -> claim task -> edit -> had_edits set."""
     # 1. Setup managers

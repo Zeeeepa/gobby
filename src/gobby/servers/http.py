@@ -121,7 +121,7 @@ class HTTPServer:
                 )
                 logger.debug("Merge resolution and inter-session messaging subsystems initialized")
 
-            # Setup internal registries (gobby-tasks, gobby-memory, etc.)
+            # Setup internal registries (gobby-tasks, gobby-memory, gobby-pipelines, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=services.config,
                 _session_manager=None,  # Not needed for internal registries
@@ -142,6 +142,9 @@ class HTTPServer:
                 project_id=services.project_id,
                 tool_proxy_getter=tool_proxy_getter,
                 inter_session_message_manager=inter_session_message_manager,
+                pipeline_executor=services.pipeline_executor,
+                workflow_loader=services.workflow_loader,
+                pipeline_execution_manager=services.pipeline_execution_manager,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")
@@ -514,6 +517,7 @@ class HTTPServer:
             create_admin_router,
             create_hooks_router,
             create_mcp_router,
+            create_pipelines_router,
             create_plugins_router,
             create_sessions_router,
             create_webhooks_router,
@@ -526,6 +530,7 @@ class HTTPServer:
         app.include_router(create_hooks_router(self))
         app.include_router(create_plugins_router())
         app.include_router(create_webhooks_router())
+        app.include_router(create_pipelines_router(self))
 
     async def _process_shutdown(self) -> None:
         """

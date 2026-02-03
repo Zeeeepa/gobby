@@ -16,6 +16,7 @@ from gobby.utils.project_init import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestVerificationCommands:
     """Tests for the VerificationCommands dataclass."""
 

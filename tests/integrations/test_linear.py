@@ -13,6 +13,7 @@ from gobby.integrations.linear import LinearIntegration
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_mcp_manager():
     """Create a mock MCPClientManager."""
@@ -33,7 +34,9 @@ def linear_integration(mock_mcp_manager):
 class TestLinearIntegrationAvailability:
     """Test is_available() method."""
 
-    def test_is_available_returns_true_when_configured_and_connected(self, mock_mcp_manager) -> None:
+    def test_is_available_returns_true_when_configured_and_connected(
+        self, mock_mcp_manager
+    ) -> None:
         """is_available() returns True when Linear MCP server is configured and connected."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}

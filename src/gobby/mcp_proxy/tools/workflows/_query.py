@@ -11,6 +11,7 @@ import yaml
 from gobby.mcp_proxy.tools.workflows._resolution import resolve_session_id
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
+from gobby.workflows.definitions import WorkflowDefinition
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -45,32 +46,50 @@ def get_workflow(
     if not definition:
         return {"success": False, "error": f"Workflow '{name}' not found"}
 
-    return {
-        "success": True,
-        "name": definition.name,
-        "type": definition.type,
-        "description": definition.description,
-        "version": definition.version,
-        "steps": (
-            [
-                {
-                    "name": s.name,
-                    "description": s.description,
-                    "allowed_tools": s.allowed_tools,
-                    "blocked_tools": s.blocked_tools,
-                }
-                for s in definition.steps
-            ]
-            if definition.steps
-            else []
-        ),
-        "triggers": (
-            {name: len(actions) for name, actions in definition.triggers.items()}
-            if definition.triggers
-            else {}
-        ),
-        "settings": definition.settings,
-    }
+    # Handle WorkflowDefinition vs PipelineDefinition
+    if isinstance(definition, WorkflowDefinition):
+        return {
+            "success": True,
+            "name": definition.name,
+            "type": definition.type,
+            "description": definition.description,
+            "version": definition.version,
+            "steps": (
+                [
+                    {
+                        "name": s.name,
+                        "description": s.description,
+                        "allowed_tools": s.allowed_tools,
+                        "blocked_tools": s.blocked_tools,
+                    }
+                    for s in definition.steps
+                ]
+                if definition.steps
+                else []
+            ),
+            "triggers": (
+                {name: len(actions) for name, actions in definition.triggers.items()}
+                if definition.triggers
+                else {}
+            ),
+            "settings": definition.settings,
+        }
+    else:
+        # PipelineDefinition
+        return {
+            "success": True,
+            "name": definition.name,
+            "type": definition.type,
+            "description": definition.description,
+            "version": definition.version,
+            "steps": (
+                [{"id": s.id, "exec": s.exec, "prompt": s.prompt} for s in definition.steps]
+                if definition.steps
+                else []
+            ),
+            "triggers": {},
+            "settings": {},
+        }
 
 
 def list_workflows(

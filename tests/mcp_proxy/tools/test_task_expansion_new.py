@@ -18,6 +18,7 @@ from gobby.sync.tasks import TaskSyncManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def task_manager(temp_db):
     """Create a task manager with the shared temp database."""

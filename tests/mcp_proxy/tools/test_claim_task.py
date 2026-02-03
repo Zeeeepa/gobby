@@ -20,6 +20,7 @@ from gobby.sync.tasks import TaskSyncManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     """Create a mock task manager."""
@@ -352,7 +353,9 @@ class TestClaimTaskSchema:
 
         assert "claim_task" in tool_names, "claim_task tool not registered"
 
-    def test_claim_task_schema_has_required_fields(self, mock_task_manager, mock_sync_manager) -> None:
+    def test_claim_task_schema_has_required_fields(
+        self, mock_task_manager, mock_sync_manager
+    ) -> None:
         """Test claim_task schema includes required fields."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 

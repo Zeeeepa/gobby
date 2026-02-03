@@ -50,14 +50,14 @@ def build_memory_context(memories: list[Memory]) -> str:
 
     # 1. Project Context
     if context_memories:
-        parts.append("## Project Context\n")
+        parts.append("## Project Context")
         for mem in context_memories:
-            parts.append(f"{mem.content}\n")
+            parts.append(mem.content)
         parts.append("")
 
     # 2. Preferences
     if pref_memories:
-        parts.append("## Preferences\n")
+        parts.append("## Preferences")
         for mem in pref_memories:
             content = _strip_leading_bullet(mem.content)
             if content:  # Skip empty content
@@ -66,7 +66,7 @@ def build_memory_context(memories: list[Memory]) -> str:
 
     # 3. Patterns
     if pattern_memories:
-        parts.append("## Patterns\n")
+        parts.append("## Patterns")
         for mem in pattern_memories:
             content = _strip_leading_bullet(mem.content)
             if content:  # Skip empty content
@@ -75,7 +75,7 @@ def build_memory_context(memories: list[Memory]) -> str:
 
     # 4. Facts/Other
     if fact_memories:
-        parts.append("## Facts\n")
+        parts.append("## Facts")
         for mem in fact_memories:
             content = _strip_leading_bullet(mem.content)
             if content:  # Skip empty content

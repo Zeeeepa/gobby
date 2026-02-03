@@ -1,4 +1,5 @@
 """Tests for Gobby MCP server instructions builder."""
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -25,18 +26,6 @@ class TestBuildGobbyInstructions:
         assert "<gobby_system>" in result
         assert "</gobby_system>" in result
 
-    def test_contains_startup_section(self) -> None:
-        """Instructions should include <startup> section."""
-        from gobby.mcp_proxy.instructions import build_gobby_instructions
-
-        result = build_gobby_instructions()
-
-        assert "<startup>" in result
-        assert "</startup>" in result
-        # Startup should mention discovering servers and skills
-        assert "list_mcp_servers" in result
-        assert "list_skills" in result
-
     def test_contains_tool_discovery_section(self) -> None:
         """Instructions should include <tool_discovery> section."""
         from gobby.mcp_proxy.instructions import build_gobby_instructions
@@ -49,18 +38,6 @@ class TestBuildGobbyInstructions:
         assert "list_tools" in result
         assert "get_tool_schema" in result
         assert "call_tool" in result
-
-    def test_contains_skill_discovery_section(self) -> None:
-        """Instructions should include <skill_discovery> section."""
-        from gobby.mcp_proxy.instructions import build_gobby_instructions
-
-        result = build_gobby_instructions()
-
-        assert "<skill_discovery>" in result
-        assert "</skill_discovery>" in result
-        # Should mention skill discovery pattern
-        assert "get_skill" in result
-        assert "search_skills" in result
 
     def test_contains_rules_section(self) -> None:
         """Instructions should include <rules> section."""

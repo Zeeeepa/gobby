@@ -1,0 +1,21 @@
+name: deploy-with-approval
+description: A pipeline that requires approval before deploying
+type: pipeline
+version: "1.0"
+
+steps:
+  - id: build
+    exec: "echo 'Building application...'"
+
+  - id: deploy
+    exec: "echo 'Deploying to production!'"
+    approval:
+      required: true
+      message: "Ready to deploy to production. Do you approve?"
+
+  - id: notify
+    exec: "echo 'Deployment complete. Notifying team...'"
+
+outputs:
+  build_result: $build.output.stdout
+  deploy_result: $deploy.output.stdout

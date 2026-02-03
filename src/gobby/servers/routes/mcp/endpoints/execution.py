@@ -7,7 +7,6 @@ These endpoints handle tool listing, schema retrieval, and tool execution.
 
 import json
 import logging
-import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -36,6 +35,10 @@ def _process_tool_proxy_result(
     """
     Process tool proxy result with consistent metrics, logging, and error handling.
 
+    All errors (including server-not-found) are returned as {success: False, result: {...}}
+    rather than raising HTTPException. This ensures consistent error formatting for
+    MCP clients, which otherwise show errors as "HTTP 404: {body}" instead of clean messages.
+
     Args:
         result: The result from tool_proxy.call_tool()
         server_name: Name of the MCP server
@@ -44,38 +47,28 @@ def _process_tool_proxy_result(
 
     Returns:
         Wrapped result dict with success status and response time
-
-    Raises:
-        HTTPException: 404 if server not found/not configured
     """
     # Track metrics for tool-level failures vs successes
     if isinstance(result, dict) and result.get("success") is False:
         _metrics.inc_counter("mcp_tool_calls_failed_total")
 
-        # Check structured error code first (preferred)
+        # Return all errors consistently as {success: False, result: {...}}
+        # Previously, server-not-found errors raised HTTPException(404), but this
+        # caused MCP clients to format errors as "HTTP 404: {body}" instead of
+        # showing clean error messages. Consistent error envelopes work better
+        # for both MCP clients (via call_tool) and HTTP clients.
         error_code = result.get("error_code")
-        if error_code in ("SERVER_NOT_FOUND", "SERVER_NOT_CONFIGURED"):
-            # Normalize result to standard error shape while preserving existing fields
-            normalized = {"success": False, "error": result.get("error", "Unknown error")}
-            for key, value in result.items():
-                if key not in normalized:
-                    normalized[key] = value
-            raise HTTPException(status_code=404, detail=normalized)
-
-        # Backward compatibility: fall back to regex matching if no error_code
-        if not error_code:
+        if error_code:
             logger.debug(
-                "ToolProxyService returned error without error_code - using regex fallback"
+                f"MCP tool call failed: {server_name}.{tool_name} (error_code={error_code})",
+                extra={
+                    "server": server_name,
+                    "tool": tool_name,
+                    "error_code": error_code,
+                },
             )
-            error_msg = str(result.get("error", ""))
-            if re.search(r"server\s+(not\s+found|not\s+configured)", error_msg, re.IGNORECASE):
-                normalized = {"success": False, "error": result.get("error", "Unknown error")}
-                for key, value in result.items():
-                    if key not in normalized:
-                        normalized[key] = value
-                raise HTTPException(status_code=404, detail=normalized)
 
-        # Tool-level failure (not a transport error) - return failure envelope
+        # Tool-level failure - return failure envelope (not HTTP exception)
         return {
             "success": False,
             "result": result,

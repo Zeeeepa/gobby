@@ -12,6 +12,7 @@ from gobby.hooks.webhooks import WebhookDispatcher, WebhookResult
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def sample_event() -> HookEvent:
     """Create a sample hook event for testing."""

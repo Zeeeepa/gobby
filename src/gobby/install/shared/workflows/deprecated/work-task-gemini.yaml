@@ -1,0 +1,262 @@
+name: work-task-gemini
+description: |
+  Simplified worker workflow for Gemini agents spawned in git worktrees.
+
+  This workflow is designed to be activated by a parent orchestrator (auto-task-claude)
+  for agents running in isolated git worktrees. It provides:
+
+  1. Claim the assigned task (set to in_progress)
+  2. Work on the task with full tool access
+  3. Commit changes to the worktree branch
+  4. Close the task
+  5. Report completion to parent
+  6. Shutdown
+
+  The parent sets assigned_task_id via spawn_agent task_id parameter.
+
+version: "1.0"
+type: step
+
+variables:
+  assigned_task_id: null
+  task_claimed: false
+  task_closed: false
+  parent_notified: false
+
+steps:
+  - name: activate
+    description: "Activate workflow - MUST be called first"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKER: Workflow activation required.
+
+          You MUST activate this workflow before proceeding. All tools are blocked
+          until you call activate_workflow.
+
+          Call:
+          mcp__gobby__call_tool(
+            server_name="gobby-workflows",
+            tool_name="activate_workflow",
+            arguments={
+              "name": "work-task-gemini",
+              "session_id": "<your_gobby_session_id>",
+              "variables": {"assigned_task_id": "<your_assigned_task_id>"}
+            }
+          )
+
+          Your Gobby Session ID is shown at session start (e.g., "Gobby Session ID: #N").
+          Your assigned task ID was provided in the spawn prompt.
+
+    # Only allow the MCP tool for activation - block everything else
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_tools
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+      - Read
+      - Glob
+      - Grep
+      - Task
+      - spawn_agent
+
+    transitions:
+      - to: claim_task
+        when: "mcp_called('gobby-workflows', 'activate_workflow')"
+
+  - name: claim_task
+    description: "Claim the assigned task"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKER: Starting in worktree.
+
+          You are running in an isolated git worktree. Your changes will be
+          committed to a feature branch that can be merged later.
+
+          Assigned task: {{ variables.assigned_task_id }}
+
+          First, claim the task by calling claim_task:
+          - server_name: "gobby-tasks"
+          - tool_name: "claim_task"
+          - arguments: {"task_id": "{{ variables.assigned_task_id }}", "session_id": "<your_session_id>"}
+
+          Then read the task details using the get_task tool:
+          - server_name: "gobby-tasks"
+          - tool_name: "get_task"
+          - arguments: {"task_id": "{{ variables.assigned_task_id }}"}
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+      - Glob
+      - Grep
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+      - spawn_agent
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: claim_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+
+    transitions:
+      - to: work
+        when: "variables.get('task_claimed', False)"
+
+  - name: work
+    description: "Full tool access for implementation"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKER: Implementation phase.
+
+          Task: {{ variables.assigned_task_id }}
+
+          You now have full tool access. Complete the task:
+          1. Read the task details to understand what needs to be done
+          2. Execute the required work (may involve file edits, API calls, or just gathering information)
+          3. Run tests if applicable
+
+          IMPORTANT: Closing the task depends on what type of work you did:
+
+          **If you made file changes:**
+          1. Stage your changes: git add <files>
+          2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
+          3. Close the task WITH commit_sha using the close_task tool:
+             - server_name: "gobby-tasks"
+             - tool_name: "close_task"
+             - arguments: {"task_id": "{{ variables.assigned_task_id }}", "commit_sha": "<sha_from_git_commit>"}
+
+          **If NO file changes (e.g., research, messaging, information gathering):**
+          Close the task WITHOUT commit_sha:
+             - server_name: "gobby-tasks"
+             - tool_name: "close_task"
+             - arguments: {"task_id": "{{ variables.assigned_task_id }}", "changes_summary": "<brief summary>"}
+
+          Do NOT push - the parent orchestrator will handle merging.
+
+    allowed_tools: all
+
+    blocked_tools:
+      - spawn_agent
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: close_task
+        action: set_variable
+        variable: task_closed
+        value: true
+
+    transitions:
+      - to: report_to_parent
+        when: "variables.get('task_closed', False)"
+
+  - name: report_to_parent
+    description: "Notify parent of completion"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKER: Reporting completion to parent.
+
+          Send a completion message to your parent session using the send_to_parent tool:
+          - server_name: "gobby-agents"
+          - tool_name: "send_to_parent"
+          - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "content": "Task {{ variables.assigned_task_id }} completed. <brief summary>"}
+
+          NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
+          Do NOT use the CLI-specific external_id. The Gobby Session ID is what MCP tools expect.
+
+          If send_to_parent fails (no parent found), that's okay - proceed to shutdown.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash
+      - NotebookEdit
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    on_mcp_error:
+      - server: gobby-agents
+        tool: send_to_parent
+        action: set_variable
+        variable: parent_notified
+        value: true
+
+    transitions:
+      - to: shutdown
+        when: "mcp_called('gobby-agents', 'send_to_parent')"
+
+  - name: shutdown
+    description: "Clean shutdown"
+    on_enter:
+      - action: inject_message
+        content: |
+          WORKER: Shutdown sequence.
+
+          Close your terminal using the close_terminal MCP tool:
+          - server_name: "gobby-workflows"
+          - tool_name: "close_terminal"
+          - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
+
+          NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
+          Do NOT use the CLI-specific external_id.
+
+          This will terminate your terminal session cleanly.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: complete
+        when: "mcp_called('gobby-workflows', 'close_terminal')"
+
+  - name: complete
+    description: "Worker done"
+
+exit_condition: "current_step == 'complete'"
+
+on_premature_stop:
+  action: block
+  message: |
+    Cannot stop - task not complete.
+
+    You must:
+    1. Complete your work
+    2. If you made file changes: commit them (git add && git commit)
+    3. Close the task using the close_task tool (include commit_sha if you made file changes)
+    4. Report to parent using the send_to_parent tool
+
+    If you're stuck, check the task details using the get_task tool.

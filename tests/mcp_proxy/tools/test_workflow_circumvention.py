@@ -10,9 +10,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from gobby.mcp_proxy.tools.workflows import create_workflows_registry
-from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.definitions import (
+    WorkflowDefinition,
+    WorkflowState,
+    WorkflowStep,
+    WorkflowTransition,
+)
 
 pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_db():
@@ -75,21 +81,23 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_state.step = "work"
         mock_state_manager.get_state.return_value = mock_state
 
-        # Setup mock workflow with work -> complete conditional transition
-        mock_work_step = MagicMock()
-        mock_work_step.name = "work"
-        mock_transition = MagicMock()
-        mock_transition.to = "complete"
-        mock_transition.when = "task_tree_complete(variables.session_task)"
-        mock_work_step.transitions = [mock_transition]
+        # Setup real workflow with work -> complete conditional transition
+        work_step = WorkflowStep(
+            name="work",
+            transitions=[
+                WorkflowTransition(
+                    to="complete",
+                    when="task_tree_complete(variables.session_task)",
+                )
+            ],
+        )
+        complete_step = WorkflowStep(name="complete")
 
-        mock_complete_step = MagicMock()
-        mock_complete_step.name = "complete"
-        mock_complete_step.transitions = []
-
-        mock_workflow = MagicMock()
-        mock_workflow.steps = [mock_work_step, mock_complete_step]
-        mock_loader.load_workflow.return_value = mock_workflow
+        workflow = WorkflowDefinition(
+            name="auto-task",
+            steps=[work_step, complete_step],
+        )
+        mock_loader.load_workflow.return_value = workflow
 
         # Try to manually transition to "complete"
         result = call_tool(
@@ -114,18 +122,15 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_state.step = "plan"
         mock_state_manager.get_state.return_value = mock_state
 
-        # Setup mock workflow without conditional transitions
-        mock_plan_step = MagicMock()
-        mock_plan_step.name = "plan"
-        mock_plan_step.transitions = []  # No transitions at all
+        # Setup real workflow without conditional transitions
+        plan_step = WorkflowStep(name="plan")  # No transitions
+        execute_step = WorkflowStep(name="execute")
 
-        mock_execute_step = MagicMock()
-        mock_execute_step.name = "execute"
-        mock_execute_step.transitions = []
-
-        mock_workflow = MagicMock()
-        mock_workflow.steps = [mock_plan_step, mock_execute_step]
-        mock_loader.load_workflow.return_value = mock_workflow
+        workflow = WorkflowDefinition(
+            name="plan-execute",
+            steps=[plan_step, execute_step],
+        )
+        mock_loader.load_workflow.return_value = workflow
 
         # Manual transition should work
         result = call_tool(
@@ -147,21 +152,20 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_state.step = "step1"
         mock_state_manager.get_state.return_value = mock_state
 
-        # Transition without 'when' condition
-        mock_step1 = MagicMock()
-        mock_step1.name = "step1"
-        mock_transition = MagicMock()
-        mock_transition.to = "step2"
-        mock_transition.when = None  # No condition
-        mock_step1.transitions = [mock_transition]
+        # Transition with empty 'when' (unconditional - always allowed)
+        step1 = WorkflowStep(
+            name="step1",
+            transitions=[
+                WorkflowTransition(to="step2", when="")  # Empty = unconditional
+            ],
+        )
+        step2 = WorkflowStep(name="step2")
 
-        mock_step2 = MagicMock()
-        mock_step2.name = "step2"
-        mock_step2.transitions = []
-
-        mock_workflow = MagicMock()
-        mock_workflow.steps = [mock_step1, mock_step2]
-        mock_loader.load_workflow.return_value = mock_workflow
+        workflow = WorkflowDefinition(
+            name="test-workflow",
+            steps=[step1, step2],
+        )
+        mock_loader.load_workflow.return_value = workflow
 
         result = call_tool(
             registry,
@@ -182,24 +186,20 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_state_manager.get_state.return_value = mock_state
 
         # step1 has conditional transition to step3, but we try to go to step2
-        mock_step1 = MagicMock()
-        mock_step1.name = "step1"
-        mock_conditional = MagicMock()
-        mock_conditional.to = "step3"  # Conditional goes to step3
-        mock_conditional.when = "some_condition()"
-        mock_step1.transitions = [mock_conditional]
+        step1 = WorkflowStep(
+            name="step1",
+            transitions=[
+                WorkflowTransition(to="step3", when="some_condition()")  # Conditional to step3
+            ],
+        )
+        step2 = WorkflowStep(name="step2")
+        step3 = WorkflowStep(name="step3")
 
-        mock_step2 = MagicMock()
-        mock_step2.name = "step2"
-        mock_step2.transitions = []
-
-        mock_step3 = MagicMock()
-        mock_step3.name = "step3"
-        mock_step3.transitions = []
-
-        mock_workflow = MagicMock()
-        mock_workflow.steps = [mock_step1, mock_step2, mock_step3]
-        mock_loader.load_workflow.return_value = mock_workflow
+        workflow = WorkflowDefinition(
+            name="multi-step",
+            steps=[step1, step2, step3],
+        )
+        mock_loader.load_workflow.return_value = workflow
 
         # Transition to step2 (not step3) should work
         result = call_tool(
@@ -262,7 +262,9 @@ class TestBlockSessionTaskModification:
         assert "warning" in result
         assert "DEPRECATED" in result["warning"]
 
-    def test_allows_session_task_modification_with_no_state(self, registry, mock_state_manager) -> None:
+    def test_allows_session_task_modification_with_no_state(
+        self, registry, mock_state_manager
+    ) -> None:
         """Can set session_task when no workflow state exists."""
         mock_state_manager.get_state.return_value = None
 

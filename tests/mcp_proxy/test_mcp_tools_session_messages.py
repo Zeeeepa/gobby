@@ -10,6 +10,7 @@ from gobby.storage.sessions import LocalSessionManager, Session
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_message_manager():
     manager = MagicMock(spec=LocalSessionMessageManager)

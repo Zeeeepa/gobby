@@ -9,6 +9,7 @@ from gobby.storage.sessions import Session
 
 pytestmark = pytest.mark.unit
 
+
 class TestSessionLifecycleManager:
     """Tests for SessionLifecycleManager."""
 

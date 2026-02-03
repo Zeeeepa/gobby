@@ -116,7 +116,11 @@ class WorkflowEngine:
                 if state.step != "reflect":
                     project_path = Path(event.cwd) if event.cwd else None
                     workflow = self.loader.load_workflow(state.workflow_name, project_path)
-                    if workflow and workflow.get_step("reflect"):
+                    if (
+                        workflow
+                        and isinstance(workflow, WorkflowDefinition)
+                        and workflow.get_step("reflect")
+                    ):
                         await self.transition_to(state, "reflect", workflow)
                         return HookResponse(
                             decision="modify",
@@ -143,6 +147,11 @@ class WorkflowEngine:
                 f"Skipping step workflow handling for lifecycle workflow '{workflow.name}' "
                 f"in session {session_id}"
             )
+            return HookResponse(decision="allow")
+
+        # Step handling only applies to WorkflowDefinition, not PipelineDefinition
+        if not isinstance(workflow, WorkflowDefinition):
+            logger.debug(f"Workflow '{workflow.name}' is a pipeline, skipping step handling")
             return HookResponse(decision="allow")
 
         # 4. Process event
@@ -344,6 +353,8 @@ class WorkflowEngine:
             memory_sync_manager=self.action_executor.memory_sync_manager,
             task_sync_manager=self.action_executor.task_sync_manager,
             session_task_manager=self.action_executor.session_task_manager,
+            pipeline_executor=self.action_executor.pipeline_executor,
+            workflow_loader=self.action_executor.workflow_loader,
         )
 
         for action_def in actions:
@@ -528,6 +539,14 @@ class WorkflowEngine:
             return {
                 "success": False,
                 "error": f"Workflow '{workflow_name}' is lifecycle type (auto-runs on events)",
+            }
+
+        # Only WorkflowDefinition can be activated as step workflows
+        if not isinstance(definition, WorkflowDefinition):
+            logger.debug(f"Workflow '{workflow_name}' is a pipeline, not a step workflow")
+            return {
+                "success": False,
+                "error": f"'{workflow_name}' is a pipeline. Use pipeline execution instead.",
             }
 
         # Check for existing step workflow

@@ -13,6 +13,7 @@ from gobby.storage.tasks import Task
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_hook_manager(temp_dir: Path):
     """Create a HookManager with a real test database but mocked external dependencies.

@@ -145,11 +145,11 @@ class LocalMemoryManager:
 
         now = datetime.now(UTC).isoformat()
         # Normalize content for consistent ID generation (avoid duplicates from
-        # whitespace differences or project_id inconsistency)
+        # whitespace differences)
         normalized_content = content.strip()
-        project_str = project_id if project_id else ""
-        # Use delimiter to prevent collisions (e.g., "abc" + "def" vs "abcd" + "ef")
-        memory_id = generate_prefixed_id("mm", f"{normalized_content}||{project_str}")
+        # Global dedup: ID based on content only (project_id stored but not in ID)
+        # This aligns with content_exists() which checks globally
+        memory_id = generate_prefixed_id("mm", normalized_content)
 
         # Check if memory already exists to avoid duplicate insert errors
         existing_row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))

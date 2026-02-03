@@ -101,7 +101,10 @@ class ActionContext:
     memory_sync_manager: Any | None = None
     task_sync_manager: Any | None = None
     session_task_manager: Any | None = None
+    skill_manager: Any | None = None
     event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
+    pipeline_executor: Any | None = None  # PipelineExecutor
+    workflow_loader: Any | None = None  # WorkflowLoader
 
 
 class ActionHandler(Protocol):
@@ -131,6 +134,9 @@ class ActionExecutor:
         progress_tracker: Any | None = None,
         stuck_detector: Any | None = None,
         websocket_server: Any | None = None,
+        skill_manager: Any | None = None,
+        pipeline_executor: Any | None = None,
+        workflow_loader: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -148,6 +154,9 @@ class ActionExecutor:
         self.progress_tracker = progress_tracker
         self.stuck_detector = stuck_detector
         self.websocket_server = websocket_server
+        self.skill_manager = skill_manager
+        self.pipeline_executor = pipeline_executor
+        self.workflow_loader = workflow_loader
         self._handlers: dict[str, ActionHandler] = {}
 
         self._register_defaults()
@@ -253,6 +262,9 @@ class ActionExecutor:
 
         # --- Autonomous execution actions (closures for progress_tracker/stuck_detector) ---
         self._register_autonomous_actions()
+
+        # --- Pipeline actions (closures for pipeline_executor/workflow_loader) ---
+        self._register_pipeline_actions()
 
     def _register_task_enforcement_actions(self) -> None:
         """Register task enforcement actions with task_manager closure."""
@@ -384,6 +396,69 @@ class ActionExecutor:
         self.register("detect_stuck", detect_stk)
         self.register("record_task_selection", record_sel)
         self.register("get_progress_summary", get_summary)
+
+    def _register_pipeline_actions(self) -> None:
+        """Register pipeline actions with pipeline_executor/workflow_loader closures."""
+        executor = self
+
+        async def run_pipeline(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
+            from gobby.workflows.pipeline_state import ApprovalRequired
+
+            name = kw.get("name")
+            inputs = kw.get("inputs") or {}
+            await_completion = kw.get("await_completion", False)
+
+            if not name:
+                return {"error": "Pipeline name is required"}
+
+            if executor.workflow_loader is None:
+                return {"error": "Workflow loader not configured"}
+
+            if executor.pipeline_executor is None:
+                return {"error": "Pipeline executor not configured"}
+
+            # Load the pipeline
+            pipeline = executor.workflow_loader.load_pipeline(name)
+            if pipeline is None:
+                return {"error": f"Pipeline '{name}' not found"}
+
+            # Render template variables in inputs
+            rendered_inputs = {}
+            variables = context.state.variables if context.state else {}
+            for key, value in inputs.items():
+                if isinstance(value, str):
+                    rendered_inputs[key] = context.template_engine.render(value, variables)
+                else:
+                    rendered_inputs[key] = value
+
+            try:
+                # Execute the pipeline
+                execution = await executor.pipeline_executor.execute(
+                    pipeline=pipeline,
+                    inputs=rendered_inputs,
+                    project_id=variables.get("project_id", ""),
+                )
+
+                return {
+                    "status": execution.status.value,
+                    "execution_id": execution.id,
+                    "pipeline_name": execution.pipeline_name,
+                }
+
+            except ApprovalRequired as e:
+                # Store pending pipeline in state if await_completion is True
+                if await_completion:
+                    context.state.variables["pending_pipeline"] = e.execution_id
+
+                return {
+                    "status": "waiting_approval",
+                    "execution_id": e.execution_id,
+                    "step_id": e.step_id,
+                    "token": e.token,
+                    "message": e.message,
+                }
+
+        self.register("run_pipeline", run_pipeline)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any

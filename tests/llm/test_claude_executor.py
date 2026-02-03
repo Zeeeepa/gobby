@@ -14,6 +14,7 @@ from gobby.llm.executor import AgentResult, ToolResult, ToolSchema
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_anthropic_module():
     """Mock the anthropic module."""

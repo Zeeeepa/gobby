@@ -9,6 +9,7 @@ from gobby.cli import cli
 
 pytestmark = pytest.mark.unit
 
+
 class TestMemoryShowCommand:
     """Tests for gobby memory show command."""
 

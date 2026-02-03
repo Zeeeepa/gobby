@@ -53,6 +53,7 @@ from gobby.config.tasks import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestExpandEnvVars:
     """Tests for expand_env_vars function."""
 

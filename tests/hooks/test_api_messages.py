@@ -14,6 +14,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     db = LocalDatabase(":memory:")
@@ -51,6 +52,7 @@ def mock_db():
             agent_depth INTEGER DEFAULT 0,
             spawned_by_agent_id TEXT,
             workflow_name TEXT,
+            step_variables TEXT,
             agent_run_id TEXT,
             context_injected INTEGER DEFAULT 0,
             original_prompt TEXT,

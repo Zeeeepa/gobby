@@ -17,6 +17,7 @@ from gobby.workflows.templates import TemplateEngine
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_mem_services():
     services = {

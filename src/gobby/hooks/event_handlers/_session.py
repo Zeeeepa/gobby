@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.event_handlers._base import EventHandlersBase
@@ -36,12 +35,18 @@ class SessionEventHandlerMixin(EventHandlersBase):
         )
 
         # Step 0: Check if this is a pre-created session (terminal mode agent)
-        # When we spawn an agent in terminal mode, we pass --session-id <internal_id>
-        # to Claude, so external_id here might actually be our internal session ID
+        # Two cases:
+        # 1. Claude: We pass --session-id <internal_id>, so external_id IS our internal ID
+        # 2. Gemini: We pass GOBBY_SESSION_ID env var, hook_dispatcher includes it in terminal_context
         existing_session = None
+        terminal_context = input_data.get("terminal_context")
+        gobby_session_id_from_env = (
+            terminal_context.get("gobby_session_id") if terminal_context else None
+        )
+
         if self._session_storage:
             try:
-                # Try to find by internal ID first (terminal mode case)
+                # Try to find by internal ID first (Claude case - external_id IS internal_id)
                 existing_session = self._session_storage.get(external_id)
                 if existing_session:
                     return self._handle_pre_created_session(
@@ -53,7 +58,32 @@ class SessionEventHandlerMixin(EventHandlersBase):
                         cwd=cwd,
                     )
             except Exception as e:
-                self.logger.debug(f"No pre-created session found: {e}")
+                self.logger.debug(f"No pre-created session found by external_id: {e}")
+
+            # Gemini case: Look up by gobby_session_id from terminal_context
+            if gobby_session_id_from_env and not existing_session:
+                try:
+                    existing_session = self._session_storage.get(gobby_session_id_from_env)
+                    if existing_session:
+                        self.logger.info(
+                            f"Found pre-created session {gobby_session_id_from_env} via "
+                            f"terminal_context, updating external_id to {external_id}"
+                        )
+                        # Update the session's external_id with CLI's native session_id
+                        self._session_storage.update(
+                            gobby_session_id_from_env,
+                            external_id=external_id,
+                        )
+                        return self._handle_pre_created_session(
+                            existing_session=existing_session,
+                            external_id=external_id,
+                            transcript_path=transcript_path,
+                            cli_source=cli_source,
+                            event=event,
+                            cwd=cwd,
+                        )
+                except Exception as e:
+                    self.logger.debug(f"No pre-created session found by gobby_session_id: {e}")
 
         # Step 1: Find parent session
         # Check env vars first (spawned agent case), then handoff (source='clear')
@@ -76,8 +106,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                 self.logger.warning(f"Error finding parent session: {e}")
 
         # Step 2: Register new session with parent if found
-        # Extract terminal context (injected by hook_dispatcher for terminal correlation)
-        terminal_context = input_data.get("terminal_context")
+        # terminal_context already extracted in Step 0
         # Parse agent_depth as int if provided
         agent_depth_val = 0
         if agent_depth:
@@ -142,16 +171,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.warning(f"Workflow error: {e}")
 
-        # Build additional context (task and skill injection)
+        # Build additional context (task context)
+        # Note: Skill injection is now handled by workflows via inject_context action
         additional_context: list[str] = []
         if event.task_id:
             task_title = event.metadata.get("_task_title", "Unknown Task")
             additional_context.append("\n## Active Task Context\n")
             additional_context.append(f"You are working on task: {task_title} ({event.task_id})")
-
-        skill_context = self._build_skill_injection_context(parent_session_id)
-        if skill_context:
-            additional_context.append(skill_context)
 
         # Fetch session to get seq_num for #N display
         session_obj = None
@@ -313,7 +339,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Auto-activate workflow if specified for this session
         if existing_session.workflow_name and session_id:
-            self._auto_activate_workflow(existing_session.workflow_name, session_id, cwd)
+            self._auto_activate_workflow(
+                existing_session.workflow_name,
+                session_id,
+                cwd,
+                variables=existing_session.step_variables,
+            )
 
         # Update event metadata
         event.metadata["_platform_session_id"] = session_id
@@ -454,120 +485,3 @@ class SessionEventHandlerMixin(EventHandlersBase):
             system_message=system_message,
             metadata=metadata,
         )
-
-    def _build_skill_injection_context(self, parent_session_id: str | None = None) -> str | None:
-        """Build skill injection context for session-start.
-
-        Combines alwaysApply skills with skills restored from parent session.
-        Uses per-skill injection_format to control how each skill is injected:
-        - "summary": name + description only
-        - "full" or "content": name + description + full content
-
-        Args:
-            parent_session_id: Optional parent session ID to restore skills from
-
-        Returns context string with available skills if injection is enabled,
-        or None if disabled.
-        """
-        # Skip if no skill manager or config
-        if not self._skill_manager or not self._skills_config:
-            return None
-
-        # Check if injection is enabled
-        if not self._skills_config.inject_core_skills:
-            return None
-
-        # Check injection format (global config level)
-        if self._skills_config.injection_format == "none":
-            return None
-
-        # Get alwaysApply skills (efficiently via column query)
-        try:
-            always_apply_skills = self._skill_manager.discover_core_skills()
-
-            # Get restored skills from parent session
-            restored_skills = self._restore_skills_from_parent(parent_session_id)
-
-            # Build a map of always_apply skills for quick lookup
-            always_apply_map = {s.name: s for s in always_apply_skills}
-
-            # Combine: alwaysApply skills + any additional restored skills
-            skill_names = [s.name for s in always_apply_skills]
-            for skill_name in restored_skills:
-                if skill_name not in skill_names:
-                    skill_names.append(skill_name)
-
-            if not skill_names:
-                return None
-
-            # Build context with per-skill injection format
-            parts = ["\n## Available Skills\n"]
-
-            for skill_name in skill_names:
-                skill = always_apply_map.get(skill_name)
-                if not skill:
-                    # Restored skill not in always_apply - just list the name
-                    parts.append(f"- **{skill_name}**")
-                    continue
-
-                # Determine injection format for this skill
-                # Use per-skill injection_format, fallback to global config
-                skill_format = skill.injection_format or self._skills_config.injection_format
-
-                if skill_format in ("full", "content"):
-                    # Full injection: name + description + content
-                    parts.append(f"### {skill_name}")
-                    if skill.description:
-                        parts.append(f"*{skill.description}*\n")
-                    if skill.content:
-                        parts.append(skill.content)
-                    parts.append("")
-                else:
-                    # Summary injection: name + description only
-                    if skill.description:
-                        parts.append(f"- **{skill_name}**: {skill.description}")
-                    else:
-                        parts.append(f"- **{skill_name}**")
-
-            return "\n".join(parts)
-
-        except Exception as e:
-            self.logger.warning(f"Failed to build skill injection context: {e}")
-            return None
-
-    def _restore_skills_from_parent(self, parent_session_id: str | None) -> list[str]:
-        """Restore active skills from parent session's handoff context.
-
-        Args:
-            parent_session_id: Parent session ID to restore from
-
-        Returns:
-            List of skill names from the parent session
-        """
-        if not parent_session_id or not self._session_storage:
-            return []
-
-        try:
-            parent = self._session_storage.get(parent_session_id)
-            if not parent:
-                return []
-
-            compact_md = getattr(parent, "compact_markdown", None)
-            if not compact_md:
-                return []
-
-            # Parse active skills from markdown
-            # Format: "### Active Skills\nSkills available: skill1, skill2, skill3"
-
-            match = re.search(r"### Active Skills\s*\nSkills available:\s*([^\n]+)", compact_md)
-            if match:
-                skills_str = match.group(1).strip()
-                skills = [s.strip() for s in skills_str.split(",") if s.strip()]
-                self.logger.debug(f"Restored {len(skills)} skills from parent session")
-                return skills
-
-            return []
-
-        except Exception as e:
-            self.logger.warning(f"Failed to restore skills from parent: {e}")
-            return []

@@ -18,6 +18,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 pytestmark = pytest.mark.unit
 
+
 class MockInterSessionMessage:
     """Mock inter-session message object for tests."""
 

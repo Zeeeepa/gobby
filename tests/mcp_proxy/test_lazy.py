@@ -16,6 +16,7 @@ from gobby.mcp_proxy.lazy import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestCircuitBreaker:
     """Tests for CircuitBreaker."""
 

@@ -130,7 +130,9 @@ class TestHubQueryIntegration:
             assert project["task_count"] == 3
             assert project["session_count"] == 2
 
-    def test_list_cross_project_tasks_returns_tasks_from_all_projects(self, multi_project_hub) -> None:
+    def test_list_cross_project_tasks_returns_tasks_from_all_projects(
+        self, multi_project_hub
+    ) -> None:
         """Test that list_cross_project_tasks returns tasks from multiple projects."""
         import asyncio
 

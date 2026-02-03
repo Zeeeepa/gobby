@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 pytestmark = pytest.mark.unit
 
+
 class TestLoggingSettingsImport:
     """Test that LoggingSettings can be imported from the logging module."""
 

@@ -327,6 +327,8 @@ class TestFullWorkflowIntegration:
         )
 
         # Trigger an error in MCP (invalid server)
+        # Note: MCP errors return 200 with {success: False, ...} in body
+        # for better MCP client compatibility (see execution.py _process_tool_proxy_result)
         error_response = daemon_client.post(
             "/mcp/tools/call",
             json={
@@ -335,7 +337,11 @@ class TestFullWorkflowIntegration:
                 "arguments": {},
             },
         )
-        assert error_response.status_code in [400, 404, 500, 503]
+        # Error is in response body, not HTTP status code
+        error_data = error_response.json()
+        assert error_response.status_code == 200 or error_response.status_code in [400, 404, 500, 503]
+        if error_response.status_code == 200:
+            assert error_data.get("success") is False
 
         # Sessions should still work
         sessions_response = daemon_client.get("/sessions")

@@ -19,6 +19,7 @@ from example_notify import HTTP_NOTIFY_SCHEMA, LOG_METRIC_SCHEMA, ExampleNotifyP
 
 pytestmark = pytest.mark.unit
 
+
 class TestPluginLoading:
     """Tests for plugin initialization and loading."""
 

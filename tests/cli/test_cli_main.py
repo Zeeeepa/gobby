@@ -1,4 +1,5 @@
 """Tests for CLI __main__ module."""
+
 import pytest
 
 pytestmark = pytest.mark.unit

@@ -11,6 +11,7 @@ from gobby.mcp_proxy.tools.agents import create_agents_registry
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_runner():
     """Create a mock agent runner."""

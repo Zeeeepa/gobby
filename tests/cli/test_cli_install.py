@@ -21,6 +21,7 @@ from gobby.cli.install import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestEnsureDaemonConfig:
     """Tests for _ensure_daemon_config function."""
 
@@ -162,10 +163,16 @@ class TestInstallCommand:
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
+    @patch("gobby.cli.install._is_cursor_installed")
+    @patch("gobby.cli.install._is_windsurf_installed")
+    @patch("gobby.cli.install._is_copilot_cli_installed")
     @patch("gobby.cli.load_config")
     def test_install_no_clis_detected_no_git(
         self,
         mock_load_config: MagicMock,
+        mock_copilot: MagicMock,
+        mock_windsurf: MagicMock,
+        mock_cursor: MagicMock,
         mock_codex: MagicMock,
         mock_gemini: MagicMock,
         mock_claude: MagicMock,
@@ -177,6 +184,9 @@ class TestInstallCommand:
         mock_claude.return_value = False
         mock_gemini.return_value = False
         mock_codex.return_value = False
+        mock_cursor.return_value = False
+        mock_windsurf.return_value = False
+        mock_copilot.return_value = False
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             result = runner.invoke(cli, ["install"])

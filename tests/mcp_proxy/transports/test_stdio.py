@@ -14,6 +14,7 @@ from gobby.mcp_proxy.transports.stdio import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestEnvVarPattern:
     """Tests for ENV_VAR_PATTERN regex."""
 

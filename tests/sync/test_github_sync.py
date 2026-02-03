@@ -14,6 +14,7 @@ from gobby.sync.github import GitHubSyncService
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_mcp_manager():
     """Create a mock MCPClientManager."""

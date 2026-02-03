@@ -10,10 +10,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 
 if TYPE_CHECKING:
     from .actions import ActionExecutor
-    from .definitions import WorkflowDefinition, WorkflowState
     from .evaluator import ConditionEvaluator
     from .loader import WorkflowLoader
     from .state_manager import WorkflowStateManager
@@ -123,28 +123,30 @@ async def evaluate_workflow_triggers(
     session_id = event.metadata.get("_platform_session_id") or "global"
 
     # Try to load existing state, or create new one
-    state = state_manager.get_state(session_id)
-    if state is None:
-        state = WorkflowState(
-            session_id=session_id,
-            workflow_name=workflow.name,
-            step="global",
-            step_entered_at=datetime.now(UTC),
-            step_action_count=0,
-            total_action_count=0,
-            artifacts=event.data.get("artifacts", {}) if event.data else {},
-            observations=[],
-            reflection_pending=False,
-            context_injected=False,
-            variables={},
-            task_list=None,
-            current_task_index=0,
-            files_modified_this_task=0,
-        )
+    # Track whether we created a new state to determine save behavior later
+    existing_state = state_manager.get_state(session_id)
+    state_was_created = existing_state is None
+    state: WorkflowState = existing_state or WorkflowState(
+        session_id=session_id,
+        workflow_name=workflow.name,
+        step="global",
+        step_entered_at=datetime.now(UTC),
+        step_action_count=0,
+        total_action_count=0,
+        artifacts=event.data.get("artifacts", {}) if event.data else {},
+        observations=[],
+        reflection_pending=False,
+        context_injected=False,
+        variables={},
+        task_list=None,
+        current_task_index=0,
+        files_modified_this_task=0,
+    )
 
-    # Merge context_data into state variables (context_data has session vars from earlier load)
+    # Merge context_data (workflow defaults) into state variables
+    # Persisted state values take precedence over workflow defaults
     if context_data:
-        state.variables.update(context_data)
+        state.variables = {**context_data, **state.variables}
 
     action_ctx = ActionContext(
         session_id=session_id,
@@ -236,11 +238,28 @@ async def evaluate_workflow_triggers(
                 exc_info=True,
             )
 
-    # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant)
+    # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant,
+    # unlocked_tools from track_schema_lookup)
     # Only save if we have a real session ID (not "global" fallback)
     # The workflow_states table has a FK to sessions, so we can't save for non-existent sessions
     if session_id != "global":
-        state_manager.save_state(state)
+        if state_was_created:
+            # We created a new lifecycle state - check for existing step workflow
+            # to avoid overwriting it with our new lifecycle state.
+            # Step workflows (activated via activate_workflow) have their own workflow_name.
+            current_state = state_manager.get_state(session_id)
+            is_step_workflow = (
+                current_state is not None
+                and current_state.workflow_name != "__lifecycle__"
+                and current_state.workflow_name != workflow.name
+            )
+            if not is_step_workflow:
+                state_manager.save_state(state)
+        else:
+            # We fetched an existing state (possibly a step workflow) and updated
+            # its variables. Safe to save since we're just persisting variable
+            # changes (like unlocked_tools), not changing workflow_name or step.
+            state_manager.save_state(state)
 
     final_context = "\n\n".join(injected_context) if injected_context else None
     logger.debug(
@@ -288,6 +307,11 @@ async def evaluate_lifecycle_triggers(
     workflow = loader.load_workflow(workflow_name, project_path=project_path)
     if not workflow:
         logger.warning(f"Workflow '{workflow_name}' not found in project_path={project_path}")
+        return HookResponse(decision="allow")
+
+    # Lifecycle triggers only apply to WorkflowDefinition, not PipelineDefinition
+    if not isinstance(workflow, WorkflowDefinition):
+        logger.debug(f"Workflow '{workflow_name}' is not a WorkflowDefinition, skipping triggers")
         return HookResponse(decision="allow")
 
     logger.debug(
@@ -533,6 +557,10 @@ async def evaluate_all_lifecycle_workflows(
         for discovered in workflows:
             workflow = discovered.definition
 
+            # Skip PipelineDefinition - lifecycle triggers only for WorkflowDefinition
+            if not isinstance(workflow, WorkflowDefinition):
+                continue
+
             # Skip if this workflow+trigger has already been processed
             key = (workflow.name, trigger_name)
             if key in processed_triggers:
@@ -595,6 +623,7 @@ async def evaluate_all_lifecycle_workflows(
                 )
             detect_task_claim_fn(event, state)
             detect_plan_mode_fn(event, state)
+            # Safe to save - we're updating variables on existing state, not changing workflow_name
             state_manager.save_state(state)
 
     # Detect plan mode from system reminders for BEFORE_AGENT events
@@ -610,6 +639,7 @@ async def evaluate_all_lifecycle_workflows(
                     step="",
                 )
             detect_plan_mode_from_context_fn(event, state)
+            # Safe to save - we're updating variables on existing state, not changing workflow_name
             state_manager.save_state(state)
 
     # Check for premature stop in active step workflows on STOP events

@@ -18,6 +18,7 @@ from gobby.agents.registry import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestRunningAgent:
     """Tests for RunningAgent dataclass."""
 

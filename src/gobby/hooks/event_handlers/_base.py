@@ -43,7 +43,11 @@ class EventHandlersBase:
     _handler_map: dict[HookEventType, Callable[[HookEvent], HookResponse]]
 
     def _auto_activate_workflow(
-        self, workflow_name: str, session_id: str, project_path: str | None
+        self,
+        workflow_name: str,
+        session_id: str,
+        project_path: str | None,
+        variables: dict[str, Any] | None = None,
     ) -> None:
         """Shared method for auto-activating workflows."""
         if not self._workflow_handler:
@@ -54,6 +58,7 @@ class EventHandlersBase:
                 workflow_name=workflow_name,
                 session_id=session_id,
                 project_path=project_path,
+                variables=variables,
             )
             if result.get("success"):
                 self.logger.info(

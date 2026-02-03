@@ -292,8 +292,8 @@ class ClaudeCodeAdapter(BaseAdapter):
 
         # Build hookSpecificOutput if we have any context to inject
         # Only include hookSpecificOutput for hook types that Claude Code's schema accepts
-        # Valid hookEventName values: PreToolUse, UserPromptSubmit, PostToolUse
-        valid_hook_event_names = {"PreToolUse", "UserPromptSubmit", "PostToolUse"}
+        # Valid hookEventName values: PreToolUse, UserPromptSubmit, PostToolUse, SessionStart
+        valid_hook_event_names = {"PreToolUse", "UserPromptSubmit", "PostToolUse", "SessionStart"}
         if additional_context_parts and hook_event_name in valid_hook_event_names:
             result["hookSpecificOutput"] = {
                 "hookEventName": hook_event_name,

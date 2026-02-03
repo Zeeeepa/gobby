@@ -15,6 +15,7 @@ from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_mcp_manager():
     """Create a mock MCP manager."""

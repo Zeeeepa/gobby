@@ -24,6 +24,9 @@ PARSER_REGISTRY: dict[str, type[TranscriptParser]] = {
     "gemini": GeminiTranscriptParser,
     "antigravity": GeminiTranscriptParser,
     "codex": CodexTranscriptParser,
+    "cursor": ClaudeTranscriptParser,
+    "windsurf": ClaudeTranscriptParser,
+    "copilot": ClaudeTranscriptParser,
 }
 
 

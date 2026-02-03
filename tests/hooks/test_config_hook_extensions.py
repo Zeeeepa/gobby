@@ -7,6 +7,7 @@ from gobby.config.extensions import HookExtensionsConfig, WebSocketBroadcastConf
 
 pytestmark = pytest.mark.unit
 
+
 def test_hook_extensions_defaults() -> None:
     """Test default values for hook extensions."""
     config = DaemonConfig()

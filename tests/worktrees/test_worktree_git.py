@@ -14,6 +14,7 @@ from gobby.worktrees.git import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestWorktreeInfo:
     """Tests for WorktreeInfo dataclass."""
 

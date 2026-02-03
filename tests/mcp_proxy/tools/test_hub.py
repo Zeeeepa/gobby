@@ -16,6 +16,7 @@ from gobby.storage.migrations import run_migrations
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def temp_hub_db(tmp_path: Path) -> Path:
     """Create a temporary hub database with schema."""

@@ -11,6 +11,7 @@ from gobby.workflows.loader import DiscoveredWorkflow, WorkflowLoader
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def loader():
     """Create a WorkflowLoader with a temporary workflow directory."""

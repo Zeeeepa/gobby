@@ -11,6 +11,7 @@ from gobby.workflows.webhook import CaptureConfig, RetryConfig, WebhookAction
 
 pytestmark = pytest.mark.unit
 
+
 class TestWebhookActionParsing:
     """Tests for parsing WebhookAction from dict/YAML."""
 

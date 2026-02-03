@@ -42,6 +42,7 @@ from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.integration
 
+
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
@@ -245,7 +246,9 @@ class TestPrepareTerminalSpawn:
         assert result.workflow_name == "plan-execute"
         assert result.env_vars[GOBBY_WORKFLOW_NAME] == "plan-execute"
 
-    def test_short_prompt_uses_env_var(self, child_session_manager, parent_session, project) -> None:
+    def test_short_prompt_uses_env_var(
+        self, child_session_manager, parent_session, project
+    ) -> None:
         """Test that short prompts are passed via environment variable."""
         short_prompt = "Implement a simple feature"
 
@@ -295,7 +298,9 @@ class TestPrepareTerminalSpawn:
 
         assert result.env_vars[GOBBY_MAX_AGENT_DEPTH] == "5"
 
-    def test_env_vars_contains_all_required(self, child_session_manager, parent_session, project) -> None:
+    def test_env_vars_contains_all_required(
+        self, child_session_manager, parent_session, project
+    ) -> None:
         """Test that env_vars contains all required variables."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -562,7 +567,9 @@ class TestWorktreeIntegration:
         stdout, _ = result.process.communicate()
         assert "worktree-feature-x" in stdout
 
-    def test_env_vars_for_worktree_agent(self, child_session_manager, parent_session, project) -> None:
+    def test_env_vars_for_worktree_agent(
+        self, child_session_manager, parent_session, project
+    ) -> None:
         """Test that environment variables are correctly set for worktree agents."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,

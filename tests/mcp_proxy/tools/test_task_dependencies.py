@@ -14,6 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestAddDependency:
     """Tests for add_dependency MCP tool."""
 

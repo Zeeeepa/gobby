@@ -14,7 +14,7 @@ import os
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 from websockets.asyncio.server import serve
@@ -24,6 +24,9 @@ from websockets.http11 import Response
 
 from gobby.agents.registry import get_running_agent_registry
 from gobby.mcp_proxy.manager import MCPClientManager
+
+if TYPE_CHECKING:
+    from gobby.llm import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +82,7 @@ class WebSocketServer:
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
         stop_registry: Any = None,
+        llm_service: "LLMService | None" = None,
     ):
         """
         Initialize WebSocket server.
@@ -89,14 +93,19 @@ class WebSocketServer:
             auth_callback: Optional async function that validates token and returns user_id.
                           If None, all connections are accepted (local-first mode).
             stop_registry: Optional StopRegistry for handling stop requests from clients.
+            llm_service: Optional LLM service for chat message handling.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
         self.stop_registry = stop_registry
+        self.llm_service = llm_service
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}
+
+        # Chat conversation history per client (simple in-memory for now)
+        self._chat_history: dict[str, list[dict[str, str]]] = {}
 
         # Server instance (set when started)
         self._server: Any = None
@@ -225,6 +234,7 @@ class WebSocketServer:
         finally:
             # Always cleanup client state
             self.clients.pop(websocket, None)
+            self._chat_history.pop(client_id, None)
             logger.debug(f"Client {client_id} cleaned up. Remaining clients: {len(self.clients)}")
 
     async def _handle_message(self, websocket: Any, message: str) -> None:
@@ -260,6 +270,9 @@ class WebSocketServer:
 
         elif msg_type == "terminal_input":
             await self._handle_terminal_input(websocket, data)
+
+        elif msg_type == "chat_message":
+            await self._handle_chat_message(websocket, data)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -557,6 +570,215 @@ class WebSocketServer:
         except OSError as e:
             logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
 
+    async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
+        """
+        Handle chat_message and stream LLM response with MCP tool support.
+
+        Message format:
+        {
+            "type": "chat_message",
+            "content": "user message",
+            "message_id": "client-generated-id",
+            "use_tools": true  // optional, enables MCP tools
+        }
+
+        Response format (streamed):
+        {
+            "type": "chat_stream",
+            "message_id": "assistant-uuid",
+            "content": "chunk of text",
+            "done": false
+        }
+
+        Tool status format:
+        {
+            "type": "tool_status",
+            "message_id": "assistant-uuid",
+            "tool_call_id": "unique-id",
+            "status": "calling" | "completed" | "error",
+            "tool_name": "mcp__gobby-tasks__create_task",
+            "server_name": "gobby-tasks",
+            "arguments": {...},
+            "result": {...},  // when completed
+            "error": "..."    // when error
+        }
+
+        Args:
+            websocket: Client WebSocket connection
+            data: Parsed chat message
+        """
+        content = data.get("content")
+        user_message_id = data.get("message_id")
+        use_tools = data.get("use_tools", True)  # Default to using tools
+        model = data.get("model")  # Optional model override
+
+        if not content or not isinstance(content, str):
+            await self._send_error(websocket, "Missing or invalid 'content' field")
+            return
+
+        if not self.llm_service:
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat_error",
+                        "message_id": user_message_id,
+                        "error": "LLM service not configured",
+                    }
+                )
+            )
+            return
+
+        # Get or create conversation history for this client
+        client_info = self.clients.get(websocket)
+        if not client_info:
+            logger.warning("Chat message from unregistered client")
+            return
+        client_id = client_info["id"]
+
+        if client_id not in self._chat_history:
+            self._chat_history[client_id] = []
+
+        history = self._chat_history[client_id]
+
+        # Add user message to history
+        history.append({"role": "user", "content": content})
+
+        # Generate assistant message ID
+        assistant_message_id = f"assistant-{uuid4().hex[:12]}"
+
+        try:
+            # Build messages for LLM
+            system_prompt = (
+                "You are Gobby, a helpful AI assistant with access to tools. "
+                "You help users with coding, development tasks, and general questions. "
+                "You can use tools to manage tasks, store memories, and access session info. "
+                "Be concise and helpful."
+            )
+
+            messages = [{"role": "system", "content": system_prompt}] + history[
+                -20:
+            ]  # Last 20 messages
+
+            full_response = ""
+            tool_calls_count = 0
+
+            if use_tools:
+                # Stream with MCP tools
+                from gobby.llm.claude import (
+                    DoneEvent,
+                    TextChunk,
+                    ToolCallEvent,
+                    ToolResultEvent,
+                )
+
+                # Default allowed tools - gobby MCP server from .mcp.json
+                # The server name is "gobby" which exposes all gobby tools
+                allowed_tools = [
+                    "mcp__gobby__*",
+                ]
+
+                async for event in self.llm_service.stream_chat_with_tools(
+                    messages, allowed_tools, model=model
+                ):
+                    if isinstance(event, TextChunk):
+                        full_response += event.content
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "chat_stream",
+                                    "message_id": assistant_message_id,
+                                    "content": event.content,
+                                    "done": False,
+                                }
+                            )
+                        )
+                    elif isinstance(event, ToolCallEvent):
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "tool_status",
+                                    "message_id": assistant_message_id,
+                                    "tool_call_id": event.tool_call_id,
+                                    "status": "calling",
+                                    "tool_name": event.tool_name,
+                                    "server_name": event.server_name,
+                                    "arguments": event.arguments,
+                                }
+                            )
+                        )
+                    elif isinstance(event, ToolResultEvent):
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "tool_status",
+                                    "message_id": assistant_message_id,
+                                    "tool_call_id": event.tool_call_id,
+                                    "status": "completed" if event.success else "error",
+                                    "result": event.result,
+                                    "error": event.error,
+                                }
+                            )
+                        )
+                    elif isinstance(event, DoneEvent):
+                        tool_calls_count = event.tool_calls_count
+                        # Send final done message
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "chat_stream",
+                                    "message_id": assistant_message_id,
+                                    "content": "",
+                                    "done": True,
+                                    "tool_calls_count": tool_calls_count,
+                                }
+                            )
+                        )
+            else:
+                # Stream without tools (original behavior)
+                async for chunk in self.llm_service.stream_chat(messages):
+                    full_response += chunk
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "chat_stream",
+                                "message_id": assistant_message_id,
+                                "content": chunk,
+                                "done": False,
+                            }
+                        )
+                    )
+
+                # Send final done message
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "chat_stream",
+                            "message_id": assistant_message_id,
+                            "content": "",
+                            "done": True,
+                        }
+                    )
+                )
+
+            # Add assistant response to history
+            history.append({"role": "assistant", "content": full_response})
+
+            # Trim history if too long
+            if len(history) > 100:
+                self._chat_history[client_id] = history[-50:]
+
+        except Exception:
+            logger.exception(f"Chat error for client {client_id}")
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "chat_error",
+                        "message_id": assistant_message_id,
+                        "error": "An internal error occurred",
+                    }
+                )
+            )
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
         Broadcast message to all connected clients.
@@ -723,6 +945,97 @@ class WebSocketServer:
         }
 
         await self.broadcast(message)
+
+    async def broadcast_pipeline_event(
+        self,
+        event: str,
+        execution_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Broadcast pipeline execution event to subscribed clients.
+
+        Used for real-time pipeline execution updates:
+        - pipeline_started: Execution began
+        - pipeline_completed: Execution finished successfully
+        - pipeline_failed: Execution failed with error
+        - step_started: A step began executing
+        - step_completed: A step finished successfully
+        - step_failed: A step failed with error
+        - step_output: Streaming output from a step
+        - approval_required: Step is waiting for approval
+
+        Args:
+            event: Event type
+            execution_id: Pipeline execution ID
+            **kwargs: Additional event data (step_id, output, error, etc.)
+        """
+        if not self.clients:
+            return  # No clients connected
+
+        message = {
+            "type": "pipeline_event",
+            "event": event,
+            "execution_id": execution_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+
+        message_str = json.dumps(message)
+
+        for websocket in list(self.clients.keys()):
+            try:
+                # Only send to clients subscribed to pipeline_event or *
+                subs = getattr(websocket, "subscriptions", None)
+                if subs is not None:
+                    if "pipeline_event" not in subs and "*" not in subs:
+                        continue
+
+                await websocket.send(message_str)
+            except ConnectionClosed:
+                pass
+            except Exception as e:
+                logger.warning(f"Pipeline event broadcast failed: {e}")
+
+    async def broadcast_terminal_output(
+        self,
+        run_id: str,
+        data: str,
+    ) -> None:
+        """
+        Broadcast terminal output to subscribed clients.
+
+        Used for streaming PTY output from embedded agents to web terminals.
+
+        Args:
+            run_id: Agent run ID
+            data: Raw terminal output data
+        """
+        if not self.clients:
+            return  # No clients connected
+
+        message = {
+            "type": "terminal_output",
+            "run_id": run_id,
+            "data": data,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+
+        message_str = json.dumps(message)
+
+        for websocket in list(self.clients.keys()):
+            try:
+                # Only send to clients subscribed to terminal_output or *
+                subs = getattr(websocket, "subscriptions", None)
+                if subs is not None:
+                    if "terminal_output" not in subs and "*" not in subs:
+                        continue
+
+                await websocket.send(message_str)
+            except ConnectionClosed:
+                pass
+            except Exception as e:
+                logger.warning(f"Terminal broadcast failed: {e}")
 
     async def start(self) -> None:
         """

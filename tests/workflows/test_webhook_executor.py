@@ -14,6 +14,7 @@ from gobby.workflows.webhook_executor import WebhookExecutor, WebhookResult
 
 pytestmark = pytest.mark.unit
 
+
 def create_mock_response(status=200, body="{}", headers=None):
     """Create a mock aiohttp response with proper async context manager support."""
     mock_response = MagicMock()

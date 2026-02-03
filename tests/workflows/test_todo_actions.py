@@ -12,6 +12,7 @@ from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 
 pytestmark = pytest.mark.unit
 
+
 class TestWriteTodos:
     """Tests for the write_todos function."""
 

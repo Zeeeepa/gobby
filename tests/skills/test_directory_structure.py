@@ -13,6 +13,7 @@ from gobby.skills.parser import ParsedSkill
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def skill_with_directories(tmp_path: Path) -> Path:
     """Create a skill directory with all subdirectories."""
@@ -186,7 +187,9 @@ class TestSkillLoaderDirectoryDetection:
         assert "assets/template.txt" in skill.assets
         assert "assets/icon.svg" in skill.assets
 
-    def test_load_skill_returns_none_for_missing_directories(self, skill_without_directories) -> None:
+    def test_load_skill_returns_none_for_missing_directories(
+        self, skill_without_directories
+    ) -> None:
         """Test that missing directories result in None values."""
         loader = SkillLoader()
         skill = loader.load_skill(skill_without_directories)

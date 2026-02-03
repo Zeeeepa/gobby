@@ -107,18 +107,18 @@ class TestSequentialReviewLoopE2E:
         assert len(subtask_ids) == 2, "Should have created 2 subtasks"
 
         # Step 3: Process first subtask (simulate spawn→wait→review→close)
-        # 3a: Set first subtask to in_progress
+        # 3a: Set first subtask to in_progress (must use claim_task for this)
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="update_task",
+            tool_name="claim_task",
             arguments={
                 "task_id": subtask_ids[0],
-                "status": "in_progress",
+                "session_id": session_id,
             },
         )
         result = unwrap_result(raw_result)
         assert result.get("success") is not False, (
-            f"Update subtask 1 to in_progress failed: {result}"
+            f"Claim subtask 1 failed: {result}"
         )
 
         # 3b: Verify first subtask is in_progress
@@ -153,18 +153,18 @@ class TestSequentialReviewLoopE2E:
         assert result.get("status") == "closed", f"Subtask 1 should be closed: {result}"
 
         # Step 4: Process second subtask (same flow)
-        # 4a: Set second subtask to in_progress
+        # 4a: Set second subtask to in_progress (must use claim_task for this)
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="update_task",
+            tool_name="claim_task",
             arguments={
                 "task_id": subtask_ids[1],
-                "status": "in_progress",
+                "session_id": session_id,
             },
         )
         result = unwrap_result(raw_result)
         assert result.get("success") is not False, (
-            f"Update subtask 2 to in_progress failed: {result}"
+            f"Claim subtask 2 failed: {result}"
         )
 
         # 4b: Close second subtask
@@ -331,10 +331,11 @@ class TestSequentialReviewLoopE2E:
         )
 
         # Complete subtask 1 (goes to review first, then close)
+        # Must use claim_task instead of update_task for status="in_progress"
         mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={"task_id": subtask1_id, "status": "in_progress"},
+            tool_name="claim_task",
+            arguments={"task_id": subtask1_id, "session_id": session_id},
         )
         mcp_client.call_tool(
             server_name="gobby-tasks",
@@ -560,11 +561,11 @@ class TestReviewStepE2E:
         result = unwrap_result(raw_result)
         task_id = result["id"]
 
-        # Set to in_progress
+        # Set to in_progress (must use claim_task)
         mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={"task_id": task_id, "status": "in_progress"},
+            tool_name="claim_task",
+            arguments={"task_id": task_id, "session_id": session_id},
         )
 
         # Close task with skip reason - should close directly
@@ -643,13 +644,14 @@ class TestReviewStepE2E:
         result = unwrap_result(raw_result)
         assert result.get("status") == "review", f"Task should be in review: {result}"
 
-        # Use update_task to transition from review to closed (simulating user approval)
+        # Use close_task to transition from review to closed (simulating user approval)
+        # Note: update_task no longer allows status="closed", must use close_task
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="update_task",
+            tool_name="close_task",
             arguments={
                 "task_id": task_id,
-                "status": "closed",
+                "reason": "already_implemented",
             },
         )
         result = unwrap_result(raw_result)

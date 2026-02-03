@@ -19,6 +19,7 @@ from gobby.agents.isolation import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestCreateSpawnAgentRegistry:
     """Tests for create_spawn_agent_registry factory function."""
 
@@ -67,6 +68,9 @@ class TestSpawnAgentDefaults:
         mock_agent_def.branch_prefix = None
         mock_agent_def.timeout = 120.0
         mock_agent_def.max_turns = 10
+        mock_agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
+        mock_agent_def.workflows = None
+        mock_agent_def.default_workflow = None
         mock_loader.load.return_value = mock_agent_def
 
         registry = create_spawn_agent_registry(
@@ -125,6 +129,9 @@ class TestSpawnAgentIsolation:
         agent_def.branch_prefix = None
         agent_def.timeout = 120.0
         agent_def.max_turns = 10
+        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
+        agent_def.workflows = None
+        agent_def.default_workflow = None
         return agent_def
 
     @pytest.mark.asyncio
@@ -330,9 +337,14 @@ class TestSpawnAgentParamOverrides:
         mock_loader = MagicMock()
         mock_loader.load.return_value = mock_agent_def
 
+        # Mock workflow loader to validate workflow exists
+        mock_wf_loader = MagicMock()
+        mock_wf_loader.load_workflow.return_value = MagicMock()  # Return a valid workflow
+
         registry = create_spawn_agent_registry(
             mock_runner,
             agent_loader=mock_loader,
+            workflow_loader=mock_wf_loader,
         )
 
         with (
@@ -397,6 +409,9 @@ class TestSpawnAgentTaskResolution:
         agent_def.branch_prefix = None
         agent_def.timeout = 120.0
         agent_def.max_turns = 10
+        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
+        agent_def.workflows = None
+        agent_def.default_workflow = None
         return agent_def
 
     @pytest.mark.asyncio
@@ -541,6 +556,9 @@ class TestSpawnAgentBranchGeneration:
         agent_def.branch_prefix = "task/"
         agent_def.timeout = 120.0
         agent_def.max_turns = 10
+        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
+        agent_def.workflows = None
+        agent_def.default_workflow = None
         return agent_def
 
     @pytest.mark.asyncio
@@ -644,6 +662,9 @@ class TestSpawnAgentSandbox:
         agent_def.timeout = 120.0
         agent_def.max_turns = 10
         agent_def.sandbox = None  # No sandbox config
+        agent_def.get_effective_workflow.return_value = None  # Skip workflow validation
+        agent_def.workflows = None
+        agent_def.default_workflow = None
         return agent_def
 
     @pytest.mark.asyncio
@@ -723,6 +744,9 @@ class TestSpawnAgentSandbox:
             allow_network=True,
             extra_read_paths=["/opt/data"],
         )
+        mock_agent_def.get_effective_workflow.return_value = None
+        mock_agent_def.workflows = None
+        mock_agent_def.default_workflow = None
 
         mock_loader = MagicMock()
         mock_loader.load.return_value = mock_agent_def
@@ -846,6 +870,9 @@ class TestSpawnAgentSandbox:
         mock_agent_def.timeout = 120.0
         mock_agent_def.max_turns = 10
         mock_agent_def.sandbox = SandboxConfig(enabled=True, mode="permissive")
+        mock_agent_def.get_effective_workflow.return_value = None
+        mock_agent_def.workflows = None
+        mock_agent_def.default_workflow = None
 
         mock_loader = MagicMock()
         mock_loader.load.return_value = mock_agent_def

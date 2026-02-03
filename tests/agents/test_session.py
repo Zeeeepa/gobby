@@ -8,6 +8,7 @@ from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 
 pytestmark = pytest.mark.unit
 
+
 class TestChildSessionConfig:
     """Tests for ChildSessionConfig dataclass."""
 

@@ -9,7 +9,9 @@ Documentation guides for using Gobby's features.
 | [tasks.md](tasks.md) | Task management with dependencies, validation, and git sync |
 | [sessions.md](sessions.md) | Session lifecycle, handoffs, and context management |
 | [memory.md](memory.md) | Persistent knowledge across sessions |
-| [workflows.md](workflows.md) | Step-based workflow engine and enforcement |
+| [workflows.md](workflows.md) | Lifecycle, step-based, and pipeline workflow engine |
+| [pipelines.md](pipelines.md) | Pipeline workflows with data flow and approval gates |
+| [lobster-migration.md](lobster-migration.md) | Migrating from Lobster to Gobby pipelines |
 | [search.md](search.md) | Unified search with TF-IDF, embeddings, and hybrid modes |
 
 ## Parallel Development

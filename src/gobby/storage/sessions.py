@@ -38,6 +38,7 @@ class Session:
     spawned_by_agent_id: str | None = None  # ID of agent that spawned this session
     # Terminal pickup metadata fields
     workflow_name: str | None = None  # Workflow to activate on terminal pickup
+    step_variables: dict[str, Any] | None = None  # Variables for workflow activation
     agent_run_id: str | None = None  # Link back to agent run record
     context_injected: bool = False  # Whether context was injected into prompt
     original_prompt: str | None = None  # Original prompt for terminal mode
@@ -77,6 +78,7 @@ class Session:
             agent_depth=row["agent_depth"] or 0,
             spawned_by_agent_id=row["spawned_by_agent_id"],
             workflow_name=row["workflow_name"],
+            step_variables=cls._parse_json_field(row, "step_variables"),
             agent_run_id=row["agent_run_id"],
             context_injected=bool(row["context_injected"]),
             original_prompt=row["original_prompt"],
@@ -108,6 +110,21 @@ class Session:
             return result
         except json.JSONDecodeError:
             logger.warning("Failed to parse terminal_context JSON, returning None")
+            return None
+
+    @classmethod
+    def _parse_json_field(cls, row: Any, field_name: str) -> dict[str, Any] | None:
+        """Parse a JSON field from a database row, returning None on missing/malformed data."""
+        if field_name not in row.keys():
+            return None
+        raw = row[field_name]
+        if not raw:
+            return None
+        try:
+            result: dict[str, Any] = json.loads(raw)
+            return result
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse {field_name} JSON, returning None")
             return None
 
     def to_dict(self) -> dict[str, Any]:
@@ -167,6 +184,7 @@ class LocalSessionManager:
         spawned_by_agent_id: str | None = None,
         terminal_context: dict[str, Any] | None = None,
         workflow_name: str | None = None,
+        step_variables: dict[str, Any] | None = None,
     ) -> Session:
         """
         Register a new session or return existing one.
@@ -176,9 +194,9 @@ class LocalSessionManager:
         returns the existing session. Otherwise creates a new one.
 
         Args:
-            external_id: External session identifier (e.g., Claude Code's session ID)
+            external_id: External session identifier (e.g., Claude Code session ID)
             machine_id: Machine identifier
-            source: CLI source (claude_code, codex, gemini)
+            source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
             project_id: Project ID (required - sessions must belong to a project)
             title: Optional session title
             jsonl_path: Path to transcript file
@@ -242,9 +260,9 @@ class LocalSessionManager:
                         id, external_id, machine_id, source, project_id, title,
                         jsonl_path, git_branch, parent_session_id,
                         agent_depth, spawned_by_agent_id, terminal_context,
-                        workflow_name, status, created_at, updated_at, seq_num, had_edits
+                        workflow_name, step_variables, status, created_at, updated_at, seq_num, had_edits
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 0)
                     """,
                     (
                         session_id,
@@ -260,6 +278,7 @@ class LocalSessionManager:
                         spawned_by_agent_id,
                         json.dumps(terminal_context) if terminal_context else None,
                         workflow_name,
+                        json.dumps(step_variables) if step_variables else None,
                         now,
                         now,
                         next_seq_num,

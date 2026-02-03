@@ -28,6 +28,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 from gobby.utils.machine_id import get_machine_id
 from gobby.utils.project_context import get_project_context
+from gobby.workflows.loader import WorkflowLoader
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -91,7 +92,7 @@ async def spawn_agent_impl(
         workflow: Workflow to use
         mode: Execution mode (terminal/embedded/headless)
         terminal: Terminal type for terminal mode
-        provider: AI provider (claude/gemini/codex)
+        provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
         timeout: Timeout in seconds
         max_turns: Maximum conversation turns
@@ -121,13 +122,23 @@ async def spawn_agent_impl(
         effective_mode = cast(Literal["terminal", "embedded", "headless"], agent_def.mode)
     effective_mode = effective_mode or "terminal"
 
-    effective_workflow = workflow
-    if effective_workflow is None and agent_def:
-        effective_workflow = agent_def.workflow
+    # Resolve workflow using agent_def's named workflows map
+    # Resolution order: explicit param > agent's workflows map > legacy workflow field
+    effective_workflow: str | None = None
+    if agent_def:
+        effective_workflow = agent_def.get_effective_workflow(workflow)
+    elif workflow:
+        effective_workflow = workflow
 
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_def:
         effective_base_branch = agent_def.base_branch
+    # Auto-detect current branch if no base_branch specified
+    if effective_base_branch is None and git_manager:
+        try:
+            effective_base_branch = git_manager.get_current_branch()
+        except Exception:  # nosec B110 - fallback to default branch is intentional
+            effective_base_branch = None
     effective_base_branch = effective_base_branch or "main"
 
     effective_branch_prefix = None
@@ -250,7 +261,14 @@ async def spawn_agent_impl(
     session_id = str(uuid.uuid4())
     run_id = str(uuid.uuid4())
 
-    # 10. Execute spawn via SpawnExecutor
+    # 10. Build step_variables for workflow activation (e.g., assigned_task_id)
+    step_variables: dict[str, Any] | None = None
+    if resolved_task_id:
+        step_variables = {
+            "assigned_task_id": f"#{task_seq_num}" if task_seq_num else resolved_task_id
+        }
+
+    # 11. Execute spawn via SpawnExecutor
     spawn_request = SpawnRequest(
         prompt=enhanced_prompt,
         cwd=isolation_ctx.cwd,
@@ -262,8 +280,10 @@ async def spawn_agent_impl(
         parent_session_id=parent_session_id,
         project_id=project_id,
         workflow=effective_workflow,
+        step_variables=step_variables,
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
+        branch_name=isolation_ctx.branch_name,
         session_manager=runner._child_session_manager,
         machine_id=get_machine_id() or "unknown",
         sandbox_config=effective_sandbox_config,
@@ -314,6 +334,7 @@ def create_spawn_agent_registry(
     clone_storage: Any | None = None,
     clone_manager: Any | None = None,
     session_manager: Any | None = None,
+    workflow_loader: WorkflowLoader | None = None,
 ) -> InternalToolRegistry:
     """
     Create a spawn_agent tool registry with the unified spawn_agent tool.
@@ -327,6 +348,7 @@ def create_spawn_agent_registry(
         clone_storage: Storage for clone records.
         clone_manager: Git manager for clone operations.
         session_manager: Session manager for resolving session references.
+        workflow_loader: Loader for workflow validation.
 
     Returns:
         InternalToolRegistry with spawn_agent tool registered.
@@ -345,8 +367,9 @@ def create_spawn_agent_registry(
         description="Unified agent spawning with isolation support",
     )
 
-    # Use provided loader or create default
+    # Use provided loaders or create defaults
     loader = agent_loader or AgentDefinitionLoader()
+    wf_loader = workflow_loader or WorkflowLoader()
 
     @registry.tool(
         name="spawn_agent",
@@ -396,7 +419,7 @@ def create_spawn_agent_registry(
             workflow: Workflow to use
             mode: Execution mode (terminal/embedded/headless)
             terminal: Terminal type for terminal mode
-            provider: AI provider (claude/gemini/codex)
+            provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
             timeout: Timeout in seconds
             max_turns: Maximum conversation turns
@@ -423,6 +446,53 @@ def create_spawn_agent_registry(
         if agent_def is None and agent != "generic":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
+        # Determine effective workflow using agent's named workflows map
+        # Resolution: explicit param > agent's workflows map > legacy workflow field
+        effective_workflow: str | None = None
+        inline_workflow_spec = None
+
+        if agent_def:
+            effective_workflow = agent_def.get_effective_workflow(workflow)
+
+            # Check if this is an inline workflow that needs registration
+            if workflow and agent_def.workflows and workflow in agent_def.workflows:
+                spec = agent_def.workflows[workflow]
+                if spec.is_inline():
+                    inline_workflow_spec = spec
+            elif (
+                not workflow
+                and agent_def.default_workflow
+                and agent_def.workflows
+                and agent_def.default_workflow in agent_def.workflows
+            ):
+                spec = agent_def.workflows[agent_def.default_workflow]
+                if spec.is_inline():
+                    inline_workflow_spec = spec
+        elif workflow:
+            effective_workflow = workflow
+
+        # Get project_path for workflow lookup
+        ctx = get_project_context(Path(project_path) if project_path else None)
+        wf_project_path = ctx.get("project_path") if ctx else None
+
+        # Register inline workflow if needed
+        if inline_workflow_spec and effective_workflow:
+            wf_loader.register_inline_workflow(
+                effective_workflow, inline_workflow_spec.model_dump(), project_path=wf_project_path
+            )
+
+        # Validate workflow exists if specified (skip for inline that we just registered)
+        if effective_workflow and not inline_workflow_spec:
+            loaded_workflow = wf_loader.load_workflow(
+                effective_workflow, project_path=wf_project_path
+            )
+            if loaded_workflow is None:
+                return {
+                    "success": False,
+                    "error": f"Workflow '{effective_workflow}' not found. "
+                    f"Check available workflows with list_workflows().",
+                }
+
         # Delegate to spawn_agent_impl
         return await spawn_agent_impl(
             prompt=prompt,
@@ -437,7 +507,7 @@ def create_spawn_agent_registry(
             git_manager=git_manager,
             clone_storage=clone_storage,
             clone_manager=clone_manager,
-            workflow=workflow,
+            workflow=effective_workflow,
             mode=mode,
             terminal=terminal,
             provider=provider,

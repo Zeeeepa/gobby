@@ -7,6 +7,7 @@ from gobby.sync.linear import LinearNotFoundError, LinearRateLimitError
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.mark.asyncio
 async def test_import_linear_issues_success():
     # Mock dependencies

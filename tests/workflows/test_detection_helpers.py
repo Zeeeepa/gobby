@@ -14,6 +14,7 @@ from gobby.workflows.detection_helpers import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def workflow_state():
     """Create a workflow state with empty variables."""
@@ -24,6 +25,19 @@ def workflow_state():
         step_entered_at=datetime.now(UTC),
         variables={},
     )
+
+
+@pytest.fixture
+def mock_task_manager():
+    """Mock LocalTaskManager."""
+    from unittest.mock import MagicMock
+
+    mock = MagicMock()
+    # Mock get_task to return a task with a UUID
+    mock_task = MagicMock()
+    mock_task.id = "task-uuid-123"
+    mock.get_task.return_value = mock_task
+    return mock
 
 
 @pytest.fixture
@@ -134,7 +148,9 @@ class TestDetectPlanMode:
 class TestDetectPlanModeFromContext:
     """Tests for detect_plan_mode_from_context function."""
 
-    def test_detects_plan_mode_active_indicator(self, workflow_state, make_before_agent_event) -> None:
+    def test_detects_plan_mode_active_indicator(
+        self, workflow_state, make_before_agent_event
+    ) -> None:
         """Detects 'Plan mode is active' in prompt."""
         event = make_before_agent_event(
             "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
@@ -187,7 +203,9 @@ class TestDetectPlanModeFromContext:
 
         assert workflow_state.variables.get("plan_mode") is True
 
-    def test_ignores_prompt_without_indicators(self, workflow_state, make_before_agent_event) -> None:
+    def test_ignores_prompt_without_indicators(
+        self, workflow_state, make_before_agent_event
+    ) -> None:
         """Ignores prompts without plan mode indicators."""
         event = make_before_agent_event("Please fix the bug in the code.")
 
@@ -236,7 +254,9 @@ class TestDetectTaskClaimCloseTaskBehavior:
     - Failed close_task leaves task_claimed unchanged
     """
 
-    def test_successful_close_task_clears_task_claimed(self, workflow_state, make_after_tool_event) -> None:
+    def test_successful_close_task_clears_task_claimed(
+        self, workflow_state, make_after_tool_event
+    ) -> None:
         """Successful close_task should clear task_claimed for CLIs that send tool_result."""
         workflow_state.variables["task_claimed"] = True
         workflow_state.variables["claimed_task_id"] = "task-123"
@@ -293,7 +313,9 @@ class TestDetectTaskClaimCloseTaskBehavior:
 class TestDetectTaskClaimClaimOperations:
     """Tests for detect_task_claim function, claim operations."""
 
-    def test_sets_task_claimed_on_claim_task(self, workflow_state, make_after_tool_event) -> None:
+    def test_sets_task_claimed_on_claim_task(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
         """claim_task sets task_claimed=True and stores task ID."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -305,12 +327,17 @@ class TestDetectTaskClaimClaimOperations:
             tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
         )
 
-        detect_task_claim(event, workflow_state)
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
 
         assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
+        # Should store the UUID from the mock task, not the raw ID if it was looked up
+        # But wait, logic: if task_manager is passed, it looks up UUID.
+        # If raw ID passed in arguments is 'task-123', mock returns 'task-uuid-123'.
+        assert workflow_state.variables.get("claimed_task_id") == "task-uuid-123"
 
-    def test_sets_task_claimed_on_create_task(self, workflow_state, make_after_tool_event) -> None:
+    def test_sets_task_claimed_on_create_task(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
         """create_task sets task_claimed=True and stores new task ID."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -319,18 +346,25 @@ class TestDetectTaskClaimClaimOperations:
                 "tool_name": "create_task",
                 "arguments": {"title": "New task"},
             },
-            tool_output={"success": True, "result": {"id": "new-task-id", "status": "open"}},
+            # create_task returns UUID in result, doesn't need task_manager lookup usually
+            # unless we changed that logic.
+            # Logic: inner_tool_name == "create_task": task_id = result.get("id")
+            tool_output={"success": True, "result": {"id": "new-task-uuid", "status": "open"}},
         )
 
-        detect_task_claim(event, workflow_state)
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
 
         assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "new-task-id"
+        assert workflow_state.variables.get("claimed_task_id") == "new-task-uuid"
 
     def test_sets_task_claimed_on_update_to_in_progress(
-        self, workflow_state, make_after_tool_event
+        self, workflow_state, make_after_tool_event, mock_task_manager
     ) -> None:
         """update_task with status=in_progress sets task_claimed=True."""
+        # Setup mock to return specific ID for this test
+        mock_task = mock_task_manager.get_task.return_value
+        mock_task.id = "task-uuid-456"
+
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
             tool_input={
@@ -341,10 +375,10 @@ class TestDetectTaskClaimClaimOperations:
             tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
         )
 
-        detect_task_claim(event, workflow_state)
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
 
         assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
+        assert workflow_state.variables.get("claimed_task_id") == "task-uuid-456"
 
     def test_ignores_update_to_other_status(self, workflow_state, make_after_tool_event) -> None:
         """update_task with status other than in_progress is ignored."""
@@ -362,7 +396,9 @@ class TestDetectTaskClaimClaimOperations:
 
         assert "task_claimed" not in workflow_state.variables
 
-    def test_does_not_set_task_claimed_on_claim_error(self, workflow_state, make_after_tool_event) -> None:
+    def test_does_not_set_task_claimed_on_claim_error(
+        self, workflow_state, make_after_tool_event
+    ) -> None:
         """claim_task with error response does NOT set task_claimed."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",

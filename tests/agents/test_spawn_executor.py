@@ -324,11 +324,11 @@ class TestExecuteSpawn:
             assert call_kwargs.kwargs.get("workflow_name") == "auto-task"
 
     @pytest.mark.asyncio
-    async def test_gemini_terminal_calls_preflight(self):
-        """Test that provider='gemini' with mode='terminal' calls prepare_gemini_spawn_with_preflight.
+    async def test_gemini_terminal_calls_prepare_terminal_spawn(self):
+        """Test that provider='gemini' with mode='terminal' uses direct spawn with env vars.
 
-        Gemini now uses preflight to capture session_id before launching interactive mode,
-        similar to Codex. This ensures session linkage works without relying on env vars.
+        Gemini now uses direct spawn with GOBBY_SESSION_ID env var passed to the terminal.
+        Session linkage happens when Gemini's hook dispatcher sends the env vars to daemon.
         """
         mock_session_manager = MagicMock()
         request = SpawnRequest(
@@ -344,10 +344,11 @@ class TestExecuteSpawn:
             session_manager=mock_session_manager,
         )
 
-        mock_preflight = AsyncMock(
+        mock_prepare = MagicMock(
             return_value=MagicMock(
                 session_id="gobby-sess-123",
-                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-789"},
+                agent_run_id="run-abc123",
+                env_vars={"GOBBY_SESSION_ID": "gobby-sess-123"},
             )
         )
 
@@ -359,12 +360,12 @@ class TestExecuteSpawn:
 
         with (
             patch(
-                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
-                mock_preflight,
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                mock_prepare,
             ),
             patch(
-                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
-                return_value=["gemini", "-r", "gemini-ext-789"],
+                "gobby.agents.spawn_executor.build_cli_command",
+                return_value=["gemini", "--approval-mode", "yolo", "-i", "prompt"],
             ),
             patch(
                 "gobby.agents.spawn_executor.TerminalSpawner",
@@ -373,15 +374,14 @@ class TestExecuteSpawn:
         ):
             result = await execute_spawn(request)
 
-            mock_preflight.assert_called_once()
+            mock_prepare.assert_called_once()
             mock_spawner.spawn.assert_called_once()
-            # No env vars passed to spawn (session linkage is in database)
+            # Env vars ARE passed to spawn now (for hook dispatcher to read)
             call_kwargs = mock_spawner.spawn.call_args.kwargs
-            assert "env" not in call_kwargs or call_kwargs.get("env") is None
+            assert call_kwargs.get("env") is not None
+            assert "GOBBY_SESSION_ID" in call_kwargs["env"]
             assert result.success is True
-            # child_session_id is now properly set via preflight
             assert result.child_session_id == "gobby-sess-123"
-            assert result.gemini_session_id == "gemini-ext-789"
             assert result.pid == 12345
 
     @pytest.mark.asyncio
@@ -472,10 +472,11 @@ class TestExecuteSpawn:
             session_manager=mock_session_manager,
         )
 
-        mock_preflight = AsyncMock(
+        mock_prepare = MagicMock(
             return_value=MagicMock(
                 session_id="gobby-sess-123",
-                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-789"},
+                agent_run_id="run-abc123",
+                env_vars={"GOBBY_SESSION_ID": "gobby-sess-123"},
             )
         )
 
@@ -488,12 +489,12 @@ class TestExecuteSpawn:
 
         with (
             patch(
-                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
-                mock_preflight,
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                mock_prepare,
             ),
             patch(
-                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
-                return_value=["gemini", "-r", "gemini-ext-789"],
+                "gobby.agents.spawn_executor.build_cli_command",
+                return_value=["gemini", "--approval-mode", "yolo", "-i", "prompt"],
             ),
             patch(
                 "gobby.agents.spawn_executor.TerminalSpawner",
@@ -715,10 +716,11 @@ class TestExecuteSpawnSandbox:
             sandbox_config=sandbox_config,
         )
 
-        mock_preflight = AsyncMock(
+        mock_prepare = MagicMock(
             return_value=MagicMock(
                 session_id="gobby-sess-123",
-                env_vars={"GOBBY_GEMINI_EXTERNAL_ID": "gemini-ext-789"},
+                agent_run_id="run-abc123",
+                env_vars={"GOBBY_SESSION_ID": "gobby-sess-123"},
             )
         )
 
@@ -730,12 +732,12 @@ class TestExecuteSpawnSandbox:
 
         with (
             patch(
-                "gobby.agents.spawn_executor.prepare_gemini_spawn_with_preflight",
-                mock_preflight,
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                mock_prepare,
             ),
             patch(
-                "gobby.agents.spawn_executor.build_gemini_command_with_resume",
-                return_value=["gemini", "-r", "gemini-ext-789"],
+                "gobby.agents.spawn_executor.build_cli_command",
+                return_value=["gemini", "--approval-mode", "yolo", "-i", "prompt"],
             ),
             patch(
                 "gobby.agents.spawn_executor.TerminalSpawner",
@@ -746,8 +748,9 @@ class TestExecuteSpawnSandbox:
 
             mock_spawner.spawn.assert_called_once()
             call_kwargs = mock_spawner.spawn.call_args.kwargs
-            # Sandbox env should be passed with SEATBELT_PROFILE
+            # Env should include both Gobby session vars and sandbox vars
             assert call_kwargs.get("env") is not None
+            assert "GOBBY_SESSION_ID" in call_kwargs["env"]
             assert "SEATBELT_PROFILE" in call_kwargs["env"]
             assert call_kwargs["env"]["SEATBELT_PROFILE"] == "permissive-open"
             # Command should include -s flag (passed as keyword arg)

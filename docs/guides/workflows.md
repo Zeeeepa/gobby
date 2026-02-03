@@ -6,7 +6,7 @@ Workflows transform Gobby from a passive session tracker into an **enforcement l
 
 ## Workflow Types
 
-Gobby supports two types of workflows that can coexist:
+Gobby supports three types of workflows:
 
 ### Lifecycle Workflows
 
@@ -46,9 +46,30 @@ State machine workflows that enforce steps with tool restrictions, transition co
 - Plan-Act-Reflect
 - TDD (Test-Driven Development)
 
+### Pipeline Workflows
+
+Sequential execution workflows with typed data flow between steps, approval gates, and deterministic execution.
+
+**Characteristics:**
+
+- `type: pipeline`
+- Sequential step execution with `$step.output` data flow
+- Approval gates with resume tokens
+- Runs to completion or pauses at approval
+- Can be triggered from lifecycle/step workflows via `run_pipeline` action
+
+**Use cases:**
+
+- CI/CD automation
+- Deployment with approval gates
+- Data processing pipelines
+- Multi-agent orchestration
+
+See [Pipelines Guide](./pipelines.md) for complete documentation.
+
 ### Coexistence
 
-Lifecycle and step-based workflows run together:
+Lifecycle, step-based, and pipeline workflows work together:
 
 - The `session-handoff` lifecycle workflow is always active (by default)
 - You can activate ONE step-based workflow (like `plan-execute`) on top
@@ -830,7 +851,7 @@ Each CLI sends different data with hook events. The `event.data` dict contains C
 |--------|----------|-------------|
 | `set_variable` | Any | Set a workflow variable |
 | `capture_baseline_dirty_files` | session_start | Record uncommitted files for commit detection |
-| `inject_context` | session_start, before_agent | Inject text into agent context |
+| `inject_context` | session_start, before_agent | Inject text into agent context (see sources below) |
 | `memory_sync_import` | session_start | Import memories from .gobby/memories.jsonl |
 | `memory_sync_export` | session_end, pre_compact | Export memories to .gobby/memories.jsonl |
 | `task_sync_import` | session_start | Import tasks from .gobby/tasks.jsonl |
@@ -842,6 +863,64 @@ Each CLI sends different data with hook events. The `event.data` dict contains C
 | `require_task_review_or_close_before_stop` | stop | Block stop if task still in_progress |
 | `generate_handoff` | session_end, pre_compact | Generate LLM summary for handoff |
 | `extract_handoff_context` | pre_compact | Extract structured context before compaction |
+
+### inject_context Sources
+
+The `inject_context` action supports multiple sources for injecting context into agent prompts:
+
+| Source | Description | Parameters |
+|--------|-------------|------------|
+| `previous_session_summary` | Summary from parent session handoff | `require: true` to block if missing |
+| `compact_handoff` | Context from pre-compact handoff | `require: true` to block if missing |
+| `skills` | Inject skill list with descriptions | `filter: always_apply` for alwaysApply skills only |
+| `task_context` | Active task details if session has claimed task | - |
+| `memories` | Relevant memories for current context | `limit`, `min_importance` |
+| (none) | Use inline `template` with Jinja2 syntax | - |
+
+#### Examples
+
+**Inject alwaysApply skills on session start:**
+
+```yaml
+- action: inject_context
+  source: skills
+  filter: always_apply
+  template: |
+    The following skills are available:
+    {{ skills_list }}
+```
+
+**Inject active task context:**
+
+```yaml
+- action: inject_context
+  source: task_context
+  template: |
+    {{ task_context }}
+```
+
+**Inject relevant memories:**
+
+```yaml
+- action: inject_context
+  source: memories
+  limit: 5
+  min_importance: 0.7
+  template: |
+    ## Relevant Memories
+    {{ memories_list }}
+```
+
+**Multi-source injection (array syntax):**
+
+```yaml
+- action: inject_context
+  source: [skills, task_context]
+  filter: always_apply
+  template: |
+    {{ skills_list }}
+    {{ task_context }}
+```
 
 ## See Also
 

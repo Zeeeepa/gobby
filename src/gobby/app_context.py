@@ -54,6 +54,11 @@ class ServiceContainer:
     clone_storage: LocalCloneManager | None = None
     git_manager: Any | None = None  # WorktreeGitManager
 
+    # Pipelines
+    pipeline_executor: Any | None = None  # PipelineExecutor
+    workflow_loader: Any | None = None  # WorkflowLoader
+    pipeline_execution_manager: Any | None = None  # LocalPipelineExecutionManager
+
     # Context
     project_id: str | None = None
     websocket_server: Any | None = None

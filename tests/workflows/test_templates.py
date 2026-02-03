@@ -5,6 +5,7 @@ from gobby.workflows.templates import TemplateEngine
 
 pytestmark = pytest.mark.unit
 
+
 class TestTemplateEngine:
     def test_init_defaults(self) -> None:
         engine = TemplateEngine()
