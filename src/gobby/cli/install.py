@@ -3,6 +3,7 @@ Installation commands for hooks.
 """
 
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -15,12 +16,18 @@ from .installers import (
     install_antigravity,
     install_claude,
     install_codex_notify,
+    install_copilot,
+    install_cursor,
     install_default_mcp_servers,
     install_gemini,
     install_git_hooks,
+    install_windsurf,
     uninstall_claude,
     uninstall_codex_notify,
+    uninstall_copilot,
+    uninstall_cursor,
     uninstall_gemini,
+    uninstall_windsurf,
 )
 from .utils import get_install_dir
 
@@ -75,6 +82,37 @@ def _is_codex_cli_installed() -> bool:
     return shutil.which("codex") is not None
 
 
+def _is_cursor_installed() -> bool:
+    """Check if Cursor is installed."""
+    # Cursor is an IDE, check for common install locations
+    if sys.platform == "darwin":
+        return Path("/Applications/Cursor.app").exists()
+    elif sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor").exists()
+    else:
+        # Linux - check common locations
+        return (Path.home() / ".local" / "share" / "cursor").exists() or shutil.which(
+            "cursor"
+        ) is not None
+
+
+def _is_windsurf_installed() -> bool:
+    """Check if Windsurf (Codeium) is installed."""
+    # Windsurf is an IDE
+    if sys.platform == "darwin":
+        return Path("/Applications/Windsurf.app").exists()
+    elif sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA", ""), "Programs", "windsurf").exists()
+    else:
+        return shutil.which("windsurf") is not None
+
+
+def _is_copilot_cli_installed() -> bool:
+    """Check if GitHub Copilot CLI is installed."""
+    # Check for gh copilot extension or standalone CLI
+    return shutil.which("gh") is not None or shutil.which("github-copilot-cli") is not None
+
+
 @click.command("install")
 @click.option(
     "--claude",
@@ -93,6 +131,24 @@ def _is_codex_cli_installed() -> bool:
     "codex_flag",
     is_flag=True,
     help="Configure Codex notify integration (interactive Codex)",
+)
+@click.option(
+    "--cursor",
+    "cursor_flag",
+    is_flag=True,
+    help="Install Cursor hooks",
+)
+@click.option(
+    "--windsurf",
+    "windsurf_flag",
+    is_flag=True,
+    help="Install Windsurf (Cascade) hooks",
+)
+@click.option(
+    "--copilot",
+    "copilot_flag",
+    is_flag=True,
+    help="Install GitHub Copilot CLI hooks",
 )
 @click.option(
     "--hooks",
@@ -118,6 +174,9 @@ def install(
     claude_flag: bool,
     gemini_flag: bool,
     codex_flag: bool,
+    cursor_flag: bool,
+    windsurf_flag: bool,
+    copilot_flag: bool,
     hooks_flag: bool,
     all_flag: bool,
     antigravity_flag: bool,
@@ -143,6 +202,9 @@ def install(
         not claude_flag
         and not gemini_flag
         and not codex_flag
+        and not cursor_flag
+        and not windsurf_flag
+        and not copilot_flag
         and not hooks_flag
         and not all_flag
         and not antigravity_flag
@@ -162,6 +224,12 @@ def install(
             clis_to_install.append("gemini")
         if codex_detected:
             clis_to_install.append("codex")
+        if _is_cursor_installed():
+            clis_to_install.append("cursor")
+        if _is_windsurf_installed():
+            clis_to_install.append("windsurf")
+        if _is_copilot_cli_installed():
+            clis_to_install.append("copilot")
 
         # Check for git
         if (project_path / ".git").exists():
@@ -174,8 +242,11 @@ def install(
             click.echo("  - Claude Code: npm install -g @anthropic-ai/claude-code")
             click.echo("  - Gemini CLI:  npm install -g @google/gemini-cli")
             click.echo("  - Codex CLI:   npm install -g @openai/codex")
+            click.echo("  - Cursor:      https://cursor.com")
+            click.echo("  - Windsurf:    https://codeium.com/windsurf")
+            click.echo("  - Copilot CLI: gh extension install github/gh-copilot")
             click.echo(
-                "\nYou can still install manually with --claude, --gemini, or --codex flags."
+                "\nYou can still install manually with --claude, --gemini, --codex, --cursor, --windsurf, or --copilot flags."
             )
             sys.exit(1)
     else:
@@ -185,6 +256,12 @@ def install(
             clis_to_install.append("gemini")
         if codex_flag:
             clis_to_install.append("codex")
+        if cursor_flag:
+            clis_to_install.append("cursor")
+        if windsurf_flag:
+            clis_to_install.append("windsurf")
+        if copilot_flag:
+            clis_to_install.append("copilot")
         if antigravity_flag:
             clis_to_install.append("antigravity")
 
@@ -346,6 +423,66 @@ def install(
                 click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
 
+    # Install Cursor hooks
+    if "cursor" in clis_to_install:
+        click.echo("-" * 40)
+        click.echo("Cursor")
+        click.echo("-" * 40)
+
+        result = install_cursor(project_path)
+        results["cursor"] = result
+
+        if result["success"]:
+            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
+            for hook in result["hooks_installed"]:
+                click.echo(f"  - {hook}")
+            if result.get("workflows_installed"):
+                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+            click.echo(f"Configuration: {project_path / '.cursor' / 'hooks.json'}")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Install Windsurf hooks
+    if "windsurf" in clis_to_install:
+        click.echo("-" * 40)
+        click.echo("Windsurf (Cascade)")
+        click.echo("-" * 40)
+
+        result = install_windsurf(project_path)
+        results["windsurf"] = result
+
+        if result["success"]:
+            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
+            for hook in result["hooks_installed"]:
+                click.echo(f"  - {hook}")
+            if result.get("workflows_installed"):
+                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+            click.echo(f"Configuration: {project_path / '.windsurf' / 'hooks.json'}")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Install Copilot CLI hooks
+    if "copilot" in clis_to_install:
+        click.echo("-" * 40)
+        click.echo("GitHub Copilot CLI")
+        click.echo("-" * 40)
+
+        result = install_copilot(project_path)
+        results["copilot"] = result
+
+        if result["success"]:
+            click.echo(f"Installed {len(result['hooks_installed'])} hooks")
+            for hook in result["hooks_installed"]:
+                click.echo(f"  - {hook}")
+            if result.get("workflows_installed"):
+                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+            click.echo(f"Configuration: {project_path / '.copilot' / 'hooks.json'}")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
     # Install Git Hooks
     if hooks_flag:
         click.echo("-" * 40)
@@ -468,6 +605,24 @@ def install(
     help="Uninstall Codex notify integration",
 )
 @click.option(
+    "--cursor",
+    "cursor_flag",
+    is_flag=True,
+    help="Uninstall Cursor hooks",
+)
+@click.option(
+    "--windsurf",
+    "windsurf_flag",
+    is_flag=True,
+    help="Uninstall Windsurf hooks",
+)
+@click.option(
+    "--copilot",
+    "copilot_flag",
+    is_flag=True,
+    help="Uninstall Copilot CLI hooks",
+)
+@click.option(
     "--all",
     "all_flag",
     is_flag=True,
@@ -475,11 +630,19 @@ def install(
     help="Uninstall hooks from all CLIs (default behavior when no flags specified)",
 )
 @click.confirmation_option(prompt="Are you sure you want to uninstall Gobby hooks?")
-def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: bool) -> None:
+def uninstall(
+    claude_flag: bool,
+    gemini_flag: bool,
+    codex_flag: bool,
+    cursor_flag: bool,
+    windsurf_flag: bool,
+    copilot_flag: bool,
+    all_flag: bool,
+) -> None:
     """Uninstall Gobby hooks from AI coding CLIs.
 
     By default (no flags), uninstalls from all CLIs that have hooks installed.
-    Use --claude, --gemini, or --codex to uninstall only from specific CLIs.
+    Use --claude, --gemini, --codex, --cursor, --windsurf, or --copilot to uninstall only from specific CLIs.
 
     Uninstalls from project-level directories in current working directory.
     """
@@ -487,7 +650,15 @@ def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: 
 
     # Determine which CLIs to uninstall
     # If no flags specified, act like --all
-    if not claude_flag and not gemini_flag and not codex_flag and not all_flag:
+    if (
+        not claude_flag
+        and not gemini_flag
+        and not codex_flag
+        and not cursor_flag
+        and not windsurf_flag
+        and not copilot_flag
+        and not all_flag
+    ):
         all_flag = True
 
     # Build list of CLIs to uninstall
@@ -498,6 +669,9 @@ def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: 
         claude_settings = project_path / ".claude" / "settings.json"
         gemini_settings = project_path / ".gemini" / "settings.json"
         codex_notify = Path.home() / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
+        cursor_hooks = project_path / ".cursor" / "hooks.json"
+        windsurf_hooks = project_path / ".windsurf" / "hooks.json"
+        copilot_hooks = project_path / ".copilot" / "hooks.json"
 
         if claude_settings.exists():
             clis_to_uninstall.append("claude")
@@ -505,11 +679,20 @@ def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: 
             clis_to_uninstall.append("gemini")
         if codex_notify.exists():
             clis_to_uninstall.append("codex")
+        if cursor_hooks.exists():
+            clis_to_uninstall.append("cursor")
+        if windsurf_hooks.exists():
+            clis_to_uninstall.append("windsurf")
+        if copilot_hooks.exists():
+            clis_to_uninstall.append("copilot")
 
         if not clis_to_uninstall:
             click.echo("No Gobby hooks found to uninstall.")
             click.echo(f"\nChecked: {project_path / '.claude'}")
             click.echo(f"         {project_path / '.gemini'}")
+            click.echo(f"         {project_path / '.cursor'}")
+            click.echo(f"         {project_path / '.windsurf'}")
+            click.echo(f"         {project_path / '.copilot'}")
             click.echo(f"         {codex_notify}")
             sys.exit(0)
     else:
@@ -519,6 +702,12 @@ def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: 
             clis_to_uninstall.append("gemini")
         if codex_flag:
             clis_to_uninstall.append("codex")
+        if cursor_flag:
+            clis_to_uninstall.append("cursor")
+        if windsurf_flag:
+            clis_to_uninstall.append("windsurf")
+        if copilot_flag:
+            clis_to_uninstall.append("copilot")
 
     click.echo("=" * 60)
     click.echo("  Gobby Hooks Uninstallation")
@@ -593,6 +782,72 @@ def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: 
                 click.echo("Updated: ~/.codex/config.toml (removed `notify = ...`)")
             if not result["files_removed"] and not result.get("config_updated"):
                 click.echo("  (no codex integration found to remove)")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Uninstall Cursor hooks
+    if "cursor" in clis_to_uninstall:
+        click.echo("-" * 40)
+        click.echo("Cursor")
+        click.echo("-" * 40)
+
+        result = uninstall_cursor(project_path)
+        results["cursor"] = result
+
+        if result["success"]:
+            if result["hooks_removed"]:
+                click.echo(f"Removed {len(result['hooks_removed'])} hooks from hooks.json")
+                for hook in result["hooks_removed"]:
+                    click.echo(f"  - {hook}")
+            if result["files_removed"]:
+                click.echo(f"Removed {len(result['files_removed'])} files")
+            if not result["hooks_removed"] and not result["files_removed"]:
+                click.echo("  (no hooks found to remove)")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Uninstall Windsurf hooks
+    if "windsurf" in clis_to_uninstall:
+        click.echo("-" * 40)
+        click.echo("Windsurf")
+        click.echo("-" * 40)
+
+        result = uninstall_windsurf(project_path)
+        results["windsurf"] = result
+
+        if result["success"]:
+            if result["hooks_removed"]:
+                click.echo(f"Removed {len(result['hooks_removed'])} hooks from hooks.json")
+                for hook in result["hooks_removed"]:
+                    click.echo(f"  - {hook}")
+            if result["files_removed"]:
+                click.echo(f"Removed {len(result['files_removed'])} files")
+            if not result["hooks_removed"] and not result["files_removed"]:
+                click.echo("  (no hooks found to remove)")
+        else:
+            click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Uninstall Copilot hooks
+    if "copilot" in clis_to_uninstall:
+        click.echo("-" * 40)
+        click.echo("Copilot CLI")
+        click.echo("-" * 40)
+
+        result = uninstall_copilot(project_path)
+        results["copilot"] = result
+
+        if result["success"]:
+            if result["hooks_removed"]:
+                click.echo(f"Removed {len(result['hooks_removed'])} hooks from hooks.json")
+                for hook in result["hooks_removed"]:
+                    click.echo(f"  - {hook}")
+            if result["files_removed"]:
+                click.echo(f"Removed {len(result['files_removed'])} files")
+            if not result["hooks_removed"] and not result["files_removed"]:
+                click.echo("  (no hooks found to remove)")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
