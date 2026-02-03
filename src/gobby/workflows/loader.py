@@ -202,18 +202,24 @@ class WorkflowLoader:
             return None
 
     def _find_workflow_file(self, name: str, search_dirs: list[Path]) -> Path | None:
-        filename = f"{name}.yaml"
+        # Try both the original name and converted name (for inline workflows)
+        # "meeseeks:worker" -> also try "meeseeks-worker"
+        filenames = [f"{name}.yaml"]
+        if ":" in name:
+            filenames.append(f"{name.replace(':', '-')}.yaml")
+
         for d in search_dirs:
-            # Check root directory
-            candidate = d / filename
-            if candidate.exists():
-                return candidate
-            # Check subdirectories (lifecycle/, etc.)
-            for subdir in d.iterdir() if d.exists() else []:
-                if subdir.is_dir():
-                    candidate = subdir / filename
-                    if candidate.exists():
-                        return candidate
+            for filename in filenames:
+                # Check root directory
+                candidate = d / filename
+                if candidate.exists():
+                    return candidate
+                # Check subdirectories (lifecycle/, etc.)
+                for subdir in d.iterdir() if d.exists() else []:
+                    if subdir.is_dir():
+                        candidate = subdir / filename
+                        if candidate.exists():
+                            return candidate
         return None
 
     def _validate_pipeline_references(self, data: dict[str, Any]) -> None:
@@ -678,6 +684,9 @@ class WorkflowLoader:
         Inline workflows are embedded in agent definitions and registered
         at spawn time with qualified names like "agent:workflow".
 
+        The workflow is also written to disk in the project's .gobby/workflows/
+        directory so that child agents spawned in separate processes can find it.
+
         Args:
             name: Qualified workflow name (e.g., "meeseeks:worker")
             data: Workflow definition data dict
@@ -713,12 +722,50 @@ class WorkflowLoader:
                 definition = WorkflowDefinition(**data)
 
             self._cache[cache_key] = definition
+
+            # Write to disk so child agents can find it
+            # Qualified names like "meeseeks:worker" become "meeseeks-worker.yaml"
+            if project_path:
+                self._write_inline_workflow_to_disk(name, data, Path(project_path))
+
             logger.debug(f"Registered inline workflow '{name}' (type={definition.type})")
             return definition
 
         except Exception as e:
             logger.error(f"Failed to register inline workflow '{name}': {e}")
             raise ValueError(f"Invalid inline workflow '{name}': {e}") from e
+
+    def _write_inline_workflow_to_disk(
+        self,
+        name: str,
+        data: dict[str, Any],
+        project_path: Path,
+    ) -> None:
+        """
+        Write an inline workflow to disk for cross-session visibility.
+
+        Args:
+            name: Qualified workflow name (e.g., "meeseeks:worker")
+            data: Workflow definition data dict
+            project_path: Project path
+        """
+        # Convert qualified name to filename: "meeseeks:worker" -> "meeseeks-worker.yaml"
+        filename = name.replace(":", "-") + ".yaml"
+        workflows_dir = project_path / ".gobby" / "workflows"
+
+        try:
+            workflows_dir.mkdir(parents=True, exist_ok=True)
+            filepath = workflows_dir / filename
+
+            # Only write if file doesn't exist or is older than current data
+            # This avoids overwriting user modifications
+            if not filepath.exists():
+                with open(filepath, "w") as f:
+                    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+                logger.debug(f"Wrote inline workflow to {filepath}")
+        except Exception as e:
+            # Non-fatal - workflow is still in cache
+            logger.warning(f"Failed to write inline workflow to disk: {e}")
 
     def validate_workflow_for_agent(
         self,
