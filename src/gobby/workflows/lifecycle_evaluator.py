@@ -10,10 +10,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 
 if TYPE_CHECKING:
     from .actions import ActionExecutor
-    from .definitions import WorkflowDefinition, WorkflowState
     from .evaluator import ConditionEvaluator
     from .loader import WorkflowLoader
     from .state_manager import WorkflowStateManager
@@ -124,25 +124,24 @@ async def evaluate_workflow_triggers(
 
     # Try to load existing state, or create new one
     # Track whether we created a new state to determine save behavior later
-    state = state_manager.get_state(session_id)
-    state_was_created = state is None
-    if state_was_created:
-        state = WorkflowState(
-            session_id=session_id,
-            workflow_name=workflow.name,
-            step="global",
-            step_entered_at=datetime.now(UTC),
-            step_action_count=0,
-            total_action_count=0,
-            artifacts=event.data.get("artifacts", {}) if event.data else {},
-            observations=[],
-            reflection_pending=False,
-            context_injected=False,
-            variables={},
-            task_list=None,
-            current_task_index=0,
-            files_modified_this_task=0,
-        )
+    existing_state = state_manager.get_state(session_id)
+    state_was_created = existing_state is None
+    state: WorkflowState = existing_state or WorkflowState(
+        session_id=session_id,
+        workflow_name=workflow.name,
+        step="global",
+        step_entered_at=datetime.now(UTC),
+        step_action_count=0,
+        total_action_count=0,
+        artifacts=event.data.get("artifacts", {}) if event.data else {},
+        observations=[],
+        reflection_pending=False,
+        context_injected=False,
+        variables={},
+        task_list=None,
+        current_task_index=0,
+        files_modified_this_task=0,
+    )
 
     # Merge context_data (workflow defaults) into state variables
     # Persisted state values take precedence over workflow defaults
@@ -308,6 +307,11 @@ async def evaluate_lifecycle_triggers(
     workflow = loader.load_workflow(workflow_name, project_path=project_path)
     if not workflow:
         logger.warning(f"Workflow '{workflow_name}' not found in project_path={project_path}")
+        return HookResponse(decision="allow")
+
+    # Lifecycle triggers only apply to WorkflowDefinition, not PipelineDefinition
+    if not isinstance(workflow, WorkflowDefinition):
+        logger.debug(f"Workflow '{workflow_name}' is not a WorkflowDefinition, skipping triggers")
         return HookResponse(decision="allow")
 
     logger.debug(
@@ -552,6 +556,10 @@ async def evaluate_all_lifecycle_workflows(
 
         for discovered in workflows:
             workflow = discovered.definition
+
+            # Skip PipelineDefinition - lifecycle triggers only for WorkflowDefinition
+            if not isinstance(workflow, WorkflowDefinition):
+                continue
 
             # Skip if this workflow+trigger has already been processed
             key = (workflow.name, trigger_name)

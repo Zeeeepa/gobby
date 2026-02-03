@@ -13,7 +13,7 @@ from gobby.mcp_proxy.tools.workflows._resolution import (
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
-from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
@@ -63,6 +63,13 @@ def activate_workflow(
         return {
             "success": False,
             "error": f"Workflow '{name}' is lifecycle type (auto-runs on events, not manually activated)",
+        }
+
+    # This function only supports step-based workflows (WorkflowDefinition)
+    if not isinstance(definition, WorkflowDefinition):
+        return {
+            "success": False,
+            "error": f"'{name}' is a pipeline. Use pipeline execution tools instead.",
         }
 
     # Require explicit session_id to prevent cross-session bleed
@@ -279,6 +286,10 @@ def request_step_transition(
     definition = loader.load_workflow(state.workflow_name, proj)
     if not definition:
         return {"success": False, "error": f"Workflow '{state.workflow_name}' not found"}
+
+    # Transitions only apply to step-based workflows
+    if not isinstance(definition, WorkflowDefinition):
+        return {"success": False, "error": "Transitions are not supported for pipelines"}
 
     if not any(s.name == to_step for s in definition.steps):
         return {

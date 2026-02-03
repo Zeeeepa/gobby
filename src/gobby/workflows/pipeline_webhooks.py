@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -140,7 +140,7 @@ class WebhookNotifier:
         url: str,
         method: str,
         headers: dict[str, str],
-        payload: dict,
+        payload: dict[str, Any],
     ) -> None:
         """Send HTTP webhook request.
 
@@ -197,7 +197,7 @@ class WebhookNotifier:
 
         for key, value in headers.items():
 
-            def replacer(match: re.Match) -> str:
+            def replacer(match: re.Match[str]) -> str:
                 var_name = match.group(1)
                 return os.environ.get(var_name, match.group(0))
 

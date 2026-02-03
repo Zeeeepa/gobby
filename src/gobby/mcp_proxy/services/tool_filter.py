@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from gobby.workflows.definitions import WorkflowDefinition
+
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
     from gobby.workflows.loader import WorkflowLoader
@@ -87,6 +89,11 @@ class ToolFilterService:
         definition = loader.load_workflow(state.workflow_name, proj)
         if not definition:
             logger.warning(f"Workflow '{state.workflow_name}' not found")
+            return None
+
+        # Tool filtering only applies to step-based workflows
+        if not isinstance(definition, WorkflowDefinition):
+            logger.debug(f"Workflow '{state.workflow_name}' is not a step-based workflow")
             return None
 
         step = definition.get_step(state.step)

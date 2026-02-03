@@ -230,6 +230,7 @@ def run_pipeline(
         gobby pipelines run --lobster ci.lobster
     """
     # Handle --lobster flag: import and run directly without saving
+    pipeline: Any = None  # Will be PipelineDefinition after loading
     if lobster_path:
         importer = LobsterImporter()
         try:
@@ -358,14 +359,25 @@ def status_pipeline(ctx: click.Context, execution_id: str, json_format: bool) ->
     steps = execution_manager.get_steps_for_execution(execution_id)
 
     if json_format:
-        result = {
-            "execution": {
-                "id": execution.id,
-                "pipeline_name": execution.pipeline_name,
-                "status": execution.status.value,
-                "created_at": execution.created_at,
-                "updated_at": execution.updated_at,
-            },
+        exec_dict: dict[str, Any] = {
+            "id": execution.id,
+            "pipeline_name": execution.pipeline_name,
+            "status": execution.status.value,
+            "created_at": execution.created_at,
+            "updated_at": execution.updated_at,
+        }
+        if execution.inputs_json:
+            try:
+                exec_dict["inputs"] = json.loads(execution.inputs_json)
+            except json.JSONDecodeError:
+                exec_dict["inputs"] = execution.inputs_json
+        if execution.outputs_json:
+            try:
+                exec_dict["outputs"] = json.loads(execution.outputs_json)
+            except json.JSONDecodeError:
+                exec_dict["outputs"] = execution.outputs_json
+        result: dict[str, Any] = {
+            "execution": exec_dict,
             "steps": [
                 {
                     "id": step.id,
@@ -375,16 +387,6 @@ def status_pipeline(ctx: click.Context, execution_id: str, json_format: bool) ->
                 for step in steps
             ],
         }
-        if execution.inputs_json:
-            try:
-                result["execution"]["inputs"] = json.loads(execution.inputs_json)
-            except json.JSONDecodeError:
-                result["execution"]["inputs"] = execution.inputs_json
-        if execution.outputs_json:
-            try:
-                result["execution"]["outputs"] = json.loads(execution.outputs_json)
-            except json.JSONDecodeError:
-                result["execution"]["outputs"] = execution.outputs_json
         click.echo(json.dumps(result, indent=2))
         return
 
@@ -591,7 +593,7 @@ def import_pipeline(ctx: click.Context, path: str, output_path: str | None) -> N
         dest_path = workflows_dir / f"{pipeline.name}.yaml"
 
     # Convert pipeline to dict for YAML serialization
-    pipeline_dict = {
+    pipeline_dict: dict[str, Any] = {
         "name": pipeline.name,
         "type": "pipeline",
         "version": pipeline.version,
