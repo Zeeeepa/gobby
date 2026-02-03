@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import uvicorn
 
@@ -36,6 +38,12 @@ from gobby.utils.machine_id import get_machine_id
 from gobby.worktrees.git import WorktreeGitManager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Type hints for pipeline components (imported lazily at runtime)
+if TYPE_CHECKING:
+    from gobby.storage.pipelines import LocalPipelineExecutionManager
+    from gobby.workflows.loader import WorkflowLoader
+    from gobby.workflows.pipeline_executor import PipelineExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +190,36 @@ class GobbyRunner:
         except Exception as e:
             logger.debug(f"Could not initialize git manager: {e}")
 
+        # Initialize Pipeline Components
+        self.workflow_loader: WorkflowLoader | None = None
+        self.pipeline_execution_manager: LocalPipelineExecutionManager | None = None
+        self.pipeline_executor: PipelineExecutor | None = None
+        try:
+            from gobby.storage.pipelines import LocalPipelineExecutionManager
+            from gobby.workflows.loader import WorkflowLoader
+            from gobby.workflows.pipeline_executor import PipelineExecutor
+
+            self.workflow_loader = WorkflowLoader()
+            if self.project_id:
+                self.pipeline_execution_manager = LocalPipelineExecutionManager(
+                    db=self.database,
+                    project_id=self.project_id,
+                )
+                if self.llm_service:
+                    self.pipeline_executor = PipelineExecutor(
+                        db=self.database,
+                        execution_manager=self.pipeline_execution_manager,
+                        llm_service=self.llm_service,
+                        loader=self.workflow_loader,
+                    )
+                    logger.debug("Pipeline executor initialized")
+                else:
+                    logger.debug("Pipeline executor not initialized: LLM service not available")
+            else:
+                logger.debug("Pipeline execution manager not initialized: no project context")
+        except Exception as e:
+            logger.warning(f"Failed to initialize pipeline components: {e}")
+
         # Initialize Agent Runner (Phase 7 - Subagents)
         # Create executor registry for lazy executor creation
         self.executor_registry = ExecutorRegistry(config=self.config)
@@ -234,6 +272,9 @@ class GobbyRunner:
             clone_storage=self.clone_storage,
             git_manager=self.git_manager,
             project_id=self.project_id,
+            pipeline_executor=self.pipeline_executor,
+            workflow_loader=self.workflow_loader,
+            pipeline_execution_manager=self.pipeline_execution_manager,
         )
 
         self.http_server = HTTPServer(
