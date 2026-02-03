@@ -28,6 +28,19 @@ def workflow_state():
 
 
 @pytest.fixture
+def mock_task_manager():
+    """Mock LocalTaskManager."""
+    from unittest.mock import MagicMock
+
+    mock = MagicMock()
+    # Mock get_task to return a task with a UUID
+    mock_task = MagicMock()
+    mock_task.id = "task-uuid-123"
+    mock.get_task.return_value = mock_task
+    return mock
+
+
+@pytest.fixture
 def make_after_tool_event():
     """Factory for creating AFTER_TOOL events.
 
@@ -300,7 +313,9 @@ class TestDetectTaskClaimCloseTaskBehavior:
 class TestDetectTaskClaimClaimOperations:
     """Tests for detect_task_claim function, claim operations."""
 
-    def test_sets_task_claimed_on_claim_task(self, workflow_state, make_after_tool_event) -> None:
+    def test_sets_task_claimed_on_claim_task(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
         """claim_task sets task_claimed=True and stores task ID."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -312,12 +327,17 @@ class TestDetectTaskClaimClaimOperations:
             tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
         )
 
-        detect_task_claim(event, workflow_state)
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
 
         assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
+        # Should store the UUID from the mock task, not the raw ID if it was looked up
+        # But wait, logic: if task_manager is passed, it looks up UUID.
+        # If raw ID passed in arguments is 'task-123', mock returns 'task-uuid-123'.
+        assert workflow_state.variables.get("claimed_task_id") == "task-uuid-123"
 
-    def test_sets_task_claimed_on_create_task(self, workflow_state, make_after_tool_event) -> None:
+    def test_sets_task_claimed_on_create_task(
+        self, workflow_state, make_after_tool_event, mock_task_manager
+    ) -> None:
         """create_task sets task_claimed=True and stores new task ID."""
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
@@ -326,18 +346,25 @@ class TestDetectTaskClaimClaimOperations:
                 "tool_name": "create_task",
                 "arguments": {"title": "New task"},
             },
-            tool_output={"success": True, "result": {"id": "new-task-id", "status": "open"}},
+            # create_task returns UUID in result, doesn't need task_manager lookup usually
+            # unless we changed that logic.
+            # Logic: inner_tool_name == "create_task": task_id = result.get("id")
+            tool_output={"success": True, "result": {"id": "new-task-uuid", "status": "open"}},
         )
 
-        detect_task_claim(event, workflow_state)
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
 
         assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "new-task-id"
+        assert workflow_state.variables.get("claimed_task_id") == "new-task-uuid"
 
     def test_sets_task_claimed_on_update_to_in_progress(
-        self, workflow_state, make_after_tool_event
+        self, workflow_state, make_after_tool_event, mock_task_manager
     ) -> None:
         """update_task with status=in_progress sets task_claimed=True."""
+        # Setup mock to return specific ID for this test
+        mock_task = mock_task_manager.get_task.return_value
+        mock_task.id = "task-uuid-456"
+
         event = make_after_tool_event(
             "mcp__gobby__call_tool",
             tool_input={
@@ -348,10 +375,10 @@ class TestDetectTaskClaimClaimOperations:
             tool_output={"success": True, "result": {"id": "task-123", "status": "in_progress"}},
         )
 
-        detect_task_claim(event, workflow_state)
+        detect_task_claim(event, workflow_state, task_manager=mock_task_manager)
 
         assert workflow_state.variables.get("task_claimed") is True
-        assert workflow_state.variables.get("claimed_task_id") == "task-123"
+        assert workflow_state.variables.get("claimed_task_id") == "task-uuid-456"
 
     def test_ignores_update_to_other_status(self, workflow_state, make_after_tool_event) -> None:
         """update_task with status other than in_progress is ignored."""

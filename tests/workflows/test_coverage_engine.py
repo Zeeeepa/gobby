@@ -8,6 +8,7 @@ from gobby.workflows.definitions import (
     WorkflowRule,
     WorkflowState,
     WorkflowTransition,
+    WorkflowDefinition,
 )
 from gobby.workflows.engine import WorkflowEngine
 
@@ -32,6 +33,13 @@ def mock_components():
     action_executor.mcp_manager = MagicMock()
     action_executor.memory_manager = MagicMock()
     action_executor.memory_sync_manager = MagicMock()
+
+    action_executor.memory_manager = MagicMock()
+    action_executor.memory_sync_manager = MagicMock()
+    action_executor.session_task_manager = MagicMock()
+    action_executor.task_sync_manager = MagicMock()
+    action_executor.pipeline_executor = MagicMock()
+    action_executor.task_manager = MagicMock()
 
     return loader, state_manager, action_executor, evaluator, audit_manager
 
@@ -100,7 +108,8 @@ async def test_handle_event_stuck_workflow(engine, mock_components):
     )
     state_manager.get_state.return_value = state
 
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.name = "test_wf"
     reflect_step = MagicMock()
     reflect_step.on_enter = []
@@ -143,7 +152,8 @@ async def test_handle_event_step_not_found(engine, mock_components):
     )
     state_manager.get_state.return_value = state
 
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.name = "exists"
     wf.get_step.return_value = None
     loader.load_workflow.return_value = wf
@@ -172,7 +182,8 @@ async def test_handle_event_tool_blocking(engine, mock_components):
     step.transitions = []
     step.exit_conditions = []
 
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.get_step.return_value = step
     loader.load_workflow.return_value = wf
 
@@ -223,7 +234,8 @@ async def test_handle_event_exit_conditions(engine, mock_components):
     step.transitions = []
     step.rules = []
 
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.get_step.return_value = step
     loader.load_workflow.return_value = wf
 
@@ -240,7 +252,9 @@ async def test_handle_event_exit_conditions(engine, mock_components):
 async def test_evaluate_lifecycle_full(engine, mock_components):
     loader, _, action_executor, evaluator, _ = mock_components
 
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "lifecycle"
+    wf.variables = {}
     wf.name = "lifecycle_wf"
     trigger1 = {"action": "act1", "when": "cond1"}
     wf.triggers = {"on_session_start": [trigger1]}
@@ -263,7 +277,9 @@ async def test_evaluate_lifecycle_full(engine, mock_components):
 @pytest.mark.asyncio
 async def test_evaluate_lifecycle_alias(engine, mock_components):
     loader, _, action_executor, evaluator, _ = mock_components
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "lifecycle"
+    wf.variables = {}
     wf.name = "alias_wf"
     wf.triggers = {"on_prompt_submit": [{"action": "act1"}]}
 
@@ -292,7 +308,8 @@ async def test_transition_execution(engine, mock_components):
     )
     state_manager.get_state.return_value = state
 
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
 
     step1 = MagicMock()
     step1.on_exit = [{"action": "log_exit"}]
@@ -339,7 +356,8 @@ async def test_approval_flow_rejected(engine, mock_components):
 
     step1 = MagicMock()
     step1.rules = [WorkflowRule(when="True", action="require_approval", name="check")]
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
@@ -367,7 +385,8 @@ async def test_approval_flow_approved(engine, mock_components):
 
     step1 = MagicMock()
     step1.rules = []
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
@@ -411,7 +430,8 @@ async def test_lifecycle_workflow_not_found(engine, mock_components):
 @pytest.mark.asyncio
 async def test_lifecycle_trigger_alias_loop(engine, mock_components):
     loader, _, action_executor, _, _ = mock_components
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "lifecycle"
     wf.triggers = {"on_alias_event": [{"action": "act1"}]}
     loader.load_workflow.return_value = wf
 
@@ -428,7 +448,8 @@ async def test_lifecycle_trigger_alias_loop(engine, mock_components):
 @pytest.mark.asyncio
 async def test_lifecycle_when_condition_false(engine, mock_components):
     loader, _, action_executor, evaluator, _ = mock_components
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "lifecycle"
     wf.triggers = {"on_before_agent": [{"action": "act1", "when": "False"}]}
     loader.load_workflow.return_value = wf
 
@@ -443,7 +464,8 @@ async def test_lifecycle_when_condition_false(engine, mock_components):
 @pytest.mark.asyncio
 async def test_lifecycle_action_exception(engine, mock_components):
     loader, _, action_executor, _, _ = mock_components
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "lifecycle"
     wf.triggers = {"on_before_agent": [{"action": "boom"}]}
     loader.load_workflow.return_value = wf
 
@@ -473,7 +495,8 @@ async def test_audit_logging_exceptions(engine, mock_components):
 async def test_lifecycle_context_none(engine, mock_components):
     # Call _evaluate_lifecycle_triggers directly with context_data=None
     loader, _, action_executor, _, _ = mock_components
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "lifecycle"
     wf.triggers = {"on_before_agent": [{"action": "act1"}]}
     loader.load_workflow.return_value = wf
 
@@ -503,7 +526,8 @@ async def test_approval_request_trigger(engine, mock_components):
 
     step1 = MagicMock()
     step1.exit_conditions = ["check"]
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
@@ -541,7 +565,8 @@ async def test_approval_timeout(engine, mock_components):
 
     step1 = MagicMock()
     step1.exit_conditions = ["check"]
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowDefinition)
+    wf.type = "step"
     wf.get_step.return_value = step1
     loader.load_workflow.return_value = wf
 
