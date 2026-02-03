@@ -358,7 +358,7 @@ class TestGenerateWithMcpToolsWithCli:
                 allowed_tools=["code_execution"],
             )
 
-            assert result.tool_calls[0].server_name == "unknown"
+            assert result.tool_calls[0].server_name == "builtin"
 
     @pytest.mark.asyncio
     async def test_uses_custom_system_prompt(self, claude_config: DaemonConfig):

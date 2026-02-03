@@ -820,7 +820,11 @@ class TestUpdateTaskTool:
 
     @pytest.mark.asyncio
     async def test_update_task_all_fields(self, mock_task_manager, mock_sync_manager):
-        """Test update_task with all updatable fields."""
+        """Test update_task with all updatable fields.
+
+        Note: status='in_progress' and assignee are now blocked by production code
+        (must use claim_task). Also status='closed' requires close_task.
+        """
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
@@ -833,9 +837,9 @@ class TestUpdateTaskTool:
                 "task_id": "550e8400-e29b-41d4-a716-446655440000",
                 "title": "New Title",
                 "description": "New Description",
-                "status": "in_progress",
+                "status": "review",  # in_progress/closed are blocked, use 'review' instead
                 "priority": 1,
-                "assignee": "developer",
+                # "assignee" is blocked - must use claim_task
                 "labels": ["urgent"],
                 "validation_criteria": "Must pass",
                 "parent_task_id": "550e8400-e29b-41d4-a716-446655440010",
@@ -850,9 +854,8 @@ class TestUpdateTaskTool:
             "550e8400-e29b-41d4-a716-446655440000",
             title="New Title",
             description="New Description",
-            status="in_progress",
+            status="review",
             priority=1,
-            assignee="developer",
             labels=["urgent"],
             validation_criteria="Must pass",
             parent_task_id="550e8400-e29b-41d4-a716-446655440010",
@@ -864,23 +867,27 @@ class TestUpdateTaskTool:
 
     @pytest.mark.asyncio
     async def test_update_task_partial_update(self, mock_task_manager, mock_sync_manager):
-        """Test update_task only includes provided fields."""
+        """Test update_task only includes provided fields.
+
+        Note: status='closed' is blocked (must use close_task),
+        and status='in_progress' is blocked (must use claim_task).
+        """
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
         updated_task.to_brief.return_value = {
             "id": "550e8400-e29b-41d4-a716-446655440000",
-            "status": "closed",
+            "title": "Updated Title",
         }
         mock_task_manager.update_task.return_value = updated_task
 
         await registry.call(
-            "update_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"}
+            "update_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"}
         )
 
-        # Should only include status, not other None values
+        # Should only include title, not other None values
         mock_task_manager.update_task.assert_called_with(
-            "550e8400-e29b-41d4-a716-446655440000", status="closed"
+            "550e8400-e29b-41d4-a716-446655440000", title="Updated Title"
         )
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from gobby.skills.hubs.base import DownloadResult
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.skills import LocalSkillManager
@@ -299,12 +300,12 @@ class TestInstallSkillFromHub:
         # Configure get_provider to return a mock provider
         mock_provider = MagicMock()
         mock_provider.download_skill = AsyncMock(
-            return_value={
-                "success": True,
-                "path": "/tmp/skills/commit-message",
-                "version": "1.0.0",
-                "slug": "commit-message",
-            }
+            return_value=DownloadResult(
+                success=True,
+                path="/tmp/skills/commit-message",
+                version="1.0.0",
+                slug="commit-message",
+            )
         )
         manager.get_provider.return_value = mock_provider
 
@@ -332,12 +333,12 @@ Content here.
 """)
         # Use AsyncMock for async method
         mock_hub_manager.get_provider.return_value.download_skill = AsyncMock(
-            return_value={
-                "success": True,
-                "path": str(skill_dir),
-                "version": "1.0.0",
-                "slug": "commit-message",
-            }
+            return_value=DownloadResult(
+                success=True,
+                path=str(skill_dir),
+                version="1.0.0",
+                slug="commit-message",
+            )
         )
 
         registry = create_skills_registry(db, hub_manager=mock_hub_manager)
@@ -372,12 +373,12 @@ Content here.
 
         mock_provider = mock_hub_manager.get_provider.return_value
         mock_provider.download_skill = AsyncMock(
-            return_value={
-                "success": True,
-                "path": str(skill_dir),
-                "version": "1.0.0",
-                "slug": "commit-message",
-            }
+            return_value=DownloadResult(
+                success=True,
+                path=str(skill_dir),
+                version="1.0.0",
+                slug="commit-message",
+            )
         )
 
         registry = create_skills_registry(db, hub_manager=mock_hub_manager)

@@ -695,7 +695,7 @@ class TestGitHubCollectionProviderSynthesizeDescription:
 
     @pytest.mark.asyncio
     async def test_synthesize_description_truncates_long_output(self) -> None:
-        """Test _synthesize_description truncates output to 150 chars."""
+        """Test _synthesize_description truncates output to 100 chars."""
         from unittest.mock import AsyncMock, MagicMock
 
         mock_llm_service = MagicMock()
@@ -713,7 +713,7 @@ class TestGitHubCollectionProviderSynthesizeDescription:
 
         result = await provider._synthesize_description("skill", "content")
 
-        assert len(result) == 150
+        assert len(result) == 100
 
     @pytest.mark.asyncio
     async def test_synthesize_description_handles_llm_error(self) -> None:

@@ -1002,7 +1002,15 @@ class TestRequireTaskComplete:
         mock_subtask2.id = "gt-sub2"
         mock_subtask2.status = "open"
 
-        mock_task_manager.get_task.return_value = mock_parent
+        # Return correct task based on task_id (needed for claimed_task_id resolution)
+        def get_task_side_effect(task_id):
+            if task_id == "gt-sub1":
+                return mock_subtask1
+            elif task_id == "gt-parent":
+                return mock_parent
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
         mock_task_manager.list_tasks.return_value = [mock_subtask1, mock_subtask2]
 
         result = await require_task_complete(

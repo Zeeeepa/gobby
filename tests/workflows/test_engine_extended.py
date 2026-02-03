@@ -6,7 +6,7 @@ import pytest
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.storage.workflow_audit import WorkflowAuditManager
 from gobby.workflows.actions import ActionExecutor
-from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
@@ -92,9 +92,9 @@ class TestWorkflowEngineExtended:
             metadata={"_platform_session_id": "sess1"},
         )
 
-        # Need phase for get_step() call in handle_event
-        wf = MagicMock()
-        wf.get_step.return_value = MagicMock(name="working_step")
+        # Need real WorkflowDefinition for isinstance check in handle_event
+        working_step = WorkflowStep(name="working")
+        wf = WorkflowDefinition(name="test_wf", steps=[working_step])
         workflow_engine.loader.load_workflow.return_value = wf
 
         response = await workflow_engine.handle_event(event)
@@ -126,8 +126,8 @@ class TestWorkflowEngineExtended:
             metadata={"_platform_session_id": "sess1"},
         )
 
-        wf = MagicMock()
-        wf.get_step.return_value = MagicMock(name="working_step")
+        working_step = WorkflowStep(name="working")
+        wf = WorkflowDefinition(name="test_wf", steps=[working_step])
         workflow_engine.loader.load_workflow.return_value = wf
 
         response = await workflow_engine.handle_event(event)
@@ -150,9 +150,8 @@ class TestWorkflowEngineExtended:
         )
         mock_state_manager.get_state.return_value = state
 
-        wf = MagicMock()
-        step = MagicMock(name="working_step")
-        wf.get_step.return_value = step
+        working_step = WorkflowStep(name="working")
+        wf = WorkflowDefinition(name="test_wf", steps=[working_step])
         workflow_engine.loader.load_workflow.return_value = wf
 
         # Mock evaluator to return a TIMED OUT result
@@ -293,10 +292,8 @@ class TestWorkflowEngineExtended:
         )
         mock_state_manager.get_state.return_value = state
 
-        wf = MagicMock()
-        step = MagicMock()
-        step.exit_conditions = ["cond"]
-        wf.get_step.return_value = step
+        working_step = WorkflowStep(name="working", exit_conditions=[{"type": "approval"}])
+        wf = WorkflowDefinition(name="wf", steps=[working_step])
         workflow_engine.loader.load_workflow.return_value = wf
 
         # Evaluator returns needs_approval
@@ -600,11 +597,8 @@ class TestWorkflowEngineExtended:
         )
         workflow_engine.state_manager.get_state.return_value = state
 
-        wf = MagicMock()
-        step = MagicMock(name="working")
-        step.blocked_tools = []
-        step.allowed_tools = "all"
-        wf.get_step.return_value = step
+        working_step = WorkflowStep(name="working", allowed_tools="all", blocked_tools=[])
+        wf = WorkflowDefinition(name="wf", steps=[working_step])
         workflow_engine.loader.load_workflow.return_value = wf
 
         event = HookEvent(
@@ -612,10 +606,9 @@ class TestWorkflowEngineExtended:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "test_tool"},
             metadata={"_platform_session_id": "sess1"},
         )
-        event.data["tool_name"] = "test_tool"
 
         await workflow_engine.handle_event(event)
 

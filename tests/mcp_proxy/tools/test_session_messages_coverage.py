@@ -909,11 +909,15 @@ class TestSessionStats:
     def test_session_stats_basic(self) -> None:
         """Test basic session statistics."""
         session_manager = MagicMock()
+        # Count is called: 1x total + 6x sources (claude, gemini, codex, cursor, windsurf, copilot)
         session_manager.count.side_effect = [
             100,  # Total
-            50,  # claude_code
+            50,  # claude
             30,  # gemini
             0,  # codex (will be excluded)
+            0,  # cursor (will be excluded)
+            0,  # windsurf (will be excluded)
+            0,  # copilot (will be excluded)
         ]
         session_manager.count_by_status.return_value = {
             "active": 10,
@@ -928,7 +932,7 @@ class TestSessionStats:
 
         assert result["total"] == 100
         assert result["by_status"]["active"] == 10
-        assert result["by_source"]["claude_code"] == 50
+        assert result["by_source"]["claude"] == 50
         assert result["by_source"]["gemini"] == 30
         assert "codex" not in result["by_source"]  # Zero count excluded
 

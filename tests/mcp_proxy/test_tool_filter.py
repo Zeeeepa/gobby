@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.mcp_proxy.services.tool_filter import ToolFilterService
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowStep
 
 pytestmark = pytest.mark.unit
 
@@ -116,13 +117,13 @@ class TestGetStepRestrictions:
         mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["search", "read"]
-        mock_step.blocked_tools = ["write", "delete"]
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="discovery",
+            allowed_tools=["search", "read"],
+            blocked_tools=["write", "delete"],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         result = service.get_step_restrictions("session-123")
 
@@ -140,13 +141,13 @@ class TestGetStepRestrictions:
         mock_state.step = "open-step"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="open-step",
+            allowed_tools="all",
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="open-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         result = service.get_step_restrictions("session-123")
 
@@ -193,13 +194,13 @@ class TestIsToolAllowed:
         mock_state.step = "restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = ["dangerous-tool"]
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="restricted",
+            allowed_tools="all",
+            blocked_tools=["dangerous-tool"],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         allowed, reason = service.is_tool_allowed("dangerous-tool", "session-123")
 
@@ -214,13 +215,13 @@ class TestIsToolAllowed:
         mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["search", "read"]
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="discovery",
+            allowed_tools=["search", "read"],
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         allowed, reason = service.is_tool_allowed("search", "session-123")
 
@@ -236,13 +237,13 @@ class TestIsToolAllowed:
         mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["search", "read"]
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="discovery",
+            allowed_tools=["search", "read"],
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         allowed, reason = service.is_tool_allowed("write", "session-123")
 
@@ -256,13 +257,13 @@ class TestIsToolAllowed:
         mock_state.step = "open"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="open",
+            allowed_tools="all",
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         allowed, reason = service.is_tool_allowed("any-tool", "session-123")
 
@@ -278,13 +279,13 @@ class TestIsToolAllowed:
         mock_state.step = "open-but-restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = ["dangerous"]
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="open-but-restricted",
+            allowed_tools="all",
+            blocked_tools=["dangerous"],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         allowed, reason = service.is_tool_allowed("dangerous", "session-123")
 
@@ -346,13 +347,13 @@ class TestFilterTools:
         mock_state.step = "restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = "all"
-        mock_step.blocked_tools = ["tool2"]
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="restricted",
+            allowed_tools="all",
+            blocked_tools=["tool2"],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -374,13 +375,13 @@ class TestFilterTools:
         mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["tool1", "tool3"]
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="discovery",
+            allowed_tools=["tool1", "tool3"],
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -403,13 +404,13 @@ class TestFilterTools:
         mock_state.step = "mixed"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["tool1", "tool2", "tool3"]
-        mock_step.blocked_tools = ["tool2"]  # Blocked takes priority
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="mixed",
+            allowed_tools=["tool1", "tool2", "tool3"],
+            blocked_tools=["tool2"],  # Blocked takes priority
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -464,13 +465,13 @@ class TestFilterServersTools:
         mock_state.step = "restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["tool1", "tool3"]
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="restricted",
+            allowed_tools=["tool1", "tool3"],
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         servers = [
             {
@@ -507,13 +508,13 @@ class TestFilterServersTools:
         mock_state.step = "very-restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_step = MagicMock()
-        mock_step.allowed_tools = ["nonexistent"]
-        mock_step.blocked_tools = []
-
-        mock_definition = MagicMock()
-        mock_definition.get_step.return_value = mock_step
-        mock_loader.load_workflow.return_value = mock_definition
+        step = WorkflowStep(
+            name="very-restricted",
+            allowed_tools=["nonexistent"],
+            blocked_tools=[],
+        )
+        definition = WorkflowDefinition(name="test-workflow", steps=[step])
+        mock_loader.load_workflow.return_value = definition
 
         servers = [
             {"name": "server1", "tools": [{"name": "tool1", "brief": "d1"}]},

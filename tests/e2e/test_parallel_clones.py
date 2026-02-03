@@ -506,11 +506,12 @@ class TestParallelTaskProcessing:
             subtask_ids.append(result["id"])
 
         # Simulate parallel processing: all tasks set to in_progress
+        # Note: Must use claim_task instead of update_task for status="in_progress"
         for task_id in subtask_ids:
             mcp_client.call_tool(
                 server_name="gobby-tasks",
-                tool_name="update_task",
-                arguments={"task_id": task_id, "status": "in_progress"},
+                tool_name="claim_task",
+                arguments={"task_id": task_id, "session_id": session_id},
             )
 
         # Verify all are in_progress
