@@ -131,8 +131,8 @@ class MemoryBackupManager:
             from gobby.utils.project_context import get_project_context
 
             project_ctx = get_project_context()
-            if project_ctx and project_ctx.get("path"):
-                project_path = Path(project_ctx["path"]).expanduser().resolve()
+            if project_ctx and project_ctx.get("project_path"):
+                project_path = Path(project_ctx["project_path"]).expanduser().resolve()
                 return project_path / self.export_path
         except Exception:
             pass  # nosec B110 - fall back to cwd if project context unavailable

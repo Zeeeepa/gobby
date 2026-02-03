@@ -68,7 +68,7 @@ async def test_get_export_path_absolute(sync_manager, tmp_path):
 async def test_get_export_path_relative_with_project(sync_manager):
     """Test that relative paths resolve against project context."""
     sync_manager.export_path = Path(".gobby/memories.jsonl")
-    mock_context = {"path": "/tmp/project"}
+    mock_context = {"project_path": "/tmp/project"}
     with patch("gobby.utils.project_context.get_project_context", return_value=mock_context):
         path = sync_manager._get_export_path()
         # Compare resolved paths (handles macOS /tmp -> /private/tmp symlink)
@@ -253,11 +253,11 @@ async def test_get_export_path_context_error(sync_manager):
 
 @pytest.mark.asyncio
 async def test_get_export_path_no_context_path(sync_manager):
-    """Test _get_export_path falls back to cwd when context has no path."""
+    """Test _get_export_path falls back to cwd when context has no project_path."""
     sync_manager.export_path = Path(".gobby/memories.jsonl")
 
     with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
-        mock_ctx.return_value = {"name": "test"}  # No "path" key
+        mock_ctx.return_value = {"name": "test"}  # No "project_path" key
 
         path = sync_manager._get_export_path()
 
