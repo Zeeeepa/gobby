@@ -194,6 +194,7 @@ dev = [
     "bandit>=1.8.0",
     "black>=24.0.0",
     "mypy>=1.8.0",
+    "pip>=26.0",  # CVE-2026-1703
     "pip-audit>=2.7.0",
     "pre-commit>=4.0.0",
     "pytest>=8.4.2",

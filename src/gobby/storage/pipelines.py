@@ -324,8 +324,9 @@ class LocalPipelineExecutionManager:
         # Append step_execution_id for WHERE clause
         params.append(step_execution_id)
 
+        # updates list contains only hardcoded column names, values are parameterized
         self.db.execute(
-            f"UPDATE step_executions SET {', '.join(updates)} WHERE id = ?",
+            f"UPDATE step_executions SET {', '.join(updates)} WHERE id = ?",  # nosec B608
             tuple(params),
         )
 

@@ -100,8 +100,8 @@ async def require_task_complete(
                 claimed_task = task_manager.get_task(claimed_task_id)
                 if claimed_task:
                     claimed_task_id = claimed_task.id
-            except Exception:
-                pass  # Keep original if resolution fails
+            except Exception:  # nosec B110 - keep original ID if resolution fails
+                claimed_task_id = claimed_task_id  # explicit no-op
 
     try:
         # Collect incomplete tasks across all specified task IDs

@@ -2,7 +2,7 @@
 CLI commands for Gobby web UI development.
 """
 
-import subprocess
+import subprocess  # nosec B404 - subprocess needed for npm commands
 import sys
 from pathlib import Path
 
@@ -35,6 +35,7 @@ def dev(port: int, host: str) -> None:
     node_modules = WEB_UI_DIR / "node_modules"
     if not node_modules.exists():
         click.echo("Installing dependencies...")
+        # nosec B603,B607 - hardcoded npm command
         result = subprocess.run(
             ["npm", "install"],
             cwd=WEB_UI_DIR,
@@ -49,6 +50,7 @@ def dev(port: int, host: str) -> None:
     click.echo()
 
     try:
+        # nosec B603,B607 - hardcoded npm command, host/port validated by Click
         subprocess.run(
             ["npm", "run", "dev", "--", "--host", host, "--port", str(port)],
             cwd=WEB_UI_DIR,
@@ -71,6 +73,7 @@ def build() -> None:
     node_modules = WEB_UI_DIR / "node_modules"
     if not node_modules.exists():
         click.echo("Installing dependencies...")
+        # nosec B603,B607 - hardcoded npm command
         result = subprocess.run(
             ["npm", "install"],
             cwd=WEB_UI_DIR,
@@ -81,6 +84,7 @@ def build() -> None:
             sys.exit(1)
 
     click.echo("Building web UI...")
+    # nosec B603,B607 - hardcoded npm command
     result = subprocess.run(
         ["npm", "run", "build"],
         cwd=WEB_UI_DIR,
@@ -103,6 +107,7 @@ def install_deps() -> None:
         sys.exit(1)
 
     click.echo("Installing dependencies...")
+    # nosec B603,B607 - hardcoded npm command
     result = subprocess.run(
         ["npm", "install"],
         cwd=WEB_UI_DIR,
