@@ -8,6 +8,7 @@ from gobby.storage.projects import LocalProjectManager, Project
 
 pytestmark = pytest.mark.unit
 
+
 class TestProject:
     """Tests for Project dataclass."""
 

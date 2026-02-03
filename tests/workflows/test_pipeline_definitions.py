@@ -138,9 +138,7 @@ class TestPipelineStep:
         step = PipelineStep(
             id="production_deploy",
             exec="./deploy.sh --env=production",
-            approval=PipelineApproval(
-                required=True, message="Approve production deployment?"
-            ),
+            approval=PipelineApproval(required=True, message="Approve production deployment?"),
         )
         assert step.id == "production_deploy"
         assert step.approval is not None
@@ -161,16 +159,20 @@ class TestPipelineStep:
         """Test that exec, prompt, and invoke_pipeline are mutually exclusive."""
         # This should raise ValidationError - only one execution type allowed
         with pytest.raises(ValidationError) as exc_info:
-            PipelineStep(
-                id="invalid", exec="echo hello", prompt="Say hello"
-            )
-        assert "mutually exclusive" in str(exc_info.value).lower() or "only one" in str(exc_info.value).lower()
+            PipelineStep(id="invalid", exec="echo hello", prompt="Say hello")
+        assert (
+            "mutually exclusive" in str(exc_info.value).lower()
+            or "only one" in str(exc_info.value).lower()
+        )
 
     def test_step_requires_one_execution_type(self) -> None:
         """Test that at least one execution type is required."""
         with pytest.raises(ValidationError) as exc_info:
             PipelineStep(id="empty")
-        assert "at least one" in str(exc_info.value).lower() or "required" in str(exc_info.value).lower()
+        assert (
+            "at least one" in str(exc_info.value).lower()
+            or "required" in str(exc_info.value).lower()
+        )
 
 
 class TestPipelineDefinition:
@@ -207,9 +209,7 @@ class TestPipelineDefinition:
                 PipelineStep(id="step1", exec="echo $inputs.mode"),
                 PipelineStep(id="step2", prompt="Process files: $inputs.files"),
             ],
-            webhooks=WebhookConfig(
-                on_complete=WebhookEndpoint(url="https://example.com/done")
-            ),
+            webhooks=WebhookConfig(on_complete=WebhookEndpoint(url="https://example.com/done")),
         )
         assert pipeline.name == "full-pipeline"
         assert pipeline.description == "A fully specified pipeline"
@@ -288,9 +288,7 @@ class TestStepOutputReferences:
             name="test",
             steps=[
                 PipelineStep(id="step1", exec="echo hello"),
-                PipelineStep(
-                    id="step2", prompt="Process: $step1.output"
-                ),
+                PipelineStep(id="step2", prompt="Process: $step1.output"),
             ],
         )
         assert len(pipeline.steps) == 2

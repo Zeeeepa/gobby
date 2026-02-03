@@ -20,6 +20,7 @@ from gobby.cli.utils import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestFormatUptime:
     """Tests for format_uptime function."""
 

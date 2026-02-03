@@ -24,6 +24,7 @@ from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 pytestmark = pytest.mark.unit
 
+
 class TestDetectBuildCommand:
     """Tests for detect_build_command() auto-detection."""
 

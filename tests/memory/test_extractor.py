@@ -8,6 +8,7 @@ from gobby.memory.extractor import MemoryCandidate, SessionContext, SessionMemor
 
 pytestmark = pytest.mark.unit
 
+
 class TestMemoryCandidate:
     """Tests for MemoryCandidate dataclass."""
 

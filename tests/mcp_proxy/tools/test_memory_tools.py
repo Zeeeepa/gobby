@@ -21,6 +21,7 @@ from gobby.mcp_proxy.tools.memory import create_memory_registry, get_current_pro
 
 pytestmark = pytest.mark.unit
 
+
 class MockMemory:
     """Mock memory object for tests."""
 

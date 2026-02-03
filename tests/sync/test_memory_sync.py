@@ -11,6 +11,7 @@ from gobby.sync.memories import MemorySyncManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_db():
     return MagicMock()

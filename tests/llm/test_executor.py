@@ -13,6 +13,7 @@ from gobby.llm.executor import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestToolSchema:
     """Tests for ToolSchema dataclass."""
 

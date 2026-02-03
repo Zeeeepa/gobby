@@ -300,7 +300,9 @@ class TestMCPProxyErrorHandling:
 class TestMCPProxyToolSchema:
     """Tests for MCP proxy tool schema retrieval."""
 
-    def test_get_tool_schema(self, daemon_instance: DaemonInstance, daemon_client: httpx.Client) -> None:
+    def test_get_tool_schema(
+        self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
+    ) -> None:
         """Verify tool schema can be retrieved."""
         # Schema endpoint is POST /mcp/tools/schema with JSON body
         response = daemon_client.post(

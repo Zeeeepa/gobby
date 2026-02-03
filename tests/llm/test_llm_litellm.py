@@ -8,6 +8,7 @@ from gobby.config.sessions import SessionSummaryConfig, TitleSynthesisConfig
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def litellm_config() -> DaemonConfig:
     """Create a DaemonConfig with LiteLLM provider configured."""

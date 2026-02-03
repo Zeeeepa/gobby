@@ -9,6 +9,7 @@ from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def history_manager(temp_db):
     """Create a ValidationHistoryManager with test database."""
@@ -84,7 +85,9 @@ class TestValidationHistoryManager:
         assert history[1].iteration == 2
         assert history[2].iteration == 3
 
-    def test_get_iteration_history_returns_all_iterations(self, history_manager, sample_task) -> None:
+    def test_get_iteration_history_returns_all_iterations(
+        self, history_manager, sample_task
+    ) -> None:
         """Test that get_iteration_history returns all iterations for a task."""
         # Record multiple iterations with different data
         history_manager.record_iteration(
@@ -371,7 +374,9 @@ class TestRecurringIssueDetection:
         assert len(auth_group) == 1
         assert len(auth_group[0]) == 2
 
-    def test_has_recurring_issues_true_when_threshold_exceeded(self, history_manager, sample_task) -> None:
+    def test_has_recurring_issues_true_when_threshold_exceeded(
+        self, history_manager, sample_task
+    ) -> None:
         """Test has_recurring_issues returns True when threshold exceeded."""
         # Record 3 iterations with the same issue
         same_issue = Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Same test fails")
@@ -403,7 +408,9 @@ class TestRecurringIssueDetection:
         result = history_manager.has_recurring_issues(sample_task["id"], threshold=3)
         assert result is False
 
-    def test_has_recurring_issues_false_for_different_issues(self, history_manager, sample_task) -> None:
+    def test_has_recurring_issues_false_for_different_issues(
+        self, history_manager, sample_task
+    ) -> None:
         """Test has_recurring_issues returns False for different issues each time."""
         # Record iterations with completely different issues
         different_issues = [

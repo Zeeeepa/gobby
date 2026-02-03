@@ -230,7 +230,7 @@ class GeminiAdapter(BaseAdapter):
         else:
             timestamp = datetime.now(UTC)
 
-        # Get machine_id from payload (base adapter injects daemon's ID if missing)
+        # Get machine_id from payload (base adapter injects if missing)
         machine_id = input_data.get("machine_id")
 
         # Normalize tool name if present (for tool-related hooks)

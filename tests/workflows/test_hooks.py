@@ -21,6 +21,7 @@ from gobby.workflows.hooks import WorkflowHookHandler
 
 pytestmark = pytest.mark.unit
 
+
 class TestWorkflowHookHandlerInit:
     """Tests for WorkflowHookHandler initialization."""
 
@@ -210,7 +211,9 @@ class TestHandleAllLifecycles:
         else:
             pytest.skip("Test must run on main thread")
 
-    def test_handle_all_lifecycles_loop_running_but_no_stored_loop(self, mock_engine, event) -> None:
+    def test_handle_all_lifecycles_loop_running_but_no_stored_loop(
+        self, mock_engine, event
+    ) -> None:
         """Test when a loop is running but not stored in handler.
 
         This tests lines 66-70 - the case where we detect a running loop

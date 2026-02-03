@@ -9,6 +9,7 @@ from gobby.cli.tasks.main import tasks
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def runner():
     """Create a CLI runner."""

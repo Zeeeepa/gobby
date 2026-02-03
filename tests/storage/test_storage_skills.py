@@ -49,6 +49,7 @@ class TestSkillSourceType:
         assert d["hub_name"] == "skillhub"
         assert d["hub_slug"] == "code-review"
 
+
 @pytest.fixture
 def db(tmp_path):
     """Create a fresh database with migrations applied."""

@@ -8,6 +8,7 @@ from gobby.tasks.validation import TaskValidator, ValidationResult
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     manager = MagicMock(spec=LocalTaskManager)

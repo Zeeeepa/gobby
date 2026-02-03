@@ -8,6 +8,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestConductorConfigDefaults:
     """Tests for ConductorConfig default values."""
 

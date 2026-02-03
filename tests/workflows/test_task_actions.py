@@ -16,6 +16,7 @@ from gobby.workflows.task_actions import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path):
     """Create a test database with migrations."""

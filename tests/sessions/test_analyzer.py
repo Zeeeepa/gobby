@@ -817,9 +817,7 @@ class TestFormatToolDescription:
                 "arguments": {"title": "Subtask", "parent_task_id": "#123"},
             },
         }
-        assert (
-            analyzer._format_tool_description(block) == "Created task: Subtask (parent: #123)"
-        )
+        assert analyzer._format_tool_description(block) == "Created task: Subtask (parent: #123)"
 
     def test_mcp_call_tool_create_task_no_title(self) -> None:
         """Test gobby-tasks create_task defaults to 'Untitled' when no title."""
@@ -841,9 +839,7 @@ class TestFormatToolDescription:
                 "arguments": {"task_id": "#456", "status": "in_progress"},
             },
         }
-        assert (
-            analyzer._format_tool_description(block) == "Updated task #456: status → in_progress"
-        )
+        assert analyzer._format_tool_description(block) == "Updated task #456: status → in_progress"
 
     def test_mcp_call_tool_close_task(self) -> None:
         """Test gobby-tasks close_task shows reason."""
@@ -925,9 +921,7 @@ class TestFormatToolDescription:
                 "arguments": {"path": "/etc/config.yaml"},
             },
         }
-        assert (
-            analyzer._format_tool_description(block) == "filesystem.read_file: /etc/config.yaml"
-        )
+        assert analyzer._format_tool_description(block) == "filesystem.read_file: /etc/config.yaml"
 
     def test_mcp_call_tool_generic_truncates_long_values(self) -> None:
         """Test generic MCP calls truncate long argument values."""

@@ -194,9 +194,9 @@ class LocalSessionManager:
         returns the existing session. Otherwise creates a new one.
 
         Args:
-            external_id: External session identifier (e.g., Claude Code's session ID)
+            external_id: External session identifier (e.g., Claude Code session ID)
             machine_id: Machine identifier
-            source: CLI source (claude_code, codex, gemini)
+            source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
             project_id: Project ID (required - sessions must belong to a project)
             title: Optional session title
             jsonl_path: Path to transcript file

@@ -11,6 +11,7 @@ from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_transcript_processor():
     """Create a mock transcript processor."""
@@ -162,7 +163,9 @@ class TestSummaryFileGeneratorWrite:
         assert filename.startswith("session_")
         assert filename.endswith(".md")
 
-    def test_write_summary_to_file_failure(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_write_summary_to_file_failure(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test write_summary_to_file handles write errors."""
         # Use an invalid path
         gen = SummaryFileGenerator(
@@ -199,7 +202,9 @@ class TestSummaryFileGeneratorGenerate:
 
         assert result["status"] == "no_transcript"
 
-    def test_generate_session_summary_transcript_not_found(self, summary_generator, temp_dir) -> None:
+    def test_generate_session_summary_transcript_not_found(
+        self, summary_generator, temp_dir
+    ) -> None:
         """Test generation handles non-existent transcript file."""
         result = summary_generator.generate_session_summary(
             session_id="db-session-id",
@@ -565,7 +570,9 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt is None
 
-    def test_get_provider_feature_disabled(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_get_provider_feature_disabled(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test getting provider when feature is disabled."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -583,7 +590,9 @@ class TestGetProviderForFeature:
         assert provider is None
         assert prompt is None
 
-    def test_get_provider_with_custom_prompt(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_get_provider_with_custom_prompt(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test getting provider with custom prompt from config."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
@@ -606,7 +615,9 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt == "Custom prompt template"
 
-    def test_get_provider_unknown_feature(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_get_provider_unknown_feature(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test getting provider for unknown feature name."""
         from gobby.config.app import DaemonConfig
 
@@ -624,7 +635,9 @@ class TestGetProviderForFeature:
         assert provider is not None
         assert prompt is None
 
-    def test_get_provider_no_feature_config(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_get_provider_no_feature_config(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test getting provider when feature config attribute is None."""
         from gobby.config.app import DaemonConfig
 
@@ -704,7 +717,9 @@ class TestGetProviderForFeature:
         assert provider is mock_default_provider
         assert prompt == "Some prompt"
 
-    def test_get_provider_exception_handling(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_get_provider_exception_handling(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test that exceptions in _get_provider_for_feature are handled."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -730,7 +745,9 @@ class TestGetProviderForFeature:
 class TestGenerateSummaryWithLLM:
     """Tests for LLM summary generation."""
 
-    def test_generate_summary_no_provider(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_generate_summary_no_provider(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test summary generation when no provider available."""
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -781,7 +798,9 @@ class TestGenerateSummaryWithLLM:
         # Provider should not be called
         mock_provider.generate_summary.assert_not_called()
 
-    def test_generate_summary_with_custom_prompt(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_generate_summary_with_custom_prompt(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test summary generation with custom prompt."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="Custom summary")
@@ -809,7 +828,9 @@ class TestGenerateSummaryWithLLM:
         call_kwargs = mock_provider.generate_summary.call_args
         assert call_kwargs[1]["prompt_template"] == "Custom template"
 
-    def test_generate_summary_llm_returns_empty(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_generate_summary_llm_returns_empty(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test summary generation when LLM returns empty string."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="")
@@ -835,7 +856,9 @@ class TestGenerateSummaryWithLLM:
         # Should produce error summary
         assert "Error" in result
 
-    def test_generate_summary_llm_exception(self, mock_transcript_processor, mock_llm_service) -> None:
+    def test_generate_summary_llm_exception(
+        self, mock_transcript_processor, mock_llm_service
+    ) -> None:
         """Test summary generation handles LLM exceptions."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(side_effect=Exception("LLM API error"))

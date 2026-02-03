@@ -8,6 +8,7 @@ from gobby.storage.sessions import LocalSessionManager, Session
 
 pytestmark = pytest.mark.unit
 
+
 class TestSession:
     """Tests for Session dataclass."""
 

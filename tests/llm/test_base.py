@@ -8,6 +8,7 @@ from gobby.llm.base import LLMProvider
 
 pytestmark = pytest.mark.unit
 
+
 class ConcreteProvider(LLMProvider):
     """Concrete implementation for testing abstract base class."""
 

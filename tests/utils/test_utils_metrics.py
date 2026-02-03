@@ -16,6 +16,7 @@ from gobby.utils.metrics import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestCounter:
     """Tests for Counter dataclass."""
 

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 pytestmark = pytest.mark.unit
 
+
 class TestWebSocketSettingsImport:
     """Test that WebSocketSettings can be imported from the servers module."""
 

@@ -10,6 +10,7 @@ from gobby.workflows.webhook_executor import WebhookExecutor, WebhookResult
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def evaluator() -> ConditionEvaluator:
     """Create a ConditionEvaluator instance."""

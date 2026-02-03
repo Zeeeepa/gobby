@@ -315,7 +315,9 @@ class TestProgressTracker:
 class TestProgressTrackerToolCall:
     """Tests for ProgressTracker.record_tool_call method."""
 
-    def test_record_tool_call_for_edit(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_record_tool_call_for_edit(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test recording Edit tool call."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -327,7 +329,9 @@ class TestProgressTrackerToolCall:
         assert event.progress_type == ProgressType.FILE_MODIFIED
         assert event.tool_name == "Edit"
 
-    def test_record_tool_call_for_read(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_record_tool_call_for_read(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test recording Read tool call."""
         event = progress_tracker.record_tool_call(
             session_id=session_id,
@@ -446,7 +450,9 @@ class TestProgressTrackerToolCall:
 class TestProgressTrackerSummary:
     """Tests for ProgressTracker.get_summary method."""
 
-    def test_get_summary_empty_session(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_get_summary_empty_session(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test summary for session with no events."""
         summary = progress_tracker.get_summary(session_id)
 
@@ -458,7 +464,9 @@ class TestProgressTrackerSummary:
         assert summary.events_by_type == {}
         assert summary.is_stagnant is False
 
-    def test_get_summary_with_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_get_summary_with_events(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test summary with multiple events."""
         # Record various events
         progress_tracker.record_event(session_id, ProgressType.FILE_READ)
@@ -476,7 +484,9 @@ class TestProgressTrackerSummary:
         assert summary.last_high_value_at is not None
         assert summary.last_event_at is not None
 
-    def test_get_summary_timestamps(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_get_summary_timestamps(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test that summary timestamps are accurate."""
         # Record low-value first
         progress_tracker.record_event(session_id, ProgressType.FILE_READ)
@@ -499,7 +509,9 @@ class TestProgressTrackerSummary:
 class TestProgressTrackerStagnation:
     """Tests for ProgressTracker stagnation detection."""
 
-    def test_not_stagnant_with_no_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_not_stagnant_with_no_events(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test that session with no events is not stagnant."""
         assert progress_tracker.is_stagnant(session_id) is False
 
@@ -658,7 +670,9 @@ class TestProgressTrackerRecentEvents:
 class TestProgressTrackerThreadSafety:
     """Tests for ProgressTracker thread safety."""
 
-    def test_concurrent_record_events(self, progress_tracker: ProgressTracker, session_id: str) -> None:
+    def test_concurrent_record_events(
+        self, progress_tracker: ProgressTracker, session_id: str
+    ) -> None:
         """Test that concurrent event recording is thread-safe."""
         num_threads = 10
         events_per_thread = 20
@@ -858,7 +872,9 @@ class TestStopRegistry:
         assert result is True
         assert stop_registry.get_signal(session_id) is None
 
-    def test_clear_returns_false_for_no_signal(self, stop_registry: StopRegistry, session_id: str) -> None:
+    def test_clear_returns_false_for_no_signal(
+        self, stop_registry: StopRegistry, session_id: str
+    ) -> None:
         """Test clear returns False when no signal exists."""
         result = stop_registry.clear(session_id)
         assert result is False
@@ -927,7 +943,9 @@ class TestStopRegistryCleanup:
         # Verify signal is gone
         assert stop_registry.has_pending_signal(session_id) is False
 
-    def test_cleanup_stale_preserves_pending(self, stop_registry: StopRegistry, session_id: str) -> None:
+    def test_cleanup_stale_preserves_pending(
+        self, stop_registry: StopRegistry, session_id: str
+    ) -> None:
         """Test that cleanup preserves pending (unacknowledged) signals."""
         stop_registry.signal_stop(session_id, source="test")
 
@@ -1082,13 +1100,17 @@ class TestStuckDetector:
 class TestStuckDetectorTaskLoop:
     """Tests for StuckDetector task loop detection."""
 
-    def test_no_task_loop_with_no_history(self, stuck_detector: StuckDetector, session_id: str) -> None:
+    def test_no_task_loop_with_no_history(
+        self, stuck_detector: StuckDetector, session_id: str
+    ) -> None:
         """Test no task loop detected with no history."""
         result = stuck_detector.detect_task_loop(session_id)
 
         assert result.is_stuck is False
 
-    def test_no_task_loop_with_varied_tasks(self, stuck_detector: StuckDetector, session_id: str) -> None:
+    def test_no_task_loop_with_varied_tasks(
+        self, stuck_detector: StuckDetector, session_id: str
+    ) -> None:
         """Test no task loop with varied task selections."""
         for i in range(5):
             stuck_detector.record_task_selection(session_id, f"task-{i}")
@@ -1129,7 +1151,9 @@ class TestStuckDetectorTaskLoop:
 class TestStuckDetectorProgressStagnation:
     """Tests for StuckDetector progress stagnation detection."""
 
-    def test_no_stagnation_without_progress_tracker(self, test_db: LocalDatabase, session_id: str) -> None:
+    def test_no_stagnation_without_progress_tracker(
+        self, test_db: LocalDatabase, session_id: str
+    ) -> None:
         """Test no stagnation detection without progress tracker."""
         detector = StuckDetector(test_db, progress_tracker=None)
 
@@ -1175,7 +1199,9 @@ class TestStuckDetectorProgressStagnation:
 class TestStuckDetectorToolLoop:
     """Tests for StuckDetector tool loop detection."""
 
-    def test_no_tool_loop_without_progress_tracker(self, test_db: LocalDatabase, session_id: str) -> None:
+    def test_no_tool_loop_without_progress_tracker(
+        self, test_db: LocalDatabase, session_id: str
+    ) -> None:
         """Test no tool loop detection without progress tracker."""
         detector = StuckDetector(test_db, progress_tracker=None)
 
@@ -1242,7 +1268,9 @@ class TestStuckDetectorIsStuck:
 
         assert result.is_stuck is False
 
-    def test_is_stuck_returns_first_detected_issue(self, test_db: LocalDatabase, session_id: str) -> None:
+    def test_is_stuck_returns_first_detected_issue(
+        self, test_db: LocalDatabase, session_id: str
+    ) -> None:
         """Test is_stuck returns first detected stuck state."""
         tracker = ProgressTracker(test_db)
         detector = StuckDetector(
@@ -1315,7 +1343,9 @@ class TestStuckDetectorSelectionHistory:
 
         assert len(history) == 5
 
-    def test_get_selection_history_empty(self, stuck_detector: StuckDetector, session_id: str) -> None:
+    def test_get_selection_history_empty(
+        self, stuck_detector: StuckDetector, session_id: str
+    ) -> None:
         """Test history for empty session."""
         history = stuck_detector.get_selection_history(session_id)
         assert history == []
@@ -1324,7 +1354,9 @@ class TestStuckDetectorSelectionHistory:
 class TestStuckDetectorThreadSafety:
     """Tests for StuckDetector thread safety."""
 
-    def test_concurrent_task_selections(self, stuck_detector: StuckDetector, session_id: str) -> None:
+    def test_concurrent_task_selections(
+        self, stuck_detector: StuckDetector, session_id: str
+    ) -> None:
         """Test concurrent task selection recording is thread-safe."""
         num_threads = 5
         selections_per_thread = 10

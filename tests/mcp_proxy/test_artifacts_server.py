@@ -16,6 +16,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 # Mock the module since it doesn't exist yet
 # Once implemented, these can be replaced with actual imports
 def get_artifacts_registry():

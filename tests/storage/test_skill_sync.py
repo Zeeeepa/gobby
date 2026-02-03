@@ -9,6 +9,7 @@ from gobby.storage.skills import LocalSkillManager
 
 pytestmark = pytest.mark.unit
 
+
 class TestSyncBundledSkills:
     """Test sync_bundled_skills function."""
 

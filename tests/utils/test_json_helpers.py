@@ -13,6 +13,7 @@ from gobby.utils.json_helpers import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestExtractJsonFromText:
     """Tests for extract_json_from_text()."""
 

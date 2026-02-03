@@ -13,6 +13,8 @@ from __future__ import annotations
 import glob as glob_module
 import logging
 import os
+import platform
+import uuid
 from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -47,6 +49,17 @@ def _get_daemon_machine_id() -> str | None:
     from gobby.utils.machine_id import get_machine_id
 
     return get_machine_id()
+
+
+def _get_machine_id() -> str:
+    """Generate a machine identifier.
+
+    Used by Codex adapters when no machine_id is provided.
+    """
+    node = platform.node()
+    if node:
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, node))
+    return str(uuid.uuid4())
 
 
 # =============================================================================
@@ -131,6 +144,7 @@ class CodexAdapter(BaseAdapter):
         self._hook_manager = hook_manager
         self._codex_client: CodexAppServerClient | None = None
         self._attached = False
+        self._machine_id: str | None = None
 
     @staticmethod
     def is_codex_available() -> bool:
@@ -144,8 +158,18 @@ class CodexAdapter(BaseAdapter):
         return shutil.which("codex") is not None
 
     def _get_machine_id(self) -> str | None:
-        """Get machine ID from daemon's centralized utility."""
-        return _get_daemon_machine_id()
+        """Get machine ID with caching and daemon fallback."""
+        if self._machine_id:
+            return self._machine_id
+
+        # Try daemon first
+        self._machine_id = _get_daemon_machine_id()
+
+        # Fallback to generated if daemon not available
+        if not self._machine_id:
+            self._machine_id = _get_machine_id()
+
+        return self._machine_id
 
     def normalize_tool_name(self, codex_tool_name: str) -> str:
         """Normalize Codex tool name to canonical CC-style format.
@@ -499,10 +523,21 @@ class CodexNotifyAdapter(BaseAdapter):
         # Track threads we've seen using LRU cache to avoid unbounded growth
         self._max_seen_threads = max_seen_threads or self.DEFAULT_MAX_SEEN_THREADS
         self._seen_threads: OrderedDict[str, bool] = OrderedDict()
+        self._machine_id: str | None = None
 
     def _get_machine_id(self) -> str | None:
-        """Get machine ID from daemon's centralized utility."""
-        return _get_daemon_machine_id()
+        """Get machine ID with caching and daemon fallback."""
+        if self._machine_id:
+            return self._machine_id
+
+        # Try daemon first
+        self._machine_id = _get_daemon_machine_id()
+
+        # Fallback to generated if daemon not available
+        if not self._machine_id:
+            self._machine_id = _get_machine_id()
+
+        return self._machine_id
 
     def _mark_thread_seen(self, thread_id: str) -> None:
         """Mark a thread as seen, evicting oldest if cache is full.

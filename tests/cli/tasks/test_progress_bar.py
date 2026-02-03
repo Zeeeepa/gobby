@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 pytestmark = pytest.mark.unit
 
+
 class TestCascadeProgress:
     """Tests for cascade_progress context manager."""
 

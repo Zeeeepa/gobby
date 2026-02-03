@@ -169,14 +169,15 @@ def _copy_project_json_to_worktree(
 
 
 def _install_provider_hooks(
-    provider: Literal["claude", "gemini", "codex", "antigravity"] | None,
+    provider: Literal["claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"]
+    | None,
     worktree_path: str | Path,
 ) -> bool:
     """
     Install CLI hooks for the specified provider in the worktree.
 
     Args:
-        provider: Provider name ('claude', 'gemini', 'antigravity', or None)
+        provider: Provider name ('claude', 'gemini', 'antigravity', 'cursor', 'windsurf', 'copilot', or None)
         worktree_path: Path to worktree directory
 
     Returns:
@@ -196,6 +197,16 @@ def _install_provider_hooks(
                 return True
             else:
                 logger.warning(f"Failed to install Claude hooks: {result.get('error')}")
+        elif provider in ("cursor", "windsurf", "copilot"):
+            # These editors use Claude hooks format
+            from gobby.cli.installers.claude import install_claude
+
+            result = install_claude(worktree_path_obj)
+            if result["success"]:
+                logger.info(f"Installed {provider} hooks in worktree: {worktree_path}")
+                return True
+            else:
+                logger.warning(f"Failed to install {provider} hooks: {result.get('error')}")
         elif provider == "gemini":
             from gobby.cli.installers.gemini import install_gemini
 
@@ -326,7 +337,10 @@ def create_worktrees_registry(
         worktree_path: str | None = None,
         create_branch: bool = True,
         project_path: str | None = None,
-        provider: Literal["claude", "gemini", "codex", "antigravity"] | None = None,
+        provider: Literal[
+            "claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"
+        ]
+        | None = None,
     ) -> dict[str, Any]:
         """
         Create a new git worktree.
@@ -338,7 +352,7 @@ def create_worktrees_registry(
             worktree_path: Optional custom path (defaults to ../{branch_name}).
             create_branch: Whether to create a new branch (default: True).
             project_path: Path to project directory (pass cwd from CLI).
-            provider: CLI provider to install hooks for (claude, gemini, codex, antigravity).
+            provider: CLI provider to install hooks for (claude, gemini, codex, antigravity, cursor, windsurf, copilot).
                      If specified, installs hooks so agents can communicate with daemon.
 
         Returns:

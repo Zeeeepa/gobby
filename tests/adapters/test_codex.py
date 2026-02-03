@@ -23,6 +23,7 @@ import pytest
 from gobby.adapters.codex_impl.adapter import (
     CodexAdapter,
     CodexNotifyAdapter,
+    _get_daemon_machine_id,
     _get_machine_id,
 )
 from gobby.adapters.codex_impl.client import CodexAppServerClient
@@ -139,11 +140,11 @@ class TestCodexItem:
 
 
 class TestGetMachineId:
-    """Tests for _get_machine_id utility."""
+    """Tests for _get_daemon_machine_id utility."""
 
     def test_returns_string(self) -> None:
         """Returns a string machine ID."""
-        machine_id = _get_machine_id()
+        machine_id = _get_daemon_machine_id()
         assert isinstance(machine_id, str)
         assert len(machine_id) > 0
 
@@ -152,8 +153,8 @@ class TestGetMachineId:
         """Uses hostname for stable ID when available."""
         mock_node.return_value = "test-hostname"
 
-        id1 = _get_machine_id()
-        id2 = _get_machine_id()
+        id1 = _get_daemon_machine_id()
+        id2 = _get_daemon_machine_id()
 
         # Same hostname should produce same ID
         assert id1 == id2
@@ -163,7 +164,7 @@ class TestGetMachineId:
         """Falls back to random UUID when hostname unavailable."""
         mock_node.return_value = ""
 
-        machine_id = _get_machine_id()
+        machine_id = _get_daemon_machine_id()
         assert isinstance(machine_id, str)
         # UUID format
         assert len(machine_id) == 36

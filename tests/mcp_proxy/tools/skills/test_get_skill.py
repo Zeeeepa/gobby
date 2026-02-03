@@ -11,6 +11,7 @@ from gobby.storage.skills import LocalSkillManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path: Path) -> Iterator[LocalDatabase]:
     """Create a fresh database with migrations applied."""

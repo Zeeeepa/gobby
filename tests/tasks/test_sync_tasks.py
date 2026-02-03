@@ -10,6 +10,7 @@ from gobby.sync.tasks import TaskSyncManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def sync_manager(temp_db, tmp_path):
     export_path = tmp_path / ".gobby" / "tasks.jsonl"
@@ -566,7 +567,9 @@ class TestExportEdgeCases:
         assert data["commits"] == ["commit1", "commit2"]
 
     @pytest.mark.integration
-    def test_export_with_corrupted_meta_file(self, sync_manager, task_manager, sample_project) -> None:
+    def test_export_with_corrupted_meta_file(
+        self, sync_manager, task_manager, sample_project
+    ) -> None:
         """Test export handles corrupted meta file."""
         task_manager.create_task(sample_project["id"], "Task 1")
 

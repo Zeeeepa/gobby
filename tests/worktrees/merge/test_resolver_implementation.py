@@ -8,6 +8,7 @@ from gobby.worktrees.merge.resolver import MergeResolver
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_llm_service():
     """Mock for LLMService."""

@@ -12,6 +12,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestTaskMonitorStaleTasks:
     """Tests for stale task detection."""
 

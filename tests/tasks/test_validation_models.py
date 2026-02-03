@@ -8,6 +8,7 @@ from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 pytestmark = pytest.mark.unit
 
+
 class TestIssueType:
     """Tests for IssueType enum."""
 

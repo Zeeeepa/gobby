@@ -17,6 +17,7 @@ from gobby.utils.project_context import get_project_context, get_workflow_projec
 
 pytestmark = pytest.mark.unit
 
+
 class TestCopyProjectJsonToWorktree:
     """Tests for _copy_project_json_to_worktree function."""
 

@@ -83,7 +83,9 @@ def mock_parent_session():
 class TestInjectContext:
     """Tests for the inject_context function."""
 
-    def test_returns_none_when_session_manager_is_none(self, workflow_state, mock_template_engine) -> None:
+    def test_returns_none_when_session_manager_is_none(
+        self, workflow_state, mock_template_engine
+    ) -> None:
         """Should return None and log warning when session_manager is None."""
         result = inject_context(
             session_manager=None,
@@ -94,7 +96,9 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_state_is_none(self, mock_session_manager, mock_template_engine) -> None:
+    def test_returns_none_when_state_is_none(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
         """Should return None and log warning when state is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -105,7 +109,9 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_template_engine_is_none(self, mock_session_manager, workflow_state) -> None:
+    def test_returns_none_when_template_engine_is_none(
+        self, mock_session_manager, workflow_state
+    ) -> None:
         """Should return None and log warning when template_engine is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -312,7 +318,9 @@ class TestInjectContext:
         assert result["inject_context"] == "# Recovered Summary\nRecovered from failback file."
         assert workflow_state.context_injected is True
 
-    def test_artifacts_source_with_artifacts(self, mock_session_manager, mock_template_engine) -> None:
+    def test_artifacts_source_with_artifacts(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
         """Should format artifacts as markdown when source is artifacts."""
         state = WorkflowState(
             session_id="test-session",
@@ -453,7 +461,9 @@ class TestInjectContext:
         assert "## Workflow State" in result["inject_context"]
         assert test_state.dict_called is True
 
-    def test_compact_handoff_source(self, mock_session_manager, mock_template_engine, mock_session) -> None:
+    def test_compact_handoff_source(
+        self, mock_session_manager, mock_template_engine, mock_session
+    ) -> None:
         """Should return compact_markdown from current session."""
         mock_session.compact_markdown = "# Compact handoff content"
         mock_session_manager.get.return_value = mock_session
@@ -598,7 +608,9 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "workflow_state_text" in call_args[0][1]
 
-    def test_with_template_rendering_for_compact_handoff(self, mock_session_manager, mock_session) -> None:
+    def test_with_template_rendering_for_compact_handoff(
+        self, mock_session_manager, mock_session
+    ) -> None:
         """Should render template with handoff for compact_handoff source."""
         mock_session.compact_markdown = "Compact content"
         mock_session_manager.get.return_value = mock_session
@@ -656,7 +668,9 @@ class TestInjectContext:
         assert call_args["summary"] == "Parent session summary content"
         assert call_args["handoff"]["notes"] == "Parent session summary content"
 
-    def test_require_blocks_when_no_content(self, mock_session_manager, mock_template_engine) -> None:
+    def test_require_blocks_when_no_content(
+        self, mock_session_manager, mock_template_engine
+    ) -> None:
         """Should return block decision when require=True and no content found."""
         state = WorkflowState(
             session_id="test-session",
@@ -751,7 +765,9 @@ class TestInjectMessage:
         )
         assert result is None
 
-    def test_renders_and_returns_message(self, mock_session_manager, workflow_state, mock_session) -> None:
+    def test_renders_and_returns_message(
+        self, mock_session_manager, workflow_state, mock_session
+    ) -> None:
         """Should render template and return inject_message dict."""
         mock_session_manager.get.return_value = mock_session
         template_engine = MagicMock()
@@ -870,7 +886,9 @@ class TestExtractHandoffContext:
 
         assert result == {"error": "Session not found"}
 
-    def test_returns_error_when_no_transcript_path(self, mock_session_manager, mock_session) -> None:
+    def test_returns_error_when_no_transcript_path(
+        self, mock_session_manager, mock_session
+    ) -> None:
         """Should return error when session has no jsonl_path."""
         mock_session.jsonl_path = None
         mock_session_manager.get.return_value = mock_session
@@ -1140,7 +1158,9 @@ class TestExtractHandoffContext:
 
                     assert result.get("handoff_context_extracted") is True
 
-    def test_handles_extraction_exception(self, mock_session_manager, mock_session, tmp_path) -> None:
+    def test_handles_extraction_exception(
+        self, mock_session_manager, mock_session, tmp_path
+    ) -> None:
         """Should return error dict when extraction raises exception."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1197,7 +1217,9 @@ class TestExtractHandoffContext:
 
                     assert result.get("handoff_context_extracted") is True
 
-    def test_skips_empty_lines_in_transcript(self, mock_session_manager, mock_session, tmp_path) -> None:
+    def test_skips_empty_lines_in_transcript(
+        self, mock_session_manager, mock_session, tmp_path
+    ) -> None:
         """Should skip empty lines when reading transcript file."""
         transcript_path = tmp_path / "transcript.jsonl"
         # Create transcript with empty lines
@@ -1935,8 +1957,16 @@ class TestInjectContextTaskContextSource:
 
         manager = MagicMock()
         manager.get_session_tasks.return_value = [
-            {"task": worked_on_task, "action": "worked_on", "link_created_at": "2026-01-15T10:00:00Z"},
-            {"task": mentioned_task, "action": "mentioned", "link_created_at": "2026-01-15T09:00:00Z"},
+            {
+                "task": worked_on_task,
+                "action": "worked_on",
+                "link_created_at": "2026-01-15T10:00:00Z",
+            },
+            {
+                "task": mentioned_task,
+                "action": "mentioned",
+                "link_created_at": "2026-01-15T09:00:00Z",
+            },
         ]
 
         result = inject_context(
@@ -2342,7 +2372,11 @@ class TestInjectContextArraySource:
         return manager
 
     def test_array_source_combines_multiple_sources(
-        self, mock_session_manager, mock_template_engine, mock_skill_manager, mock_session_task_manager
+        self,
+        mock_session_manager,
+        mock_template_engine,
+        mock_skill_manager,
+        mock_session_task_manager,
     ) -> None:
         """Should combine content from multiple sources when source is a list."""
         state = WorkflowState(
@@ -2428,7 +2462,11 @@ class TestInjectContextArraySource:
         assert result is None
 
     def test_array_source_separates_content_with_newlines(
-        self, mock_session_manager, mock_template_engine, mock_skill_manager, mock_session_task_manager
+        self,
+        mock_session_manager,
+        mock_template_engine,
+        mock_skill_manager,
+        mock_session_task_manager,
     ) -> None:
         """Should separate content from different sources with newlines."""
         state = WorkflowState(
@@ -2453,7 +2491,11 @@ class TestInjectContextArraySource:
         assert "\n\n" in content
 
     def test_array_source_sets_context_injected_flag(
-        self, mock_session_manager, mock_template_engine, mock_skill_manager, mock_session_task_manager
+        self,
+        mock_session_manager,
+        mock_template_engine,
+        mock_skill_manager,
+        mock_session_task_manager,
     ) -> None:
         """Should set context_injected flag when any source provides content."""
         state = WorkflowState(

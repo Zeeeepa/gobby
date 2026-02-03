@@ -15,6 +15,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 pytestmark = pytest.mark.unit
 
+
 class MockTask:
     """Mock task object for tests."""
 

@@ -7,6 +7,7 @@ from gobby.sync.github import GitHubNotFoundError, GitHubRateLimitError
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.mark.asyncio
 async def test_import_github_issues_success():
     # Mock dependencies

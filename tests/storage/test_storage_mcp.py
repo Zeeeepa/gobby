@@ -11,6 +11,7 @@ from gobby.storage.projects import LocalProjectManager
 
 pytestmark = pytest.mark.unit
 
+
 class TestMCPServer:
     """Tests for MCPServer dataclass."""
 

@@ -7,6 +7,7 @@ from gobby.mcp_proxy.tools.metrics import create_metrics_registry
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_metrics_manager():
     return MagicMock(spec=ToolMetricsManager)

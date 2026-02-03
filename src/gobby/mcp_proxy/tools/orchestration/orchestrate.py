@@ -35,7 +35,9 @@ def register_orchestrator(
 
     async def orchestrate_ready_tasks(
         parent_task_id: str,
-        provider: Literal["claude", "gemini", "codex", "antigravity"] = "gemini",
+        provider: Literal[
+            "claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"
+        ] = "gemini",
         model: str | None = None,
         terminal: str = "auto",
         mode: str = "terminal",
@@ -43,7 +45,10 @@ def register_orchestrator(
         max_concurrent: int = 3,
         parent_session_id: str | None = None,
         project_path: str | None = None,
-        coding_provider: Literal["claude", "gemini", "codex", "antigravity"] | None = None,
+        coding_provider: Literal[
+            "claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"
+        ]
+        | None = None,
         coding_model: str | None = None,
         base_branch: str | None = None,
     ) -> dict[str, Any]:
@@ -652,7 +657,7 @@ def register_orchestrator(
                 },
                 "provider": {
                     "type": "string",
-                    "description": "Fallback LLM provider (claude, gemini, codex, antigravity)",
+                    "description": "Fallback LLM provider (claude, gemini, codex, antigravity, cursor, windsurf, copilot)",
                     "default": "gemini",
                 },
                 "model": {

@@ -37,6 +37,7 @@ from gobby.tasks.validation import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestRunGitCommand:
     """Tests for run_git_command helper function."""
 
@@ -390,7 +391,9 @@ class TestGetValidationContextSmartEdgeCases:
     @patch("gobby.tasks.validation.run_git_command")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.find_matching_files")
-    def test_context_skips_file_analysis_when_low_remaining(self, mock_find, mock_diff, mock_run) -> None:
+    def test_context_skips_file_analysis_when_low_remaining(
+        self, mock_find, mock_diff, mock_run
+    ) -> None:
         """Test that file analysis is skipped when remaining_chars < 2000."""
         # Large content from earlier strategies
         mock_run.return_value = MagicMock(returncode=0, stdout="x" * 48000)
@@ -1729,7 +1732,9 @@ class TestCwdParameter:
     @patch("gobby.tasks.validation.run_git_command")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.get_recent_commits")
-    def test_get_validation_context_smart_passes_cwd(self, mock_commits, mock_diff, mock_run) -> None:
+    def test_get_validation_context_smart_passes_cwd(
+        self, mock_commits, mock_diff, mock_run
+    ) -> None:
         """Test that get_validation_context_smart passes cwd to subprocess calls."""
         # Mock subprocess for Strategy 1 (uncommitted changes) - empty to trigger Strategy 2
         mock_run.return_value = MagicMock(returncode=0, stdout="")

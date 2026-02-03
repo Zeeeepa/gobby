@@ -15,6 +15,7 @@ from gobby.storage.migrations import run_migrations
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path):
     """Create a test database with migrations applied."""

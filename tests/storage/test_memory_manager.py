@@ -9,6 +9,7 @@ from gobby.storage.migrations import run_migrations
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path):
     database = LocalDatabase(tmp_path / "gobby-hub.db")

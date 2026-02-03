@@ -10,6 +10,7 @@ from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def db(tmp_path):
     """Initialize database with migrations."""

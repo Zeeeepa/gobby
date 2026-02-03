@@ -10,6 +10,7 @@ from gobby.utils.daemon_client import DaemonClient
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_daemon_client():
     client = MagicMock(spec=DaemonClient)

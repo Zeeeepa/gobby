@@ -8,6 +8,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestInstallCodexNotify:
     """Tests for install_codex_notify function."""
 

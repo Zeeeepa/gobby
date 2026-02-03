@@ -63,7 +63,9 @@ class TestE2EInfrastructure:
         project_json = gobby_dir / "project.json"
         assert project_json.exists()
 
-    def test_multiple_daemon_instances_use_different_ports(self, e2e_project_dir, e2e_config) -> None:
+    def test_multiple_daemon_instances_use_different_ports(
+        self, e2e_project_dir, e2e_config
+    ) -> None:
         """Verify config uses dynamically allocated ports."""
         config_path, http_port, ws_port = e2e_config
 

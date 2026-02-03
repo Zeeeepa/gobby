@@ -6,6 +6,7 @@ from gobby.search import TFIDFSearcher, get_search_backend
 
 pytestmark = pytest.mark.unit
 
+
 class TestTFIDFSearcher:
     """Tests for TFIDFSearcher class."""
 

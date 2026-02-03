@@ -8,6 +8,7 @@ from gobby.storage.worktrees import LocalWorktreeManager, Worktree, WorktreeStat
 
 pytestmark = pytest.mark.unit
 
+
 class TestWorktreeStatus:
     """Tests for WorktreeStatus enum."""
 

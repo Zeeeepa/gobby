@@ -45,9 +45,9 @@ class TestPipelineMigration:
             "session_id",
             "parent_execution_id",
         }
-        assert expected_columns.issubset(
-            column_names
-        ), f"Missing columns: {expected_columns - column_names}"
+        assert expected_columns.issubset(column_names), (
+            f"Missing columns: {expected_columns - column_names}"
+        )
 
     def test_migration_creates_step_executions_table(self, tmp_path) -> None:
         """Test that migration creates step_executions table with all columns."""
@@ -80,9 +80,9 @@ class TestPipelineMigration:
             "approved_by",
             "approved_at",
         }
-        assert expected_columns.issubset(
-            column_names
-        ), f"Missing columns: {expected_columns - column_names}"
+        assert expected_columns.issubset(column_names), (
+            f"Missing columns: {expected_columns - column_names}"
+        )
 
     def test_migration_creates_pipeline_executions_indexes(self, tmp_path) -> None:
         """Test that required indexes are created on pipeline_executions."""
@@ -102,9 +102,9 @@ class TestPipelineMigration:
             "idx_pipeline_executions_status",
             "idx_pipeline_executions_resume_token",
         }
-        assert expected_indexes.issubset(
-            index_names
-        ), f"Missing indexes: {expected_indexes - index_names}"
+        assert expected_indexes.issubset(index_names), (
+            f"Missing indexes: {expected_indexes - index_names}"
+        )
 
     def test_migration_creates_step_executions_indexes(self, tmp_path) -> None:
         """Test that required indexes are created on step_executions."""
@@ -123,9 +123,9 @@ class TestPipelineMigration:
             "idx_step_executions_execution",
             "idx_step_executions_approval_token",
         }
-        assert expected_indexes.issubset(
-            index_names
-        ), f"Missing indexes: {expected_indexes - index_names}"
+        assert expected_indexes.issubset(index_names), (
+            f"Missing indexes: {expected_indexes - index_names}"
+        )
 
     def test_pipeline_executions_resume_token_unique(self, tmp_path) -> None:
         """Test that resume_token has a unique constraint."""
@@ -252,7 +252,10 @@ class TestPipelineMigration:
                    VALUES (?, ?, ?)""",
                 ("nonexistent-execution", "step1", "pending"),
             )
-        assert "FOREIGN KEY" in str(exc_info.value).upper() or "foreign key" in str(exc_info.value).lower()
+        assert (
+            "FOREIGN KEY" in str(exc_info.value).upper()
+            or "foreign key" in str(exc_info.value).lower()
+        )
 
     def test_pipeline_executions_foreign_key_to_projects(self, tmp_path) -> None:
         """Test that pipeline_executions has foreign key to projects."""
@@ -271,7 +274,10 @@ class TestPipelineMigration:
                    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
                 ("pe-1", "test-pipe", "nonexistent-project", "pending"),
             )
-        assert "FOREIGN KEY" in str(exc_info.value).upper() or "foreign key" in str(exc_info.value).lower()
+        assert (
+            "FOREIGN KEY" in str(exc_info.value).upper()
+            or "foreign key" in str(exc_info.value).lower()
+        )
 
     def test_version_reaches_80(self, tmp_path) -> None:
         """Test that database version is at least 80 after migrations."""

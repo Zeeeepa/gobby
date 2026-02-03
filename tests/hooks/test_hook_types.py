@@ -49,6 +49,7 @@ from gobby.hooks.hook_types import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestHookTypeEnum:
     """Tests for HookType enum."""
 

@@ -9,6 +9,7 @@ from gobby.mcp_proxy.tools.artifacts import create_artifacts_registry
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_artifact_manager():
     """Create a mock artifact manager."""
@@ -86,7 +87,9 @@ class TestSearchArtifacts:
 class TestGetArtifact:
     """Tests for get_artifact tool."""
 
-    def test_nonexistent_artifact_returns_error(self, artifacts_registry, mock_artifact_manager) -> None:
+    def test_nonexistent_artifact_returns_error(
+        self, artifacts_registry, mock_artifact_manager
+    ) -> None:
         """Test that non-existent artifact returns error."""
         mock_artifact_manager.get_artifact.return_value = None
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="nonexistent-id")
@@ -94,7 +97,9 @@ class TestGetArtifact:
         assert "not found" in result["error"]
         assert result["artifact"] is None
 
-    def test_existing_artifact_returns_data(self, artifacts_registry, mock_artifact_manager) -> None:
+    def test_existing_artifact_returns_data(
+        self, artifacts_registry, mock_artifact_manager
+    ) -> None:
         """Test that existing artifact is returned."""
         mock_artifact = MagicMock()
         mock_artifact.to_dict.return_value = {"id": "art-123", "content": "test"}
@@ -104,7 +109,9 @@ class TestGetArtifact:
         assert result["success"] is True
         assert result["artifact"]["id"] == "art-123"
 
-    def test_get_artifact_exception_handling(self, artifacts_registry, mock_artifact_manager) -> None:
+    def test_get_artifact_exception_handling(
+        self, artifacts_registry, mock_artifact_manager
+    ) -> None:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.get_artifact.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="test-id")
@@ -128,7 +135,9 @@ class TestGetTimeline:
         assert result["success"] is False
         assert "session_id is required" in result["error"]
 
-    def test_valid_session_returns_timeline(self, artifacts_registry, mock_artifact_manager) -> None:
+    def test_valid_session_returns_timeline(
+        self, artifacts_registry, mock_artifact_manager
+    ) -> None:
         """Test that valid session_id returns timeline."""
         mock_artifact = MagicMock()
         mock_artifact.to_dict.return_value = {"id": "art-1", "created_at": "2024-01-01"}

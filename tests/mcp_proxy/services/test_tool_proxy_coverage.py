@@ -12,6 +12,7 @@ from gobby.mcp_proxy.services.tool_proxy import ToolProxyService, safe_truncate
 
 pytestmark = pytest.mark.unit
 
+
 class TestSafeTruncate:
     """Tests for safe_truncate helper function."""
 
@@ -409,7 +410,9 @@ class TestFindToolServer:
         assert result == "gobby-tasks"
         mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
 
-    def test_find_tool_server_external_dict_tools(self, mock_mcp_manager, mock_internal_manager) -> None:
+    def test_find_tool_server_external_dict_tools(
+        self, mock_mcp_manager, mock_internal_manager
+    ) -> None:
         """Test finding tool in external server configs with dict tools."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -429,7 +432,9 @@ class TestFindToolServer:
 
         assert result == "ext-server"
 
-    def test_find_tool_server_external_object_tools(self, mock_mcp_manager, mock_internal_manager) -> None:
+    def test_find_tool_server_external_object_tools(
+        self, mock_mcp_manager, mock_internal_manager
+    ) -> None:
         """Test finding tool in external server configs with object tools."""
         mock_internal_manager.find_tool_server.return_value = None
 

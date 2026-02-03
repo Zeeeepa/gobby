@@ -6,6 +6,7 @@ from gobby.utils.status import format_status_message
 
 pytestmark = pytest.mark.unit
 
+
 class TestFormatStatusMessage:
     """Tests for format_status_message function."""
 

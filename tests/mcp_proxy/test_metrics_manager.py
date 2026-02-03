@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def metrics_manager(temp_db: "LocalDatabase") -> ToolMetricsManager:
     """Create a metrics manager with temp database."""
@@ -252,7 +253,9 @@ class TestGetTopTools:
         result = metrics_manager.get_top_tools(limit=3)
         assert len(result) == 3
 
-    def test_get_top_tools_invalid_order_falls_back(self, metrics_manager: ToolMetricsManager) -> None:
+    def test_get_top_tools_invalid_order_falls_back(
+        self, metrics_manager: ToolMetricsManager
+    ) -> None:
         """Test invalid order_by falls back to call_count."""
         metrics_manager.record_call("server1", "tool1", "proj-1", 100.0, True)
 

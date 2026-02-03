@@ -14,6 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestListReadyTasks:
     """Tests for list_ready_tasks MCP tool."""
 

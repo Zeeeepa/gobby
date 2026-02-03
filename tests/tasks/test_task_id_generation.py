@@ -12,6 +12,7 @@ from gobby.storage.tasks import LocalTaskManager, generate_task_id
 
 pytestmark = pytest.mark.unit
 
+
 class TestGenerateTaskId:
     """Test the generate_task_id function returns UUID format."""
 

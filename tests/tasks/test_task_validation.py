@@ -18,6 +18,7 @@ from gobby.tasks.validation import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestGetGitDiff:
     @patch("subprocess.run")
     def test_get_git_diff_success(self, mock_run) -> None:
@@ -893,7 +894,9 @@ class TestCwdParameter:
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.get_recent_commits")
-    def test_get_validation_context_smart_passes_cwd(self, mock_commits, mock_diff, mock_run) -> None:
+    def test_get_validation_context_smart_passes_cwd(
+        self, mock_commits, mock_diff, mock_run
+    ) -> None:
         """Test that get_validation_context_smart passes cwd to subprocess calls."""
         # Mock subprocess for Strategy 1 (uncommitted changes) - empty to trigger Strategy 2
         mock_run.return_value = MagicMock(returncode=0, stdout="")

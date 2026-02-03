@@ -763,9 +763,7 @@ class TestGitHubCollectionProviderGetSkillDetailsWithSynthesis:
 
         with (
             patch.object(provider, "_fetch_skill_list", return_value=mock_skills),
-            patch.object(
-                provider, "_fetch_skill_content", return_value="# Commit Message Skill"
-            ),
+            patch.object(provider, "_fetch_skill_content", return_value="# Commit Message Skill"),
         ):
             result = await provider.get_skill_details("commit-message")
 

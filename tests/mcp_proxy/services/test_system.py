@@ -9,6 +9,7 @@ from gobby.mcp_proxy.services.system import SystemService
 
 pytestmark = pytest.mark.unit
 
+
 class TestSystemServiceInit:
     """Tests for SystemService initialization."""
 
@@ -110,7 +111,9 @@ class TestSystemServiceGetStatus:
         status = system_service.get_status()
         assert status["healthy"] is True
 
-    def test_get_status_healthy_with_connected_servers(self, system_service, mock_mcp_manager) -> None:
+    def test_get_status_healthy_with_connected_servers(
+        self, system_service, mock_mcp_manager
+    ) -> None:
         """Test that status is healthy when all servers are connected."""
         mock_mcp_manager.get_server_health.return_value = {
             "server1": {
@@ -149,7 +152,9 @@ class TestSystemServiceGetStatus:
         status = system_service.get_status()
         assert status["healthy"] is True
 
-    def test_get_status_healthy_with_configured_servers(self, system_service, mock_mcp_manager) -> None:
+    def test_get_status_healthy_with_configured_servers(
+        self, system_service, mock_mcp_manager
+    ) -> None:
         """Test that status is healthy with servers in configured state (lazy mode)."""
         mock_mcp_manager.get_server_health.return_value = {
             "server1": {
@@ -165,7 +170,9 @@ class TestSystemServiceGetStatus:
         status = system_service.get_status()
         assert status["healthy"] is True
 
-    def test_get_status_unhealthy_with_disconnected_server(self, system_service, mock_mcp_manager) -> None:
+    def test_get_status_unhealthy_with_disconnected_server(
+        self, system_service, mock_mcp_manager
+    ) -> None:
         """Test that status is unhealthy when a server is disconnected."""
         mock_mcp_manager.get_server_health.return_value = {
             "server1": {
@@ -197,7 +204,9 @@ class TestSystemServiceGetStatus:
         status = system_service.get_status()
         assert status["healthy"] is False
 
-    def test_get_status_unhealthy_if_any_server_unhealthy(self, system_service, mock_mcp_manager) -> None:
+    def test_get_status_unhealthy_if_any_server_unhealthy(
+        self, system_service, mock_mcp_manager
+    ) -> None:
         """Test that status is unhealthy if any server is in bad state."""
         mock_mcp_manager.get_server_health.return_value = {
             "server1": {
@@ -272,7 +281,9 @@ class TestSystemServiceLazyConnectionMerge:
         assert status["mcp_servers"]["server1"]["lazy_connection"] == lazy_info
         assert status["mcp_servers"]["server1"]["state"] == "connected"
 
-    def test_lazy_only_server_creates_new_health_entry(self, system_service, mock_mcp_manager) -> None:
+    def test_lazy_only_server_creates_new_health_entry(
+        self, system_service, mock_mcp_manager
+    ) -> None:
         """Test that servers only in lazy state get new health entries."""
         mock_mcp_manager.get_server_health.return_value = {}
         lazy_info = {
@@ -470,7 +481,9 @@ class TestSystemServiceServerCounts:
         # server2 in health has state=disconnected, lazy shows is_connected=False
         assert status["connected_servers"] == 2
 
-    def test_connected_count_prefers_lazy_is_connected(self, system_service, mock_mcp_manager) -> None:
+    def test_connected_count_prefers_lazy_is_connected(
+        self, system_service, mock_mcp_manager
+    ) -> None:
         """Test that lazy is_connected=True counts even if state isn't 'connected'."""
         # This tests the OR condition in the connected counting logic
         mock_mcp_manager.get_server_health.return_value = {

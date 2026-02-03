@@ -12,6 +12,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestAlertDispatcherPriorities:
     """Tests for alert priority handling."""
 

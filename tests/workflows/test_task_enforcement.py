@@ -19,6 +19,7 @@ from gobby.workflows.git_utils import get_dirty_files
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_config():
     """Create mock config with task enforcement enabled."""

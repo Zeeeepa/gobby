@@ -8,6 +8,7 @@ from gobby.storage.sessions import Session
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_session_manager():
     with patch("gobby.cli.sessions.get_session_manager") as mock:

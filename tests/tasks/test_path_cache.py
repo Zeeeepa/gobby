@@ -12,6 +12,7 @@ from gobby.storage.tasks import LocalTaskManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def task_manager(temp_db):
     """Create a LocalTaskManager with a temporary database."""

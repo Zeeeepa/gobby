@@ -9,6 +9,7 @@ from gobby.llm.executor import ToolResult, ToolSchema
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_litellm_module():
     """Mock the litellm module."""

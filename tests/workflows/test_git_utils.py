@@ -17,6 +17,7 @@ from gobby.workflows.git_utils import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestGetGitStatus:
     """Tests for get_git_status function."""
 

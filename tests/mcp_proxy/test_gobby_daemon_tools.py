@@ -8,6 +8,7 @@ from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_mcp_manager():
     """Create a mock MCP client manager."""

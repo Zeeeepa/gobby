@@ -92,7 +92,7 @@ async def spawn_agent_impl(
         workflow: Workflow to use
         mode: Execution mode (terminal/embedded/headless)
         terminal: Terminal type for terminal mode
-        provider: AI provider (claude/gemini/codex)
+        provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
         timeout: Timeout in seconds
         max_turns: Maximum conversation turns
@@ -413,7 +413,7 @@ def create_spawn_agent_registry(
             workflow: Workflow to use
             mode: Execution mode (terminal/embedded/headless)
             terminal: Terminal type for terminal mode
-            provider: AI provider (claude/gemini/codex)
+            provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
             timeout: Timeout in seconds
             max_turns: Maximum conversation turns

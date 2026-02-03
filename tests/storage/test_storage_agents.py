@@ -10,6 +10,7 @@ from gobby.storage.sessions import LocalSessionManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def agent_manager(temp_db: LocalDatabase) -> LocalAgentRunManager:
     """Create an agent run manager with temp database."""

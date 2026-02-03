@@ -22,9 +22,7 @@ class TestCloseTerminalPIDResolution:
         mock_session_manager.get.return_value = mock_session
 
         with (
-            patch(
-                "gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id"
-            ) as mock_resolve,
+            patch("gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id") as mock_resolve,
             patch("subprocess.Popen") as mock_popen,
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.read_text", return_value="# VERSION: 3.0.0\n"),
@@ -76,9 +74,7 @@ class TestCloseTerminalPIDResolution:
         mock_session_manager.get.return_value = mock_session
 
         with (
-            patch(
-                "gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id"
-            ) as mock_resolve,
+            patch("gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id") as mock_resolve,
             patch("subprocess.Popen"),
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.read_text", return_value="# VERSION: 3.0.0\n"),
@@ -103,9 +99,7 @@ class TestCloseTerminalPIDResolution:
         mock_session_manager.get.return_value = mock_session
 
         with (
-            patch(
-                "gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id"
-            ) as mock_resolve,
+            patch("gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id") as mock_resolve,
             patch("subprocess.Popen"),
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.read_text", return_value="# VERSION: 3.0.0\n"),
@@ -126,9 +120,7 @@ class TestCloseTerminalPIDResolution:
         mock_session_manager = MagicMock()
 
         with (
-            patch(
-                "gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id"
-            ) as mock_resolve,
+            patch("gobby.mcp_proxy.tools.workflows._resolution.resolve_session_id") as mock_resolve,
             patch("subprocess.Popen"),
             patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.read_text", return_value="# VERSION: 3.0.0\n"),

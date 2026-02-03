@@ -23,6 +23,7 @@ from gobby.cli.installers.git_hooks import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestHasGobbyHook:
     """Tests for _has_gobby_hook function."""
 
@@ -525,7 +526,9 @@ class TestInstallGitHooks:
         assert result["precommit_installed"] is True
 
     @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    def test_skips_precommit_when_not_installed(self, mock_check: MagicMock, tmp_path: Path) -> None:
+    def test_skips_precommit_when_not_installed(
+        self, mock_check: MagicMock, tmp_path: Path
+    ) -> None:
         """Test that pre-commit setup is skipped when not installed."""
         mock_check.return_value = False
 
@@ -543,7 +546,9 @@ class TestInstallGitHooks:
         assert result["precommit_installed"] is False
 
     @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    def test_skips_precommit_when_config_missing(self, mock_check: MagicMock, tmp_path: Path) -> None:
+    def test_skips_precommit_when_config_missing(
+        self, mock_check: MagicMock, tmp_path: Path
+    ) -> None:
         """Test that pre-commit setup is skipped when config is missing."""
         mock_check.return_value = True
 

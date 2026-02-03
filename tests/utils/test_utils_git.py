@@ -26,6 +26,7 @@ from gobby.utils.git import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestRunGitCommand:
     """Tests for run_git_command function."""
 

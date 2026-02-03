@@ -19,6 +19,7 @@ from gobby.storage.tasks import TaskNotFoundError
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def runner() -> CliRunner:
     """Create a CLI test runner."""

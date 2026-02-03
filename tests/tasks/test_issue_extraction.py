@@ -12,6 +12,7 @@ from gobby.tasks.validation_models import IssueSeverity, IssueType
 
 pytestmark = pytest.mark.unit
 
+
 class TestParseIssuesFromResponse:
     """Tests for parsing structured issues from LLM validation response."""
 

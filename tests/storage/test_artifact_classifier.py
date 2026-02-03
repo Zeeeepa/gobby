@@ -7,6 +7,7 @@ classifier module does not exist yet.
 The classifier is used to automatically categorize session artifacts into
 types like code, file_path, error, command, structured_data, or text.
 """
+
 import pytest
 
 pytestmark = pytest.mark.unit

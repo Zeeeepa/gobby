@@ -13,6 +13,7 @@ from gobby.workflows.engine import WorkflowEngine
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_components():
     loader = MagicMock()

@@ -623,9 +623,7 @@ steps:
         pipeline_path = project_workflows / "project-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.discover_pipeline_workflows(
-            project_path=temp_workflow_dir / "project"
-        )
+        result = loader.discover_pipeline_workflows(project_path=temp_workflow_dir / "project")
 
         # Should find the project pipeline
         project_pipelines = [p for p in result if p.is_project]
@@ -659,9 +657,7 @@ steps:
         project_path = project_workflows / "deploy.yaml"
         project_path.write_text(project_yaml)
 
-        result = loader.discover_pipeline_workflows(
-            project_path=temp_workflow_dir / "project"
-        )
+        result = loader.discover_pipeline_workflows(project_path=temp_workflow_dir / "project")
 
         # Should only have one "deploy" pipeline (project shadows global)
         deploy_pipelines = [p for p in result if p.name == "deploy"]

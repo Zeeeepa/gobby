@@ -30,7 +30,9 @@ def register_reviewer(
 
     async def spawn_review_agent(
         task_id: str,
-        review_provider: Literal["claude", "gemini", "codex", "antigravity"] = "claude",
+        review_provider: Literal[
+            "claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"
+        ] = "claude",
         review_model: str | None = "claude-opus-4-5",
         terminal: str = "auto",
         mode: str = "terminal",
@@ -61,7 +63,15 @@ def register_reviewer(
         """
         # Validate mode and review_provider
         allowed_modes = {"terminal", "embedded", "headless"}
-        allowed_providers = {"claude", "gemini", "codex", "antigravity"}
+        allowed_providers = {
+            "claude",
+            "gemini",
+            "codex",
+            "antigravity",
+            "cursor",
+            "windsurf",
+            "copilot",
+        }
 
         mode_lower = mode.lower() if mode else "terminal"
         if mode_lower not in allowed_modes:
@@ -314,7 +324,7 @@ def register_reviewer(
                 },
                 "review_provider": {
                     "type": "string",
-                    "description": "LLM provider for review (claude, gemini, codex, antigravity)",
+                    "description": "LLM provider for review (claude, gemini, codex, antigravity, cursor, windsurf, copilot)",
                     "default": "claude",
                 },
                 "review_model": {
@@ -350,7 +360,10 @@ def register_reviewer(
     async def process_completed_agents(
         parent_session_id: str,
         spawn_reviews: bool = True,
-        review_provider: Literal["claude", "gemini", "codex", "antigravity"] | None = None,
+        review_provider: Literal[
+            "claude", "gemini", "codex", "antigravity", "cursor", "windsurf", "copilot"
+        ]
+        | None = None,
         review_model: str | None = None,
         terminal: str = "auto",
         mode: str = "terminal",

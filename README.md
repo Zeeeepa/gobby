@@ -19,7 +19,7 @@
 
 ---
 
-Gobby is a local-first daemon that unifies your AI coding assistants—Claude Code, Gemini CLI, and Codex—under one persistent, extensible platform. It handles the stuff these tools forget: sessions that survive restarts, context that carries across compactions, workflows that keep agents from going off the rails, and an MCP proxy that doesn't eat half your context window just loading tool definitions.
+Gobby is a local-first daemon that unifies your AI coding assistants—Claude Code, Gemini CLI, Cursor, Windsurf, Copilot, and Codex—under one persistent, extensible platform. It handles the stuff these tools forget: sessions that survive restarts, context that carries across compactions, workflows that keep agents from going off the rails, and an MCP proxy that doesn't eat half your context window just loading tool definitions.
 
 **Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows. Dogfooding isn't a buzzword here—it's the development process.
 
@@ -245,6 +245,9 @@ args = ["mcp-server"]
 | **Claude Code** | ✅ Full support | All hook types |
 | **Gemini CLI** | ✅ Full support | All hook types |
 | **Codex CLI** | ✅ Full support | Via app-server |
+| **Cursor** | ✅ Full support | Claude Code hook format |
+| **Windsurf** | ✅ Full support | Claude Code hook format |
+| **Copilot** | ✅ Full support | Claude Code hook format |
 
 ## How It Compares
 

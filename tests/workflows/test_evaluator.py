@@ -13,6 +13,7 @@ from gobby.workflows.evaluator import (
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def evaluator():
     return ConditionEvaluator()

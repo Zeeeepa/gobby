@@ -8,6 +8,7 @@ from gobby.storage.workflow_audit import WorkflowAuditManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def test_db(tmp_path):
     """Create a temporary database for testing."""

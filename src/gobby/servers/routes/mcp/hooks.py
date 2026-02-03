@@ -113,12 +113,21 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             from gobby.adapters.base import BaseAdapter
             from gobby.adapters.claude_code import ClaudeCodeAdapter
             from gobby.adapters.codex_impl.adapter import CodexNotifyAdapter
+            from gobby.adapters.copilot import CopilotAdapter
+            from gobby.adapters.cursor import CursorAdapter
             from gobby.adapters.gemini import GeminiAdapter
+            from gobby.adapters.windsurf import WindsurfAdapter
 
             if source == "claude":
                 adapter: BaseAdapter = ClaudeCodeAdapter(hook_manager=hook_manager)
             elif source == "antigravity":
                 adapter = ClaudeCodeAdapter(hook_manager=hook_manager)  # Same format as Claude
+            elif source == "cursor":
+                adapter = CursorAdapter(hook_manager=hook_manager)
+            elif source == "windsurf":
+                adapter = WindsurfAdapter(hook_manager=hook_manager)
+            elif source == "copilot":
+                adapter = CopilotAdapter(hook_manager=hook_manager)
             elif source == "gemini":
                 adapter = GeminiAdapter(hook_manager=hook_manager)
             elif source == "codex":
@@ -126,7 +135,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported source: {source}. Supported: claude, antigravity, gemini, codex",
+                    detail=f"Unsupported source: {source}. Supported: claude, antigravity, gemini, codex, cursor, windsurf, copilot",
                 )
 
             # Execute hook via adapter

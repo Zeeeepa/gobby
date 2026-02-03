@@ -20,6 +20,7 @@ from gobby.llm.resolver import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestValidateProviderName:
     """Tests for validate_provider_name function."""
 

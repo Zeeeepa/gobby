@@ -69,9 +69,7 @@ class TestCreatePipelinesRegistry:
 
         assert "list_pipelines" in tool_names
 
-    def test_registry_name(
-        self, mock_loader, mock_executor, mock_execution_manager
-    ) -> None:
+    def test_registry_name(self, mock_loader, mock_executor, mock_execution_manager) -> None:
         """Test that registry has correct name."""
         from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
 
@@ -223,9 +221,7 @@ class TestListPipelinesTool:
 
         await registry.call("list_pipelines", {"project_path": "/my/project"})
 
-        mock_loader.discover_pipeline_workflows.assert_called_once_with(
-            project_path="/my/project"
-        )
+        mock_loader.discover_pipeline_workflows.assert_called_once_with(project_path="/my/project")
 
     @pytest.mark.asyncio
     async def test_list_pipelines_empty_result(
@@ -618,9 +614,7 @@ class TestApprovePipelineTool:
 
         from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
 
-        mock_executor.approve = AsyncMock(
-            side_effect=ValueError("Invalid or expired token")
-        )
+        mock_executor.approve = AsyncMock(side_effect=ValueError("Invalid or expired token"))
 
         registry = create_pipelines_registry(
             loader=mock_loader,
@@ -637,9 +631,7 @@ class TestApprovePipelineTool:
         assert "invalid" in result["error"].lower() or "token" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_approve_pipeline_no_executor(
-        self, mock_loader, mock_execution_manager
-    ) -> None:
+    async def test_approve_pipeline_no_executor(self, mock_loader, mock_execution_manager) -> None:
         """Test that approve_pipeline returns error when no executor configured."""
         from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
 
@@ -758,9 +750,7 @@ class TestRejectPipelineTool:
 
         from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
 
-        mock_executor.reject = AsyncMock(
-            side_effect=ValueError("Invalid or expired token")
-        )
+        mock_executor.reject = AsyncMock(side_effect=ValueError("Invalid or expired token"))
 
         registry = create_pipelines_registry(
             loader=mock_loader,
@@ -777,9 +767,7 @@ class TestRejectPipelineTool:
         assert "invalid" in result["error"].lower() or "token" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_reject_pipeline_no_executor(
-        self, mock_loader, mock_execution_manager
-    ) -> None:
+    async def test_reject_pipeline_no_executor(self, mock_loader, mock_execution_manager) -> None:
         """Test that reject_pipeline returns error when no executor configured."""
         from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
 

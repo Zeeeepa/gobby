@@ -18,6 +18,7 @@ from gobby.mcp_proxy.stdio import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestGetDaemonPid:
     """Tests for get_daemon_pid using psutil."""
 

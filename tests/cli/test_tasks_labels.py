@@ -17,6 +17,7 @@ from gobby.cli import cli
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def runner() -> CliRunner:
     """Create a CLI test runner."""

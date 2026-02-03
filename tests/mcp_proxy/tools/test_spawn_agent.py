@@ -19,6 +19,7 @@ from gobby.agents.isolation import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestCreateSpawnAgentRegistry:
     """Tests for create_spawn_agent_registry factory function."""
 

@@ -12,6 +12,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 class TestInstallClaude:
     """Tests for the install_claude function."""
 

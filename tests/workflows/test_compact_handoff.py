@@ -19,6 +19,7 @@ from gobby.workflows.templates import TemplateEngine
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def sample_transcript(tmp_path):
     """Create a sample Claude Code transcript file."""

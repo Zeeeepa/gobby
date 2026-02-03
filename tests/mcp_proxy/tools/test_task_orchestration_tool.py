@@ -13,6 +13,7 @@ from gobby.worktrees.git import GitOperationResult, WorktreeGitManager
 
 pytestmark = pytest.mark.unit
 
+
 @pytest.fixture
 def mock_task_manager():
     m = MagicMock(spec=LocalTaskManager)
