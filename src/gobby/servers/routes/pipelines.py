@@ -56,7 +56,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
     """
     router = APIRouter(prefix="/api/pipelines", tags=["pipelines"])
 
-    @router.post("/run")
+    @router.post("/run", response_model=None)
     async def run_pipeline(request: PipelineRunRequest) -> dict[str, Any] | JSONResponse:
         """
         Run a pipeline by name.
@@ -156,7 +156,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             ],
         }
 
-    @router.post("/approve/{token}")
+    @router.post("/approve/{token}", response_model=None)
     async def approve_execution(token: str) -> dict[str, Any] | JSONResponse:
         """
         Approve a pipeline execution waiting for approval.

@@ -254,16 +254,14 @@ args = ["mcp-server"]
 Gobby uses Python hook dispatchers that capture terminal context and communicate with the daemon. Run `gobby install` in your project to set up hooks:
 
 ```bash
-gobby install           # Auto-detect and install hooks for Claude/Gemini/Codex
+gobby install           # Auto-detect and install hooks for all CLIs
 gobby install --claude  # Install for specific CLI
 gobby install --gemini
 gobby install --codex
+gobby install --cursor
+gobby install --windsurf
+gobby install --copilot
 ```
-
-**Cursor, Windsurf, Copilot:** Hook dispatchers and templates are available in `src/gobby/install/` but auto-installation is coming soon. For now, copy the files manually:
-- Copy `src/gobby/install/cursor/` to `.cursor/`
-- Copy `src/gobby/install/windsurf/` to `.windsurf/`
-- Copy `src/gobby/install/copilot/` to `.copilot/`
 
 The dispatchers handle:
 - Terminal context capture (TTY, parent PID, session IDs)

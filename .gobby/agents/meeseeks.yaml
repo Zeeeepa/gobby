@@ -289,7 +289,7 @@ workflows:
 default_workflow: box
 
 timeout: 600.0
-max_turns: 50
+max_turns: 200
 
 sandbox:
   enabled: true
