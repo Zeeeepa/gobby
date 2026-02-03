@@ -249,38 +249,21 @@ args = ["mcp-server"]
 | **Windsurf** | ✅ Full support | Native adapter, 11 hook types |
 | **Copilot** | ✅ Full support | Native adapter, 6 hook types |
 
-### Additional CLI Configuration
+### Hook Installation
 
-**Cursor** (`.cursor/hooks.json`):
-```json
-{
-  "version": 1,
-  "hooks": {
-    "sessionStart": [{ "command": "curl -X POST http://localhost:60887/hooks/cursor -d @-" }],
-    "preToolUse": [{ "command": "curl -X POST http://localhost:60887/hooks/cursor -d @-" }]
-  }
-}
+Gobby uses Python hook dispatchers that capture terminal context and communicate with the daemon. Run `gobby install` in your project to set up hooks for all detected CLIs:
+
+```bash
+gobby install           # Auto-detect and install hooks for all CLIs
+gobby install --cli cursor    # Install for specific CLI
+gobby install --cli windsurf
+gobby install --cli copilot
 ```
 
-**Windsurf** (`.windsurf/hooks.json`):
-```json
-{
-  "hooks": {
-    "pre_user_prompt": [{ "command": "curl -X POST http://localhost:60887/hooks/windsurf -d @-" }],
-    "pre_run_command": [{ "command": "curl -X POST http://localhost:60887/hooks/windsurf -d @-" }]
-  }
-}
-```
-
-**Copilot CLI** (`.copilot/hooks.json`):
-```json
-{
-  "hooks": {
-    "sessionStart": [{ "command": "curl -X POST http://localhost:60887/hooks/copilot -d @-" }],
-    "preToolUse": [{ "command": "curl -X POST http://localhost:60887/hooks/copilot -d @-" }]
-  }
-}
-```
+This creates the appropriate hooks configuration and dispatcher scripts for each CLI. The dispatchers handle:
+- Terminal context capture (TTY, parent PID, session IDs)
+- Proper JSON serialization and HTTP communication
+- Exit code handling for blocking actions
 
 All CLIs can also connect via MCP for tool access (see configuration examples above).
 
