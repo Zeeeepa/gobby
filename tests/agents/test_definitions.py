@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
+from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader, WorkflowSpec
 from gobby.agents.sandbox import SandboxConfig
 
 pytestmark = pytest.mark.unit
@@ -459,3 +459,167 @@ class TestSandboxedAgentDefinition:
             pytest.skip("sandboxed agent definition not installed")
 
         assert agent.mode == "headless"
+
+
+class TestWorkflowSpec:
+    """Tests for WorkflowSpec model."""
+
+    def test_file_reference(self) -> None:
+        """Test WorkflowSpec with file reference."""
+        spec = WorkflowSpec(file="my-workflow.yaml")
+        assert spec.is_file_reference() is True
+        assert spec.is_inline() is False
+
+    def test_inline_definition(self) -> None:
+        """Test WorkflowSpec with inline definition."""
+        spec = WorkflowSpec(
+            type="step",
+            steps=[{"name": "work", "description": "Do work"}],
+            variables={"foo": "bar"},
+        )
+        assert spec.is_file_reference() is False
+        assert spec.is_inline() is True
+
+    def test_inline_with_type_only(self) -> None:
+        """Test WorkflowSpec detects inline when type is set."""
+        spec = WorkflowSpec(type="step")
+        assert spec.is_inline() is True
+
+    def test_empty_spec_is_neither(self) -> None:
+        """Test empty WorkflowSpec is neither file nor inline."""
+        spec = WorkflowSpec()
+        assert spec.is_file_reference() is False
+        assert spec.is_inline() is False
+
+
+class TestAgentDefinitionWithWorkflows:
+    """Tests for AgentDefinition with named workflows."""
+
+    def test_workflows_map_basic(self) -> None:
+        """Test AgentDefinition with workflows map."""
+        data: dict[str, Any] = {
+            "name": "multi-workflow-agent",
+            "workflows": {
+                "box": WorkflowSpec(file="box-workflow.yaml"),
+                "worker": WorkflowSpec(type="step", steps=[]),
+            },
+            "default_workflow": "box",
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.workflows is not None
+        assert len(agent.workflows) == 2
+        assert "box" in agent.workflows
+        assert "worker" in agent.workflows
+        assert agent.default_workflow == "box"
+
+    def test_get_workflow_spec_by_name(self) -> None:
+        """Test get_workflow_spec returns correct spec."""
+        agent = AgentDefinition(
+            name="test",
+            workflows={
+                "main": WorkflowSpec(file="main.yaml"),
+                "alt": WorkflowSpec(type="step"),
+            },
+            default_workflow="main",
+        )
+
+        spec = agent.get_workflow_spec("main")
+        assert spec is not None
+        assert spec.file == "main.yaml"
+
+        spec = agent.get_workflow_spec("alt")
+        assert spec is not None
+        assert spec.type == "step"
+
+    def test_get_workflow_spec_default(self) -> None:
+        """Test get_workflow_spec returns default when no name given."""
+        agent = AgentDefinition(
+            name="test",
+            workflows={
+                "main": WorkflowSpec(file="main.yaml"),
+                "alt": WorkflowSpec(type="step"),
+            },
+            default_workflow="main",
+        )
+
+        spec = agent.get_workflow_spec()
+        assert spec is not None
+        assert spec.file == "main.yaml"
+
+    def test_get_effective_workflow_file_reference(self) -> None:
+        """Test get_effective_workflow for file reference."""
+        agent = AgentDefinition(
+            name="meeseeks",
+            workflows={
+                "box": WorkflowSpec(file="meeseeks-box.yaml"),
+            },
+            default_workflow="box",
+        )
+
+        # Should return filename without .yaml
+        result = agent.get_effective_workflow("box")
+        assert result == "meeseeks-box"
+
+    def test_get_effective_workflow_inline(self) -> None:
+        """Test get_effective_workflow for inline workflow."""
+        agent = AgentDefinition(
+            name="meeseeks",
+            workflows={
+                "worker": WorkflowSpec(type="step", steps=[]),
+            },
+            default_workflow="worker",
+        )
+
+        # Should return qualified name
+        result = agent.get_effective_workflow("worker")
+        assert result == "meeseeks:worker"
+
+    def test_get_effective_workflow_default(self) -> None:
+        """Test get_effective_workflow uses default when no param."""
+        agent = AgentDefinition(
+            name="meeseeks",
+            workflows={
+                "box": WorkflowSpec(file="meeseeks-box.yaml"),
+            },
+            default_workflow="box",
+        )
+
+        result = agent.get_effective_workflow()
+        assert result == "meeseeks-box"
+
+    def test_get_effective_workflow_external(self) -> None:
+        """Test get_effective_workflow passes through external names."""
+        agent = AgentDefinition(
+            name="meeseeks",
+            workflows={
+                "box": WorkflowSpec(file="meeseeks-box.yaml"),
+            },
+            default_workflow="box",
+        )
+
+        # Workflow not in map - should return as-is
+        result = agent.get_effective_workflow("some-external-workflow")
+        assert result == "some-external-workflow"
+
+    def test_get_effective_workflow_legacy_fallback(self) -> None:
+        """Test get_effective_workflow falls back to legacy workflow field."""
+        agent = AgentDefinition(
+            name="legacy-agent",
+            workflow="old-workflow",
+        )
+
+        result = agent.get_effective_workflow()
+        assert result == "old-workflow"
+
+    def test_backwards_compatible_workflow_field(self) -> None:
+        """Test that legacy workflow field still works."""
+        data: dict[str, Any] = {
+            "name": "legacy-agent",
+            "workflow": "work-task-gemini",
+        }
+        agent = AgentDefinition(**data)
+
+        assert agent.workflow == "work-task-gemini"
+        assert agent.workflows is None
+        assert agent.get_effective_workflow() == "work-task-gemini"

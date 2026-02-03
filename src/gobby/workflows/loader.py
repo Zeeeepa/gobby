@@ -666,6 +666,60 @@ class WorkflowLoader:
         self._cache.clear()
         self._discovery_cache.clear()
 
+    def register_inline_workflow(
+        self,
+        name: str,
+        data: dict[str, Any],
+        project_path: Path | str | None = None,
+    ) -> WorkflowDefinition | PipelineDefinition:
+        """
+        Register an inline workflow definition from agent YAML.
+
+        Inline workflows are embedded in agent definitions and registered
+        at spawn time with qualified names like "agent:workflow".
+
+        Args:
+            name: Qualified workflow name (e.g., "meeseeks:worker")
+            data: Workflow definition data dict
+            project_path: Project path for cache key scoping
+
+        Returns:
+            The created WorkflowDefinition or PipelineDefinition
+
+        Raises:
+            ValueError: If the workflow definition is invalid
+        """
+        cache_key = f"{project_path or 'global'}:{name}"
+
+        # Already registered?
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, (WorkflowDefinition, PipelineDefinition)):
+                return cached
+
+        # Ensure name is set in data
+        if "name" not in data:
+            data["name"] = name
+
+        # Create definition based on type
+        try:
+            if data.get("type") == "pipeline":
+                self._validate_pipeline_references(data)
+                definition: WorkflowDefinition | PipelineDefinition = PipelineDefinition(**data)
+            else:
+                # Default to step workflow
+                if "type" not in data:
+                    data["type"] = "step"
+                definition = WorkflowDefinition(**data)
+
+            self._cache[cache_key] = definition
+            logger.debug(f"Registered inline workflow '{name}' (type={definition.type})")
+            return definition
+
+        except Exception as e:
+            logger.error(f"Failed to register inline workflow '{name}': {e}")
+            raise ValueError(f"Invalid inline workflow '{name}': {e}") from e
+
     def validate_workflow_for_agent(
         self,
         workflow_name: str,

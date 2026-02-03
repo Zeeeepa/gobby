@@ -122,9 +122,13 @@ async def spawn_agent_impl(
         effective_mode = cast(Literal["terminal", "embedded", "headless"], agent_def.mode)
     effective_mode = effective_mode or "terminal"
 
-    effective_workflow = workflow
-    if effective_workflow is None and agent_def:
-        effective_workflow = agent_def.workflow
+    # Resolve workflow using agent_def's named workflows map
+    # Resolution order: explicit param > agent's workflows map > legacy workflow field
+    effective_workflow: str | None = None
+    if agent_def:
+        effective_workflow = agent_def.get_effective_workflow(workflow)
+    elif workflow:
+        effective_workflow = workflow
 
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_def:
@@ -436,16 +440,43 @@ def create_spawn_agent_registry(
         if agent_def is None and agent != "generic":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
-        # Determine effective workflow (param overrides agent_def)
-        effective_workflow = workflow
-        if effective_workflow is None and agent_def:
-            effective_workflow = agent_def.workflow
+        # Determine effective workflow using agent's named workflows map
+        # Resolution: explicit param > agent's workflows map > legacy workflow field
+        effective_workflow: str | None = None
+        inline_workflow_spec = None
 
-        # Validate workflow exists if specified
-        if effective_workflow:
-            # Get project_path for workflow lookup
-            ctx = get_project_context(Path(project_path) if project_path else None)
-            wf_project_path = ctx.get("project_path") if ctx else None
+        if agent_def:
+            effective_workflow = agent_def.get_effective_workflow(workflow)
+
+            # Check if this is an inline workflow that needs registration
+            if workflow and agent_def.workflows and workflow in agent_def.workflows:
+                spec = agent_def.workflows[workflow]
+                if spec.is_inline():
+                    inline_workflow_spec = spec
+            elif (
+                not workflow
+                and agent_def.default_workflow
+                and agent_def.workflows
+                and agent_def.default_workflow in agent_def.workflows
+            ):
+                spec = agent_def.workflows[agent_def.default_workflow]
+                if spec.is_inline():
+                    inline_workflow_spec = spec
+        elif workflow:
+            effective_workflow = workflow
+
+        # Get project_path for workflow lookup
+        ctx = get_project_context(Path(project_path) if project_path else None)
+        wf_project_path = ctx.get("project_path") if ctx else None
+
+        # Register inline workflow if needed
+        if inline_workflow_spec and effective_workflow:
+            wf_loader.register_inline_workflow(
+                effective_workflow, inline_workflow_spec.model_dump(), project_path=wf_project_path
+            )
+
+        # Validate workflow exists if specified (skip for inline that we just registered)
+        if effective_workflow and not inline_workflow_spec:
             loaded_workflow = wf_loader.load_workflow(
                 effective_workflow, project_path=wf_project_path
             )

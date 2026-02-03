@@ -1,0 +1,496 @@
+name: meeseeks-box
+description: |
+  Interactive orchestrator for Claude Code terminal.
+
+  This step workflow runs in Claude Code and:
+  1. Finds ready tasks using suggest_next_task()
+  2. Spawns Gemini workers in isolated git worktrees
+  3. Waits for task completion using wait_for_task()
+  4. Reviews code changes (with approval gate)
+  5. Merges approved branches, cleans up worktrees
+  6. Loops until all session_tasks are complete
+
+  Usage:
+    1. Create/claim a parent task via gobby-tasks
+    2. Activate this workflow with session_task set to the task ID(s)
+    3. Workflow spawns Gemini workers in worktrees for each ready subtask
+    4. Reviews changes, merges approved work, loops
+    5. Exits when task tree is complete
+
+version: "1.0"
+type: step
+
+variables:
+  session_task: null              # Root task ID(s) to complete
+  current_worker_id: null         # Active worker run_id
+  current_worktree_id: null       # Active worktree
+  current_branch: null            # Active branch name
+  current_task_id: null           # Task being worked
+  worker_provider: "gemini"
+  worker_terminal: "ghostty"
+  worker_timeout: 600
+  max_inactive_waits: 3
+  max_review_attempts: 3
+  review_attempt: 0
+  review_approved: false
+  review_deficiencies: []
+
+steps:
+  - name: find_work
+    description: "Find next ready task using suggest_next_task()"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Finding next task.
+          Session task: {{ variables.session_task }}
+
+          Call suggest_next_task to find available work:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-tasks",
+            tool_name="suggest_next_task",
+            arguments={"session_id": "<your_session_id>"}
+          )
+
+          If a task is returned, proceed to spawn a worker.
+          If no tasks are available, check if work is complete.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+      - Glob
+      - Grep
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: suggest_next_task
+        action: set_variable
+        variable: current_task_id
+        value: "{{ result.task_id }}"
+
+    transitions:
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+      - to: wait_for_workers
+        when: "mcp_result_is_null('gobby-tasks', 'suggest_next_task')"
+      - to: spawn_worker
+        when: "mcp_called('gobby-tasks', 'suggest_next_task')"
+
+  - name: wait_for_workers
+    description: "No ready tasks - wait for in-progress workers"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: No ready tasks found.
+
+          All tasks are either in progress or blocked. Waiting for workers to complete.
+
+          Poll for messages from child agents:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="poll_messages",
+            arguments={"session_id": "<your_session_id>"}
+          )
+
+          Then check for newly available tasks.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+      - to: find_work
+        when: "mcp_called('gobby-agents', 'poll_messages')"
+
+  - name: spawn_worker
+    description: "Spawn Gemini worker in worktree"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Spawning Gemini worker in worktree.
+
+          Task: {{ variables.current_task_id }}
+          Provider: {{ variables.worker_provider }}
+          Terminal: {{ variables.worker_terminal }}
+
+          Spawn a meeseeks worker with the 'worker' workflow:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="spawn_agent",
+            arguments={
+              "prompt": "You are a Gemini worker in an isolated git worktree.\n\nFIRST, activate your workflow by calling:\n\nmcp__gobby__call_tool(\n  server_name=\"gobby-workflows\",\n  tool_name=\"activate_workflow\",\n  arguments={\n    \"name\": \"meeseeks:worker\",\n    \"session_id\": \"<your_gobby_session_id>\",\n    \"variables\": {\"assigned_task_id\": \"{{ variables.current_task_id }}\"}\n  }\n)\n\nReplace <your_gobby_session_id> with your Gobby Session ID (shown at startup).\n\nThe workflow will guide you through: claim -> implement -> commit -> close -> report -> shutdown.\n\nDo NOT proceed without activating the workflow first.",
+              "agent": "meeseeks",
+              "workflow": "worker",
+              "task_id": "{{ variables.current_task_id }}",
+              "isolation": "worktree",
+              "provider": "{{ variables.worker_provider }}",
+              "terminal": "{{ variables.worker_terminal }}",
+              "parent_session_id": "<your_session_id>"
+            }
+          )
+
+          Track the returned run_id, worktree_id, and branch_name.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: spawn_agent
+        action: set_variable
+        variable: current_worker_id
+        value: "{{ result.run_id }}"
+      - server: gobby-agents
+        tool: spawn_agent
+        action: set_variable
+        variable: current_worktree_id
+        value: "{{ result.worktree_id }}"
+      - server: gobby-agents
+        tool: spawn_agent
+        action: set_variable
+        variable: current_branch
+        value: "{{ result.branch_name }}"
+
+    transitions:
+      - to: wait_for_worker
+        when: "mcp_called('gobby-agents', 'spawn_agent')"
+      - to: find_work
+        when: "mcp_failed('gobby-agents', 'spawn_agent')"
+
+  - name: wait_for_worker
+    description: "Wait for task completion"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Waiting for worker to complete.
+
+          Task: {{ variables.current_task_id }}
+          Worker: {{ variables.current_worker_id }}
+          Timeout: {{ variables.worker_timeout }} seconds
+
+          Wait for the task to be closed:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-tasks",
+            tool_name="wait_for_task",
+            arguments={
+              "task_id": "{{ variables.current_task_id }}",
+              "timeout": {{ variables.worker_timeout }}
+            }
+          )
+
+          The wait returns:
+          - completed: true if task reached closed/review status
+          - timed_out: true if timeout reached
+          - wait_time: how long we waited
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: handle_timeout
+        when: "mcp_result_has('gobby-tasks', 'wait_for_task', 'timed_out', true)"
+      - to: code_review
+        when: "mcp_called('gobby-tasks', 'wait_for_task')"
+
+  - name: handle_timeout
+    description: "Handle worker timeout"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Worker timed out.
+
+          The worker did not complete within the timeout period.
+
+          Poll for any messages from the child:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="poll_messages",
+            arguments={"session_id": "<your_session_id>"}
+          )
+
+          Check task status and decide whether to retry or escalate.
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__search_tools
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: find_work
+        when: "mcp_called('gobby-agents', 'poll_messages')"
+
+  - name: code_review
+    description: "Review worker's code changes"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Code review phase.
+
+          Task: {{ variables.current_task_id }}
+          Branch: {{ variables.current_branch }}
+          Worktree: {{ variables.current_worktree_id }}
+          Review attempt: {{ variables.review_attempt + 1 }} / {{ variables.max_review_attempts }}
+
+          Review the worker's changes:
+
+          1. Check the diff:
+             git diff main...{{ variables.current_branch }}
+
+          2. Review code quality, tests, security
+
+          3. If approved, set review_approved to true and proceed to merge
+          4. If deficiencies found, list them and respawn worker for fixes
+
+          Use the workflow tools to set variables:
+          - For approval: set_workflow_variable("review_approved", true)
+          - For deficiencies: set_workflow_variable("review_deficiencies", ["list", "of", "issues"])
+
+    allowed_tools:
+      - Bash
+      - Read
+      - Glob
+      - Grep
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - spawn_agent
+
+    transitions:
+      - to: merge_worktree
+        when: "variables.get('review_approved', False)"
+      - to: respawn_for_fixes
+        when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) < variables.get('max_review_attempts', 3)"
+      - to: cleanup_worktree
+        when: "len(variables.get('review_deficiencies', [])) > 0 and variables.get('review_attempt', 0) >= variables.get('max_review_attempts', 3)"
+
+  - name: respawn_for_fixes
+    description: "Respawn worker to fix deficiencies"
+    on_enter:
+      - action: set_variable
+        variable: review_attempt
+        value: "{{ variables.review_attempt + 1 }}"
+      - action: set_variable
+        variable: review_approved
+        value: false
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Respawning worker for fixes.
+
+          Deficiencies found:
+          {% for d in variables.review_deficiencies %}
+          - {{ d }}
+          {% endfor %}
+
+          Respawn the worker in the SAME worktree to fix these issues:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-agents",
+            tool_name="spawn_agent",
+            arguments={
+              "prompt": "You are a Gemini worker fixing code review deficiencies.\n\nWorktree: {{ variables.current_worktree_id }}\nTask: {{ variables.current_task_id }}\n\nDeficiencies to fix:\n{% for d in variables.review_deficiencies %}- {{ d }}\n{% endfor %}\n\nActivate workflow, fix the issues, commit, close task, and report.",
+              "agent": "meeseeks",
+              "workflow": "worker",
+              "task_id": "{{ variables.current_task_id }}",
+              "worktree_id": "{{ variables.current_worktree_id }}",
+              "provider": "{{ variables.worker_provider }}",
+              "terminal": "{{ variables.worker_terminal }}",
+              "parent_session_id": "<your_session_id>"
+            }
+          )
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    on_mcp_success:
+      - server: gobby-agents
+        tool: spawn_agent
+        action: set_variable
+        variable: review_deficiencies
+        value: []
+
+    transitions:
+      - to: wait_for_worker
+        when: "mcp_called('gobby-agents', 'spawn_agent')"
+
+  - name: merge_worktree
+    description: "Merge approved branch into dev"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Merging approved changes.
+
+          Branch: {{ variables.current_branch }}
+          Worktree: {{ variables.current_worktree_id }}
+
+          Merge the branch into dev:
+
+          1. Switch to main repo: cd /path/to/repo
+          2. Merge: git merge --squash {{ variables.current_branch }} -m "[{{ variables.current_task_id }}] Merge from worktree"
+          3. Or use worktree merge tool if available
+
+    allowed_tools:
+      - Bash
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+
+    transitions:
+      - to: cleanup_worktree
+        when: "true"
+
+  - name: cleanup_worktree
+    description: "Delete worktree and reset state"
+    on_enter:
+      - action: set_variable
+        variable: review_attempt
+        value: 0
+      - action: set_variable
+        variable: review_approved
+        value: false
+      - action: set_variable
+        variable: review_deficiencies
+        value: []
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Cleaning up worktree.
+
+          Worktree: {{ variables.current_worktree_id }}
+
+          Delete the worktree:
+
+          mcp__gobby__call_tool(
+            server_name="gobby-worktrees",
+            tool_name="delete_worktree",
+            arguments={"worktree_id": "{{ variables.current_worktree_id }}"}
+          )
+
+          Or use git directly:
+          git worktree remove <path>
+          git branch -D {{ variables.current_branch }}
+
+    allowed_tools:
+      - Bash
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+
+    on_mcp_success:
+      - server: gobby-worktrees
+        tool: delete_worktree
+        action: set_variable
+        variable: current_worktree_id
+        value: null
+      - server: gobby-worktrees
+        tool: delete_worktree
+        action: set_variable
+        variable: current_branch
+        value: null
+
+    transitions:
+      - to: find_work
+        when: "true"
+
+  - name: complete
+    description: "All tasks done"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: All work complete!
+
+          Session task {{ variables.session_task }} and all subtasks are closed.
+
+          The meeseeks-box workflow will now exit.
+          You may stop the session or start a new task.
+
+exit_condition: "task_tree_complete(variables.session_task)"
+
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    Task orchestration incomplete. Options:
+    1. Continue working: use suggest_next_task() or wait for workers
+    2. Stop anyway: first fetch schema, then call end_workflow:
+       mcp__gobby__get_tool_schema(server_name="gobby-workflows", tool_name="end_workflow")
+       mcp__gobby__call_tool(server_name="gobby-workflows", tool_name="end_workflow", arguments={"session_id": "<your_session_id>"})
