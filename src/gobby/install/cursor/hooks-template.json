@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=sessionStart"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=sessionEnd"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=beforeSubmitPrompt"
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": { "tool_name": ".*" },
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=preToolUse"
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": { "tool_name": ".*" },
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=postToolUse"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=beforeShellExecution"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=afterShellExecution"
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=beforeMCPExecution"
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=afterMCPExecution"
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=beforeReadFile"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=afterFileEdit"
+      }
+    ],
+    "preCompact": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=preCompact"
+      }
+    ],
+    "stop": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=stop"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=subagentStart"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "uv run python \"$PROJECT_PATH/.cursor/hooks/hook_dispatcher.py\" --type=subagentStop"
+      }
+    ]
+  }
+}
