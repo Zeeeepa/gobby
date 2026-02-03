@@ -148,26 +148,28 @@ class TestGetMachineId:
         assert isinstance(machine_id, str)
         assert len(machine_id) > 0
 
-    @patch("gobby.adapters.codex_impl.adapter.platform.node")
-    def test_uses_hostname(self, mock_node) -> None:
-        """Uses hostname for stable ID when available."""
-        mock_node.return_value = "test-hostname"
+    @patch("gobby.utils.machine_id.get_machine_id")
+    def test_returns_stable_id(self, mock_get_machine_id) -> None:
+        """Returns stable ID from utils.machine_id."""
+        mock_get_machine_id.return_value = "test-machine-id-12345"
 
         id1 = _get_daemon_machine_id()
         id2 = _get_daemon_machine_id()
 
-        # Same hostname should produce same ID
+        # Same machine should produce same ID
         assert id1 == id2
+        assert id1 == "test-machine-id-12345"
 
-    @patch("gobby.adapters.codex_impl.adapter.platform.node")
-    def test_fallback_when_no_hostname(self, mock_node) -> None:
-        """Falls back to random UUID when hostname unavailable."""
-        mock_node.return_value = ""
+    @patch("gobby.utils.machine_id.get_machine_id")
+    def test_fallback_when_no_hostname(self, mock_get_machine_id) -> None:
+        """Returns valid ID from utils.machine_id (may be UUID or machineid format)."""
+        # machineid returns 32-char hex, uuid4 returns 36-char UUID
+        mock_get_machine_id.return_value = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
 
         machine_id = _get_daemon_machine_id()
         assert isinstance(machine_id, str)
-        # UUID format
-        assert len(machine_id) == 36
+        # Accept both machineid format (32 chars) and UUID format (36 chars)
+        assert len(machine_id) >= 32
 
 
 # =============================================================================
