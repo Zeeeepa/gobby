@@ -1,5 +1,19 @@
 # Implementation Plan: Cursor, Windsurf, Copilot CLI Adapters
 
+## Status: COMPLETE ✓
+
+All three adapters have been implemented and tested:
+
+| Adapter | Status | Commit | Tests |
+|---------|--------|--------|-------|
+| CursorAdapter | **Done** | `6a532deb` | 27 tests |
+| WindsurfAdapter | **Done** | `e1ce395a` | ~15 tests |
+| CopilotAdapter | **Done** | `e1ce395a` | ~15 tests |
+
+**Note:** The initial CursorAdapter implementation (commit `e1ce395a`) was incorrectly based on NDJSON streaming research. This was corrected in commit `6a532deb` to use Cursor's actual hooks system, which is very similar to Claude Code.
+
+---
+
 ## Summary
 
 Add 3 new CLI adapters to Gobby following the existing adapter pattern. All events map to existing `HookEventType` values - no new event types needed.
