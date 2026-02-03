@@ -315,6 +315,9 @@ class GobbyRunner:
             # Register agent event callback for WebSocket broadcasting
             self._setup_agent_event_broadcasting()
 
+            # Register pipeline event callback for WebSocket broadcasting
+            self._setup_pipeline_event_broadcasting()
+
     def _init_database(self) -> DatabaseProtocol:
         """Initialize hub database."""
         hub_db_path = Path(self.config.database_path).expanduser()
@@ -403,6 +406,28 @@ class GobbyRunner:
 
         registry.add_event_callback(broadcast_agent_event)
         logger.debug("Agent event broadcasting and PTY reading enabled")
+
+    def _setup_pipeline_event_broadcasting(self) -> None:
+        """Set up WebSocket broadcasting for pipeline execution events."""
+        if not self.websocket_server:
+            return
+
+        if not self.pipeline_executor:
+            logger.debug("Pipeline event broadcasting skipped: no pipeline executor")
+            return
+
+        async def broadcast_pipeline_event(event: str, execution_id: str, **kwargs: Any) -> None:
+            """Broadcast pipeline events via WebSocket."""
+            if self.websocket_server:
+                await self.websocket_server.broadcast_pipeline_event(
+                    event=event,
+                    execution_id=execution_id,
+                    **kwargs,
+                )
+
+        # Set the callback on the pipeline executor
+        self.pipeline_executor.event_callback = broadcast_pipeline_event
+        logger.debug("Pipeline event broadcasting enabled")
 
     async def _metrics_cleanup_loop(self) -> None:
         """Background loop for periodic metrics cleanup (every 24 hours)."""

@@ -946,6 +946,57 @@ class WebSocketServer:
 
         await self.broadcast(message)
 
+    async def broadcast_pipeline_event(
+        self,
+        event: str,
+        execution_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Broadcast pipeline execution event to subscribed clients.
+
+        Used for real-time pipeline execution updates:
+        - pipeline_started: Execution began
+        - pipeline_completed: Execution finished successfully
+        - pipeline_failed: Execution failed with error
+        - step_started: A step began executing
+        - step_completed: A step finished successfully
+        - step_failed: A step failed with error
+        - step_output: Streaming output from a step
+        - approval_required: Step is waiting for approval
+
+        Args:
+            event: Event type
+            execution_id: Pipeline execution ID
+            **kwargs: Additional event data (step_id, output, error, etc.)
+        """
+        if not self.clients:
+            return  # No clients connected
+
+        message = {
+            "type": "pipeline_event",
+            "event": event,
+            "execution_id": execution_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+
+        message_str = json.dumps(message)
+
+        for websocket in list(self.clients.keys()):
+            try:
+                # Only send to clients subscribed to pipeline_event or *
+                subs = getattr(websocket, "subscriptions", None)
+                if subs is not None:
+                    if "pipeline_event" not in subs and "*" not in subs:
+                        continue
+
+                await websocket.send(message_str)
+            except ConnectionClosed:
+                pass
+            except Exception as e:
+                logger.warning(f"Pipeline event broadcast failed: {e}")
+
     async def broadcast_terminal_output(
         self,
         run_id: str,

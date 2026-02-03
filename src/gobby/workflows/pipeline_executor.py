@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Type alias for event callback
+PipelineEventCallback = Any  # Callable[[str, str, dict], Awaitable[None]]
+
+
 class PipelineExecutor:
     """Executor for pipeline workflows with typed data flow between steps.
 
@@ -34,6 +38,7 @@ class PipelineExecutor:
     - Building context with inputs and step outputs
     - Executing exec commands, prompts, and nested pipelines
     - Webhook notifications
+    - WebSocket event broadcasting for real-time updates
     """
 
     def __init__(
@@ -44,6 +49,7 @@ class PipelineExecutor:
         template_engine: TemplateEngine | None = None,
         webhook_notifier: Any | None = None,
         loader: Any | None = None,
+        event_callback: PipelineEventCallback | None = None,
     ):
         """Initialize the pipeline executor.
 
@@ -54,6 +60,8 @@ class PipelineExecutor:
             template_engine: Optional template engine for variable substitution
             webhook_notifier: Optional notifier for webhook callbacks
             loader: Optional workflow loader for nested pipelines
+            event_callback: Optional async callback for broadcasting events.
+                           Signature: async def callback(event: str, execution_id: str, **kwargs)
         """
         self.db = db
         self.execution_manager = execution_manager
@@ -61,6 +69,21 @@ class PipelineExecutor:
         self.template_engine = template_engine
         self.webhook_notifier = webhook_notifier
         self.loader = loader
+        self.event_callback = event_callback
+
+    async def _emit_event(self, event: str, execution_id: str, **kwargs: Any) -> None:
+        """Emit a pipeline event via the callback if configured.
+
+        Args:
+            event: Event type (pipeline_started, step_completed, etc.)
+            execution_id: Pipeline execution ID
+            **kwargs: Additional event data
+        """
+        if self.event_callback:
+            try:
+                await self.event_callback(event, execution_id, **kwargs)
+            except Exception as e:
+                logger.warning(f"Failed to emit pipeline event {event}: {e}")
 
     async def execute(
         self,
@@ -101,6 +124,15 @@ class PipelineExecutor:
         )
         if updated:
             execution = updated
+
+        # Emit pipeline_started event
+        await self._emit_event(
+            "pipeline_started",
+            execution.id,
+            pipeline_name=pipeline.name,
+            inputs=inputs,
+            step_count=len(pipeline.steps),
+        )
 
         # 3. Build execution context
         context: dict[str, Any] = {
@@ -163,12 +195,29 @@ class PipelineExecutor:
                         status=StepStatus.SKIPPED,
                     )
                     logger.info(f"Skipping step {step.id}: condition not met")
+
+                    # Emit step_skipped event
+                    await self._emit_event(
+                        "step_skipped",
+                        execution.id,
+                        step_id=step.id,
+                        step_name=getattr(step, "name", step.id),
+                        reason="condition not met",
+                    )
                     continue
 
                 # Update step status to RUNNING
                 self.execution_manager.update_step_execution(
                     step_execution_id=step_execution.id,
                     status=StepStatus.RUNNING,
+                )
+
+                # Emit step_started event
+                await self._emit_event(
+                    "step_started",
+                    execution.id,
+                    step_id=step.id,
+                    step_name=getattr(step, "name", step.id),
                 )
 
                 # Check for approval gate
@@ -187,14 +236,36 @@ class PipelineExecutor:
                     output_json=json.dumps(step_output) if step_output else None,
                 )
 
+                # Emit step_completed event
+                await self._emit_event(
+                    "step_completed",
+                    execution.id,
+                    step_id=step.id,
+                    step_name=getattr(step, "name", step.id),
+                    output=step_output,
+                )
+
             # 5. Mark execution as completed
+            outputs = self._build_outputs(pipeline, context)
             completed = self.execution_manager.update_execution_status(
                 execution_id=execution.id,
                 status=ExecutionStatus.COMPLETED,
-                outputs_json=json.dumps(self._build_outputs(pipeline, context)),
+                outputs_json=json.dumps(outputs),
             )
             if completed:
                 execution = completed
+
+            # Emit pipeline_completed event
+            await self._emit_event(
+                "pipeline_completed",
+                execution.id,
+                pipeline_name=pipeline.name,
+                outputs=outputs,
+            )
+
+        except ApprovalRequired:
+            # Don't treat approval as an error - just re-raise
+            raise
 
         except Exception as e:
             logger.error(f"Pipeline execution failed: {e}", exc_info=True)
@@ -204,6 +275,14 @@ class PipelineExecutor:
             )
             if failed:
                 execution = failed
+
+            # Emit pipeline_failed event
+            await self._emit_event(
+                "pipeline_failed",
+                execution.id,
+                pipeline_name=pipeline.name,
+                error=str(e),
+            )
             raise
 
         return execution
@@ -396,6 +475,16 @@ class PipelineExecutor:
                 )
             except Exception as e:
                 logger.warning(f"Failed to send approval webhook: {e}")
+
+        # Emit approval_required event
+        await self._emit_event(
+            "approval_required",
+            execution.id,
+            step_id=step.id,
+            step_name=getattr(step, "name", step.id),
+            message=message,
+            token=token,
+        )
 
         # Raise to pause execution
         raise ApprovalRequired(
