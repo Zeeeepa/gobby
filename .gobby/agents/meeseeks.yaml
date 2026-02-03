@@ -18,7 +18,7 @@ mode: terminal
 provider: gemini
 model: gemini-3-pro-preview
 isolation: worktree
-base_branch: dev
+# base_branch: auto-detected from caller's current branch
 
 # Named workflows - select via spawn_agent(workflow="...")
 workflows:

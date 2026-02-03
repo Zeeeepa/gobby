@@ -133,6 +133,12 @@ async def spawn_agent_impl(
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_def:
         effective_base_branch = agent_def.base_branch
+    # Auto-detect current branch if no base_branch specified
+    if effective_base_branch is None and git_manager:
+        try:
+            effective_base_branch = git_manager.get_current_branch()
+        except Exception:
+            pass  # Fall through to default
     effective_base_branch = effective_base_branch or "main"
 
     effective_branch_prefix = None
