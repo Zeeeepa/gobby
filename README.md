@@ -242,12 +242,47 @@ args = ["mcp-server"]
 
 | CLI | Hooks | Status |
 | :--- | :--- | :--- |
-| **Claude Code** | ✅ Full support | All hook types |
-| **Gemini CLI** | ✅ Full support | All hook types |
-| **Codex CLI** | ✅ Full support | Via app-server |
-| **Cursor** | ✅ Full support | Claude Code hook format |
-| **Windsurf** | ✅ Full support | Claude Code hook format |
-| **Copilot** | ✅ Full support | Claude Code hook format |
+| **Claude Code** | ✅ Full support | Native adapter, 12 hook types |
+| **Gemini CLI** | ✅ Full support | Native adapter, all hook types |
+| **Codex CLI** | ✅ Full support | Native adapter via app-server |
+| **Cursor** | ✅ Full support | Native adapter, 17 hook types |
+| **Windsurf** | ✅ Full support | Native adapter, 11 hook types |
+| **Copilot** | ✅ Full support | Native adapter, 6 hook types |
+
+### Additional CLI Configuration
+
+**Cursor** (`.cursor/hooks.json`):
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [{ "command": "curl -X POST http://localhost:60887/hooks/cursor -d @-" }],
+    "preToolUse": [{ "command": "curl -X POST http://localhost:60887/hooks/cursor -d @-" }]
+  }
+}
+```
+
+**Windsurf** (`.windsurf/hooks.json`):
+```json
+{
+  "hooks": {
+    "pre_user_prompt": [{ "command": "curl -X POST http://localhost:60887/hooks/windsurf -d @-" }],
+    "pre_run_command": [{ "command": "curl -X POST http://localhost:60887/hooks/windsurf -d @-" }]
+  }
+}
+```
+
+**Copilot CLI** (`.copilot/hooks.json`):
+```json
+{
+  "hooks": {
+    "sessionStart": [{ "command": "curl -X POST http://localhost:60887/hooks/copilot -d @-" }],
+    "preToolUse": [{ "command": "curl -X POST http://localhost:60887/hooks/copilot -d @-" }]
+  }
+}
+```
+
+All CLIs can also connect via MCP for tool access (see configuration examples above).
 
 ## How It Compares
 
