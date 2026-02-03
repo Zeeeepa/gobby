@@ -131,7 +131,7 @@ workflows:
 
         transitions:
           - to: work
-            when: "variables.get('task_claimed', False)"
+            when: "task_claimed"
 
       - name: work
         description: "Full tool access for implementation"
@@ -179,7 +179,7 @@ workflows:
 
         transitions:
           - to: report_to_parent
-            when: "variables.get('task_closed', False)"
+            when: "task_closed"
 
       - name: report_to_parent
         description: "Notify parent of completion"

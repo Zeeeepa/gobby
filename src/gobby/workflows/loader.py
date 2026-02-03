@@ -1,11 +1,14 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from .definitions import PipelineDefinition, WorkflowDefinition
+
+if TYPE_CHECKING:
+    from gobby.agents.definitions import WorkflowSpec
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +43,11 @@ class WorkflowLoader:
         Supports inheritance via 'extends' field with cycle detection.
         Auto-detects pipeline type and returns PipelineDefinition for type='pipeline'.
 
+        Qualified names (agent:workflow) are resolved by loading the inline workflow
+        from the agent definition.
+
         Args:
-            name: Workflow name (without .yaml extension)
+            name: Workflow name (without .yaml extension), or qualified name (agent:workflow)
             project_path: Optional project directory for project-specific workflows.
                          Searches: 1) {project_path}/.gobby/workflows/  2) ~/.gobby/workflows/
             _inheritance_chain: Internal parameter for cycle detection. Do not pass directly.
@@ -57,6 +63,7 @@ class WorkflowLoader:
             cycle_path = " -> ".join(_inheritance_chain + [name])
             logger.error(f"Circular workflow inheritance detected: {cycle_path}")
             raise ValueError(f"Circular workflow inheritance detected: {cycle_path}")
+
         # Build cache key including project path for project-specific caching
         cache_key = f"{project_path or 'global'}:{name}"
         if cache_key in self._cache:
@@ -64,6 +71,15 @@ class WorkflowLoader:
             if isinstance(cached, (WorkflowDefinition, PipelineDefinition)):
                 return cached
             return None
+
+        # Check for qualified name (agent:workflow) - try to load from agent definition first
+        if ":" in name:
+            agent_workflow = self._load_from_agent_definition(name, project_path)
+            if agent_workflow:
+                self._cache[cache_key] = agent_workflow
+                return agent_workflow
+            # Fall through to file-based lookup (for backwards compatibility with
+            # persisted inline workflows like meeseeks-worker.yaml)
 
         # Build search directories: project-specific first, then global
         search_dirs = list(self.global_dirs)
@@ -221,6 +237,102 @@ class WorkflowLoader:
                         if candidate.exists():
                             return candidate
         return None
+
+    def _load_from_agent_definition(
+        self,
+        qualified_name: str,
+        project_path: Path | str | None = None,
+    ) -> WorkflowDefinition | PipelineDefinition | None:
+        """
+        Load an inline workflow from an agent definition.
+
+        Qualified names like "meeseeks:worker" are parsed to extract the agent name
+        and workflow name, then the workflow is loaded from the agent's workflows map.
+
+        Args:
+            qualified_name: Qualified workflow name (e.g., "meeseeks:worker")
+            project_path: Project path for agent definition lookup
+
+        Returns:
+            WorkflowDefinition or PipelineDefinition if found, None otherwise
+        """
+        if ":" not in qualified_name:
+            return None
+
+        agent_name, workflow_name = qualified_name.split(":", 1)
+
+        # Import here to avoid circular imports
+        from gobby.agents.definitions import AgentDefinitionLoader
+
+        agent_loader = AgentDefinitionLoader()
+        agent_def = agent_loader.load(agent_name)
+
+        if not agent_def:
+            logger.debug(
+                f"Agent definition '{agent_name}' not found for workflow '{qualified_name}'"
+            )
+            return None
+
+        if not agent_def.workflows:
+            logger.debug(f"Agent '{agent_name}' has no workflows defined")
+            return None
+
+        spec = agent_def.workflows.get(workflow_name)
+        if not spec:
+            logger.debug(f"Workflow '{workflow_name}' not found in agent '{agent_name}'")
+            return None
+
+        # If it's a file reference, load from the file
+        if spec.is_file_reference():
+            file_name = spec.file or ""
+            # Remove .yaml extension if present for load_workflow call
+            workflow_file = file_name.removesuffix(".yaml")
+            logger.debug(
+                f"Loading file-referenced workflow '{workflow_file}' for '{qualified_name}'"
+            )
+            return self.load_workflow(workflow_file, project_path)
+
+        # It's an inline workflow - build definition from spec
+        if spec.is_inline():
+            return self._build_definition_from_spec(spec, qualified_name)
+
+        logger.debug(f"WorkflowSpec for '{qualified_name}' is neither file reference nor inline")
+        return None
+
+    def _build_definition_from_spec(
+        self,
+        spec: "WorkflowSpec",
+        name: str,
+    ) -> WorkflowDefinition | PipelineDefinition:
+        """
+        Build a WorkflowDefinition or PipelineDefinition from a WorkflowSpec.
+
+        Args:
+            spec: The WorkflowSpec from an agent definition
+            name: The qualified workflow name (e.g., "meeseeks:worker")
+
+        Returns:
+            WorkflowDefinition or PipelineDefinition
+        """
+        # Convert spec to dict for definition creation
+        data = spec.model_dump(exclude_none=True, exclude_unset=True)
+
+        # Ensure name is set
+        if "name" not in data or data.get("name") is None:
+            data["name"] = name
+
+        # Remove 'file' field if present (it's not part of WorkflowDefinition)
+        data.pop("file", None)
+
+        # Default to step workflow if type not specified
+        if "type" not in data:
+            data["type"] = "step"
+
+        if data.get("type") == "pipeline":
+            self._validate_pipeline_references(data)
+            return PipelineDefinition(**data)
+        else:
+            return WorkflowDefinition(**data)
 
     def _validate_pipeline_references(self, data: dict[str, Any]) -> None:
         """
@@ -679,13 +791,14 @@ class WorkflowLoader:
         project_path: Path | str | None = None,
     ) -> WorkflowDefinition | PipelineDefinition:
         """
-        Register an inline workflow definition from agent YAML.
+        Register an inline workflow definition in the cache.
 
         Inline workflows are embedded in agent definitions and registered
         at spawn time with qualified names like "agent:workflow".
 
-        The workflow is also written to disk in the project's .gobby/workflows/
-        directory so that child agents spawned in separate processes can find it.
+        Note: Inline workflows are NOT written to disk. Child agents can load
+        them directly from agent definitions via load_workflow() which handles
+        qualified names (agent:workflow) by parsing the agent YAML.
 
         Args:
             name: Qualified workflow name (e.g., "meeseeks:worker")
@@ -723,49 +836,12 @@ class WorkflowLoader:
 
             self._cache[cache_key] = definition
 
-            # Write to disk so child agents can find it
-            # Qualified names like "meeseeks:worker" become "meeseeks-worker.yaml"
-            if project_path:
-                self._write_inline_workflow_to_disk(name, data, Path(project_path))
-
             logger.debug(f"Registered inline workflow '{name}' (type={definition.type})")
             return definition
 
         except Exception as e:
             logger.error(f"Failed to register inline workflow '{name}': {e}")
             raise ValueError(f"Invalid inline workflow '{name}': {e}") from e
-
-    def _write_inline_workflow_to_disk(
-        self,
-        name: str,
-        data: dict[str, Any],
-        project_path: Path,
-    ) -> None:
-        """
-        Write an inline workflow to disk for cross-session visibility.
-
-        Args:
-            name: Qualified workflow name (e.g., "meeseeks:worker")
-            data: Workflow definition data dict
-            project_path: Project path
-        """
-        # Convert qualified name to filename: "meeseeks:worker" -> "meeseeks-worker.yaml"
-        filename = name.replace(":", "-") + ".yaml"
-        workflows_dir = project_path / ".gobby" / "workflows"
-
-        try:
-            workflows_dir.mkdir(parents=True, exist_ok=True)
-            filepath = workflows_dir / filename
-
-            # Only write if file doesn't exist or is older than current data
-            # This avoids overwriting user modifications
-            if not filepath.exists():
-                with open(filepath, "w") as f:
-                    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-                logger.debug(f"Wrote inline workflow to {filepath}")
-        except Exception as e:
-            # Non-fatal - workflow is still in cache
-            logger.warning(f"Failed to write inline workflow to disk: {e}")
 
     def validate_workflow_for_agent(
         self,
