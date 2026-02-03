@@ -127,6 +127,7 @@ class HTTPServer:
                 _session_manager=None,  # Not needed for internal registries
                 memory_manager=services.memory_manager,
                 task_manager=services.task_manager,
+                db=services.mcp_db_manager.db if services.mcp_db_manager else None,
                 sync_manager=services.task_sync_manager,
                 task_validator=services.task_validator,
                 message_manager=services.message_manager,
