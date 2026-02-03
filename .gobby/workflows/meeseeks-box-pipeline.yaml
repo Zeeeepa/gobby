@@ -27,8 +27,15 @@ inputs:
   max_review_attempts: 3       # Max times to request changes per task
   wait_timeout: 600            # 10 min per wait cycle
   max_inactive_waits: 3        # End workflow after N timeouts with no activity
+  max_iterations: 50           # Maximum recursive iterations to prevent infinite loops
+  _current_iteration: 0        # Internal counter (do not set manually)
 
 steps:
+  # Guard against infinite recursion
+  - id: check_iteration_limit
+    condition: "${{ inputs._current_iteration >= inputs.max_iterations }}"
+    exec: "echo 'ERROR: Maximum iteration limit reached ({{ inputs.max_iterations }})' && exit 1"
+
   # Find next ready task
   - id: find_work
     exec: gobby task suggest --session-task "${{ inputs.session_task }}" --json
@@ -115,7 +122,9 @@ steps:
         "session_task": "${{ inputs.session_task }}",
         "max_review_attempts": ${{ inputs.max_review_attempts }},
         "wait_timeout": ${{ inputs.wait_timeout }},
-        "max_inactive_waits": ${{ inputs.max_inactive_waits }}
+        "max_inactive_waits": ${{ inputs.max_inactive_waits }},
+        "max_iterations": ${{ inputs.max_iterations }},
+        "_current_iteration": ${{ inputs._current_iteration + 1 }}
       }
 
 outputs:

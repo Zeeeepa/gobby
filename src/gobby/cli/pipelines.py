@@ -292,12 +292,14 @@ def run_pipeline(
                     result["outputs"] = execution.outputs_json
             click.echo(json.dumps(result, indent=2))
         else:
-            click.echo(f"✓ Pipeline '{name}' completed")
+            display_name = name or pipeline.name or "pipeline"
+            click.echo(f"✓ Pipeline '{display_name}' completed")
             click.echo(f"  Execution ID: {execution.id}")
             click.echo(f"  Status: {execution.status.value}")
 
     except ApprovalRequired as e:
         # Pipeline paused for approval
+        display_name = name or (pipeline.name if pipeline else None) or "pipeline"
         if json_format:
             result = {
                 "execution_id": e.execution_id,
@@ -308,7 +310,7 @@ def run_pipeline(
             }
             click.echo(json.dumps(result, indent=2))
         else:
-            click.echo(f"⏸ Pipeline '{name}' waiting for approval")
+            click.echo(f"⏸ Pipeline '{display_name}' waiting for approval")
             click.echo(f"  Execution ID: {e.execution_id}")
             click.echo(f"  Step: {e.step_id}")
             click.echo(f"  Message: {e.message}")

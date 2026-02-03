@@ -14,21 +14,21 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def mock_loader():
+def mock_loader() -> MagicMock:
     """Create a mock workflow loader."""
     loader = MagicMock()
     return loader
 
 
 @pytest.fixture
-def mock_executor():
+def mock_executor() -> MagicMock:
     """Create a mock pipeline executor."""
     executor = MagicMock()
     return executor
 
 
 @pytest.fixture
-def mock_execution_manager():
+def mock_execution_manager() -> MagicMock:
     """Create a mock execution manager."""
     manager = MagicMock()
     return manager

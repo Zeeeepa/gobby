@@ -146,8 +146,8 @@ def _register_exposed_pipeline_tools(
 
     try:
         discovered = loader.discover_pipeline_workflows()
-    except Exception as e:
-        logger.warning(f"Failed to discover pipelines for dynamic tools: {e}")
+    except Exception:
+        logger.warning("Failed to discover pipelines for dynamic tools", exc_info=True)
         return
 
     for workflow in discovered:

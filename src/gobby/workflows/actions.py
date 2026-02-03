@@ -405,7 +405,7 @@ class ActionExecutor:
             from gobby.workflows.pipeline_state import ApprovalRequired
 
             name = kw.get("name")
-            inputs = kw.get("inputs", {})
+            inputs = kw.get("inputs") or {}
             await_completion = kw.get("await_completion", False)
 
             if not name:
@@ -424,11 +424,10 @@ class ActionExecutor:
 
             # Render template variables in inputs
             rendered_inputs = {}
+            variables = context.state.variables if context.state else {}
             for key, value in inputs.items():
                 if isinstance(value, str):
-                    rendered_inputs[key] = context.template_engine.render(
-                        value, context.state.variables
-                    )
+                    rendered_inputs[key] = context.template_engine.render(value, variables)
                 else:
                     rendered_inputs[key] = value
 
@@ -437,7 +436,7 @@ class ActionExecutor:
                 execution = await executor.pipeline_executor.execute(
                     pipeline=pipeline,
                     inputs=rendered_inputs,
-                    project_id=context.state.variables.get("project_id", ""),
+                    project_id=variables.get("project_id", ""),
                 )
 
                 return {

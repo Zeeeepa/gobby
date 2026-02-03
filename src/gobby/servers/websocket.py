@@ -767,14 +767,14 @@ class WebSocketServer:
             if len(history) > 100:
                 self._chat_history[client_id] = history[-50:]
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Chat error for client {client_id}")
             await websocket.send(
                 json.dumps(
                     {
                         "type": "chat_error",
                         "message_id": assistant_message_id,
-                        "error": str(e),
+                        "error": "An internal error occurred",
                     }
                 )
             )

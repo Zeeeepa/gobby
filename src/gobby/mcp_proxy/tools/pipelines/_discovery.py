@@ -1,6 +1,9 @@
 """Pipeline discovery tools."""
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def list_pipelines(
@@ -49,9 +52,16 @@ def list_pipelines(
             "count": len(pipelines),
         }
 
-    except Exception as e:
+    except (FileNotFoundError, ValueError) as e:
         return {
             "success": False,
             "error": str(e),
+            "pipelines": [],
+        }
+    except Exception:
+        logger.exception("Unexpected error discovering pipelines")
+        return {
+            "success": False,
+            "error": "Internal error during pipeline discovery",
             "pipelines": [],
         }

@@ -254,11 +254,11 @@ export function useChat() {
   }, [])
 
   // Send a message
-  const sendMessage = useCallback((content: string, model?: string | null) => {
+  const sendMessage = useCallback((content: string, model?: string | null): boolean => {
     console.log('sendMessage called:', content, 'model:', model)
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected, state:', wsRef.current?.readyState)
-      return
+      return false
     }
 
     const messageId = `user-${Date.now()}`
@@ -290,6 +290,7 @@ export function useChat() {
     wsRef.current.send(JSON.stringify(payload))
 
     setIsStreaming(true)
+    return true
   }, [])
 
   // Connect on mount

@@ -164,7 +164,6 @@ export function AgentSelector({ agents, selectedAgent, onSelect }: AgentSelector
 interface TerminalPanelProps {
   isOpen: boolean
   onToggle: () => void
-  runId: string | null
   agents: Array<{
     run_id: string
     provider: string

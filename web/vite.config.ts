@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    allowedHosts: ['localhost', '.ts.net', '100.97.1.54'],
+    allowedHosts: ['localhost', '.ts.net', ...(process.env.VITE_ALLOWED_HOST ? [process.env.VITE_ALLOWED_HOST] : [])],
     proxy: {
       // Proxy API requests to Gobby daemon
       '/api': {

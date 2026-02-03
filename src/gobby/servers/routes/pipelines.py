@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
     router = APIRouter(prefix="/api/pipelines", tags=["pipelines"])
 
     @router.post("/run")
-    async def run_pipeline(request: PipelineRunRequest) -> dict[str, Any]:
+    async def run_pipeline(request: PipelineRunRequest) -> dict[str, Any] | JSONResponse:
         """
         Run a pipeline by name.
 
@@ -100,8 +101,6 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
 
         except ApprovalRequired as e:
             # Return 202 Accepted for approval required
-            from fastapi.responses import JSONResponse
-
             return JSONResponse(
                 status_code=202,
                 content={
@@ -158,7 +157,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
         }
 
     @router.post("/approve/{token}")
-    async def approve_execution(token: str) -> dict[str, Any]:
+    async def approve_execution(token: str) -> dict[str, Any] | JSONResponse:
         """
         Approve a pipeline execution waiting for approval.
 
@@ -185,8 +184,6 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
 
         except ApprovalRequired as e:
             # Pipeline needs another approval
-            from fastapi.responses import JSONResponse
-
             return JSONResponse(
                 status_code=202,
                 content={

@@ -123,11 +123,25 @@ class LobsterImporter:
         Returns:
             PipelineDefinition with converted pipeline
 
+        Raises:
+            FileNotFoundError: If the pipeline file doesn't exist
+            ValueError: If the file cannot be read or parsed
+
         Example:
             importer = LobsterImporter()
             pipeline = importer.import_file("ci.lobster")
         """
         file_path = Path(path)
-        content = file_path.read_text()
-        lobster_pipeline = yaml.safe_load(content)
+        try:
+            content = file_path.read_text()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Pipeline file not found: {path}") from None
+        except UnicodeDecodeError as e:
+            raise ValueError(f"Cannot read pipeline file {path}: {e}") from e
+
+        try:
+            lobster_pipeline = yaml.safe_load(content)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML in pipeline file {path}: {e}") from e
+
         return self.convert_pipeline(lobster_pipeline)

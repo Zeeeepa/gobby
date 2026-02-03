@@ -242,7 +242,7 @@ Output ONLY the description text, no quotes, no explanation, no preamble."""
             provider = self._llm_service.get_default_provider()
             description = await provider.generate_text(prompt)
             # Clean up LLM output
-            return description.strip().strip('"').strip("'")[:150]
+            return description.strip().strip('"').strip("'")[:100]
         except Exception as e:
             logger.warning(f"Failed to synthesize description for {slug}: {e}")
             return ""

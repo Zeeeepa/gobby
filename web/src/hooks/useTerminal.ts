@@ -47,7 +47,7 @@ export function useTerminal() {
     const isSecure = window.location.protocol === 'https:'
     const wsUrl = isSecure
       ? `wss://${window.location.host}/ws`
-      : `ws://${window.location.hostname}:60888`
+      : `ws://${window.location.host}/ws`
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws

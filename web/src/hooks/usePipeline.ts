@@ -82,20 +82,28 @@ export function usePipeline() {
           if (execution) {
             const stepIndex = execution.steps.findIndex((s) => s.id === event.step_id)
             if (stepIndex >= 0) {
-              execution.steps[stepIndex] = {
+              const newSteps = [...execution.steps]
+              newSteps[stepIndex] = {
                 ...execution.steps[stepIndex],
                 name: event.step_name || execution.steps[stepIndex].name,
                 status: 'running',
                 startedAt: new Date(event.timestamp),
               }
+              execution = { ...execution, steps: newSteps }
             } else {
               // Add new step if not found
-              execution.steps.push({
-                id: event.step_id || `step-${execution.steps.length}`,
-                name: event.step_name || `Step ${execution.steps.length + 1}`,
-                status: 'running',
-                startedAt: new Date(event.timestamp),
-              })
+              execution = {
+                ...execution,
+                steps: [
+                  ...execution.steps,
+                  {
+                    id: event.step_id || `step-${execution.steps.length}`,
+                    name: event.step_name || `Step ${execution.steps.length + 1}`,
+                    status: 'running',
+                    startedAt: new Date(event.timestamp),
+                  },
+                ],
+              }
             }
           }
           break
@@ -104,12 +112,14 @@ export function usePipeline() {
           if (execution) {
             const stepIndex = execution.steps.findIndex((s) => s.id === event.step_id)
             if (stepIndex >= 0) {
-              execution.steps[stepIndex] = {
+              const newSteps = [...execution.steps]
+              newSteps[stepIndex] = {
                 ...execution.steps[stepIndex],
                 status: 'completed',
                 output: event.output,
                 completedAt: new Date(event.timestamp),
               }
+              execution = { ...execution, steps: newSteps }
             }
           }
           break
@@ -118,11 +128,13 @@ export function usePipeline() {
           if (execution) {
             const stepIndex = execution.steps.findIndex((s) => s.id === event.step_id)
             if (stepIndex >= 0) {
-              execution.steps[stepIndex] = {
+              const newSteps = [...execution.steps]
+              newSteps[stepIndex] = {
                 ...execution.steps[stepIndex],
                 status: 'skipped',
                 completedAt: new Date(event.timestamp),
               }
+              execution = { ...execution, steps: newSteps }
             }
           }
           break
@@ -131,47 +143,61 @@ export function usePipeline() {
           if (execution) {
             const stepIndex = execution.steps.findIndex((s) => s.id === event.step_id)
             if (stepIndex >= 0) {
-              execution.steps[stepIndex] = {
+              const newSteps = [...execution.steps]
+              newSteps[stepIndex] = {
                 ...execution.steps[stepIndex],
                 status: 'failed',
                 error: event.error,
                 completedAt: new Date(event.timestamp),
               }
+              execution = { ...execution, steps: newSteps }
             }
           }
           break
 
         case 'approval_required':
           if (execution) {
-            execution.status = 'waiting_approval'
-            execution.approvalRequired = {
-              stepId: event.step_id || '',
-              message: event.message || 'Approval required',
-              token: event.token || '',
-            }
             const stepIndex = execution.steps.findIndex((s) => s.id === event.step_id)
+            let newSteps = execution.steps
             if (stepIndex >= 0) {
-              execution.steps[stepIndex] = {
+              newSteps = [...execution.steps]
+              newSteps[stepIndex] = {
                 ...execution.steps[stepIndex],
                 status: 'waiting_approval',
               }
+            }
+            execution = {
+              ...execution,
+              status: 'waiting_approval',
+              approvalRequired: {
+                stepId: event.step_id || '',
+                message: event.message || 'Approval required',
+                token: event.token || '',
+              },
+              steps: newSteps,
             }
           }
           break
 
         case 'pipeline_completed':
           if (execution) {
-            execution.status = 'completed'
-            execution.outputs = event.outputs
-            execution.completedAt = new Date(event.timestamp)
+            execution = {
+              ...execution,
+              status: 'completed',
+              outputs: event.outputs,
+              completedAt: new Date(event.timestamp),
+            }
           }
           break
 
         case 'pipeline_failed':
           if (execution) {
-            execution.status = 'failed'
-            execution.error = event.error
-            execution.completedAt = new Date(event.timestamp)
+            execution = {
+              ...execution,
+              status: 'failed',
+              error: event.error,
+              completedAt: new Date(event.timestamp),
+            }
           }
           break
       }
@@ -253,7 +279,7 @@ export function usePipeline() {
   // Approve a pipeline execution
   const approvePipeline = useCallback(async (token: string) => {
     try {
-      const response = await fetch(`http://localhost:60887/api/pipelines/approve`, {
+      const response = await fetch(`/api/pipelines/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
@@ -271,7 +297,7 @@ export function usePipeline() {
   // Reject a pipeline execution
   const rejectPipeline = useCallback(async (token: string) => {
     try {
-      const response = await fetch(`http://localhost:60887/api/pipelines/reject`, {
+      const response = await fetch(`/api/pipelines/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),

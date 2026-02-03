@@ -334,7 +334,7 @@ class TranscriptAnalyzer:
             args: Tool arguments dict
 
         Returns:
-            Extracted context string (truncated to 50 chars) or empty string
+            Extracted context string (truncated to 100 chars) or empty string
         """
         if not args:
             return ""

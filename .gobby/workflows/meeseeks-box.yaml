@@ -395,8 +395,9 @@ steps:
           Merge the branch into dev:
 
           1. Switch to main repo: cd /path/to/repo
-          2. Merge: git merge --squash {{ variables.current_branch }} -m "[{{ variables.current_task_id }}] Merge from worktree"
-          3. Or use worktree merge tool if available
+          2. Squash merge: git merge --squash {{ variables.current_branch }}
+          3. Commit: git commit -m "[{{ variables.current_task_id }}] Merge from worktree"
+          4. Or use worktree merge tool if available
 
     allowed_tools:
       - Bash

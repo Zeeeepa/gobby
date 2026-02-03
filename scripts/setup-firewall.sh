@@ -36,7 +36,13 @@ else
 fi
 
 # Load the rules now
-sudo pfctl -ef /etc/pf.conf 2>/dev/null || sudo pfctl -f /etc/pf.conf
+if ! sudo pfctl -ef /etc/pf.conf 2>&1; then
+    echo "pfctl -ef failed, trying without -e flag..." >&2
+    if ! sudo pfctl -f /etc/pf.conf 2>&1; then
+        echo "Error: Failed to load firewall rules" >&2
+        exit 1
+    fi
+fi
 
 echo ""
 echo "Firewall configured! Rules will persist across reboots."
