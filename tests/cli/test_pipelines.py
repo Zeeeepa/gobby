@@ -4,7 +4,7 @@ TDD tests for the pipelines CLI group.
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -189,7 +189,7 @@ class TestPipelinesShow:
             result = runner.invoke(cli, ["pipelines", "show", "deploy"])
 
             assert result.exit_code == 0
-            mock_loader.load_pipeline.assert_called_once_with("deploy")
+            mock_loader.load_pipeline.assert_called_once_with("deploy", project_path=ANY)
 
     @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
     def test_show_outputs_pipeline_details(self, runner, mock_pipeline) -> None:
@@ -287,7 +287,7 @@ class TestPipelinesRun:
             result = runner.invoke(cli, ["pipelines", "run", "deploy"])
 
             assert result.exit_code == 0
-            mock_loader.load_pipeline.assert_called_once_with("deploy")
+            mock_loader.load_pipeline.assert_called_once_with("deploy", project_path=ANY)
             mock_executor.execute.assert_called_once()
 
     @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")

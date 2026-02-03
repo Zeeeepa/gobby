@@ -26,8 +26,8 @@ class TestHubConfig:
         """Test that invalid types raise ValidationError."""
         with pytest.raises(ValidationError) as excinfo:
             HubConfig(type="invalid-type")
-        # Pydantic's error message for Literal validation failure
-        assert "Input should be 'clawdhub', 'skillhub' or 'github-collection'" in str(excinfo.value)
+        # Pydantic's error message for Literal validation failure - includes all valid types
+        assert "claude-plugins" in str(excinfo.value)
 
     def test_hub_config_optional_fields(self) -> None:
         """Test that optional fields are correctly set."""
@@ -62,9 +62,11 @@ class TestSkillsConfigHubs:
     """Tests for SkillsConfig.hubs field."""
 
     def test_hubs_empty_default(self) -> None:
-        """Test that hubs defaults to empty dict."""
+        """Test that hubs defaults to built-in hubs."""
         config = SkillsConfig()
-        assert config.hubs == {}
+        # Default now includes anthropic-skills and claude-plugins hubs
+        assert "anthropic-skills" in config.hubs
+        assert "claude-plugins" in config.hubs
         assert isinstance(config.hubs, dict)
 
     def test_hubs_single_hub(self) -> None:

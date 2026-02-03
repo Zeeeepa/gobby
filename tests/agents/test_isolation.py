@@ -300,6 +300,8 @@ class TestWorktreeIsolationHandler:
             success=True,
             worktree_path="/tmp/worktrees/my-branch",
         )
+        mock_git_manager.get_current_branch.return_value = "main"
+        mock_git_manager.has_unpushed_commits.return_value = (False, 0)
 
         mock_worktree_storage = MagicMock()
         mock_worktree_storage.get_by_branch.return_value = None  # No existing worktree

@@ -221,7 +221,7 @@ export function useChat() {
         const newCall: ToolCall = {
           id: status.tool_call_id,
           tool_name: status.tool_name || 'unknown',
-          server_name: status.server_name || 'unknown',
+          server_name: status.server_name || 'builtin',
           status: status.status,
           arguments: status.arguments,
           result: status.result,

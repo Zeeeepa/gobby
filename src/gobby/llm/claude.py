@@ -723,7 +723,7 @@ class ClaudeLLMProvider(LLMProvider):
                 parts = full_tool_name.split("__")
                 if len(parts) >= 2:
                     return parts[1]
-            return "unknown"
+            return "builtin"
 
         # Run async query
         async def _run_query() -> str:
@@ -876,11 +876,11 @@ class ClaudeLLMProvider(LLMProvider):
                 parts = full_tool_name.split("__")
                 if len(parts) >= 2:
                     return parts[1]
-            return "unknown"
+            return "builtin"
 
         tool_calls_count = 0
         pending_tool_calls: dict[str, str] = {}  # Map tool_use_id -> tool_name
-        last_event_was_tool_result = False  # Track if we need spacing before text
+        needs_spacing_before_text = False  # Track if we need spacing before text
 
         try:
             async for message in query(prompt=prompt, options=options):
@@ -897,13 +897,17 @@ class ClaudeLLMProvider(LLMProvider):
                 elif isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
-                            # Add spacing before text that follows tool results
+                            # Add spacing before text that follows tool calls/results
                             # This ensures proper paragraph separation in the UI
                             text = block.text
-                            if last_event_was_tool_result and text and not text.startswith("\n"):
-                                text = "\n\n" + text
+                            if needs_spacing_before_text and text:
+                                # Ensure we have a proper paragraph break (double newline)
+                                # even if the text starts with a single newline
+                                text = text.lstrip("\n")
+                                if text:
+                                    text = "\n\n" + text
                             yield TextChunk(content=text)
-                            last_event_was_tool_result = False
+                            needs_spacing_before_text = False
                         elif isinstance(block, ToolUseBlock):
                             tool_calls_count += 1
                             server_name = _parse_server_name(block.name)
@@ -928,7 +932,7 @@ class ClaudeLLMProvider(LLMProvider):
                                     result=block.content if not is_error else None,
                                     error=str(block.content) if is_error else None,
                                 )
-                                last_event_was_tool_result = True
+                                needs_spacing_before_text = True
 
         except ExceptionGroup as eg:
             errors = [f"{type(exc).__name__}: {exc}" for exc in eg.exceptions]
