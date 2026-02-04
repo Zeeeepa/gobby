@@ -130,6 +130,7 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
+    workflow_key: str | None = None,  # Original workflow key for mode resolution (e.g., "box")
     mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
     initial_step: str | None = None,  # For mode=self, start at specific step
     terminal: str = "auto",
@@ -201,7 +202,8 @@ async def spawn_agent_impl(
 
     effective_mode: Literal["terminal", "embedded", "headless", "self"] | None = mode
     if effective_mode is None and agent_def:
-        effective_mode = agent_def.get_effective_mode(workflow)
+        # Use workflow_key (original key like "box") for mode resolution, not resolved name
+        effective_mode = agent_def.get_effective_mode(workflow_key or workflow)
     effective_mode = effective_mode or "terminal"
 
     # Resolve workflow using agent_def's named workflows map
@@ -647,6 +649,7 @@ def create_spawn_agent_registry(
             clone_storage=clone_storage,
             clone_manager=clone_manager,
             workflow=effective_workflow,
+            workflow_key=workflow,  # Original key (e.g., "box") for mode resolution
             mode=mode,
             initial_step=initial_step,
             terminal=terminal,
