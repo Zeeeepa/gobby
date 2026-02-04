@@ -122,13 +122,25 @@ workflows:
                  - tool_name: "close_task"
                  - arguments: {"task_id": "{{ variables.assigned_task_id }}", "changes_summary": "<brief summary>"}
 
-              Do NOT push - the parent orchestrator will handle merging.
+              NOTE: You are assigned ONE task only. Do not attempt to claim or create additional tasks.
 
         allowed_tools: all
 
         blocked_tools:
           - spawn_agent
           - activate_workflow
+
+        # Block claiming/creating additional tasks - one task per worker
+        blocked_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+
+        # Block git push - parent orchestrator handles merging
+        blocked_commands:
+          - pattern: "git push"
+            reason: "Push is blocked. The parent orchestrator will handle merging and pushing after code review."
+          - pattern: "git push *"
+            reason: "Push is blocked. The parent orchestrator will handle merging and pushing after code review."
 
         on_mcp_success:
           - server: gobby-tasks
@@ -171,6 +183,11 @@ workflows:
           - NotebookEdit
           - activate_workflow
 
+        # Block claiming/creating additional tasks - one task per worker
+        blocked_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+
         on_mcp_success:
           - server: gobby-agents
             tool: send_to_parent
@@ -190,22 +207,29 @@ workflows:
             when: "mcp_called('gobby-agents', 'send_to_parent')"
 
       - name: shutdown
-        description: "Clean shutdown"
+        description: "Clean shutdown - MUST call close_terminal"
         on_enter:
           - action: inject_message
             content: |
-              WORKER: Shutdown sequence.
+              WORKER: Shutdown sequence - MANDATORY TERMINATION
 
-              Close your terminal using the close_terminal MCP tool:
+              Your task is complete. You MUST now terminate by calling close_terminal.
+              This is the ONLY action available to you. All other tools are blocked.
+
+              Call close_terminal now:
               - server_name: "gobby-workflows"
               - tool_name: "close_terminal"
               - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
 
               NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
-              Do NOT use the CLI-specific external_id.
 
-              This will terminate your terminal session cleanly.
+              WHY: Each meeseeks worker handles exactly ONE task. Your task is done.
+              The parent orchestrator will review your work and spawn new workers for
+              remaining tasks. You cannot claim additional tasks or continue working.
 
+              close_terminal is your ONLY exit path. Call it now.
+
+        # Only allow the MCP tools needed to call close_terminal
         allowed_tools:
           - mcp__gobby__call_tool
           - mcp__gobby__get_tool_schema
@@ -215,7 +239,38 @@ workflows:
           - Write
           - NotebookEdit
           - Bash
+          - Read
+          - Glob
+          - Grep
+          - Task
+          - spawn_agent
           - activate_workflow
+
+        # Block all MCP tools except close_terminal
+        blocked_mcp_tools:
+          - gobby-tasks:*
+          - gobby-agents:*
+          - gobby-worktrees:*
+
+        allowed_mcp_tools:
+          - gobby-workflows:close_terminal
+          - gobby-workflows:get_tool_schema
+
+        on_premature_stop:
+          action: block
+          message: |
+            BLOCKED: You cannot stop without calling close_terminal.
+
+            Your task is complete, but you must properly terminate your session.
+            Call close_terminal to exit:
+
+            mcp__gobby__call_tool(
+              server_name="gobby-workflows",
+              tool_name="close_terminal",
+              arguments={"session_id": "YOUR_GOBBY_SESSION_ID"}
+            )
+
+            This is the ONLY way to end this session. Do it now.
 
         transitions:
           - to: complete
