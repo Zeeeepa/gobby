@@ -509,7 +509,8 @@ def get_current_project_name() -> str | None:
 
     ctx = get_project_context()
     if ctx and ctx.get("name"):
-        return ctx["name"]
+        name: str = ctx["name"]
+        return name
     return None
 
 

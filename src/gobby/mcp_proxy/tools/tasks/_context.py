@@ -92,7 +92,8 @@ class RegistryContext:
         """Get the current project name from context, or None if not in a project."""
         ctx = get_project_context()
         if ctx and ctx.get("name"):
-            return ctx["name"]
+            name: str = ctx["name"]
+            return name
         return None
 
     def get_workflow_state(self, session_id: str | None) -> WorkflowState | None:
