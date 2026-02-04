@@ -158,6 +158,18 @@ class GeminiAdapter(BaseAdapter):
             if "mcp_tool" not in data:
                 data["mcp_tool"] = mcp_context.get("tool_name")
 
+        # 1b. Extract inner server/tool from gobby proxy calls (call_tool/mcp__gobby__call_tool)
+        # When using the gobby proxy, the actual MCP server/tool are in tool_input arguments
+        tool_name = data.get("tool_name") or data.get("function_name", "")
+        if tool_name in ("call_tool", "mcp__gobby__call_tool"):
+            tool_input = data.get("tool_input") or data.get("parameters") or data.get("args") or {}
+            if isinstance(tool_input, dict):
+                inner_server = tool_input.get("server_name")
+                inner_tool = tool_input.get("tool_name")
+                if inner_server and inner_tool:
+                    data["mcp_server"] = inner_server
+                    data["mcp_tool"] = inner_tool
+
         # 2. Normalize tool_response → tool_output
         if "tool_response" in data and "tool_output" not in data:
             data["tool_output"] = data["tool_response"]
