@@ -38,20 +38,20 @@ def import_workflow(
     """
     source = Path(source_path)
     if not source.exists():
-        return {"success": False, "error": f"File not found: {source_path}"}
+        return {"error": f"File not found: {source_path}"}
 
     if source.suffix != ".yaml":
-        return {"success": False, "error": "Workflow file must have .yaml extension"}
+        return {"error": "Workflow file must have .yaml extension"}
 
     try:
         with open(source, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not data or "name" not in data:
-            return {"success": False, "error": "Invalid workflow: missing 'name' field"}
+            return {"error": "Invalid workflow: missing 'name' field"}
 
     except yaml.YAMLError as e:
-        return {"success": False, "error": f"Invalid YAML: {e}"}
+        return {"error": f"Invalid YAML: {e}"}
 
     raw_name = workflow_name or data.get("name", source.stem)
     # Sanitize name to prevent path traversal: strip path components, allow only safe chars
@@ -74,7 +74,6 @@ def import_workflow(
         proj = Path(project_path) if project_path else None
         if not proj:
             return {
-                "success": False,
                 "error": "project_path required when not using is_global (could not auto-discover)",
             }
         dest_dir = proj / ".gobby" / "workflows"
@@ -88,7 +87,6 @@ def import_workflow(
     loader.clear_cache()
 
     return {
-        "success": True,
         "workflow_name": safe_name,
         "destination": str(dest_path),
         "is_global": is_global,

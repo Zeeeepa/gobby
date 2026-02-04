@@ -89,7 +89,6 @@ def register_orchestrator(
         valid_modes = {"terminal", "headless", "embedded"}
         if mode not in valid_modes:
             return {
-                "success": False,
                 "error": f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(valid_modes))}",
                 "spawned": [],
                 "skipped": [],
@@ -100,7 +99,6 @@ def register_orchestrator(
             resolved_parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id)
         except (TaskNotFoundError, ValueError) as e:
             return {
-                "success": False,
                 "error": f"Invalid parent_task_id: {e}",
                 "spawned": [],
                 "skipped": [],
@@ -108,7 +106,6 @@ def register_orchestrator(
 
         if agent_runner is None:
             return {
-                "success": False,
                 "error": "Agent runner not configured. Cannot orchestrate.",
                 "spawned": [],
                 "skipped": [],
@@ -116,7 +113,6 @@ def register_orchestrator(
 
         if parent_session_id is None:
             return {
-                "success": False,
                 "error": "parent_session_id is required for orchestration",
                 "spawned": [],
                 "skipped": [],
@@ -138,7 +134,6 @@ def register_orchestrator(
 
         if not resolved_project_id:
             return {
-                "success": False,
                 "error": "Could not resolve project ID",
                 "spawned": [],
                 "skipped": [],
@@ -153,7 +148,6 @@ def register_orchestrator(
 
         if not ready_tasks:
             return {
-                "success": True,
                 "message": f"No ready subtasks found under {resolved_parent_task_id}",
                 "spawned": [],
                 "skipped": [],
@@ -174,7 +168,6 @@ def register_orchestrator(
 
         if available_slots == 0:
             return {
-                "success": True,
                 "message": f"Max concurrent limit reached ({max_concurrent} agents running)",
                 "spawned": [],
                 "skipped": [
@@ -630,7 +623,6 @@ def register_orchestrator(
                 logger.warning(f"Failed to update workflow state: {e}")
 
         return {
-            "success": True,
             "parent_task_id": resolved_parent_task_id,
             "spawned": spawned,
             "skipped": skipped,

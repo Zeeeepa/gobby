@@ -75,13 +75,13 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except TaskNotFoundError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
         except ValueError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
 
         # Link commit if provided (convenience for link + close in one call)
         if commit_sha:
@@ -353,7 +353,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         try:
             ctx.task_manager.reopen_task(resolved_id, reason=reason)
@@ -374,7 +374,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
             return {}
         except ValueError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
     registry.register(
         name="reopen_task",
@@ -406,18 +406,18 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         # Get task before deleting to capture seq_num for ref
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
         ref = f"#{task.seq_num}" if task.seq_num else resolved_id[:8]
 
         try:
             deleted = ctx.task_manager.delete_task(resolved_id, cascade=cascade, unlink=unlink)
             if not deleted:
-                return {"success": False, "error": f"Task {task_id} not found"}
+                return {"error": f"Task {task_id} not found"}
         except ValueError as e:
             error_msg = str(e)
             if "dependent task(s)" in error_msg:
@@ -435,7 +435,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "message": error_msg,
                     "suggestion": f"Use cascade=True to delete task {ref} and all its subtasks.",
                 }
-            return {"success": False, "error": error_msg}
+            return {"error": error_msg}
 
         return {
             "ref": ref,
@@ -476,10 +476,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
         task = ctx.task_manager.add_label(resolved_id, label)
         if not task:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
         return {}
 
     registry.register(
@@ -504,10 +504,10 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
         task = ctx.task_manager.remove_label(resolved_id, label)
         if not task:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
         return {}
 
     registry.register(
@@ -550,13 +550,13 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except TaskNotFoundError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
         except ValueError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         resolved_session_id = session_id
@@ -581,7 +581,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             status="in_progress",
         )
         if not updated:
-            return {"success": False, "error": f"Failed to claim task {task_id}"}
+            return {"error": f"Failed to claim task {task_id}"}
 
         # Link task to session (best-effort, don't fail the claim if this fails)
         try:
@@ -649,13 +649,13 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except TaskNotFoundError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
         except ValueError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         task = ctx.task_manager.get_task(resolved_id)
         if not task:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         resolved_session_id = session_id
@@ -676,7 +676,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         # Update task status to needs_review
         updated = ctx.task_manager.update_task(resolved_id, **update_kwargs)
         if not updated:
-            return {"success": False, "error": f"Failed to mark task {task_id} for review"}
+            return {"error": f"Failed to mark task {task_id} for review"}
 
         # Link task to session (best-effort, don't fail if this fails)
         try:

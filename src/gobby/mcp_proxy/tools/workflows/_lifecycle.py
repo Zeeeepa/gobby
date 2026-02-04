@@ -57,25 +57,22 @@ def activate_workflow(
     # Load workflow
     definition = loader.load_workflow(name, proj)
     if not definition:
-        return {"success": False, "error": f"Workflow '{name}' not found"}
+        return {"error": f"Workflow '{name}' not found"}
 
     if definition.type == "lifecycle":
         return {
-            "success": False,
             "error": f"Workflow '{name}' is lifecycle type (auto-runs on events, not manually activated)",
         }
 
     # This function only supports step-based workflows (WorkflowDefinition)
     if not isinstance(definition, WorkflowDefinition):
         return {
-            "success": False,
             "error": f"'{name}' is a pipeline. Use pipeline execution tools instead.",
         }
 
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -83,7 +80,7 @@ def activate_workflow(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     # Check for existing workflow
     # Allow if:
@@ -99,7 +96,6 @@ def activate_workflow(
         if not existing_def or existing_def.type != "lifecycle":
             # It's a step workflow (or unknown) - can only have one active
             return {
-                "success": False,
                 "error": f"Session already has step workflow '{existing.workflow_name}' active. Use end_workflow first.",
             }
         # Existing is a lifecycle workflow - allow step workflow to activate alongside it
@@ -108,14 +104,12 @@ def activate_workflow(
     if initial_step:
         if not any(s.name == initial_step for s in definition.steps):
             return {
-                "success": False,
                 "error": f"Step '{initial_step}' not found. Available: {[s.name for s in definition.steps]}",
             }
         step = initial_step
     else:
         if not definition.steps:
             return {
-                "success": False,
                 "error": f"Workflow '{name}' has no steps defined. Cannot activate a workflow without steps.",
             }
         step = definition.steps[0].name
@@ -158,7 +152,6 @@ def activate_workflow(
     state_manager.save_state(state)
 
     return {
-        "success": True,
         "session_id": resolved_session_id,
         "workflow": name,
         "step": step,
@@ -195,7 +188,6 @@ def end_workflow(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -203,11 +195,11 @@ def end_workflow(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     state = state_manager.get_state(resolved_session_id)
     if not state:
-        return {"success": False, "error": "No workflow active for session"}
+        return {"error": "No workflow active for session"}
 
     # Check if this is a lifecycle workflow - those cannot be ended manually
     # Auto-discover project path if not provided
@@ -222,13 +214,12 @@ def end_workflow(
     # If definition exists and is lifecycle type, block manual ending
     if definition and definition.type == "lifecycle":
         return {
-            "success": False,
             "error": f"Workflow '{state.workflow_name}' is lifecycle type (auto-runs on events, cannot be manually ended).",
         }
 
     state_manager.delete_state(resolved_session_id)
 
-    return {"success": True, "workflow": state.workflow_name, "reason": reason}
+    return {"workflow": state.workflow_name, "reason": reason}
 
 
 def request_step_transition(
@@ -268,7 +259,6 @@ def request_step_transition(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -276,24 +266,23 @@ def request_step_transition(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     state = state_manager.get_state(resolved_session_id)
     if not state:
-        return {"success": False, "error": "No workflow active for session"}
+        return {"error": "No workflow active for session"}
 
     # Load workflow to validate step
     definition = loader.load_workflow(state.workflow_name, proj)
     if not definition:
-        return {"success": False, "error": f"Workflow '{state.workflow_name}' not found"}
+        return {"error": f"Workflow '{state.workflow_name}' not found"}
 
     # Transitions only apply to step-based workflows
     if not isinstance(definition, WorkflowDefinition):
-        return {"success": False, "error": "Transitions are not supported for pipelines"}
+        return {"error": "Transitions are not supported for pipelines"}
 
     if not any(s.name == to_step for s in definition.steps):
         return {
-            "success": False,
             "error": f"Step '{to_step}' not found. Available: {[s.name for s in definition.steps]}",
         }
 
@@ -307,7 +296,6 @@ def request_step_transition(
                 if transition.to == to_step and transition.when:
                     # This step has a conditional transition - block manual transition
                     return {
-                        "success": False,
                         "error": (
                             f"Step '{to_step}' has a conditional auto-transition "
                             f"(when: {transition.when}). Manual transitions to this step "
@@ -324,7 +312,6 @@ def request_step_transition(
     state_manager.save_state(state)
 
     return {
-        "success": True,
         "from_step": old_step,
         "to_step": to_step,
         "reason": reason,

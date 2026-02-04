@@ -127,7 +127,7 @@ def create_workflows_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None or _db is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return activate_workflow(
             _loader,
             _state_manager,
@@ -150,7 +150,7 @@ def create_workflows_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return end_workflow(
             _loader, _state_manager, _session_manager, session_id, reason, project_path
         )
@@ -161,7 +161,7 @@ def create_workflows_registry(
     )
     def _get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return get_workflow_status(_state_manager, _session_manager, session_id)
 
     @registry.tool(
@@ -176,7 +176,7 @@ def create_workflows_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return request_step_transition(
             _loader,
             _state_manager,
@@ -198,7 +198,7 @@ def create_workflows_registry(
         session_id: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return mark_artifact_complete(
             _state_manager, _session_manager, artifact_type, file_path, session_id
         )
@@ -213,7 +213,7 @@ def create_workflows_registry(
         session_id: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None or _db is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return set_variable(_state_manager, _session_manager, _db, name, value, session_id)
 
     @registry.tool(
@@ -225,7 +225,7 @@ def create_workflows_registry(
         session_id: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
-            return {"success": False, "error": "Workflow tools require database connection"}
+            return {"error": "Workflow tools require database connection"}
         return get_variable(_state_manager, _session_manager, name, session_id)
 
     @registry.tool(

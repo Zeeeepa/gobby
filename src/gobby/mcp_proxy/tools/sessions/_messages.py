@@ -106,7 +106,6 @@ def register_message_tools(
             session_total = await message_manager.count_messages(resolved_id)
 
             return {
-                "success": True,
                 "messages": messages,
                 "total_count": session_total,
                 "returned_count": len(messages),
@@ -115,7 +114,7 @@ def register_message_tools(
                 "truncated": not full_content,
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
     @registry.tool(
         name="search_messages",
@@ -157,10 +156,9 @@ def register_message_tools(
                             msg["content"] = msg["content"][:500] + "... (truncated)"
 
             return {
-                "success": True,
                 "results": results,
                 "count": len(results),
                 "truncated": not full_content,
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}

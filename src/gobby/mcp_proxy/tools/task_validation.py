@@ -595,13 +595,12 @@ def create_validation_registry(
 
         if not agent_runner:
             return {
-                "success": False,
                 "error": "Agent runner not configured - cannot spawn fix agent",
             }
 
         task = task_manager.get_task(resolved_task_id)
         if not task:
-            return {"success": False, "error": f"Task not found: {task_id}"}
+            return {"error": f"Task not found: {task_id}"}
 
         # Get issues from parameter or task validation feedback
         issues_text = ""
@@ -611,7 +610,6 @@ def create_validation_registry(
             issues_text = task.validation_feedback
         else:
             return {
-                "success": False,
                 "error": "No issues provided and no validation feedback on task",
             }
 
@@ -676,7 +674,6 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
             )
 
             return {
-                "success": True,
                 "task_id": task_id,
                 "fix_status": result.status,
                 "agent_output": result.output,
@@ -686,7 +683,6 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
         except Exception as e:
             logger.exception(f"Fix attempt failed for task {task_id}")
             return {
-                "success": False,
                 "error": f"Fix agent failed: {e!s}",
             }
 
@@ -729,7 +725,7 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
 
         task = task_manager.get_task(resolved_task_id)
         if not task:
-            return {"success": False, "error": f"Task not found: {task_id}"}
+            return {"error": f"Task not found: {task_id}"}
 
         # Check if task has children (parent tasks use child completion validation)
         children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
@@ -737,7 +733,6 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
             # For parent tasks, just run regular validation (no fix loop)
             result = await validate_task(task.id)
             return {
-                "success": True,
                 "task_id": task.id,
                 "is_parent_task": True,
                 "validation_result": result,
@@ -760,7 +755,6 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
             if validation_result.get("is_valid"):
                 # Success! Task is closed by validate_task
                 return {
-                    "success": True,
                     "task_id": task.id,
                     "is_valid": True,
                     "iterations": current_retry + 1,
@@ -831,7 +825,6 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
         )
 
         return {
-            "success": False,
             "task_id": task.id,
             "is_valid": False,
             "iterations": current_retry,

@@ -69,7 +69,7 @@ async def _handle_self_mode(
         Dict with success status and activation details
     """
     if not workflow:
-        return {"success": False, "error": "mode: self requires a workflow to activate"}
+        return {"error": "mode: self requires a workflow to activate"}
 
     # Create state_manager from db if not provided
     effective_state_manager = state_manager
@@ -80,7 +80,6 @@ async def _handle_self_mode(
 
     if not workflow_loader or not effective_state_manager or not session_manager or not db:
         return {
-            "success": False,
             "error": "mode: self requires workflow_loader, state_manager (or db), session_manager, and db",
         }
 
@@ -103,7 +102,6 @@ async def _handle_self_mode(
         return result
 
     return {
-        "success": True,
         "mode": "self",
         "workflow_activated": workflow,
         "session_id": parent_session_id,
@@ -222,15 +220,9 @@ async def spawn_agent_impl(
             logger.debug(f"mode=self overrides isolation={effective_isolation} to 'current'")
             effective_isolation = "current"
         if not effective_workflow:
-            return {
-                "success": False,
-                "error": "mode: self requires a workflow to activate",
-            }
+            return {"error": "mode: self requires a workflow to activate"}
         if not parent_session_id:
-            return {
-                "success": False,
-                "error": "mode: self requires parent_session_id (the session to activate on)",
-            }
+            return {"error": "mode: self requires parent_session_id (the session to activate on)"}
 
         # Resolve step_variables for workflow activation
         self_step_variables: dict[str, Any] | None = None
@@ -323,23 +315,23 @@ async def spawn_agent_impl(
     # 2. Resolve project context
     ctx = get_project_context(Path(project_path) if project_path else None)
     if ctx is None:
-        return {"success": False, "error": "Could not resolve project context"}
+        return {"error": "Could not resolve project context"}
 
     project_id = ctx.get("id") or ctx.get("project_id")
     resolved_project_path = ctx.get("project_path")
 
     if not project_id or not isinstance(project_id, str):
-        return {"success": False, "error": "Could not resolve project_id from context"}
+        return {"error": "Could not resolve project_id from context"}
     if not resolved_project_path or not isinstance(resolved_project_path, str):
-        return {"success": False, "error": "Could not resolve project_path from context"}
+        return {"error": "Could not resolve project_path from context"}
 
     # 3. Validate parent_session_id and spawn depth
     if parent_session_id is None:
-        return {"success": False, "error": "parent_session_id is required"}
+        return {"error": "parent_session_id is required"}
 
     can_spawn, reason, _depth = runner.can_spawn(parent_session_id)
     if not can_spawn:
-        return {"success": False, "error": reason}
+        return {"error": reason}
 
     # 4. Resolve task_id if provided (supports N, #N, UUID)
     resolved_task_id: str | None = None
@@ -385,7 +377,7 @@ async def spawn_agent_impl(
         isolation_ctx = await handler.prepare_environment(spawn_config)
     except Exception as e:
         logger.error(f"Failed to prepare environment: {e}", exc_info=True)
-        return {"success": False, "error": f"Failed to prepare environment: {e}"}
+        return {"error": f"Failed to prepare environment: {e}"}
 
     # 7b. Add main repo path to sandbox read AND write paths for worktree isolation
     # Git operations in worktrees require read/write access to the main repo's .git directory
@@ -474,8 +466,11 @@ async def spawn_agent_impl(
         )
 
     # 12. Return response with isolation metadata
+    # If spawn failed, return error response
+    if not spawn_result.success:
+        return {"error": spawn_result.error or "Failed to spawn agent"}
+
     return {
-        "success": spawn_result.success,
         "run_id": spawn_result.run_id,
         "child_session_id": spawn_result.child_session_id,
         "status": spawn_result.status,
@@ -485,7 +480,6 @@ async def spawn_agent_impl(
         "worktree_path": isolation_ctx.cwd if effective_isolation == "worktree" else None,
         "clone_id": isolation_ctx.clone_id,
         "pid": spawn_result.pid,
-        "error": spawn_result.error,
         "message": spawn_result.message,
     }
 
@@ -612,12 +606,12 @@ def create_spawn_agent_registry(
             try:
                 resolved_parent_session_id = _resolve_session_id(parent_session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
 
         # Load agent definition (defaults to "generic")
         agent_def = loader.load(agent)
         if agent_def is None and agent != "generic":
-            return {"success": False, "error": f"Agent '{agent}' not found"}
+            return {"error": f"Agent '{agent}' not found"}
 
         # Determine effective workflow using agent's named workflows map
         # Resolution: explicit param > agent's workflows map > legacy workflow field
@@ -661,7 +655,6 @@ def create_spawn_agent_registry(
             )
             if loaded_workflow is None:
                 return {
-                    "success": False,
                     "error": f"Workflow '{effective_workflow}' not found. "
                     f"Check available workflows with list_workflows().",
                 }

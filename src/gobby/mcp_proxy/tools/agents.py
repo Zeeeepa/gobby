@@ -97,13 +97,9 @@ def create_agents_registry(
         """
         run = runner.get_run(run_id)
         if not run:
-            return {
-                "success": False,
-                "error": f"Agent run {run_id} not found",
-            }
+            return {"error": f"Agent run {run_id} not found"}
 
         return {
-            "success": True,
             "run_id": run.id,
             "status": run.status,
             "result": run.result,
@@ -142,12 +138,11 @@ def create_agents_registry(
         try:
             resolved_parent_id = _resolve_session_id(parent_session_id)
         except ValueError as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         runs = runner.list_runs(resolved_parent_id, status=status, limit=limit)
 
         return {
-            "success": True,
             "runs": [
                 {
                     "id": run.id,
@@ -185,22 +180,13 @@ def create_agents_registry(
         if success:
             # Also remove from running agents registry
             agent_registry.remove(run_id)
-            return {
-                "success": True,
-                "message": f"Agent run {run_id} stopped",
-            }
+            return {"message": f"Agent run {run_id} stopped"}
         else:
             run = runner.get_run(run_id)
             if not run:
-                return {
-                    "success": False,
-                    "error": f"Agent run {run_id} not found",
-                }
+                return {"error": f"Agent run {run_id} not found"}
             else:
-                return {
-                    "success": False,
-                    "error": f"Cannot stop agent in status: {run.status}",
-                }
+                return {"error": f"Cannot stop agent in status: {run.status}"}
 
     @registry.tool(
         name="kill_agent",
@@ -240,10 +226,7 @@ def create_agents_registry(
         signal = signal.upper()
         allowed_signals = {"TERM", "KILL", "INT", "HUP", "QUIT"}
         if signal not in allowed_signals:
-            return {
-                "success": False,
-                "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}",
-            }
+            return {"error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}"}
 
         # Resolve run_id from session_id if needed (self-termination case)
         resolved_session_id: str | None = None
@@ -252,7 +235,7 @@ def create_agents_registry(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
 
             # Try registry first (fast path)
             agent = agent_registry.get_by_session(resolved_session_id)
@@ -263,10 +246,10 @@ def create_agents_registry(
                 run_id = runner.get_run_id_by_session(resolved_session_id)
 
             if not run_id:
-                return {"success": False, "error": f"No agent found for session {session_id}"}
+                return {"error": f"No agent found for session {session_id}"}
 
         if run_id is None:
-            return {"success": False, "error": "Either run_id or session_id required"}
+            return {"error": "Either run_id or session_id required"}
 
         # Get agent info before killing
         agent = agent_registry.get(run_id)
@@ -360,7 +343,7 @@ def create_agents_registry(
             try:
                 resolved_parent_id = _resolve_session_id(parent_session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
             agents = agent_registry.list_by_parent(resolved_parent_id)
         elif mode:
             agents = agent_registry.list_by_mode(mode)
@@ -368,7 +351,6 @@ def create_agents_registry(
             agents = agent_registry.list_all()
 
         return {
-            "success": True,
             "agents": [agent.to_dict() for agent in agents],
             "count": len(agents),
         }
@@ -392,15 +374,9 @@ def create_agents_registry(
         """
         agent = agent_registry.get(run_id)
         if not agent:
-            return {
-                "success": False,
-                "error": f"No running agent found with ID {run_id}",
-            }
+            return {"error": f"No running agent found with ID {run_id}"}
 
-        return {
-            "success": True,
-            "agent": agent.to_dict(),
-        }
+        return {"agent": agent.to_dict()}
 
     @registry.tool(
         name="unregister_agent",
@@ -421,15 +397,9 @@ def create_agents_registry(
         """
         removed = agent_registry.remove(run_id)
         if removed:
-            return {
-                "success": True,
-                "message": f"Unregistered agent {run_id}",
-            }
+            return {"message": f"Unregistered agent {run_id}"}
         else:
-            return {
-                "success": False,
-                "error": f"No running agent found with ID {run_id}",
-            }
+            return {"error": f"No running agent found with ID {run_id}"}
 
     @registry.tool(
         name="running_agent_stats",
@@ -451,7 +421,6 @@ def create_agents_registry(
             by_parent[agent.parent_session_id] = by_parent.get(agent.parent_session_id, 0) + 1
 
         return {
-            "success": True,
             "total": len(all_agents),
             "by_mode": by_mode,
             "by_parent_count": len(by_parent),

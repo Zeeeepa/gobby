@@ -44,12 +44,11 @@ def get_workflow(
     definition = loader.load_workflow(name, proj)
 
     if not definition:
-        return {"success": False, "error": f"Workflow '{name}' not found"}
+        return {"error": f"Workflow '{name}' not found"}
 
     # Handle WorkflowDefinition vs PipelineDefinition
     if isinstance(definition, WorkflowDefinition):
         return {
-            "success": True,
             "name": definition.name,
             "type": definition.type,
             "description": definition.description,
@@ -77,7 +76,6 @@ def get_workflow(
     else:
         # PipelineDefinition
         return {
-            "success": True,
             "name": definition.name,
             "type": definition.type,
             "description": definition.description,

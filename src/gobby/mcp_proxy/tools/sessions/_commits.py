@@ -232,7 +232,6 @@ Args:
         state_manager.save_state(state)
 
         return {
-            "success": True,
             "session_id": session.id,
             "stop_reason": "completed",
             "message": "Autonomous loop marked complete - session will not chain",

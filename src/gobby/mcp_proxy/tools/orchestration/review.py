@@ -75,15 +75,11 @@ def register_reviewer(
 
         mode_lower = mode.lower() if mode else "terminal"
         if mode_lower not in allowed_modes:
-            return {
-                "success": False,
-                "error": f"Invalid mode '{mode}'. Must be one of: {sorted(allowed_modes)}",
-            }
+            return {"error": f"Invalid mode '{mode}'. Must be one of: {sorted(allowed_modes)}"}
         mode = mode_lower  # Use normalized value
 
         if review_provider not in allowed_providers:
             return {
-                "success": False,
                 "error": f"Invalid review_provider '{review_provider}'. Must be one of: {sorted(allowed_providers)}",
             }
 
@@ -91,22 +87,13 @@ def register_reviewer(
         try:
             resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {
-                "success": False,
-                "error": f"Invalid task_id: {e}",
-            }
+            return {"error": f"Invalid task_id: {e}"}
 
         if agent_runner is None:
-            return {
-                "success": False,
-                "error": "Agent runner not configured. Cannot spawn review agent.",
-            }
+            return {"error": "Agent runner not configured. Cannot spawn review agent."}
 
         if parent_session_id is None:
-            return {
-                "success": False,
-                "error": "parent_session_id is required for spawning review agent",
-            }
+            return {"error": "parent_session_id is required for spawning review agent"}
 
         # Resolve project ID
         resolved_project_id = default_project_id
@@ -123,32 +110,20 @@ def register_reviewer(
             resolved_project_id = get_current_project_id()
 
         if not resolved_project_id:
-            return {
-                "success": False,
-                "error": "Could not resolve project ID",
-            }
+            return {"error": "Could not resolve project ID"}
 
         # Get the task
         try:
             task = task_manager.get_task(resolved_task_id)
         except ValueError as e:
-            return {
-                "success": False,
-                "error": f"Task {task_id} not found: {e}",
-            }
+            return {"error": f"Task {task_id} not found: {e}"}
         if not task:
-            return {
-                "success": False,
-                "error": f"Task {task_id} not found",
-            }
+            return {"error": f"Task {task_id} not found"}
 
         # Get worktree for the task
         worktree = worktree_storage.get_by_task(resolved_task_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"No worktree found for task {resolved_task_id}",
-            }
+            return {"error": f"No worktree found for task {resolved_task_id}"}
 
         # Build review prompt
         review_prompt = _build_review_prompt(task, worktree)
@@ -156,10 +131,7 @@ def register_reviewer(
         # Check spawn depth
         can_spawn, reason, _depth = agent_runner.can_spawn(parent_session_id)
         if not can_spawn:
-            return {
-                "success": False,
-                "error": reason,
-            }
+            return {"error": reason}
 
         # Prepare agent run
         from gobby.agents.runner import AgentConfig
@@ -189,17 +161,11 @@ def register_reviewer(
 
         prepare_result = agent_runner.prepare_run(config)
         if isinstance(prepare_result, AgentResult):
-            return {
-                "success": False,
-                "error": prepare_result.error or "Failed to prepare review agent run",
-            }
+            return {"error": prepare_result.error or "Failed to prepare review agent run"}
 
         context = prepare_result
         if context.session is None or context.run is None:
-            return {
-                "success": False,
-                "error": "Internal error: context missing session or run",
-            }
+            return {"error": "Internal error: context missing session or run"}
 
         child_session = context.session
         agent_run = context.run
@@ -224,13 +190,9 @@ def register_reviewer(
             )
 
             if not spawn_result.success:
-                return {
-                    "success": False,
-                    "error": spawn_result.error or "Terminal spawn failed",
-                }
+                return {"error": spawn_result.error or "Terminal spawn failed"}
 
             return {
-                "success": True,
                 "task_id": resolved_task_id,
                 "agent_id": agent_run.id,
                 "session_id": child_session.id,
@@ -259,13 +221,9 @@ def register_reviewer(
             )
 
             if not embedded_result.success:
-                return {
-                    "success": False,
-                    "error": embedded_result.error or "Embedded spawn failed",
-                }
+                return {"error": embedded_result.error or "Embedded spawn failed"}
 
             return {
-                "success": True,
                 "task_id": resolved_task_id,
                 "agent_id": agent_run.id,
                 "session_id": child_session.id,
@@ -292,13 +250,9 @@ def register_reviewer(
             )
 
             if not headless_result.success:
-                return {
-                    "success": False,
-                    "error": headless_result.error or "Headless spawn failed",
-                }
+                return {"error": headless_result.error or "Headless spawn failed"}
 
             return {
-                "success": True,
                 "task_id": resolved_task_id,
                 "agent_id": agent_run.id,
                 "session_id": child_session.id,
@@ -395,10 +349,7 @@ def register_reviewer(
             - escalated: List of agents escalated for manual intervention
         """
         if agent_runner is None:
-            return {
-                "success": False,
-                "error": "Agent runner not configured",
-            }
+            return {"error": "Agent runner not configured"}
 
         # Get workflow state
         from gobby.workflows.state_manager import WorkflowStateManager
@@ -407,7 +358,6 @@ def register_reviewer(
         state = state_manager.get_state(parent_session_id)
         if not state:
             return {
-                "success": True,
                 "reviews_spawned": [],
                 "ready_for_cleanup": [],
                 "retries_scheduled": [],
@@ -549,7 +499,7 @@ def register_reviewer(
                     project_path=project_path,
                 )
 
-                if review_result.get("success"):
+                if "error" not in review_result:
                     reviews_spawned.append(
                         {
                             "task_id": task_id,
@@ -655,7 +605,6 @@ def register_reviewer(
             logger.warning(f"Failed to update workflow state during processing: {e}")
 
         return {
-            "success": True,
             "reviews_spawned": reviews_spawned,
             "ready_for_cleanup": ready_for_cleanup,
             "retries_scheduled": retries_scheduled,

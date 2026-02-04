@@ -75,22 +75,16 @@ def add_messaging_tools(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
 
             # Look up session in database (authoritative source for relationships)
             session = session_manager.get(resolved_session_id)
             if not session:
-                return {
-                    "success": False,
-                    "error": f"Session {resolved_session_id} not found",
-                }
+                return {"error": f"Session {resolved_session_id} not found"}
 
             parent_session_id = session.parent_session_id
             if not parent_session_id:
-                return {
-                    "success": False,
-                    "error": "No parent session for this session",
-                }
+                return {"error": "No parent session for this session"}
 
             # Create the message
             msg = message_manager.create_message(
@@ -108,17 +102,13 @@ def add_messaging_tools(
             )
 
             return {
-                "success": True,
                 "message": msg.to_dict(),
                 "parent_session_id": parent_session_id,
             }
 
         except Exception as e:
             logger.error("Failed to send message to parent: %s", e)
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"error": str(e)}
 
     @registry.tool(
         name="send_to_child",
@@ -151,19 +141,15 @@ def add_messaging_tools(
                 resolved_parent_id = _resolve_session_id(parent_session_id)
                 resolved_child_id = _resolve_session_id(child_session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
 
             # Verify the child exists in database and belongs to this parent
             child_session = session_manager.get(resolved_child_id)
             if not child_session:
-                return {
-                    "success": False,
-                    "error": f"Child session {resolved_child_id} not found",
-                }
+                return {"error": f"Child session {resolved_child_id} not found"}
 
             if child_session.parent_session_id != resolved_parent_id:
                 return {
-                    "success": False,
                     "error": (
                         f"Session {resolved_child_id} is not a child of {resolved_parent_id}. "
                         f"Actual parent: {child_session.parent_session_id}"
@@ -185,17 +171,11 @@ def add_messaging_tools(
                 msg.id,
             )
 
-            return {
-                "success": True,
-                "message": msg.to_dict(),
-            }
+            return {"message": msg.to_dict()}
 
         except Exception as e:
             logger.error("Failed to send message to child: %s", e)
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"error": str(e)}
 
     @registry.tool(
         name="poll_messages",
@@ -223,7 +203,7 @@ def add_messaging_tools(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
 
             messages = message_manager.get_messages(
                 to_session=resolved_session_id,
@@ -231,17 +211,13 @@ def add_messaging_tools(
             )
 
             return {
-                "success": True,
                 "messages": [msg.to_dict() for msg in messages],
                 "count": len(messages),
             }
 
         except Exception as e:
             logger.error(f"Failed to poll messages: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"error": str(e)}
 
     @registry.tool(
         name="mark_message_read",
@@ -265,22 +241,13 @@ def add_messaging_tools(
         try:
             msg = message_manager.mark_read(message_id)
 
-            return {
-                "success": True,
-                "message": msg.to_dict(),
-            }
+            return {"message": msg.to_dict()}
 
         except ValueError:
-            return {
-                "success": False,
-                "error": f"Message not found: {message_id}",
-            }
+            return {"error": f"Message not found: {message_id}"}
         except Exception as e:
             logger.error(f"Failed to mark message as read: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"error": str(e)}
 
     @registry.tool(
         name="broadcast_to_children",
@@ -311,7 +278,7 @@ def add_messaging_tools(
             try:
                 resolved_parent_id = _resolve_session_id(parent_session_id)
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return {"error": str(e)}
 
             # Get all children from database
             all_children = session_manager.find_children(resolved_parent_id)
@@ -320,7 +287,6 @@ def add_messaging_tools(
 
             if not children:
                 return {
-                    "success": True,
                     "sent_count": 0,
                     "message": "No active children found",
                 }
@@ -341,7 +307,6 @@ def add_messaging_tools(
                     errors.append(f"{child.id}: {e}")
 
             result: dict[str, Any] = {
-                "success": True,
                 "sent_count": sent_count,
                 "total_children": len(children),
             }
@@ -360,7 +325,4 @@ def add_messaging_tools(
 
         except Exception as e:
             logger.error("Failed to broadcast to children: %s", e)
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"error": str(e)}

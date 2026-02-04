@@ -77,12 +77,22 @@ class GhosttySpawner(TerminalSpawnerBase):
                 # Build args for open command
                 # open -na /path/to/Ghostty.app --args [ghostty-options] -e [command]
                 # Note: 'open' doesn't pass cwd, so we must use --working-directory
+                # Note: 'open' doesn't pass env vars to the launched app, so we inject them
+                # into the shell command via export statements
                 ghostty_args = [f"--working-directory={cwd}"]
                 if title:
                     ghostty_args.append(f"--title={title}")
                 # Add any extra options from config
                 ghostty_args.extend(tty_config.options)
-                ghostty_args.extend(["-e"] + command)
+                # Inject env vars into the command since macOS 'open' doesn't pass them
+                if env:
+                    exports = " ".join(
+                        f"export {shlex.quote(k)}={shlex.quote(v)};" for k, v in env.items()
+                    )
+                    shell_cmd = f"{exports} exec {shlex.join(command)}"
+                    ghostty_args.extend(["-e", "sh", "-c", shell_cmd])
+                else:
+                    ghostty_args.extend(["-e"] + command)
 
                 # Check if Ghostty is already running
                 # If running: use -n to open a new window

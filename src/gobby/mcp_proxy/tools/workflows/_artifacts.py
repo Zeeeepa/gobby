@@ -41,7 +41,6 @@ def mark_artifact_complete(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -49,17 +48,17 @@ def mark_artifact_complete(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     state = state_manager.get_state(resolved_session_id)
     if not state:
-        return {"success": False, "error": "No workflow active for session"}
+        return {"error": "No workflow active for session"}
 
     # Update artifacts
     state.artifacts[artifact_type] = file_path
     state_manager.save_state(state)
 
-    return {"success": True}
+    return {}
 
 
 def set_variable(
@@ -95,7 +94,6 @@ def set_variable(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -103,7 +101,7 @@ def set_variable(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     # Get or create state
     state = state_manager.get_state(resolved_session_id)
@@ -123,7 +121,6 @@ def set_variable(
         current_value = state.variables.get("session_task")
         if current_value is not None and value != current_value:
             return {
-                "success": False,
                 "error": (
                     f"Cannot modify session_task while workflow '{state.workflow_name}' is active. "
                     f"Current value: {current_value}. "
@@ -141,7 +138,6 @@ def set_variable(
                 f"Failed to resolve session_task value '{value}' for session {resolved_session_id}: {e}"
             )
             return {
-                "success": False,
                 "error": f"Failed to resolve session_task value '{value}': {e}",
             }
 
@@ -182,7 +178,6 @@ def get_variable(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
-            "success": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
 
@@ -190,20 +185,18 @@ def get_variable(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
     state = state_manager.get_state(resolved_session_id)
     if not state:
         if name:
             return {
-                "success": True,
                 "session_id": resolved_session_id,
                 "variable": name,
                 "value": None,
                 "exists": False,
             }
         return {
-            "success": True,
             "session_id": resolved_session_id,
             "variables": {},
         }
@@ -211,7 +204,6 @@ def get_variable(
     if name:
         value = state.variables.get(name)
         return {
-            "success": True,
             "session_id": resolved_session_id,
             "variable": name,
             "value": value,
@@ -219,7 +211,6 @@ def get_variable(
         }
 
     return {
-        "success": True,
         "session_id": resolved_session_id,
         "variables": state.variables,
     }

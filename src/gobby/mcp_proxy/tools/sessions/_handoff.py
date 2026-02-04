@@ -211,23 +211,22 @@ Args:
         from gobby.sessions.analyzer import TranscriptAnalyzer
 
         if session_manager is None:
-            return {"success": False, "error": "Session manager not available"}
+            return {"error": "Session manager not available"}
 
         # Resolve session reference (#N, N, UUID, or prefix)
         try:
             resolved_id = _resolve_session_id(session_id)
             session = session_manager.get(resolved_id)
         except ValueError as e:
-            return {"success": False, "error": str(e), "session_id": session_id}
+            return {"error": str(e), "session_id": session_id}
 
         if not session:
-            return {"success": False, "error": "No session found", "session_id": session_id}
+            return {"error": "No session found", "session_id": session_id}
 
         # Get transcript path
         transcript_path = session.jsonl_path
         if not transcript_path:
             return {
-                "success": False,
                 "error": "No transcript path for session",
                 "session_id": session.id,
             }
@@ -235,7 +234,6 @@ Args:
         path = Path(transcript_path)
         if not path.exists():
             return {
-                "success": False,
                 "error": "Transcript file not found",
                 "path": transcript_path,
             }
@@ -347,7 +345,6 @@ Args:
                 full_error = str(e)
                 if full and not compact:
                     return {
-                        "success": False,
                         "error": f"Failed to generate full summary: {e}",
                         "session_id": session.id,
                     }
@@ -380,13 +377,11 @@ Args:
 
             except Exception as e:
                 return {
-                    "success": False,
                     "error": f"Failed to write file: {e}",
                     "session_id": session.id,
                 }
 
         return {
-            "success": True,
             "session_id": session.id,
             "compact_length": len(compact_markdown) if compact_markdown else 0,
             "full_length": len(full_markdown) if full_markdown else 0,
