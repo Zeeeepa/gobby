@@ -387,8 +387,9 @@ async def spawn_agent_impl(
         logger.error(f"Failed to prepare environment: {e}", exc_info=True)
         return {"success": False, "error": f"Failed to prepare environment: {e}"}
 
-    # 7b. Add main repo path to sandbox read paths for worktree isolation
-    # Git operations in worktrees require read access to the main repo's .git directory
+    # 7b. Add main repo path to sandbox read AND write paths for worktree isolation
+    # Git operations in worktrees require read/write access to the main repo's .git directory
+    # (e.g., .git/worktrees/<name>/index.lock needs write access)
     if (
         effective_isolation == "worktree"
         and effective_sandbox_config
@@ -396,19 +397,26 @@ async def spawn_agent_impl(
         and isolation_ctx.extra.get("main_repo_path")
     ):
         main_repo_path = isolation_ctx.extra["main_repo_path"]
-        existing_read_paths = list(effective_sandbox_config.extra_read_paths or [])
         main_repo_path_str = str(main_repo_path)
+        existing_read_paths = list(effective_sandbox_config.extra_read_paths or [])
+        existing_write_paths = list(effective_sandbox_config.extra_write_paths or [])
+        paths_updated = False
         if main_repo_path_str not in existing_read_paths:
             existing_read_paths.append(main_repo_path_str)
+            paths_updated = True
+        if main_repo_path_str not in existing_write_paths:
+            existing_write_paths.append(main_repo_path_str)
+            paths_updated = True
+        if paths_updated:
             effective_sandbox_config = SandboxConfig(
                 enabled=effective_sandbox_config.enabled,
                 mode=effective_sandbox_config.mode,
                 allow_network=effective_sandbox_config.allow_network,
                 extra_read_paths=existing_read_paths,
-                extra_write_paths=effective_sandbox_config.extra_write_paths,
+                extra_write_paths=existing_write_paths,
             )
             logger.debug(
-                f"Added main repo path {main_repo_path} to sandbox read paths for worktree"
+                f"Added main repo path {main_repo_path} to sandbox read/write paths for worktree"
             )
 
     # 8. Build enhanced prompt with isolation context
