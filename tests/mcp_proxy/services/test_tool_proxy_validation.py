@@ -654,3 +654,131 @@ class TestExecutionErrorSchemaEnrichment:
 
         assert result["success"] is False
         assert "schema" not in result
+
+
+class TestCallToolBlockedToolsEnforcement:
+    """Tests for blocked_tools enforcement in call_tool.
+
+    Verifies that workflow blocked_tools restrictions are enforced
+    when session_id is provided and a workflow is active.
+    """
+
+    @pytest.fixture
+    def mock_tool_filter(self):
+        """Create a mock tool filter service."""
+        filter_service = MagicMock()
+        filter_service.is_tool_allowed.return_value = (True, None)
+        return filter_service
+
+    @pytest.fixture
+    def tool_proxy_with_filter(self, mock_mcp_manager, mock_internal_manager, mock_tool_filter):
+        """Create ToolProxyService with tool filter enabled."""
+        return ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+            tool_filter=mock_tool_filter,
+            validate_arguments=False,  # Disable argument validation for these tests
+        )
+
+    @pytest.mark.asyncio
+    async def test_blocked_tool_returns_error(
+        self, tool_proxy_with_filter, mock_tool_filter, mock_mcp_manager
+    ):
+        """Verify blocked tool is rejected with TOOL_BLOCKED error code."""
+        from gobby.mcp_proxy.models import ToolProxyErrorCode
+
+        mock_tool_filter.is_tool_allowed.return_value = (
+            False,
+            "Tool 'Edit' is blocked in step 'review'",
+        )
+
+        result = await tool_proxy_with_filter.call_tool(
+            server_name="test-server",
+            tool_name="Edit",
+            arguments={"file": "test.py"},
+            session_id="session-123",
+        )
+
+        assert result["success"] is False
+        assert result["error_code"] == ToolProxyErrorCode.TOOL_BLOCKED.value
+        assert "blocked" in result["error"]
+        assert result["tool_name"] == "Edit"
+        mock_mcp_manager.call_tool.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_allowed_tool_executes_normally(
+        self, tool_proxy_with_filter, mock_tool_filter, mock_mcp_manager
+    ):
+        """Verify allowed tool executes when filter permits."""
+        mock_tool_filter.is_tool_allowed.return_value = (True, None)
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True, "data": "result"})
+
+        result = await tool_proxy_with_filter.call_tool(
+            server_name="test-server",
+            tool_name="Read",
+            arguments={"file": "test.py"},
+            session_id="session-123",
+        )
+
+        mock_tool_filter.is_tool_allowed.assert_called_once_with("Read", "session-123")
+        mock_mcp_manager.call_tool.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_filter_check_without_session_id(
+        self, tool_proxy_with_filter, mock_tool_filter, mock_mcp_manager
+    ):
+        """Verify filter is not checked when session_id is not provided."""
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
+
+        result = await tool_proxy_with_filter.call_tool(
+            server_name="test-server",
+            tool_name="Edit",
+            arguments={"file": "test.py"},
+            # No session_id
+        )
+
+        mock_tool_filter.is_tool_allowed.assert_not_called()
+        mock_mcp_manager.call_tool.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_filter_check_without_filter_service(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Verify call proceeds when no tool filter is configured."""
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+            tool_filter=None,  # No filter
+            validate_arguments=False,
+        )
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
+
+        result = await proxy.call_tool(
+            server_name="test-server",
+            tool_name="Edit",
+            arguments={"file": "test.py"},
+            session_id="session-123",  # session_id provided but no filter
+        )
+
+        mock_mcp_manager.call_tool.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_blocked_tool_not_allowed_reason_in_error(
+        self, tool_proxy_with_filter, mock_tool_filter
+    ):
+        """Verify the exact reason from filter appears in error response."""
+        mock_tool_filter.is_tool_allowed.return_value = (
+            False,
+            "Tool 'Write' is not in allowed list for step 'fetch_changes'",
+        )
+
+        result = await tool_proxy_with_filter.call_tool(
+            server_name="gobby-internal",
+            tool_name="Write",
+            arguments={},
+            session_id="session-456",
+        )
+
+        assert result["success"] is False
+        assert "not in allowed list" in result["error"]
+        assert "fetch_changes" in result["error"]

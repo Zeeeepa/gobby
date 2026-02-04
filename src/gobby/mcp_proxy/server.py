@@ -98,6 +98,7 @@ class GobbyDaemonTools:
         server_name: str,
         tool_name: str,
         arguments: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Any:
         """Call a tool.
 
@@ -105,8 +106,11 @@ class GobbyDaemonTools:
         underlying service indicates an error. This ensures the MCP protocol
         properly signals errors to LLM clients instead of returning error dicts
         as successful responses.
+
+        When session_id is provided and a workflow is active, checks that the
+        tool is not blocked by the current workflow step's blocked_tools setting.
         """
-        result = await self.tool_proxy.call_tool(server_name, tool_name, arguments)
+        result = await self.tool_proxy.call_tool(server_name, tool_name, arguments, session_id)
 
         # Check if result indicates an error (ToolProxyService returns dict with success: False)
         if isinstance(result, dict) and result.get("success") is False:
