@@ -10,14 +10,18 @@ The meeseeks system consists of two complementary workflows:
 
 ## Test Approach
 
-**Manual orchestration**: The tester acts as the parent/orchestrator, NOT running the meeseeks-box workflow. Instead:
+**Two-level spawn pattern**: The tester activates the orchestrator, which spawns workers.
 
-1. Tester creates a test task manually
-2. Tester calls `spawn_agent` directly with the meeseeks worker workflow
-3. Worker runs autonomously through its full lifecycle
-4. Tester monitors and verifies results
-
-This approach isolates the worker lifecycle for focused testing. The meeseeks-box workflow automation is tested separately.
+1. Tester creates a parent task (the "session task")
+2. Tester calls `spawn_agent(agent="meeseeks", workflow="box", task_id="<parent_task>")`
+3. meeseeks-box activates in tester's session (mode: self)
+4. meeseeks-box loops until parent task tree is complete:
+   - Find ready subtasks via `suggest_next_task`
+   - Spawn Gemini workers via `spawn_agent(workflow="worker")`
+   - Wait for task completion via `wait_for_task`
+   - Review and merge changes
+   - Repeat until all subtasks closed
+5. Workflow exits when `task_tree_complete(session_task)` returns true
 
 ## Prerequisites
 
@@ -36,59 +40,77 @@ Before testing:
 
 | Step | Action | Success Criteria |
 |------|--------|------------------|
-| 1.1 | Create a test task | Task created with status `open`, has valid task_id |
-| 1.2 | Note current git state | `git worktree list` shows only main worktree |
+| 1.1 | Create a parent task (session task) | Task created with status `open`, has valid task_id |
+| 1.2 | Create subtask(s) under parent | Subtasks created, linked to parent |
+| 1.3 | Note current git state | `git worktree list` shows only main worktree |
 
-### Phase 2: Spawn Worker
-
-| Step | Action | Success Criteria |
-|------|--------|------------------|
-| 2.1 | Call `spawn_agent` with `agent="meeseeks"`, `workflow="worker"`, `task_id` | Returns `run_id`, `worktree_id`, `branch_name` |
-| 2.2 | Worktree created | `git worktree list` shows new worktree |
-| 2.3 | Terminal opened | New terminal window/pane visible with Gemini CLI |
-| 2.4 | Worker workflow auto-activated | Worker starts in `claim_task` step (workflow applied by spawn_agent) |
-
-### Phase 3: Worker Lifecycle (Autonomous)
+### Phase 2: Activate Orchestrator
 
 | Step | Action | Success Criteria |
 |------|--------|------------------|
-| 3.1 | Worker calls `claim_task` | Task status changes to `in_progress`, task `assigned_to` set |
-| 3.2 | Worker transitions to `work` step | `task_claimed` variable is `true` |
-| 3.3 | Worker completes implementation | Files modified/created as required by task |
-| 3.4 | Worker commits changes | Git commit created with `[task_id]` in message |
-| 3.5 | Worker calls `close_task` with `commit_sha` | Task status changes to `closed`, `commit_sha` recorded |
-| 3.6 | Worker transitions to `report_to_parent` | `task_closed` variable is `true` |
-| 3.7 | Worker calls `send_to_parent` | Message delivered to tester's session |
-| 3.8 | Worker calls `close_terminal` | Terminal session terminates cleanly |
-| 3.9 | Worker workflow reaches `complete` | Workflow exit condition met |
+| 2.1 | Call `spawn_agent(agent="meeseeks", workflow="box", task_id="<parent_task>")` | Returns success, workflow activates in tester's session |
+| 2.2 | meeseeks-box workflow active | Workflow state shows `find_work` step, `session_task` variable set |
 
-### Phase 4: Tester Monitoring (During Worker Execution)
+### Phase 3: Orchestrator Spawns Worker
 
 | Step | Action | Success Criteria |
 |------|--------|------------------|
-| 4.1 | Call `wait_for_task` or poll task status | Task eventually reaches `closed` status |
-| 4.2 | Call `poll_messages` | Receive completion message from worker |
-| 4.3 | Verify task state | `get_task` shows status=closed, commit_sha populated |
+| 3.1 | meeseeks-box calls `suggest_next_task` | Returns ready subtask |
+| 3.2 | meeseeks-box calls `spawn_agent(workflow="worker", task_id=subtask)` | Returns `run_id`, `worktree_id`, `branch_name` |
+| 3.3 | Worktree created | `git worktree list` shows new worktree |
+| 3.4 | Terminal opened | New terminal window/pane visible with Gemini CLI |
+| 3.5 | Worker workflow auto-activated | Worker starts in `claim_task` step |
 
-### Phase 5: Tester Verification (Post-Completion)
-
-| Step | Action | Success Criteria |
-|------|--------|------------------|
-| 5.1 | Review code changes | `git diff dev...<branch>` shows worker's changes |
-| 5.2 | Verify commit message | Commit includes `[task_id]` reference |
-| 5.3 | Run tests if applicable | Tests pass on feature branch |
-| 5.4 | Merge branch manually | `git merge --squash <branch>` succeeds |
-| 5.5 | Clean up worktree | `git worktree remove <path>` succeeds |
-| 5.6 | Delete feature branch | `git branch -D <branch>` succeeds |
-
-### Phase 6: Final Validation
+### Phase 4: Worker Lifecycle (Autonomous)
 
 | Step | Action | Success Criteria |
 |------|--------|------------------|
-| 6.1 | Verify no orphaned worktrees | `git worktree list` shows only main worktree |
-| 6.2 | Verify task state | Task is `closed` with linked commit |
-| 6.3 | Verify message delivery | `poll_messages` returned worker's completion report |
-| 6.4 | Verify terminal cleaned up | No lingering Gemini CLI processes |
+| 4.1 | Worker calls `claim_task` | Task status changes to `in_progress`, task `assigned_to` set |
+| 4.2 | Worker transitions to `work` step | `task_claimed` variable is `true` |
+| 4.3 | Worker completes implementation | Files modified/created as required by task |
+| 4.4 | Worker commits changes | Git commit created with `[task_id]` in message |
+| 4.5 | Worker calls `close_task` with `commit_sha` | Task status changes to `closed`, `commit_sha` recorded |
+| 4.6 | Worker transitions to `report_to_parent` | `task_closed` variable is `true` |
+| 4.7 | Worker calls `send_to_parent` | Message delivered to orchestrator session |
+| 4.8 | Worker calls `close_terminal` | Terminal session terminates cleanly |
+| 4.9 | Worker workflow reaches `complete` | Workflow exit condition met |
+
+### Phase 5: Orchestrator Wait & Review
+
+| Step | Action | Success Criteria |
+|------|--------|------------------|
+| 5.1 | meeseeks-box calls `wait_for_task` | Blocks until subtask closed or timeout |
+| 5.2 | `wait_for_task` returns | `completed: true`, `timed_out: false` |
+| 5.3 | meeseeks-box transitions to `code_review` | Can access diff via `git diff dev...<branch>` |
+| 5.4 | Review code changes | Changes meet acceptance criteria |
+| 5.5 | Set `review_approved` to true | Workflow variable updated |
+
+### Phase 6: Orchestrator Merge & Cleanup
+
+| Step | Action | Success Criteria |
+|------|--------|------------------|
+| 6.1 | meeseeks-box merges branch | `git merge --squash <branch>` succeeds |
+| 6.2 | meeseeks-box deletes worktree | `git worktree remove <path>` succeeds |
+| 6.3 | meeseeks-box deletes feature branch | `git branch -D <branch>` succeeds |
+| 6.4 | Workflow transitions to `find_work` | Loop continues for more subtasks |
+
+### Phase 7: Loop Completion
+
+| Step | Action | Success Criteria |
+|------|--------|------------------|
+| 7.1 | meeseeks-box calls `suggest_next_task` | Returns null (no more ready tasks) |
+| 7.2 | `task_tree_complete(session_task)` returns true | All subtasks closed |
+| 7.3 | Workflow transitions to `complete` | Exit condition met |
+| 7.4 | meeseeks-box workflow exits | Tester's session returns to normal |
+
+### Phase 8: Final Validation
+
+| Step | Action | Success Criteria |
+|------|--------|------------------|
+| 8.1 | Verify no orphaned worktrees | `git worktree list` shows only main worktree |
+| 8.2 | Verify all tasks closed | Parent and subtasks all `closed` |
+| 8.3 | Verify commits linked | Each subtask has `commit_sha` |
+| 8.4 | Verify terminal cleaned up | No lingering Gemini CLI processes |
 
 ## MCP Tool Verification
 
