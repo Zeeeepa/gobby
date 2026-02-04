@@ -263,24 +263,8 @@ class WorkflowEngine:
             # Log successful tool allow
             self._log_tool_call(session_id, state.step, tool_name, "allow")
 
-        # Check transitions
-        logger.debug("Checking transitions")
-        for transition in current_step.transitions:
-            if self.evaluator.evaluate(transition.when, eval_context):
-                # Transition!
-                await self.transition_to(state, transition.to, workflow, transition=transition)
-                return HookResponse(
-                    decision="modify", context=f"Transitioning to step: {transition.to}"
-                )
-
-        # Check exit conditions
-        logger.debug("Checking exit conditions")
-        if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
-            # TODO: Determine next step or completion logic
-            # For now, simplistic 'next step' if linear, or rely on transitions
-            pass
-
-        # Update stats (generic)
+        # For AFTER_TOOL events, run detection BEFORE checking transitions
+        # This ensures variables like task_claimed are set before evaluating conditions
         if event.event_type == HookEventType.AFTER_TOOL:
             state.step_action_count += 1
             state.total_action_count += 1
@@ -294,7 +278,32 @@ class WorkflowEngine:
             # Track all MCP proxy calls for workflow conditions
             self._detect_mcp_call(event, state)
 
-            self.state_manager.save_state(state)  # Persist updates
+            # Rebuild eval_context variables after detection updates
+            eval_context["variables"] = SimpleNamespace(**state.variables)
+
+        # Check transitions
+        logger.debug("Checking transitions")
+        for transition in current_step.transitions:
+            if self.evaluator.evaluate(transition.when, eval_context):
+                # Transition!
+                await self.transition_to(state, transition.to, workflow, transition=transition)
+                # Save state after transition
+                if event.event_type == HookEventType.AFTER_TOOL:
+                    self.state_manager.save_state(state)
+                return HookResponse(
+                    decision="modify", context=f"Transitioning to step: {transition.to}"
+                )
+
+        # Check exit conditions
+        logger.debug("Checking exit conditions")
+        if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
+            # TODO: Determine next step or completion logic
+            # For now, simplistic 'next step' if linear, or rely on transitions
+            pass
+
+        # Save state for AFTER_TOOL events (if no transition occurred)
+        if event.event_type == HookEventType.AFTER_TOOL:
+            self.state_manager.save_state(state)
 
         return HookResponse(decision="allow")
 
