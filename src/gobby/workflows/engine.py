@@ -14,7 +14,7 @@ from .audit_helpers import (
     log_tool_call,
     log_transition,
 )
-from .definitions import WorkflowDefinition, WorkflowState
+from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
 from .detection_helpers import (
     detect_mcp_call,
     detect_plan_mode,
@@ -268,7 +268,7 @@ class WorkflowEngine:
         for transition in current_step.transitions:
             if self.evaluator.evaluate(transition.when, eval_context):
                 # Transition!
-                await self.transition_to(state, transition.to, workflow)
+                await self.transition_to(state, transition.to, workflow, transition=transition)
                 return HookResponse(
                     decision="modify", context=f"Transitioning to step: {transition.to}"
                 )
@@ -299,10 +299,20 @@ class WorkflowEngine:
         return HookResponse(decision="allow")
 
     async def transition_to(
-        self, state: WorkflowState, new_step_name: str, workflow: WorkflowDefinition
+        self,
+        state: WorkflowState,
+        new_step_name: str,
+        workflow: WorkflowDefinition,
+        transition: WorkflowTransition | None = None,
     ) -> None:
         """
         Execute transition logic.
+
+        Args:
+            state: Current workflow state
+            new_step_name: Name of the step to transition to
+            workflow: Workflow definition
+            transition: Optional transition object containing on_transition actions
         """
         old_step = workflow.get_step(state.step)
         new_step = workflow.get_step(new_step_name)
@@ -321,6 +331,10 @@ class WorkflowEngine:
         # Execute on_exit of old step
         if old_step:
             await self._execute_actions(old_step.on_exit, state)
+
+        # Execute on_transition actions if defined
+        if transition and isinstance(transition, WorkflowTransition) and transition.on_transition:
+            await self._execute_actions(transition.on_transition, state)
 
         # Update state
         state.step = new_step_name
