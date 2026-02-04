@@ -303,16 +303,65 @@ The E2E test passes when:
 6. **Messages delivered**: Tester received completion message from worker via `poll_messages`
 7. **Terminal cleanup**: Worker called `close_terminal` and process exited
 
-## Test Task Suggestions
+## Recommended Test Task
 
-Simple tasks suitable for E2E testing:
+Use a dedicated test marker file that can be reset between runs:
 
-1. **Add a comment**: Add a docstring to a specific function
-2. **Create a file**: Create a new empty module with basic structure
-3. **Fix a typo**: Correct a deliberate typo in documentation
-4. **Update a constant**: Change a version number or configuration value
+**File**: `tests/e2e/meeseeks_test_marker.py`
 
-These tasks have clear, verifiable outcomes and minimal complexity.
+**Task Title**: "Update meeseeks E2E test marker"
+
+**Task Description**:
+```
+Update tests/e2e/meeseeks_test_marker.py with:
+- Current run number (increment RUN_NUMBER)
+- Current timestamp (update TIMESTAMP)
+- Add a new entry to the RUNS list
+
+The file already exists with the template structure.
+```
+
+**Initial File Content** (create once before first test):
+```python
+"""Meeseeks E2E test marker file.
+
+This file is modified by meeseeks workers during E2E testing.
+Reset RUN_NUMBER to 0 to restart test sequence.
+"""
+
+RUN_NUMBER = 0
+TIMESTAMP = "never"
+RUNS: list[str] = []
+```
+
+**Validation**:
+```bash
+# After worker completes:
+cat tests/e2e/meeseeks_test_marker.py
+
+# Expected: RUN_NUMBER incremented, TIMESTAMP updated, new entry in RUNS
+```
+
+**Why This Task**:
+- Repeatable: Reset by reverting file or setting RUN_NUMBER = 0
+- Verifiable: Clear success criteria (file changed, values updated)
+- Safe: No production impact, isolated to test directory
+- Simple: Single file edit, no external dependencies
+
+### Step 2 (Updated): Create Subtask
+
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-tasks",
+    tool_name="create_task",
+    arguments={
+        "title": "Update meeseeks E2E test marker",
+        "description": "Update tests/e2e/meeseeks_test_marker.py: increment RUN_NUMBER, update TIMESTAMP to current ISO time, append run entry to RUNS list.",
+        "parent_task_id": "<parent_task_id>",
+        "session_id": "#813"
+    }
+)
+```
 
 ---
 
