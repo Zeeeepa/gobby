@@ -148,8 +148,7 @@ call_tool("gobby-agents", "send_to_parent", {
 
 ```python
 call_tool("gobby-agents", "kill_agent", {
-    "session_id": "<your_gobby_session_id>",
-    "stop": true
+    "session_id": "<your_gobby_session_id>"
 })
 ```
 

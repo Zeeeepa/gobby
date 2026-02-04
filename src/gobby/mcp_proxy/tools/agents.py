@@ -206,7 +206,7 @@ def create_agents_registry(
         name="kill_agent",
         description=(
             "Kill a running agent process. Accepts run_id (parent use case) or "
-            "session_id (self-termination). Use stop=True to also end its workflow."
+            "session_id (self-termination, auto-closes terminal and workflow)."
         ),
     )
     async def kill_agent(
@@ -214,7 +214,7 @@ def create_agents_registry(
         session_id: str | None = None,
         signal: str = "TERM",
         force: bool = False,
-        stop: bool = False,
+        stop: bool | None = None,
     ) -> dict[str, Any]:
         """
         Kill a running agent process.
@@ -225,10 +225,11 @@ def create_agents_registry(
         Args:
             run_id: Agent run ID (for parent killing child)
             session_id: Session ID of the agent (for self-termination). Accepts #N, N, UUID, or prefix.
+                When using session_id, stop defaults to True (full cleanup).
             signal: Signal to send (TERM, KILL, INT, HUP, QUIT). Default: TERM
             force: Use SIGKILL immediately (equivalent to signal="KILL")
-            stop: Also end the agent's workflow (prevents restart). For self-termination,
-                this also attempts to close the terminal window.
+            stop: End workflow and close terminal. Defaults to True when session_id is provided,
+                False when only run_id is provided. Set explicitly to override.
 
         Returns:
             Dict with success status and kill details.
@@ -244,6 +245,10 @@ def create_agents_registry(
                 "success": False,
                 "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}",
             }
+
+        # Default stop=True for self-termination (session_id), False for parent-kills-child (run_id)
+        if stop is None:
+            stop = session_id is not None
 
         # Resolve run_id from session_id if needed (self-termination case)
         resolved_session_id: str | None = None

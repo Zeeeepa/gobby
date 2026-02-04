@@ -230,7 +230,7 @@ workflows:
               Call kill_agent now:
               - server_name: "gobby-agents"
               - tool_name: "kill_agent"
-              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "stop": true}
+              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
 
               NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
 
@@ -280,7 +280,7 @@ workflows:
             mcp__gobby__call_tool(
               server_name="gobby-agents",
               tool_name="kill_agent",
-              arguments={"session_id": "YOUR_GOBBY_SESSION_ID", "stop": true}
+              arguments={"session_id": "YOUR_GOBBY_SESSION_ID"}
             )
 
             This is the ONLY way to end this session. Do it now.

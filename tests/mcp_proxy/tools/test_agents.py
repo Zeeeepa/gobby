@@ -524,8 +524,8 @@ class TestKillAgent:
         assert "No agent found for session" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_session_id_with_stop_deletes_workflow_state(self):
-        """Test that stop=True with session_id deletes workflow state."""
+    async def test_session_id_defaults_stop_true(self):
+        """Test that session_id defaults to stop=True (full cleanup)."""
         running_registry = RunningAgentRegistry()
         running_registry.add(
             RunningAgent(
@@ -549,11 +549,47 @@ class TestKillAgent:
         )
         kill_agent = registry._tools["kill_agent"].func
 
-        result = await kill_agent(session_id="sess-456", stop=True)
+        # Don't pass stop - should default to True for session_id
+        result = await kill_agent(session_id="sess-456")
 
         assert result["success"] is True
+        # Workflow state should be deleted by default
         workflow_state_manager.delete_state.assert_called_once_with("sess-456")
         assert result.get("workflow_stopped") is True
+
+    @pytest.mark.asyncio
+    async def test_run_id_defaults_stop_false(self):
+        """Test that run_id defaults to stop=False (no workflow cleanup)."""
+        running_registry = RunningAgentRegistry()
+        running_registry.add(
+            RunningAgent(
+                run_id="run-123",
+                session_id="sess-456",
+                parent_session_id="sess-parent",
+                mode="in_process",
+                task=MagicMock(),
+            )
+        )
+
+        runner = MagicMock()
+        runner.cancel_run.return_value = True
+
+        workflow_state_manager = MagicMock()
+
+        registry = create_agents_registry(
+            runner,
+            running_registry=running_registry,
+            workflow_state_manager=workflow_state_manager,
+        )
+        kill_agent = registry._tools["kill_agent"].func
+
+        # Don't pass stop - should default to False for run_id
+        result = await kill_agent(run_id="run-123")
+
+        assert result["success"] is True
+        # Workflow state should NOT be deleted by default
+        workflow_state_manager.delete_state.assert_not_called()
+        assert result.get("workflow_stopped") is None
 
 
 class TestRunningAgentStats:
