@@ -397,8 +397,9 @@ async def spawn_agent_impl(
     ):
         main_repo_path = isolation_ctx.extra["main_repo_path"]
         existing_read_paths = list(effective_sandbox_config.extra_read_paths or [])
-        if main_repo_path not in existing_read_paths:
-            existing_read_paths.append(main_repo_path)
+        main_repo_path_str = str(main_repo_path)
+        if main_repo_path_str not in existing_read_paths:
+            existing_read_paths.append(main_repo_path_str)
             effective_sandbox_config = SandboxConfig(
                 enabled=effective_sandbox_config.enabled,
                 mode=effective_sandbox_config.mode,
