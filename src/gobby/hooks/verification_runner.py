@@ -4,6 +4,7 @@ Executes configured verification commands (lint, typecheck, tests, etc.) for git
 """
 
 import logging
+import os
 import subprocess  # nosec B404 - subprocess needed for verification commands
 import time
 from dataclasses import dataclass, field
@@ -79,6 +80,12 @@ def run_command(
     """
     start_time = time.time()
 
+    # Clear VIRTUAL_ENV to avoid Python warnings when cwd differs from current directory
+    # (e.g., when running in a worktree). Let Python auto-detect the correct environment.
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
+    env.pop("VIRTUAL_ENV_PROMPT", None)
+
     try:
         result = subprocess.run(
             command,
@@ -87,6 +94,7 @@ def run_command(
             text=True,
             timeout=timeout,
             cwd=cwd,
+            env=env,
         )
 
         duration_ms = int((time.time() - start_time) * 1000)
