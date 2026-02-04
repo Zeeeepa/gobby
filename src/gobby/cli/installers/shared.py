@@ -23,6 +23,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     """Install shared content from src/install/shared/.
 
     Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
+    Agents are cross-CLI and go to {project_path}/.gobby/agents/.
     Plugins are project-scoped and go to {project_path}/.gobby/plugins/.
     Prompts are project-scoped and go to {project_path}/.gobby/prompts/.
     Docs are project-local and go to {project_path}/.gobby/docs/.
@@ -35,7 +36,13 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
-    installed: dict[str, list[str]] = {"workflows": [], "plugins": [], "prompts": [], "docs": []}
+    installed: dict[str, list[str]] = {
+        "workflows": [],
+        "agents": [],
+        "plugins": [],
+        "prompts": [],
+        "docs": [],
+    }
 
     # Install shared workflows to .gobby/workflows/ (cross-CLI)
     shared_workflows = shared_dir / "workflows"
@@ -56,6 +63,23 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
                     shutil.rmtree(target_subdir)
                 copytree(item, target_subdir)
                 installed["workflows"].append(f"{item.name}/")
+
+    # Install shared agents to .gobby/agents/ (cross-CLI)
+    shared_agents = shared_dir / "agents"
+    if shared_agents.exists():
+        target_agents = project_path / ".gobby" / "agents"
+        target_agents.mkdir(parents=True, exist_ok=True)
+        for item in shared_agents.iterdir():
+            if item.is_file() and item.suffix in (".yaml", ".yml"):
+                copy2(item, target_agents / item.name)
+                installed["agents"].append(item.name)
+            elif item.is_dir():
+                # Copy subdirectories (agent with multiple files)
+                target_subdir = target_agents / item.name
+                if target_subdir.exists():
+                    shutil.rmtree(target_subdir)
+                copytree(item, target_subdir)
+                installed["agents"].append(f"{item.name}/")
 
     # Install shared plugins to .gobby/plugins/ (project-scoped)
     shared_plugins = shared_dir / "plugins"

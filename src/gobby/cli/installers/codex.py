@@ -72,6 +72,7 @@ def install_codex_notify() -> dict[str, Any]:
     # No longer need to copy to .codex/skills/
 
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["agents_installed"] = shared.get("agents", [])
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
 

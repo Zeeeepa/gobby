@@ -123,6 +123,7 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         return result
 
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["agents_installed"] = shared.get("agents", [])
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
 
