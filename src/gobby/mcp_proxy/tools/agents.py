@@ -205,8 +205,8 @@ def create_agents_registry(
     @registry.tool(
         name="kill_agent",
         description=(
-            "Kill a running agent process. Accepts run_id (parent use case) or "
-            "session_id (self-termination, auto-closes terminal and workflow)."
+            "Kill a running agent process and close its terminal. "
+            "Use run_id (parent kills child) or session_id (self-termination)."
         ),
     )
     async def kill_agent(
@@ -214,22 +214,21 @@ def create_agents_registry(
         session_id: str | None = None,
         signal: str = "TERM",
         force: bool = False,
-        stop: bool | None = None,
+        debug: bool = False,
     ) -> dict[str, Any]:
         """
         Kill a running agent process.
 
-        This actually terminates the process (unlike stop_agent which only updates DB).
+        This terminates the process, closes the terminal, and cleans up workflow state.
         Can be called by parent (using run_id) or by the agent itself (using session_id).
 
         Args:
             run_id: Agent run ID (for parent killing child)
             session_id: Session ID of the agent (for self-termination). Accepts #N, N, UUID, or prefix.
-                When using session_id, stop defaults to True (full cleanup).
             signal: Signal to send (TERM, KILL, INT, HUP, QUIT). Default: TERM
             force: Use SIGKILL immediately (equivalent to signal="KILL")
-            stop: End workflow and close terminal. Defaults to True when session_id is provided,
-                False when only run_id is provided. Set explicitly to override.
+            debug: If True, kill agent process but preserve workflow state and leave
+                terminal open for inspection. Default: False (full cleanup).
 
         Returns:
             Dict with success status and kill details.
@@ -245,10 +244,6 @@ def create_agents_registry(
                 "success": False,
                 "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}",
             }
-
-        # Default stop=True for self-termination (session_id), False for parent-kills-child (run_id)
-        if stop is None:
-            stop = session_id is not None
 
         # Resolve run_id from session_id if needed (self-termination case)
         resolved_session_id: str | None = None
@@ -283,8 +278,8 @@ def create_agents_registry(
             if db_run and db_run.child_session_id:
                 agent_session_id = db_run.child_session_id
 
-        # For self-termination with stop=True, try to close the terminal window
-        close_terminal = stop and (session_id is not None)
+        # Default: full cleanup. debug=True preserves state/terminal for inspection.
+        close_terminal = not debug
 
         # Kill via registry (run in thread to avoid blocking event loop)
         import asyncio
@@ -300,16 +295,14 @@ def create_agents_registry(
             # Update database status
             runner.cancel_run(run_id)
 
-            # Optionally end the workflow to prevent restart
-            if stop and agent_session_id:
+            # Delete workflow state unless debugging
+            if not debug and agent_session_id:
                 if workflow_state_manager is not None:
                     try:
                         workflow_state_manager.delete_state(agent_session_id)
-                        result["workflow_stopped"] = True
+                        result["workflow_deleted"] = True
                     except Exception as e:
-                        result["workflow_stop_error"] = str(e)
-                else:
-                    result["workflow_stop_error"] = "WorkflowStateManager not configured"
+                        result["workflow_delete_error"] = str(e)
 
         return result
 

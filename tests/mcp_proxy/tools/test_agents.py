@@ -524,8 +524,8 @@ class TestKillAgent:
         assert "No agent found for session" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_session_id_defaults_stop_true(self):
-        """Test that session_id defaults to stop=True (full cleanup)."""
+    async def test_default_full_cleanup(self):
+        """Test that kill_agent does full cleanup by default (workflow + terminal)."""
         running_registry = RunningAgentRegistry()
         running_registry.add(
             RunningAgent(
@@ -549,17 +549,17 @@ class TestKillAgent:
         )
         kill_agent = registry._tools["kill_agent"].func
 
-        # Don't pass stop - should default to True for session_id
-        result = await kill_agent(session_id="sess-456")
+        # Default behavior - full cleanup
+        result = await kill_agent(run_id="run-123")
 
         assert result["success"] is True
         # Workflow state should be deleted by default
         workflow_state_manager.delete_state.assert_called_once_with("sess-456")
-        assert result.get("workflow_stopped") is True
+        assert result.get("workflow_deleted") is True
 
     @pytest.mark.asyncio
-    async def test_run_id_defaults_stop_false(self):
-        """Test that run_id defaults to stop=False (no workflow cleanup)."""
+    async def test_debug_preserves_state(self):
+        """Test that debug=True preserves workflow state."""
         running_registry = RunningAgentRegistry()
         running_registry.add(
             RunningAgent(
@@ -583,13 +583,13 @@ class TestKillAgent:
         )
         kill_agent = registry._tools["kill_agent"].func
 
-        # Don't pass stop - should default to False for run_id
-        result = await kill_agent(run_id="run-123")
+        # debug=True should preserve state
+        result = await kill_agent(run_id="run-123", debug=True)
 
         assert result["success"] is True
-        # Workflow state should NOT be deleted by default
+        # Workflow state should NOT be deleted when debugging
         workflow_state_manager.delete_state.assert_not_called()
-        assert result.get("workflow_stopped") is None
+        assert result.get("workflow_deleted") is None
 
 
 class TestRunningAgentStats:
