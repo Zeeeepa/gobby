@@ -387,6 +387,29 @@ async def spawn_agent_impl(
         logger.error(f"Failed to prepare environment: {e}", exc_info=True)
         return {"success": False, "error": f"Failed to prepare environment: {e}"}
 
+    # 7b. Add main repo path to sandbox read paths for worktree isolation
+    # Git operations in worktrees require read access to the main repo's .git directory
+    if (
+        effective_isolation == "worktree"
+        and effective_sandbox_config
+        and effective_sandbox_config.enabled
+        and isolation_ctx.extra.get("main_repo_path")
+    ):
+        main_repo_path = isolation_ctx.extra["main_repo_path"]
+        existing_read_paths = list(effective_sandbox_config.extra_read_paths or [])
+        if main_repo_path not in existing_read_paths:
+            existing_read_paths.append(main_repo_path)
+            effective_sandbox_config = SandboxConfig(
+                enabled=effective_sandbox_config.enabled,
+                mode=effective_sandbox_config.mode,
+                allow_network=effective_sandbox_config.allow_network,
+                extra_read_paths=existing_read_paths,
+                extra_write_paths=effective_sandbox_config.extra_write_paths,
+            )
+            logger.debug(
+                f"Added main repo path {main_repo_path} to sandbox read paths for worktree"
+            )
+
     # 8. Build enhanced prompt with isolation context
     enhanced_prompt = handler.build_context_prompt(prompt, isolation_ctx)
 
