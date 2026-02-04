@@ -131,7 +131,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             "You must commit your changes and link them to the task before closing."
                         ),
                         "suggestion": (
-                            "Commit your changes with `[gobby-#task_id]` in the message, "
+                            f"Commit your changes with `[{ctx.get_current_project_name() or 'project'}-#task_id]` in the message, "
                             "or pass `commit_sha` to `close_task`."
                         ),
                     }
@@ -289,7 +289,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="close_task",
-        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [gobby-#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete, out_of_repo.",
+        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [project-#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete, out_of_repo.",
         input_schema={
             "type": "object",
             "properties": {

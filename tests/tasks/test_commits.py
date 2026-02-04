@@ -193,12 +193,13 @@ index 123..456 100644
 class TestExtractTaskIdsFromMessage:
     """Tests for task ID extraction from commit messages.
 
-    These tests verify commit message patterns recognize gobby-#N format:
-    - `[gobby-#1]` extracts task reference (primary format)
-    - `gobby-#42` standalone extracts task reference
-    - `fixes gobby-#1` extracts task reference
-    - Case variations work: `Fixes gobby-#1`, `FIXES gobby-#1`
+    These tests verify commit message patterns recognize {project}-#N format:
+    - `[project-#1]` extracts task reference (primary format)
+    - `project-#42` standalone extracts task reference
+    - `fixes project-#1` extracts task reference
+    - Case variations work: `Fixes project-#1`, `FIXES project-#1`
     - Old `#N` format is NOT recognized (avoid GitHub auto-linking)
+    - Project name filtering is supported
     """
 
     def test_extracts_bracket_pattern(self) -> None:
@@ -309,6 +310,36 @@ Also refs gobby-#43 for related work.
         result = extract_task_ids_from_message(message)
         assert "#42" in result
         assert "#43" in result
+
+    def test_different_project_names(self) -> None:
+        """Test that different project names are recognized."""
+        message = "[myapp-#1] Fix bug in [acme-#2]"
+        result = extract_task_ids_from_message(message)
+        assert "#1" in result
+        assert "#2" in result
+
+    def test_project_name_filtering(self) -> None:
+        """Test filtering by project name."""
+        message = "[gobby-#1] Also refs myapp-#2"
+        # Filter for gobby only
+        result = extract_task_ids_from_message(message, project_name="gobby")
+        assert "#1" in result
+        assert "#2" not in result
+
+    def test_project_name_filtering_case_insensitive(self) -> None:
+        """Test that project name filtering is case-insensitive."""
+        message = "[GOBBY-#1] Fix bug"
+        result = extract_task_ids_from_message(message, project_name="gobby")
+        assert "#1" in result
+
+    def test_no_filter_returns_all_projects(self) -> None:
+        """Test that no filter returns tasks from all projects."""
+        message = "[gobby-#1] refs myapp-#2 fixes acme-#3"
+        result = extract_task_ids_from_message(message)
+        assert len(result) == 3
+        assert "#1" in result
+        assert "#2" in result
+        assert "#3" in result
 
 
 class TestAutoLinkCommits:

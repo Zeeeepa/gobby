@@ -487,28 +487,48 @@ def extract_mentioned_symbols(task: dict[str, Any]) -> list[str]:
 
 
 # Task ID patterns to search for in commit messages
-# Uses gobby-#N format to avoid GitHub auto-linking and match CLI display format
+# Uses {project}-#N format to avoid GitHub auto-linking and match CLI display format
+# Patterns capture both project name and task number for validation
 TASK_ID_PATTERNS = [
-    # [gobby-#N] - bracket format (primary)
-    r"\[gobby-#(\d+)\]",
-    # gobby-#N - standalone format
-    r"(?:^|\s)gobby-#(\d+)\b",
-    # Implements/Fixes/Closes/Refs gobby-#N
-    r"(?:implements|fixes|closes|refs)\s+gobby-#(\d+)",
+    # [project-#N] - bracket format (primary)
+    r"\[(\w+)-#(\d+)\]",
+    # project-#N - standalone format (word boundary before, after digits)
+    r"(?:^|\s)(\w+)-#(\d+)\b",
+    # Implements/Fixes/Closes/Refs project-#N
+    r"(?:implements|fixes|closes|refs)\s+(\w+)-#(\d+)",
 ]
 
 
-def extract_task_ids_from_message(message: str) -> list[str]:
+def get_current_project_name() -> str | None:
+    """Get current project name from context.
+
+    Returns:
+        Project name or None if not in a project.
+    """
+    from gobby.utils.project_context import get_project_context
+
+    ctx = get_project_context()
+    if ctx and ctx.get("name"):
+        return ctx["name"]
+    return None
+
+
+def extract_task_ids_from_message(
+    message: str,
+    project_name: str | None = None,
+) -> list[str]:
     """Extract task IDs from a commit message.
 
     Supports patterns:
-    - [#N] - bracket format
-    - #N: - hash-colon format (at start of message)
-    - Implements/Fixes/Closes/Refs #N
-    - Multiple references: #1, #2, #3
+    - [project-#N] - bracket format (primary)
+    - project-#N - standalone format
+    - Implements/Fixes/Closes/Refs project-#N
 
     Args:
         message: Commit message to parse.
+        project_name: Optional project name to filter matches. If provided,
+            only returns task IDs from commits referencing this project.
+            If None, returns all task IDs found regardless of project.
 
     Returns:
         List of unique task references found (e.g., ["#1", "#42"]).
@@ -518,8 +538,13 @@ def extract_task_ids_from_message(message: str) -> list[str]:
     for pattern in TASK_ID_PATTERNS:
         matches = re.findall(pattern, message, re.IGNORECASE | re.MULTILINE)
         for match in matches:
+            # match is a tuple: (project, task_number)
+            found_project, task_num = match
+            # Filter by project name if specified
+            if project_name and found_project.lower() != project_name.lower():
+                continue
             # Format as #N
-            task_id = f"#{match}"
+            task_id = f"#{task_num}"
             task_ids.add(task_id)
 
     return list(task_ids)
@@ -545,6 +570,7 @@ def auto_link_commits(
     task_id: str | None = None,
     since: str | None = None,
     cwd: str | Path | None = None,
+    project_name: str | None = None,
 ) -> AutoLinkResult:
     """Auto-detect and link commits that mention task IDs.
 
@@ -556,11 +582,17 @@ def auto_link_commits(
         task_id: Optional specific task ID to filter for.
         since: Optional git --since parameter (e.g., "1 week ago", "2024-01-01").
         cwd: Working directory for git commands.
+        project_name: Optional project name to filter commits. If not provided,
+            auto-detects from current project context.
 
     Returns:
         AutoLinkResult with details of linked and skipped commits.
     """
     working_dir = Path(cwd) if cwd else Path.cwd()
+
+    # Get project name for filtering (auto-detect if not provided)
+    if project_name is None:
+        project_name = get_current_project_name()
 
     # Build git log command
     # Format: "sha|message" for easy parsing
@@ -588,8 +620,8 @@ def auto_link_commits(
 
         commit_sha, message = parts
 
-        # Extract task IDs from message
-        found_task_ids = extract_task_ids_from_message(message)
+        # Extract task IDs from message (filtered by project name)
+        found_task_ids = extract_task_ids_from_message(message, project_name)
 
         if not found_task_ids:
             continue
