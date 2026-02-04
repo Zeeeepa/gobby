@@ -17,7 +17,7 @@ description: |
 mode: terminal
 provider: gemini
 model: gemini-3-pro-preview
-isolation: worktree
+isolation: clone
 # base_branch: auto-detected from caller's current branch
 
 # Named workflows - select via spawn_agent(workflow="...")
@@ -48,10 +48,10 @@ workflows:
         on_enter:
           - action: inject_message
             content: |
-              WORKER: Starting in worktree.
+              WORKER: Starting in isolated clone.
 
-              You are running in an isolated git worktree. Your changes will be
-              committed to a feature branch that can be merged later.
+              You are running in an isolated git clone. Your changes will be
+              committed to a feature branch that can be pushed and merged later.
 
               Assigned task: {{ variables.assigned_task_id }}
 
