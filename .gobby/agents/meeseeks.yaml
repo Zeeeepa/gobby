@@ -41,51 +41,8 @@ workflows:
       task_closed: false
       parent_notified: false
 
+    # Worker workflow starts at claim_task - spawn_agent handles activation
     steps:
-      - name: activate
-        description: "Activate workflow - MUST be called first"
-        on_enter:
-          - action: inject_message
-            content: |
-              WORKER: Workflow activation required.
-
-              You MUST activate this workflow before proceeding. All tools are blocked
-              until you call activate_workflow.
-
-              Call:
-              mcp__gobby__call_tool(
-                server_name="gobby-workflows",
-                tool_name="activate_workflow",
-                arguments={
-                  "name": "meeseeks:worker",
-                  "session_id": "<your_gobby_session_id>",
-                  "variables": {"assigned_task_id": "<your_assigned_task_id>"}
-                }
-              )
-
-              Your Gobby Session ID is shown at session start (e.g., "Gobby Session ID: #N").
-              Your assigned task ID was provided in the spawn prompt.
-
-        allowed_tools:
-          - mcp__gobby__call_tool
-          - mcp__gobby__get_tool_schema
-          - mcp__gobby__list_tools
-
-        blocked_tools:
-          - Edit
-          - Write
-          - Bash
-          - NotebookEdit
-          - Read
-          - Glob
-          - Grep
-          - Task
-          - spawn_agent
-
-        transitions:
-          - to: claim_task
-            when: "mcp_called('gobby-workflows', 'activate_workflow')"
-
       - name: claim_task
         description: "Claim the assigned task"
         on_enter:
@@ -122,6 +79,7 @@ workflows:
           - Bash
           - NotebookEdit
           - spawn_agent
+          - activate_workflow
 
         on_mcp_success:
           - server: gobby-tasks
@@ -170,6 +128,7 @@ workflows:
 
         blocked_tools:
           - spawn_agent
+          - activate_workflow
 
         on_mcp_success:
           - server: gobby-tasks
@@ -210,6 +169,7 @@ workflows:
           - Write
           - Bash
           - NotebookEdit
+          - activate_workflow
 
         on_mcp_success:
           - server: gobby-agents
@@ -255,6 +215,7 @@ workflows:
           - Write
           - NotebookEdit
           - Bash
+          - activate_workflow
 
         transitions:
           - to: complete
