@@ -263,6 +263,29 @@ class WorkflowEngine:
                     self._log_tool_call(session_id, state.step, tool_name, "block", reason)
                     return HookResponse(decision="block", reason=reason)
 
+            # Check MCP-level tool restrictions for call_tool/get_tool_schema
+            # Adapters normalize mcp_server/mcp_tool from tool_input for these calls
+            if tool_name in ("call_tool", "mcp__gobby__call_tool", "get_tool_schema", "mcp__gobby__get_tool_schema"):
+                mcp_server = event.data.get("mcp_server", "")
+                mcp_tool = event.data.get("mcp_tool", "")
+                if mcp_server and mcp_tool:
+                    mcp_key = f"{mcp_server}:{mcp_tool}"
+                    mcp_wildcard = f"{mcp_server}:*"
+
+                    # Check blocked MCP tools (explicit block or wildcard)
+                    if mcp_key in current_step.blocked_mcp_tools or mcp_wildcard in current_step.blocked_mcp_tools:
+                        reason = f"MCP tool '{mcp_key}' is blocked in step '{state.step}'."
+                        self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
+                        return HookResponse(decision="block", reason=reason)
+
+                    # Check allowed MCP tools (if not "all")
+                    if current_step.allowed_mcp_tools != "all":
+                        # Allow if explicitly listed or matches wildcard
+                        if mcp_key not in current_step.allowed_mcp_tools and mcp_wildcard not in current_step.allowed_mcp_tools:
+                            reason = f"MCP tool '{mcp_key}' is not in allowed list for step '{state.step}'."
+                            self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
+                            return HookResponse(decision="block", reason=reason)
+
             # Check rules
             for rule in current_step.rules:
                 if self.evaluator.evaluate(rule.when, eval_context):

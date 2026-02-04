@@ -48,6 +48,11 @@ class WorkflowStep(BaseModel):
     allowed_tools: list[str] | Literal["all"] = Field(default="all")
     blocked_tools: list[str] = Field(default_factory=list)
 
+    # MCP-level tool restrictions (for call_tool arguments)
+    # Format: "server:tool" (e.g., "gobby-tasks:list_tasks") or "server:*" for all tools on server
+    allowed_mcp_tools: list[str] | Literal["all"] = Field(default="all")
+    blocked_mcp_tools: list[str] = Field(default_factory=list)
+
     rules: list[WorkflowRule] = Field(default_factory=list)
     transitions: list[WorkflowTransition] = Field(default_factory=list)
     exit_conditions: list[dict[str, Any]] = Field(default_factory=list)  # flexible for now
