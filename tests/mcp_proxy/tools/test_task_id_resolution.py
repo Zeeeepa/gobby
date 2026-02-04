@@ -233,8 +233,9 @@ class TestMCPUpdateTaskWithHashFormat:
                 return_value={"id": "proj-1"},
             ),
         ):
-            # Note: status="in_progress" now requires claim_task, use "review" instead
-            update_task_func(task_id="#5", status="review")
+            # Note: status="in_progress", "closed", "review" are blocked
+            # Use priority update instead to test #N format resolution
+            update_task_func(task_id="#5", priority=1)
 
         mock_task_manager.resolve_task_reference.assert_called_with("#5", "proj-1")
         # Update should be called with the resolved UUID

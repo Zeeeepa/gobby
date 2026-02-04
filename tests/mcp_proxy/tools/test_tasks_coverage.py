@@ -877,7 +877,7 @@ class TestUpdateTaskTool:
         )
 
         assert "error" in result
-        assert "Cannot set status to 'review'" in result["error"]
+        assert "Cannot set status to 'needs_review'" in result["error"]
         assert "mark_task_for_review" in result["error"]
         mock_task_manager.update_task.assert_not_called()
 
@@ -892,7 +892,7 @@ class TestUpdateTaskTool:
         )
 
         assert "error" in result
-        assert "Cannot set status to 'review'" in result["error"]
+        assert "Cannot set status to 'needs_review'" in result["error"]
         assert "mark_task_for_review" in result["error"]
         mock_task_manager.update_task.assert_not_called()
 

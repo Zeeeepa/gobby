@@ -117,9 +117,7 @@ class TestSequentialReviewLoopE2E:
             },
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is not False, (
-            f"Claim subtask 1 failed: {result}"
-        )
+        assert result.get("success") is not False, f"Claim subtask 1 failed: {result}"
 
         # 3b: Verify first subtask is in_progress
         raw_result = mcp_client.call_tool(
@@ -163,9 +161,7 @@ class TestSequentialReviewLoopE2E:
             },
         )
         result = unwrap_result(raw_result)
-        assert result.get("success") is not False, (
-            f"Claim subtask 2 failed: {result}"
-        )
+        assert result.get("success") is not False, f"Claim subtask 2 failed: {result}"
 
         # 4b: Close second subtask
         raw_result = mcp_client.call_tool(
@@ -628,21 +624,21 @@ class TestReviewStepE2E:
         result = unwrap_result(raw_result)
         task_id = result["id"]
 
-        # Set to review status directly via update_task
+        # Set to needs_review status via mark_task_for_review
         mcp_client.call_tool(
             server_name="gobby-tasks",
-            tool_name="update_task",
-            arguments={"task_id": task_id, "status": "review"},
+            tool_name="mark_task_for_review",
+            arguments={"task_id": task_id, "session_id": session_id},
         )
 
-        # Verify in review
+        # Verify in needs_review
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="get_task",
             arguments={"task_id": task_id},
         )
         result = unwrap_result(raw_result)
-        assert result.get("status") == "review", f"Task should be in review: {result}"
+        assert result.get("status") == "needs_review", f"Task should be in needs_review: {result}"
 
         # Use close_task to transition from review to closed (simulating user approval)
         # Note: update_task no longer allows status="closed", must use close_task

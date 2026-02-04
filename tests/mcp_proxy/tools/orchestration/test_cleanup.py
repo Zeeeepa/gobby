@@ -21,7 +21,7 @@ class MockTask:
         id: str = "task-123",
         seq_num: int = 123,
         title: str = "Test task",
-        status: str = "review",
+        status: str = "needs_review",
         closed_at: str | None = None,
         closed_commit_sha: str | None = None,
     ):
@@ -130,7 +130,7 @@ class TestApproveAndCleanup:
         """Test successful approve and cleanup."""
         mock_task_manager.get_task.return_value = MockTask(
             id="task-123",
-            status="review",
+            status="needs_review",
         )
 
         result = await cleanup_registry.call(
@@ -148,10 +148,10 @@ class TestApproveAndCleanup:
     async def test_approve_and_cleanup_task_not_in_review(
         self, cleanup_registry, mock_task_manager
     ):
-        """Test approve_and_cleanup fails if task not in review status."""
+        """Test approve_and_cleanup fails if task not in needs_review status."""
         mock_task_manager.get_task.return_value = MockTask(
             id="task-123",
-            status="open",  # Not in review
+            status="open",  # Not in needs_review
         )
 
         result = await cleanup_registry.call(
@@ -160,7 +160,7 @@ class TestApproveAndCleanup:
         )
 
         assert result["success"] is False
-        assert "review" in result["error"].lower()
+        assert "needs_review" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_approve_and_cleanup_task_not_found(self, cleanup_registry, mock_task_manager):
@@ -180,7 +180,7 @@ class TestApproveAndCleanup:
         self, cleanup_registry, mock_task_manager, mock_worktree_storage
     ):
         """Test approve_and_cleanup succeeds if no worktree exists."""
-        mock_task_manager.get_task.return_value = MockTask(status="review")
+        mock_task_manager.get_task.return_value = MockTask(status="needs_review")
         mock_worktree_storage.get_by_task.return_value = None
 
         result = await cleanup_registry.call(
@@ -197,7 +197,7 @@ class TestApproveAndCleanup:
         self, cleanup_registry, mock_task_manager, mock_git_manager
     ):
         """Test approve_and_cleanup handles worktree deletion failure."""
-        mock_task_manager.get_task.return_value = MockTask(status="review")
+        mock_task_manager.get_task.return_value = MockTask(status="needs_review")
         mock_git_manager.delete_worktree.return_value = MockDeleteResult(
             success=False, message="Permission denied"
         )
@@ -216,7 +216,7 @@ class TestApproveAndCleanup:
         self, cleanup_registry, mock_task_manager, mock_git_manager
     ):
         """Test approve_and_cleanup with push_branch option."""
-        mock_task_manager.get_task.return_value = MockTask(status="review")
+        mock_task_manager.get_task.return_value = MockTask(status="needs_review")
 
         result = await cleanup_registry.call(
             "approve_and_cleanup",
@@ -235,7 +235,7 @@ class TestApproveAndCleanup:
         self, cleanup_registry, mock_task_manager, mock_git_manager
     ):
         """Test approve_and_cleanup with force option."""
-        mock_task_manager.get_task.return_value = MockTask(status="review")
+        mock_task_manager.get_task.return_value = MockTask(status="needs_review")
 
         result = await cleanup_registry.call(
             "approve_and_cleanup",
@@ -253,7 +253,7 @@ class TestApproveAndCleanup:
         self, cleanup_registry, mock_task_manager, mock_git_manager
     ):
         """Test approve_and_cleanup with delete_worktree=False."""
-        mock_task_manager.get_task.return_value = MockTask(status="review")
+        mock_task_manager.get_task.return_value = MockTask(status="needs_review")
 
         result = await cleanup_registry.call(
             "approve_and_cleanup",
@@ -269,7 +269,7 @@ class TestApproveAndCleanup:
         self, cleanup_registry, mock_task_manager
     ):
         """Test that task status is updated to closed."""
-        task = MockTask(id="task-123", status="review")
+        task = MockTask(id="task-123", status="needs_review")
         mock_task_manager.get_task.return_value = task
 
         result = await cleanup_registry.call(
@@ -313,7 +313,7 @@ class TestApproveAndCleanupNoGitManager:
         self, cleanup_registry_no_git, mock_task_manager, mock_worktree_storage
     ):
         """Test approve_and_cleanup works without git manager (skip worktree ops)."""
-        mock_task_manager.get_task.return_value = MockTask(status="review")
+        mock_task_manager.get_task.return_value = MockTask(status="needs_review")
 
         result = await cleanup_registry_no_git.call(
             "approve_and_cleanup",
@@ -334,7 +334,7 @@ class TestApproveAndCleanupTaskResolution:
     ):
         """Test approve_and_cleanup accepts #N format."""
         mock_task_manager.get_task.return_value = MockTask(
-            id="task-uuid", seq_num=5927, status="review"
+            id="task-uuid", seq_num=5927, status="needs_review"
         )
 
         result = await cleanup_registry.call(
@@ -350,7 +350,7 @@ class TestApproveAndCleanupTaskResolution:
     ):
         """Test approve_and_cleanup accepts UUID format."""
         mock_task_manager.get_task.return_value = MockTask(
-            id="e4860c60-bd55-4131-be9b-7fe774590c2b", status="review"
+            id="e4860c60-bd55-4131-be9b-7fe774590c2b", status="needs_review"
         )
 
         result = await cleanup_registry.call(

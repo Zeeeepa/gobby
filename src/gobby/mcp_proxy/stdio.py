@@ -252,6 +252,17 @@ class DaemonProxy:
             },
         )
 
+    async def init_project(self, name: str, project_path: str | None = None) -> dict[str, Any]:
+        """Initialize a new Gobby project.
+
+        Note: Project initialization requires CLI access and cannot be done
+        via the MCP proxy. Use 'gobby init' command instead.
+        """
+        return {
+            "success": False,
+            "error": "Project initialization requires CLI access. Use 'gobby init' command instead.",
+        }
+
 
 def create_stdio_mcp_server() -> FastMCP:
     """Create stdio MCP server."""
@@ -487,6 +498,26 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             github_url=github_url,
             query=query,
         )
+
+    @mcp.tool()
+    async def init_project(
+        name: str,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Initialize a new Gobby project.
+
+        Note: Project initialization requires CLI access and cannot be done
+        via the MCP proxy. Use 'gobby init' command instead.
+
+        Args:
+            name: Project name
+            project_path: Path to project directory (optional)
+
+        Returns:
+            Result dict with error (CLI access required)
+        """
+        return await proxy.init_project(name, project_path)
 
 
 async def ensure_daemon_running() -> None:
