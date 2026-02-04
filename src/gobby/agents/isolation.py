@@ -344,6 +344,7 @@ class CloneIsolationHandler(IsolationHandler):
         self,
         clone_manager: Any,  # CloneGitManager
         clone_storage: Any,  # LocalCloneManager
+        git_manager: Any | None = None,  # GitManager for branch detection
     ) -> None:
         """
         Initialize CloneIsolationHandler with dependencies.
@@ -351,9 +352,11 @@ class CloneIsolationHandler(IsolationHandler):
         Args:
             clone_manager: Git manager for clone operations
             clone_storage: Storage for clone records
+            git_manager: Git manager for source repo (optional, for branch detection)
         """
         self._clone_manager = clone_manager
         self._clone_storage = clone_storage
+        self._git_manager = git_manager
 
     async def prepare_environment(self, config: SpawnConfig) -> IsolationContext:
         """
@@ -378,6 +381,20 @@ class CloneIsolationHandler(IsolationHandler):
                 extra={"source_repo": config.project_path},
             )
 
+        # Determine base branch - use parent's current branch if default "main" was passed
+        base_branch = config.base_branch
+
+        # If base_branch is the default "main", check if parent is on a different branch
+        if self._git_manager is not None:
+            current_branch = self._git_manager.get_current_branch()
+            if current_branch and base_branch == "main" and current_branch != "main":
+                # Use parent's current branch instead
+                base_branch = current_branch
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info(f"Using parent's current branch '{base_branch}' for clone")
+
         # Generate clone path
         from pathlib import Path
 
@@ -388,7 +405,7 @@ class CloneIsolationHandler(IsolationHandler):
         result = self._clone_manager.create_clone(
             clone_path=clone_path,
             branch_name=branch_name,
-            base_branch=config.base_branch,
+            base_branch=base_branch,
             shallow=True,
         )
 
@@ -400,7 +417,7 @@ class CloneIsolationHandler(IsolationHandler):
             project_id=config.project_id,
             branch_name=branch_name,
             clone_path=clone_path,
-            base_branch=config.base_branch,
+            base_branch=base_branch,
             task_id=config.task_id,
         )
 
@@ -552,6 +569,7 @@ def get_isolation_handler(
         return CloneIsolationHandler(
             clone_manager=clone_manager,
             clone_storage=clone_storage,
+            git_manager=git_manager,  # For branch detection
         )
 
     raise ValueError(f"Unknown isolation mode: {mode}")
