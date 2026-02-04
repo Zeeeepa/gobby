@@ -193,6 +193,9 @@ class WorkflowEngine:
             "step_action_count": state.step_action_count,
             "total_action_count": state.total_action_count,
             "step": state.step,
+            # Flatten variables to top level for simpler conditions like "task_claimed"
+            # instead of requiring "variables.task_claimed"
+            **state.variables,
         }
 
         current_step = workflow.get_step(state.step)
@@ -280,6 +283,8 @@ class WorkflowEngine:
 
             # Rebuild eval_context variables after detection updates
             eval_context["variables"] = SimpleNamespace(**state.variables)
+            # Also update flattened variables at top level
+            eval_context.update(state.variables)
 
         # Check transitions
         logger.debug("Checking transitions")
