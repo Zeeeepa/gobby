@@ -279,14 +279,27 @@ class RunningAgentRegistry:
         # === Cross-platform strategies (try first) ===
 
         # Strategy 1: tmux (macOS + Linux) - most reliable
+        # Only use tmux if the pane actually exists and belongs to a running tmux session
         if ctx.get("tmux_pane"):
             try:
-                subprocess.run(
-                    ["tmux", "kill-pane", "-t", ctx["tmux_pane"]],
+                # Verify the pane exists before killing - prevents killing inherited/stale panes
+                verify_result = subprocess.run(
+                    ["tmux", "display-message", "-t", ctx["tmux_pane"], "-p", "#{pane_id}"],
                     timeout=timeout,
                     capture_output=True,
+                    text=True,
                 )
-                return {"success": True, "method": "tmux_kill_pane", "pane": ctx["tmux_pane"]}
+                if verify_result.returncode == 0 and verify_result.stdout.strip():
+                    subprocess.run(
+                        ["tmux", "kill-pane", "-t", ctx["tmux_pane"]],
+                        timeout=timeout,
+                        capture_output=True,
+                    )
+                    return {"success": True, "method": "tmux_kill_pane", "pane": ctx["tmux_pane"]}
+                else:
+                    self._logger.debug(
+                        f"tmux pane {ctx['tmux_pane']} not found or not accessible, skipping"
+                    )
             except Exception as e:
                 self._logger.debug(f"tmux kill-pane failed: {e}")
 

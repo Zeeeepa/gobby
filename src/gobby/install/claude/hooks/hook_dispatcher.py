@@ -83,8 +83,15 @@ def get_terminal_context() -> dict[str, str | int | None]:
     # VS Code terminal ID (if running in VS Code integrated terminal)
     context["vscode_terminal_id"] = os.environ.get("VSCODE_GIT_ASKPASS_NODE")
 
-    # Tmux pane (if running in tmux)
-    context["tmux_pane"] = os.environ.get("TMUX_PANE")
+    # Tmux pane (only if actually running INSIDE a tmux session)
+    # IMPORTANT: Only report TMUX_PANE if TMUX env var is also set.
+    # The TMUX_PANE env var can be inherited by child processes that are
+    # spawned into different terminals (e.g., Ghostty), which would cause
+    # kill_agent to kill the parent's tmux pane instead of the child's terminal.
+    if os.environ.get("TMUX"):
+        context["tmux_pane"] = os.environ.get("TMUX_PANE")
+    else:
+        context["tmux_pane"] = None
 
     # Kitty terminal window ID
     context["kitty_window_id"] = os.environ.get("KITTY_WINDOW_ID")
