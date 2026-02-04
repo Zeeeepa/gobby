@@ -1052,6 +1052,7 @@ class TestInstallClaudeEdgeCases:
             "mcp_already_configured",
             "error",
             "plugins_installed",
+            "agents_installed",
         }
         assert set(result.keys()) == expected_keys
 
@@ -1060,6 +1061,7 @@ class TestInstallClaudeEdgeCases:
         assert isinstance(result["hooks_installed"], list)
         assert isinstance(result["workflows_installed"], list)
         assert isinstance(result["commands_installed"], list)
+        assert isinstance(result["agents_installed"], list)
         assert isinstance(result["mcp_configured"], bool)
         assert isinstance(result["mcp_already_configured"], bool)
 
