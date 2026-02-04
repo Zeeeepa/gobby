@@ -208,6 +208,7 @@ class ToolProxyService:
         server_name: str,
         tool_name: str,
         arguments: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Any:
         """Execute a tool with optional pre-validation.
 
@@ -218,8 +219,23 @@ class ToolProxyService:
         On execution error, includes fallback_suggestions if a fallback resolver
         is configured.
 
+        When session_id is provided and a workflow is active, checks that the
+        tool is not blocked by the current workflow step's blocked_tools setting.
+
         """
         args = arguments or {}
+
+        # Check workflow tool restrictions if session_id provided
+        if session_id and self._tool_filter:
+            is_allowed, reason = self._tool_filter.is_tool_allowed(tool_name, session_id)
+            if not is_allowed:
+                return {
+                    "success": False,
+                    "error": reason,
+                    "error_code": ToolProxyErrorCode.TOOL_BLOCKED.value,
+                    "server_name": server_name,
+                    "tool_name": tool_name,
+                }
 
         # Pre-validate arguments if enabled
         if self._validate_arguments and args:
@@ -361,6 +377,7 @@ class ToolProxyService:
         self,
         tool_name: str,
         arguments: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Any:
         """
         Call a tool by name, automatically resolving the server.
@@ -371,6 +388,7 @@ class ToolProxyService:
         Args:
             tool_name: Name of the tool to call
             arguments: Tool arguments
+            session_id: Optional session ID for workflow tool restriction checks
 
         Returns:
             Tool execution result, or error dict if tool not found
@@ -386,4 +404,4 @@ class ToolProxyService:
             }
 
         logger.debug(f"Routing tool '{tool_name}' to server '{server_name}'")
-        return await self.call_tool(server_name, tool_name, arguments)
+        return await self.call_tool(server_name, tool_name, arguments, session_id)

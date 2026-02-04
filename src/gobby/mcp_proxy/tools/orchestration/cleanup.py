@@ -38,7 +38,7 @@ def register_cleanup(
         """
         Approve a reviewed task and clean up its worktree.
 
-        This tool transitions a task from "review" to "closed" status
+        This tool transitions a task from "needs_review" to "closed" status
         and optionally deletes the associated worktree.
 
         Args:
@@ -71,11 +71,11 @@ def register_cleanup(
                 "error": f"Task not found: {task_id}",
             }
 
-        # Verify task is in review status
-        if task.status != "review":
+        # Verify task is in needs_review status
+        if task.status != "needs_review":
             return {
                 "success": False,
-                "error": f"Task must be in 'review' status to approve. Current status: {task.status}",
+                "error": f"Task must be in 'needs_review' status to approve. Current status: {task.status}",
             }
 
         # Get associated worktree (if any)
@@ -148,7 +148,7 @@ def register_cleanup(
         name="approve_and_cleanup",
         description=(
             "Approve a reviewed task and clean up its worktree. "
-            "Transitions task from 'review' to 'closed' status and deletes worktree."
+            "Transitions task from 'needs_review' to 'closed' status and deletes worktree."
         ),
         input_schema={
             "type": "object",

@@ -82,7 +82,13 @@ class Task:
     project_id: str
     title: str
     status: Literal[
-        "open", "in_progress", "review", "closed", "failed", "escalated", "needs_decomposition"
+        "open",
+        "in_progress",
+        "needs_review",
+        "closed",
+        "failed",
+        "escalated",
+        "needs_decomposition",
     ]
     priority: int
     task_type: str  # bug, feature, task, epic, chore

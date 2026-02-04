@@ -18,7 +18,7 @@ from gobby.cli.utils import resolve_project_ref
 @click.option(
     "--status",
     "-s",
-    help="Filter by status (open, in_progress, review, closed). Comma-separated for multiple.",
+    help="Filter by status (open, in_progress, needs_review, closed). Comma-separated for multiple.",
 )
 @click.option(
     "--type",

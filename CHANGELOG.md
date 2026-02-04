@@ -5,6 +5,84 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11] - 2025-02-04
+
+### Improvements
+
+- Add `mode: self` to `spawn_agent` for in-session workflow activation (#6909)
+- Make commit task ID format dynamic based on project name (#6904)
+- Change task ID format from `[#N]` to `gobby#N` then to `gobby-#N` (#6898, #6902)
+
+### Bug Fixes
+
+- Fix 54 failing tests (#6912)
+- Fix mypy no-any-return errors (#6910)
+- Fix worktree tools: orphaned records and MCP type coercion (#6905)
+- Fix transcript parsing crash when JSON line is not an object (#1)
+
+### Documentation
+
+- Document gobby-projects-v2 plan (#6907)
+- Create gobby-plugins internal MCP server plan (#6903)
+
+### Internal
+
+- Improve task lifecycle tool enforcement (#6876, #6877)
+- Remove `init_project` from stdio MCP server (#6897)
+- Block workflow-restricted tools in MCP `call_tool` (#6896)
+- Block 'review' status in `update_task` (#6875)
+- Decouple gobby-skills and gobby-artifacts from task_manager (#6873)
+- Exclude deprecated workflows from `gobby install` (#6911)
+
+## [0.2.10] - 2025-02-01
+
+### Major Features
+
+#### Multi-CLI Adapter Support
+- Add Cursor, Windsurf, and Copilot session support (#6140)
+- Implement proper Copilot, Windsurf, and Cursor adapters (#6857-#6860)
+- Add auto-installation for Cursor, Windsurf, Copilot (#6867)
+- Add hook dispatchers for Cursor, Windsurf, Copilot
+- Centralize `machine_id` in base adapter (#6842)
+
+#### Pipeline System
+- Add WebSocket streaming for pipeline execution (#6798)
+- Register gobby-pipelines MCP server in daemon (#6797)
+- Implement template rendering in pipeline `_render_step` (#6796)
+
+#### Agent Improvements
+- Add unified agent file with named workflows (#6847)
+- Auto-detect current branch as `base_branch` (#6852)
+- Load and persist inline workflows from agent definitions (#6849, #6850)
+- Handle None name in inline workflow registration (#6848)
+- Use `close_terminal` MCP tool for agent shutdown (#6839)
+- Validate workflow exists before spawning (#6834)
+- Use effective_workflow from agent definition (#6837)
+
+### Bug Fixes
+
+- Fix 76 mypy type errors and pytest collection issue (#6861)
+- Fix 27 code quality issues from CodeRabbit review (#6856)
+- Add missing `step_variables` column to test mock schema (#6854)
+- Fix machine_id test mock paths and E2E workflow setup
+- Resolve bandit and pip-audit security issues (#6862)
+- Replace CursorAdapter stub with proper hooks implementation (#6863)
+- Fix sandbox to pass `GOBBY_MACHINE_ID` env var (#6841)
+- Include `~/.gobby/` in sandbox read paths for machine_id access (#6840)
+- Allow Tailscale IP access in Vite config (#6843)
+
+### Documentation
+
+- Add Cursor, Windsurf, Copilot to CLI guides (#6868)
+- Fix README CLI config to use `gobby install` (#6866)
+- Update README with native CLI adapter details (#6865)
+- Mark CLI adapters plan as complete (#6864)
+
+### Internal
+
+- Multiple test fixes for production code changes (#6869, #6871)
+- Align test suite with production code changes
+
 ## [0.2.9] - 2025-01-30
 
 ### Improvements

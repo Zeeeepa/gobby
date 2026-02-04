@@ -43,7 +43,7 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             query: Search query text (required). Natural language query.
-            status: Filter by status (open, in_progress, review, closed).
+            status: Filter by status (open, in_progress, needs_review, closed).
                 Can be a single status or comma-separated list.
             task_type: Filter by task type (task, bug, feature, epic)
             priority: Filter by priority (1=High, 2=Medium, 3=Low)

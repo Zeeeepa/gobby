@@ -156,7 +156,7 @@ def list_ready_tasks(
               -- Blocker is unresolved if not closed AND not in review without requiring user review
               AND NOT (
                   blocker.status = 'closed'
-                  OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+                  OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
               )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               AND NOT EXISTS (
@@ -186,7 +186,7 @@ def list_ready_tasks(
               -- Blocker is unresolved if not closed AND not in review without requiring user review
               AND NOT (
                   blocker.status = 'closed'
-                  OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+                  OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
               )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               AND NOT EXISTS (
@@ -266,7 +266,7 @@ def list_blocked_tasks(
           -- Blocker is unresolved if not closed AND not in review without requiring user review
           AND NOT (
               blocker.status = 'closed'
-              OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+              OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
           )
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           AND NOT EXISTS (

@@ -26,7 +26,7 @@ from gobby.utils.project_context import get_project_context
 @click.option(
     "--status",
     "-s",
-    help="Filter by status (open, in_progress, review, closed, blocked). Comma-separated for multiple.",
+    help="Filter by status (open, in_progress, needs_review, closed, blocked). Comma-separated for multiple.",
 )
 @click.option(
     "--active",
@@ -266,7 +266,7 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
     # Get counts by status
     all_tasks = manager.list_tasks(project_id=project_id, limit=10000)
     total = len(all_tasks)
-    by_status = {"open": 0, "in_progress": 0, "review": 0, "closed": 0}
+    by_status = {"open": 0, "in_progress": 0, "needs_review": 0, "closed": 0}
     by_priority = {1: 0, 2: 0, 3: 0}
     by_type: dict[str, int] = {}
 
@@ -302,7 +302,7 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
     click.echo(f"  Total: {total}")
     click.echo(f"  Open: {by_status.get('open', 0)}")
     click.echo(f"  In Progress: {by_status.get('in_progress', 0)}")
-    click.echo(f"  Review: {by_status.get('review', 0)}")
+    click.echo(f"  Needs Review: {by_status.get('needs_review', 0)}")
     click.echo(f"  Closed: {by_status.get('closed', 0)}")
     click.echo(f"\n  Ready (no blockers): {ready_count}")
     click.echo(f"  Blocked: {blocked_count}")
@@ -547,9 +547,10 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     # Use standardized ref for errors
     resolved_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
 
-    if resolved.status not in ("closed", "review"):
+    if resolved.status not in ("closed", "needs_review"):
         click.echo(
-            f"Task {resolved_ref} is not closed or in review (status: {resolved.status})", err=True
+            f"Task {resolved_ref} is not closed or in needs_review (status: {resolved.status})",
+            err=True,
         )
         return
 

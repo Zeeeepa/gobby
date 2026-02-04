@@ -354,6 +354,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "Use claim_task(task_id, session_id='...') to properly claim tasks with session tracking."
             }
 
+        # Block needs_review status via update_task - must use mark_task_for_review for proper workflow
+        if status is not None and status.lower() in ("review", "needs_review"):
+            return {
+                "error": "Cannot set status to 'needs_review' via update_task. "
+                "Use mark_task_for_review(task_id, session_id='...') to properly route tasks for review."
+            }
+
         # Build kwargs only for non-None values to avoid overwriting with NULL
         kwargs: dict[str, Any] = {}
         if title is not None:
@@ -414,7 +421,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "status": {
                     "type": "string",
-                    "description": "New status (open, in_progress, review, closed)",
+                    "description": "New status (open, in_progress, needs_review, closed)",
                     "default": None,
                 },
                 "priority": {"type": "integer", "description": "New priority", "default": None},

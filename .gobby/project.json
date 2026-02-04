@@ -12,12 +12,12 @@
     "pre-commit": {
       "run": ["lint", "format"],
       "fail_fast": true,
-      "timeout": 60
+      "timeout": 120
     },
     "pre-push": {
       "run": ["type_check", "unit_tests"],
       "fail_fast": false,
-      "timeout": 300
+      "timeout": 1800
     }
   }
 }

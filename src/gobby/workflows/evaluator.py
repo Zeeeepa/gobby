@@ -23,7 +23,7 @@ def is_task_complete(task: Any) -> bool:
 
     A task is complete if:
     - status is 'closed', OR
-    - status is 'review' AND requires_user_review is False
+    - status is 'needs_review' AND requires_user_review is False
       (agent marked for visibility but doesn't need user sign-off)
 
     Tasks in 'review' with requires_user_review=True are NOT complete
@@ -38,7 +38,7 @@ def is_task_complete(task: Any) -> bool:
     if task.status == "closed":
         return True
     requires_user_review = getattr(task, "requires_user_review", False)
-    if task.status == "review" and not requires_user_review:
+    if task.status == "needs_review" and not requires_user_review:
         return True
     return False
 
@@ -55,7 +55,7 @@ def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
         task_id: Task ID to check
 
     Returns:
-        True if task is in 'review' status AND has requires_user_review=True.
+        True if task is in 'needs_review' status AND has requires_user_review=True.
         Returns False if task_id is None or task not found.
     """
     if not task_id or not task_manager:
@@ -65,7 +65,7 @@ def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
     if not task:
         return False
 
-    return bool(task.status == "review" and getattr(task, "requires_user_review", False))
+    return bool(task.status == "needs_review" and getattr(task, "requires_user_review", False))
 
 
 def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bool:
@@ -74,7 +74,7 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
 
     A task is complete if:
     - status is 'closed', OR
-    - status is 'review' AND requires_user_review is False
+    - status is 'needs_review' AND requires_user_review is False
 
     Used in workflow transition conditions like:
         when: "task_tree_complete(variables.session_task)"

@@ -289,6 +289,11 @@ class ClaudeTranscriptParser:
             self.logger.warning(f"Invalid JSON at line {index}")
             return None
 
+        # Ensure data is a dict (JSON could be a string, number, etc.)
+        if not isinstance(data, dict):
+            self.logger.debug(f"Skipping non-object JSON at line {index}")
+            return None
+
         # Extract basic fields
         msg_type = data.get("type", "unknown")
         timestamp_str = data.get("timestamp") or datetime.now(UTC).isoformat()

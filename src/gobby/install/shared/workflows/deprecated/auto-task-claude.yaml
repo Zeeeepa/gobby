@@ -51,8 +51,6 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
       - Read
       - Glob
       - Grep
@@ -93,8 +91,6 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -120,14 +116,13 @@ steps:
           - Provider: {{ variables.worker_provider }}
           - Terminal: {{ variables.worker_terminal }}
 
-          Spawn the worker with worktree isolation. IMPORTANT: The prompt must tell
-          the worker to activate the workflow with the assigned_task_id variable.
+          Spawn the worker with worktree isolation:
 
           mcp__gobby__call_tool(
             server_name="gobby-agents",
             tool_name="spawn_agent",
             arguments={
-              "prompt": "You are a Gemini worker in an isolated git worktree.\n\nFIRST, activate your workflow by calling:\n\nmcp__gobby__call_tool(\n  server_name=\"gobby-workflows\",\n  tool_name=\"activate_workflow\",\n  arguments={\n    \"name\": \"work-task-gemini\",\n    \"session_id\": \"<your_gobby_session_id>\",\n    \"variables\": {\"assigned_task_id\": \"<TASK_ID>\"}\n  }\n)\n\nReplace <your_gobby_session_id> with your Gobby Session ID (shown at startup).\nReplace <TASK_ID> with the task ID you were assigned.\n\nThe workflow will guide you through: claim → implement → commit → close → report → shutdown.\n\nDo NOT proceed without activating the workflow first.",
+              "prompt": "Complete the assigned task, commit your changes, then close the task.",
               "task_id": "<suggested_task_id>",
               "isolation": "worktree",
               "workflow": "work-task-gemini",
@@ -137,16 +132,12 @@ steps:
             }
           )
 
-          IMPORTANT: Replace <TASK_ID> in the prompt with the actual task ID from suggest_next_task.
-
           Track the returned child_session_id and worktree_id for later use.
 
     allowed_tools:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -190,8 +181,6 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -229,8 +218,6 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -265,8 +252,6 @@ steps:
       - mcp__gobby__call_tool
       - mcp__gobby__list_tools
       - mcp__gobby__get_tool_schema
-      - mcp__gobby__list_mcp_servers
-      - mcp__gobby__search_tools
       - Read
 
     blocked_tools:
@@ -297,9 +282,4 @@ exit_condition: "task_tree_complete(variables.session_task)"
 
 on_premature_stop:
   action: guide_continuation
-  message: |
-    Task orchestration incomplete. Options:
-    1. Continue working: use suggest_next_task() or wait for workers
-    2. Stop anyway: first fetch schema, then call end_workflow:
-       mcp__gobby__get_tool_schema(server_name="gobby-workflows", tool_name="end_workflow")
-       mcp__gobby__call_tool(server_name="gobby-workflows", tool_name="end_workflow", arguments={"session_id": "<your_session_id>"})
+  message: "Task orchestration incomplete. Use suggest_next_task() or wait for workers. Do not wait for user confirmation to proceed."

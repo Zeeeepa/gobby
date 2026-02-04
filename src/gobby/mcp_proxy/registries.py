@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
     from gobby.storage.clones import LocalCloneManager
+    from gobby.storage.database import DatabaseProtocol
     from gobby.storage.inter_session_messages import InterSessionMessageManager
     from gobby.storage.merge_resolutions import MergeResolutionManager
     from gobby.storage.pipelines import LocalPipelineExecutionManager
@@ -39,6 +40,7 @@ def setup_internal_registries(
     _session_manager: SessionManager | None = None,
     memory_manager: MemoryManager | None = None,
     task_manager: LocalTaskManager | None = None,
+    db: DatabaseProtocol | None = None,
     sync_manager: TaskSyncManager | None = None,
     task_validator: TaskValidator | None = None,
     message_manager: LocalSessionMessageManager | None = None,
@@ -66,6 +68,7 @@ def setup_internal_registries(
         _session_manager: Session manager (reserved for future use)
         memory_manager: Memory manager for memory operations
         task_manager: Task storage manager
+        db: Database connection for registries that only need storage (skills, artifacts)
         sync_manager: Task sync manager for git sync
         task_validator: Task validator for validation
         message_manager: Message storage manager
@@ -200,6 +203,9 @@ def setup_internal_registries(
             git_manager=git_manager,
             clone_storage=clone_storage,
             clone_manager=clone_git_manager,
+            # For mode=self (workflow activation on caller session)
+            workflow_loader=workflow_loader,
+            db=db,
         )
 
         # Add inter-agent messaging tools if message manager and session manager are available
@@ -277,9 +283,8 @@ def setup_internal_registries(
         manager.add_registry(hub_registry)
         logger.debug("Hub registry initialized")
 
-    # Initialize skills registry using the existing database from task_manager
-    # to avoid creating a duplicate connection that would leak
-    if task_manager is not None:
+    # Initialize skills registry if database is available
+    if db is not None:
         from gobby.config.skills import SkillsConfig
         from gobby.mcp_proxy.tools.skills import create_skills_registry
         from gobby.skills.hubs import (
@@ -303,27 +308,27 @@ def setup_internal_registries(
         hub_manager.register_provider_factory("claude-plugins", ClaudePluginsProvider)
 
         skills_registry = create_skills_registry(
-            db=task_manager.db,
+            db=db,
             project_id=project_id,
             hub_manager=hub_manager,
         )
         manager.add_registry(skills_registry)
         logger.debug("Skills registry initialized")
     else:
-        logger.debug("Skills registry not initialized: task_manager is None")
+        logger.debug("Skills registry not initialized: db is None")
 
-    # Initialize artifacts registry using the existing database from task_manager
-    if task_manager is not None:
+    # Initialize artifacts registry if database is available
+    if db is not None:
         from gobby.mcp_proxy.tools.artifacts import create_artifacts_registry
 
         artifacts_registry = create_artifacts_registry(
-            db=task_manager.db,
+            db=db,
             session_manager=local_session_manager,
         )
         manager.add_registry(artifacts_registry)
         logger.debug("Artifacts registry initialized")
     else:
-        logger.debug("Artifacts registry not initialized: task_manager is None")
+        logger.debug("Artifacts registry not initialized: db is None")
 
     # Initialize pipelines registry if pipeline_executor is available
     if pipeline_executor is not None:

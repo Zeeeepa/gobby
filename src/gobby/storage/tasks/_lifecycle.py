@@ -57,9 +57,9 @@ def close_task(
                 f"Cannot close task {task_id}: has {len(open_children)} open child task(s): {child_list}"
             )
 
-    # Check if task is being closed from review state (user acceptance)
+    # Check if task is being closed from needs_review state (user acceptance)
     current_task = get_task(db, task_id)
-    accepted_by_user = current_task.status == "review" if current_task else False
+    accepted_by_user = current_task.status == "needs_review" if current_task else False
 
     now = datetime.now(UTC).isoformat()
     with db.transaction() as conn:
@@ -117,8 +117,8 @@ def reopen_task(
         ValueError: If task not found or not closed/review
     """
     task = get_task(db, task_id)
-    if task.status not in ("closed", "review"):
-        raise ValueError(f"Task {task_id} is not closed or in review (status: {task.status})")
+    if task.status not in ("closed", "needs_review"):
+        raise ValueError(f"Task {task_id} is not closed or in needs_review (status: {task.status})")
 
     now = datetime.now(UTC).isoformat()
 

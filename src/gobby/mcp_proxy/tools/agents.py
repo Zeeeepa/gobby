@@ -40,6 +40,9 @@ def create_agents_registry(
     git_manager: Any | None = None,
     clone_storage: Any | None = None,
     clone_manager: Any | None = None,
+    # For mode=self (workflow activation on caller session)
+    workflow_loader: Any | None = None,
+    db: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -430,6 +433,10 @@ def create_agents_registry(
         clone_storage=clone_storage,
         clone_manager=clone_manager,
         session_manager=session_manager,
+        workflow_loader=workflow_loader,
+        # For mode=self (workflow activation on caller session)
+        state_manager=workflow_state_manager,
+        db=db,
     )
 
     # Merge spawn_agent tools into agents registry

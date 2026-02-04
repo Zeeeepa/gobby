@@ -60,6 +60,10 @@ class WorkflowSpec(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)
     outputs: dict[str, Any] = Field(default_factory=dict)
 
+    # Execution mode override for this workflow
+    # Allows per-workflow control over how the workflow is executed
+    mode: Literal["terminal", "embedded", "headless", "self"] | None = None
+
     def is_file_reference(self) -> bool:
         """Check if this spec is a file reference vs inline definition."""
         return self.file is not None
@@ -184,6 +188,30 @@ class AgentDefinition(BaseModel):
 
         # Fallback to legacy workflow field
         return self.workflow
+
+    def get_effective_mode(
+        self, workflow_name: str | None = None
+    ) -> Literal["terminal", "embedded", "headless", "self"]:
+        """
+        Get the effective execution mode for a workflow.
+
+        Resolution:
+        1. Check if specified workflow has a mode in its WorkflowSpec
+        2. Fall back to agent-level mode
+
+        Args:
+            workflow_name: Workflow name to check
+
+        Returns:
+            Execution mode to use
+        """
+        # Check workflow-specific mode
+        spec = self.get_workflow_spec(workflow_name)
+        if spec and spec.mode:
+            return spec.mode
+
+        # Fall back to agent-level mode
+        return self.mode  # type: ignore[return-value]
 
 
 class AgentDefinitionLoader:

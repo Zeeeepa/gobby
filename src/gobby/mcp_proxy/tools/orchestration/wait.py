@@ -62,7 +62,7 @@ def register_wait(
 
         # Consider task complete if status is "closed" or "review"
         # (review tasks have completed their work, just awaiting human approval)
-        is_complete = task.status in ("closed", "review")
+        is_complete = task.status in ("closed", "needs_review")
         return is_complete, task_info
 
     async def wait_for_task(
@@ -73,7 +73,7 @@ def register_wait(
         """
         Wait for a single task to complete.
 
-        Blocks until the task reaches "closed" or "review" status, or timeout expires.
+        Blocks until the task reaches "closed" or "needs_review" status, or timeout expires.
 
         Args:
             task_id: Task reference (#N, N, path, or UUID)
@@ -170,7 +170,7 @@ def register_wait(
         name="wait_for_task",
         description=(
             "Wait for a single task to complete. "
-            "Blocks until task reaches 'closed' or 'review' status, or timeout expires."
+            "Blocks until task reaches 'closed' or 'needs_review' status, or timeout expires."
         ),
         input_schema={
             "type": "object",
@@ -201,7 +201,7 @@ def register_wait(
         """
         Wait for any one of multiple tasks to complete.
 
-        Blocks until at least one task reaches "closed" or "review" status, or timeout expires.
+        Blocks until at least one task reaches "closed" or "needs_review" status, or timeout expires.
 
         Args:
             task_ids: List of task references (#N, N, path, or UUID)
@@ -290,7 +290,7 @@ def register_wait(
         name="wait_for_any_task",
         description=(
             "Wait for any one of multiple tasks to complete. "
-            "Returns as soon as the first task reaches 'closed' or 'review' status."
+            "Returns as soon as the first task reaches 'closed' or 'needs_review' status."
         ),
         input_schema={
             "type": "object",
@@ -322,7 +322,7 @@ def register_wait(
         """
         Wait for all tasks to complete.
 
-        Blocks until all tasks reach "closed" or "review" status, or timeout expires.
+        Blocks until all tasks reach "closed" or "needs_review" status, or timeout expires.
 
         Args:
             task_ids: List of task references (#N, N, path, or UUID)
@@ -442,7 +442,7 @@ def register_wait(
         name="wait_for_all_tasks",
         description=(
             "Wait for all tasks to complete. "
-            "Blocks until all tasks reach 'closed' or 'review' status, or timeout expires."
+            "Blocks until all tasks reach 'closed' or 'needs_review' status, or timeout expires."
         ),
         input_schema={
             "type": "object",

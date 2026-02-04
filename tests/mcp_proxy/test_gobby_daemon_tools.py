@@ -207,7 +207,7 @@ class TestGobbyDaemonToolsCallTool:
         )
 
         tools_handler.tool_proxy.call_tool.assert_called_once_with(
-            "test-server", "test-tool", {"key": "value"}
+            "test-server", "test-tool", {"key": "value"}, None
         )
         assert result["success"] is True
         assert result["result"] == "test output"
@@ -245,7 +245,7 @@ class TestGobbyDaemonToolsCallTool:
             arguments=None,
         )
 
-        tools_handler.tool_proxy.call_tool.assert_called_once_with("server", "no-args-tool", None)
+        tools_handler.tool_proxy.call_tool.assert_called_once_with("server", "no-args-tool", None, None)
 
     @pytest.mark.asyncio
     async def test_call_tool_propagates_errors(self, tools_handler):

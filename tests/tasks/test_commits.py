@@ -193,61 +193,62 @@ index 123..456 100644
 class TestExtractTaskIdsFromMessage:
     """Tests for task ID extraction from commit messages.
 
-    These tests verify commit message patterns recognize #N format:
-    - `fixes #1` extracts task reference
-    - `closes #42` extracts task reference
-    - `refs #1, #2, #3` extracts multiple references
-    - `gt-abc123` pattern is NOT recognized (deprecated)
-    - Case variations work: `Fixes #1`, `FIXES #1`
+    These tests verify commit message patterns recognize {project}-#N format:
+    - `[project-#1]` extracts task reference (primary format)
+    - `project-#42` standalone extracts task reference
+    - `fixes project-#1` extracts task reference
+    - Case variations work: `Fixes project-#1`, `FIXES project-#1`
+    - Old `#N` format is NOT recognized (avoid GitHub auto-linking)
+    - Project name filtering is supported
     """
 
     def test_extracts_bracket_pattern(self) -> None:
-        """Test extraction of [#N] pattern."""
-        message = "Fix authentication bug [#1]"
+        """Test extraction of [gobby-#N] pattern (primary format)."""
+        message = "Fix authentication bug [gobby-#1]"
         result = extract_task_ids_from_message(message)
         assert "#1" in result
 
-    def test_extracts_colon_pattern(self) -> None:
-        """Test extraction of '#N:' pattern."""
-        message = "#42: Add new feature"
+    def test_extracts_standalone_pattern(self) -> None:
+        """Test extraction of standalone 'gobby-#N' pattern."""
+        message = "gobby-#42 Add new feature"
         result = extract_task_ids_from_message(message)
         assert "#42" in result
 
     def test_extracts_implements_pattern(self) -> None:
-        """Test extraction of 'Implements #N' pattern."""
-        message = "Implements #7 feature request"
+        """Test extraction of 'Implements gobby-#N' pattern."""
+        message = "Implements gobby-#7 feature request"
         result = extract_task_ids_from_message(message)
         assert "#7" in result
 
     def test_extracts_fixes_pattern(self) -> None:
-        """Test extraction of 'Fixes #N' pattern."""
-        message = "Fixes #123 by updating validation"
+        """Test extraction of 'Fixes gobby-#N' pattern."""
+        message = "Fixes gobby-#123 by updating validation"
         result = extract_task_ids_from_message(message)
         assert "#123" in result
 
     def test_extracts_closes_pattern(self) -> None:
-        """Test extraction of 'Closes #N' pattern."""
-        message = "Closes #99"
+        """Test extraction of 'Closes gobby-#N' pattern."""
+        message = "Closes gobby-#99"
         result = extract_task_ids_from_message(message)
         assert "#99" in result
 
     def test_extracts_refs_pattern(self) -> None:
-        """Test extraction of 'Refs #N' pattern."""
-        message = "Refs #5 for context"
+        """Test extraction of 'Refs gobby-#N' pattern."""
+        message = "Refs gobby-#5 for context"
         result = extract_task_ids_from_message(message)
         assert "#5" in result
 
     def test_extracts_multiple_task_ids(self) -> None:
         """Test extraction of multiple task IDs from one message."""
-        message = "[#1] and also #2: and Fixes #3"
+        message = "[gobby-#1] and also gobby-#2 and Fixes gobby-#3"
         result = extract_task_ids_from_message(message)
         assert "#1" in result
         assert "#2" in result
         assert "#3" in result
 
     def test_extracts_comma_separated_refs(self) -> None:
-        """Test extraction of comma-separated refs like 'refs #1, #2, #3'."""
-        message = "Refs #1, refs #2, refs #3"
+        """Test extraction of comma-separated refs like 'refs gobby-#1, gobby-#2'."""
+        message = "Refs gobby-#1, refs gobby-#2, refs gobby-#3"
         result = extract_task_ids_from_message(message)
         assert "#1" in result
         assert "#2" in result
@@ -261,16 +262,23 @@ class TestExtractTaskIdsFromMessage:
 
     def test_deduplicates_task_ids(self) -> None:
         """Test that duplicate task IDs are removed."""
-        message = "[#1] #1: Implements #1"
+        message = "[gobby-#1] gobby-#1 Implements gobby-#1"
         result = extract_task_ids_from_message(message)
         assert result.count("#1") == 1
 
     def test_case_insensitive_keywords(self) -> None:
         """Test that keywords are case insensitive."""
-        message = "IMPLEMENTS #1 and FIXES #2"
+        message = "IMPLEMENTS gobby-#1 and FIXES gobby-#2"
         result = extract_task_ids_from_message(message)
         assert "#1" in result
         assert "#2" in result
+
+    def test_old_hash_format_not_recognized(self) -> None:
+        """Test that old #N format is NOT recognized (avoids GitHub auto-linking)."""
+        message = "[#123] Fixes #456 refs #789"
+        result = extract_task_ids_from_message(message)
+        # Old #N format should NOT be extracted
+        assert len(result) == 0
 
     def test_gt_format_not_recognized(self) -> None:
         """Test that deprecated gt-* format is NOT recognized."""
@@ -283,31 +291,61 @@ class TestExtractTaskIdsFromMessage:
         assert "gt-789xyz" not in result
 
     def test_avoids_false_positives_with_paths(self) -> None:
-        """Test that #N in file paths is not matched incorrectly."""
-        # This shouldn't match because #1 shouldn't appear in normal paths
-        message = "Update docs/chapter#1.md"
+        """Test that gobby-#N in file paths is not matched incorrectly."""
+        # This shouldn't match because gobby-#1 is embedded in a path
+        message = "Update docs/chaptergobby-#1.md"
         result = extract_task_ids_from_message(message)
-        # The pattern requires whitespace before #N, so this shouldn't match
-        assert "#1" not in result or len(result) == 0
+        # The bracket pattern requires [gobby-#N], standalone requires whitespace
+        assert len(result) == 0
 
     def test_multiline_message(self) -> None:
         """Test extraction from multiline commit messages."""
         message = """feat: add new feature
 
-Implements #42
+Implements gobby-#42
 
 This change adds the requested feature.
-Also refs #43 for related work.
+Also refs gobby-#43 for related work.
 """
         result = extract_task_ids_from_message(message)
         assert "#42" in result
         assert "#43" in result
 
+    def test_different_project_names(self) -> None:
+        """Test that different project names are recognized."""
+        message = "[myapp-#1] Fix bug in [acme-#2]"
+        result = extract_task_ids_from_message(message)
+        assert "#1" in result
+        assert "#2" in result
+
+    def test_project_name_filtering(self) -> None:
+        """Test filtering by project name."""
+        message = "[gobby-#1] Also refs myapp-#2"
+        # Filter for gobby only
+        result = extract_task_ids_from_message(message, project_name="gobby")
+        assert "#1" in result
+        assert "#2" not in result
+
+    def test_project_name_filtering_case_insensitive(self) -> None:
+        """Test that project name filtering is case-insensitive."""
+        message = "[GOBBY-#1] Fix bug"
+        result = extract_task_ids_from_message(message, project_name="gobby")
+        assert "#1" in result
+
+    def test_no_filter_returns_all_projects(self) -> None:
+        """Test that no filter returns tasks from all projects."""
+        message = "[gobby-#1] refs myapp-#2 fixes acme-#3"
+        result = extract_task_ids_from_message(message)
+        assert len(result) == 3
+        assert "#1" in result
+        assert "#2" in result
+        assert "#3" in result
+
 
 class TestAutoLinkCommits:
     """Tests for auto_link_commits function.
 
-    Note: These tests use #N format which is extracted from commit messages.
+    Note: These tests use gobby-#N format which is extracted from commit messages.
     The task manager is mocked to accept these references directly.
     """
 
@@ -327,7 +365,7 @@ class TestAutoLinkCommits:
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             # Mock git log output with commit mentioning task
-            mock_git.return_value = "abc123|Fix bug [#1]\ndef456|Unrelated commit\n"
+            mock_git.return_value = "abc123|Fix bug [gobby-#1]\ndef456|Unrelated commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -343,7 +381,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#1] commit\n"
+            mock_git.return_value = "abc123|[gobby-#1] commit\n"
 
             auto_link_commits(
                 mock_task_manager,
@@ -363,7 +401,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#1] existing commit\n"
+            mock_git.return_value = "abc123|[gobby-#1] existing commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -391,7 +429,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.side_effect = get_task_side_effect
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#1] first task\ndef456|Fixes #2\n"
+            mock_git.return_value = "abc123|[gobby-#1] first task\ndef456|Fixes gobby-#2\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -403,7 +441,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.side_effect = ValueError("Task not found")
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#999] commit\n"
+            mock_git.return_value = "abc123|[gobby-#999] commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -418,7 +456,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#1] commit 1\ndef456|Fixes #1\n"
+            mock_git.return_value = "abc123|[gobby-#1] commit 1\ndef456|Fixes gobby-#1\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -432,7 +470,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#1] target task\ndef456|[#2] different task\n"
+            mock_git.return_value = "abc123|[gobby-#1] target task\ndef456|[gobby-#2] different task\n"
 
             result = auto_link_commits(
                 mock_task_manager,
@@ -462,7 +500,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[#1] already linked\n"
+            mock_git.return_value = "abc123|[gobby-#1] already linked\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 

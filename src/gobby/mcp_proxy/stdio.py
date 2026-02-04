@@ -252,13 +252,15 @@ class DaemonProxy:
             },
         )
 
-    async def init_project(
-        self, name: str | None = None, github_url: str | None = None
-    ) -> dict[str, Any]:
-        """Initialize a project - use 'gobby init' CLI command instead."""
+    async def init_project(self, name: str, project_path: str | None = None) -> dict[str, Any]:
+        """Initialize a new Gobby project.
+
+        Note: Project initialization requires CLI access and cannot be done
+        via the MCP proxy. Use 'gobby init' command instead.
+        """
         return {
             "success": False,
-            "error": "init_project requires CLI access. Run 'gobby init' from your terminal.",
+            "error": "Project initialization requires CLI access. Use 'gobby init' command instead.",
         }
 
 
@@ -421,22 +423,6 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         )
 
     @mcp.tool()
-    async def init_project(
-        name: str | None = None, github_url: str | None = None
-    ) -> dict[str, Any]:
-        """
-        Initialize a new Gobby project in the current directory.
-
-        Args:
-            name: Optional project name (auto-detected from directory name if not provided)
-            github_url: Optional GitHub URL (auto-detected from git remote if not provided)
-
-        Returns:
-            Dict with success status and project details
-        """
-        return await proxy.init_project(name, github_url)
-
-    @mcp.tool()
     async def add_mcp_server(
         name: str,
         transport: str,
@@ -512,6 +498,26 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             github_url=github_url,
             query=query,
         )
+
+    @mcp.tool()
+    async def init_project(
+        name: str,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Initialize a new Gobby project.
+
+        Note: Project initialization requires CLI access and cannot be done
+        via the MCP proxy. Use 'gobby init' command instead.
+
+        Args:
+            name: Project name
+            project_path: Path to project directory (optional)
+
+        Returns:
+            Result dict with error (CLI access required)
+        """
+        return await proxy.init_project(name, project_path)
 
 
 async def ensure_daemon_running() -> None:

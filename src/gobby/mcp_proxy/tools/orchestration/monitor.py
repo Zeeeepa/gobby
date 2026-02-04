@@ -101,7 +101,7 @@ def register_monitor(
                 closed_tasks.append(task_info)
             elif task.status == "in_progress":
                 in_progress_tasks.append(task_info)
-            elif task.status == "review":
+            elif task.status == "needs_review":
                 review_tasks.append(task_info)
             else:
                 open_tasks.append(task_info)
