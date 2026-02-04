@@ -487,16 +487,14 @@ def extract_mentioned_symbols(task: dict[str, Any]) -> list[str]:
 
 
 # Task ID patterns to search for in commit messages
-# Supports #N format (e.g., #1, #47) - human-friendly task references
+# Uses gobby#N format to avoid GitHub auto-linking to non-existent PRs/issues
 TASK_ID_PATTERNS = [
-    # [#N] - bracket format
-    r"\[#(\d+)\]",
-    # #N: - hash-colon format (at start of line or after space)
-    r"(?:^|\s)#(\d+):",
-    # Implements/Fixes/Closes/Refs #N (supports multiple: #1, #2, #3)
-    r"(?:implements|fixes|closes|refs)\s+#(\d+)",
-    # Standalone #N after whitespace (with word boundary to avoid false positives)
-    r"(?:^|\s)#(\d+)\b(?![\d.])",
+    # [gobby#N] - bracket format (primary)
+    r"\[gobby#(\d+)\]",
+    # gobby#N - standalone format
+    r"(?:^|\s)gobby#(\d+)\b",
+    # Implements/Fixes/Closes/Refs gobby#N
+    r"(?:implements|fixes|closes|refs)\s+gobby#(\d+)",
 ]
 
 
