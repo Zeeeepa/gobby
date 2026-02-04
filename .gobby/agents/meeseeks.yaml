@@ -81,6 +81,10 @@ workflows:
           - spawn_agent
           - activate_workflow
 
+        # Block manual workflow end - only close_terminal can end worker
+        blocked_mcp_tools:
+          - gobby-workflows:end_workflow
+
         on_mcp_success:
           - server: gobby-tasks
             tool: claim_task
@@ -131,9 +135,11 @@ workflows:
           - activate_workflow
 
         # Block claiming/creating additional tasks - one task per worker
+        # Block manual workflow end - only close_terminal can end worker
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
+          - gobby-workflows:end_workflow
 
         # Block git push - parent orchestrator handles merging
         blocked_commands:
@@ -184,9 +190,11 @@ workflows:
           - activate_workflow
 
         # Block claiming/creating additional tasks - one task per worker
+        # Block manual workflow end - only close_terminal can end worker
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
+          - gobby-workflows:end_workflow
 
         on_mcp_success:
           - server: gobby-agents
@@ -247,10 +255,13 @@ workflows:
           - activate_workflow
 
         # Block all MCP tools except close_terminal
+        # Explicitly block end_workflow - close_terminal is the only exit
         blocked_mcp_tools:
           - gobby-tasks:*
           - gobby-agents:*
           - gobby-worktrees:*
+          - gobby-workflows:end_workflow
+          - gobby-workflows:activate_workflow
 
         allowed_mcp_tools:
           - gobby-workflows:close_terminal
