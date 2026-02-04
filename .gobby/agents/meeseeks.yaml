@@ -140,6 +140,9 @@ workflows:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
           - gobby-workflows:end_workflow
+          # Block irrelevant MCP servers - worker only needs task/agent/workflow/worktree tools
+          - context7:*
+          - memory:*
 
         # Block git push - parent orchestrator handles merging
         blocked_commands:

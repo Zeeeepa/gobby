@@ -266,11 +266,12 @@ class ClaudeLLMProvider(LLMProvider):
         Format context and validate prompt template for summary generation.
 
         Transforms list/dict values to strings for template substitution
-        and validates that a prompt template is provided.
+        and validates that a prompt template is provided. Uses Jinja2 for
+        rendering templates with {{ variable }} syntax.
 
         Args:
             context: Raw context dict with transcript_summary, last_messages, etc.
-            prompt_template: Template string with placeholders for context values.
+            prompt_template: Template string with Jinja2 placeholders for context values.
 
         Returns:
             Formatted prompt string ready for LLM consumption.
@@ -298,7 +299,18 @@ class ClaudeLLMProvider(LLMProvider):
                 "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
             )
 
-        return prompt_template.format(**formatted_context)
+        # Render with Jinja2 (templates use {{ variable }} syntax)
+        try:
+            from jinja2 import Environment
+
+            env = Environment(autoescape=False)  # nosec B701 - generating text prompts
+            template = env.from_string(prompt_template)
+            return template.render(**formatted_context)
+        except ImportError:
+            # Fallback to simple str.format if Jinja2 unavailable
+            # Convert {{ }} to {} for str.format compatibility
+            self.logger.warning("Jinja2 not available, using str.format fallback")
+            return prompt_template.format(**formatted_context)
 
     async def _retry_async(
         self,

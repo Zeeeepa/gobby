@@ -110,7 +110,18 @@ class GeminiProvider(LLMProvider):
                 "prompt_template is required for generate_summary. "
                 "Configure 'session_summary.prompt' in ~/.gobby/config.yaml"
             )
-        prompt = prompt_template.format(**formatted_context)
+
+        # Render with Jinja2 (templates use {{ variable }} syntax)
+        try:
+            from jinja2 import Environment
+
+            env = Environment(autoescape=False)  # nosec B701 - generating text prompts
+            template = env.from_string(prompt_template)
+            prompt = template.render(**formatted_context)
+        except ImportError:
+            # Fallback to simple str.format if Jinja2 unavailable
+            self.logger.warning("Jinja2 not available, using str.format fallback")
+            prompt = prompt_template.format(**formatted_context)
 
         try:
             model_name = self.config.session_summary.model or "gemini-1.5-pro"
