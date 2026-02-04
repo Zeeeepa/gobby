@@ -524,7 +524,6 @@ call_tool("gobby-memory", "search_memories", {
 | `get_variable` | Get workflow variable(s) |
 | `import_workflow` | Import workflow from file |
 | `reload_cache` | Clear workflow cache after edits |
-| `close_terminal` | Close terminal (agent self-termination) |
 
 ### Example: Workflow Activation
 

@@ -159,7 +159,7 @@ Worker executes these steps autonomously:
 3. `git commit -m "[#subtask] Add test comment"`
 4. `close_task` with `commit_sha` → task status `closed`
 5. `send_to_parent` → message to orchestrator
-6. `close_terminal` → session terminates
+6. `kill_agent` → session terminates
 
 ### Step 10: Wait Returns
 
@@ -237,10 +237,10 @@ Each MCP server must respond correctly:
 
 | Tool             | Test                        |
 | ---------------- | --------------------------- |
-| `close_terminal` | Terminates session cleanly  |
 | `end_workflow`   | Allows early exit if needed |
 
 Note: `activate_workflow` is called internally by `spawn_agent` when a workflow is specified.
+Agent self-termination uses `kill_agent` from gobby-agents (with `session_id` and `stop: true`).
 
 ### gobby-clones
 
@@ -312,7 +312,7 @@ The E2E test passes when:
 4. **Git state correct**: Commit created with task reference, changes mergeable
 5. **No orphaned resources**: No lingering clones, terminals, or in-progress tasks
 6. **Messages delivered**: Tester received completion message from worker via `poll_messages`
-7. **Terminal cleanup**: Worker called `close_terminal` and process exited
+7. **Terminal cleanup**: Worker called `kill_agent` and process exited
 
 ## Recommended Test Task
 

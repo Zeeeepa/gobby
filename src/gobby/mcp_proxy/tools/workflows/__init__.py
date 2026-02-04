@@ -13,7 +13,6 @@ Exposes functionality for:
 - get_variable: Get workflow variable(s) for the session
 - import_workflow: Import a workflow from a file path
 - reload_cache: Clear the workflow loader cache to pick up file changes
-- close_terminal: Agent self-termination
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
@@ -38,7 +37,6 @@ from gobby.mcp_proxy.tools.workflows._query import (
     get_workflow_status,
     list_workflows,
 )
-from gobby.mcp_proxy.tools.workflows._terminal import close_terminal
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_workflow_project_path
@@ -248,26 +246,5 @@ def create_workflows_registry(
     )
     def _reload_cache() -> dict[str, Any]:
         return reload_cache(_loader)
-
-    @registry.tool(
-        name="close_terminal",
-        description=(
-            "Close the current terminal window/pane (agent self-termination). "
-            "Launches ~/.gobby/scripts/agent_shutdown.sh which handles "
-            "terminal-specific shutdown (tmux, iTerm, etc.). Rebuilds script if missing. "
-            "Pass session_id to reliably target the correct terminal PID."
-        ),
-    )
-    async def _close_terminal(
-        session_id: str | None = None,
-        signal: str = "TERM",
-        delay_ms: int = 0,
-    ) -> dict[str, Any]:
-        return await close_terminal(
-            session_id=session_id,
-            session_manager=_session_manager,
-            signal=signal,
-            delay_ms=delay_ms,
-        )
 
     return registry

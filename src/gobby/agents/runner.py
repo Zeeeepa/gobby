@@ -694,6 +694,24 @@ class AgentRunner:
         """Get an agent run by ID."""
         return self._run_storage.get(run_id)
 
+    def get_run_id_by_session(self, session_id: str) -> str | None:
+        """
+        Get agent run_id by child session_id.
+
+        Looks up the agent_runs table for a run with this child_session_id.
+
+        Args:
+            session_id: The child session ID (UUID format).
+
+        Returns:
+            The run_id if found, None otherwise.
+        """
+        row = self.db.fetchone(
+            "SELECT id FROM agent_runs WHERE child_session_id = ? ORDER BY created_at DESC LIMIT 1",
+            (session_id,),
+        )
+        return row["id"] if row else None
+
     def list_runs(
         self,
         parent_session_id: str,

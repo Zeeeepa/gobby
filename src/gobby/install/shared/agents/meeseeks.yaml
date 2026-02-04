@@ -81,7 +81,7 @@ workflows:
           - spawn_agent
           - activate_workflow
 
-        # Block manual workflow end - only close_terminal can end worker
+        # Block manual workflow end - only kill_agent can end worker
         blocked_mcp_tools:
           - gobby-workflows:end_workflow
 
@@ -135,7 +135,7 @@ workflows:
           - activate_workflow
 
         # Block claiming/creating additional tasks - one task per worker
-        # Block manual workflow end - only close_terminal can end worker
+        # Block manual workflow end - only kill_agent can end worker
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
@@ -193,7 +193,7 @@ workflows:
           - activate_workflow
 
         # Block claiming/creating additional tasks - one task per worker
-        # Block manual workflow end - only close_terminal can end worker
+        # Block manual workflow end - only kill_agent can end worker
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
@@ -218,19 +218,19 @@ workflows:
             when: "mcp_called('gobby-agents', 'send_to_parent')"
 
       - name: shutdown
-        description: "Clean shutdown - MUST call close_terminal"
+        description: "Clean shutdown - MUST call kill_agent"
         on_enter:
           - action: inject_message
             content: |
               WORKER: Shutdown sequence - MANDATORY TERMINATION
 
-              Your task is complete. You MUST now terminate by calling close_terminal.
+              Your task is complete. You MUST now terminate by calling kill_agent.
               This is the ONLY action available to you. All other tools are blocked.
 
-              Call close_terminal now:
-              - server_name: "gobby-workflows"
-              - tool_name: "close_terminal"
-              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
+              Call kill_agent now:
+              - server_name: "gobby-agents"
+              - tool_name: "kill_agent"
+              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "stop": true}
 
               NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
 
@@ -238,9 +238,9 @@ workflows:
               The parent orchestrator will review your work and spawn new workers for
               remaining tasks. You cannot claim additional tasks or continue working.
 
-              close_terminal is your ONLY exit path. Call it now.
+              kill_agent is your ONLY exit path. Call it now.
 
-        # Only allow the MCP tools needed to call close_terminal
+        # Only allow the MCP tools needed to call kill_agent
         allowed_tools:
           - mcp__gobby__call_tool
           - mcp__gobby__get_tool_schema
@@ -257,38 +257,37 @@ workflows:
           - spawn_agent
           - activate_workflow
 
-        # Block all MCP tools except close_terminal
-        # Explicitly block end_workflow - close_terminal is the only exit
+        # Block all MCP tools except kill_agent
+        # Explicitly block end_workflow - kill_agent is the only exit
         blocked_mcp_tools:
           - gobby-tasks:*
-          - gobby-agents:*
           - gobby-worktrees:*
           - gobby-workflows:end_workflow
           - gobby-workflows:activate_workflow
 
         allowed_mcp_tools:
-          - gobby-workflows:close_terminal
-          - gobby-workflows:get_tool_schema
+          - gobby-agents:kill_agent
+          - gobby-agents:get_tool_schema
 
         on_premature_stop:
           action: block
           message: |
-            BLOCKED: You cannot stop without calling close_terminal.
+            BLOCKED: You cannot stop without calling kill_agent.
 
             Your task is complete, but you must properly terminate your session.
-            Call close_terminal to exit:
+            Call kill_agent to exit:
 
             mcp__gobby__call_tool(
-              server_name="gobby-workflows",
-              tool_name="close_terminal",
-              arguments={"session_id": "YOUR_GOBBY_SESSION_ID"}
+              server_name="gobby-agents",
+              tool_name="kill_agent",
+              arguments={"session_id": "YOUR_GOBBY_SESSION_ID", "stop": true}
             )
 
             This is the ONLY way to end this session. Do it now.
 
         transitions:
           - to: complete
-            when: "mcp_called('gobby-workflows', 'close_terminal')"
+            when: "mcp_called('gobby-agents', 'kill_agent')"
 
       - name: complete
         description: "Worker done"

@@ -132,9 +132,8 @@ When spawned as a subagent (via `spawn_agent`), follow the workflow instructions
 
 **Key points:**
 - Your workflow instructions are injected at session start and step transitions
-- Follow the workflow's termination instructions (typically `close_terminal`)
+- Follow the workflow's termination instructions (typically `kill_agent`)
 - Do NOT use `/quit` or similar CLI commands
-- Do NOT use `kill_agent` - use the workflow-specified termination method
 
 ### Send results to parent
 
@@ -148,8 +147,9 @@ call_tool("gobby-agents", "send_to_parent", {
 ### Terminate (when workflow instructs)
 
 ```python
-call_tool("gobby-workflows", "close_terminal", {
-    "session_id": "<your_gobby_session_id>"
+call_tool("gobby-agents", "kill_agent", {
+    "session_id": "<your_gobby_session_id>",
+    "stop": true
 })
 ```
 

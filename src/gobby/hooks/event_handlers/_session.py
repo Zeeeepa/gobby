@@ -70,7 +70,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
                             f"terminal_context, updating external_id to {external_id}"
                         )
                         # Update the session's external_id and terminal_context
-                        # terminal_context contains parent_pid needed for close_terminal
+                        # terminal_context contains parent_pid needed for kill_agent
                         self._session_storage.update(
                             gobby_session_id_from_env,
                             external_id=external_id,

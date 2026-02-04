@@ -204,10 +204,14 @@ def create_agents_registry(
 
     @registry.tool(
         name="kill_agent",
-        description="Kill a running agent process. Use stop=True to also end its workflow.",
+        description=(
+            "Kill a running agent process. Accepts run_id (parent use case) or "
+            "session_id (self-termination). Use stop=True to also end its workflow."
+        ),
     )
     async def kill_agent(
-        run_id: str,
+        run_id: str | None = None,
+        session_id: str | None = None,
         signal: str = "TERM",
         force: bool = False,
         stop: bool = False,
@@ -216,12 +220,15 @@ def create_agents_registry(
         Kill a running agent process.
 
         This actually terminates the process (unlike stop_agent which only updates DB).
+        Can be called by parent (using run_id) or by the agent itself (using session_id).
 
         Args:
-            run_id: Agent run ID
+            run_id: Agent run ID (for parent killing child)
+            session_id: Session ID of the agent (for self-termination). Accepts #N, N, UUID, or prefix.
             signal: Signal to send (TERM, KILL, INT, HUP, QUIT). Default: TERM
             force: Use SIGKILL immediately (equivalent to signal="KILL")
-            stop: Also end the agent's workflow (prevents restart)
+            stop: Also end the agent's workflow (prevents restart). For self-termination,
+                this also attempts to close the terminal window.
 
         Returns:
             Dict with success status and kill details.
@@ -238,30 +245,61 @@ def create_agents_registry(
                 "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}",
             }
 
-        # Get agent info before killing (for session_id)
+        # Resolve run_id from session_id if needed (self-termination case)
+        resolved_session_id: str | None = None
+        if run_id is None and session_id:
+            # Resolve session_id (accepts #N, N, UUID, prefix)
+            try:
+                resolved_session_id = _resolve_session_id(session_id)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
+            # Try registry first (fast path)
+            agent = agent_registry.get_by_session(resolved_session_id)
+            if agent:
+                run_id = agent.run_id
+            else:
+                # Fallback: query DB for agent run with this child_session_id
+                run_id = runner.get_run_id_by_session(resolved_session_id)
+
+            if not run_id:
+                return {"success": False, "error": f"No agent found for session {session_id}"}
+
+        if run_id is None:
+            return {"success": False, "error": "Either run_id or session_id required"}
+
+        # Get agent info before killing
         agent = agent_registry.get(run_id)
-        session_id = agent.session_id if agent else None
+        agent_session_id = agent.session_id if agent else resolved_session_id
 
         # Database fallback: if not in registry, look up from DB
-        if session_id is None:
+        if agent_session_id is None:
             db_run = runner.get_run(run_id)
             if db_run and db_run.child_session_id:
-                session_id = db_run.child_session_id
+                agent_session_id = db_run.child_session_id
+
+        # For self-termination with stop=True, try to close the terminal window
+        close_terminal = stop and (session_id is not None)
 
         # Kill via registry (run in thread to avoid blocking event loop)
         import asyncio
 
-        result = await asyncio.to_thread(agent_registry.kill, run_id, signal_name=signal)
+        result = await asyncio.to_thread(
+            agent_registry.kill,
+            run_id,
+            signal_name=signal,
+            close_terminal=close_terminal,
+        )
 
         if result.get("success"):
             # Update database status
             runner.cancel_run(run_id)
 
             # Optionally end the workflow to prevent restart
-            if stop and session_id:
+            if stop and agent_session_id:
                 if workflow_state_manager is not None:
                     try:
-                        workflow_state_manager.delete_state(session_id)
+                        workflow_state_manager.delete_state(agent_session_id)
                         result["workflow_stopped"] = True
                     except Exception as e:
                         result["workflow_stop_error"] = str(e)
