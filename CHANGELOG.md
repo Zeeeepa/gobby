@@ -5,7 +5,7 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.11] - 2025-02-03
+## [0.2.11] - 2025-02-04
 
 ### Improvements
 
@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fix 54 failing tests (#6912)
 - Fix mypy no-any-return errors (#6910)
 - Fix worktree tools: orphaned records and MCP type coercion (#6905)
 - Fix transcript parsing crash when JSON line is not an object (#1)
