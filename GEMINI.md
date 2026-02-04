@@ -96,7 +96,8 @@ call_tool("gobby-tasks", "claim_task", {
     "session_id": "<your_session_id>"
 })
 
-# After work: commit with [task-id] prefix, then close
+# After work: commit with [gobby#task-id] prefix, then close
+# Example: git commit -m "[gobby#6961] Fix authentication bug"
 call_tool("gobby-tasks", "close_task", {
     "task_id": "...",
     "commit_sha": "..."
@@ -127,43 +128,30 @@ call_tool("gobby-sessions", "get_current_session", {
 
 ## Spawned Agent Protocol
 
-When spawned as a subagent (via `start_agent` or `spawn_agent_in_worktree`), use these tools to communicate and terminate:
+When spawned as a subagent (via `spawn_agent`), follow the workflow instructions provided at session start. The workflow will guide you through the task lifecycle.
 
-### 1. Get your session info
+**Key points:**
+- Your workflow instructions are injected at session start and step transitions
+- Follow the workflow's termination instructions (typically `close_terminal`)
+- Do NOT use `/quit` or similar CLI commands
+- Do NOT use `kill_agent` - use the workflow-specified termination method
 
-```python
-call_tool("gobby-sessions", "get_current_session", {
-    "external_id": "<your-session-id>",
-    "source": "gemini"
-})
-# Returns: {"session_id": "...", "agent_run_id": "..."}
-```
-
-### 2. Send results to parent
+### Send results to parent
 
 ```python
 call_tool("gobby-agents", "send_to_parent", {
-    "message": "Task completed: implemented authentication flow"
+    "session_id": "<your_gobby_session_id>",
+    "content": "Task completed: implemented authentication flow"
 })
 ```
 
-### 3. Mark work complete
+### Terminate (when workflow instructs)
 
 ```python
-call_tool("gobby-sessions", "mark_loop_complete", {
-    "session_id": "<session_id>"
+call_tool("gobby-workflows", "close_terminal", {
+    "session_id": "<your_gobby_session_id>"
 })
 ```
-
-### 4. Terminate yourself
-
-```python
-call_tool("gobby-agents", "kill_agent", {
-    "run_id": "<agent_run_id>"  # From get_current_session response
-})
-```
-
-**IMPORTANT**: Do NOT use `/quit` or similar CLI commands - always use `kill_agent` to properly terminate.
 
 ## Code Conventions
 
