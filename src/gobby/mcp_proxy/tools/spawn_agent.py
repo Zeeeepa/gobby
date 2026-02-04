@@ -243,8 +243,10 @@ async def spawn_agent_impl(
                     self_task_id = resolve_task_id_for_mcp(task_manager, task_id, self_project_id)
                     task = task_manager.get_task(self_task_id)
                     if task:
+                        task_ref = f"#{task.seq_num}" if task.seq_num else self_task_id
                         self_step_variables = {
-                            "assigned_task_id": f"#{task.seq_num}" if task.seq_num else self_task_id
+                            "assigned_task_id": task_ref,
+                            "session_task": task_ref,  # For orchestrator workflows like meeseeks-box
                         }
                 except Exception as e:
                     logger.warning(f"Failed to resolve task_id {task_id}: {e}")
