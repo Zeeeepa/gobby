@@ -593,7 +593,7 @@ class TestGetProviderForFeature:
     def test_get_provider_with_custom_prompt(
         self, mock_transcript_processor, mock_llm_service
     ) -> None:
-        """Test getting provider with custom prompt from config."""
+        """Test getting provider with custom prompt from config (fallback when no prompt file)."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
 
@@ -610,7 +610,10 @@ class TestGetProviderForFeature:
             config=config,
         )
 
-        provider, prompt = gen._get_provider_for_feature("session_summary")
+        # Mock PromptLoader to raise FileNotFoundError to test config fallback
+        with patch("gobby.prompts.loader.PromptLoader") as mock_loader_class:
+            mock_loader_class.return_value.load.side_effect = FileNotFoundError("Not found")
+            provider, prompt = gen._get_provider_for_feature("session_summary")
 
         assert provider is not None
         assert prompt == "Custom prompt template"
@@ -656,7 +659,7 @@ class TestGetProviderForFeature:
         assert prompt is None
 
     def test_get_provider_with_named_provider(self, mock_transcript_processor) -> None:
-        """Test getting provider by name from LLMService."""
+        """Test getting provider by name from LLMService (with config prompt fallback)."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
 
@@ -681,14 +684,17 @@ class TestGetProviderForFeature:
             config=config,
         )
 
-        provider, prompt = gen._get_provider_for_feature("session_summary")
+        # Mock PromptLoader to raise FileNotFoundError to test config fallback
+        with patch("gobby.prompts.loader.PromptLoader") as mock_loader_class:
+            mock_loader_class.return_value.load.side_effect = FileNotFoundError("Not found")
+            provider, prompt = gen._get_provider_for_feature("session_summary")
 
         assert provider is mock_openai_provider
         assert prompt == "Use OpenAI"
         mock_service.get_provider.assert_called_with("openai")
 
     def test_get_provider_named_provider_not_available(self, mock_transcript_processor) -> None:
-        """Test fallback when named provider is not available."""
+        """Test fallback when named provider is not available (with config prompt fallback)."""
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
 
@@ -711,7 +717,10 @@ class TestGetProviderForFeature:
             config=config,
         )
 
-        provider, prompt = gen._get_provider_for_feature("session_summary")
+        # Mock PromptLoader to raise FileNotFoundError to test config fallback
+        with patch("gobby.prompts.loader.PromptLoader") as mock_loader_class:
+            mock_loader_class.return_value.load.side_effect = FileNotFoundError("Not found")
+            provider, prompt = gen._get_provider_for_feature("session_summary")
 
         # Should fall back to default provider
         assert provider is mock_default_provider

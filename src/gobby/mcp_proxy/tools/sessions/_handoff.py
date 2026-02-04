@@ -307,15 +307,22 @@ Args:
                 provider = ClaudeLLMProvider(config)
                 transcript_parser = ClaudeTranscriptParser()
 
-                # Get prompt template from config
+                # Get prompt template: try PromptLoader first, then config fallback
                 prompt_template = None
-                if hasattr(config, "session_summary") and config.session_summary:
-                    prompt_template = getattr(config.session_summary, "prompt", None)
+                try:
+                    from gobby.prompts.loader import PromptLoader
+
+                    loader = PromptLoader()
+                    prompt_obj = loader.load("handoff/session_end")
+                    prompt_template = prompt_obj.content
+                except FileNotFoundError:
+                    # Fall back to config inline prompt (deprecated)
+                    if hasattr(config, "session_summary") and config.session_summary:
+                        prompt_template = getattr(config.session_summary, "prompt", None)
 
                 if not prompt_template:
                     raise ValueError(
-                        "No prompt template configured. "
-                        "Set 'session_summary.prompt' in ~/.gobby/config.yaml"
+                        "No prompt template found. Add ~/.gobby/prompts/handoff/session_end.md"
                     )
 
                 # Prepare context for LLM
