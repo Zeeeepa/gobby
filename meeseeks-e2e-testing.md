@@ -50,7 +50,9 @@ mcp__gobby__call_tool(
         "session_id": "#813"
     }
 )
+
 ```
+
 **Expected**: Returns `task_id` (e.g., `#6921`), status `open`
 
 ### Step 2: Create Subtask
@@ -66,14 +68,18 @@ mcp__gobby__call_tool(
         "session_id": "#813"
     }
 )
+
 ```
+
 **Expected**: Returns subtask `task_id`, linked to parent
 
 ### Step 3: Verify Git State
 
 ```bash
 git worktree list
+
 ```
+
 **Expected**: Only main worktree shown
 
 ### Step 4: Activate Orchestrator
@@ -89,24 +95,30 @@ mcp__gobby__call_tool(
         "parent_session_id": "#813"
     }
 )
+
 ```
+
 **Expected**: meeseeks-box workflow activates in current session, `session_task` variable set
 
 ### Step 5: Orchestrator Finds Work (automatic)
 
 meeseeks-box calls:
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="suggest_next_task",
     arguments={"session_id": "#813"}
 )
+
 ```
+
 **Expected**: Returns subtask `task_id`
 
 ### Step 6: Orchestrator Spawns Worker (automatic)
 
 meeseeks-box calls:
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
@@ -122,7 +134,9 @@ mcp__gobby__call_tool(
         "parent_session_id": "#813"
     }
 )
+
 ```
+
 **Expected**: Returns `run_id`, `clone_id`, `branch_name`
 
 ### Step 7: Verify Clone Created
@@ -133,12 +147,15 @@ mcp__gobby__call_tool(
     tool_name="list_clones",
     arguments={}
 )
+
 ```
+
 **Expected**: Shows new clone for feature branch
 
 ### Step 8: Orchestrator Waits (automatic)
 
 meeseeks-box calls:
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-tasks",
@@ -148,12 +165,15 @@ mcp__gobby__call_tool(
         "timeout": 600
     }
 )
+
 ```
+
 **Expected**: Blocks until worker closes task
 
 ### Step 9: Worker Lifecycle (autonomous in Gemini)
 
 Worker executes these steps autonomously:
+
 1. `claim_task` → task status `in_progress`
 2. Work phase → edits file, runs tests
 3. `git commit -m "[#subtask] Add test comment"`
@@ -168,9 +188,11 @@ Worker executes these steps autonomously:
 ### Step 11: Orchestrator Reviews (manual)
 
 Review the diff:
+
 ```bash
 git diff dev...<branch_name>
 ```
+
 **Expected**: Shows single comment addition
 
 ### Step 12: Orchestrator Merges (manual/automatic)
@@ -198,7 +220,9 @@ mcp__gobby__call_tool(
     tool_name="list_clones",
     arguments={}
 )
+
 ```
+
 **Expected**: No active clones
 
 ```python
@@ -207,7 +231,9 @@ mcp__gobby__call_tool(
     tool_name="get_task",
     arguments={"task_id": "<parent_task_id>"}
 )
+
 ```
+
 **Expected**: Parent and subtask both `closed`
 
 ## MCP Tool Verification
@@ -270,11 +296,11 @@ Agent self-termination uses `kill_agent` from gobby-agents (with `session_id` an
 
 ### Worker Fails to Commit
 
-| Step                                    | Expected Behavior                            |
-| --------------------------------------- | -------------------------------------------- |
-| Worker makes changes but doesn't commit | Task closed without `commit_sha`          |
-| Tester observes                         | Changes exist in clone but not committed  |
-| Recovery                                | Tester can manually commit or discard clone |
+| Step | Expected Behavior |
+| --- | --- |
+| Worker makes changes but doesn't commit | Task closed without `commit_sha` |
+| Tester observes | Changes exist in clone but not committed |
+| Recovery | Tester can manually commit or discard clone |
 
 ### No Parent Found
 
@@ -323,16 +349,20 @@ Use a dedicated test marker file that can be reset between runs:
 **Task Title**: "Update meeseeks E2E test marker"
 
 **Task Description**:
-```
+
+```text
 Update tests/e2e/meeseeks_test_marker.py with:
+
 - Current run number (increment RUN_NUMBER)
 - Current timestamp (update TIMESTAMP)
 - Add a new entry to the RUNS list
 
 The file already exists with the template structure.
+
 ```
 
 **Initial File Content** (create once before first test):
+
 ```python
 """Meeseeks E2E test marker file.
 
@@ -343,17 +373,21 @@ Reset RUN_NUMBER to 0 to restart test sequence.
 RUN_NUMBER = 0
 TIMESTAMP = "never"
 RUNS: list[str] = []
+
 ```
 
 **Validation**:
+
 ```bash
 # After worker completes:
 cat tests/e2e/meeseeks_test_marker.py
 
 # Expected: RUN_NUMBER incremented, TIMESTAMP updated, new entry in RUNS
+
 ```
 
 **Why This Task**:
+
 - Repeatable: Reset by reverting file or setting RUN_NUMBER = 0
 - Verifiable: Clear success criteria (file changed, values updated)
 - Safe: No production impact, isolated to test directory
@@ -372,6 +406,7 @@ mcp__gobby__call_tool(
         "session_id": "#813"
     }
 )
+
 ```
 
 ---
@@ -382,8 +417,9 @@ Record each test run with timestamp, session ID, and results.
 
 ### Run Template
 
-```
+```text
 ### Run #N - YYYY-MM-DD HH:MM
+
 
 **Session**: #XXX
 **Parent Task**: #YYYY
@@ -411,30 +447,28 @@ Record each test run with timestamp, session ID, and results.
 **Duration**:
 ```
 
----
-
 ### Run #1 - (pending)
 
 **Session**: #813
 **Parent Task**: (to be created)
 **Subtask**: (to be created)
 
-| Step | Status | Notes |
-|------|--------|-------|
-| 1. Create parent | ⏳ | |
-| 2. Create subtask | ⏳ | |
-| 3. Verify git state | ⏳ | |
-| 4. Activate orchestrator | ⏳ | |
-| 5. Orchestrator finds work | ⏳ | |
-| 6. Spawn worker | ⏳ | |
-| 7. Verify clone | ⏳ | |
-| 8. Wait for task | ⏳ | |
-| 9. Worker lifecycle | ⏳ | |
-| 10. Wait returns | ⏳ | |
-| 11. Review changes | ⏳ | |
-| 12. Merge | ⏳ | |
-| 13. Cleanup clone | ⏳ | |
-| 14. Verify final state | ⏳ | |
+| Step                       | Status   | Notes |
+| -------------------------- | -------- | ----- |
+| 1. Create parent           | ⏳       |       |
+| 2. Create subtask          | ⏳       |       |
+| 3. Verify git state        | ⏳       |       |
+| 4. Activate orchestrator   | ⏳       |       |
+| 5. Orchestrator finds work | ⏳       |       |
+| 6. Spawn worker            | ⏳       |       |
+| 7. Verify clone            | ⏳       |       |
+| 8. Wait for task           | ⏳       |       |
+| 9. Worker lifecycle        | ⏳       |       |
+| 10. Wait returns           | ⏳       |       |
+| 11. Review changes         | ⏳       |       |
+| 12. Merge                  | ⏳       |       |
+| 13. Cleanup clone          | ⏳       |       |
+| 14. Verify final state     | ⏳       |       |
 
 **Result**: ⏳ IN PROGRESS
 **Failure Reason**:

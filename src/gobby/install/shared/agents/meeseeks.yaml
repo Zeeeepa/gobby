@@ -67,23 +67,36 @@ workflows:
 
         allowed_tools:
           - mcp__gobby__call_tool
-          - mcp__gobby__list_tools
           - mcp__gobby__get_tool_schema
-          - Read
-          - Glob
-          - Grep
 
         blocked_tools:
           - Edit
           - Write
           - Bash
           - NotebookEdit
+          - Read
+          - Glob
+          - Grep
+          - Task
           - spawn_agent
           - activate_workflow
+          - mcp__gobby__list_tools
 
-        # Block manual workflow end - only kill_agent can end worker
+        # STRICT: Only allow claim_task and get_task - nothing else
+        allowed_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:get_task
+
+        # Block everything else including task discovery
         blocked_mcp_tools:
-          - gobby-workflows:end_workflow
+          - gobby-tasks:get_session_tasks
+          - gobby-tasks:list_tasks
+          - gobby-tasks:suggest_next_task
+          - gobby-tasks:create_task
+          - gobby-workflows:*
+          - gobby-agents:*
+          - gobby-clones:*
+          - gobby-sessions:*
 
         on_mcp_success:
           - server: gobby-tasks

@@ -134,6 +134,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = ["forbidden_tool"]
         step1.allowed_tools = "all"
         step1.rules = []
@@ -204,6 +205,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
         step1.rules = []
@@ -241,6 +243,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
         step1.rules = []
@@ -282,6 +285,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -348,6 +352,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -385,6 +390,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
         step1.allowed_tools = "all"  # All others allowed
         step1.rules = []
@@ -429,6 +435,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -481,6 +488,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -529,6 +537,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -584,6 +593,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -630,6 +640,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -676,6 +687,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -722,6 +734,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -768,6 +781,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -810,6 +824,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []

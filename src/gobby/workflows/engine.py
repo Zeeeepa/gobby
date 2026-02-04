@@ -204,6 +204,21 @@ class WorkflowEngine:
             logger.error(f"Step '{state.step}' not found in workflow '{workflow.name}'")
             return HookResponse(decision="allow")
 
+        # Inject on_enter context for initial step when not yet injected
+        # This handles the case where activate_workflow creates state but doesn't execute on_enter
+        if not state.context_injected and current_step.on_enter:
+            logger.info(
+                f"Injecting initial on_enter context for step '{state.step}' "
+                f"in session {session_id}"
+            )
+            injected_messages = await self._execute_actions(current_step.on_enter, state)
+            state.context_injected = True
+            self.state_manager.save_state(state)
+
+            if injected_messages:
+                context = "\n\n".join(injected_messages)
+                return HookResponse(decision="modify", context=context)
+
         # Handle approval flow on user prompt submit
         if event.event_type == HookEventType.BEFORE_AGENT:
             approval_response = self._handle_approval_response(event, state, current_step)
