@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Default timeout and poll interval
 DEFAULT_TIMEOUT = 300.0  # 5 minutes
-DEFAULT_POLL_INTERVAL = 5.0  # 5 seconds
+DEFAULT_POLL_INTERVAL = 30.0  # 30 seconds
 
 
 def register_wait(
@@ -78,7 +78,7 @@ def register_wait(
         Args:
             task_id: Task reference (#N, N, path, or UUID)
             timeout: Maximum wait time in seconds (default: 300)
-            poll_interval: Time between status checks in seconds (default: 5)
+            poll_interval: Time between status checks in seconds (default: 30)
 
         Returns:
             Dict with:
@@ -206,7 +206,7 @@ def register_wait(
         Args:
             task_ids: List of task references (#N, N, path, or UUID)
             timeout: Maximum wait time in seconds (default: 300)
-            poll_interval: Time between status checks in seconds (default: 5)
+            poll_interval: Time between status checks in seconds (default: 30)
 
         Returns:
             Dict with:
@@ -327,7 +327,7 @@ def register_wait(
         Args:
             task_ids: List of task references (#N, N, path, or UUID)
             timeout: Maximum wait time in seconds (default: 300)
-            poll_interval: Time between status checks in seconds (default: 5)
+            poll_interval: Time between status checks in seconds (default: 30)
 
         Returns:
             Dict with:
