@@ -94,6 +94,9 @@ def install_copilot(project_path: Path) -> dict[str, Any]:
         shared = install_shared_content(gobby_path, project_path)
         result["workflows_installed"] = shared.get("workflows", [])
         result["agents_installed"] = shared.get("agents", [])
+        result["plugins_installed"] = shared.get("plugins", [])
+        result["prompts_installed"] = shared.get("prompts", [])
+        result["docs_installed"] = shared.get("docs", [])
     except Exception as e:
         logger.warning(f"Failed to install shared content: {e}")
         # Non-fatal - continue with hooks installation
