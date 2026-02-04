@@ -825,6 +825,12 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Add step_variables to sessions",
         "ALTER TABLE sessions ADD COLUMN step_variables TEXT",
     ),
+    # Rename task status 'review' to 'needs_review' for clarity
+    (
+        82,
+        "Rename task status 'review' to 'needs_review'",
+        "UPDATE tasks SET status = 'needs_review' WHERE status = 'review'",
+    ),
 ]
 
 

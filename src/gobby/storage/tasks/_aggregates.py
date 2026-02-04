@@ -97,7 +97,7 @@ def count_ready_tasks(
           -- Blocker is unresolved if not closed AND not in review without requiring user review
           AND NOT (
               blocker.status = 'closed'
-              OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+              OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
           )
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           -- Check if t.id appears anywhere in blocker's ancestor chain
@@ -153,7 +153,7 @@ def count_blocked_tasks(
           -- Blocker is unresolved if not closed AND not in review without requiring user review
           AND NOT (
               blocker.status = 'closed'
-              OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+              OR (blocker.status = 'needs_review' AND blocker.requires_user_review = 0)
           )
           -- Exclude ancestor blocked by any descendant (completion block, not work block)
           -- Check if t.id appears anywhere in blocker's ancestor chain

@@ -194,18 +194,20 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
         current_commit_sha = run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=cwd)
 
         if route_to_review:
-            # Route to review status instead of closing
-            # Task stays in review until user explicitly closes
+            # Route to needs_review status instead of closing
+            # Task stays in needs_review until user explicitly closes
             ctx.task_manager.update_task(
                 resolved_id,
-                status="review",
+                status="needs_review",
                 validation_override_reason=override_justification if store_override else None,
             )
 
             # Auto-link session if provided
             if resolved_session_id:
                 try:
-                    ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "review")
+                    ctx.session_task_manager.link_task(
+                        resolved_session_id, resolved_id, "needs_review"
+                    )
                 except Exception:
                     pass  # nosec B110 - best-effort linking
 
@@ -623,6 +625,90 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
             "required": ["task_id", "session_id"],
         },
         func=claim_task,
+    )
+
+    def mark_task_for_review(
+        task_id: str,
+        session_id: str,
+        review_notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Mark a task as ready for review.
+
+        Sets status to 'needs_review'. Use this when work is complete
+        but needs human verification before closing.
+
+        Args:
+            task_id: Task reference (#N, path, or UUID)
+            session_id: Session ID marking the task for review
+            review_notes: Optional notes for the reviewer
+
+        Returns:
+            Empty dict on success, or error dict with details.
+        """
+        # Resolve task reference (supports #N, path, UUID formats)
+        try:
+            resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"success": False, "error": str(e)}
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        task = ctx.task_manager.get_task(resolved_id)
+        if not task:
+            return {"success": False, "error": f"Task {task_id} not found"}
+
+        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
+        resolved_session_id = session_id
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError:
+            pass  # Fall back to raw value if resolution fails
+
+        # Build update kwargs
+        update_kwargs: dict[str, Any] = {"status": "needs_review"}
+
+        # Append review notes to description if provided
+        if review_notes:
+            current_desc = task.description or ""
+            review_section = f"\n\n[Review Notes]\n{review_notes}"
+            update_kwargs["description"] = current_desc + review_section
+
+        # Update task status to needs_review
+        updated = ctx.task_manager.update_task(resolved_id, **update_kwargs)
+        if not updated:
+            return {"success": False, "error": f"Failed to mark task {task_id} for review"}
+
+        # Link task to session (best-effort, don't fail if this fails)
+        try:
+            ctx.session_task_manager.link_task(resolved_session_id, resolved_id, "needs_review")
+        except Exception:
+            pass  # nosec B110 - best-effort linking
+
+        return {}
+
+    registry.register(
+        name="mark_task_for_review",
+        description="Mark a task as ready for review. Sets status to 'needs_review'. Use this when work is complete but needs human verification before closing.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Your session ID (accepts #N, N, UUID, or prefix). The session marking the task for review.",
+                },
+                "review_notes": {
+                    "type": "string",
+                    "description": "Optional notes for the reviewer explaining what was done and what to verify.",
+                    "default": None,
+                },
+            },
+            "required": ["task_id", "session_id"],
+        },
+        func=mark_task_for_review,
     )
 
     return registry
