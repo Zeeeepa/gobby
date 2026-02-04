@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Default timeout and poll interval
-DEFAULT_TIMEOUT = 300.0  # 5 minutes
+DEFAULT_TIMEOUT = 600.0  # 10 minutes
 DEFAULT_POLL_INTERVAL = 30.0  # 30 seconds
 
 
