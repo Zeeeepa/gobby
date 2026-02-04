@@ -18,6 +18,7 @@ Based on a codebase scan performed on Feb 2, 2026, the following files have been
 
 **Current State**:
 This file currently handles the entire lifecycle of WebSocket connections, including:
+
 - **Transport Layer**: `WebSocketServer` class handling `accept`, `send`, `close`.
 - **Authentication**: `_authenticate` method checking Bearer tokens.
 - **Protocol Dispatch**: `_handle_message`, `_handle_tool_call`, `_handle_subscribe`.
@@ -26,6 +27,7 @@ This file currently handles the entire lifecycle of WebSocket connections, inclu
 
 **Proposed Decomposition**:
 Create a `src/gobby/servers/websocket/` package.
+
 - **`connection.py`**: `WebSocketConnection` (renamed from Client) and `ConnectionManager`.
 - **`router.py`**: `MessageRouter` to handle `_handle_message` and dispatching.
 - **`auth.py`**: dedicated `WebSocketAuthenticator`.
@@ -35,6 +37,7 @@ Create a `src/gobby/servers/websocket/` package.
 
 **Current State**:
 A monolithic provider implementation that mixes:
+
 - **Core LLM Logic**: `generate_text`, `generate_summary`.
 - **Subprocess Management**: `_find_cli_path`, `_verify_cli_path` (NPM interaction).
 - **Streaming Protocol**: Defines 5+ protocol classes (`ToolCall`, `TextChunk`, `DoneEvent`) inline.
@@ -42,6 +45,7 @@ A monolithic provider implementation that mixes:
 
 **Proposed Decomposition**:
 Create a `src/gobby/llm/providers/claude/` package.
+
 - **`protocol.py`**: Extract `ToolCall`, `ChatEvent`, and other data models.
 - **`cli.py`**: Extract all `_find_cli_path` and `npm` interaction logic into a `ClaudeCLIWrapper`.
 - **`provider.py`**: The main `ClaudeLLMProvider` class, now much slimmer.
@@ -51,11 +55,13 @@ Create a `src/gobby/llm/providers/claude/` package.
 
 **Current State**:
 Documentation-heavy CLI module that contains significant business logic:
+
 - **Validation**: `validate` command contains schema validation logic for `SKILL.md`.
 - **Metadata Manipulation**: `_get_nested_value`, `meta_set`, `meta_get` implement generic dict traversal.
 - **Installation Logic**: `install` command mixes resolving sources (GitHub vs Local) with validtion.
 
 **Proposed Decomposition**:
+
 - **Move Logic**: Extract `SkillValidator` and `SkillMetaUtils` to `src/gobby/skills/utils.py` or `src/gobby/skills/validation.py`.
 - **Refactor CLI**: The CLI command functions should be thin wrappers that call these services.
 
@@ -63,11 +69,13 @@ Documentation-heavy CLI module that contains significant business logic:
 
 **Current State**:
 Nearing the 1000-line limit. It mixes:
+
 - **Data Access**: `Session.from_row`, `LocalSessionManager` DB queries.
 - **Business Logic**: `resolve_session_reference` (complex `#N` parsing).
 - **Data Transformation**: `_parse_terminal_context`, `_parse_json_field`.
 
 **Proposed Decomposition**:
+
 - **`resolution.py`**: Extract `SessionReferenceResolver` to handle `#N`, `N`, and UUID parsing.
 - **`models.py`**: Move `Session` dataclass and its `from_row` / `to_dict` methods to a dedicated models file.
 - **`repository.py`**: Keep `LocalSessionManager` strictly for SQL execution.
@@ -76,10 +84,12 @@ Nearing the 1000-line limit. It mixes:
 
 **Current State**:
 Intended as a "Clean Coordinator", it is re-accumulating complexity:
+
 - **Initialization**: `__init__` is massive (~300 lines) setting up 10+ subsystems.
 - **Webhook Logic**: Contains both sync and async webhook dispatch logic inline.
 - **Health Checks**: internal `_start_health_check_monitoring`.
 
 **Proposed Decomposition**:
+
 - **`factory.py`**: Extract the massive initialization complexity into a `HookManagerFactory` or `Bootstrap` class.
 - **`dispatchers/`**: Move `_dispatch_webhooks_*` logic into a composed `WebhookDelegator`.

@@ -203,6 +203,9 @@ def setup_internal_registries(
             git_manager=git_manager,
             clone_storage=clone_storage,
             clone_manager=clone_git_manager,
+            # For mode=self (workflow activation on caller session)
+            workflow_loader=workflow_loader,
+            db=db,
         )
 
         # Add inter-agent messaging tools if message manager and session manager are available

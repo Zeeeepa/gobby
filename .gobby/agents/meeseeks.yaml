@@ -22,9 +22,10 @@ isolation: worktree
 
 # Named workflows - select via spawn_agent(workflow="...")
 workflows:
-  # Interactive orchestrator (runs in Claude Code terminal)
+  # Interactive orchestrator (activates in caller session)
   box:
     file: meeseeks-box.yaml
+    mode: self  # Activate workflow in calling session instead of spawning
 
   # Automated orchestrator (runs in daemon background)
   box-pipeline:

@@ -38,7 +38,7 @@ class SpawnRequest:
     # Required fields
     prompt: str
     cwd: str
-    mode: Literal["terminal", "embedded", "headless"]
+    mode: Literal["terminal", "embedded", "headless", "self"]
     provider: str
     terminal: str
     session_id: str

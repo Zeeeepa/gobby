@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.agents.definitions import AgentDefinition, AgentDefinitionLoader
 from gobby.agents.isolation import (
@@ -37,6 +37,82 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _handle_self_mode(
+    workflow: str | None,
+    parent_session_id: str,
+    step_variables: dict[str, Any] | None,
+    initial_step: str | None,
+    workflow_loader: WorkflowLoader | None,
+    state_manager: Any | None,
+    session_manager: Any | None,
+    db: Any | None,
+    project_path: str | None,
+) -> dict[str, Any]:
+    """
+    Activate workflow on calling session instead of spawning a new agent.
+
+    This is the implementation for mode=self, which activates a workflow
+    on the parent session rather than creating a new child session.
+
+    Args:
+        workflow: Workflow name to activate
+        parent_session_id: Session to activate workflow on (the caller)
+        step_variables: Initial variables for the workflow
+        initial_step: Optional starting step (defaults to first step)
+        workflow_loader: WorkflowLoader instance
+        state_manager: WorkflowStateManager instance (or created from db if None)
+        session_manager: LocalSessionManager instance
+        db: Database instance
+        project_path: Project path for workflow lookup
+
+    Returns:
+        Dict with success status and activation details
+    """
+    if not workflow:
+        return {"success": False, "error": "mode: self requires a workflow to activate"}
+
+    # Create state_manager from db if not provided
+    effective_state_manager = state_manager
+    if effective_state_manager is None and db is not None:
+        from gobby.workflows.state_manager import WorkflowStateManager
+
+        effective_state_manager = WorkflowStateManager(db)
+
+    if not workflow_loader or not effective_state_manager or not session_manager or not db:
+        return {
+            "success": False,
+            "error": "mode: self requires workflow_loader, state_manager (or db), session_manager, and db",
+        }
+
+    # Import and call the existing activate_workflow function
+    from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
+
+    result = activate_workflow(
+        loader=workflow_loader,
+        state_manager=effective_state_manager,
+        session_manager=session_manager,
+        db=db,
+        name=workflow,
+        session_id=parent_session_id,
+        initial_step=initial_step,
+        variables=step_variables,
+        project_path=project_path,
+    )
+
+    if not result.get("success"):
+        return result
+
+    return {
+        "success": True,
+        "mode": "self",
+        "workflow_activated": workflow,
+        "session_id": parent_session_id,
+        "step": result.get("step"),
+        "steps": result.get("steps"),
+        "message": f"Workflow '{workflow}' activated on session {parent_session_id}",
+    }
+
+
 async def spawn_agent_impl(
     prompt: str,
     runner: AgentRunner,
@@ -54,7 +130,8 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
-    mode: Literal["terminal", "embedded", "headless"] | None = None,
+    mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
+    initial_step: str | None = None,  # For mode=self, start at specific step
     terminal: str = "auto",
     provider: str | None = None,
     model: str | None = None,
@@ -69,6 +146,11 @@ async def spawn_agent_impl(
     # Context
     parent_session_id: str | None = None,
     project_path: str | None = None,
+    # For mode=self (workflow activation on caller session)
+    workflow_loader: WorkflowLoader | None = None,
+    state_manager: Any | None = None,  # WorkflowStateManager
+    session_manager: Any | None = None,  # LocalSessionManager
+    db: Any | None = None,  # DatabaseProtocol
 ) -> dict[str, Any]:
     """
     Core spawn_agent implementation that can be called directly.
@@ -117,9 +199,9 @@ async def spawn_agent_impl(
         effective_provider = agent_def.provider
     effective_provider = effective_provider or "claude"
 
-    effective_mode: Literal["terminal", "embedded", "headless"] | None = mode
+    effective_mode: Literal["terminal", "embedded", "headless", "self"] | None = mode
     if effective_mode is None and agent_def:
-        effective_mode = cast(Literal["terminal", "embedded", "headless"], agent_def.mode)
+        effective_mode = agent_def.get_effective_mode(workflow)
     effective_mode = effective_mode or "terminal"
 
     # Resolve workflow using agent_def's named workflows map
@@ -129,6 +211,55 @@ async def spawn_agent_impl(
         effective_workflow = agent_def.get_effective_workflow(workflow)
     elif workflow:
         effective_workflow = workflow
+
+    # Handle mode=self: activate workflow on caller session instead of spawning
+    if effective_mode == "self":
+        # Validate constraints
+        if effective_isolation != "current":
+            return {
+                "success": False,
+                "error": "mode: self is incompatible with isolation (worktree/clone). "
+                "Self mode activates a workflow on the calling session.",
+            }
+        if not effective_workflow:
+            return {
+                "success": False,
+                "error": "mode: self requires a workflow to activate",
+            }
+        if not parent_session_id:
+            return {
+                "success": False,
+                "error": "mode: self requires parent_session_id (the session to activate on)",
+            }
+
+        # Resolve step_variables for workflow activation
+        self_step_variables: dict[str, Any] | None = None
+        if task_id and task_manager:
+            # Resolve project context first for task resolution
+            ctx = get_project_context(Path(project_path) if project_path else None)
+            self_project_id = ctx.get("id") if ctx else None
+            if self_project_id:
+                try:
+                    self_task_id = resolve_task_id_for_mcp(task_manager, task_id, self_project_id)
+                    task = task_manager.get_task(self_task_id)
+                    if task:
+                        self_step_variables = {
+                            "assigned_task_id": f"#{task.seq_num}" if task.seq_num else self_task_id
+                        }
+                except Exception as e:
+                    logger.warning(f"Failed to resolve task_id {task_id}: {e}")
+
+        return await _handle_self_mode(
+            workflow=effective_workflow,
+            parent_session_id=parent_session_id,
+            step_variables=self_step_variables,
+            initial_step=initial_step,
+            workflow_loader=workflow_loader,
+            state_manager=state_manager,
+            session_manager=session_manager,
+            db=db,
+            project_path=project_path,
+        )
 
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_def:
@@ -335,6 +466,9 @@ def create_spawn_agent_registry(
     clone_manager: Any | None = None,
     session_manager: Any | None = None,
     workflow_loader: WorkflowLoader | None = None,
+    # For mode=self (workflow activation on caller session)
+    state_manager: Any | None = None,  # WorkflowStateManager
+    db: Any | None = None,  # DatabaseProtocol
 ) -> InternalToolRegistry:
     """
     Create a spawn_agent tool registry with the unified spawn_agent tool.
@@ -349,6 +483,8 @@ def create_spawn_agent_registry(
         clone_manager: Git manager for clone operations.
         session_manager: Session manager for resolving session references.
         workflow_loader: Loader for workflow validation.
+        state_manager: WorkflowStateManager for mode=self activation.
+        db: Database instance for mode=self activation.
 
     Returns:
         InternalToolRegistry with spawn_agent tool registered.
@@ -390,7 +526,8 @@ def create_spawn_agent_registry(
         base_branch: str | None = None,
         # Execution
         workflow: str | None = None,
-        mode: Literal["terminal", "embedded", "headless"] | None = None,
+        mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
+        initial_step: str | None = None,
         terminal: str = "auto",
         provider: str | None = None,
         model: str | None = None,
@@ -417,7 +554,9 @@ def create_spawn_agent_registry(
             branch_name: Git branch name (auto-generated from task if not provided)
             base_branch: Base branch for worktree/clone
             workflow: Workflow to use
-            mode: Execution mode (terminal/embedded/headless)
+            mode: Execution mode (terminal/embedded/headless/self).
+                  'self' activates workflow on caller session instead of spawning.
+            initial_step: For mode=self, start at specific step (defaults to first)
             terminal: Terminal type for terminal mode
             provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
@@ -509,6 +648,7 @@ def create_spawn_agent_registry(
             clone_manager=clone_manager,
             workflow=effective_workflow,
             mode=mode,
+            initial_step=initial_step,
             terminal=terminal,
             provider=provider,
             model=model,
@@ -520,6 +660,11 @@ def create_spawn_agent_registry(
             sandbox_extra_paths=sandbox_extra_paths,
             parent_session_id=resolved_parent_session_id,
             project_path=project_path,
+            # For mode=self
+            workflow_loader=wf_loader,
+            state_manager=state_manager,
+            session_manager=session_manager,
+            db=db,
         )
 
     return registry
