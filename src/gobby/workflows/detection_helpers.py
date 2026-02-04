@@ -293,7 +293,7 @@ def _track_mcp_call(
     server_name: str,
     inner_tool: str,
     tool_output: dict[str, Any] | Any,
-) -> None:
+) -> bool:
     """Track a successful MCP call in workflow state.
 
     Tracks both:
@@ -305,15 +305,23 @@ def _track_mcp_call(
         server_name: MCP server name (e.g., "gobby-sessions")
         inner_tool: Tool name on the server (e.g., "get_current_session")
         tool_output: Tool output to check for errors
+
+    Returns:
+        True if call succeeded (was tracked), False if it failed (error detected)
     """
     # Extract the result, checking for errors
     result = None
+    is_error = False
     if isinstance(tool_output, dict):
         if tool_output.get("error") or tool_output.get("status") == "error":
-            return  # Skip failed calls
-        result = tool_output.get("result")
-        if isinstance(result, dict) and result.get("error"):
-            return  # Skip if result contains error
+            is_error = True
+        else:
+            result = tool_output.get("result")
+            if isinstance(result, dict) and result.get("error"):
+                is_error = True
+
+    if is_error:
+        return False  # Signal that this was an error
 
     # Track the call (for mcp_called() checks)
     mcp_calls = state.variables.setdefault("mcp_calls", {})
@@ -330,3 +338,67 @@ def _track_mcp_call(
         f"Session {state.session_id}: MCP call tracked {server_name}/{inner_tool} "
         f"(result={'present' if result is not None else 'null'})"
     )
+    return True
+
+
+def process_mcp_handlers(
+    state: "WorkflowState",
+    server_name: str,
+    tool_name: str,
+    succeeded: bool,
+    on_mcp_success: list[dict[str, Any]],
+    on_mcp_error: list[dict[str, Any]],
+) -> None:
+    """Process on_mcp_success/on_mcp_error handlers from workflow step definition.
+
+    When an MCP call completes, this checks if the current step has handlers
+    defined for that server/tool combination and executes matching actions.
+
+    Supported actions:
+    - set_variable: Set a workflow variable to a value
+
+    Args:
+        state: Current workflow state (modified in place)
+        server_name: MCP server that was called (e.g., "gobby-tasks")
+        tool_name: Tool that was called (e.g., "claim_task")
+        succeeded: Whether the MCP call succeeded
+        on_mcp_success: List of success handlers from step definition
+        on_mcp_error: List of error handlers from step definition
+
+    Example handler definition in YAML:
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: claim_task
+            action: set_variable
+            variable: task_claimed
+            value: true
+    """
+    handlers = on_mcp_success if succeeded else on_mcp_error
+    handler_type = "on_mcp_success" if succeeded else "on_mcp_error"
+
+    for handler in handlers:
+        handler_server = handler.get("server", "")
+        handler_tool = handler.get("tool", "")
+
+        # Check if this handler matches the current MCP call
+        if handler_server != server_name:
+            continue
+        if handler_tool and handler_tool != tool_name:
+            continue
+
+        action = handler.get("action", "")
+
+        if action == "set_variable":
+            variable = handler.get("variable")
+            value = handler.get("value")
+            if variable:
+                state.variables[variable] = value
+                logger.info(
+                    f"Session {state.session_id}: {handler_type} handler set "
+                    f"{variable}={value} (triggered by {server_name}/{tool_name})"
+                )
+        else:
+            logger.warning(
+                f"Session {state.session_id}: Unknown {handler_type} action '{action}' "
+                f"for {server_name}/{tool_name}"
+            )

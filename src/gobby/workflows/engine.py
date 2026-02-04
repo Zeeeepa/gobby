@@ -20,6 +20,7 @@ from .detection_helpers import (
     detect_plan_mode,
     detect_plan_mode_from_context,
     detect_task_claim,
+    process_mcp_handlers,
 )
 from .evaluator import ConditionEvaluator
 from .lifecycle_evaluator import (
@@ -279,7 +280,8 @@ class WorkflowEngine:
             self._detect_plan_mode(event, state)
 
             # Track all MCP proxy calls for workflow conditions
-            self._detect_mcp_call(event, state)
+            # Also process on_mcp_success/on_mcp_error handlers from step definition
+            self._detect_mcp_call(event, state, current_step)
 
             # Rebuild eval_context variables after detection updates
             eval_context["variables"] = SimpleNamespace(**state.variables)
@@ -557,9 +559,37 @@ class WorkflowEngine:
         """Detect plan mode from system reminders in user prompt."""
         detect_plan_mode_from_context(event, state)
 
-    def _detect_mcp_call(self, event: HookEvent, state: WorkflowState) -> None:
-        """Track MCP tool calls by server/tool for workflow conditions."""
+    def _detect_mcp_call(
+        self, event: HookEvent, state: WorkflowState, current_step: Any | None = None
+    ) -> None:
+        """Track MCP tool calls and process on_mcp_success/on_mcp_error handlers."""
+        # First, track the call (this also returns success/error status)
         detect_mcp_call(event, state)
+
+        # Process on_mcp_success/on_mcp_error handlers from step definition
+        if current_step and event.data:
+            server_name = event.data.get("mcp_server", "")
+            tool_name = event.data.get("mcp_tool", "")
+            if server_name and tool_name:
+                # Check if call succeeded by looking at tool_output
+                tool_output = event.data.get("tool_output") or {}
+                succeeded = True
+                if isinstance(tool_output, dict):
+                    if tool_output.get("error") or tool_output.get("status") == "error":
+                        succeeded = False
+                    else:
+                        result = tool_output.get("result")
+                        if isinstance(result, dict) and result.get("error"):
+                            succeeded = False
+
+                # Get handlers from step definition
+                on_success = getattr(current_step, "on_mcp_success", []) or []
+                on_error = getattr(current_step, "on_mcp_error", []) or []
+
+                if on_success or on_error:
+                    process_mcp_handlers(
+                        state, server_name, tool_name, succeeded, on_success, on_error
+                    )
 
     def activate_workflow(
         self,

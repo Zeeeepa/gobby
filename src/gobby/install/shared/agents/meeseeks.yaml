@@ -82,10 +82,8 @@ workflows:
           - activate_workflow
 
         # Block manual workflow end - only close_terminal can end worker
-        # Block all agent tools - worker doesn't need them in claim phase
         blocked_mcp_tools:
           - gobby-workflows:end_workflow
-          - gobby-agents:*
 
         on_mcp_success:
           - server: gobby-tasks
@@ -116,7 +114,7 @@ workflows:
 
               **If you made file changes:**
               1. Stage your changes: git add <files>
-              2. Commit with task reference: git commit -m "[gobby{{ variables.assigned_task_id }}] Description"
+              2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
               3. Close the task WITH commit_sha using the close_task tool:
                  - server_name: "gobby-tasks"
                  - tool_name: "close_task"
@@ -138,13 +136,11 @@ workflows:
 
         # Block claiming/creating additional tasks - one task per worker
         # Block manual workflow end - only close_terminal can end worker
-        # Block all agent tools - worker doesn't spawn agents
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
           - gobby-workflows:end_workflow
-          - gobby-agents:*
-          # Block irrelevant MCP servers - worker only needs task/workflow/clone tools
+          # Block irrelevant MCP servers - worker only needs task/agent/workflow/worktree tools
           - context7:*
           - memory:*
 
@@ -197,13 +193,11 @@ workflows:
           - activate_workflow
 
         # Block claiming/creating additional tasks - one task per worker
-        # Block manual workflow end and agent spawning - only send_to_parent allowed
+        # Block manual workflow end - only close_terminal can end worker
         blocked_mcp_tools:
           - gobby-tasks:claim_task
           - gobby-tasks:create_task
           - gobby-workflows:end_workflow
-          - gobby-agents:spawn_agent
-          - gobby-agents:kill_agent
 
         on_mcp_success:
           - server: gobby-agents
@@ -263,12 +257,18 @@ workflows:
           - spawn_agent
           - activate_workflow
 
-        # Block ALL MCP tools, then whitelist only close_terminal
+        # Block all MCP tools except close_terminal
+        # Explicitly block end_workflow - close_terminal is the only exit
         blocked_mcp_tools:
-          - "*:*"
+          - gobby-tasks:*
+          - gobby-agents:*
+          - gobby-worktrees:*
+          - gobby-workflows:end_workflow
+          - gobby-workflows:activate_workflow
 
         allowed_mcp_tools:
           - gobby-workflows:close_terminal
+          - gobby-workflows:get_tool_schema
 
         on_premature_stop:
           action: block
