@@ -263,18 +263,12 @@ workflows:
           - spawn_agent
           - activate_workflow
 
-        # Block all MCP tools except close_terminal
+        # Block ALL MCP tools, then whitelist only close_terminal
         blocked_mcp_tools:
-          - gobby-tasks:*
-          - gobby-agents:*
-          - gobby-worktrees:*
-          - gobby-clones:*
-          - gobby-workflows:end_workflow
-          - gobby-workflows:activate_workflow
+          - "*:*"
 
         allowed_mcp_tools:
           - gobby-workflows:close_terminal
-          - gobby-workflows:get_tool_schema
 
         on_premature_stop:
           action: block
