@@ -69,10 +69,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
                             f"Found pre-created session {gobby_session_id_from_env} via "
                             f"terminal_context, updating external_id to {external_id}"
                         )
-                        # Update the session's external_id with CLI's native session_id
+                        # Update the session's external_id and terminal_context
+                        # terminal_context contains parent_pid needed for close_terminal
                         self._session_storage.update(
                             gobby_session_id_from_env,
                             external_id=external_id,
+                            terminal_context=terminal_context,
                         )
                         return self._handle_pre_created_session(
                             existing_session=existing_session,

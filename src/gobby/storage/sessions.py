@@ -544,6 +544,7 @@ class LocalSessionManager:
         status: str | None = None,
         title: str | None = None,
         git_branch: str | None = None,
+        terminal_context: dict[str, Any] | None = None,
     ) -> Session | None:
         """
         Update multiple session fields at once.
@@ -555,6 +556,7 @@ class LocalSessionManager:
             status: New status (optional)
             title: New title (optional)
             git_branch: New git branch (optional)
+            terminal_context: New terminal context (optional)
 
         Returns:
             Updated Session or None if not found
@@ -571,6 +573,8 @@ class LocalSessionManager:
             values["title"] = title
         if git_branch is not None:
             values["git_branch"] = git_branch
+        if terminal_context is not None:
+            values["terminal_context"] = json.dumps(terminal_context)
 
         if not values:
             return self.get(session_id)
