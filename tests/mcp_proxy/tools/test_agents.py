@@ -451,6 +451,111 @@ class TestUnregisterAgent:
         assert "no running agent found" in result["error"].lower()
 
 
+class TestKillAgent:
+    """Tests for kill_agent MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_requires_run_id_or_session_id(self):
+        """Test error when neither run_id nor session_id provided."""
+        runner = MagicMock()
+        running_registry = RunningAgentRegistry()
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        result = await kill_agent()
+
+        assert result["success"] is False
+        assert "run_id or session_id required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_signal_rejected(self):
+        """Test invalid signal is rejected."""
+        runner = MagicMock()
+        running_registry = RunningAgentRegistry()
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        result = await kill_agent(run_id="run-123", signal="INVALID")
+
+        assert result["success"] is False
+        assert "Invalid signal" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_session_id_resolves_to_run_id(self):
+        """Test that session_id resolves to run_id via registry."""
+        running_registry = RunningAgentRegistry()
+        running_registry.add(
+            RunningAgent(
+                run_id="run-123",
+                session_id="sess-456",
+                parent_session_id="sess-parent",
+                mode="terminal",
+            )
+        )
+
+        runner = MagicMock()
+        runner.get_run.return_value = None
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        # Session is found in registry, kill will be called
+        result = await kill_agent(session_id="sess-456")
+
+        # The kill should be attempted (may fail due to no PID, but resolution worked)
+        # The key assertion is that it didn't fail with "No agent found for session"
+        assert "No agent found for session" not in result.get("error", "")
+
+    @pytest.mark.asyncio
+    async def test_session_id_not_found_returns_error(self):
+        """Test error when session_id doesn't match any agent."""
+        running_registry = RunningAgentRegistry()
+        runner = MagicMock()
+        runner.get_run_id_by_session.return_value = None
+
+        registry = create_agents_registry(runner, running_registry=running_registry)
+        kill_agent = registry._tools["kill_agent"].func
+
+        result = await kill_agent(session_id="non-existent")
+
+        assert result["success"] is False
+        assert "No agent found for session" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_session_id_with_stop_deletes_workflow_state(self):
+        """Test that stop=True with session_id deletes workflow state."""
+        running_registry = RunningAgentRegistry()
+        running_registry.add(
+            RunningAgent(
+                run_id="run-123",
+                session_id="sess-456",
+                parent_session_id="sess-parent",
+                mode="in_process",  # Use in_process for simple cancel
+                task=MagicMock(),  # Provide a mock task for cancellation
+            )
+        )
+
+        runner = MagicMock()
+        runner.cancel_run.return_value = True
+
+        workflow_state_manager = MagicMock()
+
+        registry = create_agents_registry(
+            runner,
+            running_registry=running_registry,
+            workflow_state_manager=workflow_state_manager,
+        )
+        kill_agent = registry._tools["kill_agent"].func
+
+        result = await kill_agent(session_id="sess-456", stop=True)
+
+        assert result["success"] is True
+        workflow_state_manager.delete_state.assert_called_once_with("sess-456")
+        assert result.get("workflow_stopped") is True
+
+
 class TestRunningAgentStats:
     """Tests for running_agent_stats MCP tool."""
 
