@@ -121,11 +121,11 @@ class WorkflowEngine:
                         and isinstance(workflow, WorkflowDefinition)
                         and workflow.get_step("reflect")
                     ):
-                        await self.transition_to(state, "reflect", workflow)
-                        return HookResponse(
-                            decision="modify",
-                            context="[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step.",
-                        )
+                        injected = await self.transition_to(state, "reflect", workflow)
+                        context = "[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step."
+                        if injected:
+                            context = context + "\n\n" + "\n\n".join(injected)
+                        return HookResponse(decision="modify", context=context)
 
         # 3. Load definition
         # Skip if this is a lifecycle-only state (used for task_claimed tracking)
@@ -291,13 +291,20 @@ class WorkflowEngine:
         for transition in current_step.transitions:
             if self.evaluator.evaluate(transition.when, eval_context):
                 # Transition!
-                await self.transition_to(state, transition.to, workflow, transition=transition)
+                injected_messages = await self.transition_to(
+                    state, transition.to, workflow, transition=transition
+                )
                 # Save state after transition
                 if event.event_type == HookEventType.AFTER_TOOL:
                     self.state_manager.save_state(state)
-                return HookResponse(
-                    decision="modify", context=f"Transitioning to step: {transition.to}"
-                )
+
+                # Build context with on_enter messages if any were injected
+                if injected_messages:
+                    context = "\n\n".join(injected_messages)
+                else:
+                    context = f"Transitioning to step: {transition.to}"
+
+                return HookResponse(decision="modify", context=context)
 
         # Check exit conditions
         logger.debug("Checking exit conditions")
@@ -318,7 +325,7 @@ class WorkflowEngine:
         new_step_name: str,
         workflow: WorkflowDefinition,
         transition: WorkflowTransition | None = None,
-    ) -> None:
+    ) -> list[str]:
         """
         Execute transition logic.
 
@@ -327,13 +334,16 @@ class WorkflowEngine:
             new_step_name: Name of the step to transition to
             workflow: Workflow definition
             transition: Optional transition object containing on_transition actions
+
+        Returns:
+            List of injected messages from on_enter actions (to include in HookResponse)
         """
         old_step = workflow.get_step(state.step)
         new_step = workflow.get_step(new_step_name)
 
         if not new_step:
             logger.error(f"Cannot transition to unknown step '{new_step_name}'")
-            return
+            return []
 
         logger.info(
             f"Transitioning session {state.session_id} from '{state.step}' to '{new_step_name}'"
@@ -358,12 +368,18 @@ class WorkflowEngine:
 
         self.state_manager.save_state(state)
 
-        # Execute on_enter of new step
-        await self._execute_actions(new_step.on_enter, state)
+        # Execute on_enter of new step and capture injected messages
+        injected_messages = await self._execute_actions(new_step.on_enter, state)
+        return injected_messages
 
-    async def _execute_actions(self, actions: list[dict[str, Any]], state: WorkflowState) -> None:
+    async def _execute_actions(
+        self, actions: list[dict[str, Any]], state: WorkflowState
+    ) -> list[str]:
         """
         Execute a list of actions.
+
+        Returns:
+            List of injected messages from inject_message/inject_context actions.
         """
         from .actions import ActionContext
 
@@ -385,6 +401,8 @@ class WorkflowEngine:
             workflow_loader=self.action_executor.workflow_loader,
         )
 
+        injected_messages: list[str] = []
+
         for action_def in actions:
             action_type = action_def.get("action")
             if not action_type:
@@ -392,9 +410,18 @@ class WorkflowEngine:
 
             result = await self.action_executor.execute(action_type, context, **action_def)
 
-            if result and "inject_context" in result:
-                # Log context injection for now
-                logger.info(f"Context injected: {result['inject_context'][:50]}...")
+            if result:
+                # Capture injected messages to return to caller
+                if "inject_message" in result:
+                    msg = result["inject_message"]
+                    injected_messages.append(msg)
+                    logger.info(f"Message injected: {msg[:50]}...")
+                elif "inject_context" in result:
+                    msg = result["inject_context"]
+                    injected_messages.append(msg)
+                    logger.info(f"Context injected: {msg[:50]}...")
+
+        return injected_messages
 
     def _handle_approval_response(
         self,
