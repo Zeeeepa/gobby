@@ -216,13 +216,11 @@ async def spawn_agent_impl(
 
     # Handle mode=self: activate workflow on caller session instead of spawning
     if effective_mode == "self":
-        # Validate constraints
+        # mode: self overrides isolation - self mode doesn't spawn an agent,
+        # it activates a workflow on the caller's session
         if effective_isolation != "current":
-            return {
-                "success": False,
-                "error": "mode: self is incompatible with isolation (worktree/clone). "
-                "Self mode activates a workflow on the calling session.",
-            }
+            logger.debug(f"mode=self overrides isolation={effective_isolation} to 'current'")
+            effective_isolation = "current"
         if not effective_workflow:
             return {
                 "success": False,
