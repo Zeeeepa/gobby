@@ -7,7 +7,7 @@ End-to-end functional test criteria for the meeseeks agent system.
 The meeseeks system consists of two complementary workflows:
 
 - **meeseeks-box** (orchestrator): Runs in Claude Code, spawns workers, reviews code, merges
-- **meeseeks:worker** (worker): Runs in Gemini CLI within isolated git worktrees
+- **meeseeks:worker** (worker): Runs in Gemini CLI within isolated git clones
 
 ## Test Approach
 
@@ -29,7 +29,7 @@ The meeseeks system consists of two complementary workflows:
 Before testing:
 
 - [ ] Gobby daemon running (`gobby status` shows running)
-- [ ] MCP servers connected: `gobby-tasks`, `gobby-agents`, `gobby-workflows`, `gobby-worktrees`
+- [ ] MCP servers connected: `gobby-tasks`, `gobby-agents`, `gobby-workflows`, `gobby-clones`
 - [ ] Gemini CLI installed and authenticated
 - [ ] Git repository with clean working tree
 - [ ] Terminal emulator available (ghostty or configured alternative)
@@ -116,21 +116,25 @@ mcp__gobby__call_tool(
         "agent": "meeseeks",
         "workflow": "worker",
         "task_id": "<subtask_id>",
-        "isolation": "worktree",
+        "isolation": "clone",
         "provider": "gemini",
         "terminal": "ghostty",
         "parent_session_id": "#813"
     }
 )
 ```
-**Expected**: Returns `run_id`, `worktree_id`, `branch_name`
+**Expected**: Returns `run_id`, `clone_id`, `branch_name`
 
-### Step 7: Verify Worktree Created
+### Step 7: Verify Clone Created
 
-```bash
-git worktree list
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-clones",
+    tool_name="list_clones",
+    arguments={}
+)
 ```
-**Expected**: Shows new worktree for feature branch
+**Expected**: Shows new clone for feature branch
 
 ### Step 8: Orchestrator Waits (automatic)
 
@@ -176,19 +180,26 @@ git merge --squash <branch_name>
 git commit -m "[#parent] Merge meeseeks worker changes"
 ```
 
-### Step 13: Cleanup Worktree
+### Step 13: Cleanup Clone
 
-```bash
-git worktree remove <worktree_path>
-git branch -D <branch_name>
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-clones",
+    tool_name="delete_clone",
+    arguments={"clone_id": "<clone_id>"}
+)
 ```
 
 ### Step 14: Verify Final State
 
-```bash
-git worktree list
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-clones",
+    tool_name="list_clones",
+    arguments={}
+)
 ```
-**Expected**: Only main worktree
+**Expected**: No active clones
 
 ```python
 mcp__gobby__call_tool(
@@ -216,11 +227,11 @@ Each MCP server must respond correctly:
 
 ### gobby-agents
 
-| Tool             | Test                                           |
-| ---------------- | ---------------------------------------------- |
-| `spawn_agent`    | Creates worktree, starts terminal, returns IDs |
-| `send_to_parent` | Delivers message to parent session             |
-| `poll_messages`  | Returns messages from children                 |
+| Tool             | Test                                        |
+| ---------------- | ------------------------------------------- |
+| `spawn_agent`    | Creates clone, starts terminal, returns IDs |
+| `send_to_parent` | Delivers message to parent session          |
+| `poll_messages`  | Returns messages from children              |
 
 ### gobby-workflows
 
@@ -231,13 +242,13 @@ Each MCP server must respond correctly:
 
 Note: `activate_workflow` is called internally by `spawn_agent` when a workflow is specified.
 
-### gobby-worktrees
+### gobby-clones
 
-| Tool              | Test                                   |
-| ----------------- | -------------------------------------- |
-| `create_worktree` | Creates isolated worktree with branch  |
-| `delete_worktree` | Removes worktree and optionally branch |
-| `list_worktrees`  | Shows all active worktrees             |
+| Tool           | Test                                |
+| -------------- | ----------------------------------- |
+| `create_clone` | Creates isolated clone with branch  |
+| `delete_clone` | Removes clone and optionally branch |
+| `list_clones`  | Shows all active clones             |
 
 ## Error Scenarios
 
@@ -261,9 +272,9 @@ Note: `activate_workflow` is called internally by `spawn_agent` when a workflow 
 
 | Step                                    | Expected Behavior                            |
 | --------------------------------------- | -------------------------------------------- |
-| Worker makes changes but doesn't commit | Task closed without `commit_sha`             |
-| Tester observes                         | Changes exist in worktree but not committed  |
-| Recovery                                | Tester can manually commit or discard worktree |
+| Worker makes changes but doesn't commit | Task closed without `commit_sha`          |
+| Tester observes                         | Changes exist in clone but not committed  |
+| Recovery                                | Tester can manually commit or discard clone |
 
 ### No Parent Found
 
@@ -284,8 +295,8 @@ gobby sessions list
 # Check task state
 gobby tasks get <task_id>
 
-# List worktrees
-git worktree list
+# List clones
+gobby clones list
 
 # Check workflow state (via MCP)
 # call_tool("gobby-workflows", "get_workflow_state", {"session_id": "..."})
@@ -297,9 +308,9 @@ The E2E test passes when:
 
 1. **Task lifecycle complete**: Task goes from `open` → `in_progress` → `closed`
 2. **Worker lifecycle complete**: Worker transitions through workflow steps to `complete`
-3. **Spawn successful**: `spawn_agent` returns valid run_id, worktree_id, branch_name
+3. **Spawn successful**: `spawn_agent` returns valid run_id, clone_id, branch_name
 4. **Git state correct**: Commit created with task reference, changes mergeable
-5. **No orphaned resources**: No lingering worktrees, terminals, or in-progress tasks
+5. **No orphaned resources**: No lingering clones, terminals, or in-progress tasks
 6. **Messages delivered**: Tester received completion message from worker via `poll_messages`
 7. **Terminal cleanup**: Worker called `close_terminal` and process exited
 
@@ -386,13 +397,13 @@ Record each test run with timestamp, session ID, and results.
 | 4. Activate orchestrator | ⏳/✅/❌ | |
 | 5. Orchestrator finds work | ⏳/✅/❌ | |
 | 6. Spawn worker | ⏳/✅/❌ | |
-| 7. Verify worktree | ⏳/✅/❌ | |
+| 7. Verify clone | ⏳/✅/❌ | |
 | 8. Wait for task | ⏳/✅/❌ | |
 | 9. Worker lifecycle | ⏳/✅/❌ | |
 | 10. Wait returns | ⏳/✅/❌ | |
 | 11. Review changes | ⏳/✅/❌ | |
 | 12. Merge | ⏳/✅/❌ | |
-| 13. Cleanup worktree | ⏳/✅/❌ | |
+| 13. Cleanup clone | ⏳/✅/❌ | |
 | 14. Verify final state | ⏳/✅/❌ | |
 
 **Result**: ⏳ IN PROGRESS / ✅ PASS / ❌ FAIL
@@ -416,13 +427,13 @@ Record each test run with timestamp, session ID, and results.
 | 4. Activate orchestrator | ⏳ | |
 | 5. Orchestrator finds work | ⏳ | |
 | 6. Spawn worker | ⏳ | |
-| 7. Verify worktree | ⏳ | |
+| 7. Verify clone | ⏳ | |
 | 8. Wait for task | ⏳ | |
 | 9. Worker lifecycle | ⏳ | |
 | 10. Wait returns | ⏳ | |
 | 11. Review changes | ⏳ | |
 | 12. Merge | ⏳ | |
-| 13. Cleanup worktree | ⏳ | |
+| 13. Cleanup clone | ⏳ | |
 | 14. Verify final state | ⏳ | |
 
 **Result**: ⏳ IN PROGRESS
