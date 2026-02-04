@@ -465,7 +465,7 @@ def create_worktrees_registry(
     async def list_worktrees(
         status: str | None = None,
         agent_session_id: str | None = None,
-        limit: int = 50,
+        limit: int | str = 50,
     ) -> dict[str, Any]:
         """
         List worktrees with optional filters.
@@ -478,6 +478,9 @@ def create_worktrees_registry(
         Returns:
             Dict with list of worktrees.
         """
+        # Handle string inputs from MCP
+        limit = int(limit) if isinstance(limit, str) else limit
+
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         resolved_session_id = agent_session_id
         if agent_session_id:
@@ -583,7 +586,7 @@ def create_worktrees_registry(
     )
     async def delete_worktree(
         worktree_id: str,
-        force: bool = False,
+        force: bool | str = False,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -605,6 +608,9 @@ def create_worktrees_registry(
         Returns:
             Dict with success status.
         """
+        # Handle string inputs from MCP
+        force = force in (True, "true", "True", "1") if isinstance(force, str) else force
+
         worktree = worktree_storage.get(worktree_id)
 
         if not worktree:
@@ -625,8 +631,11 @@ def create_worktrees_registry(
                 # nosec B110 - if context resolution fails, continue without git manager
                 pass
 
-        # Check for uncommitted changes if not forcing
-        if resolved_git_mgr and Path(worktree.worktree_path).exists():
+        # Check if worktree path exists
+        worktree_exists = Path(worktree.worktree_path).exists()
+
+        # Check for uncommitted changes if not forcing (only if path exists)
+        if resolved_git_mgr and worktree_exists:
             status = resolved_git_mgr.get_worktree_status(worktree.worktree_path)
             if status and status.has_uncommitted_changes and not force:
                 return {
@@ -635,8 +644,8 @@ def create_worktrees_registry(
                     "uncommitted_changes": True,
                 }
 
-        # Delete git worktree
-        if resolved_git_mgr:
+        # Delete git worktree (only if path exists - handles orphaned DB records)
+        if resolved_git_mgr and worktree_exists:
             result = resolved_git_mgr.delete_worktree(
                 worktree.worktree_path,
                 force=force,
@@ -648,6 +657,11 @@ def create_worktrees_registry(
                     "success": False,
                     "error": result.error or "Failed to delete git worktree",
                 }
+        elif not worktree_exists:
+            # Worktree path gone (manually deleted) - just clean up DB record
+            logger.info(
+                f"Worktree path {worktree.worktree_path} doesn't exist, cleaning up DB record only"
+            )
 
         # Delete database record
         deleted = worktree_storage.delete(worktree_id)
@@ -758,8 +772,8 @@ def create_worktrees_registry(
     )
     async def detect_stale_worktrees(
         project_path: str | None = None,
-        hours: int = 24,
-        limit: int = 50,
+        hours: int | str = 24,
+        limit: int | str = 50,
     ) -> dict[str, Any]:
         """
         Find stale worktrees (no activity for N hours).
@@ -772,6 +786,10 @@ def create_worktrees_registry(
         Returns:
             Dict with list of stale worktrees.
         """
+        # Handle string inputs from MCP (JSON params come as strings)
+        hours = int(hours) if isinstance(hours, str) else hours
+        limit = int(limit) if isinstance(limit, str) else limit
+
         _, resolved_project_id, error = _resolve_project_context(
             project_path, git_manager, project_id
         )
@@ -808,9 +826,9 @@ def create_worktrees_registry(
     )
     async def cleanup_stale_worktrees(
         project_path: str | None = None,
-        hours: int = 24,
-        dry_run: bool = True,
-        delete_git: bool = False,
+        hours: int | str = 24,
+        dry_run: bool | str = True,
+        delete_git: bool | str = False,
     ) -> dict[str, Any]:
         """
         Cleanup stale worktrees.
@@ -824,6 +842,13 @@ def create_worktrees_registry(
         Returns:
             Dict with cleanup results.
         """
+        # Handle string inputs from MCP (JSON params come as strings)
+        hours = int(hours) if isinstance(hours, str) else hours
+        dry_run = dry_run in (True, "true", "True", "1") if isinstance(dry_run, str) else dry_run
+        delete_git = (
+            delete_git in (True, "true", "True", "1") if isinstance(delete_git, str) else delete_git
+        )
+
         resolved_git_manager, resolved_project_id, error = _resolve_project_context(
             project_path, git_manager, project_id
         )
