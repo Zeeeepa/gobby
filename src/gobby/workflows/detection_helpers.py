@@ -296,23 +296,37 @@ def _track_mcp_call(
 ) -> None:
     """Track a successful MCP call in workflow state.
 
+    Tracks both:
+    - That the call was made (in mcp_calls for mcp_called() checks)
+    - The result value (in mcp_results for mcp_result_is_null() checks)
+
     Args:
         state: Current workflow state (modified in place)
         server_name: MCP server name (e.g., "gobby-sessions")
         inner_tool: Tool name on the server (e.g., "get_current_session")
         tool_output: Tool output to check for errors
     """
-    # Check if call succeeded (skip tracking failed calls)
+    # Extract the result, checking for errors
+    result = None
     if isinstance(tool_output, dict):
         if tool_output.get("error") or tool_output.get("status") == "error":
-            return
-        result = tool_output.get("result", {})
+            return  # Skip failed calls
+        result = tool_output.get("result")
         if isinstance(result, dict) and result.get("error"):
-            return
+            return  # Skip if result contains error
 
-    # Track the call
+    # Track the call (for mcp_called() checks)
     mcp_calls = state.variables.setdefault("mcp_calls", {})
     server_calls = mcp_calls.setdefault(server_name, [])
     if inner_tool not in server_calls:
         server_calls.append(inner_tool)
-        logger.debug(f"Session {state.session_id}: MCP call tracked {server_name}/{inner_tool}")
+
+    # Track the result (for mcp_result_is_null() checks)
+    mcp_results = state.variables.setdefault("mcp_results", {})
+    server_results = mcp_results.setdefault(server_name, {})
+    server_results[inner_tool] = result
+
+    logger.debug(
+        f"Session {state.session_id}: MCP call tracked {server_name}/{inner_tool} "
+        f"(result={'present' if result is not None else 'null'})"
+    )
