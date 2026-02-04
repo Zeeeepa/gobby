@@ -43,6 +43,9 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         target_workflows = project_path / ".gobby" / "workflows"
         target_workflows.mkdir(parents=True, exist_ok=True)
         for item in shared_workflows.iterdir():
+            # Skip deprecated workflows - they are kept for reference only
+            if item.name == "deprecated":
+                continue
             if item.is_file():
                 copy2(item, target_workflows / item.name)
                 installed["workflows"].append(item.name)
