@@ -88,7 +88,7 @@ def create_artifacts_registry(
             Dict with success status and list of matching artifacts
         """
         if not query or not query.strip():
-            return {"artifacts": [], "count": 0}
+            return {"success": True, "artifacts": [], "count": 0}
 
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         resolved_session_id = session_id
@@ -96,7 +96,7 @@ def create_artifacts_registry(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"error": str(e), "artifacts": []}
+                return {"success": False, "error": str(e), "artifacts": []}
 
         try:
             artifacts = _artifact_manager.search_artifacts(
@@ -106,11 +106,12 @@ def create_artifacts_registry(
                 limit=limit,
             )
             return {
+                "success": True,
                 "artifacts": [a.to_dict() for a in artifacts],
                 "count": len(artifacts),
             }
         except Exception as e:
-            return {"error": str(e), "artifacts": []}
+            return {"success": False, "error": str(e), "artifacts": []}
 
     @registry.tool(
         name="list_artifacts",
@@ -140,7 +141,7 @@ def create_artifacts_registry(
             try:
                 resolved_session_id = _resolve_session_id(session_id)
             except ValueError as e:
-                return {"error": str(e), "artifacts": []}
+                return {"success": False, "error": str(e), "artifacts": []}
 
         try:
             artifacts = _artifact_manager.list_artifacts(
@@ -150,11 +151,12 @@ def create_artifacts_registry(
                 offset=offset,
             )
             return {
+                "success": True,
                 "artifacts": [a.to_dict() for a in artifacts],
                 "count": len(artifacts),
             }
         except Exception as e:
-            return {"error": str(e), "artifacts": []}
+            return {"success": False, "error": str(e), "artifacts": []}
 
     @registry.tool(
         name="get_artifact",
@@ -174,12 +176,13 @@ def create_artifacts_registry(
             artifact = _artifact_manager.get_artifact(artifact_id)
             if artifact is None:
                 return {
+                    "success": False,
                     "error": f"Artifact '{artifact_id}' not found",
                     "artifact": None,
                 }
-            return {"artifact": artifact.to_dict()}
+            return {"success": True, "artifact": artifact.to_dict()}
         except Exception as e:
-            return {"error": str(e), "artifact": None}
+            return {"success": False, "error": str(e), "artifact": None}
 
     @registry.tool(
         name="get_timeline",
@@ -203,6 +206,7 @@ def create_artifacts_registry(
         """
         if not session_id:
             return {
+                "success": False,
                 "error": "session_id is required for timeline",
                 "artifacts": [],
             }
@@ -224,10 +228,11 @@ def create_artifacts_registry(
             # Reverse to get chronological order (oldest first)
             artifacts = list(reversed(artifacts))
             return {
+                "success": True,
                 "artifacts": [a.to_dict() for a in artifacts],
                 "count": len(artifacts),
             }
         except Exception as e:
-            return {"error": str(e), "artifacts": []}
+            return {"success": False, "error": str(e), "artifacts": []}
 
     return registry
