@@ -453,7 +453,7 @@ async def spawn_agent_impl(
         worktree_id=isolation_ctx.worktree_id,
         clone_id=isolation_ctx.clone_id,
         branch_name=isolation_ctx.branch_name,
-        session_manager=runner._child_session_manager,
+        session_manager=runner.child_session_manager,
         machine_id=get_machine_id() or "unknown",
         model=effective_model,
         sandbox_config=effective_sandbox_config,

@@ -212,6 +212,11 @@ class AgentRunner:
         self._running_agents: dict[str, RunningAgent] = {}
         self._running_agents_lock = threading.Lock()
 
+    @property
+    def child_session_manager(self) -> ChildSessionManager:
+        """Public accessor for the child session manager."""
+        return self._child_session_manager
+
     def get_executor(self, provider: str) -> AgentExecutor | None:
         """Get executor for a provider."""
         return self._executors.get(provider)

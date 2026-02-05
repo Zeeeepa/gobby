@@ -185,7 +185,7 @@ def register_reviewer(
                 project_id=resolved_project_id,
                 workflow_name=None,
                 agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
                 terminal=terminal,
                 prompt=review_prompt,
             )
@@ -218,7 +218,7 @@ def register_reviewer(
                 project_id=resolved_project_id,
                 workflow_name=None,
                 agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
                 prompt=review_prompt,
             )
 
@@ -248,7 +248,7 @@ def register_reviewer(
                 project_id=resolved_project_id,
                 workflow_name=None,
                 agent_depth=child_session.agent_depth,
-                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
                 prompt=review_prompt,
             )
 

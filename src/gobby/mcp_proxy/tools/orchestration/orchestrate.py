@@ -458,7 +458,7 @@ def register_orchestrator(
                         project_id=resolved_project_id,
                         workflow_name=workflow,
                         agent_depth=child_session.agent_depth,
-                        max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                        max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
                         terminal=effective_terminal,
                         prompt=prompt,
                     )
@@ -512,7 +512,7 @@ def register_orchestrator(
                         project_id=resolved_project_id,
                         workflow_name=workflow,
                         agent_depth=child_session.agent_depth,
-                        max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                        max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
                         prompt=prompt,
                     )
 
@@ -563,7 +563,7 @@ def register_orchestrator(
                         project_id=resolved_project_id,
                         workflow_name=workflow,
                         agent_depth=child_session.agent_depth,
-                        max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                        max_agent_depth=agent_runner.child_session_manager.max_agent_depth,
                         prompt=prompt,
                     )
 
