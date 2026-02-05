@@ -8,6 +8,10 @@ category: core
 
 This skill manages git worktrees via the `gobby-worktrees` MCP server (invoked as `/gobby worktrees`). Parse the user's input to determine which subcommand to execute.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 ### `/gobby worktrees create <branch-name>` - Create a new worktree

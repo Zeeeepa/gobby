@@ -22,6 +22,10 @@ Create a new feature task with the provided title and optional description.
 /feat User profile avatars - Allow users to upload custom profile pictures with cropping support
 ```
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Action
 
 Create a feature task with the following parameters:

@@ -23,6 +23,10 @@ Create a minor cleanup or nitpick task with the provided title and optional desc
 /nit Remove unused import in utils.py
 ```
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Action
 
 Create a nitpick task with the following parameters:

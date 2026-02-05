@@ -22,6 +22,10 @@ Gobby Session ID: <uuid>
 
 Do NOT call `list_sessions` to look it up - you already have it.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 ### `/gobby workflows activate <workflow-name>` - Activate a workflow
