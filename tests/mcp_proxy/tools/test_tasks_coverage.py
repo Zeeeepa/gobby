@@ -1224,6 +1224,50 @@ class TestCloseTaskTool:
             assert result.get("routed_to_review") is True
 
 
+    @pytest.mark.asyncio
+    async def test_close_task_out_of_repo_blocked_when_session_had_edits(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """Test out_of_repo reason still enforces commit check when session had edits."""
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+        mock_task = MagicMock()
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
+        mock_task.commits = None
+        mock_task.project_id = "proj-1"
+        mock_task_manager.get_task.return_value = mock_task
+
+        # Mock session with had_edits=True
+        mock_session = MagicMock()
+        mock_session.had_edits = True
+
+        with (
+            patch("gobby.mcp_proxy.tools.tasks._context.LocalProjectManager") as MockProjManager,
+            patch("gobby.utils.git.run_git_command") as mock_git,
+            patch("gobby.storage.sessions.LocalSessionManager") as MockSessionManager,
+        ):
+            mock_proj_instance = MagicMock()
+            mock_proj_instance.get.return_value = None
+            MockProjManager.return_value = mock_proj_instance
+            mock_git.return_value = "abc123"
+
+            mock_session_instance = MagicMock()
+            mock_session_instance.get.return_value = mock_session
+            MockSessionManager.return_value = mock_session_instance
+
+            result = await registry.call(
+                "close_task",
+                {
+                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "reason": "out_of_repo",
+                    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                },
+            )
+
+            assert result.get("error") == "missing_commits_for_edits"
+            mock_task_manager.close_task.assert_not_called()
+
+
 # =============================================================================
 # reopen_task Tool Tests
 # =============================================================================

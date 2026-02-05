@@ -112,7 +112,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 pass  # Fall back to raw value if resolution fails
 
         # Enforce commits if session had edits
-        if resolved_session_id and not should_skip:
+        # Only skip for explicit skip_validation, NOT for close reasons like out_of_repo
+        # (if the session edited in-repo files, those need commits regardless of reason)
+        if resolved_session_id and not skip_validation:
             try:
                 from gobby.storage.sessions import LocalSessionManager
 
