@@ -137,6 +137,8 @@ def make_spawn_env(env: dict[str, str] | None = None) -> dict[str, str]:
         "KITTY_WINDOW_ID",
         "ALACRITTY_SOCKET",
         "TERM_SESSION_ID",
+        "WEZTERM_PANE",
+        "WEZTERM_UNIX_SOCKET",
     ):
         spawn_env.pop(var, None)
     return spawn_env
