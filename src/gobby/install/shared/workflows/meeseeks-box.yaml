@@ -412,6 +412,36 @@ steps:
       - NotebookEdit
 
     transitions:
+      - to: push_changes
+        when: "true"
+
+  - name: push_changes
+    description: "Push merged changes to remote"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Pushing merged changes.
+
+          Push the merged changes to the remote:
+
+          git push
+
+          If push fails due to upstream changes, pull and retry:
+          git pull --rebase && git push
+
+    allowed_tools:
+      - Bash
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+
+    transitions:
       - to: cleanup_worktree
         when: "true"
 
