@@ -162,6 +162,7 @@ class TestExecuteSpawn:
     @pytest.mark.asyncio
     async def test_terminal_mode_calls_terminal_spawner(self):
         """Test that terminal mode dispatches to TerminalSpawner."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -172,26 +173,40 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
+            machine_id="test-machine",
         )
 
+        # Mock prepare_terminal_spawn
+        mock_spawn_context = MagicMock()
+        mock_spawn_context.session_id = "child-session-id"
+        mock_spawn_context.agent_run_id = "run-123"
+        mock_spawn_context.env_vars = {"GOBBY_SESSION_ID": "child-session-id"}
+
         mock_spawner = MagicMock()
-        mock_spawner.spawn_agent.return_value = MagicMock(
+        mock_spawner.spawn.return_value = MagicMock(
             success=True,
             pid=12345,
             terminal_type="ghostty",
             message="Spawned successfully",
         )
 
-        with patch(
-            "gobby.agents.spawn_executor.TerminalSpawner",
-            return_value=mock_spawner,
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                return_value=mock_spawn_context,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
         ):
             result = await execute_spawn(request)
 
-            mock_spawner.spawn_agent.assert_called_once()
+            mock_spawner.spawn.assert_called_once()
             assert result.success is True
             assert result.pid == 12345
-            assert result.terminal_type == "ghostty"
+            assert result.child_session_id == "child-session-id"
 
     @pytest.mark.asyncio
     async def test_embedded_mode_calls_embedded_spawner(self):
@@ -263,6 +278,7 @@ class TestExecuteSpawn:
     @pytest.mark.asyncio
     async def test_spawn_failure_propagates_error(self):
         """Test that spawn failure returns error in result."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -273,18 +289,31 @@ class TestExecuteSpawn:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
+            machine_id="test-machine",
         )
 
+        mock_spawn_context = MagicMock()
+        mock_spawn_context.session_id = "child-session-id"
+        mock_spawn_context.agent_run_id = "run-123"
+        mock_spawn_context.env_vars = {"GOBBY_SESSION_ID": "child-session-id"}
+
         mock_spawner = MagicMock()
-        mock_spawner.spawn_agent.return_value = MagicMock(
+        mock_spawner.spawn.return_value = MagicMock(
             success=False,
             error="Terminal not found",
             message="Failed to spawn",
         )
 
-        with patch(
-            "gobby.agents.spawn_executor.TerminalSpawner",
-            return_value=mock_spawner,
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                return_value=mock_spawn_context,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
         ):
             result = await execute_spawn(request)
 
@@ -293,7 +322,8 @@ class TestExecuteSpawn:
 
     @pytest.mark.asyncio
     async def test_spawn_passes_workflow_to_spawner(self):
-        """Test that workflow is passed to the spawner."""
+        """Test that workflow is passed to prepare_terminal_spawn."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -305,23 +335,38 @@ class TestExecuteSpawn:
             parent_session_id="parent",
             project_id="proj",
             workflow="auto-task",
+            session_manager=mock_session_manager,
+            machine_id="test-machine",
         )
 
+        mock_spawn_context = MagicMock()
+        mock_spawn_context.session_id = "child-session-id"
+        mock_spawn_context.agent_run_id = "run-123"
+        mock_spawn_context.env_vars = {"GOBBY_SESSION_ID": "child-session-id"}
+
         mock_spawner = MagicMock()
-        mock_spawner.spawn_agent.return_value = MagicMock(
+        mock_spawner.spawn.return_value = MagicMock(
             success=True,
             pid=12345,
             terminal_type="ghostty",
         )
 
-        with patch(
-            "gobby.agents.spawn_executor.TerminalSpawner",
-            return_value=mock_spawner,
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                return_value=mock_spawn_context,
+            ) as mock_prepare,
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
         ):
             await execute_spawn(request)
 
-            call_kwargs = mock_spawner.spawn_agent.call_args
-            assert call_kwargs.kwargs.get("workflow_name") == "auto-task"
+            # Workflow is passed to prepare_terminal_spawn, not directly to spawner
+            mock_prepare.assert_called_once()
+            call_kwargs = mock_prepare.call_args.kwargs
+            assert call_kwargs.get("workflow_name") == "auto-task"
 
     @pytest.mark.asyncio
     async def test_gemini_terminal_calls_prepare_terminal_spawn(self):
@@ -435,6 +480,27 @@ class TestExecuteSpawn:
             assert result.codex_session_id == "codex-ext-789"
 
     @pytest.mark.asyncio
+    async def test_claude_terminal_requires_session_manager(self):
+        """Test that Claude spawn requires session_manager."""
+        request = SpawnRequest(
+            prompt="Test",
+            cwd="/path",
+            mode="terminal",
+            provider="claude",
+            terminal="auto",
+            session_id="sess",
+            run_id="run",
+            parent_session_id="parent",
+            project_id="proj",
+            # No session_manager provided
+        )
+
+        result = await execute_spawn(request)
+
+        assert result.success is False
+        assert "session_manager is required" in (result.error or "")
+
+    @pytest.mark.asyncio
     async def test_gemini_terminal_requires_session_manager(self):
         """Test that Gemini spawn requires session_manager for preflight."""
         request = SpawnRequest(
@@ -512,8 +578,9 @@ class TestExecuteSpawnSandbox:
 
     @pytest.mark.asyncio
     async def test_terminal_spawn_passes_sandbox_config_to_spawner(self) -> None:
-        """Test that sandbox_config is passed to TerminalSpawner."""
+        """Test that sandbox_config is resolved and passed to TerminalSpawner."""
         sandbox_config = SandboxConfig(enabled=True, mode="permissive")
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test with sandbox",
             cwd="/path",
@@ -525,32 +592,60 @@ class TestExecuteSpawnSandbox:
             parent_session_id="parent",
             project_id="proj",
             sandbox_config=sandbox_config,
+            session_manager=mock_session_manager,
+            machine_id="test-machine",
         )
 
+        mock_spawn_context = MagicMock()
+        mock_spawn_context.session_id = "child-session-id"
+        mock_spawn_context.agent_run_id = "run-123"
+        mock_spawn_context.env_vars = {"GOBBY_SESSION_ID": "child-session-id"}
+
         mock_spawner = MagicMock()
-        mock_spawner.spawn_agent.return_value = MagicMock(
+        mock_spawner.spawn.return_value = MagicMock(
             success=True,
             pid=12345,
             terminal_type="ghostty",
         )
 
-        with patch(
-            "gobby.agents.spawn_executor.TerminalSpawner",
-            return_value=mock_spawner,
+        # Mock the sandbox resolver (imported locally in _spawn_claude_terminal)
+        mock_resolver = MagicMock()
+        mock_resolver.resolve.return_value = (
+            ["--settings", '{"sandbox":{"enabled":true}}'],
+            {"SEATBELT_PROFILE": "permissive-open"},
+        )
+
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                return_value=mock_spawn_context,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
+            patch(
+                "gobby.agents.sandbox.ClaudeSandboxResolver",
+                return_value=mock_resolver,
+            ),
         ):
             result = await execute_spawn(request)
 
-            # Verify sandbox_config was passed to spawn_agent
-            mock_spawner.spawn_agent.assert_called_once()
-            call_kwargs = mock_spawner.spawn_agent.call_args.kwargs
-            assert "sandbox_config" in call_kwargs
-            assert call_kwargs["sandbox_config"].enabled is True
-            assert call_kwargs["sandbox_config"].mode == "permissive"
+            # Verify sandbox was resolved and env vars passed to spawn
+            mock_resolver.resolve.assert_called_once()
+            mock_spawner.spawn.assert_called_once()
+            call_kwargs = mock_spawner.spawn.call_args.kwargs
+            assert "env" in call_kwargs
+            assert "SEATBELT_PROFILE" in call_kwargs["env"]
+            # Command should include sandbox args
+            command = call_kwargs.get("command")
+            assert "--settings" in command
             assert result.success is True
 
     @pytest.mark.asyncio
     async def test_terminal_spawn_without_sandbox_passes_none(self) -> None:
-        """Test that spawn without sandbox passes sandbox_config=None."""
+        """Test that spawn without sandbox doesn't add sandbox env vars."""
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test without sandbox",
             cwd="/path",
@@ -561,26 +656,39 @@ class TestExecuteSpawnSandbox:
             run_id="run",
             parent_session_id="parent",
             project_id="proj",
+            session_manager=mock_session_manager,
+            machine_id="test-machine",
             # No sandbox_config specified
         )
 
+        mock_spawn_context = MagicMock()
+        mock_spawn_context.session_id = "child-session-id"
+        mock_spawn_context.agent_run_id = "run-123"
+        mock_spawn_context.env_vars = {"GOBBY_SESSION_ID": "child-session-id"}
+
         mock_spawner = MagicMock()
-        mock_spawner.spawn_agent.return_value = MagicMock(
+        mock_spawner.spawn.return_value = MagicMock(
             success=True,
             pid=12345,
             terminal_type="ghostty",
         )
 
-        with patch(
-            "gobby.agents.spawn_executor.TerminalSpawner",
-            return_value=mock_spawner,
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                return_value=mock_spawn_context,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
         ):
             result = await execute_spawn(request)
 
-            mock_spawner.spawn_agent.assert_called_once()
-            call_kwargs = mock_spawner.spawn_agent.call_args.kwargs
-            # sandbox_config should be None or not present
-            assert call_kwargs.get("sandbox_config") is None
+            mock_spawner.spawn.assert_called_once()
+            call_kwargs = mock_spawner.spawn.call_args.kwargs
+            # Env should only have gobby session vars, no sandbox vars
+            assert "SEATBELT_PROFILE" not in call_kwargs.get("env", {})
             assert result.success is True
 
     @pytest.mark.asyncio
@@ -663,8 +771,9 @@ class TestExecuteSpawnSandbox:
 
     @pytest.mark.asyncio
     async def test_sandbox_disabled_explicitly_passed(self) -> None:
-        """Test that explicitly disabled sandbox is passed correctly."""
+        """Test that explicitly disabled sandbox doesn't add sandbox env vars."""
         sandbox_config = SandboxConfig(enabled=False)
+        mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
@@ -676,25 +785,38 @@ class TestExecuteSpawnSandbox:
             parent_session_id="parent",
             project_id="proj",
             sandbox_config=sandbox_config,
+            session_manager=mock_session_manager,
+            machine_id="test-machine",
         )
 
+        mock_spawn_context = MagicMock()
+        mock_spawn_context.session_id = "child-session-id"
+        mock_spawn_context.agent_run_id = "run-123"
+        mock_spawn_context.env_vars = {"GOBBY_SESSION_ID": "child-session-id"}
+
         mock_spawner = MagicMock()
-        mock_spawner.spawn_agent.return_value = MagicMock(
+        mock_spawner.spawn.return_value = MagicMock(
             success=True,
             pid=12345,
             terminal_type="ghostty",
         )
 
-        with patch(
-            "gobby.agents.spawn_executor.TerminalSpawner",
-            return_value=mock_spawner,
+        with (
+            patch(
+                "gobby.agents.spawn_executor.prepare_terminal_spawn",
+                return_value=mock_spawn_context,
+            ),
+            patch(
+                "gobby.agents.spawn_executor.TerminalSpawner",
+                return_value=mock_spawner,
+            ),
         ):
             result = await execute_spawn(request)
 
-            mock_spawner.spawn_agent.assert_called_once()
-            call_kwargs = mock_spawner.spawn_agent.call_args.kwargs
-            assert "sandbox_config" in call_kwargs
-            assert call_kwargs["sandbox_config"].enabled is False
+            mock_spawner.spawn.assert_called_once()
+            call_kwargs = mock_spawner.spawn.call_args.kwargs
+            # Env should only have gobby session vars, no sandbox vars (sandbox disabled)
+            assert "SEATBELT_PROFILE" not in call_kwargs.get("env", {})
             assert result.success is True
 
     @pytest.mark.asyncio
