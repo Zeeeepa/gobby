@@ -79,6 +79,19 @@ async def registry(populated_db):
     return registry
 
 
+@pytest.fixture
+async def empty_registry(db):
+    """Create a registry with no skills indexed (for no-match tests)."""
+    from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+    registry = create_skills_registry(db)
+    # Clear the search index to ensure no skills are indexed
+    if hasattr(registry, "search"):
+        registry.search.clear()
+
+    return registry
+
+
 class TestSearchSkillsTool:
     """Tests for search_skills MCP tool."""
 
@@ -175,9 +188,9 @@ class TestSearchSkillsTool:
         assert "query" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_search_skills_no_matches(self, registry):
-        """Test search with no matches returns empty results."""
-        tool = registry.get_tool("search_skills")
+    async def test_search_skills_no_matches(self, empty_registry):
+        """Test search with no indexed skills returns empty results."""
+        tool = empty_registry.get_tool("search_skills")
 
         result = await tool(query="nonexistent gibberish xyz")
 
