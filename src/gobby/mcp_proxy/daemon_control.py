@@ -58,9 +58,10 @@ async def start_daemon_process(port: int, websocket_port: int) -> dict[str, Any]
     if is_daemon_running():
         pid = get_daemon_pid()
         return {
-            "error": f"Daemon is already running with PID {pid}",
+            "success": False,
             "already_running": True,
             "pid": pid,
+            "message": f"Daemon is already running with PID {pid}",
         }
 
     cmd = [
@@ -91,12 +92,15 @@ async def start_daemon_process(port: int, websocket_port: int) -> dict[str, Any]
             # Process exited immediately - capture output
             stdout, stderr = await proc.communicate()
             return {
-                "error": stderr.decode().strip() if stderr else "Start failed - process exited immediately",
+                "success": False,
+                "message": "Start failed - process exited immediately",
+                "error": stderr.decode().strip() if stderr else "Unknown error",
             }
 
         # Process is running - check health
         if await check_daemon_http_health(port, timeout=5.0):
             return {
+                "success": True,
                 "pid": proc.pid,
                 "output": "Daemon started successfully",
             }
@@ -106,16 +110,19 @@ async def start_daemon_process(port: int, websocket_port: int) -> dict[str, Any]
         pid = get_daemon_pid()
         if pid:
             return {
+                "success": True,
                 "pid": pid,
                 "output": "Daemon started (health check pending)",
             }
 
         return {
-            "error": "Start failed - process running but unhealthy (health check timed out)",
+            "success": False,
+            "message": "Start failed - process running but unhealthy",
+            "error": "Health check timed out",
         }
 
     except Exception as e:
-        return {"error": f"Failed to start: {e}"}
+        return {"success": False, "error": str(e), "message": f"Failed to start: {e}"}
 
 
 async def stop_daemon_process(pid: int | None = None) -> dict[str, Any]:
@@ -124,7 +131,7 @@ async def stop_daemon_process(pid: int | None = None) -> dict[str, Any]:
         pid = get_daemon_pid()
 
     if not pid:
-        return {"error": "Daemon not running", "not_running": True}
+        return {"success": False, "not_running": True, "message": "Daemon not running"}
 
     timeout = 5.0
     deadline = asyncio.get_running_loop().time() + timeout
@@ -138,19 +145,21 @@ async def stop_daemon_process(pid: int | None = None) -> dict[str, Any]:
                 os.kill(pid, 0)
                 if asyncio.get_running_loop().time() > deadline:
                     return {
-                        "error": "Process did not exit after SIGTERM (stop timed out)",
+                        "success": False,
+                        "error": "Process did not exit after SIGTERM",
+                        "message": "Stop timed out",
                     }
                 await asyncio.sleep(0.1)
             except ProcessLookupError:
                 # Process is gone
-                return {"output": "Daemon stopped"}
+                return {"success": True, "output": "Daemon stopped"}
 
     except ProcessLookupError:
-        return {"error": "Process not found", "not_running": True}
+        return {"success": False, "error": "Process not found", "not_running": True}
     except PermissionError:
-        return {"error": "Permission denied"}
+        return {"success": False, "error": "Permission denied"}
     except Exception as e:
-        return {"error": str(e)}
+        return {"success": False, "error": str(e)}
 
 
 async def restart_daemon_process(
@@ -158,7 +167,7 @@ async def restart_daemon_process(
 ) -> dict[str, Any]:
     """Restart daemon."""
     stop_result = await stop_daemon_process(current_pid)
-    if "error" in stop_result and not stop_result.get("not_running"):
+    if not stop_result.get("success") and not stop_result.get("not_running"):
         return stop_result
 
     # Wait for ports to be free with actual port checking
@@ -182,6 +191,7 @@ async def restart_daemon_process(
         await asyncio.sleep(0.5)
     else:
         return {
+            "success": False,
             "error": f"Ports {port} and/or {websocket_port} not free after 10 retries",
         }
 

@@ -10,7 +10,12 @@ import subprocess  # nosec B404 - subprocess needed for terminal spawning
 import tempfile
 from pathlib import Path
 
-from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
+from gobby.agents.spawners.base import (
+    SpawnResult,
+    TerminalSpawnerBase,
+    TerminalType,
+    make_spawn_env,
+)
 from gobby.agents.tty_config import get_tty_config
 
 __all__ = ["GhosttySpawner", "ITermSpawner", "TerminalAppSpawner"]
@@ -114,16 +119,11 @@ class GhosttySpawner(TerminalSpawnerBase):
                 args.extend(tty_config.options)
                 args.extend(["-e"] + command)
 
-            # Merge environment
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             # Spawn process
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
                 cwd=cwd,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 

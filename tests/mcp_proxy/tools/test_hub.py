@@ -112,7 +112,7 @@ class TestListAllProjects:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["project_count"] == 2
         project_ids = [p["project_id"] for p in result["projects"]]
         assert "project-alpha" in project_ids
@@ -125,7 +125,7 @@ class TestListAllProjects:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         alpha = next(p for p in result["projects"] if p["project_id"] == "project-alpha")
         beta = next(p for p in result["projects"] if p["project_id"] == "project-beta")
 
@@ -141,7 +141,7 @@ class TestListAllProjects:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["project_count"] == 0
         assert result["projects"] == []
 
@@ -153,7 +153,7 @@ class TestListAllProjects:
 
         result = asyncio.run(tool())
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
 
@@ -167,7 +167,7 @@ class TestListCrossProjectTasks:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
 
     def test_list_cross_project_tasks_with_status_filter(self, populated_hub_db: Path) -> None:
@@ -177,7 +177,7 @@ class TestListCrossProjectTasks:
 
         result = asyncio.run(tool(status="open"))
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert result["tasks"][0]["status"] == "open"
 
@@ -188,7 +188,7 @@ class TestListCrossProjectTasks:
 
         result = asyncio.run(tool(limit=2))
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2
 
     def test_list_cross_project_tasks_empty_database(self, temp_hub_db: Path) -> None:
@@ -198,7 +198,7 @@ class TestListCrossProjectTasks:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
         assert result["tasks"] == []
 
@@ -213,7 +213,7 @@ class TestListCrossProjectSessions:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
         # Verify session has correct fields
         session = result["sessions"][0]
@@ -227,7 +227,7 @@ class TestListCrossProjectSessions:
 
         result = asyncio.run(tool(limit=1))
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
 
     def test_list_cross_project_sessions_empty_database(self, temp_hub_db: Path) -> None:
@@ -237,7 +237,7 @@ class TestListCrossProjectSessions:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
         assert result["sessions"] == []
 
@@ -252,7 +252,7 @@ class TestHubStats:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         stats = result["stats"]
         assert stats["project_count"] == 2
         assert stats["tasks"]["total"] == 3
@@ -265,7 +265,7 @@ class TestHubStats:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         stats = result["stats"]
         assert stats["tasks"]["by_status"]["open"] == 1
         assert stats["tasks"]["by_status"]["closed"] == 1
@@ -278,7 +278,7 @@ class TestHubStats:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         stats = result["stats"]
         assert stats["project_count"] == 0
         assert stats["tasks"]["total"] == 0
@@ -292,5 +292,5 @@ class TestHubStats:
 
         result = asyncio.run(tool())
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]

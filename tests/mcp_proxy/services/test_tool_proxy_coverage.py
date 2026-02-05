@@ -80,7 +80,7 @@ class TestListToolsInternalServer:
 
         result = await proxy.list_tools("gobby-tasks")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["tool_count"] == 2
         assert len(result["tools"]) == 2
         mock_internal_manager.get_registry.assert_called_once_with("gobby-tasks")
@@ -100,8 +100,9 @@ class TestListToolsInternalServer:
 
         result = await proxy.list_tools("gobby-nonexistent")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
+        assert result["tools"] == []
 
     @pytest.mark.asyncio
     async def test_list_tools_internal_with_tool_filter(
@@ -130,7 +131,7 @@ class TestListToolsInternalServer:
 
         result = await proxy.list_tools("gobby-tasks", session_id="session-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["tool_count"] == 1
         mock_filter.filter_tools.assert_called_once()
 
@@ -177,7 +178,7 @@ class TestListToolsExternalServer:
 
         result = await proxy.list_tools("ext-server")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["tool_count"] == 2
         assert result["tools"][0]["name"] == "external_tool"
         assert result["tools"][1]["name"] == "another_tool"
@@ -208,7 +209,7 @@ class TestListToolsExternalServer:
 
         result = await proxy.list_tools("ext-server", session_id="session-456")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["tool_count"] == 1
         mock_filter.filter_tools.assert_called_once()
 
@@ -224,7 +225,7 @@ class TestListToolsExternalServer:
 
         result = await proxy.list_tools("nonexistent-server")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
 
@@ -257,7 +258,7 @@ class TestCallToolInternal:
 
         result = await proxy.call_tool("gobby-nonexistent", "some_tool", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
 
@@ -300,7 +301,7 @@ class TestCallToolFallback:
 
         result = await proxy.call_tool("test-server", "failing_tool", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Tool failed" in result["error"]
         assert "fallback_suggestions" in result
         assert len(result["fallback_suggestions"]) == 1
@@ -331,7 +332,7 @@ class TestCallToolFallback:
 
         result = await proxy.call_tool("test-server", "failing_tool", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert result["fallback_suggestions"] == []
         # Fallback resolver should not be called without project_id
         mock_fallback.find_alternatives_for_error.assert_not_called()
@@ -356,7 +357,7 @@ class TestCallToolFallback:
 
         result = await proxy.call_tool("test-server", "failing_tool", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Tool failed" in result["error"]
         assert result["fallback_suggestions"] == []
 
@@ -375,7 +376,7 @@ class TestCallToolFallback:
 
         result = await proxy.call_tool("test-server", "failing_tool", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert result["fallback_suggestions"] == []
 
 
@@ -599,7 +600,7 @@ class TestCallToolWithValidation:
             {"unknown_param": "value"},  # Missing required task_id
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Invalid arguments" in result["error"]
         assert "schema" in result
         assert result["hint"] is not None
@@ -658,7 +659,7 @@ class TestGetToolSchema:
 
         result = await proxy.get_tool_schema("gobby-tasks", "create_task")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["tool"]["name"] == "create_task"
 
     @pytest.mark.asyncio
@@ -678,7 +679,7 @@ class TestGetToolSchema:
 
         result = await proxy.get_tool_schema("gobby-tasks", "nonexistent_tool")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -696,7 +697,7 @@ class TestGetToolSchema:
 
         result = await proxy.get_tool_schema("gobby-nonexistent", "some_tool")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -714,7 +715,7 @@ class TestGetToolSchema:
 
         result = await proxy.get_tool_schema("nonexistent-server", "some_tool")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -820,7 +821,7 @@ class TestCallToolByName:
 
         result = await proxy.call_tool_by_name("nonexistent_tool", {"arg": "value"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
         assert result["tool_name"] == "nonexistent_tool"
 

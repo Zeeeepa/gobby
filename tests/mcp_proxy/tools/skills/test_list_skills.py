@@ -68,7 +68,7 @@ class TestListSkillsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
         assert len(result["skills"]) == 3
 
@@ -82,7 +82,7 @@ class TestListSkillsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         skill = result["skills"][0]
 
         # Should have lightweight fields
@@ -108,7 +108,7 @@ class TestListSkillsTool:
         # Only enabled skills
         result = await tool(enabled=True)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2
         for skill in result["skills"]:
             assert skill["enabled"] is True
@@ -124,7 +124,7 @@ class TestListSkillsTool:
         # Only disabled skills
         result = await tool(enabled=False)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "disabled-skill"
 
@@ -138,7 +138,7 @@ class TestListSkillsTool:
 
         result = await tool(category="git")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "git-commit"
         assert result["skills"][0]["category"] == "git"
@@ -153,7 +153,7 @@ class TestListSkillsTool:
 
         result = await tool(limit=2)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2
 
     @pytest.mark.asyncio
@@ -166,7 +166,7 @@ class TestListSkillsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
         assert result["skills"] == []
 
@@ -181,7 +181,7 @@ class TestListSkillsTool:
         # Git category AND enabled
         result = await tool(category="git", enabled=True)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "git-commit"
 
@@ -195,7 +195,7 @@ class TestListSkillsTool:
 
         result = await tool(category="nonexistent")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
         assert result["skills"] == []
 
@@ -209,7 +209,7 @@ class TestListSkillsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         for skill in result["skills"]:
             assert "id" in skill
             assert skill["id"] is not None

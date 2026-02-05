@@ -50,7 +50,7 @@ class TestServerManagementServiceImport:
         """Test that import_server requires at least one source."""
         result = await service.import_server()
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Specify at least one" in result["error"]
 
     async def test_import_without_config_fails(self, service_no_config):
@@ -61,7 +61,7 @@ class TestServerManagementServiceImport:
         ):
             result = await service_no_config.import_server(from_project="other-project")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "configuration not available" in result["error"]
 
     async def test_import_without_project_context_fails(self, service):
@@ -72,14 +72,14 @@ class TestServerManagementServiceImport:
         ):
             result = await service.import_server(from_project="other-project")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "No current project" in result["error"]
 
     async def test_import_from_project_delegates_to_importer(self, service):
         """Test that from_project delegates to MCPServerImporter.import_from_project."""
         mock_importer = MagicMock()
         mock_importer.import_from_project = AsyncMock(
-            return_value={"imported": ["server1"]}
+            return_value={"success": True, "imported": ["server1"]}
         )
 
         with (
@@ -100,7 +100,7 @@ class TestServerManagementServiceImport:
                 servers=["server1"],
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["imported"] == ["server1"]
         mock_importer.import_from_project.assert_called_once_with(
             source_project="source-project",
@@ -111,7 +111,7 @@ class TestServerManagementServiceImport:
         """Test that github_url delegates to MCPServerImporter.import_from_github."""
         mock_importer = MagicMock()
         mock_importer.import_from_github = AsyncMock(
-            return_value={"imported": ["github-server"]}
+            return_value={"success": True, "imported": ["github-server"]}
         )
 
         with (
@@ -131,14 +131,14 @@ class TestServerManagementServiceImport:
                 github_url="https://github.com/test/repo",
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_importer.import_from_github.assert_called_once_with("https://github.com/test/repo")
 
     async def test_import_from_query_delegates_to_importer(self, service):
         """Test that query delegates to MCPServerImporter.import_from_query."""
         mock_importer = MagicMock()
         mock_importer.import_from_query = AsyncMock(
-            return_value={"imported": ["searched-server"]}
+            return_value={"success": True, "imported": ["searched-server"]}
         )
 
         with (
@@ -156,7 +156,7 @@ class TestServerManagementServiceImport:
         ):
             result = await service.import_server(query="supabase mcp server")
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_importer.import_from_query.assert_called_once_with("supabase mcp server")
 
     async def test_import_handles_exception(self, service):
@@ -176,14 +176,14 @@ class TestServerManagementServiceImport:
         ):
             result = await service.import_server(from_project="test")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Connection failed" in result["error"]
 
     async def test_import_priority_from_project_first(self, service):
         """Test that from_project takes priority when multiple sources provided."""
         mock_importer = MagicMock()
         mock_importer.import_from_project = AsyncMock(
-            return_value={"imported": ["project-server"]}
+            return_value={"success": True, "imported": ["project-server"]}
         )
         mock_importer.import_from_github = AsyncMock()
         mock_importer.import_from_query = AsyncMock()

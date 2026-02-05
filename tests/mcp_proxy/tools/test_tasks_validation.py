@@ -734,7 +734,7 @@ class TestRunFixAttemptTool:
         # Default registry has no agent_runner
         result = await validation_registry.call("run_fix_attempt", {"task_id": "t1"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "agent runner not configured" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -783,7 +783,7 @@ class TestRunFixAttemptTool:
 
             result = await registry.call("run_fix_attempt", {"task_id": "t1"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "no issues" in result["error"].lower()
 
     def test_run_fix_attempt_tool_registered(self, validation_registry) -> None:
@@ -842,7 +842,7 @@ class TestValidateAndFixTool:
 
         result = await validation_registry.call("validate_and_fix", {"task_id": "t1"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["is_parent_task"] is True
 
     @pytest.mark.asyncio
@@ -875,7 +875,7 @@ class TestValidateAndFixTool:
             mock_context.return_value = "Mocked validation context for test"
             result = await validation_registry.call("validate_and_fix", {"task_id": "t1"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["is_valid"] is True
         assert result["iterations"] == 1
 

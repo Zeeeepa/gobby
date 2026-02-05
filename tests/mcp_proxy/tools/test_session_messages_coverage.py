@@ -336,7 +336,7 @@ class TestGetSessionMessages:
 
         result = await get_messages(session_id="sess-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["total_count"] == 2
         assert result["returned_count"] == 2
         assert len(result["messages"]) == 2
@@ -359,7 +359,7 @@ class TestGetSessionMessages:
 
         result = await get_messages(session_id="sess-123", full_content=False)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["truncated"] is True
         # Content should be truncated to ~500 chars + "... (truncated)"
         assert len(result["messages"][0]["content"]) < 600
@@ -380,7 +380,7 @@ class TestGetSessionMessages:
 
         result = await get_messages(session_id="sess-123", full_content=True)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["truncated"] is False
         assert result["messages"][0]["content"] == long_content
 
@@ -404,7 +404,7 @@ class TestGetSessionMessages:
 
         result = await get_messages(session_id="sess-123", full_content=False)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "... (truncated)" in result["messages"][0]["tool_calls"][0]["input"]
 
     @pytest.mark.asyncio
@@ -427,7 +427,7 @@ class TestGetSessionMessages:
 
         result = await get_messages(session_id="sess-123", full_content=False)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "... (truncated)" in result["messages"][0]["tool_result"]["content"]
 
     @pytest.mark.asyncio
@@ -459,7 +459,7 @@ class TestGetSessionMessages:
 
         result = await get_messages(session_id="sess-123")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Database error" in result["error"]
 
 
@@ -479,7 +479,7 @@ class TestSearchMessages:
 
         result = await search(query="match")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert len(result["results"]) == 1
         message_manager.search_messages.assert_called_once()
@@ -527,7 +527,7 @@ class TestSearchMessages:
 
         result = await search(query="test")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Search failed" in result["error"]
 
 
@@ -1122,7 +1122,7 @@ class TestMarkLoopComplete:
 
             result = mark_complete(session_id="sess-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["session_id"] == "sess-123"
         assert result["stop_reason"] == "completed"
         mock_action.assert_called_once_with(mock_state)
@@ -1165,7 +1165,7 @@ class TestMarkLoopComplete:
             # session_id is now required
             result = mark_complete(session_id="sess-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_ws_class.assert_called_once()
 
 
@@ -1253,7 +1253,7 @@ class TestCreateHandoff:
                     write_file=False,
                 )
 
-            assert "error" not in result
+            assert result["success"] is True
             assert result["compact_length"] > 0
             session_manager.update_compact_markdown.assert_called_once()
 
@@ -1287,7 +1287,7 @@ class TestCreateHandoff:
                     write_file=False,
                 )
 
-            assert "error" not in result
+            assert result["success"] is True
             assert result["session_id"] == "sess-123-full-id"
 
     @pytest.mark.asyncio
@@ -1337,7 +1337,7 @@ class TestCreateHandoff:
                     output_path=str(output_dir),
                 )
 
-            assert "error" not in result
+            assert result["success"] is True
             assert len(result["files_written"]) > 0
             assert output_dir.exists()
 
@@ -1428,7 +1428,7 @@ class TestEdgeCases:
 
         result = await get_messages(session_id="sess-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["returned_count"] == 2
 
     @pytest.mark.asyncio
@@ -1445,7 +1445,7 @@ class TestEdgeCases:
 
         result = await get_messages(session_id="sess-123", full_content=False)
 
-        assert "error" not in result
+        assert result["success"] is True
         # Non-string content should not be truncated
         assert result["messages"][0]["content"] == ["block1", "block2"]
 

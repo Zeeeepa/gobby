@@ -194,7 +194,7 @@ class TestMergeStartTool:
             },
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "resolution_id" in result
         mock_storage.create_resolution.assert_called_once()
 
@@ -235,8 +235,7 @@ class TestMergeStartTool:
             },
         )
 
-        # Merge with conflicts is a successful tool call, not an error
-        assert "error" not in result
+        assert result["success"] is False
         assert result["needs_human_review"] is True
         assert len(result["conflicts"]) > 0
 
@@ -252,6 +251,7 @@ class TestMergeStartTool:
             },
         )
 
+        assert result["success"] is False
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -266,6 +266,7 @@ class TestMergeStartTool:
             },
         )
 
+        assert result["success"] is False
         assert "error" in result
 
 
@@ -326,7 +327,7 @@ class TestMergeStatusTool:
 
         result = await merge_registry.call("merge_status", {"resolution_id": "mr-test123"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["resolution"]["id"] == "mr-test123"
         assert result["resolution"]["status"] == "pending"
 
@@ -363,7 +364,7 @@ class TestMergeStatusTool:
 
         result = await merge_registry.call("merge_status", {"resolution_id": "mr-test123"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["conflicts"]) == 1
         assert result["conflicts"][0]["file_path"] == "src/test.py"
 
@@ -374,7 +375,7 @@ class TestMergeStatusTool:
 
         result = await merge_registry.call("merge_status", {"resolution_id": "mr-unknown"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"].lower()
 
 
@@ -464,7 +465,7 @@ class TestMergeResolveTool:
 
         result = await merge_registry.call("merge_resolve", {"conflict_id": "mc-conflict1"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["conflict"]["status"] == "resolved"
         mock_resolver.resolve_file.assert_called_once()
 
@@ -507,7 +508,7 @@ class TestMergeResolveTool:
             },
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_storage.update_conflict.assert_called_once()
 
     @pytest.mark.asyncio
@@ -517,7 +518,7 @@ class TestMergeResolveTool:
 
         result = await merge_registry.call("merge_resolve", {"conflict_id": "mc-unknown"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"].lower()
 
 
@@ -610,7 +611,7 @@ class TestMergeApplyTool:
 
         result = await merge_registry.call("merge_apply", {"resolution_id": "mr-test123"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["resolution"]["status"] == "resolved"
 
     @pytest.mark.asyncio
@@ -648,7 +649,7 @@ class TestMergeApplyTool:
 
         result = await merge_registry.call("merge_apply", {"resolution_id": "mr-test123"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "unresolved" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -658,7 +659,7 @@ class TestMergeApplyTool:
 
         result = await merge_registry.call("merge_apply", {"resolution_id": "mr-unknown"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"].lower()
 
 
@@ -722,7 +723,7 @@ class TestMergeAbortTool:
 
         result = await merge_registry.call("merge_abort", {"resolution_id": "mr-test123"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "aborted" in result["message"].lower()
         mock_storage.delete_resolution.assert_called_once_with("mr-test123")
 
@@ -733,7 +734,7 @@ class TestMergeAbortTool:
 
         result = await merge_registry.call("merge_abort", {"resolution_id": "mr-unknown"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -755,7 +756,7 @@ class TestMergeAbortTool:
 
         result = await merge_registry.call("merge_abort", {"resolution_id": "mr-test123"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "already" in result["error"].lower() or "resolved" in result["error"].lower()
 
 
@@ -808,6 +809,7 @@ class TestMergeToolValidation:
             },
         )
 
+        assert result["success"] is False
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -815,6 +817,7 @@ class TestMergeToolValidation:
         """merge_status validates resolution ID format."""
         result = await merge_registry.call("merge_status", {"resolution_id": ""})
 
+        assert result["success"] is False
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -822,6 +825,7 @@ class TestMergeToolValidation:
         """merge_resolve validates conflict ID format."""
         result = await merge_registry.call("merge_resolve", {"conflict_id": ""})
 
+        assert result["success"] is False
         assert "error" in result
 
 
@@ -878,6 +882,7 @@ class TestMergeToolErrors:
             },
         )
 
+        assert result["success"] is False
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -903,4 +908,5 @@ class TestMergeToolErrors:
 
         result = await merge_registry.call("merge_resolve", {"conflict_id": "mc-conflict1"})
 
+        assert result["success"] is False
         assert "error" in result

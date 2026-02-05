@@ -279,7 +279,7 @@ class TestMCPClientManagerAddServer:
 
         result = await manager.add_server(config)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["name"] == "new-server"
         assert result["full_tool_schemas"] == []
         assert manager.has_server("new-server")
@@ -329,7 +329,7 @@ class TestMCPClientManagerAddServer:
         with patch.object(manager, "_connect_server", return_value=mock_session):
             result = await manager.add_server(config)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["full_tool_schemas"]) == 1
         assert result["full_tool_schemas"][0]["name"] == "test-tool"
 
@@ -352,7 +352,7 @@ class TestMCPClientManagerAddServer:
         with patch.object(manager, "_connect_server", return_value=mock_session):
             result = await manager.add_server(config)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["full_tool_schemas"] == []
 
 
@@ -381,7 +381,7 @@ class TestMCPClientManagerRemoveServer:
 
         result = await manager.remove_server("test-server")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "test-server" not in manager._configs
         assert "test-server" not in manager._connections
         assert "test-server" not in manager.health

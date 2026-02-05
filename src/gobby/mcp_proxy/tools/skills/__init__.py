@@ -209,7 +209,7 @@ def create_skills_registry(
             limit=10000,
             include_global=True,
         )
-        registry.search.index_skills(skills)
+        search.index_skills(skills)
 
     # Index on registry creation
     _index_skills()
@@ -261,8 +261,8 @@ def create_skills_registry(
                     tags_all=tags_all,
                 )
 
-            # Perform search (use registry.search to allow test injection)
-            results = await registry.search.search_async(query=query, top_k=top_k, filters=filters)
+            # Perform search
+            results = await search.search_async(query=query, top_k=top_k, filters=filters)
 
             # Format results with skill metadata
             result_list = []
@@ -462,14 +462,10 @@ def create_skills_registry(
                 hub_name, skill_slug = hub_match.groups()
 
                 if hub_manager is None:
-                    return {
-                        "error": "No hub manager configured. Add hubs to config to enable hub installs."
-                    }
+                    return {"error": "No hub manager configured. Add hubs to config to enable hub installs."}
 
                 if not hub_manager.has_hub(hub_name):
-                    return {
-                        "error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs."
-                    }
+                    return {"error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs."}
 
                 try:
                     # Get the provider and download the skill
@@ -477,9 +473,7 @@ def create_skills_registry(
                     download_result = await provider.download_skill(skill_slug)
 
                     if not download_result.success or not download_result.path:
-                        return {
-                            "error": f"Failed to download from hub: {download_result.error or 'Unknown error'}"
-                        }
+                        return {"error": f"Failed to download from hub: {download_result.error or 'Unknown error'}"}
 
                     # Load the skill from the downloaded path
                     skill_path = Path(download_result.path)
@@ -660,9 +654,7 @@ def create_skills_registry(
                 return {"error": "Query is required and cannot be empty"}
 
             if hub_manager is None:
-                return {
-                    "error": "No hub manager configured. Add hubs to config to enable hub search."
-                }
+                return {"error": "No hub manager configured. Add hubs to config to enable hub search."}
 
             # Build hub filter
             hub_names_filter = [hub_name] if hub_name else None

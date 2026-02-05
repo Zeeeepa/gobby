@@ -104,7 +104,7 @@ class TestStartDaemonProcess:
             with patch("gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=12345):
                 result = await start_daemon_process(60887, 60888)
 
-                assert "error" in result
+                assert result["success"] is False
                 assert result["already_running"] is True
                 assert result["pid"] == 12345
 
@@ -132,7 +132,7 @@ class TestStartDaemonProcess:
                         ):
                             result = await start_daemon_process(60887, 60888)
 
-                            assert "error" not in result
+                            assert result["success"] is True
                             assert result["pid"] == 12345
                             assert "started successfully" in result["output"]
 
@@ -152,7 +152,8 @@ class TestStartDaemonProcess:
                 with patch("gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock):
                     result = await start_daemon_process(60887, 60888)
 
-                    assert "error" in result
+                    assert result["success"] is False
+                    assert "process exited immediately" in result["message"]
                     assert result["error"] == "Start failed"
 
     @pytest.mark.asyncio
@@ -179,8 +180,8 @@ class TestStartDaemonProcess:
                         ):
                             result = await start_daemon_process(60887, 60888)
 
-                            assert "error" in result
-                            assert "unhealthy" in result["error"]
+                            assert result["success"] is False
+                            assert "unhealthy" in result["message"]
 
     @pytest.mark.asyncio
     async def test_handles_exception(self):
@@ -192,7 +193,7 @@ class TestStartDaemonProcess:
             ):
                 result = await start_daemon_process(60887, 60888)
 
-                assert "error" in result
+                assert result["success"] is False
                 assert "Unexpected error" in result["error"]
 
 
@@ -205,7 +206,7 @@ class TestStopDaemonProcess:
         with patch("gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=None):
             result = await stop_daemon_process()
 
-            assert "error" in result
+            assert result["success"] is False
             assert result["not_running"] is True
 
     @pytest.mark.asyncio
@@ -224,7 +225,7 @@ class TestStopDaemonProcess:
                 with patch("gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock):
                     result = await stop_daemon_process()
 
-                    assert "error" not in result
+                    assert result["success"] is True
                     assert result["output"] == "Daemon stopped"
                     mock_kill.assert_any_call(12345, signal.SIGTERM)
 
@@ -237,7 +238,7 @@ class TestStopDaemonProcess:
             ):
                 result = await stop_daemon_process()
 
-                assert "error" in result
+                assert result["success"] is False
                 assert result["error"] == "Permission denied"
 
     @pytest.mark.asyncio
@@ -250,7 +251,7 @@ class TestStopDaemonProcess:
             ):
                 result = await stop_daemon_process()
 
-                assert "error" in result
+                assert result["success"] is False
                 assert result["error"] == "Process not found"
                 assert result["not_running"] is True
 
@@ -264,12 +265,13 @@ class TestRestartDaemonProcess:
         with patch(
             "gobby.mcp_proxy.daemon_control.stop_daemon_process", new_callable=AsyncMock
         ) as mock_stop:
-            mock_stop.return_value = {"output": "Daemon stopped"}
+            mock_stop.return_value = {"success": True}
 
             with patch(
                 "gobby.mcp_proxy.daemon_control.start_daemon_process", new_callable=AsyncMock
             ) as mock_start:
                 mock_start.return_value = {
+                    "success": True,
                     "pid": 54321,
                     "output": "Daemon restarted",
                 }
@@ -283,7 +285,7 @@ class TestRestartDaemonProcess:
                     ):
                         result = await restart_daemon_process(12345, 60887, 60888)
 
-                        assert "error" not in result
+                        assert result["success"] is True
                         assert result["pid"] == 54321
                         mock_stop.assert_called_once_with(12345)
                         mock_start.assert_called_once_with(60887, 60888)
@@ -401,7 +403,7 @@ class TestEnsureDaemonRunning:
                     with patch(
                         "gobby.mcp_proxy.stdio.restart_daemon_process",
                         new_callable=AsyncMock,
-                        return_value={},
+                        return_value={"success": True},
                     ) as mock_restart:
                         with patch("gobby.mcp_proxy.stdio.get_daemon_pid", return_value=12345):
                             from gobby.mcp_proxy.stdio import ensure_daemon_running
@@ -418,7 +420,7 @@ class TestEnsureDaemonRunning:
                 with patch(
                     "gobby.mcp_proxy.stdio.start_daemon_process",
                     new_callable=AsyncMock,
-                    return_value={},
+                    return_value={"success": True},
                 ) as mock_start:
                     with patch(
                         "gobby.mcp_proxy.stdio.check_daemon_http_health",
@@ -447,7 +449,7 @@ class TestDaemonProxy:
             mock_client.request.side_effect = Exception("")
             mock_client_cls.return_value = mock_client
             result = await proxy._request("GET", "/some/path")
-            assert "error" in result
+            assert result["success"] is False
             assert result["error"] == "Exception: (no message)"
 
     @pytest.mark.asyncio
@@ -461,7 +463,7 @@ class TestDaemonProxy:
                 mcp_client_proxy=MagicMock(tool_timeouts={"expand_task": 300.0})
             )
             with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_request:
-                mock_request.return_value = {}
+                mock_request.return_value = {"success": True}
                 await proxy.call_tool("server", "normal_tool", {})
                 mock_request.assert_called_with(
                     "POST", "/mcp/server/tools/normal_tool", json={}, timeout=30.0
@@ -482,12 +484,12 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(60887)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             mock_req.side_effect = [
-                {"mcp_servers": {"srv1": {}, "srv2": {}}},  # details
-                {"tools": [{"name": "t1"}]},  # srv1 tools
-                {"tools": [{"name": "t2"}]},  # srv2 tools
+                {"success": True, "mcp_servers": {"srv1": {}, "srv2": {}}},  # details
+                {"success": True, "tools": [{"name": "t1"}]},  # srv1 tools
+                {"success": True, "tools": [{"name": "t2"}]},  # srv2 tools
             ]
             result = await proxy.list_tools()
-            assert "error" not in result
+            assert result["success"] is True
             assert len(result["servers"]) == 2
 
     @pytest.mark.asyncio
@@ -498,7 +500,7 @@ class TestDaemonProxyMethods:
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             mock_req.return_value = {"name": "tool", "description": "desc", "inputSchema": {}}
             result = await proxy.get_tool_schema("srv", "tool")
-            assert "error" not in result
+            assert result["success"] is True
             assert result["tool"]["name"] == "tool"
 
     @pytest.mark.asyncio
@@ -542,7 +544,7 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(60887)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             result = await proxy.init_project("name")
-            assert "error" in result
+            assert result["success"] is False
             assert "requires CLI access" in result["error"]
             mock_req.assert_not_called()
 
@@ -552,9 +554,9 @@ class TestDaemonProxyMethods:
 
         proxy = DaemonProxy(60887)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
-            mock_req.return_value = {"message": "Server added"}
+            mock_req.return_value = {"success": True, "message": "Server added"}
             result = await proxy.add_mcp_server(name="n", transport="stdio", command="c")
-            assert "error" not in result
+            assert result["success"] is True
             mock_req.assert_called_once()
 
     @pytest.mark.asyncio
@@ -563,9 +565,9 @@ class TestDaemonProxyMethods:
 
         proxy = DaemonProxy(60887)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
-            mock_req.return_value = {"message": "Server removed"}
+            mock_req.return_value = {"success": True, "message": "Server removed"}
             result = await proxy.remove_mcp_server("name")
-            assert "error" not in result
+            assert result["success"] is True
             mock_req.assert_called_once()
 
     @pytest.mark.asyncio
@@ -574,9 +576,9 @@ class TestDaemonProxyMethods:
 
         proxy = DaemonProxy(60887)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
-            mock_req.return_value = {"imported": ["server1"]}
+            mock_req.return_value = {"success": True, "imported": ["server1"]}
             result = await proxy.import_mcp_server(from_project="p")
-            assert "error" not in result
+            assert result["success"] is True
             mock_req.assert_called_once()
 
 
@@ -681,7 +683,7 @@ class TestEnsureDaemonRunningFailures:
         with patch("gobby.mcp_proxy.stdio.load_config"):
             with patch("gobby.mcp_proxy.stdio.is_daemon_running", return_value=False):
                 with patch("gobby.mcp_proxy.stdio.start_daemon_process") as mock_start:
-                    mock_start.return_value = {"error": "failed"}
+                    mock_start.return_value = {"success": False, "error": "failed"}
 
                     # Use side_effect to make sys.exit raise SystemExit
                     with patch("sys.exit", side_effect=SystemExit(1)) as mock_exit:
@@ -699,7 +701,7 @@ class TestEnsureDaemonRunningFailures:
         with patch("gobby.mcp_proxy.stdio.load_config"):
             with patch("gobby.mcp_proxy.stdio.is_daemon_running", return_value=False):
                 with patch("gobby.mcp_proxy.stdio.start_daemon_process") as mock_start:
-                    mock_start.return_value = {}
+                    mock_start.return_value = {"success": True}
 
                     # Always unhealthy
                     with patch(

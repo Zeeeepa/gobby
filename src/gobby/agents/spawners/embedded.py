@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
-from gobby.agents.spawners.base import EmbeddedPTYResult
+from gobby.agents.spawners.base import EmbeddedPTYResult, make_spawn_env
 
 # pty is only available on Unix-like systems
 try:
@@ -91,10 +91,8 @@ class EmbeddedSpawner:
             # Create pseudo-terminal
             master_fd, slave_fd = pty.openpty()
 
-            # Merge environment
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
+            # Merge environment (clears VIRTUAL_ENV to avoid uv warnings in clones)
+            spawn_env = make_spawn_env(env)
 
             # Fork and exec
             pid = os.fork()

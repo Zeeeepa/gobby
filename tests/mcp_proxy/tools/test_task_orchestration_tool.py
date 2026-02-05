@@ -145,7 +145,7 @@ class TestOrchestrateReadyTasks:
                             parent_task_id="T1", parent_session_id="parent-session"
                         )
 
-                        assert "error" not in result
+                        assert result["success"] is True
                         assert len(result["spawned"]) == 1
                         assert result["spawned"][0]["task_id"] == "T2"
                         assert result["spawned"][0]["pid"] == 123
@@ -198,7 +198,7 @@ class TestOrchestrateReadyTasks:
                         max_concurrent=3,
                     )
 
-                    assert "error" not in result
+                    assert result["success"] is True
                     # The logic: running=2, max=3, available=1.
                     # tasks_to_spawn = tasks[:1] (T0)
                     # tasks_skipped = tasks[1:] (T1, T2) -> added to skipped list with "max_concurrent limit reached"
@@ -276,7 +276,7 @@ class TestGetOrchestrationStatus:
 
                 result = await tool.func(parent_task_id="P1")
 
-                assert "error" not in result
+                assert result["success"] is True
                 assert result["summary"]["open"] == 1
                 assert result["summary"]["in_progress"] == 1
                 assert result["summary"]["closed"] == 1

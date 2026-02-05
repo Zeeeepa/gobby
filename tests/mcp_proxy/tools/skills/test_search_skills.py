@@ -66,20 +66,15 @@ def populated_db(db: LocalDatabase, storage: LocalSkillManager) -> LocalDatabase
 async def registry(populated_db):
     """Create a registry with search index fully built."""
     from gobby.mcp_proxy.tools.skills import create_skills_registry
-    from gobby.search import SearchConfig
-    from gobby.skills.search import SkillSearch
     from gobby.storage.skills import LocalSkillManager
 
     registry = create_skills_registry(populated_db)
 
-    # Replace default search with TF-IDF mode for deterministic test behavior
-    # (embedding search can return results even for unrelated queries)
-    registry.search = SkillSearch(config=SearchConfig(mode="tfidf"))
-
     # Ensure indexing is complete
     storage = LocalSkillManager(populated_db)
     skills = storage.list_skills(limit=1000, include_global=True)
-    await registry.search.index_skills_async(skills)
+    if hasattr(registry, "search"):
+        await registry.search.index_skills_async(skills)
 
     return registry
 
@@ -94,7 +89,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="git commit")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] > 0
         assert len(result["results"]) > 0
 
@@ -105,7 +100,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="git")
 
-        assert "error" not in result
+        assert result["success"] is True
         for res in result["results"]:
             assert "score" in res
             assert isinstance(res["score"], (int, float))
@@ -118,7 +113,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="git commit message")
 
-        assert "error" not in result
+        assert result["success"] is True
         # Results should be sorted by score descending
         scores = [r["score"] for r in result["results"]]
         assert scores == sorted(scores, reverse=True)
@@ -130,7 +125,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="git", top_k=1)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] <= 1
 
     @pytest.mark.asyncio
@@ -140,7 +135,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="code", category="code-quality")
 
-        assert "error" not in result
+        assert result["success"] is True
         for res in result["results"]:
             assert res["category"] == "code-quality"
 
@@ -151,7 +146,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="code", tags_any=["quality", "typing"])
 
-        assert "error" not in result
+        assert result["success"] is True
         # All results should have at least one of the tags
         for res in result["results"]:
             assert any(tag in res["tags"] for tag in ["quality", "typing"])
@@ -163,7 +158,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="git", tags_all=["git", "commits"])
 
-        assert "error" not in result
+        assert result["success"] is True
         # All results should have all the tags
         for res in result["results"]:
             assert "git" in res["tags"]
@@ -176,7 +171,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "query" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -186,7 +181,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="nonexistent gibberish xyz")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
         assert result["results"] == []
 
@@ -197,7 +192,7 @@ class TestSearchSkillsTool:
 
         result = await tool(query="git commit")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["results"]) > 0
 
         res = result["results"][0]
@@ -218,7 +213,7 @@ class TestSearchSkillsTool:
             tags_any=["typing"],
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         for res in result["results"]:
             assert res["category"] == "python"
             assert "typing" in res["tags"]

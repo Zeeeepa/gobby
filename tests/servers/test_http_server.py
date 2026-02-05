@@ -861,9 +861,9 @@ class TestMCPEndpointsWithManager:
         # Tool-level errors return 200 with error in body (application-level error)
         assert response.status_code == 200
         data = response.json()
+        assert data.get("success") is False  # Wrapper propagates inner result success
         result = data.get("result", {})
-        # New pattern: error responses have "error" key in result, success responses do not
-        assert "error" in result
+        assert result.get("success") is False  # Inner error from ToolProxyService
         assert "Tool not found" in result.get("error", "")
 
     def test_add_mcp_server_success(
@@ -889,8 +889,7 @@ class TestMCPEndpointsWithManager:
             )
 
         assert response.status_code == 200
-        # New pattern: success responses have no "error" key
-        assert "error" not in response.json()
+        assert response.json()["success"] is True
 
         # Verify add_server was called with correct config
         assert http_server_with_mcp.mcp_manager is not None

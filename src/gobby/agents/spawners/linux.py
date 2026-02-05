@@ -7,7 +7,12 @@ import shutil
 import subprocess  # nosec B404 - subprocess needed for terminal spawning
 from pathlib import Path
 
-from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
+from gobby.agents.spawners.base import (
+    SpawnResult,
+    TerminalSpawnerBase,
+    TerminalType,
+    make_spawn_env,
+)
 from gobby.agents.tty_config import get_tty_config
 
 __all__ = ["GnomeTerminalSpawner", "KonsoleSpawner"]
@@ -44,13 +49,9 @@ class GnomeTerminalSpawner(TerminalSpawnerBase):
                 args.extend(["--title", title])
             args.extend(["--", *command])
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 
@@ -100,13 +101,9 @@ class KonsoleSpawner(TerminalSpawnerBase):
                 args.extend(["-p", f"tabtitle={title}"])
             args.extend(["-e", *command])
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 

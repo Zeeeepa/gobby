@@ -73,7 +73,8 @@ class TestAddMcpServer:
     async def test_add_http_server_success(self, mock_mcp_manager):
         """Test successfully adding an HTTP server."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "test-server",
+            "success": True,
+            "name": "test-server",
             "connected": True,
             "full_tool_schemas": [],
         }
@@ -87,7 +88,7 @@ class TestAddMcpServer:
             headers={"Authorization": "Bearer token"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["name"] == "test-server"
         mock_mcp_manager.add_server.assert_called_once()
 
@@ -103,7 +104,8 @@ class TestAddMcpServer:
     async def test_add_stdio_server_success(self, mock_mcp_manager):
         """Test successfully adding a stdio server."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "context7",
+            "success": True,
+            "name": "context7",
             "connected": True,
             "full_tool_schemas": [],
         }
@@ -118,7 +120,7 @@ class TestAddMcpServer:
             env={"DEBUG": "true"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["name"] == "context7"
 
         # Verify the config was created correctly
@@ -132,7 +134,8 @@ class TestAddMcpServer:
     async def test_add_websocket_server_success(self, mock_mcp_manager):
         """Test successfully adding a websocket server."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "ws-server",
+            "success": True,
+            "name": "ws-server",
             "connected": True,
             "full_tool_schemas": [],
         }
@@ -145,14 +148,15 @@ class TestAddMcpServer:
             url="ws://localhost:8080/mcp",
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["name"] == "ws-server"
 
     @pytest.mark.asyncio
     async def test_add_server_normalizes_name_to_lowercase(self, mock_mcp_manager):
         """Test that server name is normalized to lowercase."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "myserver",
+            "success": True,
+            "name": "myserver",
             "full_tool_schemas": [],
         }
 
@@ -173,7 +177,8 @@ class TestAddMcpServer:
     async def test_add_server_normalizes_mixed_case_name(self, mock_mcp_manager):
         """Test name normalization with mixed case."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "my-test-server",
+            "success": True,
+            "name": "my-test-server",
             "full_tool_schemas": [],
         }
 
@@ -193,7 +198,8 @@ class TestAddMcpServer:
     async def test_add_server_with_disabled_flag(self, mock_mcp_manager):
         """Test adding a disabled server."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "disabled-server",
+            "success": True,
+            "name": "disabled-server",
             "full_tool_schemas": [],
         }
 
@@ -214,7 +220,8 @@ class TestAddMcpServer:
     async def test_add_server_failure_returns_error(self, mock_mcp_manager):
         """Test handling server add failure from manager."""
         mock_mcp_manager.add_server.return_value = {
-                        "error": "Connection refused",
+            "success": False,
+            "error": "Connection refused",
         }
 
         result = await add_mcp_server(
@@ -225,7 +232,7 @@ class TestAddMcpServer:
             url="http://localhost:9999",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert result.get("error") == "Connection refused"
 
     @pytest.mark.asyncio
@@ -241,7 +248,7 @@ class TestAddMcpServer:
             url="http://localhost:8080",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Network error" in result["error"]
         assert result["name"] == "error-server"
         assert "Failed to add server" in result["message"]
@@ -259,7 +266,7 @@ class TestAddMcpServer:
             url="http://localhost:8080",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Invalid config" in result["error"]
 
     @pytest.mark.asyncio
@@ -300,7 +307,8 @@ class TestAddMcpServer:
     async def test_add_server_skips_description_generation_when_provided(self, mock_mcp_manager):
         """Test that description generation is skipped when custom description is provided."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "test-server",
+            "success": True,
+            "name": "test-server",
             "full_tool_schemas": [{"name": "tool1", "description": "A tool"}],
         }
 
@@ -323,7 +331,8 @@ class TestAddMcpServer:
     async def test_add_server_skips_description_generation_when_no_tools(self, mock_mcp_manager):
         """Test that description generation is skipped when no tools returned."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "test-server",
+            "success": True,
+            "name": "test-server",
             "full_tool_schemas": [],
         }
 
@@ -345,7 +354,8 @@ class TestAddMcpServer:
     async def test_add_server_handles_description_generation_failure(self, mock_mcp_manager):
         """Test that description generation failure doesn't fail the add operation."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "test-server",
+            "success": True,
+            "name": "test-server",
             "full_tool_schemas": [{"name": "tool1", "description": "A tool"}],
         }
 
@@ -364,13 +374,14 @@ class TestAddMcpServer:
             )
 
             # Add should still succeed even if description generation fails
-            assert "error" not in result
+            assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_add_server_with_all_optional_params(self, mock_mcp_manager):
         """Test adding server with all optional parameters."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "full-server",
+            "success": True,
+            "name": "full-server",
             "full_tool_schemas": [],
         }
 
@@ -415,7 +426,7 @@ class TestRemoveMcpServer:
             project_id="project-123",
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_mcp_manager.remove_server.assert_called_once_with(
             "test-server", project_id="project-123"
         )
@@ -424,7 +435,8 @@ class TestRemoveMcpServer:
     async def test_remove_server_not_found(self, mock_mcp_manager):
         """Test removing non-existent server."""
         mock_mcp_manager.remove_server.return_value = {
-                        "error": "Server not found",
+            "success": False,
+            "error": "Server not found",
         }
 
         result = await remove_mcp_server(
@@ -433,7 +445,7 @@ class TestRemoveMcpServer:
             project_id="project-123",
         )
 
-        assert "error" in result
+        assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_remove_server_exception_returns_error_dict(self, mock_mcp_manager):
@@ -446,7 +458,7 @@ class TestRemoveMcpServer:
             project_id="project-123",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Database error" in result["error"]
         assert result["name"] == "error-server"
         assert "Failed to remove server" in result["message"]
@@ -462,7 +474,7 @@ class TestRemoveMcpServer:
             project_id="project-123",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -521,7 +533,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["servers"] == []
         assert result["total_count"] == 0
         assert result["connected_count"] == 0
@@ -537,7 +549,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["servers"]) == 1
         assert result["total_count"] == 1
         assert result["connected_count"] == 1
@@ -594,7 +606,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["servers"]) == 3
         assert result["total_count"] == 3
         assert result["connected_count"] == 1
@@ -636,7 +648,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         server = result["servers"][0]
         assert server["connected"] is False
         assert server["state"] == "unknown"
@@ -692,7 +704,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Database error" in result["error"]
         assert result["servers"] == []
 
@@ -718,7 +730,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         server = result["servers"][0]
         assert server["tools"] == [
             {"name": "tool1", "brief": "First tool"},
@@ -744,7 +756,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         server = result["servers"][0]
         # The implementation uses `config.tools or []` which converts None to []
         assert server["tools"] == []
@@ -762,7 +774,8 @@ class TestEdgeCases:
     async def test_add_server_with_empty_name(self, mock_mcp_manager):
         """Test adding server with empty name."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "",
+            "success": True,
+            "name": "",
             "full_tool_schemas": [],
         }
 
@@ -775,13 +788,14 @@ class TestEdgeCases:
         )
 
         # Empty name should still be processed (validation happens in manager)
-        assert "error" not in result
+        assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_add_server_with_special_characters_in_name(self, mock_mcp_manager):
         """Test server name normalization handles special characters."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "my-server_v2.0",
+            "success": True,
+            "name": "my-server_v2.0",
             "full_tool_schemas": [],
         }
 
@@ -801,7 +815,8 @@ class TestEdgeCases:
     async def test_add_server_with_unicode_name(self, mock_mcp_manager):
         """Test server name normalization handles unicode."""
         mock_mcp_manager.add_server.return_value = {
-                        "name": "server-\u00e9",
+            "success": True,
+            "name": "server-\u00e9",
             "full_tool_schemas": [],
         }
 
@@ -840,7 +855,7 @@ class TestEdgeCases:
 
         result = await list_mcp_servers(mock_mcp_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["total_count"] == 100
         assert len(result["servers"]) == 100
 
@@ -855,7 +870,7 @@ class TestEdgeCases:
             project_id="",
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_mcp_manager.remove_server.assert_called_once_with("test-server", project_id="")
 
 
@@ -868,7 +883,8 @@ class TestConcurrencyScenarios:
         import asyncio
 
         mock_mcp_manager.add_server.return_value = {
-                        "name": "test",
+            "success": True,
+            "name": "test",
             "full_tool_schemas": [],
         }
 
@@ -887,7 +903,7 @@ class TestConcurrencyScenarios:
             add_server("server-3"),
         )
 
-        assert all("error" not in r for r in results)
+        assert all(r["success"] for r in results)
         assert mock_mcp_manager.add_server.call_count == 3
 
     @pytest.mark.asyncio
@@ -915,7 +931,7 @@ class TestConcurrencyScenarios:
             list_mcp_servers(mock_mcp_manager),
         )
 
-        assert all("error" not in r for r in results)
+        assert all(r["success"] for r in results)
         assert all(len(r["servers"]) == 1 for r in results)
 
 

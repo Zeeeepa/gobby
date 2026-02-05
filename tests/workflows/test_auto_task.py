@@ -378,7 +378,7 @@ class TestActivateWorkflowWithVariables:
 
         result = tool_func(name="auto-task", variables={"session_task": "gt-abc123"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "session_id is required" in result["error"]
 
     def test_creates_workflow_state_with_variables(self, temp_db, session_id) -> None:
@@ -406,7 +406,7 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert "error" not in result, f"activate_workflow failed: {result}"
+        assert result["success"] is True, f"activate_workflow failed: {result}"
         assert result["workflow"] == "auto-task"
         # Note: This test loads the shared workflow from src/gobby/install/shared/workflows
         # which defines "work" as the first step
@@ -444,7 +444,7 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert "error" not in result, f"activate_workflow failed: {result}"
+        assert result["success"] is True, f"activate_workflow failed: {result}"
         # Verify override worked
         assert result["variables"]["premature_stop_max_attempts"] == 5
         assert result["variables"]["session_task"] == "gt-abc123"
@@ -481,7 +481,7 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "already has step workflow" in result["error"]
 
     def test_preserves_lifecycle_variables_when_activating(self, temp_db, session_id) -> None:
@@ -520,7 +520,7 @@ class TestActivateWorkflowWithVariables:
             session_id=session_id,
         )
 
-        assert "error" not in result, f"activate_workflow failed: {result}"
+        assert result["success"] is True, f"activate_workflow failed: {result}"
 
         # Verify lifecycle variables were preserved
         assert result["variables"]["unlocked_tools"] == ["gobby-tasks:create_task"]

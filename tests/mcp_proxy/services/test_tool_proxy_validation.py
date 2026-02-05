@@ -202,6 +202,7 @@ class TestCallToolPreValidation:
         # Mock get_tool_schema on the service
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -224,7 +225,7 @@ class TestCallToolPreValidation:
             arguments={"workflow_name": "test"},  # Wrong param name
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Invalid arguments" in result["error"]
         assert "workflow_name" in result["error"]
         assert "schema" in result
@@ -240,6 +241,7 @@ class TestCallToolPreValidation:
 
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -262,7 +264,7 @@ class TestCallToolPreValidation:
             arguments={"name": "test"},  # Missing session_id
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Invalid arguments" in result["error"]
         assert "session_id" in result["error"]
         assert "schema" in result
@@ -273,6 +275,7 @@ class TestCallToolPreValidation:
 
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -286,7 +289,7 @@ class TestCallToolPreValidation:
             }
 
         tool_proxy.get_tool_schema = mock_get_schema
-        mock_mcp_manager.call_tool.return_value = {"result": "done"}
+        mock_mcp_manager.call_tool.return_value = {"success": True, "result": "done"}
 
         result = await tool_proxy.call_tool(
             server_name="test-server",
@@ -294,13 +297,13 @@ class TestCallToolPreValidation:
             arguments={"name": "test"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_mcp_manager.call_tool.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_no_validation_when_disabled(self, tool_proxy_no_validation, mock_mcp_manager):
         """Verify no validation when validate_arguments is False."""
-        mock_mcp_manager.call_tool.return_value = {"result": "ok"}
+        mock_mcp_manager.call_tool.return_value = {"success": True}
 
         await tool_proxy_no_validation.call_tool(
             server_name="test-server",
@@ -314,7 +317,7 @@ class TestCallToolPreValidation:
     @pytest.mark.asyncio
     async def test_no_validation_for_empty_arguments(self, tool_proxy, mock_mcp_manager):
         """Verify no validation is performed when arguments are empty."""
-        mock_mcp_manager.call_tool.return_value = {"result": "ok"}
+        mock_mcp_manager.call_tool.return_value = {"success": True}
 
         await tool_proxy.call_tool(
             server_name="test-server",
@@ -330,10 +333,10 @@ class TestCallToolPreValidation:
         """Verify tool execution proceeds when schema fetch fails."""
 
         async def mock_get_schema(server, tool):
-            return {"error": "Schema not found"}
+            return {"success": False, "error": "Schema not found"}
 
         tool_proxy.get_tool_schema = mock_get_schema
-        mock_mcp_manager.call_tool.return_value = {"result": "ok"}
+        mock_mcp_manager.call_tool.return_value = {"success": True}
 
         await tool_proxy.call_tool(
             server_name="test-server",
@@ -354,12 +357,13 @@ class TestCallToolInternalServer:
         # Setup internal server detection
         mock_internal_manager.is_internal.return_value = True
         mock_registry = MagicMock()
-        mock_registry.call = AsyncMock(return_value={"result": "ok"})
+        mock_registry.call = AsyncMock(return_value={"success": True})
         mock_internal_manager.get_registry.return_value = mock_registry
 
         # Setup schema
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -381,7 +385,7 @@ class TestCallToolInternalServer:
             arguments={"id": "gt-123"},  # Wrong: should be task_id
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Unknown parameter 'id'" in result["error"]
         assert "task_id" in result["error"]  # Should suggest correct param
 
@@ -395,6 +399,7 @@ class TestCallToolInternalServer:
 
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -481,6 +486,7 @@ class TestExecutionErrorSchemaEnrichment:
 
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -502,7 +508,7 @@ class TestExecutionErrorSchemaEnrichment:
             arguments={"name": "test"},  # Missing session_id
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Missing required parameter" in result["error"]
         assert "schema" in result
         assert "hint" in result
@@ -517,6 +523,7 @@ class TestExecutionErrorSchemaEnrichment:
 
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -536,7 +543,7 @@ class TestExecutionErrorSchemaEnrichment:
             arguments={"count": "not-a-number"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "schema" in result
         assert result["schema"]["properties"]["count"]["type"] == "integer"
 
@@ -550,6 +557,7 @@ class TestExecutionErrorSchemaEnrichment:
         # Mock get_tool_schema for pre-validation to pass
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -567,7 +575,7 @@ class TestExecutionErrorSchemaEnrichment:
             arguments={"name": "test"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Connection timed out" in result["error"]
         assert "schema" not in result
         assert "hint" not in result
@@ -582,6 +590,7 @@ class TestExecutionErrorSchemaEnrichment:
         # Mock get_tool_schema for pre-validation to pass
         async def mock_get_schema(server, tool):
             return {
+                "success": True,
                 "tool": {
                     "name": tool,
                     "inputSchema": {
@@ -599,7 +608,7 @@ class TestExecutionErrorSchemaEnrichment:
             arguments={"name": "test"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "schema" not in result
 
     @pytest.mark.asyncio
@@ -621,7 +630,7 @@ class TestExecutionErrorSchemaEnrichment:
         )
 
         # Should still return error response, just without schema
-        assert "error" in result
+        assert result["success"] is False
         assert "Missing required parameter" in result["error"]
         assert "schema" not in result  # Schema fetch failed, so not included
 
@@ -633,7 +642,7 @@ class TestExecutionErrorSchemaEnrichment:
         mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Invalid argument 'foo'"))
 
         async def mock_get_schema_not_found(server, tool):
-            return {"error": "Tool not found"}
+            return {"success": False, "error": "Tool not found"}
 
         tool_proxy.get_tool_schema = mock_get_schema_not_found
 
@@ -643,7 +652,7 @@ class TestExecutionErrorSchemaEnrichment:
             arguments={"foo": "bar"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "schema" not in result
 
 
@@ -690,7 +699,7 @@ class TestCallToolBlockedToolsEnforcement:
             session_id="session-123",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert result["error_code"] == ToolProxyErrorCode.TOOL_BLOCKED.value
         assert "blocked" in result["error"]
         assert result["tool_name"] == "Edit"
@@ -702,7 +711,7 @@ class TestCallToolBlockedToolsEnforcement:
     ):
         """Verify allowed tool executes when filter permits."""
         mock_tool_filter.is_tool_allowed.return_value = (True, None)
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "result"})
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True, "data": "result"})
 
         result = await tool_proxy_with_filter.call_tool(
             server_name="test-server",
@@ -719,7 +728,7 @@ class TestCallToolBlockedToolsEnforcement:
         self, tool_proxy_with_filter, mock_tool_filter, mock_mcp_manager
     ):
         """Verify filter is not checked when session_id is not provided."""
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"result": "ok"})
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
 
         result = await tool_proxy_with_filter.call_tool(
             server_name="test-server",
@@ -742,7 +751,7 @@ class TestCallToolBlockedToolsEnforcement:
             tool_filter=None,  # No filter
             validate_arguments=False,
         )
-        mock_mcp_manager.call_tool = AsyncMock(return_value={"result": "ok"})
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
 
         result = await proxy.call_tool(
             server_name="test-server",
@@ -770,6 +779,6 @@ class TestCallToolBlockedToolsEnforcement:
             session_id="session-456",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not in allowed list" in result["error"]
         assert "fetch_changes" in result["error"]

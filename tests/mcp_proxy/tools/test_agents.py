@@ -82,7 +82,7 @@ class TestGetAgentResult:
 
         result = await get_result(run_id="non-existent")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -110,7 +110,7 @@ class TestGetAgentResult:
 
         result = await get_result(run_id="run-123")
 
-        # Success indicated by presence of run_id (error field is run's error, not tool error)
+        assert result["success"] is True
         assert result["run_id"] == "run-123"
         assert result["status"] == "success"
         assert result["result"] == "Task completed"
@@ -135,7 +135,7 @@ class TestListAgents:
 
         result = await list_agents(parent_session_id="sess-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["runs"] == []
         assert result["count"] == 0
 
@@ -160,7 +160,7 @@ class TestListAgents:
 
         result = await list_agents(parent_session_id="sess-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert len(result["runs"][0]["prompt"]) == 103  # 100 chars + "..."
         assert result["runs"][0]["prompt"].endswith("...")
@@ -216,7 +216,7 @@ class TestStopAgent:
 
         result = await stop_agent(run_id="run-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "stopped" in result["message"]
 
         # Verify removed from registry
@@ -234,7 +234,7 @@ class TestStopAgent:
 
         result = await stop_agent(run_id="non-existent")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -252,7 +252,7 @@ class TestStopAgent:
 
         result = await stop_agent(run_id="run-123")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Cannot stop" in result["error"]
         assert "success" in result["error"]
 
@@ -334,7 +334,7 @@ class TestListRunningAgents:
 
         result = await list_running()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
         assert len(result["agents"]) == 3
 
@@ -347,7 +347,7 @@ class TestListRunningAgents:
 
         result = await list_running(parent_session_id="parent-1")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2
         for agent in result["agents"]:
             assert agent["parent_session_id"] == "parent-1"
@@ -361,7 +361,7 @@ class TestListRunningAgents:
 
         result = await list_running(mode="terminal")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2
         for agent in result["agents"]:
             assert agent["mode"] == "terminal"
@@ -392,7 +392,7 @@ class TestGetRunningAgent:
 
         result = await get_running(run_id="run-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["agent"]["run_id"] == "run-123"
         assert result["agent"]["pid"] == 12345
         assert result["agent"]["terminal_type"] == "ghostty"
@@ -407,7 +407,7 @@ class TestGetRunningAgent:
 
         result = await get_running(run_id="non-existent")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "no running agent found" in result["error"].lower()
 
 
@@ -433,7 +433,7 @@ class TestUnregisterAgent:
 
         result = await unregister(run_id="run-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "Unregistered" in result["message"]
         assert running_registry.get("run-123") is None
 
@@ -447,7 +447,7 @@ class TestUnregisterAgent:
 
         result = await unregister(run_id="non-existent")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "no running agent found" in result["error"].lower()
 
 
@@ -465,7 +465,7 @@ class TestKillAgent:
 
         result = await kill_agent()
 
-        assert "error" in result
+        assert result["success"] is False
         assert "run_id or session_id required" in result["error"]
 
     @pytest.mark.asyncio
@@ -479,7 +479,7 @@ class TestKillAgent:
 
         result = await kill_agent(run_id="run-123", signal="INVALID")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Invalid signal" in result["error"]
 
     @pytest.mark.asyncio
@@ -520,7 +520,7 @@ class TestKillAgent:
 
         result = await kill_agent(session_id="non-existent")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "No agent found for session" in result["error"]
 
     @pytest.mark.asyncio
@@ -552,7 +552,7 @@ class TestKillAgent:
         # Default behavior - full cleanup
         result = await kill_agent(run_id="run-123")
 
-        assert "error" not in result
+        assert result["success"] is True
         # Workflow state should be deleted by default
         workflow_state_manager.delete_state.assert_called_once_with("sess-456")
         assert result.get("workflow_deleted") is True
@@ -586,7 +586,7 @@ class TestKillAgent:
         # debug=True should preserve state
         result = await kill_agent(run_id="run-123", debug=True)
 
-        assert "error" not in result
+        assert result["success"] is True
         # Workflow state should NOT be deleted when debugging
         workflow_state_manager.delete_state.assert_not_called()
         assert result.get("workflow_deleted") is None
@@ -605,7 +605,7 @@ class TestRunningAgentStats:
 
         result = await stats()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["total"] == 0
         assert result["by_mode"] == {}
         assert result["by_parent_count"] == 0
@@ -653,7 +653,7 @@ class TestRunningAgentStats:
 
         result = await stats()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["total"] == 4
         assert result["by_mode"]["terminal"] == 2
         assert result["by_mode"]["embedded"] == 1

@@ -105,6 +105,30 @@ class HeadlessResult:
         return "\n".join(self.output_buffer)
 
 
+def make_spawn_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """
+    Create a clean environment for spawning child processes.
+
+    Copies os.environ, merges provided env vars, and removes problematic
+    variables like VIRTUAL_ENV that cause warnings when the child runs
+    in a different directory (e.g., clones).
+
+    Args:
+        env: Additional environment variables to set
+
+    Returns:
+        Clean environment dict ready for subprocess.Popen
+    """
+    spawn_env = os.environ.copy()
+    if env:
+        spawn_env.update(env)
+    # Clear VIRTUAL_ENV to prevent uv warnings in clones/worktrees
+    # "VIRTUAL_ENV=/path/to/.venv does not match project environment"
+    spawn_env.pop("VIRTUAL_ENV", None)
+    spawn_env.pop("VIRTUAL_ENV_PROMPT", None)
+    return spawn_env
+
+
 class TerminalSpawnerBase(ABC):
     """Base class for terminal spawners."""
 

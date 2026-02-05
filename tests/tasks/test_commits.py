@@ -470,9 +470,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = (
-                "abc123|[gobby-#1] target task\ndef456|[gobby-#2] different task\n"
-            )
+            mock_git.return_value = "abc123|[gobby-#1] target task\ndef456|[gobby-#2] different task\n"
 
             result = auto_link_commits(
                 mock_task_manager,

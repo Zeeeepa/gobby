@@ -197,7 +197,7 @@ async def test_add_mcp_server(daemon_tools, mock_mcp_manager):
     result = await daemon_tools.add_mcp_server(
         name="s1", transport="http", url="http://localhost:8000"
     )
-    assert "error" not in result
+    assert result["success"] is True
     mock_mcp_manager.add_server_config.assert_called_once()
 
 
@@ -207,7 +207,7 @@ async def test_remove_mcp_server(daemon_tools, mock_mcp_manager):
     mock_mcp_manager.remove_server_config = MagicMock()
 
     result = await daemon_tools.remove_mcp_server(name="s1")
-    assert "error" not in result
+    assert result["success"] is True
     mock_mcp_manager.remove_server_config.assert_called_once_with("s1")
 
 
@@ -221,7 +221,7 @@ async def test_list_tools(daemon_tools, mock_mcp_manager):
 
     # list_tools now requires a server parameter
     result = await daemon_tools.list_tools(server="downstream")
-    assert "error" not in result
+    assert result["success"] is True
     assert "tools" in result
     assert "tool_count" in result
 
@@ -241,7 +241,7 @@ async def test_get_tool_schema(daemon_tools, mock_mcp_manager):
     )
 
     result = await daemon_tools.get_tool_schema("downstream", "dt1")
-    assert "error" not in result
+    assert result["success"] is True
     assert result["tool"]["name"] == "dt1"
 
 
@@ -251,7 +251,7 @@ async def test_recommend_tools(daemon_tools, mock_mcp_manager):
     mock_mcp_manager._configs = {"server1": MagicMock()}
 
     result = await daemon_tools.recommend_tools("find logic")
-    assert "error" not in result
+    assert result["success"] is True
     # The actual implementation returns a stubbed recommendation
     assert "recommendation" in result
 

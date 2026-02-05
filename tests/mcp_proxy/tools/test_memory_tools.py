@@ -117,7 +117,7 @@ class TestCreateMemory:
                 {"content": "Test content", "memory_type": "fact", "importance": 0.8},
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "memory" in result
         assert result["memory"]["id"] == "mem-123"
         mock_memory_manager.remember.assert_called_once()
@@ -132,7 +132,7 @@ class TestCreateMemory:
                 "create_memory", {"content": "Test", "tags": ["tag1", "tag2"]}
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         call_kwargs = mock_memory_manager.remember.call_args.kwargs
         assert call_kwargs["tags"] == ["tag1", "tag2"]
 
@@ -144,7 +144,7 @@ class TestCreateMemory:
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await memory_registry.call("create_memory", {"content": "Test"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Database error" in result["error"]
 
 
@@ -166,7 +166,7 @@ class TestSearchMemories:
                 "search_memories", {"query": "test query", "limit": 5}
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["memories"]) == 2
         assert result["memories"][0]["similarity"] == 0.95
 
@@ -187,7 +187,7 @@ class TestSearchMemories:
                 },
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         call_kwargs = mock_memory_manager.recall.call_args.kwargs
         assert call_kwargs["min_importance"] == 0.5
         assert call_kwargs["tags_all"] == ["important"]
@@ -202,7 +202,7 @@ class TestSearchMemories:
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await memory_registry.call("search_memories", {"query": "test"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Search error" in result["error"]
 
 
@@ -255,7 +255,7 @@ class TestListMemories:
         ):
             result = await memory_registry.call("list_memories", {})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
         assert len(result["memories"]) == 3
 
@@ -275,7 +275,7 @@ class TestListMemories:
                 },
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         call_kwargs = mock_memory_manager.list_memories.call_args.kwargs
         assert call_kwargs["memory_type"] == "fact"
         assert call_kwargs["min_importance"] == 0.7
@@ -290,7 +290,7 @@ class TestListMemories:
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await memory_registry.call("list_memories", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "List error" in result["error"]
 
 
@@ -312,7 +312,7 @@ class TestGetMemory:
 
         result = await memory_registry.call("get_memory", {"memory_id": "mem-123"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["memory"]["id"] == "mem-123"
         assert result["memory"]["content"] == "Test content"
         assert result["memory"]["access_count"] == 5
@@ -325,7 +325,7 @@ class TestGetMemory:
 
         result = await memory_registry.call("get_memory", {"memory_id": "nonexistent"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -335,7 +335,7 @@ class TestGetMemory:
 
         result = await memory_registry.call("get_memory", {"memory_id": "invalid"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Invalid ID format" in result["error"]
 
     @pytest.mark.asyncio
@@ -345,7 +345,7 @@ class TestGetMemory:
 
         result = await memory_registry.call("get_memory", {"memory_id": "mem-123"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Get error" in result["error"]
 
 
@@ -364,7 +364,7 @@ class TestGetRelatedMemories:
             "get_related_memories", {"memory_id": "mem-123", "limit": 5, "min_similarity": 0.3}
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["memory_id"] == "mem-123"
         assert result["count"] == 2
         assert len(result["related"]) == 2
@@ -381,7 +381,7 @@ class TestGetRelatedMemories:
 
         result = await memory_registry.call("get_related_memories", {"memory_id": "nonexistent"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Memory not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -391,7 +391,7 @@ class TestGetRelatedMemories:
 
         result = await memory_registry.call("get_related_memories", {"memory_id": "mem-123"})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Related error" in result["error"]
 
 
@@ -414,7 +414,7 @@ class TestUpdateMemory:
             },
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["memory"]["id"] == "mem-123"
         mock_memory_manager.update_memory.assert_called_once_with(
             memory_id="mem-123",
@@ -432,7 +432,7 @@ class TestUpdateMemory:
             "update_memory", {"memory_id": "mem-123", "importance": 0.5}
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_memory_manager.update_memory.assert_called_once_with(
             memory_id="mem-123",
             content=None,
@@ -449,7 +449,7 @@ class TestUpdateMemory:
             "update_memory", {"memory_id": "nonexistent", "content": "New"}
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Memory not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -461,7 +461,7 @@ class TestUpdateMemory:
             "update_memory", {"memory_id": "mem-123", "content": "New"}
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Update error" in result["error"]
 
 
@@ -518,7 +518,7 @@ class TestExportMemoryGraph:
                 "export_memory_graph", {"title": "Test Graph", "output_path": str(output_path)}
             )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["memory_count"] == 1
         assert result["crossref_count"] == 0
         assert output_path.exists()
@@ -533,7 +533,7 @@ class TestExportMemoryGraph:
         ):
             result = await memory_registry.call("export_memory_graph", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "No memories found" in result["error"]
 
     @pytest.mark.asyncio
@@ -558,7 +558,7 @@ class TestExportMemoryGraph:
                 "export_memory_graph", {}
             )  # No output_path specified
 
-        assert "error" not in result
+        assert result["success"] is True
         assert (tmp_path / "memory_graph.html").exists()
 
     @pytest.mark.asyncio
@@ -569,7 +569,7 @@ class TestExportMemoryGraph:
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
             result = await memory_registry.call("export_memory_graph", {})
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Export error" in result["error"]
 
 

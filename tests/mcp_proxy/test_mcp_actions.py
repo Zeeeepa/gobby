@@ -37,7 +37,7 @@ class TestAddMcpServer:
             url="http://localhost:8080/mcp",
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["name"] == "test-server"
         mock_manager.add_server.assert_called_once()
 
@@ -63,7 +63,7 @@ class TestAddMcpServer:
             args=["context7-mcp"],
         )
 
-        assert "error" not in result
+        assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_add_server_normalizes_name(self):
@@ -102,7 +102,7 @@ class TestAddMcpServer:
             url="http://localhost:9999",
         )
 
-        assert "error" in result
+        assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_add_server_exception(self):
@@ -118,7 +118,7 @@ class TestAddMcpServer:
             url="http://localhost:8080",
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Network error" in result["error"]
         assert result["name"] == "error-server"
 
@@ -191,7 +191,7 @@ class TestRemoveMcpServer:
             mcp_manager=mock_manager, name="test-server", project_id="project-123"
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_manager.remove_server.assert_called_once_with("test-server", project_id="project-123")
 
     @pytest.mark.asyncio
@@ -206,7 +206,7 @@ class TestRemoveMcpServer:
             mcp_manager=mock_manager, name="nonexistent", project_id="project-123"
         )
 
-        assert "error" in result
+        assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_remove_server_exception(self):
@@ -218,7 +218,7 @@ class TestRemoveMcpServer:
             mcp_manager=mock_manager, name="error-server", project_id="project-123"
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Database error" in result["error"]
         assert result["name"] == "error-server"
 
@@ -236,7 +236,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["servers"] == []
         assert result["total_count"] == 0
         assert result["connected_count"] == 0
@@ -274,7 +274,7 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_manager)
 
-        assert "error" not in result
+        assert result["success"] is True
         assert len(result["servers"]) == 2
         assert result["total_count"] == 2
         assert result["connected_count"] == 1
@@ -301,6 +301,6 @@ class TestListMcpServers:
 
         result = await list_mcp_servers(mock_manager)
 
-        assert "error" in result
+        assert result["success"] is False
         assert "Database error" in result["error"]
         assert result["servers"] == []

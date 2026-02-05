@@ -37,14 +37,14 @@ class TestSearchArtifacts:
     def test_empty_query_returns_empty(self, artifacts_registry) -> None:
         """Test that empty query returns empty result."""
         result = call_tool(artifacts_registry, "search_artifacts", query="")
-        assert "error" not in result
+        assert result["success"] is True
         assert result["artifacts"] == []
         assert result["count"] == 0
 
     def test_whitespace_query_returns_empty(self, artifacts_registry) -> None:
         """Test that whitespace-only query returns empty result."""
         result = call_tool(artifacts_registry, "search_artifacts", query="   ")
-        assert "error" not in result
+        assert result["success"] is True
         assert result["artifacts"] == []
         assert result["count"] == 0
 
@@ -79,7 +79,7 @@ class TestSearchArtifacts:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.search_artifacts.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "search_artifacts", query="test")
-        assert "error" in result
+        assert result["success"] is False
         assert "DB error" in result["error"]
         assert result["artifacts"] == []
 
@@ -93,7 +93,7 @@ class TestGetArtifact:
         """Test that non-existent artifact returns error."""
         mock_artifact_manager.get_artifact.return_value = None
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="nonexistent-id")
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"]
         assert result["artifact"] is None
 
@@ -106,7 +106,7 @@ class TestGetArtifact:
         mock_artifact_manager.get_artifact.return_value = mock_artifact
 
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="art-123")
-        assert "error" not in result
+        assert result["success"] is True
         assert result["artifact"]["id"] == "art-123"
 
     def test_get_artifact_exception_handling(
@@ -115,7 +115,7 @@ class TestGetArtifact:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.get_artifact.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "get_artifact", artifact_id="test-id")
-        assert "error" in result
+        assert result["success"] is False
         assert "DB error" in result["error"]
 
 
@@ -125,14 +125,14 @@ class TestGetTimeline:
     def test_missing_session_id_returns_error(self, artifacts_registry) -> None:
         """Test that missing session_id returns error."""
         result = call_tool(artifacts_registry, "get_timeline", session_id=None)
-        assert "error" in result
+        assert result["success"] is False
         assert "session_id is required" in result["error"]
         assert result["artifacts"] == []
 
     def test_empty_session_id_returns_error(self, artifacts_registry) -> None:
         """Test that empty session_id returns error."""
         result = call_tool(artifacts_registry, "get_timeline", session_id="")
-        assert "error" in result
+        assert result["success"] is False
         assert "session_id is required" in result["error"]
 
     def test_valid_session_returns_timeline(
@@ -144,7 +144,7 @@ class TestGetTimeline:
         mock_artifact_manager.list_artifacts.return_value = [mock_artifact]
 
         result = call_tool(artifacts_registry, "get_timeline", session_id="sess-123")
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         mock_artifact_manager.list_artifacts.assert_called_once()
 
@@ -152,7 +152,7 @@ class TestGetTimeline:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.list_artifacts.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "get_timeline", session_id="sess-123")
-        assert "error" in result
+        assert result["success"] is False
         assert "DB error" in result["error"]
 
 
@@ -190,7 +190,7 @@ class TestListArtifacts:
         """Test that exceptions are handled gracefully."""
         mock_artifact_manager.list_artifacts.side_effect = Exception("DB error")
         result = call_tool(artifacts_registry, "list_artifacts")
-        assert "error" in result
+        assert result["success"] is False
         assert "DB error" in result["error"]
 
 

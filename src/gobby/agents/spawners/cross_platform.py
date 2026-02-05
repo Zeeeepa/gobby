@@ -10,7 +10,12 @@ import subprocess  # nosec B404 - subprocess needed for terminal spawning
 import time
 from pathlib import Path
 
-from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
+from gobby.agents.spawners.base import (
+    SpawnResult,
+    TerminalSpawnerBase,
+    TerminalType,
+    make_spawn_env,
+)
 from gobby.agents.tty_config import get_tty_config
 
 __all__ = ["KittySpawner", "AlacrittySpawner", "TmuxSpawner"]
@@ -64,13 +69,9 @@ class KittySpawner(TerminalSpawnerBase):
             args.append("--")
             args.extend(command)
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 
@@ -120,13 +121,9 @@ class AlacrittySpawner(TerminalSpawnerBase):
                 args.extend(["--title", title])
             args.extend(["-e"] + command)
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 
@@ -229,14 +226,10 @@ class TmuxSpawner(TerminalSpawnerBase):
             # This prevents the session from being destroyed before we can configure it
             args.extend([";", "set-option", "-t", session_name, "destroy-unattached", "off"])
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
                 cwd=cwd,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 

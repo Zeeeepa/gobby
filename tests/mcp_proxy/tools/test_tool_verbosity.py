@@ -26,7 +26,7 @@ async def test_memory_verbosity_reduction():
 
     # Test create_memory
     result = await registry.call("create_memory", {"content": "test"})
-    assert "error" not in result
+    assert result["success"] is True
     assert result["memory"]["id"] == "mem-123"
     # Should NOT contain content in the improved version
     assert "content" not in result["memory"]
@@ -85,7 +85,7 @@ async def test_worktree_verbosity_reduction():
 
         result = await registry.call("create_worktree", {"branch_name": "feat/test"})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["worktree_id"] == "wt-123"
         # Should be minimal
 
@@ -110,7 +110,7 @@ async def test_session_message_truncation():
 
     # Test default truncation
     result = await registry.call("get_session_messages", {"session_id": "sess-123"})
-    assert "error" not in result, f"Result failed: {result}"
+    assert result.get("success") is True, f"Result failed: {result}"
     msg = result["messages"][0]
 
     # In improved version:

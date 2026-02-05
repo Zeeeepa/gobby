@@ -154,7 +154,7 @@ class TestListPipelinesTool:
 
         result = await registry.call("list_pipelines", {})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "pipelines" in result
         assert len(result["pipelines"]) == 2
 
@@ -240,7 +240,7 @@ class TestListPipelinesTool:
 
         result = await registry.call("list_pipelines", {})
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["pipelines"] == []
 
 
@@ -388,7 +388,7 @@ class TestRunPipelineTool:
             {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["status"] == "completed"
         assert result["execution_id"] == "pe-abc123"
         assert result["outputs"] == {"result": "success"}
@@ -430,7 +430,7 @@ class TestRunPipelineTool:
             {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["status"] == "waiting_approval"
         assert result["execution_id"] == "pe-abc123"
         assert result["token"] == "approval-token-xyz"
@@ -457,7 +457,7 @@ class TestRunPipelineTool:
             {"name": "nonexistent", "inputs": {}, "project_id": "proj-1"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -488,7 +488,7 @@ class TestRunPipelineTool:
             {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "execution failed" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -509,7 +509,7 @@ class TestRunPipelineTool:
             {"name": "deploy", "inputs": {}, "project_id": "proj-1"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "executor" in result["error"].lower()
 
 
@@ -601,7 +601,7 @@ class TestApprovePipelineTool:
             {"token": "approval-token-xyz"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["status"] == "completed"
         assert result["execution_id"] == "pe-abc123"
 
@@ -627,7 +627,7 @@ class TestApprovePipelineTool:
             {"token": "invalid-token"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "invalid" in result["error"].lower() or "token" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -646,7 +646,7 @@ class TestApprovePipelineTool:
             {"token": "approval-token-xyz"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "executor" in result["error"].lower()
 
 
@@ -737,7 +737,7 @@ class TestRejectPipelineTool:
             {"token": "approval-token-xyz"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["status"] == "cancelled"
         assert result["execution_id"] == "pe-abc123"
 
@@ -763,7 +763,7 @@ class TestRejectPipelineTool:
             {"token": "invalid-token"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "invalid" in result["error"].lower() or "token" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -782,7 +782,7 @@ class TestRejectPipelineTool:
             {"token": "approval-token-xyz"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "executor" in result["error"].lower()
 
 
@@ -837,7 +837,7 @@ class TestGetPipelineStatusTool:
             {"execution_id": "pe-abc123"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["execution"]["id"] == "pe-abc123"
         assert result["execution"]["pipeline_name"] == "deploy"
         assert result["execution"]["status"] == "running"
@@ -893,7 +893,7 @@ class TestGetPipelineStatusTool:
             {"execution_id": "pe-abc123"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert "steps" in result
         assert len(result["steps"]) == 2
         assert result["steps"][0]["step_id"] == "step1"
@@ -921,7 +921,7 @@ class TestGetPipelineStatusTool:
             {"execution_id": "pe-nonexistent"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -942,7 +942,7 @@ class TestGetPipelineStatusTool:
             {"execution_id": "pe-abc123"},
         )
 
-        assert "error" in result
+        assert result["success"] is False
         assert "manager" in result["error"].lower() or "configured" in result["error"].lower()
 
 
@@ -1158,7 +1158,7 @@ class TestDynamicPipelineTools:
             {"filter": "test_api"},
         )
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["status"] == "completed"
         mock_executor.execute.assert_called_once()
 

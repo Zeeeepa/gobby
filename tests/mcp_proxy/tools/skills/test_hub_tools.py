@@ -64,7 +64,7 @@ class TestListHubsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
         assert len(result["hubs"]) == 3
 
@@ -78,7 +78,7 @@ class TestListHubsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         hubs = result["hubs"]
 
         # Find the clawdhub entry
@@ -101,7 +101,7 @@ class TestListHubsTool:
 
         result = await tool()
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
         assert result["hubs"] == []
 
@@ -120,7 +120,7 @@ class TestSearchHubTool:
         # Empty query should fail
         result = await tool(query="")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "required" in result["error"].lower() or "empty" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -150,7 +150,7 @@ class TestSearchHubTool:
 
         result = await tool(query="commit")
 
-        assert "error" not in result
+        assert result["success"] is True
         mock_hub_manager.search_all.assert_called_once()
         # Check query was passed
         call_args = mock_hub_manager.search_all.call_args
@@ -176,7 +176,7 @@ class TestSearchHubTool:
 
         result = await tool(query="commit")
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 1
         assert len(result["results"]) == 1
 
@@ -205,7 +205,7 @@ class TestSearchHubTool:
 
         result = await tool(query="commit", hub_name="clawdhub")
 
-        assert "error" not in result
+        assert result["success"] is True
         # Verify hub_names filter was passed
         call_args = mock_hub_manager.search_all.call_args
         assert call_args[1].get("hub_names") == ["clawdhub"]
@@ -235,5 +235,5 @@ class TestSearchHubTool:
 
         result = await tool(query="commit")
 
-        assert "error" in result
+        assert result["success"] is False
         assert "hub" in result["error"].lower() or "configured" in result["error"].lower()

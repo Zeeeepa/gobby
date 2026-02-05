@@ -106,7 +106,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["project_count"] == 2
 
         project_ids = [p["project_id"] for p in result["projects"]]
@@ -123,7 +123,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
 
         for project in result["projects"]:
             # Each project has 3 tasks and 2 sessions
@@ -142,7 +142,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 6  # 3 tasks per project * 2 projects
 
         # Verify tasks from both projects are present
@@ -161,7 +161,7 @@ class TestHubQueryIntegration:
         # Filter for open tasks only
         result = asyncio.run(tool(status="open"))
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2  # 1 open task per project
 
         for task in result["tasks"]:
@@ -177,7 +177,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool(limit=3))
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 3
 
     def test_list_cross_project_sessions_returns_sessions_from_all_projects(
@@ -192,7 +192,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 4  # 2 sessions per project * 2 projects
 
         # Verify sessions from both projects are present
@@ -210,7 +210,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool(limit=2))
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 2
 
     def test_hub_stats_returns_accurate_aggregates(self, multi_project_hub) -> None:
@@ -223,7 +223,7 @@ class TestHubQueryIntegration:
 
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         stats = result["stats"]
 
         # 2 projects
@@ -263,7 +263,7 @@ class TestHubQueryEdgeCases:
             tool = registry.get_tool(tool_name)
             assert tool is not None
             result = asyncio.run(tool())
-            assert "error" in result
+            assert result["success"] is False
             assert "not found" in result["error"]
 
     def test_hub_tools_handle_empty_database(self, hub_dir) -> None:
@@ -281,28 +281,28 @@ class TestHubQueryEdgeCases:
         tool = registry.get_tool("list_all_projects")
         assert tool is not None
         result = asyncio.run(tool())
-        assert "error" not in result
+        assert result["success"] is True
         assert result["project_count"] == 0
 
         # list_cross_project_tasks should return empty list
         tool = registry.get_tool("list_cross_project_tasks")
         assert tool is not None
         result = asyncio.run(tool())
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
 
         # list_cross_project_sessions should return empty list
         tool = registry.get_tool("list_cross_project_sessions")
         assert tool is not None
         result = asyncio.run(tool())
-        assert "error" not in result
+        assert result["success"] is True
         assert result["count"] == 0
 
         # hub_stats should return zeros
         tool = registry.get_tool("hub_stats")
         assert tool is not None
         result = asyncio.run(tool())
-        assert "error" not in result
+        assert result["success"] is True
         assert result["stats"]["project_count"] == 0
         assert result["stats"]["tasks"]["total"] == 0
         assert result["stats"]["sessions"]["total"] == 0
@@ -337,7 +337,7 @@ class TestHubQueryEdgeCases:
         assert tool is not None
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["project_count"] == 1
         project = result["projects"][0]
         assert project["project_id"] == "tasks-only-project"
@@ -374,7 +374,7 @@ class TestHubQueryEdgeCases:
         assert tool is not None
         result = asyncio.run(tool())
 
-        assert "error" not in result
+        assert result["success"] is True
         assert result["project_count"] == 1
         project = result["projects"][0]
         assert project["project_id"] == "sessions-only-project"

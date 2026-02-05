@@ -29,6 +29,7 @@ from gobby.agents.spawners.base import (
     SpawnResult,
     TerminalSpawnerBase,
     TerminalType,
+    make_spawn_env,
 )
 from gobby.agents.spawners.command_builder import (
     build_cli_command,
@@ -71,6 +72,7 @@ __all__ = [
     "EmbeddedPTYResult",
     "HeadlessResult",
     "TerminalSpawnerBase",
+    "make_spawn_env",
     # macOS spawners
     "GhosttySpawner",
     "ITermSpawner",
