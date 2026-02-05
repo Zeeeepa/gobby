@@ -45,6 +45,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Read-only MCP discovery tools that are always allowed regardless of workflow step restrictions.
+# These "meta" tools enable progressive disclosure and are required for agents to discover
+# what tools are available. They don't execute actions, only return information.
+# NOTE: call_tool is intentionally NOT exempt - it executes actual tools and should be restricted.
+EXEMPT_TOOLS = frozenset({
+    # Gobby MCP discovery tools (both prefixed and unprefixed forms)
+    "list_mcp_servers",
+    "mcp__gobby__list_mcp_servers",
+    "list_tools",
+    "mcp__gobby__list_tools",
+    "get_tool_schema",
+    "mcp__gobby__get_tool_schema",
+    "recommend_tools",
+    "mcp__gobby__recommend_tools",
+    "search_tools",
+    "mcp__gobby__search_tools",
+})
+
+
 class WorkflowEngine:
     """
     Core engine for executing step-based workflows.
@@ -249,6 +268,11 @@ class WorkflowEngine:
 
             raw_tool_name = eval_context.get("tool_name")
             tool_name = str(raw_tool_name) if raw_tool_name is not None else ""
+
+            # Allow exempt tools (MCP discovery tools) regardless of step restrictions
+            if tool_name in EXEMPT_TOOLS:
+                self._log_tool_call(session_id, state.step, tool_name, "allow", "exempt tool")
+                return HookResponse(decision="allow")
 
             # Check blocked list
             if tool_name in current_step.blocked_tools:

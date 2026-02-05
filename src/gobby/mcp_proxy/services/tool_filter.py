@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.workflows.definitions import WorkflowDefinition
+from gobby.workflows.engine import EXEMPT_TOOLS
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
@@ -125,6 +126,10 @@ class ToolFilterService:
         Returns:
             Tuple of (is_allowed, reason). If no workflow is active, returns (True, None).
         """
+        # Exempt tools (MCP discovery) are always allowed
+        if tool_name in EXEMPT_TOOLS:
+            return True, None
+
         restrictions = self.get_step_restrictions(session_id, project_path)
         if not restrictions:
             return True, None
@@ -177,6 +182,11 @@ class ToolFilterService:
         filtered = []
         for tool in tools:
             name = tool.get("name", "")
+
+            # Always include exempt tools (MCP discovery)
+            if name in EXEMPT_TOOLS:
+                filtered.append(tool)
+                continue
 
             # Skip blocked tools
             if name in blocked:
