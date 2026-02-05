@@ -126,6 +126,19 @@ def make_spawn_env(env: dict[str, str] | None = None) -> dict[str, str]:
     # "VIRTUAL_ENV=/path/to/.venv does not match project environment"
     spawn_env.pop("VIRTUAL_ENV", None)
     spawn_env.pop("VIRTUAL_ENV_PROMPT", None)
+    # Clear parent terminal identity vars so child sessions don't inherit them.
+    # Without this, kill_agent can kill the parent's terminal instead of the child's
+    # (e.g., Ghostty child inherits TMUX_PANE → kill_agent runs tmux kill-pane
+    # on the parent's pane).
+    for var in (
+        "TMUX",
+        "TMUX_PANE",
+        "ITERM_SESSION_ID",
+        "KITTY_WINDOW_ID",
+        "ALACRITTY_SOCKET",
+        "TERM_SESSION_ID",
+    ):
+        spawn_env.pop(var, None)
     return spawn_env
 
 

@@ -96,7 +96,9 @@ class GhosttySpawner(TerminalSpawnerBase):
                         f"export {shlex.quote(k)}={shlex.quote(v)};" for k, v in env.items()
                     )
                     # Unset VIRTUAL_ENV to avoid "does not match project environment" warning
-                    shell_cmd = f"unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT; {exports} exec {shlex.join(command)}"
+                    # Unset parent terminal identity vars to prevent kill_agent from
+                    # killing the parent's terminal instead of this Ghostty window
+                    shell_cmd = f"unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT TMUX TMUX_PANE ITERM_SESSION_ID KITTY_WINDOW_ID ALACRITTY_SOCKET TERM_SESSION_ID; {exports} exec {shlex.join(command)}"
                     ghostty_args.extend(["-e", "sh", "-c", shell_cmd])
                 else:
                     ghostty_args.extend(["-e"] + command)
