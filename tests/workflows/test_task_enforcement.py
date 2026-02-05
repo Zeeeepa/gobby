@@ -2646,3 +2646,142 @@ class TestEvaluateBlockCondition:
         assert (
             _evaluate_block_condition("not task_claimed and not plan_mode", workflow_state) is False
         )
+
+
+class TestBlockToolsSkipValidationWithCommit:
+    """Tests for blocking close_task with skip_validation when commit is attached."""
+
+    @pytest.fixture
+    def workflow_state(self):
+        """Create a workflow state."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={},
+        )
+
+    @pytest.fixture
+    def skip_validation_rule(self):
+        """The blocking rule under test."""
+        return {
+            "mcp_tools": ["gobby-tasks:close_task"],
+            "when": "tool_input.get('skip_validation') and (task_has_commits or tool_input.get('commit_sha'))",
+            "reason": "skip_validation is not allowed when a commit is attached.",
+        }
+
+    @pytest.mark.asyncio
+    async def test_blocks_skip_validation_with_commit_sha(
+        self, workflow_state, skip_validation_rule
+    ):
+        """Blocks close_task when skip_validation=True and commit_sha is provided."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[skip_validation_rule],
+            event_data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {
+                        "task_id": "#123",
+                        "skip_validation": True,
+                        "commit_sha": "abc123",
+                    },
+                },
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "skip_validation" in result["reason"]
+
+    @pytest.mark.asyncio
+    async def test_blocks_skip_validation_when_task_has_commits(
+        self, workflow_state, skip_validation_rule
+    ):
+        """Blocks close_task when skip_validation=True and task already has commits."""
+        from gobby.workflows.enforcement import block_tools
+
+        # Set up claimed task with commits
+        task_id = "task-uuid-123"
+        workflow_state.variables["claimed_task_id"] = task_id
+
+        mock_task = MagicMock()
+        mock_task.commits = ["commit-sha-1"]
+        mock_tm = MagicMock()
+        mock_tm.get_task.return_value = mock_task
+
+        result = await block_tools(
+            rules=[skip_validation_rule],
+            event_data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {
+                        "task_id": "#123",
+                        "skip_validation": True,
+                    },
+                },
+            },
+            workflow_state=workflow_state,
+            task_manager=mock_tm,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    @pytest.mark.asyncio
+    async def test_allows_skip_validation_without_commits(
+        self, workflow_state, skip_validation_rule
+    ):
+        """Allows close_task with skip_validation=True when no commits are attached."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[skip_validation_rule],
+            event_data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {
+                        "task_id": "#123",
+                        "skip_validation": True,
+                        "reason": "duplicate",
+                    },
+                },
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_normal_close_with_commit(
+        self, workflow_state, skip_validation_rule
+    ):
+        """Allows close_task with commit_sha when skip_validation is not set."""
+        from gobby.workflows.enforcement import block_tools
+
+        result = await block_tools(
+            rules=[skip_validation_rule],
+            event_data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {
+                        "task_id": "#123",
+                        "commit_sha": "abc123",
+                    },
+                },
+            },
+            workflow_state=workflow_state,
+        )
+
+        assert result is None
