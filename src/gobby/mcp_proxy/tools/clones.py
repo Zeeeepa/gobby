@@ -74,6 +74,7 @@ def create_clones_registry(
                 remote_url = git_manager.get_remote_url()
                 if not remote_url:
                     return {
+                        "success": False,
                         "error": "No remote URL provided and could not get from repository",
                     }
 
@@ -87,6 +88,7 @@ def create_clones_registry(
 
             if not result.success:
                 return {
+                    "success": False,
                     "error": f"Clone failed: {result.error or result.message}",
                 }
 
@@ -101,13 +103,14 @@ def create_clones_registry(
             )
 
             return {
+                "success": True,
                 "clone": clone.to_dict(),
                 "message": f"Created clone at {clone_path}",
             }
 
         except Exception as e:
             logger.error(f"Error creating clone: {e}")
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     registry.register(
         name="create_clone",
@@ -160,9 +163,9 @@ def create_clones_registry(
         """
         clone = clone_storage.get(clone_id)
         if not clone:
-            return {"error": f"Clone not found: {clone_id}"}
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
 
-        return {"clone": clone.to_dict()}
+        return {"success": True, "clone": clone.to_dict()}
 
     registry.register(
         name="get_clone",
@@ -202,6 +205,7 @@ def create_clones_registry(
         )
 
         return {
+            "success": True,
             "clones": [c.to_dict() for c in clones],
             "count": len(clones),
         }
@@ -244,7 +248,7 @@ def create_clones_registry(
         """
         clone = clone_storage.get(clone_id)
         if not clone:
-            return {"error": f"Clone not found: {clone_id}"}
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
 
         # Store clone info for potential rollback
         clone_path = clone.clone_path
@@ -254,7 +258,7 @@ def create_clones_registry(
             clone_storage.delete(clone_id)
         except Exception as e:
             logger.error(f"Failed to delete clone record {clone_id}: {e}")
-            return {"error": f"Failed to delete clone record: {e}"}
+            return {"success": False, "error": f"Failed to delete clone record: {e}"}
 
         # Delete the files
         result = git_manager.delete_clone(clone_path, force=force)
@@ -280,10 +284,11 @@ def create_clones_registry(
                     f"Clone is now orphaned in database."
                 )
             return {
+                "success": False,
                 "error": f"Failed to delete clone files: {result.error or result.message}",
             }
 
-        return {"message": f"Deleted clone {clone_id}"}
+        return {"success": True, "message": f"Deleted clone {clone_id}"}
 
     registry.register(
         name="delete_clone",
@@ -323,7 +328,7 @@ def create_clones_registry(
         """
         clone = clone_storage.get(clone_id)
         if not clone:
-            return {"error": f"Clone not found: {clone_id}"}
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
 
         # Mark as syncing
         clone_storage.mark_syncing(clone_id)
@@ -338,14 +343,15 @@ def create_clones_registry(
                 # Record successful sync and mark as active
                 clone_storage.record_sync(clone_id)
                 clone_storage.update(clone_id, status="active")
-                return {"message": f"Synced clone {clone_id} ({direction})"}
+                return {"success": True, "message": f"Synced clone {clone_id} ({direction})"}
             else:
                 return {
+                    "success": False,
                     "error": f"Sync failed: {result.error or result.message}",
                 }
 
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             # Ensure status is reset to active if record_sync didn't complete
             clone = clone_storage.get(clone_id)
@@ -400,7 +406,7 @@ def create_clones_registry(
 
         clone = clone_storage.get(clone_id)
         if not clone:
-            return {"error": f"Clone not found: {clone_id}"}
+            return {"success": False, "error": f"Clone not found: {clone_id}"}
 
         # Step 1: Push clone changes to remote
         clone_storage.mark_syncing(clone_id)
@@ -412,6 +418,7 @@ def create_clones_registry(
         if not sync_result.success:
             clone_storage.update(clone_id, status="active")
             return {
+                "success": False,
                 "error": f"Sync failed: {sync_result.error or sync_result.message}",
                 "step": "sync",
             }
@@ -429,6 +436,7 @@ def create_clones_registry(
             if merge_result.error == "merge_conflict":
                 conflicted_files = merge_result.output.split("\n") if merge_result.output else []
                 return {
+                    "success": False,
                     "has_conflicts": True,
                     "conflicted_files": conflicted_files,
                     "error": merge_result.message,
@@ -440,6 +448,7 @@ def create_clones_registry(
                 }
 
             return {
+                "success": False,
                 "has_conflicts": False,
                 "error": merge_result.error or merge_result.message,
                 "step": "merge",
@@ -450,6 +459,7 @@ def create_clones_registry(
         clone_storage.update(clone_id, cleanup_after=cleanup_after)
 
         return {
+            "success": True,
             "message": f"Successfully merged {clone.branch_name} into {target_branch}",
             "cleanup_after": cleanup_after,
         }

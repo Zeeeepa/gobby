@@ -116,29 +116,34 @@ def create_github_sync_registry(
             )
 
             return {
+                "success": True,
                 "tasks": tasks,
                 "count": len(tasks),
                 "repo": repo,
             }
         except GitHubRateLimitError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "rate_limit",
                 "reset_at": e.reset_at,
             }
         except GitHubNotFoundError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "not_found",
                 "resource": e.resource,
             }
         except GitHubSyncError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "sync_error",
             }
         except RuntimeError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "unavailable",
             }
@@ -164,33 +169,39 @@ def create_github_sync_registry(
             result = await service.sync_task_to_github(task_id)
 
             return {
+                "success": True,
                 "task_id": task_id,
                 "github_result": result,
             }
         except ValueError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "invalid_task",
             }
         except GitHubRateLimitError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "rate_limit",
                 "reset_at": e.reset_at,
             }
         except GitHubNotFoundError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "not_found",
                 "resource": e.resource,
             }
         except GitHubSyncError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "sync_error",
             }
         except RuntimeError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "unavailable",
             }
@@ -228,6 +239,7 @@ def create_github_sync_registry(
             )
 
             return {
+                "success": True,
                 "task_id": task_id,
                 "pr_number": result.get("number"),
                 "pr_url": result.get("html_url") or result.get("url"),
@@ -235,28 +247,33 @@ def create_github_sync_registry(
             }
         except ValueError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "invalid_task",
             }
         except GitHubRateLimitError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "rate_limit",
                 "reset_at": e.reset_at,
             }
         except GitHubNotFoundError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "not_found",
                 "resource": e.resource,
             }
         except GitHubSyncError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "sync_error",
             }
         except RuntimeError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "unavailable",
             }
@@ -280,12 +297,14 @@ def create_github_sync_registry(
         pid = get_current_project_id()
         if not pid:
             return {
+                "success": False,
                 "error": "No project context - run from a gobby project directory",
             }
 
         # Validate repo format
         if "/" not in repo or repo.count("/") != 1:
             return {
+                "success": False,
                 "error": f"Invalid repo format: '{repo}'. Expected 'owner/repo'",
             }
 
@@ -293,6 +312,7 @@ def create_github_sync_registry(
         project_manager.update(pid, github_repo=repo)
 
         return {
+            "success": True,
             "project_id": pid,
             "github_repo": repo,
             "message": f"Linked project to GitHub repo: {repo}",
@@ -311,6 +331,7 @@ def create_github_sync_registry(
         pid = get_current_project_id()
         if not pid:
             return {
+                "success": False,
                 "error": "No project context - run from a gobby project directory",
             }
 
@@ -318,6 +339,7 @@ def create_github_sync_registry(
         project_manager.update(pid, github_repo=None)
 
         return {
+            "success": True,
             "project_id": pid,
             "message": "Unlinked GitHub repo from project",
         }
@@ -338,6 +360,7 @@ def create_github_sync_registry(
         pid = get_current_project_id()
         if not pid:
             return {
+                "success": False,
                 "error": "No project context - run from a gobby project directory",
             }
 
@@ -359,6 +382,7 @@ def create_github_sync_registry(
         linked_count = row["count"] if row else 0
 
         return {
+            "success": True,
             "project_id": pid,
             "github_repo": github_repo,
             "github_available": available,

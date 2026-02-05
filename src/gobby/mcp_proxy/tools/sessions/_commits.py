@@ -62,17 +62,17 @@ def register_commits_tools(
         from pathlib import Path
 
         if session_manager is None:
-            return {"error": "Session manager not available"}
+            return {"success": False, "error": "Session manager not available"}
 
         # Resolve session reference (#N, N, UUID, or prefix)
         try:
             resolved_id = _resolve_session_id(session_id)
             session = session_manager.get(resolved_id)
         except ValueError as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
         if not session:
-            return {"error": f"Session {session_id} not found"}
+            return {"success": False, "error": f"Session {session_id} not found"}
 
         # Get working directory from transcript path or project
         cwd = None
@@ -120,6 +120,7 @@ def register_commits_tools(
 
             if result.returncode != 0:
                 return {
+                    "success": False,
                     "session_id": session.id,
                     "error": "Git command failed",
                     "stderr": result.stderr.strip(),
@@ -139,6 +140,7 @@ def register_commits_tools(
                         commits.append(commit)
 
             return {
+                "success": True,
                 "session_id": session.id,
                 "commits": commits,
                 "count": len(commits),
@@ -150,16 +152,19 @@ def register_commits_tools(
 
         except subprocess.TimeoutExpired:
             return {
+                "success": False,
                 "session_id": session.id,
                 "error": "Git command timed out",
             }
         except FileNotFoundError:
             return {
+                "success": False,
                 "session_id": session.id,
                 "error": "Git not found or not a git repository",
             }
         except Exception as e:
             return {
+                "success": False,
                 "session_id": session.id,
                 "error": f"Failed to get commits: {e!s}",
             }
@@ -193,17 +198,17 @@ Args:
             Success status and session details
         """
         if not session_manager:
-            return {"error": "Session manager not available"}
+            return {"success": False, "error": "Session manager not available"}
 
         # Resolve session reference (#N, N, UUID, or prefix)
         try:
             resolved_id = _resolve_session_id(session_id)
             session = session_manager.get(resolved_id)
         except ValueError as e:
-            return {"error": str(e), "session_id": session_id}
+            return {"success": False, "error": str(e), "session_id": session_id}
 
         if not session:
-            return {"error": f"Session {session_id} not found", "session_id": session_id}
+            return {"success": False, "error": f"Session {session_id} not found", "session_id": session_id}
 
         # Load and update workflow state
         from gobby.storage.database import LocalDatabase
@@ -232,6 +237,7 @@ Args:
         state_manager.save_state(state)
 
         return {
+            "success": True,
             "session_id": session.id,
             "stop_reason": "completed",
             "message": "Autonomous loop marked complete - session will not chain",

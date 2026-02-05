@@ -97,21 +97,22 @@ def register_wait(
         try:
             resolved_id = _resolve_task_id(task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"error": f"Task not found: {task_id} ({e})"}
+            return {"success": False, "error": f"Task not found: {task_id} ({e})"}
         except Exception as e:
-            return {"error": f"Failed to resolve task: {task_id} ({e})"}
+            return {"success": False, "error": f"Failed to resolve task: {task_id} ({e})"}
 
         # Check initial state
         try:
             is_complete, task_info = _is_task_complete(resolved_id)
         except Exception as e:
-            return {"error": f"Failed to check task status: {e}"}
+            return {"success": False, "error": f"Failed to check task status: {e}"}
 
         if task_info is None:
-            return {"error": f"Task not found: {task_id}"}
+            return {"success": False, "error": f"Task not found: {task_id}"}
 
         if is_complete:
             return {
+                "success": True,
                 "completed": True,
                 "timed_out": False,
                 "task": task_info,
@@ -129,6 +130,7 @@ def register_wait(
                 except Exception as e:
                     logger.warning(f"Error fetching final task status on timeout: {e}")
                 return {
+                    "success": True,
                     "completed": False,
                     "timed_out": True,
                     "task": task_info,
@@ -145,6 +147,7 @@ def register_wait(
 
             if is_complete:
                 return {
+                    "success": True,
                     "completed": True,
                     "timed_out": False,
                     "task": task_info,
@@ -201,7 +204,7 @@ def register_wait(
             - wait_time: How long we waited
         """
         if not task_ids:
-            return {"error": "No task IDs provided - task_ids list is empty"}
+            return {"success": False, "error": "No task IDs provided - task_ids list is empty"}
 
         # Validate poll_interval
         if poll_interval <= 0:
@@ -220,7 +223,7 @@ def register_wait(
                 # Continue with other tasks
 
         if not resolved_ids:
-            return {"error": "None of the provided task IDs could be resolved"}
+            return {"success": False, "error": "None of the provided task IDs could be resolved"}
 
         # Check if any are already complete
         for resolved_id in resolved_ids:
@@ -228,6 +231,7 @@ def register_wait(
                 is_complete, task_info = _is_task_complete(resolved_id)
                 if is_complete:
                     return {
+                        "success": True,
                         "completed_task_id": resolved_id,
                         "task": task_info,
                         "timed_out": False,
@@ -242,6 +246,7 @@ def register_wait(
 
             if elapsed >= timeout:
                 return {
+                    "success": True,
                     "completed_task_id": None,
                     "timed_out": True,
                     "wait_time": elapsed,
@@ -254,6 +259,7 @@ def register_wait(
                     is_complete, task_info = _is_task_complete(resolved_id)
                     if is_complete:
                         return {
+                            "success": True,
                             "completed_task_id": resolved_id,
                             "task": task_info,
                             "timed_out": False,
@@ -319,6 +325,7 @@ def register_wait(
         if not task_ids:
             # Empty list is vacuously true - all (zero) tasks are complete
             return {
+                "success": True,
                 "all_completed": True,
                 "completed_count": 0,
                 "pending_count": 0,
@@ -344,7 +351,7 @@ def register_wait(
                 logger.warning(f"Could not resolve task {task_ref}: {e}")
 
         if not resolved_ids:
-            return {"error": "None of the provided task IDs could be resolved"}
+            return {"success": False, "error": "None of the provided task IDs could be resolved"}
 
         def check_all_complete() -> tuple[list[str], list[str]]:
             """Check which tasks are complete. Returns (completed, pending)."""
@@ -367,6 +374,7 @@ def register_wait(
 
         if not pending:
             return {
+                "success": True,
                 "all_completed": True,
                 "completed_count": len(completed),
                 "pending_count": 0,
@@ -383,6 +391,7 @@ def register_wait(
             if elapsed >= timeout:
                 completed, pending = check_all_complete()
                 return {
+                    "success": True,
                     "all_completed": False,
                     "completed_count": len(completed),
                     "pending_count": len(pending),
@@ -398,6 +407,7 @@ def register_wait(
 
             if not pending:
                 return {
+                    "success": True,
                     "all_completed": True,
                     "completed_count": len(completed),
                     "pending_count": 0,

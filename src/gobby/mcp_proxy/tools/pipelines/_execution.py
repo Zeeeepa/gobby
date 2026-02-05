@@ -27,15 +27,15 @@ async def run_pipeline(
         Dict with execution status and outputs or approval info
     """
     if not executor:
-        return {"error": "No executor configured"}
+        return {"success": False, "error": "No executor configured"}
 
     if not loader:
-        return {"error": "No loader configured"}
+        return {"success": False, "error": "No loader configured"}
 
     # Load the pipeline definition
     pipeline = loader.load_pipeline(name)
     if not pipeline:
-        return {"error": f"Pipeline '{name}' not found"}
+        return {"success": False, "error": f"Pipeline '{name}' not found"}
 
     try:
         # Execute the pipeline
@@ -54,6 +54,7 @@ async def run_pipeline(
                 outputs = execution.outputs_json
 
         return {
+            "success": True,
             "status": execution.status.value,
             "execution_id": execution.id,
             "outputs": outputs,
@@ -62,6 +63,7 @@ async def run_pipeline(
     except ApprovalRequired as e:
         # Pipeline paused waiting for approval
         return {
+            "success": True,
             "status": "waiting_approval",
             "execution_id": e.execution_id,
             "step_id": e.step_id,
@@ -70,7 +72,7 @@ async def run_pipeline(
         }
 
     except Exception as e:
-        return {"error": f"Execution failed: {e}"}
+        return {"success": False, "error": f"Execution failed: {e}"}
 
 
 async def approve_pipeline(
@@ -90,7 +92,7 @@ async def approve_pipeline(
         Dict with execution status
     """
     if not executor:
-        return {"error": "No executor configured"}
+        return {"success": False, "error": "No executor configured"}
 
     try:
         execution = await executor.approve(
@@ -99,15 +101,16 @@ async def approve_pipeline(
         )
 
         return {
+            "success": True,
             "status": execution.status.value,
             "execution_id": execution.id,
         }
 
     except ValueError as e:
-        return {"error": str(e)}
+        return {"success": False, "error": str(e)}
 
     except Exception as e:
-        return {"error": f"Approval failed: {e}"}
+        return {"success": False, "error": f"Approval failed: {e}"}
 
 
 async def reject_pipeline(
@@ -127,7 +130,7 @@ async def reject_pipeline(
         Dict with execution status (cancelled)
     """
     if not executor:
-        return {"error": "No executor configured"}
+        return {"success": False, "error": "No executor configured"}
 
     try:
         execution = await executor.reject(
@@ -136,15 +139,16 @@ async def reject_pipeline(
         )
 
         return {
+            "success": True,
             "status": execution.status.value,
             "execution_id": execution.id,
         }
 
     except ValueError as e:
-        return {"error": str(e)}
+        return {"success": False, "error": str(e)}
 
     except Exception as e:
-        return {"error": f"Rejection failed: {e}"}
+        return {"success": False, "error": f"Rejection failed: {e}"}
 
 
 def get_pipeline_status(
@@ -162,12 +166,12 @@ def get_pipeline_status(
         Dict with execution details and step statuses
     """
     if not execution_manager:
-        return {"error": "No execution manager configured"}
+        return {"success": False, "error": "No execution manager configured"}
 
     try:
         execution = execution_manager.get_execution(execution_id)
         if not execution:
-            return {"error": f"Execution '{execution_id}' not found"}
+            return {"success": False, "error": f"Execution '{execution_id}' not found"}
 
         # Get step executions
         steps = execution_manager.get_steps_for_execution(execution_id)
@@ -229,9 +233,10 @@ def get_pipeline_status(
             )
 
         return {
+            "success": True,
             "execution": execution_dict,
             "steps": steps_list,
         }
 
     except Exception as e:
-        return {"error": f"Failed to get status: {e}"}
+        return {"success": False, "error": f"Failed to get status: {e}"}

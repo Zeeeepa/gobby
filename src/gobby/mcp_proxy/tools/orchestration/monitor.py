@@ -48,7 +48,7 @@ def register_monitor(
         try:
             resolved_parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"error": f"Invalid parent_task_id: {e}"}
+            return {"success": False, "error": f"Invalid parent_task_id: {e}"}
 
         # Resolve project ID
         resolved_project_id = default_project_id
@@ -65,7 +65,7 @@ def register_monitor(
             resolved_project_id = get_current_project_id()
 
         if not resolved_project_id:
-            return {"error": "Could not resolve project ID"}
+            return {"success": False, "error": "Could not resolve project ID"}
 
         # Get subtasks
         subtasks = task_manager.list_tasks(parent_task_id=resolved_parent_task_id, limit=100)
@@ -105,6 +105,7 @@ def register_monitor(
         is_complete = parent_task and parent_task.status == "closed"
 
         return {
+            "success": True,
             "parent_task_id": resolved_parent_task_id,
             "is_complete": is_complete,
             "summary": {
@@ -161,7 +162,7 @@ def register_monitor(
             - summary: Counts of running/completed/failed
         """
         if agent_runner is None:
-            return {"error": "Agent runner not configured"}
+            return {"success": False, "error": "Agent runner not configured"}
 
         # Get workflow state
         from gobby.workflows.state_manager import WorkflowStateManager
@@ -170,6 +171,7 @@ def register_monitor(
         state = state_manager.get_state(parent_session_id)
         if not state:
             return {
+                "success": True,
                 "still_running": [],
                 "newly_completed": [],
                 "newly_failed": [],
@@ -184,6 +186,7 @@ def register_monitor(
 
         if not spawned_agents:
             return {
+                "success": True,
                 "still_running": [],
                 "newly_completed": completed_agents,
                 "newly_failed": failed_agents,
@@ -335,6 +338,7 @@ def register_monitor(
                 logger.warning(f"Failed to update workflow state during poll: {e}")
 
         return {
+            "success": True,
             "still_running": still_running,
             "newly_completed": newly_completed,
             "newly_failed": newly_failed,

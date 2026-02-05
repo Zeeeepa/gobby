@@ -70,9 +70,9 @@ def create_metrics_registry(
                 server_name=server_name,
                 tool_name=tool_name,
             )
-            return {"metrics": result}
+            return {"success": True, "metrics": result}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_top_tools",
@@ -101,11 +101,12 @@ def create_metrics_registry(
                 order_by=order_by,
             )
             return {
+                "success": True,
                 "tools": tools,
                 "count": len(tools),
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_failing_tools",
@@ -134,12 +135,13 @@ def create_metrics_registry(
                 limit=limit,
             )
             return {
+                "success": True,
                 "tools": tools,
                 "count": len(tools),
                 "threshold": threshold,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_tool_success_rate",
@@ -168,12 +170,13 @@ def create_metrics_registry(
                 project_id=project_id,
             )
             return {
+                "success": True,
                 "server_name": server_name,
                 "tool_name": tool_name,
                 "success_rate": rate,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="reset_metrics",
@@ -201,9 +204,9 @@ def create_metrics_registry(
                 server_name=server_name,
                 tool_name=tool_name,
             )
-            return {"deleted_count": deleted}
+            return {"success": True, "deleted_count": deleted}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="reset_tool_metrics",
@@ -229,12 +232,13 @@ def create_metrics_registry(
                 tool_name=tool_name,
             )
             return {
+                "success": True,
                 "deleted_count": deleted,
                 "server_name": server_name,
                 "tool_name": tool_name,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="cleanup_old_metrics",
@@ -257,11 +261,12 @@ def create_metrics_registry(
                 retention_days=retention_days,
             )
             return {
+                "success": True,
                 "deleted_count": deleted,
                 "retention_days": retention_days,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_retention_stats",
@@ -276,9 +281,9 @@ def create_metrics_registry(
         """
         try:
             stats = metrics_manager.get_retention_stats()
-            return {"stats": stats}
+            return {"success": True, "stats": stats}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # Token/cost tracking tools (only available if session_storage provided)
     @registry.tool(
@@ -296,13 +301,13 @@ def create_metrics_registry(
             Dictionary with usage summary
         """
         if token_tracker is None:
-            return {"error": "Token tracking not configured"}
+            return {"success": False, "error": "Token tracking not configured"}
 
         try:
             summary = token_tracker.get_usage_summary(days=days)
-            return {"usage": summary}
+            return {"success": True, "usage": summary}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_budget_status",
@@ -316,12 +321,12 @@ def create_metrics_registry(
             Dictionary with budget info
         """
         if token_tracker is None:
-            return {"error": "Token tracking not configured"}
+            return {"success": False, "error": "Token tracking not configured"}
 
         try:
             status = token_tracker.get_budget_status()
-            return {"budget": status}
+            return {"success": True, "budget": status}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     return registry

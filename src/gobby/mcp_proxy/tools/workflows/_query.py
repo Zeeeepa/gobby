@@ -44,11 +44,12 @@ def get_workflow(
     definition = loader.load_workflow(name, proj)
 
     if not definition:
-        return {"error": f"Workflow '{name}' not found"}
+        return {"success": False, "error": f"Workflow '{name}' not found"}
 
     # Handle WorkflowDefinition vs PipelineDefinition
     if isinstance(definition, WorkflowDefinition):
         return {
+            "success": True,
             "name": definition.name,
             "type": definition.type,
             "description": definition.description,
@@ -76,6 +77,7 @@ def get_workflow(
     else:
         # PipelineDefinition
         return {
+            "success": True,
             "name": definition.name,
             "type": definition.type,
             "description": definition.description,
@@ -171,7 +173,7 @@ def list_workflows(
                     exc_info=True,
                 )  # nosec B110
 
-    return {"workflows": workflows, "count": len(workflows)}
+    return {"success": True, "workflows": workflows, "count": len(workflows)}
 
 
 def get_workflow_status(
@@ -193,6 +195,7 @@ def get_workflow_status(
     # Require explicit session_id to prevent cross-session bleed
     if not session_id:
         return {
+            "success": False,
             "has_workflow": False,
             "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
         }
@@ -201,13 +204,14 @@ def get_workflow_status(
     try:
         resolved_session_id = resolve_session_id(session_manager, session_id)
     except ValueError as e:
-        return {"has_workflow": False, "error": str(e)}
+        return {"success": False, "has_workflow": False, "error": str(e)}
 
     state = state_manager.get_state(resolved_session_id)
     if not state:
-        return {"has_workflow": False, "session_id": resolved_session_id}
+        return {"success": True, "has_workflow": False, "session_id": resolved_session_id}
 
     return {
+        "success": True,
         "has_workflow": True,
         "session_id": resolved_session_id,
         "workflow_name": state.workflow_name,

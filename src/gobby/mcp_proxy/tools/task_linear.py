@@ -116,29 +116,34 @@ def create_linear_sync_registry(
             )
 
             return {
+                "success": True,
                 "tasks": tasks,
                 "count": len(tasks),
                 "team_id": team_id,
             }
         except LinearRateLimitError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "rate_limit",
                 "reset_at": e.reset_at,
             }
         except LinearNotFoundError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "not_found",
                 "resource": e.resource,
             }
         except LinearSyncError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "sync_error",
             }
         except RuntimeError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "unavailable",
             }
@@ -164,33 +169,39 @@ def create_linear_sync_registry(
             result = await service.sync_task_to_linear(task_id)
 
             return {
+                "success": True,
                 "task_id": task_id,
                 "linear_result": result,
             }
         except ValueError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "invalid_task",
             }
         except LinearRateLimitError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "rate_limit",
                 "reset_at": e.reset_at,
             }
         except LinearNotFoundError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "not_found",
                 "resource": e.resource,
             }
         except LinearSyncError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "sync_error",
             }
         except RuntimeError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "unavailable",
             }
@@ -222,34 +233,40 @@ def create_linear_sync_registry(
             )
 
             return {
+                "success": True,
                 "task_id": task_id,
                 "issue_id": result.get("id"),
                 "linear_result": result,
             }
         except ValueError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "invalid_task",
             }
         except LinearRateLimitError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "rate_limit",
                 "reset_at": e.reset_at,
             }
         except LinearNotFoundError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "not_found",
                 "resource": e.resource,
             }
         except LinearSyncError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "sync_error",
             }
         except RuntimeError as e:
             return {
+                "success": False,
                 "error": str(e),
                 "error_type": "unavailable",
             }
@@ -273,6 +290,7 @@ def create_linear_sync_registry(
         pid = get_current_project_id()
         if not pid:
             return {
+                "success": False,
                 "error": "No project context - run from a gobby project directory",
             }
 
@@ -280,6 +298,7 @@ def create_linear_sync_registry(
         project_manager.update(pid, linear_team_id=team_id)
 
         return {
+            "success": True,
             "project_id": pid,
             "linear_team_id": team_id,
             "message": f"Linked project to Linear team: {team_id}",
@@ -298,6 +317,7 @@ def create_linear_sync_registry(
         pid = get_current_project_id()
         if not pid:
             return {
+                "success": False,
                 "error": "No project context - run from a gobby project directory",
             }
 
@@ -305,6 +325,7 @@ def create_linear_sync_registry(
         project_manager.update(pid, linear_team_id=None)
 
         return {
+            "success": True,
             "project_id": pid,
             "message": "Unlinked Linear team from project",
         }
@@ -325,6 +346,7 @@ def create_linear_sync_registry(
         pid = get_current_project_id()
         if not pid:
             return {
+                "success": False,
                 "error": "No project context - run from a gobby project directory",
             }
 
@@ -346,6 +368,7 @@ def create_linear_sync_registry(
         linked_count = row["count"] if row else 0
 
         return {
+            "success": True,
             "project_id": pid,
             "linear_team_id": linear_team_id,
             "linear_available": available,

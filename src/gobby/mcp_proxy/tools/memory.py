@@ -85,12 +85,13 @@ def create_memory_registry(
                 source_type="mcp_tool",
             )
             return {
+                "success": True,
                 "memory": {
                     "id": memory.id,
                 },
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="search_memories",
@@ -126,6 +127,7 @@ def create_memory_registry(
                 tags_none=tags_none,
             )
             return {
+                "success": True,
                 "memories": [
                     {
                         "id": m.id,
@@ -140,7 +142,7 @@ def create_memory_registry(
                 ],
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="delete_memory",
@@ -156,11 +158,11 @@ def create_memory_registry(
         try:
             success = memory_manager.forget(memory_id)
             if success:
-                return {}
+                return {"success": True}
             else:
-                return {"error": f"Memory {memory_id} not found"}
+                return {"success": False, "error": f"Memory {memory_id} not found"}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="list_memories",
@@ -196,6 +198,7 @@ def create_memory_registry(
                 tags_none=tags_none,
             )
             return {
+                "success": True,
                 "memories": [
                     {
                         "id": m.id,
@@ -210,7 +213,7 @@ def create_memory_registry(
                 "count": len(memories),
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_memory",
@@ -227,6 +230,7 @@ def create_memory_registry(
             memory = memory_manager.get_memory(memory_id)
             if memory:
                 return {
+                    "success": True,
                     "memory": {
                         "id": memory.id,
                         "content": memory.content,
@@ -241,11 +245,11 @@ def create_memory_registry(
                     },
                 }
             else:
-                return {"error": f"Memory {memory_id} not found"}
+                return {"success": False, "error": f"Memory {memory_id} not found"}
         except ValueError as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="get_related_memories",
@@ -274,6 +278,7 @@ def create_memory_registry(
                 min_similarity=min_similarity,
             )
             return {
+                "success": True,
                 "memory_id": memory_id,
                 "related": [
                     {
@@ -289,9 +294,9 @@ def create_memory_registry(
                 "count": len(memories),
             }
         except ValueError as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="update_memory",
@@ -320,15 +325,16 @@ def create_memory_registry(
                 tags=tags,
             )
             return {
+                "success": True,
                 "memory": {
                     "id": memory.id,
                     "updated_at": memory.updated_at,
                 },
             }
         except ValueError as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="remember_with_image",
@@ -357,6 +363,7 @@ def create_memory_registry(
         """
         if not llm_service:
             return {
+                "success": False,
                 "error": "LLM service not configured. Image memories require an LLM provider.",
             }
 
@@ -371,6 +378,7 @@ def create_memory_registry(
                 source_type="mcp_tool",
             )
             return {
+                "success": True,
                 "memory": {
                     "id": memory.id,
                     "content": memory.content,
@@ -378,9 +386,9 @@ def create_memory_registry(
                 },
             }
         except ValueError as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="remember_screenshot",
@@ -410,6 +418,7 @@ def create_memory_registry(
 
         if not llm_service:
             return {
+                "success": False,
                 "error": "LLM service not configured. Screenshot memories require an LLM provider.",
             }
 
@@ -427,15 +436,16 @@ def create_memory_registry(
                 source_type="mcp_tool",
             )
             return {
+                "success": True,
                 "memory": {
                     "id": memory.id,
                     "content": memory.content,
                 },
             }
         except ValueError as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="memory_stats",
@@ -447,9 +457,9 @@ def create_memory_registry(
         """
         try:
             stats = memory_manager.get_stats(project_id=get_current_project_id())
-            return {"stats": stats}
+            return {"success": True, "stats": stats}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="export_memory_graph",
@@ -483,7 +493,7 @@ def create_memory_registry(
             project_id = get_current_project_id()
             memories = memory_manager.list_memories(project_id=project_id, limit=1000)
             if not memories:
-                return {"error": "No memories found"}
+                return {"success": False, "error": "No memories found"}
 
             # Get cross-references
             storage = LocalMemoryManager(memory_manager.db)
@@ -499,11 +509,12 @@ def create_memory_registry(
             output_file.write_text(html_content)
 
             return {
+                "success": True,
                 "path": str(output_file.absolute()),
                 "memory_count": len(memories),
                 "crossref_count": len(crossrefs),
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     return registry

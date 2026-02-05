@@ -58,16 +58,17 @@ def register_cleanup(
         try:
             resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"error": f"Task not found: {task_id} ({e})"}
+            return {"success": False, "error": f"Task not found: {task_id} ({e})"}
 
         # Get the task
         task = task_manager.get_task(resolved_task_id)
         if task is None:
-            return {"error": f"Task not found: {task_id}"}
+            return {"success": False, "error": f"Task not found: {task_id}"}
 
         # Verify task is in needs_review status
         if task.status != "needs_review":
             return {
+                "success": False,
                 "error": f"Task must be in 'needs_review' status to approve. Current status: {task.status}",
             }
 
@@ -97,6 +98,7 @@ def register_cleanup(
             )
         except Exception as e:
             return {
+                "success": False,
                 "error": f"Failed to update task status: {e}",
                 "task_id": resolved_task_id,
                 "worktree_deleted": False,
@@ -128,6 +130,7 @@ def register_cleanup(
                     logger.warning(f"Error deleting worktree: {e}")
 
         return {
+            "success": True,
             "task_id": resolved_task_id,
             "task_status": "closed",
             "worktree_deleted": worktree_deleted,
@@ -209,7 +212,7 @@ def register_cleanup(
             - summary: Counts
         """
         if git_manager is None:
-            return {"error": "Git manager not configured. Cannot cleanup worktrees."}
+            return {"success": False, "error": "Git manager not configured. Cannot cleanup worktrees."}
 
         # Get workflow state
         from gobby.workflows.state_manager import WorkflowStateManager
@@ -218,6 +221,7 @@ def register_cleanup(
         state = state_manager.get_state(parent_session_id)
         if not state:
             return {
+                "success": True,
                 "merged": [],
                 "deleted": [],
                 "failed": [],
@@ -230,6 +234,7 @@ def register_cleanup(
 
         if not reviewed_agents:
             return {
+                "success": True,
                 "merged": [],
                 "deleted": [],
                 "failed": [],
@@ -409,6 +414,7 @@ def register_cleanup(
             logger.warning(f"Failed to update workflow state after cleanup: {e}")
 
         return {
+            "success": True,
             "merged": merged,
             "deleted": deleted,
             "failed": failed,
@@ -440,15 +446,15 @@ def register_cleanup(
             Dict with cleanup results
         """
         if git_manager is None:
-            return {"error": "Git manager not configured"}
+            return {"success": False, "error": "Git manager not configured"}
 
         # Validate older_than_hours
         try:
             older_than_hours = int(older_than_hours)
         except (TypeError, ValueError):
-            return {"error": "older_than_hours must be an integer"}
+            return {"success": False, "error": "older_than_hours must be an integer"}
         if older_than_hours < 0:
-            return {"error": "older_than_hours must be non-negative"}
+            return {"success": False, "error": "older_than_hours must be non-negative"}
 
         # Resolve project ID
         resolved_project_id = default_project_id
@@ -465,7 +471,7 @@ def register_cleanup(
             resolved_project_id = get_current_project_id()
 
         if not resolved_project_id:
-            return {"error": "Could not resolve project ID"}
+            return {"success": False, "error": "Could not resolve project ID"}
 
         from gobby.storage.worktrees import WorktreeStatus as WTStatus
 
@@ -544,6 +550,7 @@ def register_cleanup(
                 )
 
         return {
+            "success": True,
             "deleted": deleted,
             "failed": failed,
             "summary": {
