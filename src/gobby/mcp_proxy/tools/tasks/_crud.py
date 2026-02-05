@@ -428,7 +428,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "status": {
                     "type": "string",
-                    "description": "New status (open, in_progress, needs_review, closed)",
+                    "description": "BLOCKED: Use claim_task (in_progress), close_task (closed), reopen_task (open), or mark_task_for_review (needs_review) instead.",
                     "default": None,
                 },
                 "priority": {"type": "integer", "description": "New priority", "default": None},
