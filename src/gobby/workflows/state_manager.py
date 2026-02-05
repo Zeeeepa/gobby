@@ -107,12 +107,14 @@ class WorkflowStateManager:
         This clears workflow_name, step, and related step-tracking fields,
         but keeps the `variables` JSON which contains lifecycle workflow
         state like unlocked_tools, task_claimed, etc.
+
+        Uses '__ended__' placeholder instead of NULL to satisfy NOT NULL constraints.
         """
         self.db.execute(
             """
             UPDATE workflow_states SET
-                workflow_name = NULL,
-                step = NULL,
+                workflow_name = '__ended__',
+                step = '__ended__',
                 step_entered_at = NULL,
                 step_action_count = 0,
                 total_action_count = 0,

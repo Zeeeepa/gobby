@@ -58,8 +58,8 @@ async def check_premature_stop(
     if not state:
         return None
 
-    # Skip lifecycle-only states
-    if state.workflow_name == "__lifecycle__":
+    # Skip lifecycle-only states and ended workflows
+    if state.workflow_name in ("__lifecycle__", "__ended__"):
         return None
 
     # Load the workflow definition

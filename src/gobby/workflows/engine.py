@@ -49,19 +49,21 @@ logger = logging.getLogger(__name__)
 # These "meta" tools enable progressive disclosure and are required for agents to discover
 # what tools are available. They don't execute actions, only return information.
 # NOTE: call_tool is intentionally NOT exempt - it executes actual tools and should be restricted.
-EXEMPT_TOOLS = frozenset({
-    # Gobby MCP discovery tools (both prefixed and unprefixed forms)
-    "list_mcp_servers",
-    "mcp__gobby__list_mcp_servers",
-    "list_tools",
-    "mcp__gobby__list_tools",
-    "get_tool_schema",
-    "mcp__gobby__get_tool_schema",
-    "recommend_tools",
-    "mcp__gobby__recommend_tools",
-    "search_tools",
-    "mcp__gobby__search_tools",
-})
+EXEMPT_TOOLS = frozenset(
+    {
+        # Gobby MCP discovery tools (both prefixed and unprefixed forms)
+        "list_mcp_servers",
+        "mcp__gobby__list_mcp_servers",
+        "list_tools",
+        "mcp__gobby__list_tools",
+        "get_tool_schema",
+        "mcp__gobby__get_tool_schema",
+        "recommend_tools",
+        "mcp__gobby__recommend_tools",
+        "search_tools",
+        "mcp__gobby__search_tools",
+    }
+)
 
 
 class WorkflowEngine:
@@ -148,10 +150,10 @@ class WorkflowEngine:
                         return HookResponse(decision="modify", context=context)
 
         # 3. Load definition
-        # Skip if this is a lifecycle-only state (used for task_claimed tracking)
-        if state.workflow_name == "__lifecycle__":
+        # Skip if this is a lifecycle-only state or ended workflow (used for task_claimed tracking)
+        if state.workflow_name in ("__lifecycle__", "__ended__"):
             logger.debug(
-                f"Skipping step workflow handling for lifecycle state in session {session_id}"
+                f"Skipping step workflow handling for {state.workflow_name} state in session {session_id}"
             )
             return HookResponse(decision="allow")
 
@@ -289,7 +291,12 @@ class WorkflowEngine:
 
             # Check MCP-level tool restrictions for call_tool/get_tool_schema
             # Adapters normalize mcp_server/mcp_tool from tool_input for these calls
-            if tool_name in ("call_tool", "mcp__gobby__call_tool", "get_tool_schema", "mcp__gobby__get_tool_schema"):
+            if tool_name in (
+                "call_tool",
+                "mcp__gobby__call_tool",
+                "get_tool_schema",
+                "mcp__gobby__get_tool_schema",
+            ):
                 mcp_server = event.data.get("mcp_server", "")
                 mcp_tool = event.data.get("mcp_tool", "")
                 if mcp_server and mcp_tool:
@@ -297,7 +304,10 @@ class WorkflowEngine:
                     mcp_wildcard = f"{mcp_server}:*"
 
                     # Check blocked MCP tools (explicit block or wildcard)
-                    if mcp_key in current_step.blocked_mcp_tools or mcp_wildcard in current_step.blocked_mcp_tools:
+                    if (
+                        mcp_key in current_step.blocked_mcp_tools
+                        or mcp_wildcard in current_step.blocked_mcp_tools
+                    ):
                         reason = f"MCP tool '{mcp_key}' is blocked in step '{state.step}'."
                         self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
                         return HookResponse(decision="block", reason=reason)
@@ -305,7 +315,10 @@ class WorkflowEngine:
                     # Check allowed MCP tools (if not "all")
                     if current_step.allowed_mcp_tools != "all":
                         # Allow if explicitly listed or matches wildcard
-                        if mcp_key not in current_step.allowed_mcp_tools and mcp_wildcard not in current_step.allowed_mcp_tools:
+                        if (
+                            mcp_key not in current_step.allowed_mcp_tools
+                            and mcp_wildcard not in current_step.allowed_mcp_tools
+                        ):
                             reason = f"MCP tool '{mcp_key}' is not in allowed list for step '{state.step}'."
                             self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
                             return HookResponse(decision="block", reason=reason)
@@ -698,7 +711,7 @@ class WorkflowEngine:
 
         # Check for existing step workflow
         existing = self.state_manager.get_state(session_id)
-        if existing and existing.workflow_name != "__lifecycle__":
+        if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
             # Check if existing is lifecycle type
             existing_def = self.loader.load_workflow(existing.workflow_name, project_path)
             if not existing_def or existing_def.type != "lifecycle":

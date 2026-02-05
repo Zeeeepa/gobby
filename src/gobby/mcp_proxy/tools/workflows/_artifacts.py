@@ -117,7 +117,7 @@ def set_variable(
 
     # Block modification of session_task when a real workflow is active
     # This prevents circumventing workflows by changing the tracked task
-    if name == "session_task" and state.workflow_name != "__lifecycle__":
+    if name == "session_task" and state.workflow_name not in ("__lifecycle__", "__ended__"):
         current_value = state.variables.get("session_task")
         if current_value is not None and value != current_value:
             return {

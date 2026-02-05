@@ -250,7 +250,7 @@ async def evaluate_workflow_triggers(
             current_state = state_manager.get_state(session_id)
             is_step_workflow = (
                 current_state is not None
-                and current_state.workflow_name != "__lifecycle__"
+                and current_state.workflow_name not in ("__lifecycle__", "__ended__")
                 and current_state.workflow_name != workflow.name
             )
             if not is_step_workflow:
