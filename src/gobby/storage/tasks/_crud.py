@@ -422,12 +422,30 @@ def update_task(
         updates.append("requires_user_review = ?")
         params.append(1 if requires_user_review else 0)
 
-    # Auto-reset accepted_by_user when transitioning from 'closed' to any other status
+    # Auto-reset accepted_by_user and closed metadata when transitioning from 'closed' to any other status
     if status is not UNSET and status != "closed":
         current_task = get_task(db, task_id)
         if current_task and current_task.status == "closed":
             updates.append("accepted_by_user = ?")
             params.append(0)
+
+            # Wipe closed metadata
+            updates.append("closed_reason = ?")
+            params.append(None)
+            updates.append("closed_at = ?")
+            params.append(None)
+            updates.append("closed_in_session_id = ?")
+            params.append(None)
+            updates.append("closed_commit_sha = ?")
+            params.append(None)
+
+            # Wipe validation metadata if not explicitly set
+            if validation_status is UNSET:
+                updates.append("validation_status = ?")
+                params.append(None)
+            if validation_feedback is UNSET:
+                updates.append("validation_feedback = ?")
+                params.append(None)
 
     if not updates:
         return False
