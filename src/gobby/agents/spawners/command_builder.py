@@ -106,6 +106,7 @@ def build_gemini_command_with_resume(
     prompt: str | None = None,
     auto_approve: bool = False,
     gobby_session_id: str | None = None,
+    model: str | None = None,
 ) -> list[str]:
     """
     Build Gemini CLI command with session resume.
@@ -118,6 +119,7 @@ def build_gemini_command_with_resume(
         prompt: Optional user prompt
         auto_approve: If True, add --approval-mode yolo
         gobby_session_id: Gobby session ID to inject into context
+        model: Optional model name to pass to the CLI (--model flag)
 
     Returns:
         Command list for subprocess execution
@@ -127,6 +129,8 @@ def build_gemini_command_with_resume(
     # Resume the preflight session
     command.extend(["-r", gemini_external_id])
 
+    if model:
+        command.extend(["--model", model])
     if auto_approve:
         command.extend(["--approval-mode", "yolo"])
 
