@@ -227,6 +227,14 @@ def end_workflow(
             "error": f"Workflow '{state.workflow_name}' is lifecycle type (auto-runs on events, cannot be manually ended).",
         }
 
+    # Clear workflow-specific variables before ending
+    # Variables declared in the workflow definition are workflow-specific;
+    # lifecycle variables (unlocked_tools, mcp_calls, etc.) are preserved
+    if definition and isinstance(definition, WorkflowDefinition) and definition.variables:
+        for var_name in definition.variables:
+            state.variables.pop(var_name, None)
+        state_manager.save_state(state)
+
     state_manager.delete_state(resolved_session_id)
 
     return {"success": True, "workflow": state.workflow_name, "reason": reason}

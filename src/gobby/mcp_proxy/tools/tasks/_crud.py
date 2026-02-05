@@ -354,6 +354,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "Use claim_task(task_id, session_id='...') to properly claim tasks with session tracking."
             }
 
+        # Block reopening tasks via update_task - must use reopen_task for proper workflow
+        if status is not None and status.lower() == "open":
+            return {
+                "error": "Cannot set status to 'open' via update_task. "
+                "Use reopen_task(task_id, reason='...') to properly reopen tasks with metadata cleanup."
+            }
+
         # Block needs_review status via update_task - must use mark_task_for_review for proper workflow
         if status is not None and status.lower() in ("review", "needs_review"):
             return {

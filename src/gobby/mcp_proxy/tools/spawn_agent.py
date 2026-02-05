@@ -84,6 +84,17 @@ async def _handle_self_mode(
             "error": "mode: self requires workflow_loader, state_manager (or db), session_manager, and db",
         }
 
+    # Pre-check for active step workflow before attempting activation
+    existing_state = effective_state_manager.get_state(parent_session_id)
+    if existing_state and existing_state.workflow_name not in ("__lifecycle__", "__ended__"):
+        return {
+            "success": False,
+            "error": (
+                f"Session already has step workflow '{existing_state.workflow_name}' active. "
+                f"Call end_workflow(session_id='{parent_session_id}') first before activating a new workflow."
+            ),
+        }
+
     # Import and call the existing activate_workflow function
     from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
 
@@ -234,7 +245,10 @@ async def spawn_agent_impl(
         if not effective_workflow:
             return {"success": False, "error": "mode: self requires a workflow to activate"}
         if not parent_session_id:
-            return {"success": False, "error": "mode: self requires parent_session_id (the session to activate on)"}
+            return {
+                "success": False,
+                "error": "mode: self requires parent_session_id (the session to activate on)",
+            }
 
         # Resolve step_variables for workflow activation
         self_step_variables: dict[str, Any] | None = None
@@ -662,10 +676,10 @@ def create_spawn_agent_registry(
                             f"Cannot spawn '{agent}' with workflow='{workflow}' directly. "
                             f"The '{orchestrator_wf}' orchestrator workflow must be active first.\n\n"
                             f"Either:\n"
-                            f"1. Use spawn_agent(agent=\"{agent}\") without workflow param "
+                            f'1. Use spawn_agent(agent="{agent}") without workflow param '
                             f"(activates orchestrator in your session)\n"
                             f"2. Or activate the orchestrator first: "
-                            f"activate_workflow(name=\"{agent_def.get_effective_workflow(orchestrator_wf)}\")"
+                            f'activate_workflow(name="{agent_def.get_effective_workflow(orchestrator_wf)}")'
                         ),
                     }
 

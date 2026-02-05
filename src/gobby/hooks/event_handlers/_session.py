@@ -438,13 +438,31 @@ class SessionEventHandlerMixin(EventHandlersBase):
         system_message += f"\nExternal ID: {external_id} (CLI-native, rarely needed)"
 
         # Add active lifecycle workflows
+        active_workflow_lines: list[str] = []
         if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
             wf_list = wf_response.metadata["discovered_workflows"]
             if wf_list:
-                system_message += "\nActive workflows:"
                 for w in wf_list:
                     source = "project" if w["is_project"] else "global"
-                    system_message += f"\n  - {w['name']} ({source}, priority={w['priority']})"
+                    active_workflow_lines.append(
+                        f"  - {w['name']} ({source}, priority={w['priority']})"
+                    )
+
+        # Add active step workflows from WorkflowStateManager
+        if session_id and self._workflow_handler:
+            try:
+                state = self._workflow_handler.engine.state_manager.get_state(session_id)
+                if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
+                    active_workflow_lines.append(
+                        f"  - {state.workflow_name} (step, current_step={state.step})"
+                    )
+            except Exception as e:
+                self.logger.debug(f"Failed to get step workflow state: {e}")
+
+        if active_workflow_lines:
+            system_message += "\nActive workflows:"
+            for line in active_workflow_lines:
+                system_message += f"\n{line}"
 
         if wf_response.system_message:
             system_message += f"\n\n{wf_response.system_message}"

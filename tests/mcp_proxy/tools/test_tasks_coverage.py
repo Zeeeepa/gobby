@@ -822,9 +822,8 @@ class TestUpdateTaskTool:
     async def test_update_task_all_fields(self, mock_task_manager, mock_sync_manager):
         """Test update_task with all updatable fields.
 
-        Note: status='in_progress', 'closed', and 'review' are blocked by production code.
-        Must use claim_task, close_task, or mark_task_for_review respectively.
-        This test uses status='open' which is allowed.
+        Note: All status transitions are blocked by production code.
+        Must use claim_task, close_task, reopen_task, or mark_task_for_review.
         """
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -838,7 +837,7 @@ class TestUpdateTaskTool:
                 "task_id": "550e8400-e29b-41d4-a716-446655440000",
                 "title": "New Title",
                 "description": "New Description",
-                "status": "open",  # in_progress/closed/review are blocked
+                # "status" is blocked for all values - must use lifecycle tools
                 "priority": 1,
                 # "assignee" is blocked - must use claim_task
                 "labels": ["urgent"],
@@ -855,7 +854,6 @@ class TestUpdateTaskTool:
             "550e8400-e29b-41d4-a716-446655440000",
             title="New Title",
             description="New Description",
-            status="open",
             priority=1,
             labels=["urgent"],
             validation_criteria="Must pass",
@@ -865,6 +863,21 @@ class TestUpdateTaskTool:
             verification="Run tests",
             sequence_order=5,
         )
+
+    @pytest.mark.asyncio
+    async def test_update_task_blocks_open_status(self, mock_task_manager, mock_sync_manager):
+        """Test update_task blocks 'open' status changes."""
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+        result = await registry.call(
+            "update_task",
+            {"task_id": "550e8400-e29b-41d4-a716-446655440000", "status": "open"},
+        )
+
+        assert "error" in result
+        assert "Cannot set status to 'open'" in result["error"]
+        assert "reopen_task" in result["error"]
+        mock_task_manager.update_task.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_update_task_blocks_review_status(self, mock_task_manager, mock_sync_manager):
