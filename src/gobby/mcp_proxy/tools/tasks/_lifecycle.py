@@ -291,7 +291,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="close_task",
-        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [project-#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete, out_of_repo.",
+        description="Close a task. Pass commit_sha to link and close in one call: close_task(task_id, commit_sha='abc123'). Or include [project-#N] in commit message for auto-linking. Parent tasks require all children closed. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete, out_of_repo. Note: out_of_repo only skips LLM validation and the basic commit-linked check; commits are still required if the session edited in-repo files (session.had_edits enforcement).",
         input_schema={
             "type": "object",
             "properties": {
@@ -301,7 +301,7 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 },
                 "reason": {
                     "type": "string",
-                    "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", "obsolete", or "out_of_repo" to auto-skip validation and commit check.',
+                    "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation and commit check. "out_of_repo" skips validation only; commits are still required if the session edited in-repo files.',
                     "default": "completed",
                 },
                 "changes_summary": {

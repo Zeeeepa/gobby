@@ -390,7 +390,7 @@ gobby tasks get <task_id>
 gobby clones list
 
 # Check workflow state (via MCP)
-# call_tool("gobby-workflows", "get_workflow_status", {"session_id": "..."})
+# call_tool("gobby-workflows", "get_status", {"session_id": "..."})
 ```
 
 ## Success Definition
