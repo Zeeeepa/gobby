@@ -7,18 +7,40 @@ End-to-end functional test criteria for the meeseeks agent system.
 The meeseeks system consists of two complementary workflows:
 
 - **meeseeks-box** (orchestrator): Runs in Claude Code, spawns workers, reviews code, merges
-- **meeseeks:worker** (worker): Runs in Gemini CLI within isolated git clones
+- **meeseeks:worker** (worker): Runs in isolated git clones
+
+## Agent Configurations
+
+Two agent configurations are available for testing:
+
+| Config | Agent Name | Provider | Terminal | Observation |
+|--------|------------|----------|----------|-------------|
+| **Gemini** | `meeseeks` | gemini | ghostty | Watch Ghostty window |
+| **Claude** | `meeseeks-claude` | claude | tmux | `tmux attach -t gobby-*` |
+
+### Gemini Configuration (meeseeks)
+- Worker runs in Gemini CLI with visible Ghostty terminal
+- Interactive terminal window spawns for each worker
+- Best for: Debugging, seeing worker activity in real-time
+
+### Claude Configuration (meeseeks-claude)
+- Worker runs in Claude Code via tmux (detached session)
+- No visible window by default - attach with `tmux attach -t <session>`
+- Best for: Background execution, multiple workers without window clutter
+- List sessions: `tmux ls | grep gobby`
 
 ## Test Approach
 
 **Two-level spawn pattern**: The tester activates the orchestrator, which spawns workers.
 
 1. Tester creates a parent task (the "session task")
-2. Tester calls `spawn_agent(agent="meeseeks", workflow="box", task_id="<parent_task>")`
+2. Tester calls `spawn_agent(agent="<agent>", workflow="box", task_id="<parent_task>")`
+   - Use `agent="meeseeks"` for Gemini workers
+   - Use `agent="meeseeks-claude"` for Claude workers
 3. meeseeks-box activates in tester's session (mode: self)
 4. meeseeks-box loops until parent task tree is complete:
    - Find ready subtasks via `suggest_next_task`
-   - Spawn Gemini workers via `spawn_agent(workflow="worker")`
+   - Spawn workers via `spawn_agent(workflow="worker")`
    - Wait for task completion via `wait_for_task`
    - Review and merge changes
    - Repeat until all subtasks closed
@@ -30,9 +52,15 @@ Before testing:
 
 - [ ] Gobby daemon running (`gobby status` shows running)
 - [ ] MCP servers connected: `gobby-tasks`, `gobby-agents`, `gobby-workflows`, `gobby-clones`
-- [ ] Gemini CLI installed and authenticated
 - [ ] Git repository with clean working tree
+
+**For Gemini (meeseeks)**:
+- [ ] Gemini CLI installed and authenticated
 - [ ] Terminal emulator available (ghostty or configured alternative)
+
+**For Claude (meeseeks-claude)**:
+- [ ] Claude Code CLI installed and authenticated
+- [ ] tmux installed (`brew install tmux` or `apt install tmux`)
 
 ## Test Execution Steps
 
@@ -84,6 +112,7 @@ git worktree list
 
 ### Step 4: Activate Orchestrator
 
+**For Gemini workers:**
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
@@ -92,10 +121,23 @@ mcp__gobby__call_tool(
         "agent": "meeseeks",
         "workflow": "box",
         "task_id": "<parent_task_id>",
-        "parent_session_id": "#813"
+        "parent_session_id": "#876"
     }
 )
+```
 
+**For Claude workers:**
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-agents",
+    tool_name="spawn_agent",
+    arguments={
+        "agent": "meeseeks-claude",
+        "workflow": "box",
+        "task_id": "<parent_task_id>",
+        "parent_session_id": "#876"
+    }
+)
 ```
 
 **Expected**: meeseeks-box workflow activates in current session, `session_task` variable set
@@ -117,8 +159,9 @@ mcp__gobby__call_tool(
 
 ### Step 6: Orchestrator Spawns Worker (automatic)
 
-meeseeks-box calls:
+meeseeks-box calls spawn_agent with the agent's configured provider/terminal:
 
+**Gemini worker (meeseeks):**
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
@@ -128,12 +171,26 @@ mcp__gobby__call_tool(
         "agent": "meeseeks",
         "workflow": "worker",
         "task_id": "<subtask_id>",
-        "isolation": "clone",
-        "provider": "gemini",
-        "terminal": "ghostty",
-        "parent_session_id": "#813"
+        "parent_session_id": "#876"
     }
 )
+# Opens Ghostty window with Gemini CLI
+```
+
+**Claude worker (meeseeks-claude):**
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-agents",
+    tool_name="spawn_agent",
+    arguments={
+        "prompt": "...(activation instructions)...",
+        "agent": "meeseeks-claude",
+        "workflow": "worker",
+        "task_id": "<subtask_id>",
+        "parent_session_id": "#876"
+    }
+)
+# Creates detached tmux session - attach with: tmux attach -t gobby-*
 
 ```
 
