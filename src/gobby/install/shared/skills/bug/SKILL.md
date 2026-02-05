@@ -22,6 +22,10 @@ Create a bug/defect task with the provided title and optional description.
 /bug Database connection drops - Users report intermittent connection failures after 5 minutes of inactivity
 ```
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Action
 
 Create a bug task with the following parameters:

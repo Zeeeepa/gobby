@@ -396,8 +396,38 @@ steps:
 
           1. Switch to main repo: cd /path/to/repo
           2. Squash merge: git merge --squash {{ variables.current_branch }}
-          3. Commit: git commit -m "[{{ variables.current_task_id }}] Merge from worktree"
+          3. Commit: git commit -m "[{{ project.name }}-{{ variables.current_task_id }}] Merge from worktree"
           4. Or use worktree merge tool if available
+
+    allowed_tools:
+      - Bash
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - Read
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+
+    transitions:
+      - to: push_changes
+        when: "true"
+
+  - name: push_changes
+    description: "Push merged changes to remote"
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Pushing merged changes.
+
+          Push the merged changes to the remote:
+
+          git push
+
+          If push fails due to upstream changes, pull and retry:
+          git pull --rebase && git push
 
     allowed_tools:
       - Bash

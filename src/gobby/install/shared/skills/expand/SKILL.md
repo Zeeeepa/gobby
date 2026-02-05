@@ -26,6 +26,10 @@ Gobby Session ID: <uuid>
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats. Prefix formats are accepted for convenience when they uniquely identify a session; if multiple sessions share the same prefix, the system will require a longer prefix or full UUID to resolve ambiguity.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Workflow
 
 ### Phase 0: Check for Resume

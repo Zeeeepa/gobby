@@ -42,6 +42,10 @@ Gobby Session ID: <uuid>
 
 **Note**: All `session_id` and `parent_session_id` parameters accept #N, N, UUID, or prefix formats.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 ### `/gobby clones create <branch-name> <clone-path>` - Create a new clone

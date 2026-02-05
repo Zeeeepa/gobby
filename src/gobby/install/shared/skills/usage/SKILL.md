@@ -8,6 +8,10 @@ category: core
 
 This skill displays token usage, costs, and budget status by querying the gobby-metrics MCP server.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 > **Note**: All tool calls below are executed against `server_name="gobby-metrics"`.

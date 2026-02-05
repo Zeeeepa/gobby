@@ -8,6 +8,10 @@ category: core
 
 This skill retrieves usage metrics via the gobby-metrics MCP tools (e.g., `get_tool_metrics()`, `get_top_tools()`, `get_failing_tools()`). Parse the user's input to determine which subcommand to execute.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 ### `/gobby metrics tools` - Tool usage statistics

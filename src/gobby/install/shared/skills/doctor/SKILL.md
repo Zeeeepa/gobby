@@ -8,6 +8,10 @@ category: core
 
 This skill runs a comprehensive systems check and security audit to verify Gobby's CLI commands and MCP tools are functioning correctly. All tests use the `__diag__` prefix for automatic cleanup.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 ### `/gobby doctor` - Show help

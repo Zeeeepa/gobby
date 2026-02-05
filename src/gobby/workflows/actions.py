@@ -50,6 +50,7 @@ from gobby.workflows.session_actions import (
     handle_start_new_session,
     handle_switch_mode,
 )
+from gobby.workflows.shell_actions import handle_shell_run
 from gobby.workflows.state_actions import (
     handle_increment_variable,
     handle_load_workflow_state,
@@ -224,6 +225,11 @@ class ActionExecutor:
         # --- Todo actions ---
         self.register("write_todos", handle_write_todos)
         self.register("mark_todo_complete", handle_mark_todo_complete)
+
+        # --- Shell actions ---
+        self.register("shell", handle_shell_run)
+        self.register("run", handle_shell_run)
+        self.register("bash", handle_shell_run)  # Alias for backwards compat
 
         # --- LLM actions ---
         self.register("call_llm", handle_call_llm)

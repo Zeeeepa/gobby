@@ -191,7 +191,7 @@ triggers:
             A commit is required before closing this task.
 
             **Normal flow:**
-            1. Commit your changes: git commit -m "[#N] description"
+            1. Commit your changes: git commit -m "[{{ project.name }}-#N] description"
             2. Close with commit_sha: close_task(task_id="#N", commit_sha="<sha>")
 
             **Edge cases (no work done):**

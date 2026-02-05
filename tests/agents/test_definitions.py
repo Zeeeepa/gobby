@@ -624,3 +624,68 @@ class TestAgentDefinitionWithWorkflows:
         assert agent.workflow == "work-task-gemini"
         assert agent.workflows is None
         assert agent.get_effective_workflow() == "work-task-gemini"
+
+    def test_get_orchestrator_workflow_with_self_mode(self) -> None:
+        """Test detection of orchestrator workflow with mode: self."""
+        data: dict[str, Any] = {
+            "name": "meeseeks",
+            "default_workflow": "box",
+            "workflows": {
+                "box": {
+                    "file": "meeseeks-box.yaml",
+                    "mode": "self",  # Activates in caller session
+                },
+                "worker": {
+                    "type": "step",
+                    "steps": [],
+                },
+            },
+        }
+        agent = AgentDefinition(**data)
+
+        # box workflow with mode: self is the orchestrator
+        assert agent.get_orchestrator_workflow() == "box"
+
+    def test_get_orchestrator_workflow_no_self_mode(self) -> None:
+        """Test no orchestrator when default workflow doesn't have mode: self."""
+        data: dict[str, Any] = {
+            "name": "simple-agent",
+            "default_workflow": "work",
+            "workflows": {
+                "work": {
+                    "file": "work.yaml",
+                    "mode": "terminal",  # Normal mode, not self
+                },
+            },
+        }
+        agent = AgentDefinition(**data)
+
+        # No orchestrator - mode is not "self"
+        assert agent.get_orchestrator_workflow() is None
+
+    def test_get_orchestrator_workflow_no_default(self) -> None:
+        """Test no orchestrator when no default workflow specified."""
+        data: dict[str, Any] = {
+            "name": "no-default-agent",
+            "workflows": {
+                "work": {
+                    "file": "work.yaml",
+                    "mode": "self",
+                },
+            },
+        }
+        agent = AgentDefinition(**data)
+
+        # No orchestrator - no default_workflow set
+        assert agent.get_orchestrator_workflow() is None
+
+    def test_get_orchestrator_workflow_no_workflows(self) -> None:
+        """Test no orchestrator when no workflows map."""
+        data: dict[str, Any] = {
+            "name": "basic-agent",
+            "default_workflow": "work",
+        }
+        agent = AgentDefinition(**data)
+
+        # No orchestrator - no workflows map
+        assert agent.get_orchestrator_workflow() is None

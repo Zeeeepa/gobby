@@ -22,6 +22,10 @@ This is the **internal Gobby session ID** - use it for task creation, parent_ses
 
 **Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
 
+## Tool Schema Reminder
+
+**First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
+
 ## Subcommands
 
 ### `/gobby sessions get-current` - Look up your session ID
