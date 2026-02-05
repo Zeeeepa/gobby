@@ -98,6 +98,7 @@ class AgentDefinition(BaseModel):
     model: str | None = None
     mode: str = "headless"  # Default to headless for stability
     provider: str = "claude"  # Provider: claude, gemini, codex, cursor, windsurf, copilot
+    terminal: str = "auto"  # Terminal: auto, ghostty, iterm, kitty, alacritty, tmux, etc.
 
     # Isolation configuration
     isolation: Literal["current", "worktree", "clone"] | None = None

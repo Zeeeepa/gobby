@@ -204,6 +204,11 @@ async def spawn_agent_impl(
         effective_mode = agent_def.get_effective_mode(workflow_key or workflow)
     effective_mode = effective_mode or "terminal"
 
+    # Resolve terminal from agent_def if not explicitly provided
+    effective_terminal = terminal
+    if effective_terminal == "auto" and agent_def and agent_def.terminal != "auto":
+        effective_terminal = agent_def.terminal
+
     # Resolve workflow using agent_def's named workflows map
     # Resolution order: explicit param > agent's workflows map > legacy workflow field
     effective_workflow: str | None = None
@@ -431,7 +436,7 @@ async def spawn_agent_impl(
         cwd=isolation_ctx.cwd,
         mode=effective_mode,
         provider=effective_provider,
-        terminal=terminal,
+        terminal=effective_terminal,
         session_id=session_id,
         run_id=run_id,
         parent_session_id=parent_session_id,
