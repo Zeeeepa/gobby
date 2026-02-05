@@ -23,7 +23,7 @@ variables:
   session_task: null              # Task ID(s) to complete
   premature_stop_max_attempts: 3
   worker_provider: "gemini"
-  worker_terminal: "ghostty"
+  worker_terminal: "tmux"
   worker_timeout: 600
   # Note: worker model is defined in the agent definition (meeseeks.yaml), not here
 

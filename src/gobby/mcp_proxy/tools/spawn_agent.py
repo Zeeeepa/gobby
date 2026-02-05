@@ -211,9 +211,9 @@ async def spawn_agent_impl(
     if effective_model is None and agent_def:
         effective_model = agent_def.model
 
-    # Resolve terminal from agent_def if not explicitly provided
+    # Resolve terminal: agent_def always supersedes caller (workflow variables, etc.)
     effective_terminal = terminal
-    if effective_terminal == "auto" and agent_def and agent_def.terminal != "auto":
+    if agent_def and agent_def.terminal != "auto":
         effective_terminal = agent_def.terminal
 
     # Resolve workflow using agent_def's named workflows map

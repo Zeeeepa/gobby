@@ -27,7 +27,7 @@ variables:
   current_branch: null            # Active branch name
   current_task_id: null           # Task being worked
   worker_provider: "gemini"
-  worker_terminal: "ghostty"
+  worker_terminal: "tmux"
   worker_timeout: 600
   max_inactive_waits: 3
   max_review_attempts: 3
