@@ -467,10 +467,16 @@ def create_skills_registry(
                 hub_name, skill_slug = hub_match.groups()
 
                 if hub_manager is None:
-                    return {"success": False, "error": "No hub manager configured. Add hubs to config to enable hub installs."}
+                    return {
+                        "success": False,
+                        "error": "No hub manager configured. Add hubs to config to enable hub installs.",
+                    }
 
                 if not hub_manager.has_hub(hub_name):
-                    return {"success": False, "error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs."}
+                    return {
+                        "success": False,
+                        "error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs.",
+                    }
 
                 try:
                     # Get the provider and download the skill
@@ -478,7 +484,10 @@ def create_skills_registry(
                     download_result = await provider.download_skill(skill_slug)
 
                     if not download_result.success or not download_result.path:
-                        return {"success": False, "error": f"Failed to download from hub: {download_result.error or 'Unknown error'}"}
+                        return {
+                            "success": False,
+                            "error": f"Failed to download from hub: {download_result.error or 'Unknown error'}",
+                        }
 
                     # Load the skill from the downloaded path
                     skill_path = Path(download_result.path)
@@ -486,7 +495,10 @@ def create_skills_registry(
                     source_type = "hub"
 
                 except Exception as e:
-                    return {"success": False, "error": f"Failed to install from hub {hub_name}: {e}"}
+                    return {
+                        "success": False,
+                        "error": f"Failed to install from hub {hub_name}: {e}",
+                    }
 
             # Check if it's a GitHub URL/reference (only if not already parsed from hub)
             is_github_ref = False
@@ -662,7 +674,10 @@ def create_skills_registry(
                 return {"success": False, "error": "Query is required and cannot be empty"}
 
             if hub_manager is None:
-                return {"success": False, "error": "No hub manager configured. Add hubs to config to enable hub search."}
+                return {
+                    "success": False,
+                    "error": "No hub manager configured. Add hubs to config to enable hub search.",
+                }
 
             # Build hub filter
             hub_names_filter = [hub_name] if hub_name else None

@@ -536,7 +536,10 @@ def create_worktrees_registry(
             return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         if worktree.agent_session_id and worktree.agent_session_id != resolved_session_id:
-            return {"success": False, "error": f"Worktree already claimed by session '{worktree.agent_session_id}'"}
+            return {
+                "success": False,
+                "error": f"Worktree already claimed by session '{worktree.agent_session_id}'",
+            }
 
         updated = worktree_storage.claim(worktree_id, resolved_session_id)
         if not updated:
@@ -678,7 +681,10 @@ def create_worktrees_registry(
             return {"success": False, "error": error}
 
         if resolved_git_mgr is None:
-            return {"success": False, "error": "Git manager not configured and no project_path provided."}
+            return {
+                "success": False,
+                "error": "Git manager not configured and no project_path provided.",
+            }
 
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
@@ -686,7 +692,10 @@ def create_worktrees_registry(
 
         # Validate strategy
         if strategy not in ("rebase", "merge"):
-            return {"success": False, "error": f"Invalid strategy '{strategy}'. Must be 'rebase' or 'merge'."}
+            return {
+                "success": False,
+                "error": f"Invalid strategy '{strategy}'. Must be 'rebase' or 'merge'.",
+            }
 
         strategy_literal = cast(Literal["rebase", "merge"], strategy)
 

@@ -13,17 +13,19 @@ The meeseeks system consists of two complementary workflows:
 
 Two agent configurations are available for testing:
 
-| Config | Agent Name | Provider | Terminal | Observation |
-|--------|------------|----------|----------|-------------|
-| **Gemini** | `meeseeks` | gemini | ghostty | Watch Ghostty window |
-| **Claude** | `meeseeks-claude` | claude | tmux | `tmux attach -t gobby-*` |
+| Config     | Agent Name        | Provider | Terminal | Observation              |
+|------------|-------------------|----------|----------|--------------------------|
+| **Gemini** | `meeseeks`        | gemini   | ghostty  | Watch Ghostty window     |
+| **Claude** | `meeseeks-claude` | claude   | tmux     | `tmux attach -t gobby-*` |
 
 ### Gemini Configuration (meeseeks)
+
 - Worker runs in Gemini CLI with visible Ghostty terminal
 - Interactive terminal window spawns for each worker
 - Best for: Debugging, seeing worker activity in real-time
 
 ### Claude Configuration (meeseeks-claude)
+
 - Worker runs in Claude Code via tmux (detached session)
 - No visible window by default - attach with `tmux attach -t <session>`
 - Best for: Background execution, multiple workers without window clutter
@@ -55,10 +57,12 @@ Before testing:
 - [ ] Git repository with clean working tree
 
 **For Gemini (meeseeks)**:
+
 - [ ] Gemini CLI installed and authenticated
 - [ ] Terminal emulator available (ghostty or configured alternative)
 
 **For Claude (meeseeks-claude)**:
+
 - [ ] Claude Code CLI installed and authenticated
 - [ ] tmux installed (`brew install tmux` or `apt install tmux`)
 
@@ -113,6 +117,7 @@ git worktree list
 ### Step 4: Activate Orchestrator
 
 **For Gemini workers:**
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
@@ -127,6 +132,7 @@ mcp__gobby__call_tool(
 ```
 
 **For Claude workers:**
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
@@ -162,6 +168,7 @@ mcp__gobby__call_tool(
 meeseeks-box calls spawn_agent with the agent's configured provider/terminal:
 
 **Gemini worker (meeseeks):**
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
@@ -178,6 +185,7 @@ mcp__gobby__call_tool(
 ```
 
 **Claude worker (meeseeks-claude):**
+
 ```python
 mcp__gobby__call_tool(
     server_name="gobby-agents",
