@@ -43,6 +43,7 @@ def build_cli_command(
         working_directory: Optional working directory (used by Codex -C flag)
         mode: Execution mode - "terminal" (interactive) or "headless" (non-interactive)
         sandbox_args: Optional list of CLI args for sandbox configuration
+        model: Optional model name to pass to the CLI (used by CLIs that accept a --model flag)
 
     Returns:
         Command list for subprocess execution
