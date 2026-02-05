@@ -2709,6 +2709,7 @@ class TestBlockToolsSkipValidationWithCommit:
         # Set up claimed task with commits
         task_id = "task-uuid-123"
         workflow_state.variables["claimed_task_id"] = task_id
+        workflow_state.variables["task_has_commits"] = True
 
         mock_task = MagicMock()
         mock_task.commits = ["commit-sha-1"]
