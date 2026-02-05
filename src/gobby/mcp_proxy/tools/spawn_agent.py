@@ -288,7 +288,7 @@ async def spawn_agent_impl(
     if effective_base_branch is None and git_manager:
         try:
             effective_base_branch = git_manager.get_current_branch()
-        except Exception:  # nosec B110 - fallback to default branch is intentional
+        except Exception:
             effective_base_branch = None
     effective_base_branch = effective_base_branch or "main"
 

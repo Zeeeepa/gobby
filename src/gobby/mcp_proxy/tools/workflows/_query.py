@@ -171,7 +171,7 @@ def list_workflows(
                     yaml_path,
                     e,
                     exc_info=True,
-                )  # nosec B110
+                )
 
     return {"success": True, "workflows": workflows, "count": len(workflows)}
 

@@ -34,8 +34,7 @@ def _silence_output() -> None:
         sys.stdout = devnull
         sys.stderr = devnull
     except Exception:
-        # nosec B110 - if silencing fails, still avoid raising/printing
-        pass
+        pass  # nosec B110
 
 
 def _get_daemon_url() -> str:

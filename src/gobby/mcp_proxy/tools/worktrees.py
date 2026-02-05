@@ -51,7 +51,6 @@ def _get_worktree_base_dir() -> Path:
     else:
         # macOS/Linux: use /tmp for better isolation (tmpfs, cleared on reboot)
         # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
-        # nosec B108: /tmp is intentional for worktrees - they're temporary by design
         base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
 
     base.mkdir(parents=True, exist_ok=True)
@@ -616,8 +615,7 @@ def create_worktrees_registry(
                 if mgr:
                     resolved_git_mgr = mgr
             except Exception:
-                # nosec B110 - if context resolution fails, continue without git manager
-                pass
+                pass  # nosec B110
 
         # Check if worktree path exists
         worktree_exists = Path(worktree.worktree_path).exists()

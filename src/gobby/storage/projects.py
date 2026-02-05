@@ -144,7 +144,6 @@ class LocalProjectManager:
 
         fields["updated_at"] = datetime.now(UTC).isoformat()
 
-        # nosec B608: Fields validated against allowlist above, values parameterized
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         values = list(fields.values()) + [project_id]
 

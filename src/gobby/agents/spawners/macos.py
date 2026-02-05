@@ -39,7 +39,7 @@ class GhosttySpawner(TerminalSpawnerBase):
     def _is_ghostty_running(self) -> bool:
         """Check if Ghostty is currently running on macOS."""
         try:
-            result = subprocess.run(  # nosec B603, B607 - osascript is safe
+            result = subprocess.run(  # nosec B603 - osascript is safe
                 [
                     "/usr/bin/osascript",
                     "-e",

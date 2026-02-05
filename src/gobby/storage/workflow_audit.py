@@ -307,7 +307,6 @@ class WorkflowAuditManager:
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         params.extend([limit, offset])
 
-        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
             f"""
             SELECT id, session_id, timestamp, step, event_type, tool_name,

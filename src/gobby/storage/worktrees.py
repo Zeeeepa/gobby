@@ -211,7 +211,6 @@ class LocalWorktreeManager:
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         params.append(limit)
 
-        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
             f"""
             SELECT * FROM worktrees
@@ -264,7 +263,6 @@ class LocalWorktreeManager:
         # Add updated_at timestamp
         fields["updated_at"] = datetime.now(UTC).isoformat()
 
-        # nosec B608: Fields validated against _VALID_UPDATE_FIELDS allowlist above
         set_clause = ", ".join(f"{key} = ?" for key in fields.keys())
         values = list(fields.values()) + [worktree_id]
 

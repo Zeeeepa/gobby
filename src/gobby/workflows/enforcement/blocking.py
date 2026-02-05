@@ -299,7 +299,7 @@ async def block_tools(
             task = task_manager.get_task(claimed_task_id)
             return bool(task and task.commits)
         except Exception:
-            return False  # nosec B110 - best-effort check
+            return False
 
     # Wrap in LazyBool so they're only computed when used in boolean context
     session_has_dirty_files: LazyBool | bool = LazyBool(_compute_session_has_dirty_files)

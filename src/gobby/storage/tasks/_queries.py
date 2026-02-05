@@ -91,7 +91,6 @@ def list_tasks(
     if tasks:
         task_ids = [t.id for t in tasks]
         placeholders = ", ".join("?" for _ in task_ids)
-        # nosec B608: placeholders are just '?' characters, values parameterized
         dep_rows = db.fetchall(
             f"SELECT task_id, depends_on FROM task_dependencies WHERE dep_type = 'blocks' AND task_id IN ({placeholders})",  # nosec B608
             tuple(task_ids),

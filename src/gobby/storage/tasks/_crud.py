@@ -455,7 +455,6 @@ def update_task(
 
     params.append(task_id)  # for WHERE clause
 
-    # nosec B608: SET clause built from hardcoded column names, values parameterized
     sql = f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?"  # nosec B608
 
     with db.transaction() as conn:

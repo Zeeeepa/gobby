@@ -671,7 +671,6 @@ class LocalSkillManager:
         params.append(datetime.now(UTC).isoformat())
         params.append(skill_id)
 
-        # nosec B608: SET clause built from hardcoded column names, values parameterized
         sql = f"UPDATE skills SET {', '.join(updates)} WHERE id = ?"  # nosec B608
 
         with self.db.transaction() as conn:

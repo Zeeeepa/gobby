@@ -235,7 +235,6 @@ def register_orchestrator(
             if platform.system() == "Windows":
                 base = Path(tempfile.gettempdir()) / "gobby-worktrees"
             else:
-                # nosec B108: /tmp is intentional - worktrees are temporary
                 base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
             base.mkdir(parents=True, exist_ok=True)
             return base
