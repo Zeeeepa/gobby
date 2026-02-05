@@ -44,6 +44,8 @@ dependencies = [
     "memu-py>=1.0.0",
     # python-multipart 0.0.21 has CVE-2026-24486 - pin to fixed version
     "python-multipart>=0.0.22",
+    # protobuf <5.29.6 has CVE-2026-0994 (JSON recursion depth bypass DoS)
+    "protobuf>=5.29.6",
 ]
 
 [project.optional-dependencies]
