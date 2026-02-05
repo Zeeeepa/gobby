@@ -6,7 +6,7 @@ description: |
   Supports multiple workflows via the `workflows` map:
   - box: Interactive orchestrator (Claude Code terminal) - DEFAULT
   - box-pipeline: Automated orchestrator (daemon background)
-  - worker: Task executor (Gemini in worktree)
+  - worker: Task executor (Gemini in clone)
   - code-review: Review worker changes
   - worktree-merge: Merge and cleanup
 
