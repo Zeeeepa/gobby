@@ -126,11 +126,12 @@ def create_skills_registry(
                 )
 
             return {
+                "success": True,
                 "count": len(skill_list),
                 "skills": skill_list,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- get_skill tool ---
 
@@ -158,7 +159,7 @@ def create_skills_registry(
         try:
             # Validate input
             if not skill_id and not name:
-                return {"error": "Either name or skill_id is required"}
+                return {"success": False, "error": "Either name or skill_id is required"}
 
             # Get skill by ID or name
             skill = None
@@ -172,10 +173,11 @@ def create_skills_registry(
                 skill = storage.get_by_name(name, project_id=project_id)
 
             if skill is None:
-                return {"error": f"Skill not found: {skill_id or name}"}
+                return {"success": False, "error": f"Skill not found: {skill_id or name}"}
 
             # Return full skill data
             return {
+                "success": True,
                 "skill": {
                     "id": skill.id,
                     "name": skill.name,
@@ -193,7 +195,7 @@ def create_skills_registry(
                 },
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- search_skills tool ---
 
@@ -250,7 +252,7 @@ def create_skills_registry(
         try:
             # Validate query
             if not query or not query.strip():
-                return {"error": "Query is required and cannot be empty"}
+                return {"success": False, "error": "Query is required and cannot be empty"}
 
             # Build filters
             filters = None
@@ -295,11 +297,12 @@ def create_skills_registry(
                 )
 
             return {
+                "success": True,
                 "count": len(result_list),
                 "results": result_list,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- remove_skill tool ---
 
@@ -324,7 +327,7 @@ def create_skills_registry(
         try:
             # Validate input
             if not skill_id and not name:
-                return {"error": "Either name or skill_id is required"}
+                return {"success": False, "error": "Either name or skill_id is required"}
 
             # Find the skill first to get its name
             skill = None
@@ -338,7 +341,7 @@ def create_skills_registry(
                 skill = storage.get_by_name(name, project_id=project_id)
 
             if skill is None:
-                return {"error": f"Skill not found: {skill_id or name}"}
+                return {"success": False, "error": f"Skill not found: {skill_id or name}"}
 
             # Store the name before deletion
             skill_name = skill.name
@@ -347,11 +350,12 @@ def create_skills_registry(
             storage.delete_skill(skill.id)
 
             return {
+                "success": True,
                 "removed": True,
                 "skill_name": skill_name,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- update_skill tool ---
 
@@ -379,7 +383,7 @@ def create_skills_registry(
         try:
             # Validate input
             if not skill_id and not name:
-                return {"error": "Either name or skill_id is required"}
+                return {"success": False, "error": "Either name or skill_id is required"}
 
             # Find the skill first
             skill = None
@@ -393,22 +397,23 @@ def create_skills_registry(
                 skill = storage.get_by_name(name, project_id=project_id)
 
             if skill is None:
-                return {"error": f"Skill not found: {skill_id or name}"}
+                return {"success": False, "error": f"Skill not found: {skill_id or name}"}
 
             # Use SkillUpdater to refresh from source
             # (notifier triggers re-indexing automatically if updated)
             result = updater.update_skill(skill.id)
 
             if result.error:
-                return {"error": result.error}
+                return {"success": False, "error": result.error}
 
             return {
+                "success": True,
                 "updated": result.updated,
                 "skipped": result.skipped,
                 "skip_reason": result.skip_reason,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- install_skill tool ---
 
@@ -441,7 +446,7 @@ def create_skills_registry(
         try:
             # Validate input
             if not source or not source.strip():
-                return {"error": "source parameter is required"}
+                return {"success": False, "error": "source parameter is required"}
 
             source = source.strip()
 
@@ -462,10 +467,10 @@ def create_skills_registry(
                 hub_name, skill_slug = hub_match.groups()
 
                 if hub_manager is None:
-                    return {"error": "No hub manager configured. Add hubs to config to enable hub installs."}
+                    return {"success": False, "error": "No hub manager configured. Add hubs to config to enable hub installs."}
 
                 if not hub_manager.has_hub(hub_name):
-                    return {"error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs."}
+                    return {"success": False, "error": f"Unknown hub: {hub_name}. Use list_hubs to see available hubs."}
 
                 try:
                     # Get the provider and download the skill
@@ -473,7 +478,7 @@ def create_skills_registry(
                     download_result = await provider.download_skill(skill_slug)
 
                     if not download_result.success or not download_result.path:
-                        return {"error": f"Failed to download from hub: {download_result.error or 'Unknown error'}"}
+                        return {"success": False, "error": f"Failed to download from hub: {download_result.error or 'Unknown error'}"}
 
                     # Load the skill from the downloaded path
                     skill_path = Path(download_result.path)
@@ -481,7 +486,7 @@ def create_skills_registry(
                     source_type = "hub"
 
                 except Exception as e:
-                    return {"error": f"Failed to install from hub {hub_name}: {e}"}
+                    return {"success": False, "error": f"Failed to install from hub {hub_name}: {e}"}
 
             # Check if it's a GitHub URL/reference (only if not already parsed from hub)
             is_github_ref = False
@@ -520,37 +525,37 @@ def create_skills_registry(
                     parsed_skill = loader.load_from_github(source)
                     source_type = "github"
                 except SkillLoadError as e:
-                    return {"error": f"Failed to load from GitHub: {e}"}
+                    return {"success": False, "error": f"Failed to load from GitHub: {e}"}
 
             # Check if it's a ZIP file
             elif parsed_skill is None and source.endswith(".zip"):
                 zip_path = Path(source)
                 if not zip_path.exists():
-                    return {"error": f"ZIP file not found: {source}"}
+                    return {"success": False, "error": f"ZIP file not found: {source}"}
                 try:
                     parsed_skill = loader.load_from_zip(zip_path)
                     source_type = "zip"
                 except SkillLoadError as e:
-                    return {"error": f"Failed to load from ZIP: {e}"}
+                    return {"success": False, "error": f"Failed to load from ZIP: {e}"}
 
             # Assume it's a local path
             elif parsed_skill is None:
                 local_path = Path(source)
                 if not local_path.exists():
-                    return {"error": f"Path not found: {source}"}
+                    return {"success": False, "error": f"Path not found: {source}"}
                 try:
                     parsed_skill = loader.load_skill(local_path)
                     source_type = "local"
                 except SkillLoadError as e:
-                    return {"error": f"Failed to load skill: {e}"}
+                    return {"success": False, "error": f"Failed to load skill: {e}"}
 
             if parsed_skill is None:
-                return {"error": "Failed to load skill from source"}
+                return {"success": False, "error": "Failed to load skill from source"}
 
             # Handle case where load_from_github/load_from_zip returns a list
             if isinstance(parsed_skill, list):
                 if len(parsed_skill) == 0:
-                    return {"error": "No skills found in source"}
+                    return {"success": False, "error": "No skills found in source"}
                 # Use the first skill if multiple were found
                 parsed_skill = parsed_skill[0]
 
@@ -576,13 +581,14 @@ def create_skills_registry(
             # Notifier triggers re-indexing automatically via create_skill
 
             return {
+                "success": True,
                 "installed": True,
                 "skill_id": skill.id,
                 "skill_name": skill.name,
                 "source_type": source_type,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- list_hubs tool ---
 
@@ -602,6 +608,7 @@ def create_skills_registry(
         try:
             if hub_manager is None:
                 return {
+                    "success": True,
                     "count": 0,
                     "hubs": [],
                 }
@@ -620,11 +627,12 @@ def create_skills_registry(
                 )
 
             return {
+                "success": True,
                 "count": len(hubs_list),
                 "hubs": hubs_list,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     # --- search_hub tool ---
 
@@ -651,10 +659,10 @@ def create_skills_registry(
         try:
             # Validate query
             if not query or not query.strip():
-                return {"error": "Query is required and cannot be empty"}
+                return {"success": False, "error": "Query is required and cannot be empty"}
 
             if hub_manager is None:
-                return {"error": "No hub manager configured. Add hubs to config to enable hub search."}
+                return {"success": False, "error": "No hub manager configured. Add hubs to config to enable hub search."}
 
             # Build hub filter
             hub_names_filter = [hub_name] if hub_name else None
@@ -667,10 +675,11 @@ def create_skills_registry(
             )
 
             return {
+                "success": True,
                 "count": len(results),
                 "results": results,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     return registry
