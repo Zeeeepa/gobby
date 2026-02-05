@@ -214,6 +214,27 @@ class AgentDefinition(BaseModel):
         # Fall back to agent-level mode
         return self.mode  # type: ignore[return-value]
 
+    def get_orchestrator_workflow(self) -> str | None:
+        """
+        Get the orchestrator workflow name if this agent has one.
+
+        An orchestrator workflow is a default workflow with mode: self,
+        meaning it activates in the caller's session rather than spawning
+        a new agent. Non-default workflows should only be spawned by
+        sessions that have the orchestrator workflow active.
+
+        Returns:
+            Workflow name if agent has an orchestrator, None otherwise.
+        """
+        if not self.default_workflow or not self.workflows:
+            return None
+
+        default_spec = self.workflows.get(self.default_workflow)
+        if default_spec and default_spec.mode == "self":
+            return self.default_workflow
+
+        return None
+
 
 class AgentDefinitionLoader:
     """

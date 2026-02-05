@@ -621,6 +621,47 @@ def create_spawn_agent_registry(
         if agent_def is None and agent != "generic":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
+        # Check orchestrator workflow enforcement:
+        # If agent has a default workflow with mode: self (orchestrator), then
+        # non-default workflows can only be spawned by sessions running the orchestrator.
+        if agent_def and workflow and workflow != agent_def.default_workflow:
+            orchestrator_wf = agent_def.get_orchestrator_workflow()
+            if orchestrator_wf:
+                # Get parent session's workflow to verify orchestrator is active
+                parent_workflow: str | None = None
+                if session_manager and resolved_parent_session_id:
+                    try:
+                        parent_session = session_manager.get_session(resolved_parent_session_id)
+                        if parent_session:
+                            parent_workflow = parent_session.workflow_name
+                    except Exception as e:
+                        logger.warning(f"Could not get parent session workflow: {e}")
+
+                # Build expected orchestrator workflow names
+                # Could be "agent:workflow" (inline) or file reference
+                orchestrator_spec = agent_def.get_workflow_spec(orchestrator_wf)
+                expected_names = {
+                    f"{agent_def.name}:{orchestrator_wf}",  # Inline: meeseeks:box
+                    f"{agent}:{orchestrator_wf}",  # Using param agent name
+                    orchestrator_wf,  # Just the workflow key
+                }
+                if orchestrator_spec and orchestrator_spec.file:
+                    expected_names.add(orchestrator_spec.file.removesuffix(".yaml"))
+
+                if parent_workflow not in expected_names:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Cannot spawn '{agent}' with workflow='{workflow}' directly. "
+                            f"The '{orchestrator_wf}' orchestrator workflow must be active first.\n\n"
+                            f"Either:\n"
+                            f"1. Use spawn_agent(agent=\"{agent}\") without workflow param "
+                            f"(activates orchestrator in your session)\n"
+                            f"2. Or activate the orchestrator first: "
+                            f"activate_workflow(name=\"{agent_def.get_effective_workflow(orchestrator_wf)}\")"
+                        ),
+                    }
+
         # Determine effective workflow using agent's named workflows map
         # Resolution: explicit param > agent's workflows map > legacy workflow field
         effective_workflow: str | None = None
