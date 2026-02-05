@@ -709,6 +709,12 @@ def create_spawn_agent_registry(
                     f"Check available workflows with list_workflows().",
                 }
 
+        # Determine workflow_key for mode resolution
+        # Use explicit workflow param, or fall back to default_workflow key
+        resolved_workflow_key = workflow
+        if resolved_workflow_key is None and agent_def and agent_def.default_workflow:
+            resolved_workflow_key = agent_def.default_workflow
+
         # Delegate to spawn_agent_impl
         return await spawn_agent_impl(
             prompt=prompt,
@@ -724,7 +730,7 @@ def create_spawn_agent_registry(
             clone_storage=clone_storage,
             clone_manager=clone_manager,
             workflow=effective_workflow,
-            workflow_key=workflow,  # Original key (e.g., "box") for mode resolution
+            workflow_key=resolved_workflow_key,  # Original key (e.g., "box") for mode resolution
             mode=mode,
             initial_step=initial_step,
             terminal=terminal,
