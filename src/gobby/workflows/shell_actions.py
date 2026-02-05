@@ -10,24 +10,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def handle_bash_run(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
-    """Handle the 'bash' workflow action.
+async def handle_shell_run(context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
+    """Handle the 'shell' workflow action.
+
+    Executes shell commands using the system's default shell:
+    - Unix/macOS: /bin/sh (typically bash or dash)
+    - Windows: cmd.exe
 
     Args:
         context: Action execution context
         **kwargs: Action parameters
-            command: Bash command to execute (can contain Jinja2 templates)
+            command: Shell command to execute (can contain Jinja2 templates)
             background: Whether to run in background (default: False)
             capture_output: Whether to capture stdout/stderr (default: True, ignored if background=True)
             cwd: Working directory for command (optional)
 
     Returns:
         Dict with execution results (stdout, stderr, exit_code, or pid)
+
+    Note:
+        Shell syntax varies by platform. For cross-platform compatibility,
+        use simple commands or check sys.platform for platform-specific syntax.
     """
     command_template = kwargs.get("command")
     if not command_template:
-        logger.warning("Missing 'command' parameter for bash action")
-        return {"error": "Missing 'command' parameter for bash action"}
+        logger.warning("Missing 'command' parameter for shell action")
+        return {"error": "Missing 'command' parameter for shell action"}
 
     background = kwargs.get("background", False)
     capture_output = kwargs.get("capture_output", True)
@@ -97,5 +105,5 @@ async def handle_bash_run(context: ActionContext, **kwargs: Any) -> dict[str, An
             }
 
     except Exception as e:
-        logger.error(f"Bash command execution failed: {e}", exc_info=True)
+        logger.error(f"Shell command execution failed: {e}", exc_info=True)
         return {"error": str(e), "exit_code": 1}

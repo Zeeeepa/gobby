@@ -207,6 +207,7 @@ async def test_bash_run_execution_exception(action_executor, action_context):
 
 @pytest.mark.asyncio
 async def test_run_alias(action_executor, action_context):
+    """Test that 'run' is an alias for shell action."""
     with patch("asyncio.create_subprocess_shell") as mock_run:
         mock_proc = AsyncMock()
         mock_proc.communicate.return_value = (b"alias\n", b"")
@@ -217,5 +218,22 @@ async def test_run_alias(action_executor, action_context):
 
         assert result is not None
         assert result["stdout"] == "alias"
+        assert result["exit_code"] == 0
+        mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_shell_action(action_executor, action_context):
+    """Test the primary 'shell' action name."""
+    with patch("asyncio.create_subprocess_shell") as mock_run:
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"shell\n", b"")
+        mock_proc.returncode = 0
+        mock_run.return_value = mock_proc
+
+        result = await action_executor.execute("shell", action_context, command="echo shell")
+
+        assert result is not None
+        assert result["stdout"] == "shell"
         assert result["exit_code"] == 0
         mock_run.assert_called_once()
