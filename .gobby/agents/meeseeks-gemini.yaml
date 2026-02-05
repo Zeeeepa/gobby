@@ -241,18 +241,15 @@ workflows:
               Your task is complete. You MUST now terminate by calling kill_agent.
               This is the ONLY action available to you. All other tools are blocked.
 
-              Call kill_agent now:
-              - server_name: "gobby-agents"
-              - tool_name: "kill_agent"
-              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
+              Step 1: Unlock kill_agent by fetching its schema:
+                mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
+
+              Step 2: Call kill_agent with your Gobby Session ID:
+                mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "YOUR_GOBBY_SESSION_ID"})
 
               NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
 
-              WHY: Each meeseeks worker handles exactly ONE task. Your task is done.
-              The parent orchestrator will review your work and spawn new workers for
-              remaining tasks. You cannot claim additional tasks or continue working.
-
-              kill_agent is your ONLY exit path. Call it now.
+              Do these two steps in order. kill_agent is your ONLY exit path.
 
         # Only allow the MCP tools needed to call kill_agent
         allowed_tools:

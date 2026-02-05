@@ -1,0 +1,79 @@
+name: debug-kill-agent
+description: |
+  Minimal debug agent to isolate kill_agent hook failure (task #7061).
+  Spawns a Gemini session in tmux, calls get_tool_schema, then kill_agent.
+  No clone, no task, no complexity - just the two MCP calls.
+
+mode: terminal
+terminal: tmux
+provider: gemini
+model: gemini-3-pro-preview
+isolation: null
+
+workflows:
+  default:
+    type: step
+    description: "Single step: get schema then kill self"
+    steps:
+      - name: kill
+        description: "Call get_tool_schema then kill_agent"
+        on_enter:
+          - action: inject_message
+            content: |
+              DEBUG AGENT: Your only job is to terminate yourself.
+
+              Step 1: Call get_tool_schema to unlock kill_agent
+                mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
+
+              Step 2: Call kill_agent with your Gobby Session ID
+                mcp__gobby__call_tool(server_name="gobby-agents", tool_name="kill_agent", arguments={"session_id": "YOUR_GOBBY_SESSION_ID"})
+
+              Replace YOUR_GOBBY_SESSION_ID with the Gobby Session ID shown at session start
+              (e.g., "Gobby Session ID: #N" - use the #N or UUID form).
+
+              Do these two steps in order. Nothing else.
+
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__get_tool_schema
+          - mcp__gobby__list_tools
+          - mcp__gobby__list_mcp_servers
+
+        blocked_tools:
+          - Edit
+          - Write
+          - NotebookEdit
+          - Bash
+          - Read
+          - Glob
+          - Grep
+          - Task
+          - spawn_agent
+          - activate_workflow
+
+        blocked_mcp_tools:
+          - gobby-tasks:*
+          - gobby-worktrees:*
+          - gobby-workflows:*
+
+        allowed_mcp_tools:
+          - gobby-agents:kill_agent
+          - gobby-agents:get_tool_schema
+
+        on_premature_stop:
+          action: block
+          message: "You must call kill_agent before stopping."
+
+        transitions:
+          - to: complete
+            when: "mcp_called('gobby-agents', 'kill_agent')"
+
+      - name: complete
+        description: "Done"
+
+    exit_condition: "current_step == 'complete'"
+
+default_workflow: default
+
+timeout: 120.0
+max_turns: 10
