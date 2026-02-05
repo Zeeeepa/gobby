@@ -56,6 +56,7 @@ class SpawnRequest:
     max_agent_depth: int = 3
     session_manager: Any | None = None  # Required for Gemini/Codex preflight
     machine_id: str | None = None
+    model: str | None = None  # Model override (e.g., gemini-3-pro-preview)
 
     # Sandbox configuration
     sandbox_config: SandboxConfig | None = None
@@ -149,6 +150,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         prompt=request.prompt,
         auto_approve=True,
         mode="terminal",
+        model=request.model,
     )
 
     # Resolve sandbox config if provided
@@ -323,6 +325,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         prompt=request.prompt,
         auto_approve=True,
         mode="terminal",
+        model=request.model,
     )
 
     # Resolve sandbox config if provided

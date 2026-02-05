@@ -15,6 +15,7 @@ def build_cli_command(
     working_directory: str | None = None,
     mode: str = "terminal",
     sandbox_args: list[str] | None = None,
+    model: str | None = None,
 ) -> list[str]:
     """
     Build the CLI command with proper prompt passing and permission flags.
@@ -52,6 +53,8 @@ def build_cli_command(
         # Claude-compatible CLI flags
         if session_id:
             command.extend(["--session-id", session_id])
+        if model:
+            command.extend(["--model", model])
         if auto_approve:
             # Skip all permission prompts for autonomous subagent operation
             command.append("--dangerously-skip-permissions")
@@ -62,6 +65,8 @@ def build_cli_command(
 
     elif cli == "gemini":
         # Gemini CLI flags
+        if model:
+            command.extend(["--model", model])
         if auto_approve:
             command.extend(["--approval-mode", "yolo"])
         # For terminal mode, use -i (prompt-interactive) to execute prompt and stay interactive

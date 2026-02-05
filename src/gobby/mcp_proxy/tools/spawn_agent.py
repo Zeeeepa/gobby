@@ -206,6 +206,11 @@ async def spawn_agent_impl(
         effective_mode = agent_def.get_effective_mode(workflow_key or workflow)
     effective_mode = effective_mode or "terminal"
 
+    # Resolve model from agent_def if not explicitly provided
+    effective_model = model
+    if effective_model is None and agent_def:
+        effective_model = agent_def.model
+
     # Resolve terminal from agent_def if not explicitly provided
     effective_terminal = terminal
     if effective_terminal == "auto" and agent_def and agent_def.terminal != "auto":
@@ -450,6 +455,7 @@ async def spawn_agent_impl(
         branch_name=isolation_ctx.branch_name,
         session_manager=runner._child_session_manager,
         machine_id=get_machine_id() or "unknown",
+        model=effective_model,
         sandbox_config=effective_sandbox_config,
     )
 
