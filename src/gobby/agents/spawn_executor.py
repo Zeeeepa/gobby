@@ -433,6 +433,7 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
         auto_approve=True,  # --full-auto for sandboxed autonomy
         gobby_session_id=gobby_session_id,
         working_directory=request.cwd,
+        model=request.model,
     )
 
     # Spawn in terminal
