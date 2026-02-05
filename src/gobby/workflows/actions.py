@@ -19,6 +19,7 @@ from gobby.workflows.autonomous_actions import (
     start_progress_tracking,
     stop_progress_tracking,
 )
+from gobby.workflows.bash_actions import handle_bash_run
 from gobby.workflows.context_actions import (
     handle_extract_handoff_context,
     handle_inject_context,
@@ -224,6 +225,10 @@ class ActionExecutor:
         # --- Todo actions ---
         self.register("write_todos", handle_write_todos)
         self.register("mark_todo_complete", handle_mark_todo_complete)
+
+        # --- Bash/shell actions ---
+        self.register("bash", handle_bash_run)
+        self.register("run", handle_bash_run)
 
         # --- LLM actions ---
         self.register("call_llm", handle_call_llm)
