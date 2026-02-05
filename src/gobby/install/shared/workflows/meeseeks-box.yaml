@@ -396,7 +396,7 @@ steps:
 
           1. Switch to main repo: cd /path/to/repo
           2. Squash merge: git merge --squash {{ variables.current_branch }}
-          3. Commit: git commit -m "[{{ variables.current_task_id }}] Merge from worktree"
+          3. Commit: git commit -m "[{{ project.name }}-{{ variables.current_task_id }}] Merge from worktree"
           4. Or use worktree merge tool if available
 
     allowed_tools:

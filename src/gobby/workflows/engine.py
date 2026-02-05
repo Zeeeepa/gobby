@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.storage.projects import LocalProjectManager
 from gobby.storage.workflow_audit import WorkflowAuditManager
 
 from .approval_flow import handle_approval_response
@@ -204,11 +205,19 @@ class WorkflowEngine:
                     "git_branch": session.git_branch,
                     "source": session.source,
                 }
+        # Look up project info for template context
+        project_info = {"name": "", "id": ""}
+        if event.project_id and self.action_executor and self.action_executor.db:
+            project_mgr = LocalProjectManager(self.action_executor.db)
+            project = project_mgr.get(event.project_id)
+            if project:
+                project_info = {"name": project.name, "id": project.id}
         eval_context = {
             "event": event,
             "workflow_state": state,
             "variables": SimpleNamespace(**state.variables),
             "session": SimpleNamespace(**session_info),
+            "project": SimpleNamespace(**project_info),
             "tool_name": event.data.get("tool_name"),
             "tool_args": event.data.get("tool_args", {}),
             # State attributes for transition conditions

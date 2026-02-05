@@ -120,7 +120,7 @@ workflows:
 
               **If you made file changes:**
               1. Stage your changes: git add <files>
-              2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
+              2. Commit with task reference: git commit -m "[{{ project.name }}-{{ variables.assigned_task_id }}] Description"
               3. Close the task WITH commit_sha using the close_task tool:
                  - server_name: "gobby-tasks"
                  - tool_name: "close_task"
