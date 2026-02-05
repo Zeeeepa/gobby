@@ -283,14 +283,14 @@ class RunningAgentRegistry:
         if ctx.get("tmux_pane"):
             try:
                 # Verify the pane exists before killing - prevents killing inherited/stale panes
-                verify_result = subprocess.run(
+                verify_result = subprocess.run(  # nosec B603 B607 - hardcoded tmux command
                     ["tmux", "display-message", "-t", ctx["tmux_pane"], "-p", "#{pane_id}"],
                     timeout=timeout,
                     capture_output=True,
                     text=True,
                 )
                 if verify_result.returncode == 0 and verify_result.stdout.strip():
-                    subprocess.run(
+                    subprocess.run(  # nosec B603 B607 - hardcoded tmux command
                         ["tmux", "kill-pane", "-t", ctx["tmux_pane"]],
                         timeout=timeout,
                         capture_output=True,
@@ -306,7 +306,7 @@ class RunningAgentRegistry:
         # Strategy 2: Kitty remote control (cross-platform)
         if term_program == "kitty" and ctx.get("kitty_window_id"):
             try:
-                subprocess.run(
+                subprocess.run(  # nosec B603 B607 - hardcoded kitty command
                     ["kitty", "@", "close-window", "--match", f"id:{ctx['kitty_window_id']}"],
                     timeout=timeout,
                     capture_output=True,
@@ -322,7 +322,7 @@ class RunningAgentRegistry:
         # Strategy 3: Alacritty socket IPC (cross-platform)
         if term_program == "alacritty" and ctx.get("alacritty_socket"):
             try:
-                subprocess.run(
+                subprocess.run(  # nosec B603 B607 - hardcoded alacritty command
                     ["alacritty", "msg", "--socket", ctx["alacritty_socket"], "close"],
                     timeout=timeout,
                     capture_output=True,
@@ -338,7 +338,7 @@ class RunningAgentRegistry:
             if "iterm" in term_program and ctx.get("iterm_session_id"):
                 try:
                     script = f'tell app "iTerm2" to close (session id "{ctx["iterm_session_id"]}")'
-                    subprocess.run(
+                    subprocess.run(  # nosec B603 B607 - osascript is safe, args built from config
                         ["osascript", "-e", script],
                         timeout=timeout,
                         capture_output=True,
@@ -352,7 +352,7 @@ class RunningAgentRegistry:
                 try:
                     # Close window by matching the session process
                     script = 'tell app "Terminal" to close front window'
-                    subprocess.run(
+                    subprocess.run(  # nosec B603 B607 - osascript with internal AppleScript
                         ["osascript", "-e", script],
                         timeout=timeout,
                         capture_output=True,
@@ -365,7 +365,7 @@ class RunningAgentRegistry:
             if "ghostty" in term_program:
                 try:
                     # Ghostty doesn't have remote control, but we can find its window process
-                    result = subprocess.run(
+                    result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
                         ["pgrep", "-f", f"ghostty.*{agent.session_id}"],
                         capture_output=True,
                         text=True,
@@ -385,7 +385,7 @@ class RunningAgentRegistry:
             if parent_pid:
                 try:
                     # /T kills the entire process tree
-                    subprocess.run(
+                    subprocess.run(  # nosec B603 B607 - hardcoded taskkill command
                         ["taskkill", "/F", "/T", "/PID", str(parent_pid)],
                         timeout=timeout,
                         capture_output=True,
@@ -399,7 +399,7 @@ class RunningAgentRegistry:
         # Strategy 7: pgrep for terminal with session_id in args (macOS + Linux)
         if not is_windows and term_program:
             try:
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
                     ["pgrep", "-f", f"{term_program}.*{agent.session_id}"],
                     capture_output=True,
                     text=True,
@@ -418,7 +418,7 @@ class RunningAgentRegistry:
             try:
                 pid = int(parent_pid)
                 if is_windows:
-                    subprocess.run(
+                    subprocess.run(  # nosec B603 B607 - hardcoded taskkill command
                         ["taskkill", "/F", "/PID", str(pid)],
                         timeout=timeout,
                         capture_output=True,

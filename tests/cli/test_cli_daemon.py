@@ -37,6 +37,7 @@ class TestStartCommand:
         config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
+        config.watchdog.enabled = False
         return config
 
     def test_start_help(self, runner: CliRunner) -> None:
@@ -516,6 +517,7 @@ class TestRestartCommand:
         config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
+        config.watchdog.enabled = False
         return config
 
     def test_restart_help(self, runner: CliRunner) -> None:
@@ -673,6 +675,7 @@ class TestStatusCommand:
         config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
+        config.watchdog.enabled = False
         return config
 
     def test_status_help(self, runner: CliRunner) -> None:
@@ -856,6 +859,7 @@ class TestDaemonCommandsIntegration:
         config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
+        config.watchdog.enabled = False
         return config
 
     @pytest.fixture
@@ -950,6 +954,7 @@ class TestEdgeCases:
         config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
+        config.watchdog.enabled = False
         return config
 
     @pytest.fixture
@@ -1178,6 +1183,7 @@ class TestCommandBuilding:
         config.websocket.port = 60888
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
+        config.watchdog.enabled = False
         return config
 
     @pytest.fixture

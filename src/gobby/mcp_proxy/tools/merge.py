@@ -105,7 +105,10 @@ def create_merge_registry(
                     worktree_path = worktree.worktree_path
 
             if not worktree_path:
-                return {"success": False, "error": f"Worktree '{worktree_id}' not found or has no path"}
+                return {
+                    "success": False,
+                    "error": f"Worktree '{worktree_id}' not found or has no path",
+                }
 
             result = await merge_resolver.resolve(
                 worktree_path=worktree_path,
@@ -133,7 +136,7 @@ def create_merge_registry(
                 )
 
             return {
-                "success": True,
+                "success": result.success,
                 "resolution_id": resolution.id,
                 "tier": result.tier.value,
                 "needs_human_review": result.needs_human_review,
