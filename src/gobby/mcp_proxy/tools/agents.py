@@ -289,6 +289,15 @@ def create_agents_registry(
                     except Exception as e:
                         result["workflow_delete_error"] = str(e)
 
+                # Mark session as 'expired' so transcript gets processed
+                # (Gemini sessions don't transition to expired via normal flow)
+                if session_manager is not None:
+                    try:
+                        session_manager.update_status(agent_session_id, "expired")
+                        result["session_expired"] = True
+                    except Exception as e:
+                        result["session_expire_error"] = str(e)
+
         return result
 
     @registry.tool(

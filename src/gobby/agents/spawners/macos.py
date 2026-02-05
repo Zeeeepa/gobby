@@ -85,11 +85,13 @@ class GhosttySpawner(TerminalSpawnerBase):
                 # Add any extra options from config
                 ghostty_args.extend(tty_config.options)
                 # Inject env vars into the command since macOS 'open' doesn't pass them
+                # Also clear VIRTUAL_ENV to prevent uv warnings in clones
                 if env:
                     exports = " ".join(
                         f"export {shlex.quote(k)}={shlex.quote(v)};" for k, v in env.items()
                     )
-                    shell_cmd = f"{exports} exec {shlex.join(command)}"
+                    # Unset VIRTUAL_ENV to avoid "does not match project environment" warning
+                    shell_cmd = f"unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT; {exports} exec {shlex.join(command)}"
                     ghostty_args.extend(["-e", "sh", "-c", shell_cmd])
                 else:
                     ghostty_args.extend(["-e"] + command)
