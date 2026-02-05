@@ -42,6 +42,26 @@ from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
 from gobby.config.watchdog import WatchdogConfig
 
+
+class UIConfig(BaseModel):
+    """Configuration for the web UI."""
+
+    enabled: bool = Field(default=False, description="Enable web UI serving")
+    mode: str = Field(default="production", description="'production' or 'dev'")
+    port: int = Field(default=5173, description="Dev server port (dev mode only)")
+    host: str = Field(default="localhost", description="Dev server host (dev mode only)")
+    web_dir: str | None = Field(
+        default=None, description="Path to web/ dir (auto-detected if None)"
+    )
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, v: str) -> str:
+        if v not in ("production", "dev"):
+            raise ValueError("UI mode must be 'production' or 'dev'")
+        return v
+
+
 __all__ = [
     # Local definitions only - no re-exports
     "ConductorConfig",
@@ -274,6 +294,10 @@ class DaemonConfig(BaseModel):
     watchdog: WatchdogConfig = Field(
         default_factory=WatchdogConfig,
         description="Daemon watchdog process configuration",
+    )
+    ui: UIConfig = Field(
+        default_factory=UIConfig,
+        description="Web UI configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:

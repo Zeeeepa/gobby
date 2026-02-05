@@ -7,6 +7,7 @@ import os
 import signal
 import time
 from pathlib import Path
+from typing import Any
 
 import click
 import psutil
@@ -486,6 +487,182 @@ def stop_watchdog(quiet: bool = False) -> bool:
         return False
 
 
+def find_web_dir(config: Any = None) -> Path | None:
+    """Find the web UI directory.
+
+    Search order:
+    1. config.ui.web_dir if set
+    2. cwd / web/ (has package.json)
+    3. Relative to gobby package (src/gobby/ui/web/)
+
+    Args:
+        config: DaemonConfig instance (optional)
+
+    Returns:
+        Path to web/ directory, or None if not found
+    """
+    # 1. Explicit config path
+    if config and hasattr(config, "ui") and config.ui.web_dir:
+        p = Path(config.ui.web_dir).expanduser()
+        if p.exists() and (p / "package.json").exists():
+            return p
+
+    # 2. cwd / web/
+    cwd_web = Path.cwd() / "web"
+    if cwd_web.exists() and (cwd_web / "package.json").exists():
+        return cwd_web
+
+    # 3. Relative to gobby package
+    try:
+        import gobby
+
+        pkg_web = Path(gobby.__file__).parent / "ui" / "web"
+        if pkg_web.exists() and (pkg_web / "package.json").exists():
+            return pkg_web
+    except Exception:
+        pass
+
+    return None
+
+
+def spawn_ui_server(
+    host: str, port: int, web_dir: Path, log_file: Path
+) -> int | None:
+    """Spawn the UI dev server as a detached subprocess.
+
+    Args:
+        host: Host to bind dev server to
+        port: Port for dev server
+        web_dir: Path to web/ directory
+        log_file: Path to UI log file
+
+    Returns:
+        Process PID, or None on failure
+    """
+    import subprocess  # nosec B404
+
+    # Install deps if needed
+    node_modules = web_dir / "node_modules"
+    if not node_modules.exists():
+        logger.debug("Installing web UI dependencies...")
+        result = subprocess.run(  # nosec B603 B607
+            ["npm", "install"],
+            cwd=web_dir,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            logger.error(f"Failed to install UI dependencies: {result.stderr.decode()}")
+            return None
+
+    cmd = ["npm", "run", "dev", "--", "--host", host, "--port", str(port)]
+
+    try:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_f = open(log_file, "a")
+
+        process = subprocess.Popen(  # nosec B603 B607
+            cmd,
+            cwd=web_dir,
+            stdout=log_f,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            env=os.environ.copy(),
+        )
+
+        log_f.close()
+
+        # Write PID file
+        pid_file = get_gobby_home() / "ui.pid"
+        with open(pid_file, "w") as f:
+            f.write(str(process.pid))
+
+        return process.pid
+
+    except Exception as e:
+        logger.error(f"Failed to spawn UI server: {e}")
+        return None
+
+
+def stop_ui_server(quiet: bool = False) -> bool:
+    """Stop the UI dev server. Returns True on success, False on failure.
+
+    Kills the npm process and its node child processes.
+
+    Args:
+        quiet: If True, suppress output messages
+
+    Returns:
+        True if UI server was stopped successfully or wasn't running, False on error
+    """
+    pid_file = get_gobby_home() / "ui.pid"
+
+    if not pid_file.exists():
+        if not quiet:
+            logger.debug("UI server not running (no PID file)")
+        return True
+
+    try:
+        with open(pid_file) as f:
+            pid = int(f.read().strip())
+    except Exception as e:
+        if not quiet:
+            logger.debug(f"Error reading UI PID file: {e}")
+        pid_file.unlink(missing_ok=True)
+        return True
+
+    # Check if process is actually running
+    if not _is_process_alive(pid):
+        if not quiet:
+            logger.debug(f"UI server not running (stale PID file with PID {pid})")
+        pid_file.unlink(missing_ok=True)
+        return True
+
+    try:
+        # Kill process tree (npm spawns node child)
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
+
+        # Send SIGTERM to parent first
+        os.kill(pid, signal.SIGTERM)
+        if not quiet:
+            click.echo(f"Stopping UI server (PID {pid})")
+
+        # Wait for parent to stop
+        max_wait = 5
+        for _ in range(max_wait * 10):
+            time.sleep(0.1)
+            if not _is_process_alive(pid):
+                break
+
+        # Kill any remaining children
+        for child in children:
+            try:
+                if child.is_running():
+                    child.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+
+        # Force kill parent if still alive
+        if _is_process_alive(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+                time.sleep(0.5)
+            except ProcessLookupError:
+                pass
+
+        pid_file.unlink(missing_ok=True)
+        return True
+
+    except (ProcessLookupError, psutil.NoSuchProcess):
+        pid_file.unlink(missing_ok=True)
+        return True
+    except Exception as e:
+        if not quiet:
+            logger.debug(f"Error stopping UI server: {e}")
+        return False
+
+
 def stop_daemon(quiet: bool = False) -> bool:
     """Stop the daemon process. Returns True on success, False on failure.
 
@@ -497,7 +674,10 @@ def stop_daemon(quiet: bool = False) -> bool:
     Returns:
         True if daemon was stopped successfully or wasn't running, False on error
     """
-    # Stop watchdog first to prevent it from restarting the daemon
+    # Stop UI server first
+    stop_ui_server(quiet=True)
+
+    # Stop watchdog to prevent it from restarting the daemon
     stop_watchdog(quiet=True)
 
     pid_file = get_gobby_home() / "gobby.pid"

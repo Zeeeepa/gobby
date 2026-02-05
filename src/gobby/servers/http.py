@@ -458,7 +458,57 @@ class HTTPServer:
             app.mount("/mcp", mcp_app)
             logger.debug("MCP server mounted at /mcp")
 
+        # Mount static files for production UI mode
+        if (
+            self.services.config
+            and self.services.config.ui.enabled
+            and self.services.config.ui.mode == "production"
+        ):
+            self._mount_production_ui(app)
+
         return app
+
+    def _mount_production_ui(self, app: FastAPI) -> None:
+        """Mount static files and SPA catch-all for production UI mode."""
+        from fastapi.responses import FileResponse
+        from fastapi.staticfiles import StaticFiles
+
+        from gobby.cli.utils import find_web_dir
+
+        web_dir = find_web_dir(self.services.config)
+        if not web_dir:
+            logger.warning("UI enabled in production mode but web/ directory not found")
+            return
+
+        dist_dir = web_dir / "dist"
+        if not dist_dir.exists():
+            logger.warning(f"UI dist directory not found at {dist_dir}. Run 'gobby ui build' first.")
+            return
+
+        index_html = dist_dir / "index.html"
+        if not index_html.exists():
+            logger.warning(f"index.html not found in {dist_dir}")
+            return
+
+        # Mount /assets for Vite-built JS/CSS
+        assets_dir = dist_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="ui-assets")
+
+        # SPA catch-all: serve index.html for non-API paths
+        @app.get("/{path:path}")
+        async def spa_catch_all(request: Request, path: str) -> FileResponse:
+            # Don't intercept API, admin, MCP, or WebSocket paths
+            if path.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws")):
+                raise HTTPException(status_code=404)
+            # Serve static file if it exists
+            static_file = dist_dir / path
+            if path and static_file.exists() and static_file.is_file():
+                return FileResponse(str(static_file))
+            # Fallback to index.html for SPA routing
+            return FileResponse(str(index_html))
+
+        logger.info(f"Production UI mounted from {dist_dir}")
 
     def _register_exception_handlers(self, app: FastAPI) -> None:
         """

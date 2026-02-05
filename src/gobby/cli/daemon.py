@@ -17,12 +17,14 @@ import psutil
 from gobby.utils.status import fetch_rich_status, format_status_message
 
 from .utils import (
+    find_web_dir,
     format_uptime,
     get_gobby_home,
     init_local_storage,
     is_port_available,
     kill_all_gobby_daemons,
     setup_logging,
+    spawn_ui_server,
     wait_for_port_available,
 )
 from .utils import (
@@ -81,8 +83,13 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     is_flag=True,
     help="Disable watchdog process (watchdog is enabled by default)",
 )
+@click.option(
+    "--no-ui",
+    is_flag=True,
+    help="Disable auto-starting the web UI",
+)
 @click.pass_context
-def start(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
+def start(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> None:
     """Start the Gobby daemon."""
     # Get config object
     config = ctx.obj["config"]
@@ -211,6 +218,24 @@ def start(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
                 with open(watchdog_pid_file, "w") as f:
                     f.write(str(watchdog_pid))
 
+        # Spawn UI server if enabled
+        ui_pid = None
+        ui_url = None
+        if daemon_healthy and not no_ui and config.ui.enabled:
+            if config.ui.mode == "dev":
+                web_dir = find_web_dir(config)
+                if web_dir:
+                    ui_log = Path(config.logging.client).expanduser().parent / "ui.log"
+                    ui_pid = spawn_ui_server(
+                        config.ui.host, config.ui.port, web_dir, ui_log
+                    )
+                    if ui_pid:
+                        ui_url = f"http://{config.ui.host}:{config.ui.port}"
+                else:
+                    click.echo("Warning: Web UI enabled but web/ directory not found")
+            elif config.ui.mode == "production":
+                ui_url = f"http://localhost:{http_port}/"
+
         # Format and display status
         status_kwargs = {
             "running": daemon_healthy,
@@ -220,6 +245,10 @@ def start(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
             "http_port": http_port,
             "websocket_port": ws_port,
             "watchdog_pid": watchdog_pid,
+            "ui_enabled": config.ui.enabled and not no_ui,
+            "ui_mode": config.ui.mode if config.ui.enabled and not no_ui else None,
+            "ui_url": ui_url,
+            "ui_pid": ui_pid,
         }
 
         # Fetch rich status if daemon is healthy
@@ -266,8 +295,13 @@ def stop(ctx: click.Context) -> None:
     is_flag=True,
     help="Disable watchdog process (watchdog is enabled by default)",
 )
+@click.option(
+    "--no-ui",
+    is_flag=True,
+    help="Disable auto-starting the web UI",
+)
 @click.pass_context
-def restart(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
+def restart(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 
@@ -282,7 +316,7 @@ def restart(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
     time.sleep(3)
 
     # Call start command
-    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog)
+    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog, no_ui=no_ui)
 
 
 @click.command()
@@ -340,6 +374,27 @@ def status(ctx: click.Context) -> None:
         except (ProcessLookupError, ValueError, OSError):
             pass  # Watchdog not running or stale PID file
 
+    # Check UI server status
+    ui_enabled = config.ui.enabled
+    ui_mode = config.ui.mode if ui_enabled else None
+    ui_url = None
+    ui_pid = None
+
+    if ui_enabled:
+        if ui_mode == "dev":
+            ui_pid_file = get_gobby_home() / "ui.pid"
+            if ui_pid_file.exists():
+                try:
+                    with open(ui_pid_file) as f:
+                        _ui_pid = int(f.read().strip())
+                    os.kill(_ui_pid, 0)
+                    ui_pid = _ui_pid
+                    ui_url = f"http://{config.ui.host}:{config.ui.port}"
+                except (ProcessLookupError, ValueError, OSError):
+                    pass  # UI server not running or stale PID file
+        elif ui_mode == "production":
+            ui_url = f"http://localhost:{http_port}/"
+
     # Build status kwargs
     status_kwargs: dict[str, Any] = {
         "running": True,
@@ -350,6 +405,10 @@ def status(ctx: click.Context) -> None:
         "http_port": http_port,
         "websocket_port": websocket_port,
         "watchdog_pid": watchdog_pid,
+        "ui_enabled": ui_enabled,
+        "ui_mode": ui_mode,
+        "ui_url": ui_url,
+        "ui_pid": ui_pid,
     }
 
     # Fetch rich status from daemon API

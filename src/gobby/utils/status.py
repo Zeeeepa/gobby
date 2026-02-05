@@ -133,6 +133,11 @@ def format_status_message(
     skills_total: int | None = None,
     # Artifacts
     artifacts_count: int | None = None,
+    # UI info
+    ui_enabled: bool | None = None,
+    ui_mode: str | None = None,
+    ui_url: str | None = None,
+    ui_pid: int | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -208,6 +213,18 @@ def format_status_message(
             lines.append(f"  HTTP: localhost:{http_port}")
         if websocket_port:
             lines.append(f"  WebSocket: localhost:{websocket_port}")
+        lines.append("")
+
+    # Web UI section (only show if enabled)
+    if ui_enabled:
+        lines.append("Web UI:")
+        if ui_mode == "dev":
+            if ui_pid:
+                lines.append(f"  Mode: dev | Running (PID: {ui_pid}) at {ui_url}")
+            else:
+                lines.append("  Mode: dev | Stopped")
+        elif ui_mode == "production":
+            lines.append(f"  Mode: production | Serving at {ui_url}")
         lines.append("")
 
     # MCP Proxy section (only show if we have data)

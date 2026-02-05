@@ -1,28 +1,127 @@
 """
-CLI commands for Gobby web UI development.
+CLI commands for Gobby web UI management and development.
 """
 
+import os
 import subprocess  # nosec B404 - subprocess needed for npm commands
 import sys
 from pathlib import Path
 
 import click
 
-# Path to web UI directory
+from .utils import find_web_dir, get_gobby_home, spawn_ui_server, stop_ui_server
+
+# Path to web UI directory (legacy fallback)
 WEB_UI_DIR = Path(__file__).parent.parent / "ui" / "web"
+
+
+def _get_ui_pid() -> int | None:
+    """Read UI server PID if running."""
+    pid_file = get_gobby_home() / "ui.pid"
+    if not pid_file.exists():
+        return None
+    try:
+        with open(pid_file) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)
+        return pid
+    except (ProcessLookupError, ValueError, OSError):
+        return None
 
 
 @click.group()
 def ui() -> None:
-    """Web UI development commands."""
+    """Web UI management and development commands."""
     pass
+
+
+@ui.command("start")
+@click.pass_context
+def ui_start(ctx: click.Context) -> None:
+    """Start the web UI server."""
+    config = ctx.obj["config"]
+
+    if not config.ui.enabled:
+        click.echo("Web UI is not enabled. Set ui.enabled: true in config.", err=True)
+        sys.exit(1)
+
+    # Check if already running (dev mode)
+    if config.ui.mode == "dev":
+        existing_pid = _get_ui_pid()
+        if existing_pid:
+            click.echo(f"UI server is already running (PID: {existing_pid})", err=True)
+            sys.exit(1)
+
+        web_dir = find_web_dir(config)
+        if not web_dir:
+            click.echo("Error: Web UI directory not found", err=True)
+            sys.exit(1)
+
+        ui_log = Path(config.logging.client).expanduser().parent / "ui.log"
+        pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
+        if pid:
+            click.echo(f"UI dev server started (PID: {pid}) at http://{config.ui.host}:{config.ui.port}")
+        else:
+            click.echo("Failed to start UI server", err=True)
+            sys.exit(1)
+    else:
+        click.echo("Production mode UI is served by the daemon automatically.")
+        click.echo("Ensure the daemon is running with 'gobby start'.")
+
+
+@ui.command("stop")
+def ui_stop() -> None:
+    """Stop the web UI server."""
+    pid = _get_ui_pid()
+    if not pid:
+        click.echo("UI server is not running")
+        return
+
+    success = stop_ui_server(quiet=False)
+    if success:
+        click.echo("UI server stopped")
+    else:
+        click.echo("Failed to stop UI server", err=True)
+        sys.exit(1)
+
+
+@ui.command("restart")
+@click.pass_context
+def ui_restart(ctx: click.Context) -> None:
+    """Restart the web UI server."""
+    stop_ui_server(quiet=True)
+    ctx.invoke(ui_start)
+
+
+@ui.command("status")
+@click.pass_context
+def ui_status(ctx: click.Context) -> None:
+    """Show web UI server status."""
+    config = ctx.obj["config"]
+
+    if not config.ui.enabled:
+        click.echo("Web UI: Disabled")
+        return
+
+    click.echo(f"Web UI: Enabled (mode: {config.ui.mode})")
+
+    if config.ui.mode == "dev":
+        pid = _get_ui_pid()
+        if pid:
+            click.echo(f"  Status: Running (PID: {pid})")
+            click.echo(f"  URL: http://{config.ui.host}:{config.ui.port}")
+        else:
+            click.echo("  Status: Stopped")
+    elif config.ui.mode == "production":
+        click.echo(f"  URL: http://localhost:{config.daemon_port}/")
+        click.echo("  Status: Served by daemon (check 'gobby status')")
 
 
 @ui.command()
 @click.option("--port", "-p", default=5173, help="Dev server port")
 @click.option("--host", "-h", default="localhost", help="Dev server host")
 def dev(port: int, host: str) -> None:
-    """Start the web UI development server with hot-reload."""
+    """Start the web UI development server with hot-reload (foreground)."""
     if not WEB_UI_DIR.exists():
         click.echo(f"Error: Web UI directory not found at {WEB_UI_DIR}", err=True)
         sys.exit(1)

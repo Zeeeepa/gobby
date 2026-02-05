@@ -38,6 +38,7 @@ class TestStartCommand:
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         config.watchdog.enabled = False
+        config.ui.enabled = False
         return config
 
     def test_start_help(self, runner: CliRunner) -> None:
@@ -518,6 +519,7 @@ class TestRestartCommand:
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         config.watchdog.enabled = False
+        config.ui.enabled = False
         return config
 
     def test_restart_help(self, runner: CliRunner) -> None:
@@ -676,6 +678,7 @@ class TestStatusCommand:
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         config.watchdog.enabled = False
+        config.ui.enabled = False
         return config
 
     def test_status_help(self, runner: CliRunner) -> None:
@@ -860,6 +863,7 @@ class TestDaemonCommandsIntegration:
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         config.watchdog.enabled = False
+        config.ui.enabled = False
         return config
 
     @pytest.fixture
@@ -955,6 +959,7 @@ class TestEdgeCases:
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         config.watchdog.enabled = False
+        config.ui.enabled = False
         return config
 
     @pytest.fixture
@@ -1184,6 +1189,7 @@ class TestCommandBuilding:
         config.logging.client = "~/.gobby/logs/client.log"
         config.logging.client_error = "~/.gobby/logs/client_error.log"
         config.watchdog.enabled = False
+        config.ui.enabled = False
         return config
 
     @pytest.fixture
