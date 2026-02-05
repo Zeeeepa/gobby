@@ -183,6 +183,7 @@ def setup_internal_registries(
     if agent_runner is not None:
         from gobby.agents.definitions import AgentDefinitionLoader
         from gobby.mcp_proxy.tools.agents import create_agents_registry
+        from gobby.workflows.state_manager import WorkflowStateManager
 
         # Create clone git manager if we have a git manager
         clone_git_manager = None
@@ -193,6 +194,9 @@ def setup_internal_registries(
                 clone_git_manager = CloneGitManager(git_manager.repo_path)
             except Exception as e:
                 logger.debug(f"CloneGitManager not available for spawn_agent: {e}")
+
+        # Create workflow state manager for orchestrator workflow checking
+        workflow_state_manager = WorkflowStateManager(db) if db else None
 
         agents_registry = create_agents_registry(
             runner=agent_runner,
@@ -205,6 +209,7 @@ def setup_internal_registries(
             clone_manager=clone_git_manager,
             # For mode=self (workflow activation on caller session)
             workflow_loader=workflow_loader,
+            workflow_state_manager=workflow_state_manager,
             db=db,
         )
 

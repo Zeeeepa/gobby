@@ -627,15 +627,16 @@ def create_spawn_agent_registry(
         if agent_def and workflow and workflow != agent_def.default_workflow:
             orchestrator_wf = agent_def.get_orchestrator_workflow()
             if orchestrator_wf:
-                # Get parent session's workflow to verify orchestrator is active
+                # Get parent session's active workflow from WorkflowState
+                # (not Session.workflow_name, which is for terminal pickup metadata)
                 parent_workflow: str | None = None
-                if session_manager and resolved_parent_session_id:
+                if state_manager and resolved_parent_session_id:
                     try:
-                        parent_session = session_manager.get_session(resolved_parent_session_id)
-                        if parent_session:
-                            parent_workflow = parent_session.workflow_name
+                        parent_state = state_manager.get_state(resolved_parent_session_id)
+                        if parent_state:
+                            parent_workflow = parent_state.workflow_name
                     except Exception as e:
-                        logger.warning(f"Could not get parent session workflow: {e}")
+                        logger.warning(f"Could not get parent session workflow state: {e}")
 
                 # Build expected orchestrator workflow names
                 # Could be "agent:workflow" (inline) or file reference
