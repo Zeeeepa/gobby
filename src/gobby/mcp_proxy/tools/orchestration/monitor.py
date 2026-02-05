@@ -48,10 +48,7 @@ def register_monitor(
         try:
             resolved_parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {
-                "success": False,
-                "error": f"Invalid parent_task_id: {e}",
-            }
+            return {"success": False, "error": f"Invalid parent_task_id: {e}"}
 
         # Resolve project ID
         resolved_project_id = default_project_id
@@ -68,10 +65,7 @@ def register_monitor(
             resolved_project_id = get_current_project_id()
 
         if not resolved_project_id:
-            return {
-                "success": False,
-                "error": "Could not resolve project ID",
-            }
+            return {"success": False, "error": "Could not resolve project ID"}
 
         # Get subtasks
         subtasks = task_manager.list_tasks(parent_task_id=resolved_parent_task_id, limit=100)
@@ -168,10 +162,7 @@ def register_monitor(
             - summary: Counts of running/completed/failed
         """
         if agent_runner is None:
-            return {
-                "success": False,
-                "error": "Agent runner not configured",
-            }
+            return {"success": False, "error": "Agent runner not configured"}
 
         # Get workflow state
         from gobby.workflows.state_manager import WorkflowStateManager

@@ -180,10 +180,7 @@ def create_artifacts_registry(
                     "error": f"Artifact '{artifact_id}' not found",
                     "artifact": None,
                 }
-            return {
-                "success": True,
-                "artifact": artifact.to_dict(),
-            }
+            return {"success": True, "artifact": artifact.to_dict()}
         except Exception as e:
             return {"success": False, "error": str(e), "artifact": None}
 
@@ -218,7 +215,7 @@ def create_artifacts_registry(
         try:
             resolved_session_id = _resolve_session_id(session_id)
         except ValueError as e:
-            return {"success": False, "error": str(e), "artifacts": []}
+            return {"error": str(e), "artifacts": []}
 
         try:
             # Get artifacts (list_artifacts returns newest first by default)

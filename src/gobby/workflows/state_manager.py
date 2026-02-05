@@ -101,4 +101,32 @@ class WorkflowStateManager:
         )
 
     def delete_state(self, session_id: str) -> None:
-        self.db.execute("DELETE FROM workflow_states WHERE session_id = ?", (session_id,))
+        """
+        Clear step workflow state while preserving lifecycle variables.
+
+        This clears workflow_name, step, and related step-tracking fields,
+        but keeps the `variables` JSON which contains lifecycle workflow
+        state like unlocked_tools, task_claimed, etc.
+
+        Uses '__ended__' placeholder instead of NULL to satisfy NOT NULL constraints.
+        """
+        self.db.execute(
+            """
+            UPDATE workflow_states SET
+                workflow_name = '__ended__',
+                step = '__ended__',
+                step_entered_at = NULL,
+                step_action_count = 0,
+                total_action_count = 0,
+                artifacts = '{}',
+                observations = '[]',
+                reflection_pending = 0,
+                context_injected = 0,
+                task_list = NULL,
+                current_task_index = 0,
+                files_modified_this_task = 0,
+                updated_at = ?
+            WHERE session_id = ?
+            """,
+            (datetime.now(UTC).isoformat(), session_id),
+        )

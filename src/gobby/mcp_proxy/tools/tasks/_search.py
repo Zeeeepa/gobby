@@ -191,7 +191,6 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
         stats = ctx.task_manager.reindex_search(project_id)
 
         return {
-            "success": True,
             "message": f"Search index rebuilt with {stats.get('item_count', 0)} tasks",
             "stats": stats,
         }

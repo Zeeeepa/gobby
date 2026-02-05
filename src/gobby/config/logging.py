@@ -47,6 +47,10 @@ class LoggingSettings(BaseModel):
         default="~/.gobby/logs/mcp-client.log",
         description="MCP client connection log file path",
     )
+    watchdog: str = Field(
+        default="~/.gobby/logs/watchdog.log",
+        description="Watchdog process log file path",
+    )
 
     max_size_mb: int = Field(
         default=10,

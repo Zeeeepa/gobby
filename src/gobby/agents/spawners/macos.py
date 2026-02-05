@@ -10,7 +10,12 @@ import subprocess  # nosec B404 - subprocess needed for terminal spawning
 import tempfile
 from pathlib import Path
 
-from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
+from gobby.agents.spawners.base import (
+    SpawnResult,
+    TerminalSpawnerBase,
+    TerminalType,
+    make_spawn_env,
+)
 from gobby.agents.tty_config import get_tty_config
 
 __all__ = ["GhosttySpawner", "ITermSpawner", "TerminalAppSpawner"]
@@ -77,12 +82,24 @@ class GhosttySpawner(TerminalSpawnerBase):
                 # Build args for open command
                 # open -na /path/to/Ghostty.app --args [ghostty-options] -e [command]
                 # Note: 'open' doesn't pass cwd, so we must use --working-directory
+                # Note: 'open' doesn't pass env vars to the launched app, so we inject them
+                # into the shell command via export statements
                 ghostty_args = [f"--working-directory={cwd}"]
                 if title:
                     ghostty_args.append(f"--title={title}")
                 # Add any extra options from config
                 ghostty_args.extend(tty_config.options)
-                ghostty_args.extend(["-e"] + command)
+                # Inject env vars into the command since macOS 'open' doesn't pass them
+                # Also clear VIRTUAL_ENV to prevent uv warnings in clones
+                if env:
+                    exports = " ".join(
+                        f"export {shlex.quote(k)}={shlex.quote(v)};" for k, v in env.items()
+                    )
+                    # Unset VIRTUAL_ENV to avoid "does not match project environment" warning
+                    shell_cmd = f"unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT; {exports} exec {shlex.join(command)}"
+                    ghostty_args.extend(["-e", "sh", "-c", shell_cmd])
+                else:
+                    ghostty_args.extend(["-e"] + command)
 
                 # Check if Ghostty is already running
                 # If running: use -n to open a new window
@@ -102,16 +119,11 @@ class GhosttySpawner(TerminalSpawnerBase):
                 args.extend(tty_config.options)
                 args.extend(["-e"] + command)
 
-            # Merge environment
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             # Spawn process
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
                 cwd=cwd,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 start_new_session=True,
             )
 

@@ -160,9 +160,10 @@ def register_handoff_tools(
         except ValueError:
             session = None
         if not session:
-            return {"error": f"Session {session_id} not found", "found": False}
+            return {"success": False, "error": f"Session {session_id} not found", "found": False}
 
         return {
+            "success": True,
             "session_id": session.id,
             "ref": f"#{session.seq_num}" if session.seq_num else session.id[:8],
             "compact_markdown": session.compact_markdown,
@@ -307,15 +308,22 @@ Args:
                 provider = ClaudeLLMProvider(config)
                 transcript_parser = ClaudeTranscriptParser()
 
-                # Get prompt template from config
+                # Get prompt template: try PromptLoader first, then config fallback
                 prompt_template = None
-                if hasattr(config, "session_summary") and config.session_summary:
-                    prompt_template = getattr(config.session_summary, "prompt", None)
+                try:
+                    from gobby.prompts.loader import PromptLoader
+
+                    loader = PromptLoader()
+                    prompt_obj = loader.load("handoff/session_end")
+                    prompt_template = prompt_obj.content
+                except FileNotFoundError:
+                    # Fall back to config inline prompt (deprecated)
+                    if hasattr(config, "session_summary") and config.session_summary:
+                        prompt_template = getattr(config.session_summary, "prompt", None)
 
                 if not prompt_template:
                     raise ValueError(
-                        "No prompt template configured. "
-                        "Set 'session_summary.prompt' in ~/.gobby/config.yaml"
+                        "No prompt template found. Add ~/.gobby/prompts/handoff/session_end.md"
                     )
 
                 # Prepare context for LLM
@@ -423,7 +431,7 @@ Args:
         from gobby.utils.machine_id import get_machine_id
 
         if session_manager is None:
-            return {"error": "Session manager not available"}
+            return {"success": False, "error": "Session manager not available"}
 
         parent_session = None
 
@@ -433,7 +441,7 @@ Args:
                 resolved_id = _resolve_session_id(session_id)
                 parent_session = session_manager.get(resolved_id)
             except ValueError as e:
-                return {"error": str(e)}
+                return {"success": False, "error": str(e)}
 
         # Option 2: Find parent by project_id and source
         if not parent_session and project_id:
@@ -453,6 +461,7 @@ Args:
 
         if not parent_session:
             return {
+                "success": False,
                 "found": False,
                 "message": "No handoff-ready session found",
                 "filters": {
@@ -467,6 +476,7 @@ Args:
 
         if not context:
             return {
+                "success": False,
                 "found": True,
                 "session_id": parent_session.id,
                 "has_context": False,
@@ -482,6 +492,7 @@ Args:
             except ValueError as e:
                 # Do not fallback to raw reference - propagate the error
                 return {
+                    "success": False,
                     "found": True,
                     "session_id": parent_session.id,
                     "has_context": True,
@@ -490,6 +501,7 @@ Args:
                 }
 
         return {
+            "success": True,
             "found": True,
             "session_id": parent_session.id,
             "has_context": True,

@@ -80,17 +80,11 @@ def add_messaging_tools(
             # Look up session in database (authoritative source for relationships)
             session = session_manager.get(resolved_session_id)
             if not session:
-                return {
-                    "success": False,
-                    "error": f"Session {resolved_session_id} not found",
-                }
+                return {"success": False, "error": f"Session {resolved_session_id} not found"}
 
             parent_session_id = session.parent_session_id
             if not parent_session_id:
-                return {
-                    "success": False,
-                    "error": "No parent session for this session",
-                }
+                return {"success": False, "error": "No parent session for this session"}
 
             # Create the message
             msg = message_manager.create_message(
@@ -115,10 +109,7 @@ def add_messaging_tools(
 
         except Exception as e:
             logger.error("Failed to send message to parent: %s", e)
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="send_to_child",
@@ -156,10 +147,7 @@ def add_messaging_tools(
             # Verify the child exists in database and belongs to this parent
             child_session = session_manager.get(resolved_child_id)
             if not child_session:
-                return {
-                    "success": False,
-                    "error": f"Child session {resolved_child_id} not found",
-                }
+                return {"success": False, "error": f"Child session {resolved_child_id} not found"}
 
             if child_session.parent_session_id != resolved_parent_id:
                 return {
@@ -185,17 +173,11 @@ def add_messaging_tools(
                 msg.id,
             )
 
-            return {
-                "success": True,
-                "message": msg.to_dict(),
-            }
+            return {"success": True, "message": msg.to_dict()}
 
         except Exception as e:
             logger.error("Failed to send message to child: %s", e)
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="poll_messages",
@@ -238,10 +220,7 @@ def add_messaging_tools(
 
         except Exception as e:
             logger.error(f"Failed to poll messages: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="mark_message_read",
@@ -265,22 +244,13 @@ def add_messaging_tools(
         try:
             msg = message_manager.mark_read(message_id)
 
-            return {
-                "success": True,
-                "message": msg.to_dict(),
-            }
+            return {"success": True, "message": msg.to_dict()}
 
         except ValueError:
-            return {
-                "success": False,
-                "error": f"Message not found: {message_id}",
-            }
+            return {"success": False, "error": f"Message not found: {message_id}"}
         except Exception as e:
             logger.error(f"Failed to mark message as read: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="broadcast_to_children",
@@ -360,7 +330,4 @@ def add_messaging_tools(
 
         except Exception as e:
             logger.error("Failed to broadcast to children: %s", e)
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}

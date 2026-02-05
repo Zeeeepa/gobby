@@ -102,48 +102,105 @@ async def execute_spawn(request: SpawnRequest) -> SpawnResult:
             return await _spawn_gemini_terminal(request)
         elif request.provider == "codex":
             return await _spawn_codex_terminal(request)
-        return await _spawn_terminal(request)
+        return await _spawn_claude_terminal(request)
     elif request.mode == "embedded":
         return await _spawn_embedded(request)
     else:  # headless
         return await _spawn_headless(request)
 
 
-async def _spawn_terminal(request: SpawnRequest) -> SpawnResult:
-    """Spawn agent in external terminal."""
-    spawner = TerminalSpawner()
-    result = spawner.spawn_agent(
-        cli=request.provider,
-        cwd=request.cwd,
-        session_id=request.session_id,
-        parent_session_id=request.parent_session_id,
-        agent_run_id=request.run_id,
-        project_id=request.project_id,
-        workflow_name=request.workflow,
-        agent_depth=request.agent_depth,
-        max_agent_depth=request.max_agent_depth,
-        terminal=request.terminal,
-        prompt=request.prompt,
-        sandbox_config=request.sandbox_config,
-    )
+async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
+    """
+    Spawn Claude agent in terminal with proper session/workflow setup.
 
-    if not result.success:
+    Uses prepare_terminal_spawn to:
+    1. Create child session with parent linkage
+    2. Pass step_variables for workflow activation (e.g., assigned_task_id)
+    3. Set up environment variables for session matching
+    """
+    if request.session_manager is None:
         return SpawnResult(
             success=False,
             run_id=request.run_id,
-            child_session_id=request.session_id,
+            child_session_id=None,
             status="failed",
-            error=result.error or result.message,
+            error="session_manager is required for Claude spawn",
+        )
+
+    # Prepare spawn context (creates child session, builds env vars)
+    spawn_context = prepare_terminal_spawn(
+        session_manager=cast("ChildSessionManager", request.session_manager),
+        parent_session_id=request.parent_session_id,
+        project_id=request.project_id,
+        machine_id=request.machine_id or "unknown",
+        source="claude",
+        workflow_name=request.workflow,
+        step_variables=request.step_variables,
+        prompt=request.prompt,
+        max_agent_depth=request.max_agent_depth,
+        git_branch=request.branch_name,
+    )
+
+    gobby_session_id = spawn_context.session_id
+
+    # Build command for Claude CLI
+    cmd = build_cli_command(
+        cli="claude",
+        prompt=request.prompt,
+        auto_approve=True,
+        mode="terminal",
+    )
+
+    # Resolve sandbox config if provided
+    sandbox_args: list[str] = []
+    sandbox_env: dict[str, str] = {}
+    if request.sandbox_config and request.sandbox_config.enabled:
+        # Claude uses its own sandbox resolver
+        from gobby.agents.sandbox import ClaudeSandboxResolver
+
+        resolver = ClaudeSandboxResolver()
+        paths = compute_sandbox_paths(
+            config=request.sandbox_config,
+            workspace_path=request.cwd,
+        )
+        sandbox_args, sandbox_env = resolver.resolve(request.sandbox_config, paths)
+        cmd.extend(sandbox_args)
+
+    # Merge env vars: spawn context + sandbox
+    env = spawn_context.env_vars.copy()
+    if sandbox_env:
+        env.update(sandbox_env)
+
+    # Pass machine_id as env var for sandboxed agents
+    if request.machine_id:
+        env["GOBBY_MACHINE_ID"] = request.machine_id
+
+    # Spawn in terminal with env vars
+    terminal_spawner = TerminalSpawner()
+    terminal_result = terminal_spawner.spawn(
+        command=cmd,
+        cwd=request.cwd,
+        terminal=request.terminal,
+        env=env,
+    )
+
+    if not terminal_result.success:
+        return SpawnResult(
+            success=False,
+            run_id=request.run_id,
+            child_session_id=gobby_session_id,
+            status="failed",
+            error=terminal_result.error or terminal_result.message,
         )
 
     return SpawnResult(
         success=True,
-        run_id=request.run_id,
-        child_session_id=request.session_id,
+        run_id=spawn_context.agent_run_id,
+        child_session_id=gobby_session_id,
         status="pending",
-        pid=result.pid,
-        terminal_type=result.terminal_type,
-        message=f"Agent spawned in {result.terminal_type} (PID: {result.pid})",
+        pid=terminal_result.pid,
+        terminal_type=terminal_result.terminal_type,
+        message=f"Claude agent spawned in {terminal_result.terminal_type} with session {gobby_session_id}",
     )
 
 

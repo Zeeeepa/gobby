@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Default timeout and poll interval
-DEFAULT_TIMEOUT = 300.0  # 5 minutes
-DEFAULT_POLL_INTERVAL = 5.0  # 5 seconds
+DEFAULT_TIMEOUT = 600.0  # 10 minutes
+DEFAULT_POLL_INTERVAL = 30.0  # 30 seconds
 
 
 def register_wait(
@@ -78,7 +78,7 @@ def register_wait(
         Args:
             task_id: Task reference (#N, N, path, or UUID)
             timeout: Maximum wait time in seconds (default: 300)
-            poll_interval: Time between status checks in seconds (default: 5)
+            poll_interval: Time between status checks in seconds (default: 30)
 
         Returns:
             Dict with:
@@ -97,30 +97,18 @@ def register_wait(
         try:
             resolved_id = _resolve_task_id(task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {
-                "success": False,
-                "error": f"Task not found: {task_id} ({e})",
-            }
+            return {"success": False, "error": f"Task not found: {task_id} ({e})"}
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to resolve task: {task_id} ({e})",
-            }
+            return {"success": False, "error": f"Failed to resolve task: {task_id} ({e})"}
 
         # Check initial state
         try:
             is_complete, task_info = _is_task_complete(resolved_id)
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to check task status: {e}",
-            }
+            return {"success": False, "error": f"Failed to check task status: {e}"}
 
         if task_info is None:
-            return {
-                "success": False,
-                "error": f"Task not found: {task_id}",
-            }
+            return {"success": False, "error": f"Task not found: {task_id}"}
 
         if is_complete:
             return {
@@ -206,7 +194,7 @@ def register_wait(
         Args:
             task_ids: List of task references (#N, N, path, or UUID)
             timeout: Maximum wait time in seconds (default: 300)
-            poll_interval: Time between status checks in seconds (default: 5)
+            poll_interval: Time between status checks in seconds (default: 30)
 
         Returns:
             Dict with:
@@ -216,10 +204,7 @@ def register_wait(
             - wait_time: How long we waited
         """
         if not task_ids:
-            return {
-                "success": False,
-                "error": "No task IDs provided - task_ids list is empty",
-            }
+            return {"success": False, "error": "No task IDs provided - task_ids list is empty"}
 
         # Validate poll_interval
         if poll_interval <= 0:
@@ -238,10 +223,7 @@ def register_wait(
                 # Continue with other tasks
 
         if not resolved_ids:
-            return {
-                "success": False,
-                "error": "None of the provided task IDs could be resolved",
-            }
+            return {"success": False, "error": "None of the provided task IDs could be resolved"}
 
         # Check if any are already complete
         for resolved_id in resolved_ids:
@@ -327,7 +309,7 @@ def register_wait(
         Args:
             task_ids: List of task references (#N, N, path, or UUID)
             timeout: Maximum wait time in seconds (default: 300)
-            poll_interval: Time between status checks in seconds (default: 5)
+            poll_interval: Time between status checks in seconds (default: 30)
 
         Returns:
             Dict with:
@@ -369,10 +351,7 @@ def register_wait(
                 logger.warning(f"Could not resolve task {task_ref}: {e}")
 
         if not resolved_ids:
-            return {
-                "success": False,
-                "error": "None of the provided task IDs could be resolved",
-            }
+            return {"success": False, "error": "None of the provided task IDs could be resolved"}
 
         def check_all_complete() -> tuple[list[str], list[str]]:
             """Check which tasks are complete. Returns (completed, pending)."""

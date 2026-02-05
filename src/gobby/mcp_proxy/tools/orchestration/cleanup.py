@@ -58,18 +58,12 @@ def register_cleanup(
         try:
             resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {
-                "success": False,
-                "error": f"Task not found: {task_id} ({e})",
-            }
+            return {"success": False, "error": f"Task not found: {task_id} ({e})"}
 
         # Get the task
         task = task_manager.get_task(resolved_task_id)
         if task is None:
-            return {
-                "success": False,
-                "error": f"Task not found: {task_id}",
-            }
+            return {"success": False, "error": f"Task not found: {task_id}"}
 
         # Verify task is in needs_review status
         if task.status != "needs_review":
@@ -218,10 +212,7 @@ def register_cleanup(
             - summary: Counts
         """
         if git_manager is None:
-            return {
-                "success": False,
-                "error": "Git manager not configured. Cannot cleanup worktrees.",
-            }
+            return {"success": False, "error": "Git manager not configured. Cannot cleanup worktrees."}
 
         # Get workflow state
         from gobby.workflows.state_manager import WorkflowStateManager
@@ -311,7 +302,7 @@ def register_cleanup(
                         base_branch=worktree.base_branch,
                     )
 
-                    if merge_result["success"]:
+                    if "error" not in merge_result:
                         merge_succeeded = True
                         operation_succeeded = True
                         merged.append(
@@ -455,24 +446,15 @@ def register_cleanup(
             Dict with cleanup results
         """
         if git_manager is None:
-            return {
-                "success": False,
-                "error": "Git manager not configured",
-            }
+            return {"success": False, "error": "Git manager not configured"}
 
         # Validate older_than_hours
         try:
             older_than_hours = int(older_than_hours)
         except (TypeError, ValueError):
-            return {
-                "success": False,
-                "error": "older_than_hours must be an integer",
-            }
+            return {"success": False, "error": "older_than_hours must be an integer"}
         if older_than_hours < 0:
-            return {
-                "success": False,
-                "error": "older_than_hours must be non-negative",
-            }
+            return {"success": False, "error": "older_than_hours must be non-negative"}
 
         # Resolve project ID
         resolved_project_id = default_project_id
@@ -489,10 +471,7 @@ def register_cleanup(
             resolved_project_id = get_current_project_id()
 
         if not resolved_project_id:
-            return {
-                "success": False,
-                "error": "Could not resolve project ID",
-            }
+            return {"success": False, "error": "Could not resolve project ID"}
 
         from gobby.storage.worktrees import WorktreeStatus as WTStatus
 
@@ -682,10 +661,7 @@ def _merge_branch_to_base(
             timeout=60,
         )
         if fetch_result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"Failed to fetch: {fetch_result.stderr}",
-            }
+            return {"error": f"Failed to fetch: {fetch_result.stderr}"}
 
         # Checkout the base branch
         checkout_result = git_manager._run_git(
@@ -693,10 +669,7 @@ def _merge_branch_to_base(
             timeout=30,
         )
         if checkout_result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"Failed to checkout {base_branch}: {checkout_result.stderr}",
-            }
+            return {"error": f"Failed to checkout {base_branch}: {checkout_result.stderr}"}
 
         # Pull latest
         pull_result = git_manager._run_git(
@@ -704,10 +677,7 @@ def _merge_branch_to_base(
             timeout=60,
         )
         if pull_result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"Failed to pull: {pull_result.stderr}",
-            }
+            return {"error": f"Failed to pull: {pull_result.stderr}"}
 
         # Merge the branch
         merge_result = git_manager._run_git(
@@ -727,15 +697,8 @@ def _merge_branch_to_base(
                 git_manager._run_git(["clean", "-fd"], timeout=10)
 
             if has_conflicts:
-                return {
-                    "success": False,
-                    "error": "Merge conflict detected",
-                    "conflicts": True,
-                }
-            return {
-                "success": False,
-                "error": merge_result.stderr or merge_result.stdout,
-            }
+                return {"error": "Merge conflict detected", "conflicts": True}
+            return {"error": merge_result.stderr or merge_result.stdout}
 
         # Get the merge commit SHA
         log_result = git_manager._run_git(
@@ -751,20 +714,15 @@ def _merge_branch_to_base(
         )
         if push_result.returncode != 0:
             return {
-                "success": False,
                 "error": f"Merge succeeded but push failed: {push_result.stderr}",
                 "merge_commit": merge_commit,
                 "push_failed": True,
             }
 
         return {
-            "success": True,
             "merge_commit": merge_commit,
             "message": f"Successfully merged {branch_name} to {base_branch}",
         }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        return {"error": str(e)}

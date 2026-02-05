@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.2.11"
+version = "0.2.12"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "MIT"
@@ -23,7 +23,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "fastmcp>=2.14.0",
     "httpx>=0.27.0",
-    "litellm>=1.0.0",
+    "litellm>=1.81.7",
     "psutil>=6.1.0",
     "py-machineid>=0.6.0",
     "pydantic>=2.9.0",

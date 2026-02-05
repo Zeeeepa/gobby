@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "uv run python \"/Users/josh/Projects/gobby/.copilot/hooks/hook_dispatcher.py\" --type=sessionStart"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "uv run python \"/Users/josh/Projects/gobby/.copilot/hooks/hook_dispatcher.py\" --type=sessionEnd"
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "command": "uv run python \"/Users/josh/Projects/gobby/.copilot/hooks/hook_dispatcher.py\" --type=userPromptSubmitted"
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "uv run python \"/Users/josh/Projects/gobby/.copilot/hooks/hook_dispatcher.py\" --type=preToolUse"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "uv run python \"/Users/josh/Projects/gobby/.copilot/hooks/hook_dispatcher.py\" --type=postToolUse"
+      }
+    ],
+    "errorOccurred": [
+      {
+        "command": "uv run python \"/Users/josh/Projects/gobby/.copilot/hooks/hook_dispatcher.py\" --type=errorOccurred"
+      }
+    ]
+  }
+}

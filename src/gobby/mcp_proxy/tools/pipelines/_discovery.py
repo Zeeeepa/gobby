@@ -18,14 +18,10 @@ def list_pipelines(
         project_path: Optional project path for project-specific pipelines
 
     Returns:
-        Dict with success status and list of pipeline info
+        Dict with list of pipeline info or error
     """
     if not loader:
-        return {
-            "success": False,
-            "error": "No loader configured",
-            "pipelines": [],
-        }
+        return {"success": False, "error": "No loader configured"}
 
     try:
         discovered = loader.discover_pipeline_workflows(project_path=project_path)
@@ -53,15 +49,7 @@ def list_pipelines(
         }
 
     except (FileNotFoundError, ValueError) as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "pipelines": [],
-        }
+        return {"success": False, "error": str(e)}
     except Exception:
         logger.exception("Unexpected error discovering pipelines")
-        return {
-            "success": False,
-            "error": "Internal error during pipeline discovery",
-            "pipelines": [],
-        }
+        return {"success": False, "error": "Internal error during pipeline discovery"}

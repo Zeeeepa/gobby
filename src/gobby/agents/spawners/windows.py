@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-import os
 import platform
 import shlex
 import shutil
 import subprocess  # nosec B404 - subprocess needed for terminal spawning
 from pathlib import Path
 
-from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
+from gobby.agents.spawners.base import (
+    SpawnResult,
+    TerminalSpawnerBase,
+    TerminalType,
+    make_spawn_env,
+)
 from gobby.agents.tty_config import get_tty_config
 
 __all__ = ["WindowsTerminalSpawner", "CmdSpawner", "PowerShellSpawner", "WSLSpawner"]
@@ -48,13 +52,9 @@ class WindowsTerminalSpawner(TerminalSpawnerBase):
                 args.extend(["--title", title])
             args.extend(["--", *command])
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
 
@@ -111,13 +111,9 @@ class CmdSpawner(TerminalSpawnerBase):
             # Pass the inner command as a single argument to cmd /k
             args.extend(["cmd", "/k", inner_cmd])
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
 
@@ -192,13 +188,9 @@ class PowerShellSpawner(TerminalSpawnerBase):
                 args.extend(["-Title", safe_title])
             args.extend(["-NoExit", "-Command", ps_script])
 
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
-
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
 
@@ -283,13 +275,12 @@ class WSLSpawner(TerminalSpawnerBase):
             args.extend(tty_config.options)
             args.extend(["--", "bash", "-c", full_script])
 
-            spawn_env = os.environ.copy()
             # Note: env vars passed via spawn_env won't reach WSL directly
             # They're handled via the bash -c script above
 
             process = subprocess.Popen(  # nosec B603 - args built from config
                 args,
-                env=spawn_env,
+                env=make_spawn_env(env),
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
 

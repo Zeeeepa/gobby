@@ -13,8 +13,6 @@ Gobby is a local-first daemon that unifies AI coding assistants (Codex, Claude C
 - **Worktree orchestration** for parallel development
 - **Memory system** for persistent facts across sessions
 
-**Built with Gobby**: Most of this codebase was written by AI agents using Gobby's own task system and workflows.
-
 ## Development Commands
 
 ```bash
@@ -169,12 +167,7 @@ call_tool("gobby-agents", "kill_agent", {
 
 ## Code Conventions
 
-- **Type Hints**: Required for all functions
-- **Python Version**: 3.13+
-- **Formatting**: `ruff format`
-- **Linting**: `ruff check`
-- **Testing**: 80% coverage minimum with `pytest`
-- **Async**: Use `async/await` for I/O operations
+Type hints required. Use `async/await` for I/O. Run `ruff format` and `ruff check` before committing.
 
 ## Troubleshooting
 

@@ -73,15 +73,9 @@ def create_hub_registry(
 
         machine_id = _get_machine_id()
         if machine_id:
-            return {
-                "success": True,
-                "machine_id": machine_id,
-            }
+            return {"success": True, "machine_id": machine_id}
 
-        return {
-            "success": False,
-            "error": "machine_id not found - daemon may not have initialized properly",
-        }
+        return {"success": False, "error": "machine_id not found - daemon may not have initialized properly"}
 
     @registry.tool(
         name="list_all_projects",
@@ -95,10 +89,7 @@ def create_hub_registry(
         """
         hub_db = _get_hub_db()
         if hub_db is None:
-            return {
-                "success": False,
-                "error": f"Hub database not found: {hub_db_path}",
-            }
+            return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
             # Query unique projects from tasks table
@@ -155,10 +146,7 @@ def create_hub_registry(
                 ],
             }
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="list_cross_project_tasks",
@@ -177,10 +165,7 @@ def create_hub_registry(
         """
         hub_db = _get_hub_db()
         if hub_db is None:
-            return {
-                "success": False,
-                "error": f"Hub database not found: {hub_db_path}",
-            }
+            return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
             if status:
@@ -225,10 +210,7 @@ def create_hub_registry(
                 "tasks": tasks,
             }
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="list_cross_project_sessions",
@@ -245,10 +227,7 @@ def create_hub_registry(
         """
         hub_db = _get_hub_db()
         if hub_db is None:
-            return {
-                "success": False,
-                "error": f"Hub database not found: {hub_db_path}",
-            }
+            return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
             rows = hub_db.fetchall(
@@ -280,10 +259,7 @@ def create_hub_registry(
                 "sessions": sessions,
             }
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="hub_stats",
@@ -297,10 +273,7 @@ def create_hub_registry(
         """
         hub_db = _get_hub_db()
         if hub_db is None:
-            return {
-                "success": False,
-                "error": f"Hub database not found: {hub_db_path}",
-            }
+            return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
             stats: dict[str, Any] = {}
@@ -351,14 +324,8 @@ def create_hub_registry(
             except Exception:
                 stats["memories"] = 0
 
-            return {
-                "success": True,
-                "stats": stats,
-            }
+            return {"success": True, "stats": stats}
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     return registry

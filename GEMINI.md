@@ -13,8 +13,6 @@ Gobby is a local-first daemon that unifies AI coding assistants (Gemini CLI, Cla
 - **Worktree orchestration** for parallel development
 - **Memory system** for persistent facts across sessions
 
-**Built with Gobby**: Most of this codebase was written by AI agents using Gobby's own task system and workflows.
-
 ## Development Commands
 
 ```bash
@@ -98,7 +96,8 @@ call_tool("gobby-tasks", "claim_task", {
     "session_id": "<your_session_id>"
 })
 
-# After work: commit with [task-id] prefix, then close
+# After work: commit with [gobby#task-id] prefix, then close
+# Example: git commit -m "[gobby#6961] Fix authentication bug"
 call_tool("gobby-tasks", "close_task", {
     "task_id": "...",
     "commit_sha": "..."
@@ -129,52 +128,33 @@ call_tool("gobby-sessions", "get_current_session", {
 
 ## Spawned Agent Protocol
 
-When spawned as a subagent (via `start_agent` or `spawn_agent_in_worktree`), use these tools to communicate and terminate:
+When spawned as a subagent (via `spawn_agent`), follow the workflow instructions provided at session start. The workflow will guide you through the task lifecycle.
 
-### 1. Get your session info
+**Key points:**
+- Your workflow instructions are injected at session start and step transitions
+- Follow the workflow's termination instructions (typically `kill_agent`)
+- Do NOT use `/quit` or similar CLI commands
 
-```python
-call_tool("gobby-sessions", "get_current_session", {
-    "external_id": "<your-session-id>",
-    "source": "gemini"
-})
-# Returns: {"session_id": "...", "agent_run_id": "..."}
-```
-
-### 2. Send results to parent
+### Send results to parent
 
 ```python
 call_tool("gobby-agents", "send_to_parent", {
-    "message": "Task completed: implemented authentication flow"
+    "session_id": "<your_gobby_session_id>",
+    "content": "Task completed: implemented authentication flow"
 })
 ```
 
-### 3. Mark work complete
-
-```python
-call_tool("gobby-sessions", "mark_loop_complete", {
-    "session_id": "<session_id>"
-})
-```
-
-### 4. Terminate yourself
+### Terminate (when workflow instructs)
 
 ```python
 call_tool("gobby-agents", "kill_agent", {
-    "run_id": "<agent_run_id>"  # From get_current_session response
+    "session_id": "<your_gobby_session_id>"
 })
 ```
 
-**IMPORTANT**: Do NOT use `/quit` or similar CLI commands - always use `kill_agent` to properly terminate.
-
 ## Code Conventions
 
-- **Type Hints**: Required for all functions
-- **Python Version**: 3.13+
-- **Formatting**: `ruff format`
-- **Linting**: `ruff check`
-- **Testing**: 80% coverage minimum with `pytest`
-- **Async**: Use `async/await` for I/O operations
+Type hints required. Use `async/await` for I/O. Run `ruff format` and `ruff check` before committing.
 
 ## Troubleshooting
 

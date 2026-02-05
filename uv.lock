@@ -927,7 +927,7 @@ requires-dist = [
     { name = "gitingest", specifier = ">=0.3.1" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
-    { name = "litellm", specifier = ">=1.0.0" },
+    { name = "litellm", specifier = ">=1.81.7" },
     { name = "mem0ai", marker = "extra == 'mem0'" },
     { name = "memu-py", specifier = ">=1.0.0" },
     { name = "msgspec", specifier = ">=0.20.0" },
@@ -1454,13 +1454,12 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.81.0"
+version = "1.81.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "click" },
     { name = "fastuuid" },
-    { name = "grpcio" },
     { name = "httpx" },
     { name = "importlib-metadata" },
     { name = "jinja2" },
@@ -1471,9 +1470,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/55/e3/2f8b7aade6f41cf4a77211aa289d83e23c556c098ec3f84f84ee127d348c/litellm-1.81.0.tar.gz", hash = "sha256:f890fa2a89f85b29f57a72365ac784f4abebda5a15a76454c6c8ce1eecc5a2e5", size = 13451813, upload-time = "2026-01-18T03:49:18.856Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/69/cfa8a1d68cd10223a9d9741c411e131aece85c60c29c1102d762738b3e5c/litellm-1.81.7.tar.gz", hash = "sha256:442ff38708383ebee21357b3d936e58938172bae892f03bc5be4019ed4ff4a17", size = 14039864, upload-time = "2026-02-03T19:43:10.633Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/2b/b8168f707c7c0ed15e70a17597c51499112f44d2efab3b4e371046bbed3d/litellm-1.81.0-py3-none-any.whl", hash = "sha256:83d01ab7bc757dd56dd82e2fc9be0ab32ec1452f5b67c8b2b995beb1dbd6ace8", size = 11758760, upload-time = "2026-01-18T03:49:16.45Z" },
+    { url = "https://files.pythonhosted.org/packages/60/95/8cecc7e6377171e4ac96f23d65236af8706d99c1b7b71a94c72206672810/litellm-1.81.7-py3-none-any.whl", hash = "sha256:58466c88c3289c6a3830d88768cf8f307581d9e6c87861de874d1128bb2de90d", size = 12254178, upload-time = "2026-02-03T19:43:08.035Z" },
 ]
 
 [[package]]

@@ -14,12 +14,13 @@ from .audit_helpers import (
     log_tool_call,
     log_transition,
 )
-from .definitions import WorkflowDefinition, WorkflowState
+from .definitions import WorkflowDefinition, WorkflowState, WorkflowTransition
 from .detection_helpers import (
     detect_mcp_call,
     detect_plan_mode,
     detect_plan_mode_from_context,
     detect_task_claim,
+    process_mcp_handlers,
 )
 from .evaluator import ConditionEvaluator
 from .lifecycle_evaluator import (
@@ -42,6 +43,27 @@ if TYPE_CHECKING:
     from .actions import ActionExecutor
 
 logger = logging.getLogger(__name__)
+
+
+# Read-only MCP discovery tools that are always allowed regardless of workflow step restrictions.
+# These "meta" tools enable progressive disclosure and are required for agents to discover
+# what tools are available. They don't execute actions, only return information.
+# NOTE: call_tool is intentionally NOT exempt - it executes actual tools and should be restricted.
+EXEMPT_TOOLS = frozenset(
+    {
+        # Gobby MCP discovery tools (both prefixed and unprefixed forms)
+        "list_mcp_servers",
+        "mcp__gobby__list_mcp_servers",
+        "list_tools",
+        "mcp__gobby__list_tools",
+        "get_tool_schema",
+        "mcp__gobby__get_tool_schema",
+        "recommend_tools",
+        "mcp__gobby__recommend_tools",
+        "search_tools",
+        "mcp__gobby__search_tools",
+    }
+)
 
 
 class WorkflowEngine:
@@ -121,17 +143,17 @@ class WorkflowEngine:
                         and isinstance(workflow, WorkflowDefinition)
                         and workflow.get_step("reflect")
                     ):
-                        await self.transition_to(state, "reflect", workflow)
-                        return HookResponse(
-                            decision="modify",
-                            context="[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step.",
-                        )
+                        injected = await self.transition_to(state, "reflect", workflow)
+                        context = "[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step."
+                        if injected:
+                            context = context + "\n\n" + "\n\n".join(injected)
+                        return HookResponse(decision="modify", context=context)
 
         # 3. Load definition
-        # Skip if this is a lifecycle-only state (used for task_claimed tracking)
-        if state.workflow_name == "__lifecycle__":
+        # Skip if this is a lifecycle-only state or ended workflow (used for task_claimed tracking)
+        if state.workflow_name in ("__lifecycle__", "__ended__"):
             logger.debug(
-                f"Skipping step workflow handling for lifecycle state in session {session_id}"
+                f"Skipping step workflow handling for {state.workflow_name} state in session {session_id}"
             )
             return HookResponse(decision="allow")
 
@@ -193,12 +215,30 @@ class WorkflowEngine:
             "step_action_count": state.step_action_count,
             "total_action_count": state.total_action_count,
             "step": state.step,
+            # Flatten variables to top level for simpler conditions like "task_claimed"
+            # instead of requiring "variables.task_claimed"
+            **state.variables,
         }
 
         current_step = workflow.get_step(state.step)
         if not current_step:
             logger.error(f"Step '{state.step}' not found in workflow '{workflow.name}'")
             return HookResponse(decision="allow")
+
+        # Inject on_enter context for initial step when not yet injected
+        # This handles the case where activate_workflow creates state but doesn't execute on_enter
+        if not state.context_injected and current_step.on_enter:
+            logger.info(
+                f"Injecting initial on_enter context for step '{state.step}' "
+                f"in session {session_id}"
+            )
+            injected_messages = await self._execute_actions(current_step.on_enter, state)
+            state.context_injected = True
+            self.state_manager.save_state(state)
+
+            if injected_messages:
+                context = "\n\n".join(injected_messages)
+                return HookResponse(decision="modify", context=context)
 
         # Handle approval flow on user prompt submit
         if event.event_type == HookEventType.BEFORE_AGENT:
@@ -231,6 +271,11 @@ class WorkflowEngine:
             raw_tool_name = eval_context.get("tool_name")
             tool_name = str(raw_tool_name) if raw_tool_name is not None else ""
 
+            # Allow exempt tools (MCP discovery tools) regardless of step restrictions
+            if tool_name in EXEMPT_TOOLS:
+                self._log_tool_call(session_id, state.step, tool_name, "allow", "exempt tool")
+                return HookResponse(decision="allow")
+
             # Check blocked list
             if tool_name in current_step.blocked_tools:
                 reason = f"Tool '{tool_name}' is blocked in step '{state.step}'."
@@ -243,6 +288,40 @@ class WorkflowEngine:
                     reason = f"Tool '{tool_name}' is not in allowed list for step '{state.step}'."
                     self._log_tool_call(session_id, state.step, tool_name, "block", reason)
                     return HookResponse(decision="block", reason=reason)
+
+            # Check MCP-level tool restrictions for call_tool/get_tool_schema
+            # Adapters normalize mcp_server/mcp_tool from tool_input for these calls
+            if tool_name in (
+                "call_tool",
+                "mcp__gobby__call_tool",
+                "get_tool_schema",
+                "mcp__gobby__get_tool_schema",
+            ):
+                mcp_server = event.data.get("mcp_server", "")
+                mcp_tool = event.data.get("mcp_tool", "")
+                if mcp_server and mcp_tool:
+                    mcp_key = f"{mcp_server}:{mcp_tool}"
+                    mcp_wildcard = f"{mcp_server}:*"
+
+                    # Check blocked MCP tools (explicit block or wildcard)
+                    if (
+                        mcp_key in current_step.blocked_mcp_tools
+                        or mcp_wildcard in current_step.blocked_mcp_tools
+                    ):
+                        reason = f"MCP tool '{mcp_key}' is blocked in step '{state.step}'."
+                        self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
+                        return HookResponse(decision="block", reason=reason)
+
+                    # Check allowed MCP tools (if not "all")
+                    if current_step.allowed_mcp_tools != "all":
+                        # Allow if explicitly listed or matches wildcard
+                        if (
+                            mcp_key not in current_step.allowed_mcp_tools
+                            and mcp_wildcard not in current_step.allowed_mcp_tools
+                        ):
+                            reason = f"MCP tool '{mcp_key}' is not in allowed list for step '{state.step}'."
+                            self._log_tool_call(session_id, state.step, mcp_key, "block", reason)
+                            return HookResponse(decision="block", reason=reason)
 
             # Check rules
             for rule in current_step.rules:
@@ -263,24 +342,8 @@ class WorkflowEngine:
             # Log successful tool allow
             self._log_tool_call(session_id, state.step, tool_name, "allow")
 
-        # Check transitions
-        logger.debug("Checking transitions")
-        for transition in current_step.transitions:
-            if self.evaluator.evaluate(transition.when, eval_context):
-                # Transition!
-                await self.transition_to(state, transition.to, workflow)
-                return HookResponse(
-                    decision="modify", context=f"Transitioning to step: {transition.to}"
-                )
-
-        # Check exit conditions
-        logger.debug("Checking exit conditions")
-        if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
-            # TODO: Determine next step or completion logic
-            # For now, simplistic 'next step' if linear, or rely on transitions
-            pass
-
-        # Update stats (generic)
+        # For AFTER_TOOL events, run detection BEFORE checking transitions
+        # This ensures variables like task_claimed are set before evaluating conditions
         if event.event_type == HookEventType.AFTER_TOOL:
             state.step_action_count += 1
             state.total_action_count += 1
@@ -292,24 +355,72 @@ class WorkflowEngine:
             self._detect_plan_mode(event, state)
 
             # Track all MCP proxy calls for workflow conditions
-            self._detect_mcp_call(event, state)
+            # Also process on_mcp_success/on_mcp_error handlers from step definition
+            self._detect_mcp_call(event, state, current_step)
 
-            self.state_manager.save_state(state)  # Persist updates
+            # Rebuild eval_context variables after detection updates
+            eval_context["variables"] = SimpleNamespace(**state.variables)
+            # Also update flattened variables at top level
+            eval_context.update(state.variables)
+
+        # Check transitions
+        logger.debug("Checking transitions")
+        for transition in current_step.transitions:
+            if self.evaluator.evaluate(transition.when, eval_context):
+                # Transition!
+                injected_messages = await self.transition_to(
+                    state, transition.to, workflow, transition=transition
+                )
+                # Save state after transition
+                if event.event_type == HookEventType.AFTER_TOOL:
+                    self.state_manager.save_state(state)
+
+                # Build context with on_enter messages if any were injected
+                if injected_messages:
+                    context = "\n\n".join(injected_messages)
+                else:
+                    context = f"Transitioning to step: {transition.to}"
+
+                return HookResponse(decision="modify", context=context)
+
+        # Check exit conditions
+        logger.debug("Checking exit conditions")
+        if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
+            # TODO: Determine next step or completion logic
+            # For now, simplistic 'next step' if linear, or rely on transitions
+            pass
+
+        # Save state for AFTER_TOOL events (if no transition occurred)
+        if event.event_type == HookEventType.AFTER_TOOL:
+            self.state_manager.save_state(state)
 
         return HookResponse(decision="allow")
 
     async def transition_to(
-        self, state: WorkflowState, new_step_name: str, workflow: WorkflowDefinition
-    ) -> None:
+        self,
+        state: WorkflowState,
+        new_step_name: str,
+        workflow: WorkflowDefinition,
+        transition: WorkflowTransition | None = None,
+    ) -> list[str]:
         """
         Execute transition logic.
+
+        Args:
+            state: Current workflow state
+            new_step_name: Name of the step to transition to
+            workflow: Workflow definition
+            transition: Optional transition object containing on_transition actions
+
+        Returns:
+            List of injected messages from on_enter actions (to include in HookResponse)
         """
         old_step = workflow.get_step(state.step)
         new_step = workflow.get_step(new_step_name)
 
         if not new_step:
             logger.error(f"Cannot transition to unknown step '{new_step_name}'")
-            return
+            return []
 
         logger.info(
             f"Transitioning session {state.session_id} from '{state.step}' to '{new_step_name}'"
@@ -322,6 +433,10 @@ class WorkflowEngine:
         if old_step:
             await self._execute_actions(old_step.on_exit, state)
 
+        # Execute on_transition actions if defined
+        if transition and isinstance(transition, WorkflowTransition) and transition.on_transition:
+            await self._execute_actions(transition.on_transition, state)
+
         # Update state
         state.step = new_step_name
         state.step_entered_at = datetime.now(UTC)
@@ -330,12 +445,18 @@ class WorkflowEngine:
 
         self.state_manager.save_state(state)
 
-        # Execute on_enter of new step
-        await self._execute_actions(new_step.on_enter, state)
+        # Execute on_enter of new step and capture injected messages
+        injected_messages = await self._execute_actions(new_step.on_enter, state)
+        return injected_messages
 
-    async def _execute_actions(self, actions: list[dict[str, Any]], state: WorkflowState) -> None:
+    async def _execute_actions(
+        self, actions: list[dict[str, Any]], state: WorkflowState
+    ) -> list[str]:
         """
         Execute a list of actions.
+
+        Returns:
+            List of injected messages from inject_message/inject_context actions.
         """
         from .actions import ActionContext
 
@@ -357,6 +478,8 @@ class WorkflowEngine:
             workflow_loader=self.action_executor.workflow_loader,
         )
 
+        injected_messages: list[str] = []
+
         for action_def in actions:
             action_type = action_def.get("action")
             if not action_type:
@@ -364,9 +487,18 @@ class WorkflowEngine:
 
             result = await self.action_executor.execute(action_type, context, **action_def)
 
-            if result and "inject_context" in result:
-                # Log context injection for now
-                logger.info(f"Context injected: {result['inject_context'][:50]}...")
+            if result:
+                # Capture injected messages to return to caller
+                if "inject_message" in result:
+                    msg = result["inject_message"]
+                    injected_messages.append(msg)
+                    logger.info(f"Message injected: {msg[:50]}...")
+                elif "inject_context" in result:
+                    msg = result["inject_context"]
+                    injected_messages.append(msg)
+                    logger.info(f"Context injected: {msg[:50]}...")
+
+        return injected_messages
 
     def _handle_approval_response(
         self,
@@ -502,9 +634,37 @@ class WorkflowEngine:
         """Detect plan mode from system reminders in user prompt."""
         detect_plan_mode_from_context(event, state)
 
-    def _detect_mcp_call(self, event: HookEvent, state: WorkflowState) -> None:
-        """Track MCP tool calls by server/tool for workflow conditions."""
+    def _detect_mcp_call(
+        self, event: HookEvent, state: WorkflowState, current_step: Any | None = None
+    ) -> None:
+        """Track MCP tool calls and process on_mcp_success/on_mcp_error handlers."""
+        # First, track the call (this also returns success/error status)
         detect_mcp_call(event, state)
+
+        # Process on_mcp_success/on_mcp_error handlers from step definition
+        if current_step and event.data:
+            server_name = event.data.get("mcp_server", "")
+            tool_name = event.data.get("mcp_tool", "")
+            if server_name and tool_name:
+                # Check if call succeeded by looking at tool_output
+                tool_output = event.data.get("tool_output") or {}
+                succeeded = True
+                if isinstance(tool_output, dict):
+                    if tool_output.get("error") or tool_output.get("status") == "error":
+                        succeeded = False
+                    else:
+                        result = tool_output.get("result")
+                        if isinstance(result, dict) and result.get("error"):
+                            succeeded = False
+
+                # Get handlers from step definition
+                on_success = getattr(current_step, "on_mcp_success", []) or []
+                on_error = getattr(current_step, "on_mcp_error", []) or []
+
+                if on_success or on_error:
+                    process_mcp_handlers(
+                        state, server_name, tool_name, succeeded, on_success, on_error
+                    )
 
     def activate_workflow(
         self,
@@ -551,7 +711,7 @@ class WorkflowEngine:
 
         # Check for existing step workflow
         existing = self.state_manager.get_state(session_id)
-        if existing and existing.workflow_name != "__lifecycle__":
+        if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
             # Check if existing is lifecycle type
             existing_def = self.loader.load_workflow(existing.workflow_name, project_path)
             if not existing_def or existing_def.type != "lifecycle":

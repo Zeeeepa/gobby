@@ -174,6 +174,7 @@ class TestSessionInfoLookup:
         step.rules = []
         step.transitions = []
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -215,6 +216,7 @@ class TestSessionInfoLookup:
         step.rules = []
         step.transitions = []
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -256,6 +258,7 @@ class TestPrematureStopCounterReset:
         step.rules = []
         step.transitions = []
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -295,6 +298,7 @@ class TestPrematureStopCounterReset:
         step.rules = []
         step.transitions = []
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -763,6 +767,7 @@ class TestCloseTaskClearsTaskClaimed:
         step.rules = []
         step.transitions = []
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -813,6 +818,7 @@ class TestDetectTaskClaimWithNestedError:
         step.rules = []
         step.transitions = []
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -931,6 +937,7 @@ class TestApprovalPromptReminder:
 
         step = MagicMock(spec=WorkflowStep)
         step.exit_conditions = []
+        step.on_enter = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"

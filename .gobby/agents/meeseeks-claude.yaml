@@ -1,0 +1,325 @@
+name: meeseeks-claude
+description: |
+  Claude-based autonomous task worker with full lifecycle.
+  Uses tmux for multi-turn headless execution - attach with `tmux attach -t <session>`.
+
+  Supports multiple workflows via the `workflows` map:
+  - box: Interactive orchestrator (Claude Code terminal) - DEFAULT
+  - worker: Task executor (Claude in tmux/clone)
+
+  Usage:
+    spawn_agent(meeseeks-claude)                     # Uses box (interactive)
+    spawn_agent(meeseeks-claude, workflow="worker")  # Direct worker spawn
+
+mode: terminal
+terminal: tmux
+provider: claude
+isolation: clone
+# base_branch: auto-detected from caller's current branch
+
+# Named workflows - select via spawn_agent(workflow="...")
+workflows:
+  # Interactive orchestrator (activates in caller session)
+  box:
+    file: meeseeks-box.yaml
+    mode: self  # Activate workflow in calling session instead of spawning
+
+  # Worker: claims and executes a single task (runs in Claude via tmux)
+  worker:
+    type: step
+    description: "Worker workflow for Claude agents in tmux/clone"
+    variables:
+      assigned_task_id: null
+      task_claimed: false
+      task_closed: false
+      parent_notified: false
+
+    # Worker workflow starts at claim_task - spawn_agent handles activation
+    steps:
+      - name: claim_task
+        description: "Claim the assigned task"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Starting in isolated clone.
+
+              You are running in an isolated git clone. Your changes will be
+              committed to a feature branch that can be pushed and merged later.
+
+              Assigned task: {{ variables.assigned_task_id }}
+
+              First, claim the task by calling claim_task:
+              - server_name: "gobby-tasks"
+              - tool_name: "claim_task"
+              - arguments: {"task_id": "{{ variables.assigned_task_id }}", "session_id": "<your_session_id>"}
+
+              Then read the task details using the get_task tool:
+              - server_name: "gobby-tasks"
+              - tool_name: "get_task"
+              - arguments: {"task_id": "{{ variables.assigned_task_id }}"}
+
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__get_tool_schema
+
+        blocked_tools:
+          - Edit
+          - Write
+          - Bash
+          - NotebookEdit
+          - Read
+          - Glob
+          - Grep
+          - Task
+          - spawn_agent
+          - activate_workflow
+          - mcp__gobby__list_tools
+
+        # STRICT: Only allow claim_task and get_task - nothing else
+        allowed_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:get_task
+
+        # Block everything else including task discovery
+        blocked_mcp_tools:
+          - gobby-tasks:get_session_tasks
+          - gobby-tasks:list_tasks
+          - gobby-tasks:suggest_next_task
+          - gobby-tasks:create_task
+          - gobby-workflows:*
+          - gobby-agents:*
+          - gobby-clones:*
+          - gobby-sessions:*
+
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: claim_task
+            action: set_variable
+            variable: task_claimed
+            value: true
+
+        transitions:
+          - to: work
+            when: "task_claimed"
+
+      - name: work
+        description: "Full tool access for implementation"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Implementation phase.
+
+              Task: {{ variables.assigned_task_id }}
+
+              You now have full tool access. Complete the task:
+              1. Read the task details to understand what needs to be done
+              2. Execute the required work (may involve file edits, API calls, or just gathering information)
+              3. Run tests if applicable
+
+              IMPORTANT: Closing the task depends on what type of work you did:
+
+              **If you made file changes:**
+              1. Stage your changes: git add <files>
+              2. Commit with task reference: git commit -m "[{{ variables.assigned_task_id }}] Description"
+              3. Close the task WITH commit_sha using the close_task tool:
+                 - server_name: "gobby-tasks"
+                 - tool_name: "close_task"
+                 - arguments: {"task_id": "{{ variables.assigned_task_id }}", "commit_sha": "<sha_from_git_commit>"}
+
+              **If NO file changes (e.g., research, messaging, information gathering):**
+              Close the task WITHOUT commit_sha:
+                 - server_name: "gobby-tasks"
+                 - tool_name: "close_task"
+                 - arguments: {"task_id": "{{ variables.assigned_task_id }}", "changes_summary": "<brief summary>"}
+
+              NOTE: You are assigned ONE task only. Do not attempt to claim or create additional tasks.
+
+        allowed_tools: all
+
+        blocked_tools:
+          - spawn_agent
+          - activate_workflow
+
+        # Block claiming/creating additional tasks - one task per worker
+        # Block manual workflow end - only kill_agent can end worker
+        blocked_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+          - gobby-workflows:end_workflow
+          # Block irrelevant MCP servers - worker only needs task/agent/workflow/worktree tools
+          - context7:*
+          - memory:*
+
+        # Block git push - parent orchestrator handles merging
+        blocked_commands:
+          - pattern: "git push"
+            reason: "Push is blocked. The parent orchestrator will handle merging and pushing after code review."
+          - pattern: "git push *"
+            reason: "Push is blocked. The parent orchestrator will handle merging and pushing after code review."
+
+        on_mcp_success:
+          - server: gobby-tasks
+            tool: close_task
+            action: set_variable
+            variable: task_closed
+            value: true
+
+        transitions:
+          - to: report_to_parent
+            when: "task_closed"
+
+      - name: report_to_parent
+        description: "Notify parent of completion"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Reporting completion to parent.
+
+              Send a completion message to your parent session using the send_to_parent tool:
+              - server_name: "gobby-agents"
+              - tool_name: "send_to_parent"
+              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID", "content": "Task {{ variables.assigned_task_id }} completed. <brief summary>"}
+
+              NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
+              Do NOT use the CLI-specific external_id. The Gobby Session ID is what MCP tools expect.
+
+              If send_to_parent fails (no parent found), that's okay - proceed to shutdown.
+
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__list_tools
+          - mcp__gobby__get_tool_schema
+          - Read
+
+        blocked_tools:
+          - Edit
+          - Write
+          - Bash
+          - NotebookEdit
+          - activate_workflow
+
+        # Block claiming/creating additional tasks - one task per worker
+        # Block manual workflow end - only kill_agent can end worker
+        blocked_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+          - gobby-workflows:end_workflow
+
+        on_mcp_success:
+          - server: gobby-agents
+            tool: send_to_parent
+            action: set_variable
+            variable: parent_notified
+            value: true
+
+        on_mcp_error:
+          - server: gobby-agents
+            tool: send_to_parent
+            action: set_variable
+            variable: parent_notified
+            value: true
+
+        transitions:
+          - to: shutdown
+            when: "mcp_called('gobby-agents', 'send_to_parent')"
+
+      - name: shutdown
+        description: "Clean shutdown - MUST call kill_agent"
+        on_enter:
+          - action: inject_message
+            content: |
+              WORKER: Shutdown sequence - MANDATORY TERMINATION
+
+              Your task is complete. You MUST now terminate by calling kill_agent.
+              This is the ONLY action available to you. All other tools are blocked.
+
+              Call kill_agent now:
+              - server_name: "gobby-agents"
+              - tool_name: "kill_agent"
+              - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
+
+              NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
+
+              WHY: Each meeseeks worker handles exactly ONE task. Your task is done.
+              The parent orchestrator will review your work and spawn new workers for
+              remaining tasks. You cannot claim additional tasks or continue working.
+
+              kill_agent is your ONLY exit path. Call it now.
+
+        # Only allow the MCP tools needed to call kill_agent
+        allowed_tools:
+          - mcp__gobby__call_tool
+          - mcp__gobby__get_tool_schema
+
+        blocked_tools:
+          - Edit
+          - Write
+          - NotebookEdit
+          - Bash
+          - Read
+          - Glob
+          - Grep
+          - Task
+          - spawn_agent
+          - activate_workflow
+
+        # Block all MCP tools except kill_agent
+        # Explicitly block end_workflow - kill_agent is the only exit
+        blocked_mcp_tools:
+          - gobby-tasks:*
+          - gobby-worktrees:*
+          - gobby-workflows:end_workflow
+          - gobby-workflows:activate_workflow
+
+        allowed_mcp_tools:
+          - gobby-agents:kill_agent
+          - gobby-agents:get_tool_schema
+
+        on_premature_stop:
+          action: block
+          message: |
+            BLOCKED: You cannot stop without calling kill_agent.
+
+            Your task is complete, but you must properly terminate your session.
+            Call kill_agent to exit:
+
+            mcp__gobby__call_tool(
+              server_name="gobby-agents",
+              tool_name="kill_agent",
+              arguments={"session_id": "YOUR_GOBBY_SESSION_ID"}
+            )
+
+            This is the ONLY way to end this session. Do it now.
+
+        transitions:
+          - to: complete
+            when: "mcp_called('gobby-agents', 'kill_agent')"
+
+      - name: complete
+        description: "Worker done"
+
+    exit_condition: "current_step == 'complete'"
+
+    on_premature_stop:
+      action: block
+      message: |
+        Cannot stop - task not complete.
+
+        You must:
+        1. Complete your work
+        2. If you made file changes: commit them (git add && git commit)
+        3. Close the task using the close_task tool (include commit_sha if you made file changes)
+        4. Report to parent using the send_to_parent tool
+
+        If you're stuck, check the task details using the get_task tool.
+
+# Default workflow when spawn_agent(meeseeks-claude) called without workflow param
+default_workflow: box
+
+timeout: 600.0
+max_turns: 200
+
+sandbox:
+  enabled: true
+  mode: permissive
+  allow_network: true

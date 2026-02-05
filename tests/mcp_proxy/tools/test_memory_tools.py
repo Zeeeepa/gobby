@@ -214,7 +214,7 @@ class TestDeleteMemory:
         """Test successful memory deletion."""
         result = await memory_registry.call("delete_memory", {"memory_id": "mem-123"})
 
-        assert result == {}  # Empty dict on success
+        assert result == {"success": True}  # Success response
         mock_memory_manager.forget.assert_called_once_with("mem-123")
 
     @pytest.mark.asyncio

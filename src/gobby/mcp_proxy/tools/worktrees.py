@@ -394,10 +394,7 @@ def create_worktrees_registry(
         )
 
         if not result.success:
-            return {
-                "success": False,
-                "error": result.error or "Failed to create git worktree",
-            }
+            return {"success": False, "error": result.error or "Failed to create git worktree"}
 
         # Record in database
         worktree = worktree_storage.create(
@@ -435,10 +432,7 @@ def create_worktrees_registry(
         """
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         # Get git status if manager available
         git_status = None
@@ -539,10 +533,7 @@ def create_worktrees_registry(
 
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         if worktree.agent_session_id and worktree.agent_session_id != resolved_session_id:
             return {
@@ -552,9 +543,9 @@ def create_worktrees_registry(
 
         updated = worktree_storage.claim(worktree_id, resolved_session_id)
         if not updated:
-            return {"error": "Failed to claim worktree"}
+            return {"success": False, "error": "Failed to claim worktree"}
 
-        return {}
+        return {"success": True}
 
     @registry.tool(
         name="release_worktree",
@@ -572,13 +563,13 @@ def create_worktrees_registry(
         """
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {"error": f"Worktree '{worktree_id}' not found"}
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         updated = worktree_storage.release(worktree_id)
         if not updated:
-            return {"error": "Failed to release worktree"}
+            return {"success": False, "error": "Failed to release worktree"}
 
-        return {}
+        return {"success": True}
 
     @registry.tool(
         name="delete_worktree",
@@ -614,10 +605,7 @@ def create_worktrees_registry(
         worktree = worktree_storage.get(worktree_id)
 
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         # Resolve git manager
         resolved_git_mgr = git_manager  # Start with the module-level git_manager
@@ -653,10 +641,7 @@ def create_worktrees_registry(
                 branch_name=worktree.branch_name,
             )
             if not result.success:
-                return {
-                    "success": False,
-                    "error": result.error or "Failed to delete git worktree",
-                }
+                return {"success": False, "error": result.error or "Failed to delete git worktree"}
         elif not worktree_exists:
             # Worktree path gone (manually deleted) - just clean up DB record
             logger.info(
@@ -666,9 +651,9 @@ def create_worktrees_registry(
         # Delete database record
         deleted = worktree_storage.delete(worktree_id)
         if not deleted:
-            return {"error": "Failed to delete worktree record"}
+            return {"success": False, "error": "Failed to delete worktree record"}
 
-        return {}
+        return {"success": True}
 
     @registry.tool(
         name="sync_worktree",
@@ -703,10 +688,7 @@ def create_worktrees_registry(
 
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         # Validate strategy
         if strategy not in ("rebase", "merge"):
@@ -724,10 +706,7 @@ def create_worktrees_registry(
         )
 
         if not result.success:
-            return {
-                "success": False,
-                "error": result.error or "Sync failed",
-            }
+            return {"success": False, "error": result.error or "Sync failed"}
 
         # Update last activity
         worktree_storage.update(worktree_id)
@@ -755,16 +734,13 @@ def create_worktrees_registry(
         """
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         updated = worktree_storage.mark_merged(worktree_id)
         if not updated:
-            return {"error": "Failed to mark worktree as merged"}
+            return {"success": False, "error": "Failed to mark worktree as merged"}
 
-        return {}
+        return {"success": True}
 
     @registry.tool(
         name="detect_stale_worktrees",
@@ -946,15 +922,9 @@ def create_worktrees_registry(
         """
         worktree = worktree_storage.get_by_task(task_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"No worktree linked to task '{task_id}'",
-            }
+            return {"success": False, "error": f"No worktree linked to task '{task_id}'"}
 
-        return {
-            "success": True,
-            "worktree": worktree.to_dict(),
-        }
+        return {"success": True, "worktree": worktree.to_dict()}
 
     @registry.tool(
         name="link_task_to_worktree",
@@ -976,15 +946,12 @@ def create_worktrees_registry(
         """
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"success": False, "error": f"Worktree '{worktree_id}' not found"}
 
         updated = worktree_storage.update(worktree_id, task_id=task_id)
         if not updated:
-            return {"error": "Failed to link task to worktree"}
+            return {"success": False, "error": "Failed to link task to worktree"}
 
-        return {}
+        return {"success": True}
 
     return registry

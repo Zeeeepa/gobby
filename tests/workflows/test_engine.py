@@ -134,6 +134,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = ["forbidden_tool"]
         step1.allowed_tools = "all"
         step1.rules = []
@@ -204,6 +205,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
         step1.rules = []
@@ -241,6 +243,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
         step1.rules = []
@@ -282,6 +285,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -348,6 +352,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -385,6 +390,7 @@ class TestWorkflowEngine:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
         step1.allowed_tools = "all"  # All others allowed
         step1.rules = []
@@ -410,6 +416,187 @@ class TestWorkflowEngine:
         assert response.decision == "block"
         assert "blocked in step" in response.reason
 
+    async def test_handle_event_mcp_tool_blocked(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """MCP tool is blocked when in blocked_mcp_tools list."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.blocked_mcp_tools = ["gobby-tasks:list_tasks", "gobby-tasks:create_task"]
+        step1.allowed_mcp_tools = "all"
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "list_tasks",
+            },
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "block"
+        assert "gobby-tasks:list_tasks" in response.reason
+        assert "blocked in step" in response.reason
+
+    async def test_handle_event_mcp_tool_not_in_allowed_list(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """MCP tool is blocked when not in allowed_mcp_tools list."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.blocked_mcp_tools = []
+        step1.allowed_mcp_tools = ["gobby-tasks:claim_task", "gobby-tasks:get_task"]
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "list_tasks",  # Not in allowed list
+            },
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "block"
+        assert "gobby-tasks:list_tasks" in response.reason
+        assert "not in allowed list" in response.reason
+
+    async def test_handle_event_mcp_tool_allowed_when_in_list(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """MCP tool is allowed when in allowed_mcp_tools list."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.blocked_mcp_tools = []
+        step1.allowed_mcp_tools = ["gobby-tasks:claim_task", "gobby-tasks:get_task"]
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-tasks",
+                "mcp_tool": "claim_task",  # In allowed list
+            },
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "allow"
+
+    async def test_handle_event_mcp_tool_wildcard_block(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """MCP tools are blocked by wildcard pattern (server:*)."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            step="step1",
+            step_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.blocked_mcp_tools = ["gobby-workflows:*"]  # Block all workflow tools
+        step1.allowed_mcp_tools = "all"
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.get_step.return_value = step1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "mcp_server": "gobby-workflows",
+                "mcp_tool": "end_workflow",
+            },
+            metadata={"_platform_session_id": "sess1"},
+        )
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "block"
+        assert "gobby-workflows:end_workflow" in response.reason
+
 
 @pytest.mark.asyncio
 class TestDetectTaskClaim:
@@ -429,6 +616,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -481,6 +669,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -529,6 +718,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -584,6 +774,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -630,6 +821,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -676,6 +868,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -722,6 +915,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -768,6 +962,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []
@@ -810,6 +1005,7 @@ class TestDetectTaskClaim:
         mock_state_manager.get_state.return_value = state
 
         step1 = MagicMock(spec=WorkflowStep)
+        step1.on_enter = []
         step1.blocked_tools = []
         step1.allowed_tools = "all"
         step1.rules = []

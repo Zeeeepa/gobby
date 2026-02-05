@@ -24,27 +24,18 @@ async def run_pipeline(
         project_id: Project context for the execution
 
     Returns:
-        Dict with success status, execution status, and outputs or approval info
+        Dict with execution status and outputs or approval info
     """
     if not executor:
-        return {
-            "success": False,
-            "error": "No executor configured",
-        }
+        return {"success": False, "error": "No executor configured"}
 
     if not loader:
-        return {
-            "success": False,
-            "error": "No loader configured",
-        }
+        return {"success": False, "error": "No loader configured"}
 
     # Load the pipeline definition
     pipeline = loader.load_pipeline(name)
     if not pipeline:
-        return {
-            "success": False,
-            "error": f"Pipeline '{name}' not found",
-        }
+        return {"success": False, "error": f"Pipeline '{name}' not found"}
 
     try:
         # Execute the pipeline
@@ -81,10 +72,7 @@ async def run_pipeline(
         }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Execution failed: {e}",
-        }
+        return {"success": False, "error": f"Execution failed: {e}"}
 
 
 async def approve_pipeline(
@@ -101,13 +89,10 @@ async def approve_pipeline(
         approved_by: Identifier of who approved (email, user ID, etc.)
 
     Returns:
-        Dict with success status and execution status
+        Dict with execution status
     """
     if not executor:
-        return {
-            "success": False,
-            "error": "No executor configured",
-        }
+        return {"success": False, "error": "No executor configured"}
 
     try:
         execution = await executor.approve(
@@ -122,16 +107,10 @@ async def approve_pipeline(
         }
 
     except ValueError as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        return {"success": False, "error": str(e)}
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Approval failed: {e}",
-        }
+        return {"success": False, "error": f"Approval failed: {e}"}
 
 
 async def reject_pipeline(
@@ -148,13 +127,10 @@ async def reject_pipeline(
         rejected_by: Identifier of who rejected (email, user ID, etc.)
 
     Returns:
-        Dict with success status and execution status (cancelled)
+        Dict with execution status (cancelled)
     """
     if not executor:
-        return {
-            "success": False,
-            "error": "No executor configured",
-        }
+        return {"success": False, "error": "No executor configured"}
 
     try:
         execution = await executor.reject(
@@ -169,16 +145,10 @@ async def reject_pipeline(
         }
 
     except ValueError as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        return {"success": False, "error": str(e)}
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Rejection failed: {e}",
-        }
+        return {"success": False, "error": f"Rejection failed: {e}"}
 
 
 def get_pipeline_status(
@@ -196,18 +166,12 @@ def get_pipeline_status(
         Dict with execution details and step statuses
     """
     if not execution_manager:
-        return {
-            "success": False,
-            "error": "No execution manager configured",
-        }
+        return {"success": False, "error": "No execution manager configured"}
 
     try:
         execution = execution_manager.get_execution(execution_id)
         if not execution:
-            return {
-                "success": False,
-                "error": f"Execution '{execution_id}' not found",
-            }
+            return {"success": False, "error": f"Execution '{execution_id}' not found"}
 
         # Get step executions
         steps = execution_manager.get_steps_for_execution(execution_id)
@@ -275,7 +239,4 @@ def get_pipeline_status(
         }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to get status: {e}",
-        }
+        return {"success": False, "error": f"Failed to get status: {e}"}

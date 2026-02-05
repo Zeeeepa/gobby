@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import subprocess  # nosec B404 - subprocess needed for headless agent spawning
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
-from gobby.agents.spawners.base import HeadlessResult
+from gobby.agents.spawners.base import HeadlessResult, make_spawn_env
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -60,10 +59,8 @@ class HeadlessSpawner:
             HeadlessResult with process handle for output capture
         """
         try:
-            # Merge environment
-            spawn_env = os.environ.copy()
-            if env:
-                spawn_env.update(env)
+            # Merge environment (clears VIRTUAL_ENV to avoid uv warnings in clones)
+            spawn_env = make_spawn_env(env)
 
             # Spawn process with captured output
             # Use DEVNULL for stdin since headless mode uses -p flag (print mode)

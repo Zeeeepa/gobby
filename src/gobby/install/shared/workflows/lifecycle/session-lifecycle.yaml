@@ -27,13 +27,22 @@ variables:
   # Reset on compact/clear since context is lost
   unlocked_tools: []
 
+  # Stop attempt counter for escape hatch
+  # After 3 consecutive failed stops, allow force-stop
+  stop_attempts: 0
+  max_stop_attempts: 3
+
 triggers:
   on_stop:
+    # Increment stop attempts counter
+    - action: increment_variable
+      name: stop_attempts
+
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
-    # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
+    # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
     - action: require_task_review_or_close_before_stop
-      when: "not variables.get('plan_mode')"
+      when: "not variables.get('plan_mode') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
 
   on_session_start:
     # Clear plan_mode on new sessions - don't inherit from parent session
@@ -129,6 +138,11 @@ triggers:
         suggest entering plan mode before proceeding with edits.
 
   on_before_agent:
+    # Reset stop attempts counter on user activity
+    - action: set_variable
+      name: stop_attempts
+      value: 0
+
     # Title synthesis on first prompt
     - action: synthesize_title
       when: "session.title == None"
@@ -188,6 +202,11 @@ triggers:
             - Changes outside repo (e.g., ~/.gobby/config.yaml): reason="out_of_repo"
 
   on_after_tool:
+    # Reset stop attempts counter on successful tool use
+    - action: set_variable
+      name: stop_attempts
+      value: 0
+
     # Track successful get_tool_schema calls to unlock tools for call_tool
     - action: track_schema_lookup
 

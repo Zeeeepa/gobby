@@ -6,7 +6,7 @@ description: |
   Supports multiple workflows via the `workflows` map:
   - box: Interactive orchestrator (Claude Code terminal) - DEFAULT
   - box-pipeline: Automated orchestrator (daemon background)
-  - worker: Task executor (Gemini in worktree)
+  - worker: Task executor (Gemini in clone)
   - code-review: Review worker changes
   - worktree-merge: Merge and cleanup
 
@@ -17,7 +17,7 @@ description: |
 mode: terminal
 provider: gemini
 model: gemini-3-pro-preview
-isolation: worktree
+isolation: clone
 # base_branch: auto-detected from caller's current branch
 
 # Named workflows - select via spawn_agent(workflow="...")
@@ -41,60 +41,17 @@ workflows:
       task_closed: false
       parent_notified: false
 
+    # Worker workflow starts at claim_task - spawn_agent handles activation
     steps:
-      - name: activate
-        description: "Activate workflow - MUST be called first"
-        on_enter:
-          - action: inject_message
-            content: |
-              WORKER: Workflow activation required.
-
-              You MUST activate this workflow before proceeding. All tools are blocked
-              until you call activate_workflow.
-
-              Call:
-              mcp__gobby__call_tool(
-                server_name="gobby-workflows",
-                tool_name="activate_workflow",
-                arguments={
-                  "name": "meeseeks:worker",
-                  "session_id": "<your_gobby_session_id>",
-                  "variables": {"assigned_task_id": "<your_assigned_task_id>"}
-                }
-              )
-
-              Your Gobby Session ID is shown at session start (e.g., "Gobby Session ID: #N").
-              Your assigned task ID was provided in the spawn prompt.
-
-        allowed_tools:
-          - mcp__gobby__call_tool
-          - mcp__gobby__get_tool_schema
-          - mcp__gobby__list_tools
-
-        blocked_tools:
-          - Edit
-          - Write
-          - Bash
-          - NotebookEdit
-          - Read
-          - Glob
-          - Grep
-          - Task
-          - spawn_agent
-
-        transitions:
-          - to: claim_task
-            when: "mcp_called('gobby-workflows', 'activate_workflow')"
-
       - name: claim_task
         description: "Claim the assigned task"
         on_enter:
           - action: inject_message
             content: |
-              WORKER: Starting in worktree.
+              WORKER: Starting in isolated clone.
 
-              You are running in an isolated git worktree. Your changes will be
-              committed to a feature branch that can be merged later.
+              You are running in an isolated git clone. Your changes will be
+              committed to a feature branch that can be pushed and merged later.
 
               Assigned task: {{ variables.assigned_task_id }}
 
@@ -110,18 +67,36 @@ workflows:
 
         allowed_tools:
           - mcp__gobby__call_tool
-          - mcp__gobby__list_tools
           - mcp__gobby__get_tool_schema
-          - Read
-          - Glob
-          - Grep
 
         blocked_tools:
           - Edit
           - Write
           - Bash
           - NotebookEdit
+          - Read
+          - Glob
+          - Grep
+          - Task
           - spawn_agent
+          - activate_workflow
+          - mcp__gobby__list_tools
+
+        # STRICT: Only allow claim_task and get_task - nothing else
+        allowed_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:get_task
+
+        # Block everything else including task discovery
+        blocked_mcp_tools:
+          - gobby-tasks:get_session_tasks
+          - gobby-tasks:list_tasks
+          - gobby-tasks:suggest_next_task
+          - gobby-tasks:create_task
+          - gobby-workflows:*
+          - gobby-agents:*
+          - gobby-clones:*
+          - gobby-sessions:*
 
         on_mcp_success:
           - server: gobby-tasks
@@ -164,12 +139,30 @@ workflows:
                  - tool_name: "close_task"
                  - arguments: {"task_id": "{{ variables.assigned_task_id }}", "changes_summary": "<brief summary>"}
 
-              Do NOT push - the parent orchestrator will handle merging.
+              NOTE: You are assigned ONE task only. Do not attempt to claim or create additional tasks.
 
         allowed_tools: all
 
         blocked_tools:
           - spawn_agent
+          - activate_workflow
+
+        # Block claiming/creating additional tasks - one task per worker
+        # Block manual workflow end - only kill_agent can end worker
+        blocked_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+          - gobby-workflows:end_workflow
+          # Block irrelevant MCP servers - worker only needs task/agent/workflow/worktree tools
+          - context7:*
+          - memory:*
+
+        # Block git push - parent orchestrator handles merging
+        blocked_commands:
+          - pattern: "git push"
+            reason: "Push is blocked. The parent orchestrator will handle merging and pushing after code review."
+          - pattern: "git push *"
+            reason: "Push is blocked. The parent orchestrator will handle merging and pushing after code review."
 
         on_mcp_success:
           - server: gobby-tasks
@@ -210,6 +203,14 @@ workflows:
           - Write
           - Bash
           - NotebookEdit
+          - activate_workflow
+
+        # Block claiming/creating additional tasks - one task per worker
+        # Block manual workflow end - only kill_agent can end worker
+        blocked_mcp_tools:
+          - gobby-tasks:claim_task
+          - gobby-tasks:create_task
+          - gobby-workflows:end_workflow
 
         on_mcp_success:
           - server: gobby-agents
@@ -230,22 +231,29 @@ workflows:
             when: "mcp_called('gobby-agents', 'send_to_parent')"
 
       - name: shutdown
-        description: "Clean shutdown"
+        description: "Clean shutdown - MUST call kill_agent"
         on_enter:
           - action: inject_message
             content: |
-              WORKER: Shutdown sequence.
+              WORKER: Shutdown sequence - MANDATORY TERMINATION
 
-              Close your terminal using the close_terminal MCP tool:
-              - server_name: "gobby-workflows"
-              - tool_name: "close_terminal"
+              Your task is complete. You MUST now terminate by calling kill_agent.
+              This is the ONLY action available to you. All other tools are blocked.
+
+              Call kill_agent now:
+              - server_name: "gobby-agents"
+              - tool_name: "kill_agent"
               - arguments: {"session_id": "YOUR_GOBBY_SESSION_ID"}
 
               NOTE: Use your Gobby Session ID (shown at session start as "Gobby Session ID: #N" or UUID).
-              Do NOT use the CLI-specific external_id.
 
-              This will terminate your terminal session cleanly.
+              WHY: Each meeseeks worker handles exactly ONE task. Your task is done.
+              The parent orchestrator will review your work and spawn new workers for
+              remaining tasks. You cannot claim additional tasks or continue working.
 
+              kill_agent is your ONLY exit path. Call it now.
+
+        # Only allow the MCP tools needed to call kill_agent
         allowed_tools:
           - mcp__gobby__call_tool
           - mcp__gobby__get_tool_schema
@@ -255,10 +263,44 @@ workflows:
           - Write
           - NotebookEdit
           - Bash
+          - Read
+          - Glob
+          - Grep
+          - Task
+          - spawn_agent
+          - activate_workflow
+
+        # Block all MCP tools except kill_agent
+        # Explicitly block end_workflow - kill_agent is the only exit
+        blocked_mcp_tools:
+          - gobby-tasks:*
+          - gobby-worktrees:*
+          - gobby-workflows:end_workflow
+          - gobby-workflows:activate_workflow
+
+        allowed_mcp_tools:
+          - gobby-agents:kill_agent
+          - gobby-agents:get_tool_schema
+
+        on_premature_stop:
+          action: block
+          message: |
+            BLOCKED: You cannot stop without calling kill_agent.
+
+            Your task is complete, but you must properly terminate your session.
+            Call kill_agent to exit:
+
+            mcp__gobby__call_tool(
+              server_name="gobby-agents",
+              tool_name="kill_agent",
+              arguments={"session_id": "YOUR_GOBBY_SESSION_ID"}
+            )
+
+            This is the ONLY way to end this session. Do it now.
 
         transitions:
           - to: complete
-            when: "mcp_called('gobby-workflows', 'close_terminal')"
+            when: "mcp_called('gobby-agents', 'kill_agent')"
 
       - name: complete
         description: "Worker done"

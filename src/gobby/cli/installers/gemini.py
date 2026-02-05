@@ -85,6 +85,7 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     # No longer need to copy to .gemini/skills/
 
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["agents_installed"] = shared.get("agents", [])
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
 

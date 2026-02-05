@@ -321,6 +321,10 @@ def install(
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
+            if result.get("agents_installed"):
+                click.echo(f"Installed {len(result['agents_installed'])} agents")
+                for agent in result["agents_installed"]:
+                    click.echo(f"  - {agent}")
             if result.get("commands_installed"):
                 click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
                 for cmd in result["commands_installed"]:
@@ -358,6 +362,10 @@ def install(
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
+            if result.get("agents_installed"):
+                click.echo(f"Installed {len(result['agents_installed'])} agents")
+                for agent in result["agents_installed"]:
+                    click.echo(f"  - {agent}")
             if result.get("commands_installed"):
                 click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
                 for cmd in result["commands_installed"]:
@@ -526,6 +534,10 @@ def install(
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
+            if result.get("agents_installed"):
+                click.echo(f"Installed {len(result['agents_installed'])} agents")
+                for agent in result["agents_installed"]:
+                    click.echo(f"  - {agent}")
             if result.get("commands_installed"):
                 click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
                 for cmd in result["commands_installed"]:

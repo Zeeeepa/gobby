@@ -5,6 +5,39 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.12] - 2025-02-05
+
+### Major Features
+
+#### Daemon Watchdog
+- Add daemon watchdog for automatic restart on failure (#7034)
+
+### Improvements
+
+- Add success field to all MCP tool responses for consistent API (#7036, #7032, #7024, #7018)
+- Add terminal field to AgentDefinition for per-agent terminal override (#7019)
+- Configure meeseeks-claude.yaml for Claude+tmux testing (#7021)
+- Clear VIRTUAL_ENV in all spawners to avoid uv warnings (#7015)
+
+### Bug Fixes
+
+- Fix Claude terminal spawn to use prepare_terminal_spawn (#7033)
+- Fix end_workflow NOT NULL constraint - use __ended__ placeholder (#7031)
+- Fix end_workflow preserving lifecycle variables (#7013)
+- Fix test_search_skills_no_matches test isolation (#7026)
+- Fix meeseeks E2E issues: transcript capture and VIRTUAL_ENV warning (#7012)
+- Bump litellm to 1.81.7 to fix async cleanup warning
+
+### Documentation
+
+- Add production-ready workflows plan documentation (#7035)
+- Update meeseeks-e2e-testing.md for both Gemini and Claude agents (#7023)
+- Fix meeseeks.yaml docstring: worktree → clone (#7016)
+
+### Internal
+
+- Multiple meeseeks E2E test run merges (#7008, #7010)
+
 ## [0.2.11] - 2025-02-04
 
 ### Improvements

@@ -99,12 +99,20 @@ class SummaryFileGenerator:
             feature_name: Feature name (e.g., "session_summary")
 
         Returns:
-            Tuple of (provider, prompt) where prompt is from feature config.
+            Tuple of (provider, prompt) where prompt is loaded from:
+            1. PromptLoader (file-based, preferred)
+            2. Config inline prompt (deprecated fallback)
             Returns (None, None) if feature is disabled.
         """
         config = self._config
         if not config:
             return self.llm_provider, None
+
+        # Map feature names to prompt paths
+        prompt_paths = {
+            "session_summary": "handoff/session_end",
+            "title_synthesis": "features/title_synthesis",
+        }
 
         # Try to get feature-specific config
         try:
@@ -123,7 +131,28 @@ class SummaryFileGenerator:
 
             # Get provider from LLMService if available
             provider_name = getattr(feature_config, "provider", None)
-            prompt = getattr(feature_config, "prompt", None)
+
+            # Try loading prompt from PromptLoader first (file-based)
+            prompt = None
+            prompt_path = prompt_paths.get(feature_name)
+            if prompt_path:
+                try:
+                    from gobby.prompts.loader import PromptLoader
+
+                    loader = PromptLoader()
+                    prompt_template = loader.load(prompt_path)
+                    prompt = prompt_template.content
+                    self.logger.debug(f"Loaded prompt from file: {prompt_path}")
+                except FileNotFoundError:
+                    self.logger.debug(f"Prompt file not found: {prompt_path}, trying config")
+                except Exception as e:
+                    self.logger.debug(f"Failed to load prompt from {prompt_path}: {e}")
+
+            # Fall back to config inline prompt (deprecated)
+            if not prompt:
+                prompt = getattr(feature_config, "prompt", None)
+                if prompt:
+                    self.logger.debug(f"Using deprecated inline config prompt for {feature_name}")
 
             llm_service = self._llm_service
             if llm_service and provider_name:

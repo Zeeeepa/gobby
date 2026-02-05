@@ -158,11 +158,11 @@ def create_memory_registry(
         try:
             success = memory_manager.forget(memory_id)
             if success:
-                return {}
+                return {"success": True}
             else:
-                return {"error": f"Memory {memory_id} not found"}
+                return {"success": False, "error": f"Memory {memory_id} not found"}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="list_memories",
@@ -457,9 +457,9 @@ def create_memory_registry(
         """
         try:
             stats = memory_manager.get_stats(project_id=get_current_project_id())
-            return {"stats": stats}
+            return {"success": True, "stats": stats}
         except Exception as e:
-            return {"error": str(e)}
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="export_memory_graph",

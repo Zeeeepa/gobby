@@ -75,15 +75,9 @@ def create_merge_registry(
         """
         # Validate required parameters
         if not worktree_id:
-            return {
-                "success": False,
-                "error": "worktree_id is required",
-            }
+            return {"success": False, "error": "worktree_id is required"}
         if not source_branch:
-            return {
-                "success": False,
-                "error": "source_branch is required",
-            }
+            return {"success": False, "error": "source_branch is required"}
 
         try:
             # Create resolution record
@@ -111,10 +105,7 @@ def create_merge_registry(
                     worktree_path = worktree.worktree_path
 
             if not worktree_path:
-                return {
-                    "success": False,
-                    "error": f"Worktree '{worktree_id}' not found or has no path",
-                }
+                return {"success": False, "error": f"Worktree '{worktree_id}' not found or has no path"}
 
             result = await merge_resolver.resolve(
                 worktree_path=worktree_path,
@@ -142,7 +133,7 @@ def create_merge_registry(
                 )
 
             return {
-                "success": result.success,
+                "success": True,
                 "resolution_id": resolution.id,
                 "tier": result.tier.value,
                 "needs_human_review": result.needs_human_review,
@@ -152,10 +143,7 @@ def create_merge_registry(
 
         except Exception as e:
             logger.exception(f"Error starting merge: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="merge_status",
@@ -172,17 +160,11 @@ def create_merge_registry(
             Dict with resolution details and conflicts.
         """
         if not resolution_id:
-            return {
-                "success": False,
-                "error": "resolution_id is required",
-            }
+            return {"success": False, "error": "resolution_id is required"}
 
         resolution = merge_storage.get_resolution(resolution_id)
         if not resolution:
-            return {
-                "success": False,
-                "error": f"Resolution '{resolution_id}' not found",
-            }
+            return {"success": False, "error": f"Resolution '{resolution_id}' not found"}
 
         conflicts = merge_storage.list_conflicts(resolution_id=resolution_id)
 
@@ -215,17 +197,11 @@ def create_merge_registry(
             Dict with resolution result.
         """
         if not conflict_id:
-            return {
-                "success": False,
-                "error": "conflict_id is required",
-            }
+            return {"success": False, "error": "conflict_id is required"}
 
         conflict = merge_storage.get_conflict(conflict_id)
         if not conflict:
-            return {
-                "success": False,
-                "error": f"Conflict '{conflict_id}' not found",
-            }
+            return {"success": False, "error": f"Conflict '{conflict_id}' not found"}
 
         try:
             if resolved_content is not None:
@@ -284,17 +260,11 @@ def create_merge_registry(
                         "needs_human_review": result.needs_human_review,
                     }
 
-            return {
-                "success": False,
-                "error": "No resolution method specified",
-            }
+            return {"success": False, "error": "No resolution method specified"}
 
         except Exception as e:
             logger.exception(f"Error resolving conflict: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="merge_apply",
@@ -311,17 +281,11 @@ def create_merge_registry(
             Dict with merge completion status.
         """
         if not resolution_id:
-            return {
-                "success": False,
-                "error": "resolution_id is required",
-            }
+            return {"success": False, "error": "resolution_id is required"}
 
         resolution = merge_storage.get_resolution(resolution_id)
         if not resolution:
-            return {
-                "success": False,
-                "error": f"Resolution '{resolution_id}' not found",
-            }
+            return {"success": False, "error": f"Resolution '{resolution_id}' not found"}
 
         conflicts = merge_storage.list_conflicts(resolution_id=resolution_id)
 
@@ -358,10 +322,7 @@ def create_merge_registry(
 
         except Exception as e:
             logger.exception(f"Error applying merge: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     @registry.tool(
         name="merge_abort",
@@ -378,24 +339,15 @@ def create_merge_registry(
             Dict with abort status.
         """
         if not resolution_id:
-            return {
-                "success": False,
-                "error": "resolution_id is required",
-            }
+            return {"success": False, "error": "resolution_id is required"}
 
         resolution = merge_storage.get_resolution(resolution_id)
         if not resolution:
-            return {
-                "success": False,
-                "error": f"Resolution '{resolution_id}' not found",
-            }
+            return {"success": False, "error": f"Resolution '{resolution_id}' not found"}
 
         # Can't abort already resolved merges
         if resolution.status == "resolved":
-            return {
-                "success": False,
-                "error": "Cannot abort: merge is already resolved",
-            }
+            return {"success": False, "error": "Cannot abort: merge is already resolved"}
 
         try:
             # Abort git merge if in progress
@@ -406,17 +358,17 @@ def create_merge_registry(
             # Delete resolution and associated conflicts (cascade)
             deleted = merge_storage.delete_resolution(resolution_id)
 
-            return {
-                "success": deleted,
-                "message": "Merge aborted successfully" if deleted else "Failed to abort merge",
-                "resolution_id": resolution_id,
-            }
+            if deleted:
+                return {
+                    "success": True,
+                    "message": "Merge aborted successfully",
+                    "resolution_id": resolution_id,
+                }
+            else:
+                return {"success": False, "error": "Failed to abort merge"}
 
         except Exception as e:
             logger.exception(f"Error aborting merge: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}
 
     return registry

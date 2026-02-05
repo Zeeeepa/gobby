@@ -233,11 +233,210 @@ class RunningAgentRegistry:
             )
         return agent
 
+    def _close_terminal_window(
+        self,
+        agent: RunningAgent,
+        signal_name: str = "TERM",
+        timeout: float = 5.0,
+    ) -> dict[str, Any]:
+        """
+        Close the terminal window/pane using OS-agnostic methods.
+
+        Tries multiple strategies based on terminal type and available context.
+
+        Args:
+            agent: The running agent with terminal context
+            signal_name: Signal to use if falling back to PID kill
+            timeout: Timeout for subprocess operations
+
+        Returns:
+            Dict with success status and method used
+        """
+        import os
+        import signal
+        import subprocess  # nosec B404
+        import sys
+
+        is_macos = sys.platform == "darwin"
+        is_windows = sys.platform == "win32"
+
+        # Get session terminal context
+        ctx: dict[str, Any] = {}
+        try:
+            from gobby.storage.database import LocalDatabase
+            from gobby.storage.sessions import LocalSessionManager
+
+            db = LocalDatabase()
+            session_mgr = LocalSessionManager(db)
+            session = session_mgr.get(agent.session_id)
+            if session and session.terminal_context:
+                ctx = session.terminal_context
+        except Exception as e:
+            self._logger.debug(f"Failed to get terminal context: {e}")
+
+        term_program = ctx.get("term_program", "").lower()
+
+        # === Cross-platform strategies (try first) ===
+
+        # Strategy 1: tmux (macOS + Linux) - most reliable
+        # Only use tmux if the pane actually exists and belongs to a running tmux session
+        if ctx.get("tmux_pane"):
+            try:
+                # Verify the pane exists before killing - prevents killing inherited/stale panes
+                verify_result = subprocess.run(
+                    ["tmux", "display-message", "-t", ctx["tmux_pane"], "-p", "#{pane_id}"],
+                    timeout=timeout,
+                    capture_output=True,
+                    text=True,
+                )
+                if verify_result.returncode == 0 and verify_result.stdout.strip():
+                    subprocess.run(
+                        ["tmux", "kill-pane", "-t", ctx["tmux_pane"]],
+                        timeout=timeout,
+                        capture_output=True,
+                    )
+                    return {"success": True, "method": "tmux_kill_pane", "pane": ctx["tmux_pane"]}
+                else:
+                    self._logger.debug(
+                        f"tmux pane {ctx['tmux_pane']} not found or not accessible, skipping"
+                    )
+            except Exception as e:
+                self._logger.debug(f"tmux kill-pane failed: {e}")
+
+        # Strategy 2: Kitty remote control (cross-platform)
+        if term_program == "kitty" and ctx.get("kitty_window_id"):
+            try:
+                subprocess.run(
+                    ["kitty", "@", "close-window", "--match", f"id:{ctx['kitty_window_id']}"],
+                    timeout=timeout,
+                    capture_output=True,
+                )
+                return {
+                    "success": True,
+                    "method": "kitty_remote",
+                    "window_id": ctx["kitty_window_id"],
+                }
+            except Exception as e:
+                self._logger.debug(f"kitty remote failed: {e}")
+
+        # Strategy 3: Alacritty socket IPC (cross-platform)
+        if term_program == "alacritty" and ctx.get("alacritty_socket"):
+            try:
+                subprocess.run(
+                    ["alacritty", "msg", "--socket", ctx["alacritty_socket"], "close"],
+                    timeout=timeout,
+                    capture_output=True,
+                )
+                return {"success": True, "method": "alacritty_socket"}
+            except Exception as e:
+                self._logger.debug(f"alacritty socket failed: {e}")
+
+        # === macOS-specific strategies ===
+
+        if is_macos:
+            # Strategy 4: iTerm AppleScript
+            if "iterm" in term_program and ctx.get("iterm_session_id"):
+                try:
+                    script = f'tell app "iTerm2" to close (session id "{ctx["iterm_session_id"]}")'
+                    subprocess.run(
+                        ["osascript", "-e", script],
+                        timeout=timeout,
+                        capture_output=True,
+                    )
+                    return {"success": True, "method": "iterm_applescript"}
+                except Exception as e:
+                    self._logger.debug(f"iTerm AppleScript failed: {e}")
+
+            # Strategy 5: Terminal.app AppleScript
+            if term_program == "apple_terminal" or "terminal" in term_program:
+                try:
+                    # Close window by matching the session process
+                    script = 'tell app "Terminal" to close front window'
+                    subprocess.run(
+                        ["osascript", "-e", script],
+                        timeout=timeout,
+                        capture_output=True,
+                    )
+                    return {"success": True, "method": "terminal_applescript"}
+                except Exception as e:
+                    self._logger.debug(f"Terminal.app AppleScript failed: {e}")
+
+            # Strategy 6: Ghostty - find window by session_id in process args
+            if "ghostty" in term_program:
+                try:
+                    # Ghostty doesn't have remote control, but we can find its window process
+                    result = subprocess.run(
+                        ["pgrep", "-f", f"ghostty.*{agent.session_id}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        pid = int(result.stdout.strip().split("\n")[0])
+                        os.kill(pid, signal.SIGTERM)
+                        return {"success": True, "method": "ghostty_pgrep", "pid": pid}
+                except Exception as e:
+                    self._logger.debug(f"Ghostty pgrep failed: {e}")
+
+        # === Windows-specific strategies ===
+
+        if is_windows:
+            parent_pid = ctx.get("parent_pid")
+            if parent_pid:
+                try:
+                    # /T kills the entire process tree
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(parent_pid)],
+                        timeout=timeout,
+                        capture_output=True,
+                    )
+                    return {"success": True, "method": "taskkill_tree", "pid": parent_pid}
+                except Exception as e:
+                    self._logger.debug(f"taskkill failed: {e}")
+
+        # === Generic fallback strategies ===
+
+        # Strategy 7: pgrep for terminal with session_id in args (macOS + Linux)
+        if not is_windows and term_program:
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", f"{term_program}.*{agent.session_id}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    pid = int(result.stdout.strip().split("\n")[0])
+                    os.kill(pid, signal.SIGTERM)
+                    return {"success": True, "method": "terminal_pgrep", "pid": pid}
+            except Exception as e:
+                self._logger.debug(f"terminal pgrep failed: {e}")
+
+        # Strategy 8: Kill parent_pid directly (closes terminal on most systems)
+        parent_pid = ctx.get("parent_pid")
+        if parent_pid:
+            try:
+                pid = int(parent_pid)
+                if is_windows:
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        timeout=timeout,
+                        capture_output=True,
+                    )
+                else:
+                    os.kill(pid, signal.SIGTERM)
+                return {"success": True, "method": "parent_pid", "pid": pid}
+            except (ProcessLookupError, OSError, ValueError) as e:
+                self._logger.debug(f"parent_pid kill failed: {e}")
+
+        return {"success": False, "error": "No terminal close method available"}
+
     def kill(
         self,
         run_id: str,
         signal_name: str = "TERM",
         timeout: float = 5.0,
+        close_terminal: bool = False,
     ) -> dict[str, Any]:
         """
         Kill a running agent process.
@@ -252,6 +451,8 @@ class RunningAgentRegistry:
             run_id: Agent run ID
             signal_name: Signal without SIG prefix (TERM, KILL)
             timeout: Seconds before escalating TERM → KILL
+            close_terminal: If True, attempt to close the terminal window/pane
+                instead of just killing the agent process (for self-termination)
 
         Returns:
             Dict with success status and details
@@ -270,6 +471,14 @@ class RunningAgentRegistry:
             agent.task.cancel()
             self.remove(run_id, status="cancelled")
             return {"success": True, "message": "Cancelled in-process task"}
+
+        # For terminal mode with close_terminal=True, try terminal-specific close methods
+        if close_terminal and agent.mode == "terminal" and agent.session_id:
+            result = self._close_terminal_window(agent, signal_name, timeout)
+            if result.get("success"):
+                self.remove(run_id, status="killed")
+                return result
+            # Fall through to standard kill if terminal close failed
 
         # For terminal mode, find PID via multiple strategies
         target_pid = agent.pid
@@ -304,14 +513,14 @@ class RunningAgentRegistry:
                 else:
                     try:
                         # Use -- to prevent pgrep from interpreting pattern as options
-                        result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
+                        pgrep_result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
                             ["pgrep", "-f", "--", f"session-id {agent.session_id}"],
                             capture_output=True,
                             text=True,
                             timeout=5.0,
                         )
-                        if result.returncode == 0 and result.stdout.strip():
-                            pids = result.stdout.strip().split("\n")
+                        if pgrep_result.returncode == 0 and pgrep_result.stdout.strip():
+                            pids = pgrep_result.stdout.strip().split("\n")
                             if len(pids) == 1:
                                 target_pid = int(pids[0])
                                 found_via = "pgrep"

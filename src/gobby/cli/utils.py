@@ -419,8 +419,77 @@ def _is_process_alive(pid: int) -> bool:
         return False
 
 
+def stop_watchdog(quiet: bool = False) -> bool:
+    """Stop the watchdog process. Returns True on success, False on failure.
+
+    Args:
+        quiet: If True, suppress output messages
+
+    Returns:
+        True if watchdog was stopped successfully or wasn't running, False on error
+    """
+    pid_file = get_gobby_home() / "watchdog.pid"
+
+    if not pid_file.exists():
+        if not quiet:
+            logger.debug("Watchdog not running (no PID file)")
+        return True
+
+    try:
+        with open(pid_file) as f:
+            pid = int(f.read().strip())
+    except Exception as e:
+        if not quiet:
+            logger.debug(f"Error reading watchdog PID file: {e}")
+        pid_file.unlink(missing_ok=True)
+        return True
+
+    # Check if process is actually running
+    if not _is_process_alive(pid):
+        if not quiet:
+            logger.debug(f"Watchdog not running (stale PID file with PID {pid})")
+        pid_file.unlink(missing_ok=True)
+        return True
+
+    try:
+        # Send SIGTERM for graceful shutdown
+        os.kill(pid, signal.SIGTERM)
+        if not quiet:
+            click.echo(f"Stopping watchdog (PID {pid})")
+
+        # Wait for graceful shutdown (watchdog should stop quickly)
+        max_wait = 5
+        for _ in range(max_wait * 10):
+            time.sleep(0.1)
+            if not _is_process_alive(pid):
+                if not quiet:
+                    logger.debug("Watchdog stopped")
+                pid_file.unlink(missing_ok=True)
+                return True
+
+        # Force kill if needed
+        try:
+            os.kill(pid, signal.SIGKILL)
+            time.sleep(0.5)
+        except ProcessLookupError:
+            pass
+
+        pid_file.unlink(missing_ok=True)
+        return True
+
+    except ProcessLookupError:
+        pid_file.unlink(missing_ok=True)
+        return True
+    except Exception as e:
+        if not quiet:
+            logger.debug(f"Error stopping watchdog: {e}")
+        return False
+
+
 def stop_daemon(quiet: bool = False) -> bool:
     """Stop the daemon process. Returns True on success, False on failure.
+
+    Stops the watchdog first (if running) to prevent it from restarting the daemon.
 
     Args:
         quiet: If True, suppress output messages
@@ -428,6 +497,9 @@ def stop_daemon(quiet: bool = False) -> bool:
     Returns:
         True if daemon was stopped successfully or wasn't running, False on error
     """
+    # Stop watchdog first to prevent it from restarting the daemon
+    stop_watchdog(quiet=True)
+
     pid_file = get_gobby_home() / "gobby.pid"
 
     # Read PID from file

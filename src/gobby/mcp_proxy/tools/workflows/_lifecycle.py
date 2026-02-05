@@ -89,9 +89,10 @@ def activate_workflow(
     # Allow if:
     # - No existing state
     # - Existing is __lifecycle__ placeholder
+    # - Existing is __ended__ (step workflow was ended, variables preserved)
     # - Existing is a lifecycle-type workflow (they run concurrently with step workflows)
     existing = state_manager.get_state(resolved_session_id)
-    if existing and existing.workflow_name != "__lifecycle__":
+    if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
         # Check if existing workflow is a lifecycle type
         existing_def = loader.load_workflow(existing.workflow_name, proj)
         # Only allow if we can confirm it's a lifecycle workflow

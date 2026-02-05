@@ -70,10 +70,7 @@ def create_metrics_registry(
                 server_name=server_name,
                 tool_name=tool_name,
             )
-            return {
-                "success": True,
-                "metrics": result,
-            }
+            return {"success": True, "metrics": result}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -207,10 +204,7 @@ def create_metrics_registry(
                 server_name=server_name,
                 tool_name=tool_name,
             )
-            return {
-                "success": True,
-                "deleted_count": deleted,
-            }
+            return {"success": True, "deleted_count": deleted}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -287,10 +281,7 @@ def create_metrics_registry(
         """
         try:
             stats = metrics_manager.get_retention_stats()
-            return {
-                "success": True,
-                "stats": stats,
-            }
+            return {"success": True, "stats": stats}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -314,10 +305,7 @@ def create_metrics_registry(
 
         try:
             summary = token_tracker.get_usage_summary(days=days)
-            return {
-                "success": True,
-                "usage": summary,
-            }
+            return {"success": True, "usage": summary}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -337,10 +325,7 @@ def create_metrics_registry(
 
         try:
             status = token_tracker.get_budget_status()
-            return {
-                "success": True,
-                "budget": status,
-            }
+            return {"success": True, "budget": status}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

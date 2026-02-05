@@ -130,6 +130,7 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
+    workflow_key: str | None = None,  # Original workflow key for mode resolution (e.g., "box")
     mode: Literal["terminal", "embedded", "headless", "self"] | None = None,
     initial_step: str | None = None,  # For mode=self, start at specific step
     terminal: str = "auto",
@@ -201,8 +202,14 @@ async def spawn_agent_impl(
 
     effective_mode: Literal["terminal", "embedded", "headless", "self"] | None = mode
     if effective_mode is None and agent_def:
-        effective_mode = agent_def.get_effective_mode(workflow)
+        # Use workflow_key (original key like "box") for mode resolution, not resolved name
+        effective_mode = agent_def.get_effective_mode(workflow_key or workflow)
     effective_mode = effective_mode or "terminal"
+
+    # Resolve terminal from agent_def if not explicitly provided
+    effective_terminal = terminal
+    if effective_terminal == "auto" and agent_def and agent_def.terminal != "auto":
+        effective_terminal = agent_def.terminal
 
     # Resolve workflow using agent_def's named workflows map
     # Resolution order: explicit param > agent's workflows map > legacy workflow field
@@ -214,23 +221,15 @@ async def spawn_agent_impl(
 
     # Handle mode=self: activate workflow on caller session instead of spawning
     if effective_mode == "self":
-        # Validate constraints
+        # mode: self overrides isolation - self mode doesn't spawn an agent,
+        # it activates a workflow on the caller's session
         if effective_isolation != "current":
-            return {
-                "success": False,
-                "error": "mode: self is incompatible with isolation (worktree/clone). "
-                "Self mode activates a workflow on the calling session.",
-            }
+            logger.debug(f"mode=self overrides isolation={effective_isolation} to 'current'")
+            effective_isolation = "current"
         if not effective_workflow:
-            return {
-                "success": False,
-                "error": "mode: self requires a workflow to activate",
-            }
+            return {"success": False, "error": "mode: self requires a workflow to activate"}
         if not parent_session_id:
-            return {
-                "success": False,
-                "error": "mode: self requires parent_session_id (the session to activate on)",
-            }
+            return {"success": False, "error": "mode: self requires parent_session_id (the session to activate on)"}
 
         # Resolve step_variables for workflow activation
         self_step_variables: dict[str, Any] | None = None
@@ -243,8 +242,10 @@ async def spawn_agent_impl(
                     self_task_id = resolve_task_id_for_mcp(task_manager, task_id, self_project_id)
                     task = task_manager.get_task(self_task_id)
                     if task:
+                        task_ref = f"#{task.seq_num}" if task.seq_num else self_task_id
                         self_step_variables = {
-                            "assigned_task_id": f"#{task.seq_num}" if task.seq_num else self_task_id
+                            "assigned_task_id": task_ref,
+                            "session_task": task_ref,  # For orchestrator workflows like meeseeks-box
                         }
                 except Exception as e:
                     logger.warning(f"Failed to resolve task_id {task_id}: {e}")
@@ -385,6 +386,38 @@ async def spawn_agent_impl(
         logger.error(f"Failed to prepare environment: {e}", exc_info=True)
         return {"success": False, "error": f"Failed to prepare environment: {e}"}
 
+    # 7b. Add main repo path to sandbox read AND write paths for worktree isolation
+    # Git operations in worktrees require read/write access to the main repo's .git directory
+    # (e.g., .git/worktrees/<name>/index.lock needs write access)
+    if (
+        effective_isolation == "worktree"
+        and effective_sandbox_config
+        and effective_sandbox_config.enabled
+        and isolation_ctx.extra.get("main_repo_path")
+    ):
+        main_repo_path = isolation_ctx.extra["main_repo_path"]
+        main_repo_path_str = str(main_repo_path)
+        existing_read_paths = list(effective_sandbox_config.extra_read_paths or [])
+        existing_write_paths = list(effective_sandbox_config.extra_write_paths or [])
+        paths_updated = False
+        if main_repo_path_str not in existing_read_paths:
+            existing_read_paths.append(main_repo_path_str)
+            paths_updated = True
+        if main_repo_path_str not in existing_write_paths:
+            existing_write_paths.append(main_repo_path_str)
+            paths_updated = True
+        if paths_updated:
+            effective_sandbox_config = SandboxConfig(
+                enabled=effective_sandbox_config.enabled,
+                mode=effective_sandbox_config.mode,
+                allow_network=effective_sandbox_config.allow_network,
+                extra_read_paths=existing_read_paths,
+                extra_write_paths=existing_write_paths,
+            )
+            logger.debug(
+                f"Added main repo path {main_repo_path} to sandbox read/write paths for worktree"
+            )
+
     # 8. Build enhanced prompt with isolation context
     enhanced_prompt = handler.build_context_prompt(prompt, isolation_ctx)
 
@@ -405,7 +438,7 @@ async def spawn_agent_impl(
         cwd=isolation_ctx.cwd,
         mode=effective_mode,
         provider=effective_provider,
-        terminal=terminal,
+        terminal=effective_terminal,
         session_id=session_id,
         run_id=run_id,
         parent_session_id=parent_session_id,
@@ -440,8 +473,12 @@ async def spawn_agent_impl(
         )
 
     # 12. Return response with isolation metadata
+    # If spawn failed, return error response
+    if not spawn_result.success:
+        return {"success": False, "error": spawn_result.error or "Failed to spawn agent"}
+
     return {
-        "success": spawn_result.success,
+        "success": True,
         "run_id": spawn_result.run_id,
         "child_session_id": spawn_result.child_session_id,
         "status": spawn_result.status,
@@ -451,7 +488,6 @@ async def spawn_agent_impl(
         "worktree_path": isolation_ctx.cwd if effective_isolation == "worktree" else None,
         "clone_id": isolation_ctx.clone_id,
         "pid": spawn_result.pid,
-        "error": spawn_result.error,
         "message": spawn_result.message,
     }
 
@@ -647,6 +683,7 @@ def create_spawn_agent_registry(
             clone_storage=clone_storage,
             clone_manager=clone_manager,
             workflow=effective_workflow,
+            workflow_key=workflow,  # Original key (e.g., "box") for mode resolution
             mode=mode,
             initial_step=initial_step,
             terminal=terminal,

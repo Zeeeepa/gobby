@@ -519,14 +519,19 @@ class PluginLoader:
         """
         Discover plugin classes from configured directories.
 
+        Directories are scanned in order, with later directories taking priority.
+        This allows project-scoped plugins (.gobby/plugins/) to override
+        global plugins (~/.gobby/plugins/) when they share the same name.
+
         Args:
             dirs: Optional list of directories to scan. Uses config.plugin_dirs if None.
 
         Returns:
-            List of discovered HookPlugin subclasses.
+            List of discovered HookPlugin subclasses (deduplicated by name).
         """
         search_dirs = dirs or self.config.plugin_dirs
-        discovered: list[type[HookPlugin]] = []
+        # Use dict to dedupe by plugin name - later dirs override earlier ones
+        discovered_by_name: dict[str, type[HookPlugin]] = {}
 
         for dir_path in search_dirs:
             # Expand ~ and resolve path
@@ -547,10 +552,18 @@ class PluginLoader:
 
                 try:
                     plugin_classes = self._load_module(py_file)
-                    discovered.extend(plugin_classes)
+                    for plugin_class in plugin_classes:
+                        plugin_name = plugin_class.name
+                        if plugin_name in discovered_by_name:
+                            logger.debug(
+                                f"Plugin '{plugin_name}' from {expanded} "
+                                f"overrides earlier discovery"
+                            )
+                        discovered_by_name[plugin_name] = plugin_class
                 except Exception as e:
                     logger.error(f"Failed to load plugin module {py_file}: {e}")
 
+        discovered = list(discovered_by_name.values())
         logger.info(f"Discovered {len(discovered)} plugin class(es)")
         return discovered
 

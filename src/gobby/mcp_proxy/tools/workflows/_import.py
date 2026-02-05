@@ -109,4 +109,4 @@ def reload_cache(loader: WorkflowLoader) -> dict[str, Any]:
     """
     loader.clear_cache()
     logger.info("Workflow cache cleared via reload_cache tool")
-    return {"message": "Workflow cache cleared"}
+    return {"success": True, "message": "Workflow cache cleared"}
