@@ -231,7 +231,7 @@ workflows:
               WORKER: Shutdown sequence - MANDATORY TERMINATION
 
               Your task is complete. You MUST now terminate by calling kill_agent.
-              This is the ONLY action available to you. All other tools are blocked.
+              All other tools are blocked. Follow the two steps below exactly.
 
               Step 1: Unlock kill_agent by fetching its schema:
                 mcp__gobby__get_tool_schema(server_name="gobby-agents", tool_name="kill_agent")
