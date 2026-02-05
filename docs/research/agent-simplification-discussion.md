@@ -149,7 +149,7 @@ gobby-agents has significant custom infrastructure:
 ### What Gobby-Agents Would Do
 
 ```python
-start_agent(agent="validator", prompt="run tests", workflow="test-driven")
+spawn_agent(agent="validator", prompt="run tests", workflow="test-driven")
   → Load agent definition (role, prompt, allowed_tools)
   → Create child session for tracking
   → Set workflow variables (session_task, etc.)

@@ -3,7 +3,7 @@
 # It enforces test-driven development: write tests first, then implement.
 #
 # Usage: Spawn an agent with this workflow:
-#   call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+#   call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
 #       "prompt": "Implement user authentication",
 #       "workflow": "agent-tdd",
 #       "parent_session_id": "sess-parent",

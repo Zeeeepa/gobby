@@ -1108,7 +1108,6 @@ steps:
 
     blocked_tools:
       - spawn_agent
-      - start_agent
       - spawn_agent_in_worktree
       - spawn_agent_in_clone
 
@@ -1191,7 +1190,7 @@ steps:
 
     blocked_tools:
       - spawn_agent
-      - start_agent
+
 
     transitions:
       - to: complete
@@ -1230,7 +1229,7 @@ steps:
 
     blocked_tools:
       - spawn_agent
-      - start_agent
+
       - spawn_agent_in_worktree
       - spawn_agent_in_clone
 
@@ -1251,6 +1250,6 @@ steps:
         work_step = next(s for s in wf.steps if s.name == "work")
         # Check blocked tools prevent recursive spawning
         assert "spawn_agent" in work_step.blocked_tools
-        assert "start_agent" in work_step.blocked_tools
+
         assert "spawn_agent_in_worktree" in work_step.blocked_tools
         assert "spawn_agent_in_clone" in work_step.blocked_tools

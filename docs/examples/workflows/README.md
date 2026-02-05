@@ -61,7 +61,7 @@ gobby workflows status
 
 ```python
 # Spawn an agent that runs this workflow
-call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
     "prompt": "Implement user authentication with proper tests",
     "workflow": "agent-tdd",
     "parent_session_id": current_session_id,

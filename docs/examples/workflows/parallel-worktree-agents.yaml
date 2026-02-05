@@ -92,7 +92,7 @@ steps:
               "task_id": "gt-yyy",
           })
 
-          call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+          call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
               "prompt": "Implement feature Y",
               "worktree_id": result["worktree_id"],
               "mode": "terminal",

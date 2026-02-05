@@ -72,7 +72,7 @@ steps:
 
           ```python
           # Start a subagent
-          call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+          call_tool(server_name="gobby-agents", tool_name="spawn_agent", arguments={
               "prompt": "Implement feature X...",
               "mode": "in_process",  # or "terminal" for parallel
               "parent_session_id": current_session_id,
@@ -97,7 +97,7 @@ steps:
     allowed_tools: all
     blocked_tools:
       # Block only agent-spawning tools; allow gobby-tasks/worktrees/memory
-      - gobby-agents:start_agent
+      - gobby-agents:spawn_agent
       - gobby-agents:stop_agent
 
     on_enter:

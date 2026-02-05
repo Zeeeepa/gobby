@@ -127,7 +127,7 @@ call_tool("gobby-sessions", "get_current_session", {
 
 ## Spawned Agent Protocol
 
-When spawned as a subagent (via `start_agent` or `spawn_agent_in_worktree`), use these tools to communicate and terminate:
+When spawned as a subagent (via `spawn_agent`), use these tools to communicate and terminate:
 
 ### 1. Get your session info
 

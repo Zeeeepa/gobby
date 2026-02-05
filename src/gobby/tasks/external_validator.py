@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     class AgentSpawner(Protocol):
         """Protocol for agent spawning interface (gobby-agents)."""
 
-        async def start_agent(self, **kwargs: Any) -> dict[str, Any]:
+        async def spawn_agent(self, **kwargs: Any) -> dict[str, Any]:
             """Start a new agent process."""
             ...
 
@@ -313,7 +313,7 @@ async def _run_spawn_validation(
 ) -> ExternalValidationResult:
     """Run validation by spawning a separate headless agent process.
 
-    Spawns a completely separate agent process via gobby-agents.start_agent.
+    Spawns a completely separate agent process via gobby-agents.spawn_agent.
     This ensures the validator has no shared state with the implementation agent
     and runs in a fresh context.
 
@@ -343,7 +343,7 @@ async def _run_spawn_validation(
         model = config.external_validator_model or config.model
 
         # Spawn a headless agent with no parent context
-        spawn_result = await agent_spawner.start_agent(
+        spawn_result = await agent_spawner.spawn_agent(
             prompt=prompt,
             mode="headless",
             model=model,

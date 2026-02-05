@@ -45,7 +45,7 @@ steps:
       #
       #     mcp__gobby__call_tool(
       #       server_name="gobby-agents",
-      #       tool_name="start_agent",
+      #       tool_name="spawn_agent",
       #       arguments={
       #         "prompt": "Complete task: {task_title}",
       #         "workflow": "meeseeks",

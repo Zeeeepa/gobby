@@ -33,7 +33,6 @@ steps:
     # Prevent recursive spawning
     blocked_tools:
       - spawn_agent
-      - start_agent
       - spawn_agent_in_worktree
       - spawn_agent_in_clone
 

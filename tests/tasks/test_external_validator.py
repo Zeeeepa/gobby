@@ -730,7 +730,7 @@ class TestAgentSpawnValidation:
     """Tests for external validation via spawned agent process.
 
     TDD Red Phase: These tests verify that when external_validator_mode="spawn",
-    a separate agent process is spawned via gobby-agents.start_agent rather than
+    a separate agent process is spawned via gobby-agents.spawn_agent rather than
     using an in-process AgentRunner. The implementation does not exist yet.
 
     Task: gt-09277c
@@ -752,7 +752,7 @@ class TestAgentSpawnValidation:
     def mock_agent_spawner(self):
         """Mock the gobby-agents spawner interface."""
         spawner = MagicMock()
-        spawner.start_agent = AsyncMock(
+        spawner.spawn_agent = AsyncMock(
             return_value={
                 "success": True,
                 "agent_id": "agent-validator-123",
@@ -782,7 +782,7 @@ class TestAgentSpawnValidation:
     async def test_spawn_mode_invokes_agent_spawner(
         self, validation_config_spawn, mock_agent_spawner, sample_task
     ):
-        """Test that spawn mode invokes gobby-agents.start_agent."""
+        """Test that spawn mode invokes gobby-agents.spawn_agent."""
         from gobby.tasks.external_validator import run_external_validation
 
         result = await run_external_validation(
@@ -794,7 +794,7 @@ class TestAgentSpawnValidation:
         )
 
         # Agent spawner should be invoked
-        mock_agent_spawner.start_agent.assert_called_once()
+        mock_agent_spawner.spawn_agent.assert_called_once()
 
         # Should poll for result
         mock_agent_spawner.get_agent_result.assert_called()
@@ -817,7 +817,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         assert call_kwargs.get("mode") == "headless"
 
     @pytest.mark.asyncio
@@ -835,7 +835,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         assert call_kwargs.get("model") == "claude-sonnet-4-5"
 
     @pytest.mark.asyncio
@@ -853,7 +853,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Prompt should contain validation instructions
@@ -878,7 +878,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Changes should be included
@@ -899,7 +899,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         # Validator should have limited turns (single-shot or few turns)
         max_turns = call_kwargs.get("max_turns")
         assert max_turns is not None
@@ -930,7 +930,7 @@ class TestAgentSpawnValidation:
         """Test that spawn mode handles agent spawn failures."""
         from gobby.tasks.external_validator import run_external_validation
 
-        mock_agent_spawner.start_agent.return_value = {
+        mock_agent_spawner.spawn_agent.return_value = {
             "success": False,
             "error": "Failed to spawn agent",
         }
@@ -1013,7 +1013,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
 
         # Should not pass parent_session_id (no context inheritance)
         # or should explicitly pass session_context=None
@@ -1041,7 +1041,7 @@ class TestAgentSpawnValidation:
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # System prompt should instruct objectivity
@@ -1078,7 +1078,7 @@ class TestValidationContextPassing:
     def mock_agent_spawner(self):
         """Mock the gobby-agents spawner interface."""
         spawner = MagicMock()
-        spawner.start_agent = AsyncMock(
+        spawner.spawn_agent = AsyncMock(
             return_value={
                 "success": True,
                 "agent_id": "agent-ctx-123",
@@ -1123,7 +1123,7 @@ index abc1234..def5678 100644
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Git diff should be in the prompt
@@ -1165,7 +1165,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Test results should be preserved in context
@@ -1196,7 +1196,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # All acceptance criteria should be in prompt
@@ -1223,7 +1223,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Validation criteria content should be in prompt
@@ -1251,7 +1251,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Test strategy should be in prompt
@@ -1292,7 +1292,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Prompt should not be excessively long
@@ -1323,7 +1323,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Description should be used as fallback
@@ -1349,7 +1349,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Task ID should be in prompt for traceability
@@ -1374,7 +1374,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Task title should be in prompt
@@ -1405,7 +1405,7 @@ class TestQALoopIntegration:
     def mock_agent_spawner(self):
         """Mock agent spawner returning successful spawn."""
         spawner = MagicMock()
-        spawner.start_agent = AsyncMock(
+        spawner.spawn_agent = AsyncMock(
             return_value={
                 "success": True,
                 "agent_id": "agent-qa-123",
@@ -1718,7 +1718,7 @@ class TestTaskAwareValidationContext:
     def mock_agent_spawner(self):
         """Mock the gobby-agents spawner interface."""
         spawner = MagicMock()
-        spawner.start_agent = AsyncMock(
+        spawner.spawn_agent = AsyncMock(
             return_value={
                 "success": True,
                 "agent_id": "agent-task-aware-123",
@@ -1811,7 +1811,7 @@ diff --git a/tests/test_login.py b/tests/test_login.py
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # The task-relevant file should be prominently featured
@@ -1928,7 +1928,7 @@ diff --git a/src/cache.py b/src/cache.py
             agent_spawner=mock_agent_spawner,
         )
 
-        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_agent_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Prompt should indicate which files are task-relevant/prioritized
@@ -2091,7 +2091,7 @@ class TestSymbolContextInValidationPrompt:
         from gobby.tasks.external_validator import run_external_validation
 
         mock_spawner = MagicMock()
-        mock_spawner.start_agent = AsyncMock(
+        mock_spawner.spawn_agent = AsyncMock(
             return_value={"success": True, "agent_id": "test", "status": "running"}
         )
         mock_spawner.get_agent_result = AsyncMock(
@@ -2125,7 +2125,7 @@ class TestSymbolContextInValidationPrompt:
             agent_spawner=mock_spawner,
         )
 
-        call_kwargs = mock_spawner.start_agent.call_args.kwargs
+        call_kwargs = mock_spawner.spawn_agent.call_args.kwargs
         prompt = call_kwargs.get("prompt", "")
 
         # Symbols should be in the spawn prompt too
