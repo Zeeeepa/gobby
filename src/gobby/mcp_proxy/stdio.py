@@ -65,12 +65,12 @@ class DaemonProxy:
                     data: dict[str, Any] = resp.json()
                     return data
                 else:
-                    return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
+                    return {"error": f"HTTP {resp.status_code}: {resp.text}"}
         except httpx.ConnectError:
-            return {"success": False, "error": "Daemon not running or not reachable"}
+            return {"error": "Daemon not running or not reachable"}
         except Exception as e:
             error_msg = str(e) or f"{type(e).__name__}: (no message)"
-            return {"success": False, "error": error_msg}
+            return {"error": error_msg}
 
     async def get_status(self) -> dict[str, Any]:
         """Get daemon status."""
@@ -82,16 +82,15 @@ class DaemonProxy:
             return await self._request("GET", f"/mcp/{server}/tools")
         # List all - need to get server list first
         status = await self.get_status()
-        if status.get("success") is False:
+        if "error" in status:
             return status
         servers = status.get("mcp_servers", {})
         all_tools: dict[str, list[dict[str, Any]]] = {}
         for srv_name in servers:
             result = await self._request("GET", f"/mcp/{srv_name}/tools")
-            if result.get("success"):
+            if "error" not in result:
                 all_tools[srv_name] = result.get("tools", [])
         return {
-            "success": True,
             "servers": [{"name": n, "tools": t} for n, t in all_tools.items()],
         }
 
@@ -142,9 +141,8 @@ class DaemonProxy:
             json={"server_name": server_name, "tool_name": tool_name},
         )
         if "error" in result:
-            return {"success": False, "error": result["error"]}
+            return {"error": result["error"]}
         return {
-            "success": True,
             "tool": {
                 "name": result.get("name"),
                 "description": result.get("description"),
@@ -259,7 +257,6 @@ class DaemonProxy:
         via the MCP proxy. Use 'gobby init' command instead.
         """
         return {
-            "success": False,
             "error": "Project initialization requires CLI access. Use 'gobby init' command instead.",
         }
 
@@ -539,7 +536,7 @@ async def ensure_daemon_running() -> None:
     else:
         # Start
         result = await start_daemon_process(port, ws_port)
-        if not result.get("success"):
+        if "error" in result:
             logger.error(
                 "Failed to start daemon: %s (port=%d, ws_port=%d)",
                 result.get("error", "unknown error"),

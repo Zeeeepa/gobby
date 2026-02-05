@@ -260,7 +260,7 @@ class TestImportFromProject:
                 with patch.object(importer.project_manager, "list", return_value=[]):
                     result = await importer.import_from_project("unknown-project")
 
-                    assert result["success"] is False
+                    assert "error" in result
                     assert "not found" in result["error"]
 
     @pytest.mark.asyncio
@@ -274,7 +274,7 @@ class TestImportFromProject:
             with patch.object(importer.mcp_db_manager, "list_servers", return_value=[]):
                 result = await importer.import_from_project("empty-project")
 
-                assert result["success"] is False
+                assert "error" in result
                 assert "No MCP servers found" in result["error"]
 
     @pytest.mark.asyncio
@@ -309,7 +309,7 @@ class TestImportFromProject:
                 ):
                     result = await importer.import_from_project("source-project")
 
-                    assert result["success"] is True
+                    assert "error" not in result
                     assert "test-server" in result["imported"]
 
     @pytest.mark.asyncio
@@ -395,7 +395,7 @@ class TestImportFromGithub:
 
         result = await importer.import_from_github("https://github.com/test/repo")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "disabled" in result["error"]
 
 
@@ -413,7 +413,7 @@ class TestImportFromQuery:
 
         result = await importer.import_from_query("supabase mcp server")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "disabled" in result["error"]
 
 
@@ -425,7 +425,7 @@ class TestParseAndAddConfig:
         """Test returns error when JSON cannot be extracted."""
         result = await importer._parse_and_add_config("No JSON here")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "Could not extract" in result["error"]
 
     @pytest.mark.asyncio
@@ -460,7 +460,7 @@ class TestParseAndAddConfig:
 
         result = await importer._parse_and_add_config(text)
 
-        assert result["success"] is False
+        assert "error" in result
         assert "missing required fields" in result["error"]
 
     @pytest.mark.asyncio
@@ -470,7 +470,7 @@ class TestParseAndAddConfig:
 
         result = await importer._parse_and_add_config(text)
 
-        assert result["success"] is False
+        assert "error" in result
         assert "missing required fields" in result["error"]
 
     @pytest.mark.asyncio
@@ -499,7 +499,7 @@ class TestAddServer:
 
         # Should use mcp_db_manager.upsert
         importer.mcp_db_manager.upsert.assert_called_once()
-        assert result["success"] is True
+        assert "error" not in result
         assert "restart daemon" in result["message"]
 
     @pytest.mark.asyncio
@@ -512,5 +512,5 @@ class TestAddServer:
             transport="http",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "DB error" in result["error"]

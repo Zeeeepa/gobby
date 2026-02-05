@@ -88,7 +88,7 @@ class TestWaitForTask:
             {"task_id": "task-1"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["completed"] is True
         assert result["task"]["status"] == "closed"
 
@@ -115,7 +115,7 @@ class TestWaitForTask:
                 {"task_id": "task-1", "poll_interval": 0.1},
             )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["completed"] is True
         assert call_count >= 3
 
@@ -132,7 +132,7 @@ class TestWaitForTask:
             {"task_id": "task-1", "timeout": 0.2, "poll_interval": 0.05},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["completed"] is False
         assert result["timed_out"] is True
 
@@ -146,7 +146,7 @@ class TestWaitForTask:
             {"task_id": "nonexistent"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -163,7 +163,7 @@ class TestWaitForTask:
             {"task_id": "#5926"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
 
 
 class TestWaitForAnyTask:
@@ -185,7 +185,7 @@ class TestWaitForAnyTask:
             {"task_ids": ["task-1", "task-2", "task-3"]},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["completed_task_id"] == "task-2"
 
     @pytest.mark.asyncio
@@ -211,7 +211,7 @@ class TestWaitForAnyTask:
                 {"task_ids": ["task-1", "task-2", "task-3"], "poll_interval": 0.01},
             )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["completed_task_id"] == "task-3"
 
     @pytest.mark.asyncio
@@ -224,7 +224,7 @@ class TestWaitForAnyTask:
             {"task_ids": ["task-1", "task-2"], "timeout": 0.2, "poll_interval": 0.05},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["completed_task_id"] is None
         assert result["timed_out"] is True
 
@@ -236,7 +236,7 @@ class TestWaitForAnyTask:
             {"task_ids": []},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "empty" in result["error"].lower() or "no task" in result["error"].lower()
 
 
@@ -253,7 +253,7 @@ class TestWaitForAllTasks:
             {"task_ids": ["task-1", "task-2", "task-3"]},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["all_completed"] is True
         assert result["completed_count"] == 3
 
@@ -288,7 +288,7 @@ class TestWaitForAllTasks:
                 {"task_ids": ["task-1", "task-2", "task-3"], "poll_interval": 0.01},
             )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["all_completed"] is True
         assert result["completed_count"] == 3
 
@@ -308,7 +308,7 @@ class TestWaitForAllTasks:
             {"task_ids": ["task-1", "task-2", "task-3"], "timeout": 0.2, "poll_interval": 0.05},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["all_completed"] is False
         assert result["completed_count"] == 1
         assert result["pending_count"] == 2
@@ -323,7 +323,7 @@ class TestWaitForAllTasks:
         )
 
         # Empty list should succeed immediately (vacuously true)
-        assert result["success"] is True
+        assert "error" not in result
         assert result["all_completed"] is True
         assert result["completed_count"] == 0
 
@@ -345,7 +345,7 @@ class TestWaitToolParameters:
         )
 
         # Should succeed immediately since task is closed
-        assert result["success"] is True
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_custom_poll_interval(self, wait_registry, mock_task_manager):
@@ -373,7 +373,7 @@ class TestWaitToolParameters:
             if mock_sleep.call_count > 0:
                 mock_sleep.assert_called_with(10)
 
-        assert result["success"] is True
+        assert "error" not in result
 
 
 class TestErrorHandling:
@@ -389,7 +389,7 @@ class TestErrorHandling:
             {"task_id": "task-1"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -404,4 +404,4 @@ class TestErrorHandling:
             {"task_id": "task-bad"},
         )
 
-        assert result["success"] is False
+        assert "error" in result

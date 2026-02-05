@@ -138,7 +138,7 @@ class TestApproveAndCleanup:
             {"task_id": "task-123"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Task should be updated to closed
         mock_task_manager.update_task.assert_called()
         # Worktree should be deleted
@@ -159,7 +159,7 @@ class TestApproveAndCleanup:
             {"task_id": "task-123"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "needs_review" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -172,7 +172,7 @@ class TestApproveAndCleanup:
             {"task_id": "nonexistent"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -189,7 +189,7 @@ class TestApproveAndCleanup:
         )
 
         # Should still succeed - just skip worktree cleanup
-        assert result["success"] is True
+        assert "error" not in result
         assert result["worktree_deleted"] is False
 
     @pytest.mark.asyncio
@@ -208,7 +208,7 @@ class TestApproveAndCleanup:
         )
 
         # Should succeed (task closed) but report worktree not deleted
-        assert result["success"] is True
+        assert "error" not in result
         assert result["worktree_deleted"] is False
 
     @pytest.mark.asyncio
@@ -223,7 +223,7 @@ class TestApproveAndCleanup:
             {"task_id": "task-123", "push_branch": True},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify push was attempted
         push_calls = [
             call for call in mock_git_manager._run_git.call_args_list if "push" in str(call)
@@ -242,7 +242,7 @@ class TestApproveAndCleanup:
             {"task_id": "task-123", "force": True},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify force was passed to delete_worktree
         mock_git_manager.delete_worktree.assert_called_once()
         call_kwargs = mock_git_manager.delete_worktree.call_args.kwargs
@@ -260,7 +260,7 @@ class TestApproveAndCleanup:
             {"task_id": "task-123", "delete_worktree": False},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify delete_worktree was NOT called
         mock_git_manager.delete_worktree.assert_not_called()
 
@@ -277,7 +277,7 @@ class TestApproveAndCleanup:
             {"task_id": "task-123"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify update_task was called with correct status
         mock_task_manager.update_task.assert_called()
         update_call = mock_task_manager.update_task.call_args
@@ -321,7 +321,7 @@ class TestApproveAndCleanupNoGitManager:
         )
 
         # Should succeed but skip worktree deletion
-        assert result["success"] is True
+        assert "error" not in result
         assert result["worktree_deleted"] is False
 
 
@@ -342,7 +342,7 @@ class TestApproveAndCleanupTaskResolution:
             {"task_id": "#5927"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_approve_and_cleanup_accepts_uuid_format(
@@ -358,4 +358,4 @@ class TestApproveAndCleanupTaskResolution:
             {"task_id": "e4860c60-bd55-4131-be9b-7fe774590c2b"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result

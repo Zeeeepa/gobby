@@ -74,7 +74,7 @@ async def test_get_session_messages(mock_message_manager, session_messages_regis
     mock_message_manager.count_messages.assert_called_with("sess-123")
     mock_message_manager.get_messages.assert_called_with(session_id="sess-123", limit=5, offset=0)
 
-    assert result["success"] is True
+    assert "error" not in result
     assert result["total_count"] == 10
     assert len(result["messages"]) == 1
 

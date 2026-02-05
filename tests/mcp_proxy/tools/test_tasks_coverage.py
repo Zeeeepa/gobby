@@ -882,7 +882,9 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_task_blocks_needs_review_status(self, mock_task_manager, mock_sync_manager):
+    async def test_update_task_blocks_needs_review_status(
+        self, mock_task_manager, mock_sync_manager
+    ):
         """Test update_task blocks 'needs_review' status changes."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -913,7 +915,8 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.return_value = updated_task
 
         await registry.call(
-            "update_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"}
+            "update_task",
+            {"task_id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"},
         )
 
         # Should only include title, not other None values

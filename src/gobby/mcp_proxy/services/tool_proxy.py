@@ -154,7 +154,7 @@ class ToolProxyService:
             session_id: Optional session ID to apply workflow phase filtering
 
         Returns:
-            Dict with tool metadata: {"success": true, "tools": [...], "tool_count": N}
+            Dict with tool metadata: {"tools": [...], "tool_count": N}
         """
         # Check internal servers first (gobby-tasks, gobby-memory, etc.)
         if self._internal_manager and self._internal_manager.is_internal(server_name):
@@ -164,12 +164,8 @@ class ToolProxyService:
                 # Apply phase filtering if session_id provided
                 if session_id and self._tool_filter:
                     tools = self._tool_filter.filter_tools(tools, session_id)
-                return {"success": True, "tools": tools, "tool_count": len(tools)}
-            return {
-                "success": False,
-                "tools": [],
-                "error": f"Internal server '{server_name}' not found",
-            }
+                return {"tools": tools, "tool_count": len(tools)}
+            return {"error": f"Internal server '{server_name}' not found"}
 
         # Check external servers
         if self._mcp_manager.has_server(server_name):
@@ -195,13 +191,9 @@ class ToolProxyService:
             # Apply phase filtering if session_id provided
             if session_id and self._tool_filter:
                 brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
-            return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
+            return {"tools": brief_tools, "tool_count": len(brief_tools)}
 
-        return {
-            "success": False,
-            "tools": [],
-            "error": f"Server '{server_name}' not found",
-        }
+        return {"error": f"Server '{server_name}' not found"}
 
     async def call_tool(
         self,
@@ -230,7 +222,6 @@ class ToolProxyService:
             is_allowed, reason = self._tool_filter.is_tool_allowed(tool_name, session_id)
             if not is_allowed:
                 return {
-                    "success": False,
                     "error": reason,
                     "error_code": ToolProxyErrorCode.TOOL_BLOCKED.value,
                     "server_name": server_name,
@@ -240,13 +231,12 @@ class ToolProxyService:
         # Pre-validate arguments if enabled
         if self._validate_arguments and args:
             schema_result = await self.get_tool_schema(server_name, tool_name)
-            if schema_result.get("success"):
+            if "error" not in schema_result:
                 input_schema = schema_result.get("tool", {}).get("inputSchema", {})
                 if input_schema:
                     validation_errors = self._check_arguments(args, input_schema)
                     if validation_errors:
                         return {
-                            "success": False,
                             "error": f"Invalid arguments: {validation_errors}",
                             "hint": "Review the schema below and retry with correct parameters",
                             "schema": input_schema,
@@ -271,7 +261,6 @@ class ToolProxyService:
 
             # Build error response with fallback suggestions
             response: dict[str, Any] = {
-                "success": False,
                 "error": error_message,
                 "error_code": self._classify_error(error_message, e),
                 "server_name": server_name,
@@ -282,7 +271,7 @@ class ToolProxyService:
             if self._is_argument_error(error_message):
                 try:
                     schema_result = await self.get_tool_schema(server_name, tool_name)
-                    if schema_result.get("success"):
+                    if "error" not in schema_result:
                         input_schema = schema_result.get("tool", {}).get("inputSchema", {})
                         if input_schema:
                             response["hint"] = (
@@ -327,15 +316,12 @@ class ToolProxyService:
             if registry:
                 schema = registry.get_schema(tool_name)
                 if schema:
-                    return {"success": True, "tool": schema}
-                return {
-                    "success": False,
-                    "error": f"Tool '{tool_name}' not found on '{server_name}'",
-                }
-            return {"success": False, "error": f"Internal server '{server_name}' not found"}
+                    return {"tool": schema}
+                return {"error": f"Tool '{tool_name}' not found on '{server_name}'"}
+            return {"error": f"Internal server '{server_name}' not found"}
 
         if not self._mcp_manager.has_server(server_name):
-            return {"success": False, "error": f"Server '{server_name}' not found"}
+            return {"error": f"Server '{server_name}' not found"}
 
         # Use MCP manager for external servers
         try:
@@ -398,7 +384,6 @@ class ToolProxyService:
         if server_name is None:
             logger.warning(f"Tool '{tool_name}' not found on any server")
             return {
-                "success": False,
                 "error": f"Tool '{tool_name}' not found on any available server",
                 "tool_name": tool_name,
             }

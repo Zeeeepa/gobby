@@ -31,7 +31,7 @@ class TestMetricsTools:
 
         result = tool.func(project_id="test-proj")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["metrics"] == expected_metrics
         mock_metrics_manager.get_metrics.assert_called_with(
             project_id="test-proj", server_name=None, tool_name=None
@@ -43,7 +43,7 @@ class TestMetricsTools:
 
         result = tool.func()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "DB error" in result["error"]
 
     def test_get_top_tools(self, metrics_tools, mock_metrics_manager) -> None:
@@ -53,7 +53,7 @@ class TestMetricsTools:
 
         result = tool.func(project_id="p1", limit=5, order_by="success_count")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["tools"] == expected_tools
         assert result["count"] == 1
         mock_metrics_manager.get_top_tools.assert_called_with(
@@ -67,7 +67,7 @@ class TestMetricsTools:
 
         result = tool.func(project_id="p1", threshold=0.7)
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["tools"] == expected_tools
         assert result["threshold"] == 0.7
         mock_metrics_manager.get_failing_tools.assert_called_with(
@@ -80,7 +80,7 @@ class TestMetricsTools:
 
         result = tool.func(server_name="srv", tool_name="tool", project_id="p1")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["success_rate"] == 0.95
         mock_metrics_manager.get_tool_success_rate.assert_called_with(
             server_name="srv", tool_name="tool", project_id="p1"
@@ -92,7 +92,7 @@ class TestMetricsTools:
 
         result = tool.func(project_id="p1", server_name="s1")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["deleted_count"] == 5
         mock_metrics_manager.reset_metrics.assert_called_with(
             project_id="p1", server_name="s1", tool_name=None
@@ -104,7 +104,7 @@ class TestMetricsTools:
 
         result = tool.func(server_name="s1", tool_name="t1")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["deleted_count"] == 2
         mock_metrics_manager.reset_metrics.assert_called_with(server_name="s1", tool_name="t1")
 
@@ -114,7 +114,7 @@ class TestMetricsTools:
 
         result = tool.func(retention_days=30)
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["deleted_count"] == 100
         mock_metrics_manager.cleanup_old_metrics.assert_called_with(retention_days=30)
 
@@ -125,7 +125,7 @@ class TestMetricsTools:
 
         result = tool.func()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["stats"] == expected_stats
         mock_metrics_manager.get_retention_stats.assert_called_once()
 
@@ -182,7 +182,7 @@ class TestTokenMetricsTools:
 
         result = tool.func(days=7)
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "usage" in result
         assert result["usage"]["total_cost_usd"] == pytest.approx(0.15)
         assert result["usage"]["total_input_tokens"] == 3000
@@ -196,7 +196,7 @@ class TestTokenMetricsTools:
 
         result = tool.func()
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify it was called (days=1 default)
         mock_session_storage.get_sessions_since.assert_called_once()
 
@@ -207,7 +207,7 @@ class TestTokenMetricsTools:
 
         result = tool.func(days=1)
 
-        assert result["success"] is False
+        assert "error" in result
         assert "DB error" in result["error"]
 
     def test_get_budget_status(self, token_metrics_tools, mock_session_storage) -> None:
@@ -216,7 +216,7 @@ class TestTokenMetricsTools:
 
         result = tool.func()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "budget" in result
         assert result["budget"]["daily_budget_usd"] == 10.0
         assert result["budget"]["used_today_usd"] == pytest.approx(0.15)
@@ -253,7 +253,7 @@ class TestTokenMetricsTools:
 
         result = tool.func()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["budget"]["over_budget"] is True
         assert result["budget"]["used_today_usd"] == pytest.approx(5.0)
         assert result["budget"]["remaining_usd"] == pytest.approx(-4.0)
@@ -265,5 +265,5 @@ class TestTokenMetricsTools:
 
         result = tool.func()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "DB error" in result["error"]

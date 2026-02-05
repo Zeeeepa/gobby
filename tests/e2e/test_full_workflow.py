@@ -339,7 +339,12 @@ class TestFullWorkflowIntegration:
         )
         # Error is in response body, not HTTP status code
         error_data = error_response.json()
-        assert error_response.status_code == 200 or error_response.status_code in [400, 404, 500, 503]
+        assert error_response.status_code == 200 or error_response.status_code in [
+            400,
+            404,
+            500,
+            503,
+        ]
         if error_response.status_code == 200:
             assert error_data.get("success") is False
 

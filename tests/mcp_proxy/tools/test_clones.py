@@ -89,7 +89,7 @@ class TestCreateClone:
             {"branch_name": "main", "clone_path": "/tmp/clones/test"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["clone"]["id"] == "clone-123"
         mock_git_manager.shallow_clone.assert_called_once()
 
@@ -104,7 +104,7 @@ class TestCreateClone:
             {"branch_name": "main", "clone_path": "/tmp/clones/test"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "failed" in result["error"].lower()
         mock_clone_storage.create.assert_not_called()
 
@@ -134,7 +134,7 @@ class TestCreateClone:
             {"branch_name": "main", "clone_path": "/tmp/clones/test", "task_id": "task-456"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["clone"]["task_id"] == "task-456"
 
 
@@ -162,7 +162,7 @@ class TestGetClone:
 
         result = await registry.call("get_clone", {"clone_id": "clone-123"})
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["clone"]["id"] == "clone-123"
         mock_clone_storage.get.assert_called_once_with("clone-123")
 
@@ -173,7 +173,7 @@ class TestGetClone:
 
         result = await registry.call("get_clone", {"clone_id": "nonexistent"})
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
 
@@ -218,7 +218,7 @@ class TestListClones:
 
         result = await registry.call("list_clones", {})
 
-        assert result["success"] is True
+        assert "error" not in result
         assert len(result["clones"]) == 2
         assert result["clones"][0]["id"] == "clone-1"
         assert result["clones"][1]["id"] == "clone-2"
@@ -241,7 +241,7 @@ class TestListClones:
 
         result = await registry.call("list_clones", {})
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["clones"] == []
 
 
@@ -273,7 +273,7 @@ class TestDeleteClone:
 
         result = await registry.call("delete_clone", {"clone_id": "clone-123"})
 
-        assert result["success"] is True
+        assert "error" not in result
         mock_git_manager.delete_clone.assert_called_once()
         mock_clone_storage.delete.assert_called_once_with("clone-123")
 
@@ -284,7 +284,7 @@ class TestDeleteClone:
 
         result = await registry.call("delete_clone", {"clone_id": "nonexistent"})
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -310,7 +310,7 @@ class TestDeleteClone:
 
         result = await registry.call("delete_clone", {"clone_id": "clone-123", "force": True})
 
-        assert result["success"] is True
+        assert "error" not in result
         call_kwargs = mock_git_manager.delete_clone.call_args.kwargs
         assert call_kwargs.get("force") is True
 
@@ -340,7 +340,7 @@ class TestSyncClone:
 
         result = await registry.call("sync_clone", {"clone_id": "clone-123", "direction": "pull"})
 
-        assert result["success"] is True
+        assert "error" not in result
         mock_git_manager.sync_clone.assert_called_once()
 
     @pytest.mark.asyncio
@@ -365,7 +365,7 @@ class TestSyncClone:
 
         result = await registry.call("sync_clone", {"clone_id": "clone-123", "direction": "push"})
 
-        assert result["success"] is True
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_sync_clone_not_found(self, registry, mock_clone_storage):
@@ -374,7 +374,7 @@ class TestSyncClone:
 
         result = await registry.call("sync_clone", {"clone_id": "nonexistent", "direction": "pull"})
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -399,7 +399,7 @@ class TestSyncClone:
 
         result = await registry.call("sync_clone", {"clone_id": "clone-123", "direction": "pull"})
 
-        assert result["success"] is False
+        assert "error" in result
 
 
 class TestMergeCloneToTarget:
@@ -441,7 +441,7 @@ class TestMergeCloneToTarget:
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Should have synced first
         mock_git_manager.sync_clone.assert_called_once()
         # Should have set cleanup_after on success
@@ -457,7 +457,7 @@ class TestMergeCloneToTarget:
             {"clone_id": "nonexistent", "target_branch": "main"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -490,7 +490,7 @@ class TestMergeCloneToTarget:
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "sync" in result["error"].lower() or "push" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -528,7 +528,7 @@ class TestMergeCloneToTarget:
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert result.get("has_conflicts") is True
         assert "conflicted_files" in result
 
@@ -567,7 +567,7 @@ class TestMergeCloneToTarget:
             {"clone_id": "clone-123", "target_branch": "main"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify update was called with cleanup_after set
         update_calls = mock_clone_storage.update.call_args_list
         # Check if any call has cleanup_after

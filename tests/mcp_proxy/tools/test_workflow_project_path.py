@@ -88,7 +88,7 @@ class TestGetWorkflowWithProjectPath:
             registry, "get_workflow", name="test-workflow", project_path=str(tmp_path)
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["name"] == "test-workflow"
         mock_loader.load_workflow.assert_called_once_with("test-workflow", tmp_path)
 
@@ -118,7 +118,7 @@ class TestGetWorkflowWithProjectPath:
 
             result = call_tool(registry, "get_workflow", name="test-workflow")
 
-            assert result["success"] is True
+            assert "error" not in result
             mock_discover.assert_called_once()
             mock_loader.load_workflow.assert_called_once_with("test-workflow", tmp_path)
 
@@ -134,7 +134,7 @@ class TestGetWorkflowWithProjectPath:
             result = call_tool(registry, "get_workflow", name="nonexistent-workflow")
 
             # Should still call load_workflow with None path
-            assert result["success"] is False
+            assert "error" in result
             assert "not found" in result["error"]
 
 
@@ -202,7 +202,7 @@ class TestActivateWorkflowWithProjectPath:
             project_path=str(tmp_path),
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         mock_loader.load_workflow.assert_called_once_with("plan-execute", tmp_path)
 
     def test_with_auto_discovery(self, registry, mock_loader, mock_state_manager, tmp_path) -> None:
@@ -226,7 +226,7 @@ class TestActivateWorkflowWithProjectPath:
                 session_id="test-session",
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             mock_discover.assert_called_once()
 
 
@@ -258,7 +258,7 @@ class TestRequestStepTransitionWithProjectPath:
             project_path=str(tmp_path),
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["to_step"] == "execute"
         mock_loader.load_workflow.assert_called_once_with("plan-execute", tmp_path)
 
@@ -288,7 +288,7 @@ class TestRequestStepTransitionWithProjectPath:
                 session_id="test-session",
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             mock_discover.assert_called_once()
 
 
@@ -313,7 +313,7 @@ class TestImportWorkflowWithProjectPath:
             project_path=str(project),
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert (project / ".gobby" / "workflows" / "test-workflow.yaml").exists()
 
     def test_with_auto_discovery(self, registry, mock_loader, tmp_path) -> None:
@@ -336,7 +336,7 @@ class TestImportWorkflowWithProjectPath:
                 source_path=str(source_file),
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             mock_discover.assert_called_once()
             assert (project / ".gobby" / "workflows" / "discovered-workflow.yaml").exists()
 
@@ -356,7 +356,7 @@ class TestImportWorkflowWithProjectPath:
                 source_path=str(source_file),
             )
 
-            assert result["success"] is False
+            assert "error" in result
             assert "project_path required" in result["error"]
 
 
@@ -400,6 +400,6 @@ class TestWorktreeAutoDiscovery:
 
             result = call_tool(registry, "get_workflow", name="test")
 
-            assert result["success"] is True
+            assert "error" not in result
             # Should use parent project path
             mock_loader.load_workflow.assert_called_once_with("test", parent_project)

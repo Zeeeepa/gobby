@@ -82,7 +82,7 @@ class TestRemoveSkillTool:
 
         result = await tool(name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["removed"] is True
 
         # Verify skill is gone
@@ -101,7 +101,7 @@ class TestRemoveSkillTool:
 
         result = await tool(skill_id=skill_id)
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["removed"] is True
 
     @pytest.mark.asyncio
@@ -114,7 +114,7 @@ class TestRemoveSkillTool:
 
         result = await tool(name="nonexistent")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -127,7 +127,7 @@ class TestRemoveSkillTool:
 
         result = await tool(skill_id="nonexistent-id")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -140,7 +140,7 @@ class TestRemoveSkillTool:
 
         result = await tool()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "name or skill_id" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -153,7 +153,7 @@ class TestRemoveSkillTool:
 
         result = await tool(name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill_name"] == "git-commit"
 
 
@@ -182,7 +182,7 @@ Updated content.
 
         result = await tool(name="updatable-skill")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["updated"] is True
 
         # Verify skill was updated
@@ -214,7 +214,7 @@ Content.
 
         result = await tool(skill_id=skill_id)
 
-        assert result["success"] is True
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_update_skill_not_found(self, populated_db):
@@ -226,7 +226,7 @@ Content.
 
         result = await tool(name="nonexistent")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -240,7 +240,7 @@ Content.
         result = await tool(name="git-commit")
 
         # Should still succeed but indicate no update happened
-        assert result["success"] is True
+        assert "error" not in result
         assert result["updated"] is False
         assert result["skipped"] is True
 
@@ -254,7 +254,7 @@ Content.
 
         result = await tool()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "name or skill_id" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -277,5 +277,5 @@ Content.
 
         result = await tool(name="updatable-skill")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["updated"] is False

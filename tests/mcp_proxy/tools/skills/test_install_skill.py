@@ -84,7 +84,7 @@ class TestInstallSkillTool:
 
         result = await tool(source=str(skill_dir))
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["installed"] is True
         assert result["skill_name"] == "test-skill"
         assert result["source_type"] == "local"
@@ -105,7 +105,7 @@ class TestInstallSkillTool:
         skill_file = skill_dir / "SKILL.md"
         result = await tool(source=str(skill_file))
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill_name"] == "test-skill"
 
     @pytest.mark.asyncio
@@ -118,7 +118,7 @@ class TestInstallSkillTool:
 
         result = await tool(source=str(skill_zip))
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["installed"] is True
         assert result["skill_name"] == "zip-skill"
         assert result["source_type"] == "zip"
@@ -172,7 +172,7 @@ class TestInstallSkillTool:
 
         result = await tool(source="github:owner/repo")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill_name"] == "github-skill"
         assert result["source_type"] == "github"
 
@@ -186,7 +186,7 @@ class TestInstallSkillTool:
 
         result = await tool(source=str(skill_dir))
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "skill_id" in result
         assert result["skill_id"] is not None
 
@@ -201,7 +201,7 @@ class TestInstallSkillTool:
         # With project_scoped=False (default), skill is installed globally
         result = await tool(source=str(skill_dir), project_scoped=False)
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill_name"] == "test-skill"
         # Skill should be findable globally
         skill = storage.get_by_name("test-skill")
@@ -217,7 +217,7 @@ class TestInstallSkillTool:
 
         result = await tool(source=str(tmp_path / "nonexistent"))
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -239,7 +239,7 @@ Content
 
         result = await tool(source=str(invalid_dir))
 
-        assert result["success"] is False
+        assert "error" in result
 
     @pytest.mark.asyncio
     async def test_install_skill_requires_source(self, db):
@@ -251,7 +251,7 @@ Content
 
         result = await tool()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "source" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -269,7 +269,7 @@ Content
         # Search should find it
         result = await search_tool(query="test skill")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["count"] > 0
         assert any(r["skill_name"] == "test-skill" for r in result["results"])
 
@@ -346,7 +346,7 @@ Content here.
 
         result = await tool(source="clawdhub:commit-message")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill_name"] == "commit-message"
         assert result["source_type"] == "hub"
 
@@ -401,7 +401,7 @@ Content here.
 
         result = await tool(source="unknown-hub:some-skill")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "unknown" in result["error"].lower() or "hub" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -414,5 +414,5 @@ Content here.
 
         result = await tool(source="clawdhub:commit-message")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "hub" in result["error"].lower()

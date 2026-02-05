@@ -71,7 +71,7 @@ class TestGetSkillTool:
 
         result = await tool(name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill"]["name"] == "git-commit"
         assert "Git Commit Helper" in result["skill"]["content"]
 
@@ -85,7 +85,7 @@ class TestGetSkillTool:
 
         result = await tool(name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         skill = result["skill"]
 
         # Full content should be present
@@ -102,7 +102,7 @@ class TestGetSkillTool:
 
         result = await tool(name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         skill = result["skill"]
 
         # All fields should be present
@@ -125,7 +125,7 @@ class TestGetSkillTool:
 
         result = await tool(name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         skill = result["skill"]
 
         # Metadata should be present
@@ -143,7 +143,7 @@ class TestGetSkillTool:
 
         result = await tool(name="nonexistent")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -159,7 +159,7 @@ class TestGetSkillTool:
 
         result = await tool(skill_id=skill.id)
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill"]["name"] == "git-commit"
 
     @pytest.mark.asyncio
@@ -176,7 +176,7 @@ class TestGetSkillTool:
         # Pass both id and name - id should win
         result = await tool(skill_id=skill.id, name="git-commit")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["skill"]["name"] == "minimal-skill"
 
     @pytest.mark.asyncio
@@ -189,7 +189,7 @@ class TestGetSkillTool:
 
         result = await tool()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "name or skill_id" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -202,7 +202,7 @@ class TestGetSkillTool:
 
         result = await tool(name="minimal-skill")
 
-        assert result["success"] is True
+        assert "error" not in result
         skill = result["skill"]
 
         # Should still have the fields even if None

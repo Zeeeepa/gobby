@@ -41,7 +41,7 @@ async def test_import_github_issues_success():
             "import_github_issues", {"repo": "owner/repo", "labels": "bug"}
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert len(result["tasks"]) == 1
         assert result["count"] == 1
         mock_service_instance.import_github_issues.assert_called_once_with(
@@ -69,7 +69,7 @@ async def test_sync_task_to_github_success():
 
         result = await registry.call("sync_task_to_github", {"task_id": "task_123"})
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["task_id"] == "task_123"
 
 
@@ -97,7 +97,7 @@ async def test_create_pr_for_task_success():
             "create_pr_for_task", {"task_id": "task_123", "head_branch": "feature-branch"}
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["pr_number"] == 42
         assert result["pr_url"] == "http://github.com/pr/42"
 
@@ -118,7 +118,7 @@ async def test_link_github_repo():
 
     result = await registry.call("link_github_repo", {"repo": "owner/new-repo"})
 
-    assert result["success"] is True
+    assert "error" not in result
     assert result["github_repo"] == "owner/new-repo"
     mock_project_manager.update.assert_called_with("proj_123", github_repo="owner/new-repo")
 
@@ -169,7 +169,7 @@ async def test_unlink_github_repo():
 
     result = await registry.call("unlink_github_repo", {})
 
-    assert result["success"] is True
+    assert "error" not in result
     mock_project_manager.update.assert_called_with("proj_123", github_repo=None)
 
 
@@ -195,7 +195,7 @@ async def test_import_github_issues_errors():
             "Rate limited", reset_at=12345
         )
         result = await registry.call("import_github_issues", {"repo": "owner/repo"})
-        assert result["success"] is False
+        assert "error" in result
         assert result["error_type"] == "rate_limit"
         assert result["reset_at"] == 12345
 
@@ -230,7 +230,7 @@ async def test_sync_task_to_github_errors():
             "Rate limited", reset_at=12345
         )
         result = await registry.call("sync_task_to_github", {"task_id": "task_123"})
-        assert result["success"] is False
+        assert "error" in result
         assert result["error_type"] == "rate_limit"
 
 
@@ -258,5 +258,5 @@ async def test_create_pr_for_task_errors():
         result = await registry.call(
             "create_pr_for_task", {"task_id": "task_123", "head_branch": "feature"}
         )
-        assert result["success"] is False
+        assert "error" in result
         assert result["error_type"] == "rate_limit"

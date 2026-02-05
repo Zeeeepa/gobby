@@ -31,7 +31,7 @@ async def test_import_linear_issues_success():
 
         result = await registry.call("import_linear_issues", {"team_id": "team_1"})
 
-        assert result["success"] is True
+        assert "error" not in result
         assert len(result["tasks"]) == 1
         mock_service_instance.import_linear_issues.assert_called_once_with(
             team_id="team_1", state=None, labels=None
@@ -58,7 +58,7 @@ async def test_sync_task_to_linear_success():
 
         result = await registry.call("sync_task_to_linear", {"task_id": "task_123"})
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["linear_result"]["status"] == "synced"
 
 
@@ -84,7 +84,7 @@ async def test_create_linear_issue_for_task_success():
             "create_linear_issue_for_task", {"task_id": "task_123", "team_id": "team_1"}
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["issue_id"] == "lin_123"
 
 
@@ -104,7 +104,7 @@ async def test_link_linear_team():
 
     result = await registry.call("link_linear_team", {"team_id": "team_ABC"})
 
-    assert result["success"] is True
+    assert "error" not in result
     assert result["linear_team_id"] == "team_ABC"
     mock_project_manager.update.assert_called_with("proj_123", linear_team_id="team_ABC")
 
@@ -135,7 +135,7 @@ async def test_get_linear_status():
         mock_integration.is_available.return_value = True
 
         result = await registry.call("get_linear_status", {})
-        assert result["success"] is True
+        assert "error" not in result
         assert result["linear_team_id"] == "team_ABC"
         assert result["linked_tasks_count"] == 3
 
@@ -156,7 +156,7 @@ async def test_unlink_linear_team():
 
     result = await registry.call("unlink_linear_team", {})
 
-    assert result["success"] is True
+    assert "error" not in result
     mock_project_manager.update.assert_called_with("proj_123", linear_team_id=None)
 
 
@@ -182,7 +182,7 @@ async def test_import_linear_issues_errors():
             "Rate limited", reset_at=12345
         )
         result = await registry.call("import_linear_issues", {"team_id": "team_1"})
-        assert result["success"] is False
+        assert "error" in result
         assert result["error_type"] == "rate_limit"
         assert result["reset_at"] == 12345
 
@@ -217,7 +217,7 @@ async def test_sync_task_to_linear_errors():
             "Rate limited", reset_at=12345
         )
         result = await registry.call("sync_task_to_linear", {"task_id": "task_123"})
-        assert result["success"] is False
+        assert "error" in result
         assert result["error_type"] == "rate_limit"
 
 
@@ -245,5 +245,5 @@ async def test_create_linear_issue_for_task_errors():
         result = await registry.call(
             "create_linear_issue_for_task", {"task_id": "task_123", "team_id": "team_1"}
         )
-        assert result["success"] is False
+        assert "error" in result
         assert result["error_type"] == "rate_limit"

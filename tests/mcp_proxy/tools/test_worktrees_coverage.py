@@ -57,7 +57,7 @@ async def test_create_worktree_success(registry, mock_worktree_storage, mock_git
     result = await registry.call(
         "create_worktree", {"branch_name": "feature/test", "worktree_path": "/tmp/wt/feature-test"}
     )
-    assert result["success"] is True
+    assert "error" not in result
     assert result["worktree_path"] == "/tmp/wt/feature-test"
     mock_git_manager.create_worktree.assert_called_once_with(
         worktree_path="/tmp/wt/feature-test",
@@ -79,7 +79,7 @@ async def test_create_worktree_failure(registry, mock_worktree_storage, mock_git
             "branch_name": "feature/fail",
         },
     )
-    assert result["success"] is False
+    assert "error" in result
     assert "Git error" in result["error"]
     mock_worktree_storage.create.assert_not_called()
 
@@ -106,7 +106,7 @@ async def test_create_worktree_existing(registry, mock_worktree_storage):
             "branch_name": "feature/exists",
         },
     )
-    assert result["success"] is False
+    assert "error" in result
     assert "already exists" in result["error"]
 
 
@@ -137,7 +137,7 @@ async def test_create_worktree_auto_path(registry, mock_git_manager, mock_worktr
                 "branch_name": "feature/auto",
             },
         )
-        assert result["success"] is True
+        assert "error" not in result
         args, kwargs = mock_git_manager.create_worktree.call_args
         assert "feature-auto" in kwargs["worktree_path"]
 
@@ -166,7 +166,7 @@ async def test_get_worktree_found(registry, mock_worktree_storage, mock_git_mana
     mock_git_manager.get_worktree_status.return_value = mock_status
     with patch("pathlib.Path.exists", return_value=True):
         result = await registry.call("get_worktree", {"worktree_id": "wt-123"})
-        assert result["success"] is True
+        assert "error" not in result
         assert result["worktree"]["id"] == "wt-123"
         assert result["git_status"]["has_uncommitted_changes"] is True
 
@@ -175,7 +175,7 @@ async def test_get_worktree_found(registry, mock_worktree_storage, mock_git_mana
 async def test_get_worktree_not_found(registry, mock_worktree_storage):
     mock_worktree_storage.get.return_value = None
     result = await registry.call("get_worktree", {"worktree_id": "missing"})
-    assert result["success"] is False
+    assert "error" in result
     assert "not found" in result["error"]
 
 
@@ -196,7 +196,7 @@ async def test_list_worktrees(registry, mock_worktree_storage):
     )
     mock_worktree_storage.list_worktrees.return_value = [wt1]
     result = await registry.call("list_worktrees", {"status": "active"})
-    assert result["success"] is True
+    assert "error" not in result
     assert len(result["worktrees"]) == 1
     mock_worktree_storage.list_worktrees.assert_called_with(
         project_id="proj-1", status="active", agent_session_id=None, limit=50
@@ -242,7 +242,7 @@ async def test_claim_worktree_already_claimed(registry, mock_worktree_storage):
     )
     mock_worktree_storage.get.return_value = wt
     result = await registry.call("claim_worktree", {"worktree_id": "wt-1", "session_id": "sess-1"})
-    assert result["success"] is False
+    assert "error" in result
     assert "already claimed" in result["error"]
 
 
@@ -317,7 +317,7 @@ async def test_delete_worktree_uncommitted_changes(
     mock_git_manager.get_worktree_status.return_value.has_uncommitted_changes = True
     with patch("pathlib.Path.exists", return_value=True):
         result = await registry.call("delete_worktree", {"worktree_id": "wt-1"})
-        assert result["success"] is False
+        assert "error" in result
         assert "uncommitted changes" in result["error"]
 
         mock_git_manager.delete_worktree.return_value.success = True
@@ -350,7 +350,7 @@ async def test_sync_worktree(registry, mock_worktree_storage, mock_git_manager):
     mock_git_manager.sync_from_main.return_value.success = True
     mock_git_manager.sync_from_main.return_value.message = "Synced"
     result = await registry.call("sync_worktree", {"worktree_id": "wt-1", "strategy": "merge"})
-    assert result["success"] is True
+    assert "error" not in result
     mock_git_manager.sync_from_main.assert_called_with(
         "/tmp/p1", base_branch="main", strategy="merge"
     )
@@ -373,7 +373,7 @@ async def test_detect_stale_worktrees(registry, mock_worktree_storage):
     )
     mock_worktree_storage.find_stale.return_value = [wt]
     result = await registry.call("detect_stale_worktrees", {"hours": 48})
-    assert result["success"] is True
+    assert "error" not in result
     assert result["count"] == 1
     mock_worktree_storage.find_stale.assert_called_with(project_id="proj-1", hours=48, limit=50)
 
@@ -398,7 +398,7 @@ async def test_cleanup_stale_worktrees(registry, mock_worktree_storage, mock_git
 
     # Dry run
     result = await registry.call("cleanup_stale_worktrees", {"hours": 24, "dry_run": True})
-    assert result["success"] is True
+    assert "error" not in result
     assert result["count"] == 1
     assert result["cleaned"][0]["marked_abandoned"] is False
     mock_worktree_storage.cleanup_stale.assert_called_with(
@@ -409,7 +409,7 @@ async def test_cleanup_stale_worktrees(registry, mock_worktree_storage, mock_git
     result = await registry.call(
         "cleanup_stale_worktrees", {"hours": 24, "dry_run": False, "delete_git": True}
     )
-    assert result["success"] is True
+    assert "error" not in result
     assert result["cleaned"][0]["marked_abandoned"] is True
     assert result["cleaned"][0]["git_deleted"] is True
     mock_git_manager.delete_worktree.assert_called_with(
@@ -676,7 +676,7 @@ async def test_get_worktree_path_not_exists(registry, mock_worktree_storage, moc
     mock_worktree_storage.get.return_value = wt
     with patch("pathlib.Path.exists", return_value=False):
         result = await registry.call("get_worktree", {"worktree_id": "wt-123"})
-        assert result["success"] is True
+        assert "error" not in result
         # git_status should be None or missing when path doesn't exist
         assert result.get("git_status") is None or "git_status" not in result
 
@@ -688,7 +688,7 @@ async def test_claim_worktree_not_found(registry, mock_worktree_storage):
     result = await registry.call(
         "claim_worktree", {"worktree_id": "nonexistent", "session_id": "sess-1"}
     )
-    assert result["success"] is False
+    assert "error" in result
     assert "not found" in result["error"]
 
 
@@ -707,7 +707,7 @@ async def test_delete_worktree_not_found(registry, mock_worktree_storage):
     """Test delete_worktree when worktree not found."""
     mock_worktree_storage.get.return_value = None
     result = await registry.call("delete_worktree", {"worktree_id": "nonexistent"})
-    assert result["success"] is False
+    assert "error" in result
     assert "not found" in result["error"]
 
 
@@ -761,7 +761,7 @@ async def test_delete_worktree_git_failure(registry, mock_worktree_storage, mock
     mock_git_manager.delete_worktree.return_value.error = "Git delete failed"
     with patch("pathlib.Path.exists", return_value=True):
         result = await registry.call("delete_worktree", {"worktree_id": "wt-1"})
-        assert result["success"] is False
+        assert "error" in result
         assert "Git delete failed" in result["error"]
 
 
@@ -770,7 +770,7 @@ async def test_sync_worktree_not_found(registry, mock_worktree_storage):
     """Test sync_worktree when worktree not found."""
     mock_worktree_storage.get.return_value = None
     result = await registry.call("sync_worktree", {"worktree_id": "nonexistent"})
-    assert result["success"] is False
+    assert "error" in result
     assert "not found" in result["error"]
 
 
@@ -794,5 +794,5 @@ async def test_sync_worktree_failure(registry, mock_worktree_storage, mock_git_m
     mock_git_manager.sync_from_main.return_value.success = False
     mock_git_manager.sync_from_main.return_value.error = "Sync failed"
     result = await registry.call("sync_worktree", {"worktree_id": "wt-1"})
-    assert result["success"] is False
+    assert "error" in result
     assert "Sync failed" in result["error"]

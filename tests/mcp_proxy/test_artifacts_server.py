@@ -63,7 +63,7 @@ class TestSearchArtifacts:
 
         result = tool.func(query="calculateTotal")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert len(result["artifacts"]) == 1
         assert result["artifacts"][0]["id"] == "art-123"
         mock_artifact_manager.search_artifacts.assert_called_once()
@@ -121,7 +121,7 @@ class TestSearchArtifacts:
 
         result = tool.func(query="")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["artifacts"] == []
 
 
@@ -151,7 +151,7 @@ class TestListArtifacts:
 
         result = tool.func()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert len(result["artifacts"]) == 2
 
     def test_list_artifacts_by_session(self) -> None:
@@ -231,7 +231,7 @@ class TestGetArtifact:
 
         result = tool.func(artifact_id="art-123")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["artifact"]["id"] == "art-123"
         mock_artifact_manager.get_artifact.assert_called_once_with("art-123")
 
@@ -248,7 +248,7 @@ class TestGetArtifact:
 
         result = tool.func(artifact_id="art-nonexistent")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
 
@@ -288,7 +288,7 @@ class TestGetTimeline:
 
         result = tool.func(session_id="sess-123")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert len(result["artifacts"]) == 3
         # Should be ordered chronologically (oldest first)
         assert result["artifacts"][0]["id"] == "art-1"
@@ -307,7 +307,7 @@ class TestGetTimeline:
         # Should return error without session_id
         result = tool.func()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "session_id" in result["error"].lower()
 
     def test_timeline_with_type_filter(self) -> None:
@@ -323,7 +323,7 @@ class TestGetTimeline:
 
         result = tool.func(session_id="sess-123", artifact_type="code")
 
-        assert result["success"] is True
+        assert "error" not in result
         mock_artifact_manager.list_artifacts.assert_called_once()
 
 
@@ -343,8 +343,8 @@ class TestMCPResponseFormat:
 
         result = tool.func(query="test")
 
-        # Should have success flag
-        assert "success" in result
+        # Should not have error for successful response
+        assert "error" not in result
         # Should have artifacts list
         assert "artifacts" in result
         assert isinstance(result["artifacts"], list)
@@ -362,7 +362,7 @@ class TestMCPResponseFormat:
 
         result = tool.func()
 
-        assert "success" in result
+        assert "error" not in result
         assert "artifacts" in result
         assert isinstance(result["artifacts"], list)
 
@@ -381,7 +381,7 @@ class TestMCPResponseFormat:
 
         result = tool.func(artifact_id="art-123")
 
-        assert "success" in result
+        assert "error" not in result
         assert "artifact" in result
         assert isinstance(result["artifact"], dict)
 
@@ -398,7 +398,6 @@ class TestMCPResponseFormat:
 
         result = tool.func(artifact_id="nonexistent")
 
-        assert result["success"] is False
         assert "error" in result
         assert isinstance(result["error"], str)
 

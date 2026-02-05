@@ -197,7 +197,7 @@ class TestGobbyDaemonToolsCallTool:
     async def test_call_tool_delegates_to_proxy(self, tools_handler):
         """Test that call_tool delegates to tool_proxy service."""
         tools_handler.tool_proxy.call_tool = AsyncMock(
-            return_value={"success": True, "result": "test output"}
+            return_value={"result": "test output"}
         )
 
         result = await tools_handler.call_tool(
@@ -209,13 +209,13 @@ class TestGobbyDaemonToolsCallTool:
         tools_handler.tool_proxy.call_tool.assert_called_once_with(
             "test-server", "test-tool", {"key": "value"}, None
         )
-        assert result["success"] is True
+        assert "error" not in result
         assert result["result"] == "test output"
 
     @pytest.mark.asyncio
     async def test_call_tool_passes_arguments_correctly(self, tools_handler):
         """Test that arguments are passed correctly to tool."""
-        tools_handler.tool_proxy.call_tool = AsyncMock(return_value={"success": True})
+        tools_handler.tool_proxy.call_tool = AsyncMock(return_value={})
 
         complex_args = {
             "string_arg": "value",
@@ -237,7 +237,7 @@ class TestGobbyDaemonToolsCallTool:
     @pytest.mark.asyncio
     async def test_call_tool_with_none_arguments(self, tools_handler):
         """Test call_tool with no arguments."""
-        tools_handler.tool_proxy.call_tool = AsyncMock(return_value={"success": True})
+        tools_handler.tool_proxy.call_tool = AsyncMock(return_value={})
 
         await tools_handler.call_tool(
             server_name="server",
@@ -245,7 +245,9 @@ class TestGobbyDaemonToolsCallTool:
             arguments=None,
         )
 
-        tools_handler.tool_proxy.call_tool.assert_called_once_with("server", "no-args-tool", None, None)
+        tools_handler.tool_proxy.call_tool.assert_called_once_with(
+            "server", "no-args-tool", None, None
+        )
 
     @pytest.mark.asyncio
     async def test_call_tool_propagates_errors(self, tools_handler):
@@ -360,7 +362,7 @@ class TestGobbyDaemonToolsServerManagement:
     async def test_add_mcp_server_delegates_to_service(self, tools_handler):
         """Test that add_mcp_server delegates to server_mgmt service."""
         tools_handler.server_mgmt.add_server = AsyncMock(
-            return_value={"success": True, "name": "new-server"}
+            return_value={"name": "new-server"}
         )
 
         result = await tools_handler.add_mcp_server(
@@ -371,30 +373,30 @@ class TestGobbyDaemonToolsServerManagement:
         )
 
         tools_handler.server_mgmt.add_server.assert_called_once()
-        assert result["success"] is True
+        assert "error" not in result
         assert result["name"] == "new-server"
 
     @pytest.mark.asyncio
     async def test_remove_mcp_server_delegates_to_service(self, tools_handler):
         """Test that remove_mcp_server delegates to server_mgmt service."""
-        tools_handler.server_mgmt.remove_server = AsyncMock(return_value={"success": True})
+        tools_handler.server_mgmt.remove_server = AsyncMock(return_value={})
 
         result = await tools_handler.remove_mcp_server("old-server")
 
         tools_handler.server_mgmt.remove_server.assert_called_once_with("old-server")
-        assert result["success"] is True
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_import_mcp_server_delegates_to_service(self, tools_handler):
         """Test that import_mcp_server delegates to server_mgmt service."""
         tools_handler.server_mgmt.import_server = AsyncMock(
-            return_value={"success": True, "imported": ["server1"]}
+            return_value={"imported": ["server1"]}
         )
 
         result = await tools_handler.import_mcp_server(from_project="source-project")
 
         tools_handler.server_mgmt.import_server.assert_called_once()
-        assert result["success"] is True
+        assert "error" not in result
 
 
 class TestGobbyDaemonToolsRecommendation:
@@ -405,7 +407,6 @@ class TestGobbyDaemonToolsRecommendation:
         """Test that recommend_tools delegates to recommendation service."""
         tools_handler.recommendation.recommend_tools = AsyncMock(
             return_value={
-                "success": True,
                 "recommendations": [
                     {"server": "server1", "tool": "tool1", "reason": "Best match"},
                 ],
@@ -417,7 +418,7 @@ class TestGobbyDaemonToolsRecommendation:
         )
 
         tools_handler.recommendation.recommend_tools.assert_called_once()
-        assert result["success"] is True
+        assert "error" not in result
         assert "recommendations" in result
 
 
@@ -431,7 +432,7 @@ class TestGobbyDaemonToolsSemanticSearch:
 
         result = await tools_handler.search_tools(query="find files")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not configured" in result["error"]
 
     @pytest.mark.asyncio
@@ -442,7 +443,7 @@ class TestGobbyDaemonToolsSemanticSearch:
 
         result = await tools_handler.search_tools(query="find files")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "No project_id" in result["error"]
 
     @pytest.mark.asyncio
@@ -467,7 +468,7 @@ class TestGobbyDaemonToolsSemanticSearch:
             min_similarity=0.5,
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["total_results"] == 1
         assert len(result["results"]) == 1
 

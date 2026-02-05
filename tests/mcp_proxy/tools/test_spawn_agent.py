@@ -103,7 +103,7 @@ class TestSpawnAgentDefaults:
 
             # Should load "generic" agent by default
             mock_loader.load.assert_called_with("generic")
-            assert result["success"] is True
+            assert "error" not in result
 
 
 class TestSpawnAgentIsolation:
@@ -182,7 +182,7 @@ class TestSpawnAgentIsolation:
             mock_get_handler.assert_called_once()
             call_args = mock_get_handler.call_args
             assert call_args[0][0] == "current"
-            assert result["success"] is True
+            assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_spawn_agent_worktree_creates_worktree(self, mock_runner, mock_agent_def):
@@ -242,7 +242,7 @@ class TestSpawnAgentIsolation:
             mock_get_handler.assert_called_once()
             call_args = mock_get_handler.call_args
             assert call_args[0][0] == "worktree"
-            assert result["success"] is True
+            assert "error" not in result
             assert result["worktree_id"] == "wt-123"
 
     @pytest.mark.asyncio
@@ -303,7 +303,7 @@ class TestSpawnAgentIsolation:
             mock_get_handler.assert_called_once()
             call_args = mock_get_handler.call_args
             assert call_args[0][0] == "clone"
-            assert result["success"] is True
+            assert "error" not in result
             assert result["clone_id"] == "clone-123"
 
 
@@ -381,7 +381,7 @@ class TestSpawnAgentParamOverrides:
             )
 
             # Verify execute_spawn was called with terminal mode
-            assert result["success"] is True
+            assert "error" not in result
             execute_call = mock_execute.call_args
             assert execute_call[0][0].mode == "terminal"
 
@@ -471,7 +471,7 @@ class TestSpawnAgentTaskResolution:
             )
 
             mock_resolve.assert_called_once()
-            assert result["success"] is True
+            assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_task_id_supports_numeric_format(self, mock_runner, mock_agent_def):
@@ -530,7 +530,7 @@ class TestSpawnAgentTaskResolution:
             )
 
             mock_resolve.assert_called_once()
-            assert result["success"] is True
+            assert "error" not in result
 
 
 class TestSpawnAgentBranchGeneration:
@@ -634,7 +634,7 @@ class TestSpawnAgentBranchGeneration:
             spawn_config = mock_handler.prepare_environment.call_args[0][0]
             assert spawn_config.task_seq_num == 6100
             assert spawn_config.task_title == "Implement Login Feature"
-            assert result["success"] is True
+            assert "error" not in result
             assert result["branch_name"] == "task-6100-implement-login-feature"
 
 
@@ -714,7 +714,7 @@ class TestSpawnAgentSandbox:
                 },
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             # Verify SpawnRequest received sandbox_config
             spawn_request = mock_execute.call_args[0][0]
             assert spawn_request.sandbox_config is not None
@@ -790,7 +790,7 @@ class TestSpawnAgentSandbox:
                 },
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             spawn_request = mock_execute.call_args[0][0]
             # Should be enabled (from agent_def) with overrides applied
             assert spawn_request.sandbox_config is not None
@@ -846,7 +846,7 @@ class TestSpawnAgentSandbox:
                 },
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             spawn_request = mock_execute.call_args[0][0]
             assert spawn_request.sandbox_config is not None
             # Extra paths should be set as extra_write_paths
@@ -915,7 +915,7 @@ class TestSpawnAgentSandbox:
                 },
             )
 
-            assert result["success"] is True
+            assert "error" not in result
             spawn_request = mock_execute.call_args[0][0]
             # sandbox_config should be None or have enabled=False
             if spawn_request.sandbox_config is not None:

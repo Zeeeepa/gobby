@@ -143,7 +143,7 @@ class TestSendToParent:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "message" in result
         assert result["parent_session_id"] == "session-parent"
         mock_message_manager.create_message.assert_called_once_with(
@@ -166,7 +166,7 @@ class TestSendToParent:
             },
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -186,7 +186,7 @@ class TestSendToParent:
             },
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "no parent" in result["error"].lower()
 
 
@@ -215,7 +215,7 @@ class TestSendToChild:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "message" in result
         mock_message_manager.create_message.assert_called_once_with(
             from_session="session-parent",
@@ -238,7 +238,7 @@ class TestSendToChild:
             },
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -259,7 +259,7 @@ class TestSendToChild:
             },
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not a child of" in result["error"].lower()
 
 
@@ -282,7 +282,7 @@ class TestPollMessages:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "messages" in result
         assert len(result["messages"]) == 2
         mock_message_manager.get_messages.assert_called_once_with(
@@ -301,7 +301,7 @@ class TestPollMessages:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         mock_message_manager.get_messages.assert_called_once_with(
             to_session="session-child",
             unread_only=False,
@@ -319,7 +319,7 @@ class TestPollMessages:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["messages"] == []
         assert result["count"] == 0
 
@@ -343,7 +343,7 @@ class TestMarkMessageRead:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["message"]["read_at"] is not None
         mock_message_manager.mark_read.assert_called_once_with("msg-123")
 
@@ -359,7 +359,7 @@ class TestMarkMessageRead:
             },
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
 
@@ -387,7 +387,7 @@ class TestBroadcastToChildren:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["sent_count"] == 3
         assert mock_message_manager.create_message.call_count == 3
 
@@ -411,7 +411,7 @@ class TestBroadcastToChildren:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["sent_count"] == 2
         assert result["total_children"] == 2
 
@@ -430,7 +430,7 @@ class TestBroadcastToChildren:
             },
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["sent_count"] == 0
 
 
@@ -459,5 +459,5 @@ class TestErrorHandling:
             },
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "error" in result

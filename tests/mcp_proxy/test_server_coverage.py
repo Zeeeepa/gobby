@@ -66,7 +66,7 @@ class TestGetToolAlternatives:
             tool_name="test-tool",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "No project_id" in result["error"]
         assert "gobby init" in result["error"]
 
@@ -89,7 +89,7 @@ class TestGetToolAlternatives:
             tool_name="test-tool",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not configured" in result["error"]
 
     @pytest.mark.asyncio
@@ -119,7 +119,7 @@ class TestGetToolAlternatives:
             top_k=5,
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["failed_tool"] == "test-server/test-tool"
         assert result["count"] == 2
         assert len(result["alternatives"]) == 2
@@ -182,7 +182,7 @@ class TestGetToolAlternatives:
             tool_name="test-tool",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "Database connection error" in result["error"]
 
 
@@ -208,7 +208,7 @@ class TestSearchToolsExceptionHandling:
 
         result = await handler.search_tools(query="find files")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "Embedding model failed" in result["error"]
         assert result["query"] == "find files"
 
@@ -229,7 +229,7 @@ class TestListHookHandlers:
 
         result = await handler.list_hook_handlers()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not available" in result["error"]
 
     @pytest.mark.asyncio
@@ -249,7 +249,7 @@ class TestListHookHandlers:
 
         result = await handler.list_hook_handlers()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["handlers"] == {}
         assert "not loaded" in result["message"]
 
@@ -272,7 +272,7 @@ class TestListHookHandlers:
 
         result = await handler.list_hook_handlers()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["handlers"] == {}
         assert "not initialized" in result["message"]
 
@@ -317,7 +317,7 @@ class TestListHookHandlers:
 
         result = await handler.list_hook_handlers()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert "handlers" in result
         assert result["total_handlers"] >= 1
         assert "session_start" in result["handlers"]
@@ -370,7 +370,7 @@ class TestListHookHandlers:
 
         result = await handler.list_hook_handlers()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["total_handlers"] == 2
 
 
@@ -393,7 +393,7 @@ class TestTestHookEvent:
             source="claude",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not available" in result["error"]
 
     @pytest.mark.asyncio
@@ -414,7 +414,7 @@ class TestTestHookEvent:
             source="claude",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "No hook manager" in result["error"]
 
     @pytest.mark.asyncio
@@ -438,7 +438,7 @@ class TestTestHookEvent:
             source="claude",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "Invalid event type" in result["error"]
         assert "valid_types" in result
 
@@ -467,7 +467,7 @@ class TestTestHookEvent:
             data={"extra_key": "extra_value"},
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["event_type"] == "session_start"
         assert result["continue"] is True
         assert result["inject_context"] == "Test context"
@@ -494,7 +494,7 @@ class TestTestHookEvent:
             source="invalid_source",  # Should default to claude
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Verify the event was created with the source (defaulting to claude internally)
         call_args = mock_hook_manager.process_event.call_args
         assert call_args is not None
@@ -523,7 +523,7 @@ class TestTestHookEvent:
             source="gemini",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_test_hook_event_process_exception(self, mock_mcp_manager, mock_internal_manager):
@@ -545,7 +545,7 @@ class TestTestHookEvent:
             source="claude",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "Plugin crashed" in result["error"]
 
     @pytest.mark.asyncio
@@ -572,7 +572,7 @@ class TestTestHookEvent:
             source="claude",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["continue"] is False
         assert result["reason"] == "Plugin blocked this event"
 
@@ -593,7 +593,7 @@ class TestListPlugins:
 
         result = await handler.list_plugins()
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not available" in result["error"]
 
     @pytest.mark.asyncio
@@ -611,7 +611,7 @@ class TestListPlugins:
 
         result = await handler.list_plugins()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["enabled"] is False
         assert result["plugins"] == []
         assert "not initialized" in result["message"]
@@ -633,7 +633,7 @@ class TestListPlugins:
 
         result = await handler.list_plugins()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["enabled"] is False
         assert result["plugins"] == []
         assert "No plugin loader" in result["message"]
@@ -669,7 +669,7 @@ class TestListPlugins:
 
         result = await handler.list_plugins()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["enabled"] is True
         assert len(result["plugins"]) == 2
         assert result["plugin_dirs"] == ["/path/to/plugins", "/another/path"]
@@ -702,7 +702,7 @@ class TestListPlugins:
 
         result = await handler.list_plugins()
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["enabled"] is False
 
 
@@ -722,7 +722,7 @@ class TestReloadPlugin:
 
         result = await handler.reload_plugin(name="test-plugin")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not available" in result["error"]
 
     @pytest.mark.asyncio
@@ -740,7 +740,7 @@ class TestReloadPlugin:
 
         result = await handler.reload_plugin(name="test-plugin")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not initialized" in result["error"]
 
     @pytest.mark.asyncio
@@ -760,7 +760,7 @@ class TestReloadPlugin:
 
         result = await handler.reload_plugin(name="test-plugin")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "No plugin loader" in result["error"]
 
     @pytest.mark.asyncio
@@ -783,7 +783,7 @@ class TestReloadPlugin:
 
         result = await handler.reload_plugin(name="nonexistent-plugin")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"] or "reload failed" in result["error"]
         assert "nonexistent-plugin" in result["error"]
 
@@ -812,7 +812,7 @@ class TestReloadPlugin:
 
         result = await handler.reload_plugin(name="my-plugin")
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["name"] == "my-plugin"
         assert result["version"] == "1.2.3"
         assert result["description"] == "A reloaded plugin"
@@ -839,5 +839,5 @@ class TestReloadPlugin:
 
         result = await handler.reload_plugin(name="broken-plugin")
 
-        assert result["success"] is False
+        assert "error" in result
         assert "File not found" in result["error"]

@@ -49,7 +49,11 @@ def _process_tool_proxy_result(
         Wrapped result dict with success status and response time
     """
     # Track metrics for tool-level failures vs successes
-    if isinstance(result, dict) and result.get("success") is False:
+    # Detect errors: new pattern uses {"error": ...}, legacy uses {"success": False}
+    is_error = isinstance(result, dict) and (
+        "error" in result or result.get("success") is False
+    )
+    if is_error:
         _metrics.inc_counter("mcp_tool_calls_failed_total")
 
         # Return all errors consistently as {success: False, result: {...}}
@@ -57,7 +61,7 @@ def _process_tool_proxy_result(
         # caused MCP clients to format errors as "HTTP 404: {body}" instead of
         # showing clean error messages. Consistent error envelopes work better
         # for both MCP clients (via call_tool) and HTTP clients.
-        error_code = result.get("error_code")
+        error_code = result.get("error_code") if isinstance(result, dict) else None
         if error_code:
             logger.debug(
                 f"MCP tool call failed: {server_name}.{tool_name} (error_code={error_code})",
