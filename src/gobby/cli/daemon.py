@@ -32,6 +32,43 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | None:
+    """
+    Spawn the watchdog process.
+
+    Args:
+        daemon_port: Port the daemon is listening on
+        verbose: Enable verbose logging
+        log_file: Path to watchdog log file
+
+    Returns:
+        Watchdog process PID, or None on failure
+    """
+    cmd = [sys.executable, "-m", "gobby.watchdog", "--port", str(daemon_port)]
+    if verbose:
+        cmd.append("--verbose")
+
+    try:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_f = open(log_file, "a")
+
+        process = subprocess.Popen(  # nosec B603
+            cmd,
+            stdout=log_f,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            env=os.environ.copy(),
+        )
+
+        log_f.close()
+        return process.pid
+
+    except Exception as e:
+        logger.error(f"Failed to spawn watchdog: {e}")
+        return None
+
+
 @click.command()
 @click.option(
     "--verbose",
@@ -39,8 +76,13 @@ logger = logging.getLogger(__name__)
     is_flag=True,
     help="Enable verbose debug output",
 )
+@click.option(
+    "--no-watchdog",
+    is_flag=True,
+    help="Disable watchdog process (watchdog is enabled by default)",
+)
 @click.pass_context
-def start(ctx: click.Context, verbose: bool) -> None:
+def start(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
     """Start the Gobby daemon."""
     # Get config object
     config = ctx.obj["config"]
@@ -159,6 +201,16 @@ def start(ctx: click.Context, verbose: bool) -> None:
                 time.sleep(0.5)
                 continue
 
+        # Spawn watchdog if daemon is healthy and watchdog is enabled
+        watchdog_pid = None
+        if daemon_healthy and not no_watchdog and config.watchdog.enabled:
+            watchdog_log = Path(config.logging.watchdog).expanduser()
+            watchdog_pid = spawn_watchdog(http_port, verbose, watchdog_log)
+            if watchdog_pid:
+                watchdog_pid_file = gobby_dir / "watchdog.pid"
+                with open(watchdog_pid_file, "w") as f:
+                    f.write(str(watchdog_pid))
+
         # Format and display status
         status_kwargs = {
             "running": daemon_healthy,
@@ -167,6 +219,7 @@ def start(ctx: click.Context, verbose: bool) -> None:
             "log_files": str(log_file.parent),
             "http_port": http_port,
             "websocket_port": ws_port,
+            "watchdog_pid": watchdog_pid,
         }
 
         # Fetch rich status if daemon is healthy
@@ -208,8 +261,13 @@ def stop(ctx: click.Context) -> None:
     is_flag=True,
     help="Enable verbose debug output",
 )
+@click.option(
+    "--no-watchdog",
+    is_flag=True,
+    help="Disable watchdog process (watchdog is enabled by default)",
+)
 @click.pass_context
-def restart(ctx: click.Context, verbose: bool) -> None:
+def restart(ctx: click.Context, verbose: bool, no_watchdog: bool) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 
@@ -224,7 +282,7 @@ def restart(ctx: click.Context, verbose: bool) -> None:
     time.sleep(3)
 
     # Call start command
-    ctx.invoke(start, verbose=verbose)
+    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog)
 
 
 @click.command()
@@ -269,6 +327,19 @@ def status(ctx: click.Context) -> None:
     http_port = config.daemon_port
     websocket_port = config.websocket.port
 
+    # Check watchdog status
+    watchdog_pid = None
+    watchdog_pid_file = get_gobby_home() / "watchdog.pid"
+    if watchdog_pid_file.exists():
+        try:
+            with open(watchdog_pid_file) as f:
+                wd_pid = int(f.read().strip())
+            # Check if watchdog is actually running
+            os.kill(wd_pid, 0)
+            watchdog_pid = wd_pid
+        except (ProcessLookupError, ValueError, OSError):
+            pass  # Watchdog not running or stale PID file
+
     # Build status kwargs
     status_kwargs: dict[str, Any] = {
         "running": True,
@@ -278,6 +349,7 @@ def status(ctx: click.Context) -> None:
         "uptime": uptime_str,
         "http_port": http_port,
         "websocket_port": websocket_port,
+        "watchdog_pid": watchdog_pid,
     }
 
     # Fetch rich status from daemon API

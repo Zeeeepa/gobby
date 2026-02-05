@@ -40,6 +40,7 @@ from gobby.config.sessions import (
 )
 from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
+from gobby.config.watchdog import WatchdogConfig
 
 __all__ = [
     # Local definitions only - no re-exports
@@ -269,6 +270,10 @@ class DaemonConfig(BaseModel):
     search: SearchConfig = Field(
         default_factory=SearchConfig,
         description="Unified search configuration with embedding fallback",
+    )
+    watchdog: WatchdogConfig = Field(
+        default_factory=WatchdogConfig,
+        description="Daemon watchdog process configuration",
     )
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
