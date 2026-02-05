@@ -221,7 +221,7 @@ async def test_claim_worktree_success(registry, mock_worktree_storage):
     mock_worktree_storage.get.return_value = wt
     mock_worktree_storage.claim.return_value = True
     result = await registry.call("claim_worktree", {"worktree_id": "wt-1", "session_id": "sess-1"})
-    assert result == {}
+    assert result["success"] is True
     mock_worktree_storage.claim.assert_called_with("wt-1", "sess-1")
 
 
@@ -264,7 +264,7 @@ async def test_release_worktree(registry, mock_worktree_storage):
     mock_worktree_storage.get.return_value = wt
     mock_worktree_storage.release.return_value = True
     result = await registry.call("release_worktree", {"worktree_id": "wt-1"})
-    assert result == {}
+    assert result["success"] is True
     mock_worktree_storage.release.assert_called_with("wt-1")
 
 
@@ -289,7 +289,7 @@ async def test_delete_worktree_success(registry, mock_worktree_storage, mock_git
     mock_worktree_storage.delete.return_value = True
     with patch("pathlib.Path.exists", return_value=True):
         result = await registry.call("delete_worktree", {"worktree_id": "wt-1"})
-        assert result == {}
+        assert result["success"] is True
         mock_git_manager.delete_worktree.assert_called_with(
             "/tmp/p1", force=False, delete_branch=True, branch_name="b1"
         )
@@ -325,7 +325,7 @@ async def test_delete_worktree_uncommitted_changes(
         result_force = await registry.call(
             "delete_worktree", {"worktree_id": "wt-1", "force": True}
         )
-        assert result_force == {}
+        assert result_force["success"] is True
         mock_git_manager.delete_worktree.assert_called_with(
             "/tmp/p1", force=True, delete_branch=True, branch_name="b1"
         )
@@ -732,7 +732,7 @@ async def test_delete_worktree_path_not_exists(registry, mock_worktree_storage, 
     with patch("pathlib.Path.exists", return_value=False):
         result = await registry.call("delete_worktree", {"worktree_id": "wt-1"})
         # Should succeed - just cleans up DB record when path doesn't exist
-        assert result == {}
+        assert result["success"] is True
         # Git delete is NOT called when path doesn't exist (orphaned DB record cleanup)
         mock_git_manager.delete_worktree.assert_not_called()
         # But DB record is still deleted
