@@ -363,6 +363,15 @@ class WorkflowEngine:
             # Also update flattened variables at top level
             eval_context.update(state.variables)
 
+        # Check premature stop for STOP events
+        if event.event_type == HookEventType.STOP:
+            premature_response = await self._check_premature_stop(event, state.variables)
+            if premature_response and premature_response.decision != "allow":
+                logger.info(
+                    f"Premature stop blocked for session {session_id}: {premature_response.reason}"
+                )
+                return premature_response
+
         # Check transitions
         logger.debug("Checking transitions")
         for transition in current_step.transitions:
