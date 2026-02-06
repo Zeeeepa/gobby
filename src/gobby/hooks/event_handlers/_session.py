@@ -449,15 +449,23 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     )
 
         # Add active step workflows from WorkflowStateManager
-        if session_id and self._workflow_handler:
+        if (
+            session_id
+            and self._workflow_handler
+            and hasattr(self._workflow_handler, "engine")
+            and self._workflow_handler.engine is not None
+            and hasattr(self._workflow_handler.engine, "state_manager")
+            and self._workflow_handler.engine.state_manager is not None
+        ):
             try:
                 state = self._workflow_handler.engine.state_manager.get_state(session_id)
+            except Exception as e:
+                self.logger.debug(f"Failed to get step workflow state: {e}")
+            else:
                 if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
                     active_workflow_lines.append(
                         f"  - {state.workflow_name} (step, current_step={state.step})"
                     )
-            except Exception as e:
-                self.logger.debug(f"Failed to get step workflow state: {e}")
 
         if active_workflow_lines:
             system_message += "\nActive workflows:"
