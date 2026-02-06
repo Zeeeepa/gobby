@@ -126,6 +126,23 @@ def mock_llm_service() -> MagicMock:
     return service
 
 
+@pytest.fixture
+def mock_daemon_config() -> MagicMock:
+    """Create a mock daemon configuration for CLI tests.
+
+    Provides daemon_port, websocket.port, logging paths,
+    and disables watchdog and UI.
+    """
+    config = MagicMock()
+    config.daemon_port = 60887
+    config.websocket.port = 60888
+    config.logging.client = "~/.gobby/logs/client.log"
+    config.logging.client_error = "~/.gobby/logs/client_error.log"
+    config.watchdog.enabled = False
+    config.ui.enabled = False
+    return config
+
+
 @pytest.fixture(autouse=True)
 def protect_production_resources(
     request: pytest.FixtureRequest, temp_dir: Path, safe_db_dir: Path

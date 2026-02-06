@@ -29,17 +29,6 @@ class TestStartCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration object."""
-        config = MagicMock()
-        config.daemon_port = 60887
-        config.websocket.port = 60888
-        config.logging.client = "~/.gobby/logs/client.log"
-        config.logging.client_error = "~/.gobby/logs/client_error.log"
-        config.watchdog.enabled = False
-        config.ui.enabled = False
-        return config
 
     def test_start_help(self, runner: CliRunner) -> None:
         """Test start --help displays help text."""
@@ -69,11 +58,11 @@ class TestStartCommand:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test successful daemon start."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
@@ -126,11 +115,11 @@ class TestStartCommand:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start with --verbose flag adds verbose argument to command."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
@@ -167,11 +156,11 @@ class TestStartCommand:
         mock_load_config: MagicMock,
         mock_init_storage: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start when daemon is already running."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
 
         with (
             runner.isolated_filesystem(temp_dir=str(temp_dir)),
@@ -199,11 +188,11 @@ class TestStartCommand:
         mock_init_storage: MagicMock,
         mock_kill_daemons: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start removes stale PID file when process not running."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
 
         with (
@@ -253,11 +242,11 @@ class TestStartCommand:
         mock_is_port_available: MagicMock,
         mock_wait_port: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start fails when HTTP port never becomes available."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = False
         mock_wait_port.return_value = False  # Port never available
@@ -288,16 +277,16 @@ class TestStartCommand:
         mock_is_port_available: MagicMock,
         mock_wait_port: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start fails when WebSocket port never becomes available."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
 
         # HTTP port available, WS port not
         def port_available_side_effect(port):
-            return port == mock_config.daemon_port
+            return port == mock_daemon_config.daemon_port
 
         mock_is_port_available.side_effect = port_available_side_effect
         mock_wait_port.return_value = False
@@ -332,11 +321,11 @@ class TestStartCommand:
         mock_popen: MagicMock,
         mock_httpx_get: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start handles process that exits immediately."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
 
@@ -378,11 +367,11 @@ class TestStartCommand:
         mock_popen: MagicMock,
         mock_httpx_get: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start continues with warning when health check fails."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
 
@@ -418,11 +407,11 @@ class TestStartCommand:
         mock_init_storage: MagicMock,
         mock_kill_daemons: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test start kills existing gobby daemon processes."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 2  # Two processes killed
 
         with (
@@ -510,17 +499,6 @@ class TestRestartCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration object."""
-        config = MagicMock()
-        config.daemon_port = 60887
-        config.websocket.port = 60888
-        config.logging.client = "~/.gobby/logs/client.log"
-        config.logging.client_error = "~/.gobby/logs/client_error.log"
-        config.watchdog.enabled = False
-        config.ui.enabled = False
-        return config
 
     def test_restart_help(self, runner: CliRunner) -> None:
         """Test restart --help displays help text."""
@@ -552,11 +530,11 @@ class TestRestartCommand:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test successful daemon restart."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_stop_daemon.return_value = True
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
@@ -628,11 +606,11 @@ class TestRestartCommand:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test restart with --verbose flag."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_stop_daemon.return_value = True
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
@@ -669,17 +647,6 @@ class TestStatusCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration object."""
-        config = MagicMock()
-        config.daemon_port = 60887
-        config.websocket.port = 60888
-        config.logging.client = "~/.gobby/logs/client.log"
-        config.logging.client_error = "~/.gobby/logs/client_error.log"
-        config.watchdog.enabled = False
-        config.ui.enabled = False
-        return config
 
     def test_status_help(self, runner: CliRunner) -> None:
         """Test status --help displays help text."""
@@ -694,11 +661,11 @@ class TestStatusCommand:
         mock_load_config: MagicMock,
         mock_get_gobby_home: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test status when no PID file exists."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             # Create gobby dir without PID file
@@ -718,11 +685,11 @@ class TestStatusCommand:
         mock_load_config: MagicMock,
         mock_get_gobby_home: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test status with invalid PID file content."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             gobby_dir = temp_dir / ".gobby"
@@ -745,11 +712,11 @@ class TestStatusCommand:
         mock_load_config: MagicMock,
         mock_get_gobby_home: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test status with stale PID file (process not running)."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             gobby_dir = temp_dir / ".gobby"
@@ -778,11 +745,11 @@ class TestStatusCommand:
         mock_fetch_status: MagicMock,
         mock_get_gobby_home: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test status when daemon is running."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_fetch_status.return_value = {
             "mcp_total": 5,
             "mcp_connected": 3,
@@ -819,11 +786,11 @@ class TestStatusCommand:
         mock_psutil_process: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test status handles psutil errors gracefully."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_fetch_status.return_value = {}
         mock_psutil_process.side_effect = psutil.NoSuchProcess(pid=12345)
 
@@ -854,17 +821,6 @@ class TestDaemonCommandsIntegration:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration object."""
-        config = MagicMock()
-        config.daemon_port = 60887
-        config.websocket.port = 60888
-        config.logging.client = "~/.gobby/logs/client.log"
-        config.logging.client_error = "~/.gobby/logs/client_error.log"
-        config.watchdog.enabled = False
-        config.ui.enabled = False
-        return config
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
@@ -898,12 +854,12 @@ class TestDaemonCommandsIntegration:
         mock_format_status: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
     ) -> None:
         """Test that start command displays status message."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
@@ -950,17 +906,6 @@ class TestEdgeCases:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration object."""
-        config = MagicMock()
-        config.daemon_port = 60887
-        config.websocket.port = 60888
-        config.logging.client = "~/.gobby/logs/client.log"
-        config.logging.client_error = "~/.gobby/logs/client_error.log"
-        config.watchdog.enabled = False
-        config.ui.enabled = False
-        return config
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
@@ -995,12 +940,12 @@ class TestEdgeCases:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
     ) -> None:
         """Test start handles health check timeout gracefully."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
@@ -1046,12 +991,12 @@ class TestEdgeCases:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
     ) -> None:
         """Test start retries when health check returns non-200."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
@@ -1098,12 +1043,12 @@ class TestEdgeCases:
         mock_is_port_available: MagicMock,
         mock_popen: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
     ) -> None:
         """Test start handles Popen exception."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_popen.side_effect = OSError("Cannot execute")
@@ -1132,11 +1077,11 @@ class TestEdgeCases:
         mock_fetch_status: MagicMock,
         mock_format_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
     ) -> None:
         """Test status command with rich daemon data."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_format_status.return_value = "FULL STATUS"
 
         # Rich status data
@@ -1169,7 +1114,7 @@ class TestEdgeCases:
             result = runner.invoke(cli, ["status"])
 
             assert result.exit_code == 0
-            mock_fetch_status.assert_called_once_with(mock_config.daemon_port, timeout=2.0)
+            mock_fetch_status.assert_called_once_with(mock_daemon_config.daemon_port, timeout=2.0)
 
 
 class TestCommandBuilding:
@@ -1180,17 +1125,6 @@ class TestCommandBuilding:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration object."""
-        config = MagicMock()
-        config.daemon_port = 60887
-        config.websocket.port = 60888
-        config.logging.client = "~/.gobby/logs/client.log"
-        config.logging.client_error = "~/.gobby/logs/client_error.log"
-        config.watchdog.enabled = False
-        config.ui.enabled = False
-        return config
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
@@ -1222,12 +1156,12 @@ class TestCommandBuilding:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
     ) -> None:
         """Test that start command builds correct subprocess command."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
@@ -1278,12 +1212,12 @@ class TestCommandBuilding:
         mock_httpx_get: MagicMock,
         mock_fetch_status: MagicMock,
         runner: CliRunner,
-        mock_config: MagicMock,
+        mock_daemon_config: MagicMock,
         temp_dir: Path,
         clean_pid_file,
     ) -> None:
         """Test that start command uses correct subprocess options."""
-        mock_load_config.return_value = mock_config
+        mock_load_config.return_value = mock_daemon_config
         mock_kill_daemons.return_value = 0
         mock_is_port_available.return_value = True
         mock_fetch_status.return_value = {}
