@@ -460,10 +460,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
 
         # Add active lifecycle workflows
         active_workflow_lines: list[str] = []
+        lifecycle_names: set[str] = set()
         if wf_response.metadata and "discovered_workflows" in wf_response.metadata:
             wf_list = wf_response.metadata["discovered_workflows"]
             if wf_list:
                 for w in wf_list:
+                    lifecycle_names.add(w["name"])
                     source = "project" if w["is_project"] else "global"
                     active_workflow_lines.append(
                         f"  - {w['name']} ({source}, priority={w['priority']})"
@@ -472,7 +474,7 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Add active step workflows from WorkflowStateManager
         if session_id:
             state = self._get_step_workflow_state(session_id)
-            if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
+            if state and state.workflow_name not in ("__lifecycle__", "__ended__") and state.workflow_name not in lifecycle_names:
                 active_workflow_lines.append(
                     f"  - {state.workflow_name} (step, current_step={state.step})"
                 )
