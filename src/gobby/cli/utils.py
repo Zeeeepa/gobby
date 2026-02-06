@@ -525,9 +525,7 @@ def find_web_dir(config: Any = None) -> Path | None:
     return None
 
 
-def spawn_ui_server(
-    host: str, port: int, web_dir: Path, log_file: Path
-) -> int | None:
+def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int | None:
     """Spawn the UI dev server as a detached subprocess.
 
     Args:
@@ -549,6 +547,7 @@ def spawn_ui_server(
             ["npm", "install"],
             cwd=web_dir,
             capture_output=True,
+            timeout=120,  # 2 minute timeout for npm install
         )
         if result.returncode != 0:
             logger.error(f"Failed to install UI dependencies: {result.stderr.decode()}")
@@ -570,7 +569,17 @@ def spawn_ui_server(
                 env=os.environ.copy(),
             )
 
-        # Write PID file
+        # Give the process a moment to start, then verify it's still alive
+        time.sleep(1.0)
+
+        if process.poll() is not None:
+            logger.error(
+                f"UI server process exited immediately with code {process.returncode}. "
+                f"Check logs: {log_file}"
+            )
+            return None
+
+        # Write PID file only after confirming process is running
         pid_file = get_gobby_home() / "ui.pid"
         with open(pid_file, "w") as f:
             f.write(str(process.pid))
