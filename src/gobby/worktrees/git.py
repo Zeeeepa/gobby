@@ -250,7 +250,7 @@ class WorktreeGitManager:
                     status = self.get_worktree_status(worktree_path)
                     if status:
                         branch_name = status.branch
-                except Exception:
+                except (subprocess.SubprocessError, OSError):
                     pass  # nosec B110
 
             # Remove worktree
