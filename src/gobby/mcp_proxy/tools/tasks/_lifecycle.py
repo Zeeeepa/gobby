@@ -258,7 +258,9 @@ def create_lifecycle_registry(ctx: RegistryContext) -> InternalToolRegistry:
                             if claimed_task:
                                 claimed_task_id = claimed_task.id
                         except Exception:
-                            claimed_task_id = claimed_task_id  # explicit no-op
+                            # Keep claimed_task_id as the raw ref; the UUID
+                            # comparison on the next line will safely not match.
+                            pass  # nosec B110
                 if state and claimed_task_id == resolved_id:
                     # Check if clear_task_on_close is enabled (default: True)
                     clear_on_close = state.variables.get("clear_task_on_close", True)
