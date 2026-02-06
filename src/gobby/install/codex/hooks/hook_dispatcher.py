@@ -11,12 +11,14 @@ block the CLI for long or fail the Codex command on daemon errors.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import httpx
 
 DEFAULT_DAEMON_PORT = 60887
@@ -25,19 +27,25 @@ DEBUG_ENV_VAR = "GOBBY_CODEX_NOTIFY_DEBUG"
 
 
 def _silence_output() -> None:
-    """Prevent notify script output from polluting the interactive Codex UI."""
+    """Prevent notify script output from polluting the interactive Codex UI.
+
+    Uses os.devnull file descriptor directly to avoid blocking async-unsafe open().
+    This is safe to call from async context because os.open/os.fdopen are thin
+    wrappers around C-level fd operations that do not block the event loop.
+    """
     if os.environ.get(DEBUG_ENV_VAR):
         return
 
     try:
-        devnull = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+        fd = os.open(os.devnull, os.O_WRONLY)
+        devnull = os.fdopen(fd, "w", encoding="utf-8")
         sys.stdout = devnull
         sys.stderr = devnull
     except (OSError, AttributeError):
         pass  # devnull may be unavailable (OSError) or std streams unwritable (AttributeError)
 
 
-def _get_daemon_url() -> str:
+async def _get_daemon_url() -> str:
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
     port = DEFAULT_DAEMON_PORT
@@ -45,8 +53,9 @@ def _get_daemon_url() -> str:
         try:
             import yaml
 
-            with config_path.open(encoding="utf-8") as f:
-                config = yaml.safe_load(f) or {}
+            async with aiofiles.open(config_path, encoding="utf-8") as f:
+                content = await f.read()
+            config = yaml.safe_load(content) or {}
             port = int(config.get("daemon_port", DEFAULT_DAEMON_PORT))
         except Exception:
             port = DEFAULT_DAEMON_PORT
@@ -54,9 +63,10 @@ def _get_daemon_url() -> str:
     return f"http://localhost:{port}"
 
 
-def _read_event_from_stdin() -> dict[str, Any] | None:
+async def _read_event_from_stdin() -> dict[str, Any] | None:
+    loop = asyncio.get_running_loop()
     try:
-        raw = sys.stdin.read()
+        raw = await loop.run_in_executor(None, sys.stdin.read)
     except Exception:
         return None
 
@@ -124,24 +134,25 @@ def _normalize_input_data(event: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def main() -> int:
+async def main() -> int:
     _silence_output()
 
-    event = _read_event_from_stdin()
+    event = await _read_event_from_stdin()
     input_data = _normalize_input_data(event)
 
-    daemon_url = _get_daemon_url()
+    daemon_url = await _get_daemon_url()
 
     try:
-        httpx.post(
-            f"{daemon_url}/hooks/execute",
-            json={
-                "hook_type": "AgentTurnComplete",
-                "input_data": input_data,
-                "source": "codex",
-            },
-            timeout=2.0,
-        )
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{daemon_url}/hooks/execute",
+                json={
+                    "hook_type": "AgentTurnComplete",
+                    "input_data": input_data,
+                    "source": "codex",
+                },
+                timeout=2.0,
+            )
     except Exception:
         return 0
 
@@ -149,4 +160,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(asyncio.run(main()))
