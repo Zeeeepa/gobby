@@ -40,7 +40,7 @@ class LLMProvidersConfig(BaseModel):
     llm_providers:
       json_strict: true  # Strict JSON validation for LLM responses (default)
       claude:
-        models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-6
+        models: claude-3-5-haiku-latest,claude-sonnet-4-0,claude-opus-4-0
       codex:
         models: gpt-4o-mini,gpt-5-mini,gpt-5
         auth_mode: subscription
