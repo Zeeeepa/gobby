@@ -24,13 +24,58 @@ class DiscoveredWorkflow:
     path: Path
 
 
+@dataclass
+class _CachedEntry:
+    """Cache entry for a single workflow definition with mtime tracking."""
+
+    definition: WorkflowDefinition | PipelineDefinition
+    path: Path | None  # None for inline/agent workflows
+    mtime: float  # os.stat().st_mtime, 0.0 for inline
+
+
+@dataclass
+class _CachedDiscovery:
+    """Cache entry for workflow discovery results with mtime tracking."""
+
+    results: list[DiscoveredWorkflow]
+    file_mtimes: dict[str, float]  # yaml file path -> mtime
+    dir_mtimes: dict[str, float]  # scanned directory path -> mtime
+
+
 class WorkflowLoader:
     def __init__(self, workflow_dirs: list[Path] | None = None):
         # Default global workflow directory
         self.global_dirs = workflow_dirs or [Path.home() / ".gobby" / "workflows"]
-        self._cache: dict[str, WorkflowDefinition | PipelineDefinition] = {}
+        self._cache: dict[str, _CachedEntry] = {}
         # Cache for discovered workflows per project path
-        self._discovery_cache: dict[str, list[DiscoveredWorkflow]] = {}
+        self._discovery_cache: dict[str, _CachedDiscovery] = {}
+
+    def _is_stale(self, entry: _CachedEntry) -> bool:
+        """Check if a cached workflow entry is stale (file changed on disk)."""
+        if entry.path is None:
+            return False  # Inline workflows have no file to check
+        if entry.mtime == 0.0:
+            return False  # Could not stat at cache time; skip check
+        try:
+            return entry.path.stat().st_mtime != entry.mtime
+        except OSError:
+            return True  # File deleted = stale
+
+    def _is_discovery_stale(self, entry: _CachedDiscovery) -> bool:
+        """Check if discovery cache is stale (any file/dir changed)."""
+        for dir_path, mtime in entry.dir_mtimes.items():
+            try:
+                if Path(dir_path).stat().st_mtime != mtime:
+                    return True  # Dir changed (file added/removed)
+            except OSError:
+                return True
+        for file_path, mtime in entry.file_mtimes.items():
+            try:
+                if Path(file_path).stat().st_mtime != mtime:
+                    return True  # File content changed
+            except OSError:
+                return True  # File deleted
+        return False
 
     def load_workflow(
         self,
@@ -67,16 +112,19 @@ class WorkflowLoader:
         # Build cache key including project path for project-specific caching
         cache_key = f"{project_path or 'global'}:{name}"
         if cache_key in self._cache:
-            cached = self._cache[cache_key]
-            if isinstance(cached, (WorkflowDefinition, PipelineDefinition)):
-                return cached
-            return None
+            entry = self._cache[cache_key]
+            if self._is_stale(entry):
+                del self._cache[cache_key]
+            else:
+                return entry.definition
 
         # Check for qualified name (agent:workflow) - try to load from agent definition first
         if ":" in name:
             agent_workflow = self._load_from_agent_definition(name, project_path)
             if agent_workflow:
-                self._cache[cache_key] = agent_workflow
+                self._cache[cache_key] = _CachedEntry(
+                    definition=agent_workflow, path=None, mtime=0.0
+                )
                 return agent_workflow
             # Fall through to file-based lookup (for backwards compatibility with
             # persisted inline workflows like meeseeks-worker.yaml)
@@ -120,7 +168,13 @@ class WorkflowLoader:
             else:
                 definition = WorkflowDefinition(**data)
 
-            self._cache[cache_key] = definition
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            self._cache[cache_key] = _CachedEntry(
+                definition=definition, path=path, mtime=mtime
+            )
             return definition
 
         except ValueError:
@@ -161,10 +215,13 @@ class WorkflowLoader:
         # Build cache key including project path for project-specific caching
         cache_key = f"pipeline:{project_path or 'global'}:{name}"
         if cache_key in self._cache:
-            cached = self._cache[cache_key]
-            if isinstance(cached, PipelineDefinition):
-                return cached
-            return None
+            entry = self._cache[cache_key]
+            if self._is_stale(entry):
+                del self._cache[cache_key]
+            elif isinstance(entry.definition, PipelineDefinition):
+                return entry.definition
+            else:
+                return None
 
         # Build search directories: project-specific first, then global
         search_dirs = list(self.global_dirs)
@@ -207,7 +264,13 @@ class WorkflowLoader:
 
             # 6. Validate and create model
             definition = PipelineDefinition(**data)
-            self._cache[cache_key] = definition
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            self._cache[cache_key] = _CachedEntry(
+                definition=definition, path=path, mtime=mtime
+            )
             return definition
 
         except ValueError:
@@ -524,19 +587,37 @@ class WorkflowLoader:
 
         # Check cache
         if cache_key in self._discovery_cache:
-            return self._discovery_cache[cache_key]
+            cached = self._discovery_cache[cache_key]
+            if not self._is_discovery_stale(cached):
+                return cached.results
+            del self._discovery_cache[cache_key]
 
         discovered: dict[str, DiscoveredWorkflow] = {}  # name -> workflow (for shadowing)
         failed: dict[str, str] = {}  # name -> error message for failed workflows
+        file_mtimes: dict[str, float] = {}
+        dir_mtimes: dict[str, float] = {}
 
         # 1. Scan global lifecycle directory first (will be shadowed by project)
         for global_dir in self.global_dirs:
-            self._scan_directory(global_dir / "lifecycle", is_project=False, discovered=discovered)
+            self._scan_directory(
+                global_dir / "lifecycle",
+                is_project=False,
+                discovered=discovered,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
 
         # 2. Scan project lifecycle directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows" / "lifecycle"
-            self._scan_directory(project_dir, is_project=True, discovered=discovered, failed=failed)
+            self._scan_directory(
+                project_dir,
+                is_project=True,
+                discovered=discovered,
+                failed=failed,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
 
             # Log errors when project workflow fails but global exists (failed shadowing)
             for name, error in failed.items():
@@ -559,7 +640,9 @@ class WorkflowLoader:
         )
 
         # Cache and return
-        self._discovery_cache[cache_key] = sorted_workflows
+        self._discovery_cache[cache_key] = _CachedDiscovery(
+            results=sorted_workflows, file_mtimes=file_mtimes, dir_mtimes=dir_mtimes
+        )
         return sorted_workflows
 
     def discover_pipeline_workflows(
@@ -588,20 +671,36 @@ class WorkflowLoader:
 
         # Check cache
         if cache_key in self._discovery_cache:
-            return self._discovery_cache[cache_key]
+            cached = self._discovery_cache[cache_key]
+            if not self._is_discovery_stale(cached):
+                return cached.results
+            del self._discovery_cache[cache_key]
 
         discovered: dict[str, DiscoveredWorkflow] = {}  # name -> workflow (for shadowing)
         failed: dict[str, str] = {}  # name -> error message for failed workflows
+        file_mtimes: dict[str, float] = {}
+        dir_mtimes: dict[str, float] = {}
 
         # 1. Scan global workflows directory first (will be shadowed by project)
         for global_dir in self.global_dirs:
-            self._scan_pipeline_directory(global_dir, is_project=False, discovered=discovered)
+            self._scan_pipeline_directory(
+                global_dir,
+                is_project=False,
+                discovered=discovered,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
 
         # 2. Scan project workflows directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
             self._scan_pipeline_directory(
-                project_dir, is_project=True, discovered=discovered, failed=failed
+                project_dir,
+                is_project=True,
+                discovered=discovered,
+                failed=failed,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
             )
 
             # Log errors when project pipeline fails but global exists (failed shadowing)
@@ -622,7 +721,9 @@ class WorkflowLoader:
         )
 
         # Cache and return
-        self._discovery_cache[cache_key] = sorted_pipelines
+        self._discovery_cache[cache_key] = _CachedDiscovery(
+            results=sorted_pipelines, file_mtimes=file_mtimes, dir_mtimes=dir_mtimes
+        )
         return sorted_pipelines
 
     def _scan_pipeline_directory(
@@ -631,6 +732,8 @@ class WorkflowLoader:
         is_project: bool,
         discovered: dict[str, DiscoveredWorkflow],
         failed: dict[str, str] | None = None,
+        file_mtimes: dict[str, float] | None = None,
+        dir_mtimes: dict[str, float] | None = None,
     ) -> None:
         """
         Scan a directory for pipeline YAML files and add to discovered dict.
@@ -642,13 +745,27 @@ class WorkflowLoader:
             is_project: Whether this is a project directory (for shadowing)
             discovered: Dict to update (name -> DiscoveredWorkflow)
             failed: Optional dict to track failed pipelines (name -> error message)
+            file_mtimes: Optional dict to record scanned file mtimes for cache invalidation
+            dir_mtimes: Optional dict to record scanned directory mtimes for cache invalidation
         """
         if not directory.exists():
             return
 
+        if dir_mtimes is not None:
+            try:
+                dir_mtimes[str(directory)] = directory.stat().st_mtime
+            except OSError:
+                pass
+
         for yaml_path in directory.glob("*.yaml"):
             name = yaml_path.stem
             try:
+                if file_mtimes is not None:
+                    try:
+                        file_mtimes[str(yaml_path)] = yaml_path.stat().st_mtime
+                    except OSError:
+                        pass
+
                 with open(yaml_path) as f:
                     data = yaml.safe_load(f)
 
@@ -712,6 +829,8 @@ class WorkflowLoader:
         is_project: bool,
         discovered: dict[str, DiscoveredWorkflow],
         failed: dict[str, str] | None = None,
+        file_mtimes: dict[str, float] | None = None,
+        dir_mtimes: dict[str, float] | None = None,
     ) -> None:
         """
         Scan a directory for workflow YAML files and add to discovered dict.
@@ -721,13 +840,27 @@ class WorkflowLoader:
             is_project: Whether this is a project directory (for shadowing)
             discovered: Dict to update (name -> DiscoveredWorkflow)
             failed: Optional dict to track failed workflows (name -> error message)
+            file_mtimes: Optional dict to record scanned file mtimes for cache invalidation
+            dir_mtimes: Optional dict to record scanned directory mtimes for cache invalidation
         """
         if not directory.exists():
             return
 
+        if dir_mtimes is not None:
+            try:
+                dir_mtimes[str(directory)] = directory.stat().st_mtime
+            except OSError:
+                pass
+
         for yaml_path in directory.glob("*.yaml"):
             name = yaml_path.stem
             try:
+                if file_mtimes is not None:
+                    try:
+                        file_mtimes[str(yaml_path)] = yaml_path.stat().st_mtime
+                    except OSError:
+                        pass
+
                 with open(yaml_path) as f:
                     data = yaml.safe_load(f)
 
@@ -815,9 +948,9 @@ class WorkflowLoader:
 
         # Already registered?
         if cache_key in self._cache:
-            cached = self._cache[cache_key]
-            if isinstance(cached, (WorkflowDefinition, PipelineDefinition)):
-                return cached
+            entry = self._cache[cache_key]
+            if isinstance(entry.definition, (WorkflowDefinition, PipelineDefinition)):
+                return entry.definition
 
         # Ensure name is set in data (handle both missing and None)
         if "name" not in data or data.get("name") is None:
@@ -834,7 +967,9 @@ class WorkflowLoader:
                     data["type"] = "step"
                 definition = WorkflowDefinition(**data)
 
-            self._cache[cache_key] = definition
+            self._cache[cache_key] = _CachedEntry(
+                definition=definition, path=None, mtime=0.0
+            )
 
             logger.debug(f"Registered inline workflow '{name}' (type={definition.type})")
             return definition

@@ -1,6 +1,7 @@
 """Comprehensive tests for WorkflowLoader."""
 
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -162,6 +163,8 @@ class TestWorkflowLoader:
         # Verify both are cached separately
         assert "global:project_workflow" in loader._cache
         assert "/project/a:project_workflow" in loader._cache
+        assert loader._cache["global:project_workflow"].definition.name == "project_workflow"
+        assert loader._cache["/project/a:project_workflow"].definition.name == "project_workflow"
 
     def test_clear_cache_forces_reload(self, loader) -> None:
         """Test that clearing cache forces reload from disk."""
@@ -1253,3 +1256,239 @@ steps:
 
         assert "spawn_agent_in_worktree" in work_step.blocked_tools
         assert "spawn_agent_in_clone" in work_step.blocked_tools
+
+
+class TestMtimeCacheInvalidation:
+    """Tests for mtime-based cache invalidation."""
+
+    def test_stale_file_auto_reloads(self, temp_workflow_dir) -> None:
+        """Test that modifying a YAML file on disk causes automatic reload."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        yaml_v1 = """
+name: mtime_test
+version: "1.0.0"
+type: step
+steps:
+  - name: step1
+    allowed_tools: all
+"""
+        yaml_v2 = """
+name: mtime_test
+version: "2.0.0"
+type: step
+steps:
+  - name: step1
+    allowed_tools: all
+"""
+        yaml_path = workflow_dir / "mtime_test.yaml"
+        yaml_path.write_text(yaml_v1)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+
+        # First load
+        wf1 = loader.load_workflow("mtime_test")
+        assert wf1 is not None
+        assert wf1.version == "1.0.0"
+
+        # Modify file on disk (ensure mtime changes)
+        time.sleep(0.05)  # Small sleep to ensure mtime differs
+        yaml_path.write_text(yaml_v2)
+
+        # Second load should detect stale cache and reload
+        wf2 = loader.load_workflow("mtime_test")
+        assert wf2 is not None
+        assert wf2.version == "2.0.0"
+
+    def test_unchanged_file_returns_cached(self, temp_workflow_dir) -> None:
+        """Test that unchanged files return the cached object (same identity)."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        yaml_content = """
+name: stable_test
+version: "1.0.0"
+type: step
+steps:
+  - name: step1
+    allowed_tools: all
+"""
+        (workflow_dir / "stable_test.yaml").write_text(yaml_content)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+
+        wf1 = loader.load_workflow("stable_test")
+        wf2 = loader.load_workflow("stable_test")
+        assert wf1 is wf2  # Same object from cache
+
+    def test_inline_workflow_never_stale(self) -> None:
+        """Test that inline workflows (path=None) are never considered stale."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        inline_data = {
+            "name": "test:inline",
+            "type": "step",
+            "steps": [{"name": "work", "allowed_tools": "all"}],
+        }
+
+        definition = loader.register_inline_workflow("test:inline", inline_data)
+        assert definition is not None
+
+        # The entry should have path=None
+        cache_key = "global:test:inline"
+        entry = loader._cache[cache_key]
+        assert entry.path is None
+        assert entry.mtime == 0.0
+
+        # Should not be stale
+        assert not loader._is_stale(entry)
+
+        # Loading again should return same object
+        wf2 = loader.load_workflow("test:inline")
+        assert wf2 is definition
+
+    def test_deleted_file_is_stale(self, temp_workflow_dir) -> None:
+        """Test that a deleted file is detected as stale."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        yaml_content = """
+name: deletable
+version: "1.0.0"
+type: step
+steps:
+  - name: step1
+    allowed_tools: all
+"""
+        yaml_path = workflow_dir / "deletable.yaml"
+        yaml_path.write_text(yaml_content)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+
+        wf1 = loader.load_workflow("deletable")
+        assert wf1 is not None
+
+        # Delete the file
+        yaml_path.unlink()
+
+        # Cache entry should be detected as stale
+        cache_key = "global:deletable"
+        entry = loader._cache[cache_key]
+        assert loader._is_stale(entry)
+
+    def test_discovery_auto_reloads_on_file_change(self, temp_workflow_dir) -> None:
+        """Test that discovery cache auto-reloads when a YAML file changes."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        lifecycle_dir = global_dir / "lifecycle"
+        lifecycle_dir.mkdir(parents=True)
+
+        yaml_v1 = """
+name: auto_reload
+version: "1.0.0"
+type: lifecycle
+settings:
+  priority: 10
+"""
+        yaml_v2 = """
+name: auto_reload
+version: "2.0.0"
+type: lifecycle
+settings:
+  priority: 20
+"""
+        yaml_path = lifecycle_dir / "auto_reload.yaml"
+        yaml_path.write_text(yaml_v1)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        # First discovery
+        discovered1 = loader.discover_lifecycle_workflows()
+        assert len(discovered1) == 1
+        assert discovered1[0].definition.version == "1.0.0"
+        assert discovered1[0].priority == 10
+
+        # Modify file
+        time.sleep(0.05)
+        yaml_path.write_text(yaml_v2)
+
+        # Second discovery should detect stale cache and reload
+        discovered2 = loader.discover_lifecycle_workflows()
+        assert len(discovered2) == 1
+        assert discovered2[0].definition.version == "2.0.0"
+        assert discovered2[0].priority == 20
+
+    def test_discovery_detects_new_file(self, temp_workflow_dir) -> None:
+        """Test that discovery detects when a new file is added to directory."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        lifecycle_dir = global_dir / "lifecycle"
+        lifecycle_dir.mkdir(parents=True)
+
+        yaml_existing = """
+name: existing
+version: "1.0.0"
+type: lifecycle
+"""
+        (lifecycle_dir / "existing.yaml").write_text(yaml_existing)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        # First discovery
+        discovered1 = loader.discover_lifecycle_workflows()
+        assert len(discovered1) == 1
+
+        # Add a new file (changes directory mtime)
+        time.sleep(0.05)
+        yaml_new = """
+name: new_workflow
+version: "1.0.0"
+type: lifecycle
+"""
+        (lifecycle_dir / "new_workflow.yaml").write_text(yaml_new)
+
+        # Second discovery should detect new file via dir mtime change
+        discovered2 = loader.discover_lifecycle_workflows()
+        assert len(discovered2) == 2
+        names = [w.name for w in discovered2]
+        assert "existing" in names
+        assert "new_workflow" in names
+
+    def test_pipeline_stale_file_auto_reloads(self, temp_workflow_dir) -> None:
+        """Test that pipeline cache auto-reloads on file change."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        yaml_v1 = """
+name: test_pipeline
+version: "1.0.0"
+type: pipeline
+steps:
+  - id: step1
+    prompt: "Do something"
+"""
+        yaml_v2 = """
+name: test_pipeline
+version: "2.0.0"
+type: pipeline
+steps:
+  - id: step1
+    prompt: "Do something else"
+"""
+        yaml_path = workflow_dir / "test_pipeline.yaml"
+        yaml_path.write_text(yaml_v1)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+
+        # First load
+        p1 = loader.load_pipeline("test_pipeline")
+        assert p1 is not None
+        assert p1.version == "1.0.0"
+
+        # Modify file
+        time.sleep(0.05)
+        yaml_path.write_text(yaml_v2)
+
+        # Second load should detect stale and reload
+        p2 = loader.load_pipeline("test_pipeline")
+        assert p2 is not None
+        assert p2.version == "2.0.0"
