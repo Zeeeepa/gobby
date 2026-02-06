@@ -38,6 +38,12 @@ triggers:
     - action: increment_variable
       name: stop_attempts
 
+    # Block stop when a tool was just blocked (agent should follow the block instructions)
+    - action: block_stop
+      when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      reason: |
+        Do not stop. A tool was blocked — follow the instructions in the error message to resolve it, then continue working.
+
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
     # Skip in plan mode or if escape hatch triggered (3+ consecutive stop attempts)
@@ -143,6 +149,11 @@ triggers:
       name: stop_attempts
       value: 0
 
+    # Clear tool block flag on new user prompt
+    - action: set_variable
+      name: _tool_block_pending
+      value: false
+
     # Title synthesis on first prompt
     - action: synthesize_title
       when: "session.title == None"
@@ -223,6 +234,11 @@ triggers:
     - action: set_variable
       name: stop_attempts
       value: 0
+
+    # Clear tool block flag on successful tool use
+    - action: set_variable
+      name: _tool_block_pending
+      value: false
 
     # Track successful get_tool_schema calls to unlock tools for call_tool
     - action: track_schema_lookup

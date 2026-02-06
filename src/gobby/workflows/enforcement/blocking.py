@@ -383,6 +383,10 @@ async def block_tools(
                 logger.warning(f"Failed to render reason template: {e}")
                 # Keep original reason on failure
 
+        # Set flag so on_stop can deterministically block stops after a tool block
+        if workflow_state:
+            workflow_state.variables["_tool_block_pending"] = True
+
         logger.info(f"block_tools: Blocking '{tool_name}' - {reason[:100]}")
         return {"decision": "block", "reason": reason}
 

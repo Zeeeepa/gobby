@@ -26,6 +26,7 @@ from gobby.workflows.context_actions import (
 )
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.enforcement import (
+    handle_block_stop,
     handle_block_tools,
     handle_capture_baseline_dirty_files,
     handle_require_active_task,
@@ -305,6 +306,7 @@ class ActionExecutor:
         async def track_schema(context: ActionContext, **kw: Any) -> dict[str, Any] | None:
             return await handle_track_schema_lookup(context, task_manager=tm, **kw)
 
+        self.register("block_stop", handle_block_stop)
         self.register("block_tools", block_tools)
         self.register("require_active_task", require_active)
         self.register("require_task_complete", require_complete)

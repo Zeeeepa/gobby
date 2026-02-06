@@ -16,6 +16,7 @@ from gobby.workflows.enforcement.commit_policy import (
     require_task_review_or_close_before_stop,
 )
 from gobby.workflows.enforcement.handlers import (
+    handle_block_stop,
     handle_block_tools,
     handle_capture_baseline_dirty_files,
     handle_require_active_task,
@@ -46,6 +47,7 @@ __all__ = [
     "require_task_complete",
     "validate_session_task_scope",
     # Handlers
+    "handle_block_stop",
     "handle_block_tools",
     "handle_capture_baseline_dirty_files",
     "handle_require_active_task",

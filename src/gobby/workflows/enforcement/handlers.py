@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "handle_block_stop",
     "handle_block_tools",
     "handle_capture_baseline_dirty_files",
     "handle_require_active_task",
@@ -36,6 +37,15 @@ __all__ = [
     "handle_track_schema_lookup",
     "handle_validate_session_task_scope",
 ]
+
+
+async def handle_block_stop(
+    context: Any,
+    reason: str = "Blocked by policy",
+    **kwargs: Any,
+) -> dict[str, Any] | None:
+    """Block a stop event with a configurable reason."""
+    return {"decision": "block", "reason": reason}
 
 
 async def handle_capture_baseline_dirty_files(
