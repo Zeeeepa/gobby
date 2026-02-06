@@ -298,7 +298,8 @@ async def block_tools(
         try:
             task = task_manager.get_task(claimed_task_id)
             return bool(task and task.commits)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to check commits for task {claimed_task_id}: {e}", exc_info=True)
             return False
 
     # Wrap in LazyBool so they're only computed when used in boolean context
