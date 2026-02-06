@@ -846,3 +846,195 @@ class TestCallToolByName:
         result = await proxy.call_tool_by_name("list_tasks", None)
 
         assert result["status"] == "ok"
+
+
+class TestProxyNamespaceResolution:
+    """Tests for server_name='gobby' auto-resolution."""
+
+    @pytest.fixture
+    def mock_mcp_manager(self):
+        """Create a mock MCP manager."""
+        manager = MagicMock()
+        manager.project_id = "test-project"
+        manager._configs = {}
+        manager.has_server.return_value = False
+        return manager
+
+    @pytest.fixture
+    def mock_internal_manager(self):
+        """Create a mock internal registry manager."""
+        manager = MagicMock()
+        manager.is_internal.return_value = False
+        return manager
+
+    @pytest.mark.asyncio
+    async def test_list_tools_gobby_aggregates_all_internal(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Test that list_tools('gobby') aggregates tools from all internal registries."""
+        registry1 = MagicMock()
+        registry1.list_tools.return_value = [
+            {"name": "create_task", "brief": "Create a task"},
+        ]
+        registry2 = MagicMock()
+        registry2.list_tools.return_value = [
+            {"name": "create_memory", "brief": "Create a memory"},
+            {"name": "search_memories", "brief": "Search memories"},
+        ]
+        mock_internal_manager.get_all_registries.return_value = [registry1, registry2]
+
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+        )
+
+        result = await proxy.list_tools("gobby")
+
+        assert result["success"] is True
+        assert result["tool_count"] == 3
+        assert len(result["tools"]) == 3
+        names = [t["name"] for t in result["tools"]]
+        assert "create_task" in names
+        assert "create_memory" in names
+        assert "search_memories" in names
+
+    @pytest.mark.asyncio
+    async def test_list_tools_gobby_no_internal_manager(self, mock_mcp_manager):
+        """Test list_tools('gobby') with no internal manager returns empty."""
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=None,
+        )
+
+        result = await proxy.list_tools("gobby")
+
+        assert result["success"] is True
+        assert result["tool_count"] == 0
+        assert result["tools"] == []
+
+    @pytest.mark.asyncio
+    async def test_list_tools_gobby_with_filter(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Test list_tools('gobby') applies workflow phase filtering."""
+        registry = MagicMock()
+        registry.list_tools.return_value = [
+            {"name": "tool1", "brief": "Tool 1"},
+            {"name": "tool2", "brief": "Tool 2"},
+        ]
+        mock_internal_manager.get_all_registries.return_value = [registry]
+
+        mock_filter = MagicMock()
+        mock_filter.filter_tools.return_value = [{"name": "tool1", "brief": "Tool 1"}]
+
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+            tool_filter=mock_filter,
+        )
+
+        result = await proxy.list_tools("gobby", session_id="session-123")
+
+        assert result["success"] is True
+        assert result["tool_count"] == 1
+        mock_filter.filter_tools.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_tool_schema_gobby_resolves_to_real_server(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Test get_tool_schema('gobby', 'create_task') auto-resolves to gobby-tasks."""
+        mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
+        mock_internal_manager.is_internal.side_effect = (
+            lambda name: name.startswith("gobby-")
+        )
+        mock_registry = MagicMock()
+        mock_registry.get_schema.return_value = {
+            "name": "create_task",
+            "inputSchema": {"properties": {"title": {"type": "string"}}},
+        }
+        mock_internal_manager.get_registry.return_value = mock_registry
+
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+        )
+
+        result = await proxy.get_tool_schema("gobby", "create_task")
+
+        assert result["success"] is True
+        assert result["tool"]["name"] == "create_task"
+        mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
+
+    @pytest.mark.asyncio
+    async def test_get_tool_schema_gobby_tool_not_found(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Test get_tool_schema('gobby', 'nonexistent') returns helpful error."""
+        mock_internal_manager.find_tool_server.return_value = None
+
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+        )
+
+        result = await proxy.get_tool_schema("gobby", "nonexistent_tool")
+
+        assert result["success"] is False
+        assert "not a real server" in result["error"]
+        assert "list_mcp_servers()" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_call_tool_gobby_resolves_to_real_server(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Test call_tool('gobby', 'create_task', ...) auto-resolves to gobby-tasks."""
+        mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
+        mock_internal_manager.is_internal.side_effect = (
+            lambda name: name.startswith("gobby-")
+        )
+        mock_registry = MagicMock()
+        mock_registry.call = AsyncMock(return_value={"id": "task-123"})
+        mock_registry.get_schema.return_value = None  # Skip validation
+        mock_internal_manager.get_registry.return_value = mock_registry
+
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+            validate_arguments=False,
+        )
+
+        result = await proxy.call_tool("gobby", "create_task", {"title": "Test"})
+
+        assert result["id"] == "task-123"
+        mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
+        mock_registry.call.assert_called_once_with("create_task", {"title": "Test"})
+
+    @pytest.mark.asyncio
+    async def test_call_tool_gobby_tool_not_found(
+        self, mock_mcp_manager, mock_internal_manager
+    ):
+        """Test call_tool('gobby', 'nonexistent', ...) returns helpful error."""
+        mock_internal_manager.find_tool_server.return_value = None
+
+        proxy = ToolProxyService(
+            mcp_manager=mock_mcp_manager,
+            internal_manager=mock_internal_manager,
+            validate_arguments=False,
+        )
+
+        result = await proxy.call_tool("gobby", "nonexistent_tool", {})
+
+        assert result["success"] is False
+        assert "not a real server" in result["error"]
+        assert "list_mcp_servers()" in result["error"]
+        assert result["error_code"] == "SERVER_NOT_FOUND"
+
+    def test_is_proxy_namespace(self, mock_mcp_manager):
+        """Test _is_proxy_namespace correctly identifies the proxy namespace."""
+        proxy = ToolProxyService(mcp_manager=mock_mcp_manager)
+
+        assert proxy._is_proxy_namespace("gobby") is True
+        assert proxy._is_proxy_namespace("gobby-tasks") is False
+        assert proxy._is_proxy_namespace("other-server") is False
+        assert proxy._is_proxy_namespace("") is False

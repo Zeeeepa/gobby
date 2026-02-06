@@ -28,6 +28,11 @@ def safe_truncate(text: str | bytes | None, length: int = 100) -> str:
 class ToolProxyService:
     """Service for proxying tool calls and resource reads to underlying MCP servers."""
 
+    # The MCP proxy namespace. Agents see tools prefixed "mcp__gobby__" and
+    # naturally assume "gobby" is the server name, but internal servers use
+    # names like "gobby-tasks", "gobby-sessions", etc.
+    _PROXY_NAMESPACE = "gobby"
+
     def __init__(
         self,
         mcp_manager: MCPClientManager,
@@ -41,6 +46,33 @@ class ToolProxyService:
         self._tool_filter = tool_filter
         self._fallback_resolver = fallback_resolver
         self._validate_arguments = validate_arguments
+
+    def _is_proxy_namespace(self, server_name: str) -> bool:
+        """Check if the server name is the proxy namespace rather than a real server."""
+        return server_name == self._PROXY_NAMESPACE
+
+    def _resolve_server_for_tool(self, tool_name: str) -> str | None:
+        """Resolve the actual server name for a tool when given the proxy namespace.
+
+        Logs a warning so we can track how often agents use "gobby" instead of
+        the real server name.
+
+        Args:
+            tool_name: The tool to look up.
+
+        Returns:
+            The real server name, or None if the tool isn't found anywhere.
+        """
+        resolved = self.find_tool_server(tool_name)
+        if resolved:
+            logger.warning(
+                f"Auto-resolved server_name='gobby' → '{resolved}' for tool '{tool_name}'"
+            )
+        else:
+            logger.warning(
+                f"server_name='gobby' used but tool '{tool_name}' not found on any server"
+            )
+        return resolved
 
     def _check_arguments(
         self,
@@ -156,6 +188,19 @@ class ToolProxyService:
         Returns:
             Dict with tool metadata: {"success": true, "tools": [...], "tool_count": N}
         """
+        # Handle proxy namespace: aggregate tools from all internal registries
+        if self._is_proxy_namespace(server_name):
+            logger.warning("list_tools called with server_name='gobby' — aggregating all internal tools")
+            if self._internal_manager:
+                all_tools: list[dict[str, Any]] = []
+                for reg in self._internal_manager.get_all_registries():
+                    tools = reg.list_tools()
+                    all_tools.extend(tools)
+                if session_id and self._tool_filter:
+                    all_tools = self._tool_filter.filter_tools(all_tools, session_id)
+                return {"success": True, "tools": all_tools, "tool_count": len(all_tools)}
+            return {"success": True, "tools": [], "tool_count": 0}
+
         # Check internal servers first (gobby-tasks, gobby-memory, etc.)
         if self._internal_manager and self._internal_manager.is_internal(server_name):
             registry = self._internal_manager.get_registry(server_name)
@@ -224,6 +269,19 @@ class ToolProxyService:
 
         """
         args = arguments or {}
+
+        # Handle proxy namespace: auto-resolve to the real server
+        if self._is_proxy_namespace(server_name):
+            resolved = self._resolve_server_for_tool(tool_name)
+            if resolved:
+                return await self.call_tool(resolved, tool_name, arguments, session_id)
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' not found on any server (server_name='gobby' is not a real server — use list_mcp_servers() to discover server names)",
+                "error_code": ToolProxyErrorCode.SERVER_NOT_FOUND.value,
+                "server_name": server_name,
+                "tool_name": tool_name,
+            }
 
         # Check workflow tool restrictions if session_id provided
         if session_id and self._tool_filter:
@@ -321,6 +379,16 @@ class ToolProxyService:
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get full schema for a specific tool."""
+        # Handle proxy namespace: auto-resolve to the real server
+        if self._is_proxy_namespace(server_name):
+            resolved = self._resolve_server_for_tool(tool_name)
+            if resolved:
+                return await self.get_tool_schema(resolved, tool_name)
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' not found on any server (server_name='gobby' is not a real server — use list_mcp_servers() to discover server names)",
+            }
+
         # Check internal tools first
         if self._internal_manager and self._internal_manager.is_internal(server_name):
             registry = self._internal_manager.get_registry(server_name)

@@ -274,21 +274,21 @@ mcp_client_proxy:
 ```
 
 ```python
-# Recommend tools for a task
-call_tool(server_name="gobby", tool_name="recommend_tools", arguments={
-    "task_description": "I need to search for files",
-    "search_mode": "hybrid",
-    "top_k": 10,
-    "min_similarity": 0.3
-})
+# Recommend tools for a task (direct proxy tools — no server_name needed)
+recommend_tools(
+    task_description="I need to search for files",
+    search_mode="hybrid",
+    top_k=10,
+    min_similarity=0.3
+)
 
-# Semantic tool search
-call_tool(server_name="gobby", tool_name="search_tools", arguments={
-    "query": "file search",
-    "top_k": 10,
-    "min_similarity": 0.3,
-    "server": "filesystem"               # Optional: filter by server
-})
+# Semantic tool search (direct proxy tool)
+search_tools(
+    query="file search",
+    top_k=10,
+    min_similarity=0.3,
+    server="filesystem"               # Optional: filter by server
+)
 ```
 
 ## Statistics & Monitoring

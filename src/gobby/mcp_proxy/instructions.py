@@ -18,9 +18,13 @@ def build_gobby_instructions() -> str:
 
 <tool_discovery>
 NEVER assume tool schemas. Use progressive disclosure:
-1. `list_tools(server="...")` — Lightweight metadata (~100 tokens/tool)
-2. `get_tool_schema(server, tool)` — Full schema when needed
-3. `call_tool(server, tool, args)` — Execute
+1. `list_mcp_servers()` — Discover server names (e.g., `gobby-tasks`, `gobby-sessions`)
+2. `list_tools(server="...")` — Lightweight metadata (~100 tokens/tool)
+3. `get_tool_schema(server, tool)` — Full schema when needed
+4. `call_tool(server, tool, args)` — Execute
+
+NOTE: Server names are internal sub-servers like `gobby-tasks`, `gobby-memory`, etc.
+The name `"gobby"` is the MCP proxy namespace, not a server name.
 </tool_discovery>
 
 <caching>
