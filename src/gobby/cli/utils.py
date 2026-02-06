@@ -543,12 +543,23 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
     node_modules = web_dir / "node_modules"
     if not node_modules.exists():
         logger.debug("Installing web UI dependencies...")
-        result = subprocess.run(  # nosec B603 B607
-            ["npm", "install"],
-            cwd=web_dir,
-            capture_output=True,
-            timeout=120,  # 2 minute timeout for npm install
-        )
+        try:
+            result = subprocess.run(  # nosec B603 B607
+                ["npm", "install"],
+                cwd=web_dir,
+                capture_output=True,
+                timeout=120,  # 2 minute timeout for npm install
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("npm install timed out after 120s")
+            return None
+        except FileNotFoundError:
+            logger.error("npm not found — install Node.js/npm and ensure it is on PATH")
+            return None
+
+        if result.returncode == 127:
+            logger.error("npm not found / command failed with exit 127")
+            return None
         if result.returncode != 0:
             logger.error(f"Failed to install UI dependencies: {result.stderr.decode()}")
             return None
