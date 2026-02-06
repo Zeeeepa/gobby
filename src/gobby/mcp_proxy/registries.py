@@ -196,7 +196,12 @@ def setup_internal_registries(
                 logger.debug(f"CloneGitManager not available for spawn_agent: {e}")
 
         # Create workflow state manager for orchestrator workflow checking
-        workflow_state_manager = WorkflowStateManager(db) if db else None
+        workflow_state_manager = None
+        if db:
+            try:
+                workflow_state_manager = WorkflowStateManager(db)
+            except Exception as e:
+                logger.debug(f"WorkflowStateManager not available for agents registry: {e}")
 
         agents_registry = create_agents_registry(
             runner=agent_runner,
