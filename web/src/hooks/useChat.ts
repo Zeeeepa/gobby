@@ -253,7 +253,13 @@ export function useChat() {
     localStorage.removeItem(STORAGE_KEY)
   }, [])
 
-  // Send a message
+  // Stop the current streaming response
+  const stopStreaming = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(JSON.stringify({ type: 'stop_chat' }))
+  }, [])
+
+  // Send a message (allowed even while streaming — cancels the active stream)
   const sendMessage = useCallback((content: string, model?: string | null): boolean => {
     console.log('sendMessage called:', content, 'model:', model)
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -274,7 +280,7 @@ export function useChat() {
       },
     ])
 
-    // Send to server
+    // Send to server — backend will cancel any active stream automatically
     const payload: Record<string, unknown> = {
       type: 'chat_message',
       content,
@@ -310,6 +316,7 @@ export function useChat() {
     isConnected,
     isStreaming,
     sendMessage,
+    stopStreaming,
     clearHistory,
   }
 }

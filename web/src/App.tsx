@@ -8,7 +8,7 @@ import { Settings, SettingsIcon } from './components/Settings'
 import { TerminalPanel } from './components/Terminal'
 
 export default function App() {
-  const { messages, isConnected, isStreaming, sendMessage, clearHistory } = useChat()
+  const { messages, isConnected, isStreaming, sendMessage, stopStreaming, clearHistory } = useChat()
   const { settings, modelInfo, modelsLoading, updateFontSize, updateModel, resetSettings } = useSettings()
   const { agents, selectedAgent, setSelectedAgent, sendInput, onOutput } = useTerminal()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -22,7 +22,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Gobby</h1>
+        <div className="header-brand">
+          <img src="/logo.png" alt="Gobby logo" className="header-logo" />
+          <h1>Gobby</h1>
+        </div>
         <div className="header-actions">
           {settings.model && (
             <span className="model-indicator" title={`Using ${settings.model}`}>
@@ -53,7 +56,7 @@ export default function App() {
 
       <main className="chat-container">
         <ChatMessages messages={messages} isStreaming={isStreaming} />
-        <ChatInput onSend={handleSendMessage} disabled={!isConnected || isStreaming} />
+        <ChatInput onSend={handleSendMessage} onStop={stopStreaming} isStreaming={isStreaming} disabled={!isConnected} />
       </main>
 
       <TerminalPanel

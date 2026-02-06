@@ -2,10 +2,12 @@ import { useState, useCallback, KeyboardEvent, useRef, useEffect } from 'react'
 
 interface ChatInputProps {
   onSend: (message: string) => void
+  onStop?: () => void
+  isStreaming?: boolean
   disabled?: boolean
 }
 
-export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isStreaming = false, disabled = false }: ChatInputProps) {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -37,6 +39,8 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
     [handleSubmit]
   )
 
+  const hasInput = input.trim().length > 0
+
   return (
     <div className="chat-input-container">
       <textarea
@@ -45,17 +49,41 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={disabled ? 'Waiting...' : 'Type a message... (Shift+Enter for newline)'}
+        placeholder={disabled ? 'Connecting...' : isStreaming ? 'Send a message to interrupt...' : 'Type a message... (Shift+Enter for newline)'}
         disabled={disabled}
         rows={1}
       />
-      <button
-        className="send-button"
-        onClick={handleSubmit}
-        disabled={disabled || !input.trim()}
-      >
-        Send
-      </button>
+      {isStreaming && !hasInput ? (
+        <button
+          className="stop-button"
+          onClick={onStop}
+          title="Stop generating"
+        >
+          <StopIcon />
+          Stop
+        </button>
+      ) : (
+        <button
+          className="send-button"
+          onClick={handleSubmit}
+          disabled={disabled || !hasInput}
+        >
+          Send
+        </button>
+      )}
     </div>
+  )
+}
+
+function StopIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+    >
+      <rect x="3" y="3" width="10" height="10" rx="1" />
+    </svg>
   )
 }

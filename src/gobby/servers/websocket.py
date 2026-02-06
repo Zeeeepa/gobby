@@ -107,6 +107,9 @@ class WebSocketServer:
         # Chat conversation history per client (simple in-memory for now)
         self._chat_history: dict[str, list[dict[str, str]]] = {}
 
+        # Active chat streaming tasks per client_id (for cancellation)
+        self._active_chat_tasks: dict[str, asyncio.Task[None]] = {}
+
         # Server instance (set when started)
         self._server: Any = None
         self._serve_task: asyncio.Task[None] | None = None
@@ -232,6 +235,11 @@ class WebSocketServer:
             logger.exception(f"Unexpected error for client {client_id}")
 
         finally:
+            # Cancel any active chat task
+            active_task = self._active_chat_tasks.pop(client_id, None)
+            if active_task and not active_task.done():
+                active_task.cancel()
+
             # Always cleanup client state
             self.clients.pop(websocket, None)
             self._chat_history.pop(client_id, None)
@@ -273,6 +281,9 @@ class WebSocketServer:
 
         elif msg_type == "chat_message":
             await self._handle_chat_message(websocket, data)
+
+        elif msg_type == "stop_chat":
+            await self._handle_stop_chat(websocket)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -570,9 +581,37 @@ class WebSocketServer:
         except OSError as e:
             logger.warning(f"Failed to write to agent {run_id} PTY: {e}")
 
+    async def _cancel_active_chat(self, client_id: str) -> None:
+        """Cancel any active chat streaming task for a client."""
+        active_task = self._active_chat_tasks.pop(client_id, None)
+        if active_task and not active_task.done():
+            active_task.cancel()
+            try:
+                await active_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _handle_stop_chat(self, websocket: Any) -> None:
+        """
+        Handle stop_chat message to cancel the active chat stream.
+
+        Message format:
+        {
+            "type": "stop_chat"
+        }
+        """
+        client_info = self.clients.get(websocket)
+        if not client_info:
+            return
+        client_id = client_info["id"]
+        await self._cancel_active_chat(client_id)
+
     async def _handle_chat_message(self, websocket: Any, data: dict[str, Any]) -> None:
         """
         Handle chat_message and stream LLM response with MCP tool support.
+
+        Runs the streaming as a cancellable asyncio.Task so that new messages
+        or stop_chat requests can interrupt it.
 
         Message format:
         {
@@ -635,6 +674,9 @@ class WebSocketServer:
             return
         client_id = client_info["id"]
 
+        # Cancel any active chat stream for this client
+        await self._cancel_active_chat(client_id)
+
         if client_id not in self._chat_history:
             self._chat_history[client_id] = []
 
@@ -643,8 +685,23 @@ class WebSocketServer:
         # Add user message to history
         history.append({"role": "user", "content": content})
 
-        # Generate assistant message ID
+        # Run streaming as a cancellable task
+        task = asyncio.create_task(
+            self._stream_chat_response(websocket, client_id, history, use_tools, model)
+        )
+        self._active_chat_tasks[client_id] = task
+
+    async def _stream_chat_response(
+        self,
+        websocket: Any,
+        client_id: str,
+        history: list[dict[str, str]],
+        use_tools: bool,
+        model: str | None,
+    ) -> None:
+        """Stream an LLM response to the client. Runs as a cancellable task."""
         assistant_message_id = f"assistant-{uuid4().hex[:12]}"
+        full_response = ""
 
         try:
             # Build messages for LLM
@@ -659,7 +716,6 @@ class WebSocketServer:
                 -20:
             ]  # Last 20 messages
 
-            full_response = ""
             tool_calls_count = 0
 
             if use_tools:
@@ -767,6 +823,25 @@ class WebSocketServer:
             if len(history) > 100:
                 self._chat_history[client_id] = history[-50:]
 
+        except asyncio.CancelledError:
+            # Stream was interrupted — save partial response and send done
+            if full_response:
+                history.append({"role": "assistant", "content": full_response})
+            try:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "chat_stream",
+                            "message_id": assistant_message_id,
+                            "content": "",
+                            "done": True,
+                            "interrupted": True,
+                        }
+                    )
+                )
+            except Exception:
+                pass  # Client may have disconnected
+
         except Exception:
             logger.exception(f"Chat error for client {client_id}")
             await websocket.send(
@@ -778,6 +853,10 @@ class WebSocketServer:
                     }
                 )
             )
+
+        finally:
+            # Clean up task reference
+            self._active_chat_tasks.pop(client_id, None)
 
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
