@@ -9,8 +9,42 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
+    from gobby.workflows.templates import TemplateEngine
 
 logger = logging.getLogger(__name__)
+
+
+def _render_arguments(
+    arguments: dict[str, Any],
+    template_engine: "TemplateEngine",
+    template_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Recursively render Jinja2 templates in argument values.
+
+    Args:
+        arguments: Dict of arguments, values may contain {{ templates }}
+        template_engine: Jinja2 template engine
+        template_context: Context for template rendering
+
+    Returns:
+        New dict with all string values rendered through the template engine
+    """
+    rendered: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if isinstance(value, str) and "{{" in value:
+            rendered[key] = template_engine.render(value, template_context)
+        elif isinstance(value, dict):
+            rendered[key] = _render_arguments(value, template_engine, template_context)
+        elif isinstance(value, list):
+            rendered[key] = [
+                template_engine.render(item, template_context)
+                if isinstance(item, str) and "{{" in item
+                else item
+                for item in value
+            ]
+        else:
+            rendered[key] = value
+    return rendered
 
 
 async def call_mcp_tool(
@@ -68,12 +102,51 @@ async def call_mcp_tool(
 
 
 async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:
-    """ActionHandler wrapper for call_mcp_tool."""
-    return await call_mcp_tool(
+    """ActionHandler wrapper for call_mcp_tool.
+
+    Supports template rendering in server_name, tool_name, and argument values.
+    Accepts both 'as' and 'output_as' kwargs for storing the result in a variable.
+    Returns inject_message with a summary of the call for LLM context.
+    """
+    template_engine = context.template_engine
+    template_context = {
+        "variables": context.state.variables or {},
+        "state": context.state,
+        "session_id": context.session_id,
+    }
+
+    # Resolve output_as from either 'as' or 'output_as' kwarg
+    output_as = kwargs.get("as") or kwargs.get("output_as")
+
+    # Render template strings in server_name and tool_name
+    server_name = kwargs.get("server_name") or ""
+    tool_name = kwargs.get("tool_name") or ""
+
+    if template_engine:
+        if isinstance(server_name, str) and "{{" in server_name:
+            server_name = template_engine.render(server_name, template_context)
+        if isinstance(tool_name, str) and "{{" in tool_name:
+            tool_name = template_engine.render(tool_name, template_context)
+
+    # Render template strings in arguments
+    arguments = kwargs.get("arguments") or {}
+    if template_engine and arguments:
+        arguments = _render_arguments(arguments, template_engine, template_context)
+
+    result = await call_mcp_tool(
         mcp_manager=context.mcp_manager,
         state=context.state,
-        server_name=kwargs.get("server_name"),
-        tool_name=kwargs.get("tool_name"),
-        arguments=kwargs.get("arguments"),
-        output_as=kwargs.get("as"),
+        server_name=server_name,
+        tool_name=tool_name,
+        arguments=arguments,
+        output_as=output_as,
     )
+
+    # Return inject_message so the LLM sees what was auto-executed
+    if "error" not in result:
+        summary = f"[Auto-executed] {server_name}/{tool_name}"
+        if output_as:
+            summary += f" → stored as {output_as}"
+        result["inject_message"] = summary
+
+    return result

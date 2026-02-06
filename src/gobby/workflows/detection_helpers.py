@@ -348,6 +348,7 @@ def process_mcp_handlers(
     succeeded: bool,
     on_mcp_success: list[dict[str, Any]],
     on_mcp_error: list[dict[str, Any]],
+    template_engine: Any | None = None,
 ) -> None:
     """Process on_mcp_success/on_mcp_error handlers from workflow step definition.
 
@@ -392,6 +393,25 @@ def process_mcp_handlers(
             variable = handler.get("variable")
             value = handler.get("value")
             if variable:
+                # Render Jinja2 templates in value with MCP result context
+                if isinstance(value, str) and "{{" in value and template_engine:
+                    # Get the MCP result from tracked results
+                    mcp_results = state.variables.get("mcp_results", {})
+                    server_results = mcp_results.get(server_name, {})
+                    mcp_result = server_results.get(tool_name)
+                    try:
+                        value = template_engine.render(
+                            value,
+                            {
+                                "result": mcp_result,
+                                "variables": state.variables,
+                            },
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Session {state.session_id}: Failed to render template "
+                            f"in {handler_type} handler value: {e}"
+                        )
                 state.variables[variable] = value
                 logger.info(
                     f"Session {state.session_id}: {handler_type} handler set "

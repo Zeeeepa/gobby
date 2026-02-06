@@ -806,3 +806,238 @@ class TestCallMcpToolMultipleCalls:
         # Error result should not add to variables
         assert "bad_result" not in mock_state.variables
         assert "error" in result
+
+
+# =============================================================================
+# Tests for _render_arguments
+# =============================================================================
+
+
+class TestRenderArguments:
+    """Tests for _render_arguments template rendering helper."""
+
+    def test_renders_simple_template(self):
+        """String values with {{ }} are rendered via template engine."""
+        from gobby.workflows.mcp_actions import _render_arguments
+        from gobby.workflows.templates import TemplateEngine
+
+        engine = TemplateEngine()
+        context = {"variables": {"task_id": "abc-123"}}
+
+        result = _render_arguments(
+            {"task_id": "{{ variables.task_id }}", "static": "value"},
+            engine,
+            context,
+        )
+
+        assert result["task_id"] == "abc-123"
+        assert result["static"] == "value"
+
+    def test_renders_nested_dict(self):
+        """Nested dict values are recursively rendered."""
+        from gobby.workflows.mcp_actions import _render_arguments
+        from gobby.workflows.templates import TemplateEngine
+
+        engine = TemplateEngine()
+        context = {"variables": {"name": "test"}}
+
+        result = _render_arguments(
+            {"outer": {"inner": "{{ variables.name }}"}},
+            engine,
+            context,
+        )
+
+        assert result["outer"]["inner"] == "test"
+
+    def test_renders_list_values(self):
+        """List items with templates are rendered."""
+        from gobby.workflows.mcp_actions import _render_arguments
+        from gobby.workflows.templates import TemplateEngine
+
+        engine = TemplateEngine()
+        context = {"variables": {"x": "hello"}}
+
+        result = _render_arguments(
+            {"items": ["{{ variables.x }}", "static", 42]},
+            engine,
+            context,
+        )
+
+        assert result["items"] == ["hello", "static", 42]
+
+    def test_leaves_non_template_strings(self):
+        """Strings without {{ }} are not modified."""
+        from gobby.workflows.mcp_actions import _render_arguments
+        from gobby.workflows.templates import TemplateEngine
+
+        engine = TemplateEngine()
+        context = {}
+
+        result = _render_arguments(
+            {"key": "plain string", "num": 42, "flag": True},
+            engine,
+            context,
+        )
+
+        assert result == {"key": "plain string", "num": 42, "flag": True}
+
+
+# =============================================================================
+# Tests for handle_call_mcp_tool template rendering and inject_message
+# =============================================================================
+
+
+class TestHandleCallMcpToolTemplateRendering:
+    """Tests for template rendering and inject_message in handle_call_mcp_tool."""
+
+    @pytest.mark.asyncio
+    async def test_renders_templates_in_arguments(self):
+        """Arguments containing {{ }} templates are rendered before calling."""
+        from gobby.workflows.actions import ActionContext
+        from gobby.workflows.definitions import WorkflowState
+        from gobby.workflows.templates import TemplateEngine
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connections = {"gobby-tasks": MagicMock()}
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"suggestion": {"ref": "#42"}})
+
+        state = WorkflowState(
+            session_id="sess-1",
+            workflow_name="test",
+            step="find_work",
+            variables={"my_var": "resolved_value"},
+        )
+
+        ctx = ActionContext(
+            session_id="sess-1",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=TemplateEngine(),
+            mcp_manager=mock_mcp_manager,
+        )
+
+        from gobby.workflows.mcp_actions import handle_call_mcp_tool
+
+        result = await handle_call_mcp_tool(
+            ctx,
+            server_name="gobby-tasks",
+            tool_name="suggest_next_task",
+            arguments={"session_id": "{{ session_id }}", "extra": "{{ variables.my_var }}"},
+        )
+
+        # Arguments should have been rendered
+        mock_mcp_manager.call_tool.assert_called_once_with(
+            "gobby-tasks",
+            "suggest_next_task",
+            {"session_id": "sess-1", "extra": "resolved_value"},
+        )
+        assert "error" not in result
+        assert "inject_message" in result
+
+    @pytest.mark.asyncio
+    async def test_output_as_alias(self):
+        """Both 'as' and 'output_as' kwargs are supported."""
+        from gobby.workflows.actions import ActionContext
+        from gobby.workflows.definitions import WorkflowState
+        from gobby.workflows.templates import TemplateEngine
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connections = {"test-server": MagicMock()}
+        mock_mcp_manager.call_tool = AsyncMock(return_value={"data": "ok"})
+
+        state = WorkflowState(
+            session_id="sess-1",
+            workflow_name="test",
+            step="step1",
+            variables={},
+        )
+
+        ctx = ActionContext(
+            session_id="sess-1",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=TemplateEngine(),
+            mcp_manager=mock_mcp_manager,
+        )
+
+        from gobby.workflows.mcp_actions import handle_call_mcp_tool
+
+        result = await handle_call_mcp_tool(
+            ctx,
+            server_name="test-server",
+            tool_name="test-tool",
+            output_as="_my_result",
+        )
+
+        assert result["stored_as"] == "_my_result"
+        assert state.variables["_my_result"] == {"data": "ok"}
+
+    @pytest.mark.asyncio
+    async def test_returns_inject_message_on_success(self):
+        """Successful calls include inject_message for LLM context."""
+        from gobby.workflows.actions import ActionContext
+        from gobby.workflows.definitions import WorkflowState
+        from gobby.workflows.templates import TemplateEngine
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connections = {"srv": MagicMock()}
+        mock_mcp_manager.call_tool = AsyncMock(return_value={})
+
+        state = WorkflowState(
+            session_id="sess-1",
+            workflow_name="test",
+            step="step1",
+            variables={},
+        )
+
+        ctx = ActionContext(
+            session_id="sess-1",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=TemplateEngine(),
+            mcp_manager=mock_mcp_manager,
+        )
+
+        from gobby.workflows.mcp_actions import handle_call_mcp_tool
+
+        result = await handle_call_mcp_tool(
+            ctx, server_name="srv", tool_name="my_tool",
+        )
+
+        assert "inject_message" in result
+        assert "srv/my_tool" in result["inject_message"]
+
+    @pytest.mark.asyncio
+    async def test_no_inject_message_on_error(self):
+        """Error results do NOT include inject_message."""
+        from gobby.workflows.actions import ActionContext
+        from gobby.workflows.definitions import WorkflowState
+        from gobby.workflows.templates import TemplateEngine
+
+        state = WorkflowState(
+            session_id="sess-1",
+            workflow_name="test",
+            step="step1",
+            variables={},
+        )
+
+        ctx = ActionContext(
+            session_id="sess-1",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=TemplateEngine(),
+            mcp_manager=None,  # Will cause "MCP manager not available" error
+        )
+
+        from gobby.workflows.mcp_actions import handle_call_mcp_tool
+
+        result = await handle_call_mcp_tool(
+            ctx, server_name="srv", tool_name="my_tool",
+        )
+
+        assert "error" in result
+        assert "inject_message" not in result

@@ -10,6 +10,7 @@ from gobby.workflows.detection_helpers import (
     detect_plan_mode,
     detect_plan_mode_from_context,
     detect_task_claim,
+    process_mcp_handlers,
 )
 
 pytestmark = pytest.mark.unit
@@ -444,3 +445,123 @@ class TestDetectTaskClaimClaimOperations:
         detect_task_claim(event, workflow_state)
 
         assert "task_claimed" not in workflow_state.variables
+
+
+# =============================================================================
+# Tests for process_mcp_handlers template rendering
+# =============================================================================
+
+
+class TestProcessMcpHandlersTemplateRendering:
+    """Tests for template rendering in on_mcp_success/on_mcp_error handlers."""
+
+    def test_renders_template_value_with_result_context(self, workflow_state) -> None:
+        """Template values like '{{ result.task_id }}' are rendered using MCP result."""
+        from gobby.workflows.templates import TemplateEngine
+
+        # Simulate tracked MCP result (set by detect_mcp_call before handlers run)
+        workflow_state.variables["mcp_results"] = {
+            "gobby-tasks": {"suggest_next_task": {"task_id": "abc-123", "title": "Test"}}
+        }
+
+        on_success = [
+            {
+                "server": "gobby-tasks",
+                "tool": "suggest_next_task",
+                "action": "set_variable",
+                "variable": "current_task_id",
+                "value": "{{ result.task_id }}",
+            }
+        ]
+
+        process_mcp_handlers(
+            workflow_state,
+            server_name="gobby-tasks",
+            tool_name="suggest_next_task",
+            succeeded=True,
+            on_mcp_success=on_success,
+            on_mcp_error=[],
+            template_engine=TemplateEngine(),
+        )
+
+        assert workflow_state.variables["current_task_id"] == "abc-123"
+
+    def test_stores_literal_value_without_template(self, workflow_state) -> None:
+        """Non-template values are stored as-is."""
+        on_success = [
+            {
+                "server": "gobby-tasks",
+                "tool": "claim_task",
+                "action": "set_variable",
+                "variable": "task_claimed",
+                "value": True,
+            }
+        ]
+
+        process_mcp_handlers(
+            workflow_state,
+            server_name="gobby-tasks",
+            tool_name="claim_task",
+            succeeded=True,
+            on_mcp_success=on_success,
+            on_mcp_error=[],
+        )
+
+        assert workflow_state.variables["task_claimed"] is True
+
+    def test_renders_template_without_engine_stores_literal(self, workflow_state) -> None:
+        """Without template_engine, template strings are stored as-is."""
+        workflow_state.variables["mcp_results"] = {
+            "gobby-tasks": {"suggest_next_task": {"task_id": "abc-123"}}
+        }
+
+        on_success = [
+            {
+                "server": "gobby-tasks",
+                "tool": "suggest_next_task",
+                "action": "set_variable",
+                "variable": "current_task_id",
+                "value": "{{ result.task_id }}",
+            }
+        ]
+
+        process_mcp_handlers(
+            workflow_state,
+            server_name="gobby-tasks",
+            tool_name="suggest_next_task",
+            succeeded=True,
+            on_mcp_success=on_success,
+            on_mcp_error=[],
+            template_engine=None,  # No engine
+        )
+
+        # Without engine, the template string is stored literally
+        assert workflow_state.variables["current_task_id"] == "{{ result.task_id }}"
+
+    def test_error_handler_with_template(self, workflow_state) -> None:
+        """on_mcp_error handlers also support template rendering."""
+        from gobby.workflows.templates import TemplateEngine
+
+        workflow_state.variables["mcp_results"] = {}
+
+        on_error = [
+            {
+                "server": "gobby-tasks",
+                "tool": "claim_task",
+                "action": "set_variable",
+                "variable": "error_msg",
+                "value": "failed",
+            }
+        ]
+
+        process_mcp_handlers(
+            workflow_state,
+            server_name="gobby-tasks",
+            tool_name="claim_task",
+            succeeded=False,
+            on_mcp_success=[],
+            on_mcp_error=on_error,
+            template_engine=TemplateEngine(),
+        )
+
+        assert workflow_state.variables["error_msg"] == "failed"

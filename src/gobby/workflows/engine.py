@@ -181,53 +181,8 @@ class WorkflowEngine:
         # Logic matches WORKFLOWS.md "Evaluation Flow"
 
         # Determine context for evaluation
-        # Use SimpleNamespace for variables so dot notation works (variables.session_task)
-        # Look up session info for condition evaluation
-        session_info = {}
-        if (
-            self.action_executor
-            and self.action_executor.session_manager
-            and event.machine_id
-            and event.project_id
-        ):
-            session = self.action_executor.session_manager.find_by_external_id(
-                external_id=event.session_id,
-                machine_id=event.machine_id,
-                project_id=event.project_id,
-                source=event.source.value,
-            )
-            if session:
-                session_info = {
-                    "id": session.id,
-                    "external_id": session.external_id,
-                    "project_id": session.project_id,
-                    "status": session.status,
-                    "git_branch": session.git_branch,
-                    "source": session.source,
-                }
-        # Look up project info for template context
-        project_info = {"name": "", "id": ""}
-        if event.project_id and self.action_executor and self.action_executor.db:
-            project_mgr = LocalProjectManager(self.action_executor.db)
-            project = project_mgr.get(event.project_id)
-            if project:
-                project_info = {"name": project.name, "id": project.id}
-        eval_context = {
-            "event": event,
-            "workflow_state": state,
-            "variables": SimpleNamespace(**state.variables),
-            "session": SimpleNamespace(**session_info),
-            "project": SimpleNamespace(**project_info),
-            "tool_name": event.data.get("tool_name"),
-            "tool_args": event.data.get("tool_args", {}),
-            # State attributes for transition conditions
-            "step_action_count": state.step_action_count,
-            "total_action_count": state.total_action_count,
-            "step": state.step,
-            # Flatten variables to top level for simpler conditions like "task_claimed"
-            # instead of requiring "variables.task_claimed"
-            **state.variables,
-        }
+        session_info, project_info = self._resolve_session_and_project(event)
+        eval_context = self._build_eval_context(event, state, session_info, project_info)
 
         current_step = workflow.get_step(state.step)
         if not current_step:
@@ -244,6 +199,13 @@ class WorkflowEngine:
             injected_messages = await self._execute_actions(current_step.on_enter, state)
             state.context_injected = True
             self.state_manager.save_state(state)
+
+            # Auto-transition chain: if on_enter set variables that satisfy transitions,
+            # follow them immediately without waiting for the next hook event.
+            # This chains deterministic steps (e.g., find_work → spawn_worker → wait_for_worker).
+            injected_messages = await self._auto_transition_chain(
+                state, workflow, session_info, project_info, event, injected_messages,
+            )
 
             if injected_messages:
                 context = "\n\n".join(injected_messages)
@@ -389,6 +351,12 @@ class WorkflowEngine:
                 injected_messages = await self.transition_to(
                     state, transition.to, workflow, transition=transition
                 )
+
+                # Auto-transition chain after the transition's on_enter
+                injected_messages = await self._auto_transition_chain(
+                    state, workflow, session_info, project_info, event, injected_messages,
+                )
+
                 # Save state after transition
                 if event.event_type == HookEventType.AFTER_TOOL:
                     self.state_manager.save_state(state)
@@ -465,6 +433,11 @@ class WorkflowEngine:
 
         # Execute on_enter of new step and capture injected messages
         injected_messages = await self._execute_actions(new_step.on_enter, state)
+
+        if injected_messages:
+            state.context_injected = True
+            self.state_manager.save_state(state)
+
         return injected_messages
 
     async def _execute_actions(
@@ -517,6 +490,133 @@ class WorkflowEngine:
                     logger.info(f"Context injected: {msg[:50]}...")
 
         return injected_messages
+
+    def _resolve_session_and_project(
+        self, event: HookEvent
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Look up session and project info for eval context.
+
+        Returns:
+            Tuple of (session_info dict, project_info dict)
+        """
+        session_info: dict[str, Any] = {}
+        if (
+            self.action_executor
+            and self.action_executor.session_manager
+            and event.machine_id
+            and event.project_id
+        ):
+            session = self.action_executor.session_manager.find_by_external_id(
+                external_id=event.session_id,
+                machine_id=event.machine_id,
+                project_id=event.project_id,
+                source=event.source.value,
+            )
+            if session:
+                session_info = {
+                    "id": session.id,
+                    "external_id": session.external_id,
+                    "project_id": session.project_id,
+                    "status": session.status,
+                    "git_branch": session.git_branch,
+                    "source": session.source,
+                }
+
+        project_info: dict[str, Any] = {"name": "", "id": ""}
+        if event.project_id and self.action_executor and self.action_executor.db:
+            project_mgr = LocalProjectManager(self.action_executor.db)
+            project = project_mgr.get(event.project_id)
+            if project:
+                project_info = {"name": project.name, "id": project.id}
+
+        return session_info, project_info
+
+    def _build_eval_context(
+        self,
+        event: HookEvent,
+        state: WorkflowState,
+        session_info: dict[str, Any],
+        project_info: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build evaluation context dict for condition checking.
+
+        Uses SimpleNamespace for variables so dot notation works (variables.session_task).
+        Flattens variables to top level for simpler conditions like "task_claimed".
+        """
+        return {
+            "event": event,
+            "workflow_state": state,
+            "variables": SimpleNamespace(**state.variables),
+            "session": SimpleNamespace(**session_info),
+            "project": SimpleNamespace(**project_info),
+            "tool_name": event.data.get("tool_name") if event.data else None,
+            "tool_args": event.data.get("tool_args", {}) if event.data else {},
+            # State attributes for transition conditions
+            "step_action_count": state.step_action_count,
+            "total_action_count": state.total_action_count,
+            "step": state.step,
+            # Flatten variables to top level for simpler conditions like "task_claimed"
+            # instead of requiring "variables.task_claimed"
+            **state.variables,
+        }
+
+    async def _auto_transition_chain(
+        self,
+        state: WorkflowState,
+        workflow: WorkflowDefinition,
+        session_info: dict[str, Any],
+        project_info: dict[str, Any],
+        event: HookEvent,
+        injected_messages: list[str],
+        max_depth: int = 10,
+    ) -> list[str]:
+        """Follow automatic transitions after on_enter actions.
+
+        If on_enter actions set variables that satisfy a transition condition,
+        execute the transition immediately and repeat. This chains deterministic
+        steps without waiting for the next hook event.
+
+        Args:
+            state: Current workflow state
+            workflow: Workflow definition
+            session_info: Session info for eval context
+            project_info: Project info for eval context
+            event: Original hook event
+            injected_messages: Messages accumulated so far
+            max_depth: Safety limit to prevent infinite loops
+
+        Returns:
+            Accumulated injected messages from all chained on_enter actions
+        """
+        all_messages = list(injected_messages)
+
+        for _ in range(max_depth):
+            # Rebuild eval context with updated variables after on_enter actions
+            eval_context = self._build_eval_context(event, state, session_info, project_info)
+
+            current_step = workflow.get_step(state.step)
+            if not current_step:
+                break
+
+            # Check transitions on the current step
+            transitioned = False
+            for transition in current_step.transitions:
+                if self.evaluator.evaluate(transition.when, eval_context):
+                    logger.info(
+                        f"Auto-transition: {state.step} → {transition.to} "
+                        f"(condition: {transition.when})"
+                    )
+                    new_messages = await self.transition_to(
+                        state, transition.to, workflow, transition=transition
+                    )
+                    all_messages.extend(new_messages)
+                    transitioned = True
+                    break  # Only follow first matching transition
+
+            if not transitioned:
+                break
+
+        return all_messages
 
     def _handle_approval_response(
         self,
@@ -680,8 +780,12 @@ class WorkflowEngine:
                 on_error = getattr(current_step, "on_mcp_error", []) or []
 
                 if on_success or on_error:
+                    template_engine = (
+                        self.action_executor.template_engine if self.action_executor else None
+                    )
                     process_mcp_handlers(
-                        state, server_name, tool_name, succeeded, on_success, on_error
+                        state, server_name, tool_name, succeeded, on_success, on_error,
+                        template_engine=template_engine,
                     )
 
     def activate_workflow(

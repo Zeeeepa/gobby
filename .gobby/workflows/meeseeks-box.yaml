@@ -4,16 +4,20 @@ description: |
 
   This step workflow runs in Claude Code and:
   1. Finds ready tasks using suggest_next_task()
-  2. Spawns Gemini workers in isolated git worktrees
+  2. Spawns workers in isolated git clones
   3. Waits for task completion using wait_for_task()
   4. Reviews code changes (with approval gate)
   5. Merges approved branches, cleans up worktrees
   6. Loops until all session_tasks are complete
 
+  Deterministic steps (find_work, spawn_worker, cleanup_worktree) auto-execute
+  their MCP calls server-side via call_mcp_tool in on_enter. The LLM only drives
+  steps that require judgment or long-running waits.
+
   Usage:
     1. Create/claim a parent task via gobby-tasks
     2. Activate this workflow with session_task set to the task ID(s)
-    3. Workflow spawns Gemini workers in worktrees for each ready subtask
+    3. Workflow spawns workers in clones for each ready subtask
     4. Reviews changes, merges approved work, loops
     5. Exits when task tree is complete
 
@@ -26,8 +30,8 @@ variables:
   current_worktree_id: null       # Active worktree
   current_branch: null            # Active branch name
   current_task_id: null           # Task being worked
-  worker_provider: gemini
-  worker_terminal: tmux
+  worker_provider: "gemini"
+  worker_terminal: "tmux"
   worker_timeout: 600
   max_inactive_waits: 3
   max_review_attempts: 3
@@ -39,21 +43,24 @@ steps:
   - name: find_work
     description: "Find next ready task using suggest_next_task()"
     on_enter:
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: Finding next task.
-          Session task: {{ variables.session_task }}
-
-          Call suggest_next_task to find available work:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-tasks",
-            tool_name="suggest_next_task",
-            arguments={"session_id": "<your_session_id>"}
-          )
-
-          If a task is returned, proceed to spawn a worker.
-          If no tasks are available, check if work is complete.
+      # Clear stale results from previous iteration
+      - action: set_variable
+        name: _suggest_result
+        value: null
+      - action: set_variable
+        name: current_task_id
+        value: null
+      # Auto-execute suggest_next_task
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: suggest_next_task
+        arguments:
+          session_id: "{{ session_id }}"
+        output_as: _suggest_result
+      # Extract task_id from result
+      - action: set_variable
+        name: current_task_id
+        value: "{{ variables._suggest_result.suggestion.ref if variables._suggest_result and variables._suggest_result.suggestion else '' }}"
 
     allowed_tools:
       - mcp__gobby__call_tool
@@ -70,20 +77,13 @@ steps:
       - Write
       - NotebookEdit
 
-    on_mcp_success:
-      - server: gobby-tasks
-        tool: suggest_next_task
-        action: set_variable
-        variable: current_task_id
-        value: "{{ result.task_id }}"
-
     transitions:
       - to: complete
         when: "task_tree_complete(variables.session_task)"
       - to: wait_for_workers
-        when: "mcp_result_is_null('gobby-tasks', 'suggest_next_task')"
+        when: "not variables.get('current_task_id')"
       - to: spawn_worker
-        when: "mcp_called('gobby-tasks', 'suggest_next_task')"
+        when: "variables.get('current_task_id')"
 
   - name: wait_for_workers
     description: "No ready tasks - wait for in-progress workers"
@@ -125,34 +125,39 @@ steps:
         when: "mcp_called('gobby-agents', 'poll_messages')"
 
   - name: spawn_worker
-    description: "Spawn Gemini worker in worktree"
+    description: "Spawn worker in clone"
     on_enter:
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: Spawning Gemini worker in worktree.
-
-          Task: {{ variables.current_task_id }}
-          Provider: {{ variables.worker_provider }}
-          Terminal: {{ variables.worker_terminal }}
-
-          Spawn a meeseeks worker with the 'worker' workflow:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-agents",
-            tool_name="spawn_agent",
-            arguments={
-              "prompt": "You are a Gemini worker in an isolated git worktree.\n\nFIRST, activate your workflow by calling:\n\nmcp__gobby__call_tool(\n  server_name=\"gobby-workflows\",\n  tool_name=\"activate_workflow\",\n  arguments={\n    \"name\": \"meeseeks:worker\",\n    \"session_id\": \"<your_gobby_session_id>\",\n    \"variables\": {\"assigned_task_id\": \"{{ variables.current_task_id }}\"}\n  }\n)\n\nReplace <your_gobby_session_id> with your Gobby Session ID (shown at startup).\n\nThe workflow will guide you through: claim -> implement -> commit -> close -> report -> shutdown.\n\nDo NOT proceed without activating the workflow first.",
-              "agent": "meeseeks",
-              "workflow": "worker",
-              "task_id": "{{ variables.current_task_id }}",
-              "isolation": "worktree",
-              "provider": "{{ variables.worker_provider }}",
-              "terminal": "{{ variables.worker_terminal }}",
-              "parent_session_id": "<your_session_id>"
-            }
-          )
-
-          Track the returned run_id, worktree_id, and branch_name.
+      # Clear stale result
+      - action: set_variable
+        name: _spawn_result
+        value: null
+      - action: set_variable
+        name: current_worker_id
+        value: null
+      # Auto-execute spawn_agent
+      - action: call_mcp_tool
+        server_name: gobby-agents
+        tool_name: spawn_agent
+        arguments:
+          prompt: "You are a worker in an isolated git clone.\n\nFIRST, activate your workflow by calling:\n\nmcp__gobby__call_tool(\n  server_name=\"gobby-workflows\",\n  tool_name=\"activate_workflow\",\n  arguments={\n    \"name\": \"meeseeks:worker\",\n    \"session_id\": \"<your_gobby_session_id>\",\n    \"variables\": {\"assigned_task_id\": \"{{ variables.current_task_id }}\"}\n  }\n)\n\nReplace <your_gobby_session_id> with your Gobby Session ID (shown at startup).\n\nThe workflow will guide you through: claim -> implement -> commit -> close -> report -> shutdown.\n\nDo NOT proceed without activating the workflow first."
+          agent: "meeseeks"
+          workflow: "worker"
+          task_id: "{{ variables.current_task_id }}"
+          isolation: "clone"
+          provider: "{{ variables.worker_provider }}"
+          terminal: "{{ variables.worker_terminal }}"
+          parent_session_id: "{{ session_id }}"
+        output_as: _spawn_result
+      # Extract worker info from result
+      - action: set_variable
+        name: current_worker_id
+        value: "{{ variables._spawn_result.run_id if variables._spawn_result and variables._spawn_result.run_id is defined else '' }}"
+      - action: set_variable
+        name: current_worktree_id
+        value: "{{ variables._spawn_result.worktree_id if variables._spawn_result and variables._spawn_result.worktree_id is defined else '' }}"
+      - action: set_variable
+        name: current_branch
+        value: "{{ variables._spawn_result.branch_name if variables._spawn_result and variables._spawn_result.branch_name is defined else '' }}"
 
     allowed_tools:
       - mcp__gobby__call_tool
@@ -168,28 +173,11 @@ steps:
       - NotebookEdit
       - Bash
 
-    on_mcp_success:
-      - server: gobby-agents
-        tool: spawn_agent
-        action: set_variable
-        variable: current_worker_id
-        value: "{{ result.run_id }}"
-      - server: gobby-agents
-        tool: spawn_agent
-        action: set_variable
-        variable: current_worktree_id
-        value: "{{ result.worktree_id }}"
-      - server: gobby-agents
-        tool: spawn_agent
-        action: set_variable
-        variable: current_branch
-        value: "{{ result.branch_name }}"
-
     transitions:
       - to: wait_for_worker
-        when: "mcp_called('gobby-agents', 'spawn_agent')"
+        when: "variables.get('current_worker_id')"
       - to: find_work
-        when: "mcp_failed('gobby-agents', 'spawn_agent')"
+        when: "not variables.get('current_worker_id')"
 
   - name: wait_for_worker
     description: "Wait for task completion"
@@ -328,36 +316,33 @@ steps:
     description: "Respawn worker to fix deficiencies"
     on_enter:
       - action: set_variable
-        variable: review_attempt
+        name: review_attempt
         value: "{{ variables.review_attempt + 1 }}"
       - action: set_variable
-        variable: review_approved
+        name: review_approved
         value: false
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: Respawning worker for fixes.
-
-          Deficiencies found:
-          {% for d in variables.review_deficiencies %}
-          - {{ d }}
-          {% endfor %}
-
-          Respawn the worker in the SAME worktree to fix these issues:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-agents",
-            tool_name="spawn_agent",
-            arguments={
-              "prompt": "You are a Gemini worker fixing code review deficiencies.\n\nWorktree: {{ variables.current_worktree_id }}\nTask: {{ variables.current_task_id }}\n\nDeficiencies to fix:\n{% for d in variables.review_deficiencies %}- {{ d }}\n{% endfor %}\n\nActivate workflow, fix the issues, commit, close task, and report.",
-              "agent": "meeseeks",
-              "workflow": "worker",
-              "task_id": "{{ variables.current_task_id }}",
-              "worktree_id": "{{ variables.current_worktree_id }}",
-              "provider": "{{ variables.worker_provider }}",
-              "terminal": "{{ variables.worker_terminal }}",
-              "parent_session_id": "<your_session_id>"
-            }
-          )
+      # Clear stale result
+      - action: set_variable
+        name: _respawn_result
+        value: null
+      # Auto-execute spawn_agent for fix pass
+      - action: call_mcp_tool
+        server_name: gobby-agents
+        tool_name: spawn_agent
+        arguments:
+          prompt: "You are a worker fixing code review deficiencies.\n\nWorktree: {{ variables.current_worktree_id }}\nTask: {{ variables.current_task_id }}\n\nDeficiencies to fix:\n{% for d in variables.review_deficiencies %}- {{ d }}\n{% endfor %}\n\nActivate workflow, fix the issues, commit, close task, and report."
+          agent: "meeseeks"
+          workflow: "worker"
+          task_id: "{{ variables.current_task_id }}"
+          worktree_id: "{{ variables.current_worktree_id }}"
+          provider: "{{ variables.worker_provider }}"
+          terminal: "{{ variables.worker_terminal }}"
+          parent_session_id: "{{ session_id }}"
+        output_as: _respawn_result
+      # Clear deficiencies after respawn
+      - action: set_variable
+        name: review_deficiencies
+        value: []
 
     allowed_tools:
       - mcp__gobby__call_tool
@@ -371,16 +356,11 @@ steps:
       - NotebookEdit
       - Bash
 
-    on_mcp_success:
-      - server: gobby-agents
-        tool: spawn_agent
-        action: set_variable
-        variable: review_deficiencies
-        value: []
-
     transitions:
       - to: wait_for_worker
-        when: "mcp_called('gobby-agents', 'spawn_agent')"
+        when: "variables.get('_respawn_result')"
+      - to: find_work
+        when: "not variables.get('_respawn_result')"
 
   - name: merge_worktree
     description: "Merge approved branch into dev"
@@ -449,31 +429,35 @@ steps:
     description: "Delete worktree and reset state"
     on_enter:
       - action: set_variable
-        variable: review_attempt
+        name: review_attempt
         value: 0
       - action: set_variable
-        variable: review_approved
+        name: review_approved
         value: false
       - action: set_variable
-        variable: review_deficiencies
+        name: review_deficiencies
         value: []
-      - action: inject_message
-        content: |
-          ORCHESTRATOR: Cleaning up worktree.
-
-          Worktree: {{ variables.current_worktree_id }}
-
-          Delete the worktree:
-
-          mcp__gobby__call_tool(
-            server_name="gobby-worktrees",
-            tool_name="delete_worktree",
-            arguments={"worktree_id": "{{ variables.current_worktree_id }}"}
-          )
-
-          Or use git directly:
-          git worktree remove <path>
-          git branch -D {{ variables.current_branch }}
+      # Clear stale result
+      - action: set_variable
+        name: _cleanup_result
+        value: null
+      # Auto-execute delete_worktree
+      - action: call_mcp_tool
+        server_name: gobby-worktrees
+        tool_name: delete_worktree
+        arguments:
+          worktree_id: "{{ variables.current_worktree_id }}"
+        output_as: _cleanup_result
+      # Clear worker variables
+      - action: set_variable
+        name: current_worker_id
+        value: null
+      - action: set_variable
+        name: current_worktree_id
+        value: null
+      - action: set_variable
+        name: current_branch
+        value: null
 
     allowed_tools:
       - Bash
@@ -486,18 +470,6 @@ steps:
       - Edit
       - Write
       - NotebookEdit
-
-    on_mcp_success:
-      - server: gobby-worktrees
-        tool: delete_worktree
-        action: set_variable
-        variable: current_worktree_id
-        value: null
-      - server: gobby-worktrees
-        tool: delete_worktree
-        action: set_variable
-        variable: current_branch
-        value: null
 
     transitions:
       - to: find_work
