@@ -21,6 +21,27 @@ logger = logging.getLogger(__name__)
 # Event callback type - (event_type, run_id, data)
 EventCallback = Callable[[str, str, dict[str, Any]], None]
 
+# Validation patterns for terminal context values passed to subprocess calls
+_TERMINAL_CTX_PATTERNS: dict[str, re.Pattern[str]] = {
+    "tmux_pane": re.compile(r"^%\d+$"),
+    "kitty_window_id": re.compile(r"^\d+$"),
+    "alacritty_socket": re.compile(r"^[a-zA-Z0-9/_.\-]+$"),
+    "iterm_session_id": re.compile(r"^[a-zA-Z0-9_\-:.]+$"),
+    "parent_pid": re.compile(r"^\d+$"),
+    "session_id": re.compile(r"^[a-zA-Z0-9_\-]+$"),
+}
+
+
+def _validate_terminal_value(key: str, value: str) -> bool:
+    """Validate a terminal context value against its expected format.
+
+    Returns True if the value matches the expected pattern for the given key.
+    """
+    pattern = _TERMINAL_CTX_PATTERNS.get(key)
+    if pattern is None:
+        return False
+    return pattern.fullmatch(str(value)) is not None
+
 
 @dataclass
 class RunningAgent:
@@ -276,6 +297,21 @@ class RunningAgentRegistry:
 
         term_program = ctx.get("term_program", "").lower()
 
+        # Validate terminal context values - remove invalid ones to prevent injection
+        for _key in ("tmux_pane", "kitty_window_id", "alacritty_socket",
+                      "iterm_session_id", "parent_pid"):
+            _val = ctx.get(_key)
+            if _val is not None and not _validate_terminal_value(_key, str(_val)):
+                self._logger.warning(f"Invalid {_key} format: {_val!r}, ignoring")
+                ctx.pop(_key, None)
+
+        # Validate session_id for pgrep-based strategies
+        _valid_session_id = _validate_terminal_value("session_id", agent.session_id)
+        if not _valid_session_id:
+            self._logger.warning(
+                f"Invalid session_id format for pgrep, skipping: {agent.session_id!r}"
+            )
+
         # === Cross-platform strategies (try first) ===
 
         # Strategy 1: tmux (macOS + Linux) - most reliable
@@ -362,7 +398,7 @@ class RunningAgentRegistry:
                     self._logger.debug(f"Terminal.app AppleScript failed: {e}")
 
             # Strategy 6: Ghostty - find window by session_id in process args
-            if "ghostty" in term_program:
+            if "ghostty" in term_program and _valid_session_id:
                 try:
                     # Ghostty doesn't have remote control, but we can find its window process
                     result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
@@ -397,7 +433,7 @@ class RunningAgentRegistry:
         # === Generic fallback strategies ===
 
         # Strategy 7: pgrep for terminal with session_id in args (macOS + Linux)
-        if not is_windows and term_program:
+        if not is_windows and term_program and _valid_session_id:
             try:
                 result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
                     ["pgrep", "-f", f"{term_program}.*{agent.session_id}"],
