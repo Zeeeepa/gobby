@@ -365,8 +365,20 @@ async def block_tools(
         # Render Jinja2 template variables in reason message
         if "{{" in reason:
             try:
+                # Look up correct server for the tool from unlocked_tools
+                suggested_server = tool_input.get("server_name", "")
+                tool_name_arg = tool_input.get("tool_name", "")
+                if workflow_state and tool_name_arg:
+                    for key in workflow_state.variables.get("unlocked_tools", []):
+                        if key.endswith(f":{tool_name_arg}"):
+                            suggested_server = key.split(":")[0]
+                            break
+
                 engine = TemplateEngine()
-                reason = engine.render(reason, {"tool_input": tool_input})
+                reason = engine.render(reason, {
+                    "tool_input": tool_input,
+                    "suggested_server": suggested_server,
+                })
             except Exception as e:
                 logger.warning(f"Failed to render reason template: {e}")
                 # Keep original reason on failure
