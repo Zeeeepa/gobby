@@ -474,7 +474,10 @@ def create_validation_registry(
             return {"success": False, "error": f"Task {task_id} not found"}
 
         if task.status != "escalated":
-            return {"success": False, "error": f"Task {task_id} is not escalated (current status: {task.status})"}
+            return {
+                "success": False,
+                "error": f"Task {task_id} is not escalated (current status: {task.status})",
+            }
 
         # Build update kwargs
         update_kwargs: dict[str, Any] = {

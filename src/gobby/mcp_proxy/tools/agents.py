@@ -230,7 +230,7 @@ def create_agents_registry(
         if signal not in allowed_signals:
             return {
                 "success": False,
-                "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}"
+                "error": f"Invalid signal '{signal}'. Allowed: {', '.join(sorted(allowed_signals))}",
             }
 
         # Resolve run_id from session_id if needed (self-termination case)

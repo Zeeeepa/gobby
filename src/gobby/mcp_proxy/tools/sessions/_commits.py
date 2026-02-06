@@ -208,7 +208,11 @@ Args:
             return {"success": False, "error": str(e), "session_id": session_id}
 
         if not session:
-            return {"success": False, "error": f"Session {session_id} not found", "session_id": session_id}
+            return {
+                "success": False,
+                "error": f"Session {session_id} not found",
+                "session_id": session_id,
+            }
 
         # Load and update workflow state
         from gobby.storage.database import LocalDatabase

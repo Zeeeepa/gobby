@@ -212,7 +212,10 @@ def register_cleanup(
             - summary: Counts
         """
         if git_manager is None:
-            return {"success": False, "error": "Git manager not configured. Cannot cleanup worktrees."}
+            return {
+                "success": False,
+                "error": "Git manager not configured. Cannot cleanup worktrees.",
+            }
 
         # Get workflow state
         from gobby.workflows.state_manager import WorkflowStateManager

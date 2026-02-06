@@ -482,7 +482,9 @@ class HTTPServer:
 
         dist_dir = web_dir / "dist"
         if not dist_dir.exists():
-            logger.warning(f"UI dist directory not found at {dist_dir}. Run 'gobby ui build' first.")
+            logger.warning(
+                f"UI dist directory not found at {dist_dir}. Run 'gobby ui build' first."
+            )
             return
 
         index_html = dist_dir / "index.html"
@@ -505,6 +507,13 @@ class HTTPServer:
                 raise HTTPException(status_code=404)
             # Serve static file if it exists
             static_file = dist_dir / path
+            # Prevent path traversal attacks
+            try:
+                static_file = static_file.resolve()
+                if not static_file.is_relative_to(dist_dir.resolve()):
+                    raise HTTPException(status_code=404)
+            except (ValueError, OSError):
+                raise HTTPException(status_code=404) from None
             if path and static_file.exists() and static_file.is_file():
                 return FileResponse(str(static_file))
             # Fallback to index.html for SPA routing

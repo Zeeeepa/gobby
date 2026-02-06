@@ -75,7 +75,10 @@ def create_hub_registry(
         if machine_id:
             return {"success": True, "machine_id": machine_id}
 
-        return {"success": False, "error": "machine_id not found - daemon may not have initialized properly"}
+        return {
+            "success": False,
+            "error": "machine_id not found - daemon may not have initialized properly",
+        }
 
     @registry.tool(
         name="list_all_projects",

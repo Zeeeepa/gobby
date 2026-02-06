@@ -75,7 +75,10 @@ def register_reviewer(
 
         mode_lower = mode.lower() if mode else "terminal"
         if mode_lower not in allowed_modes:
-            return {"success": False, "error": f"Invalid mode '{mode}'. Must be one of: {sorted(allowed_modes)}"}
+            return {
+                "success": False,
+                "error": f"Invalid mode '{mode}'. Must be one of: {sorted(allowed_modes)}",
+            }
         mode = mode_lower  # Use normalized value
 
         if review_provider not in allowed_providers:
@@ -91,10 +94,16 @@ def register_reviewer(
             return {"success": False, "error": f"Invalid task_id: {e}"}
 
         if agent_runner is None:
-            return {"success": False, "error": "Agent runner not configured. Cannot spawn review agent."}
+            return {
+                "success": False,
+                "error": "Agent runner not configured. Cannot spawn review agent.",
+            }
 
         if parent_session_id is None:
-            return {"success": False, "error": "parent_session_id is required for spawning review agent"}
+            return {
+                "success": False,
+                "error": "parent_session_id is required for spawning review agent",
+            }
 
         # Resolve project ID
         resolved_project_id = default_project_id
@@ -162,7 +171,10 @@ def register_reviewer(
 
         prepare_result = agent_runner.prepare_run(config)
         if isinstance(prepare_result, AgentResult):
-            return {"success": False, "error": prepare_result.error or "Failed to prepare review agent run"}
+            return {
+                "success": False,
+                "error": prepare_result.error or "Failed to prepare review agent run",
+            }
 
         context = prepare_result
         if context.session is None or context.run is None:
