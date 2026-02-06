@@ -15,17 +15,20 @@ Exit Codes:
 """
 
 import argparse
+import asyncio
 import json
 import os
 import sys
 from pathlib import Path
+
+import aiofiles
 
 # Default daemon configuration
 DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
-def get_daemon_url() -> str:
+async def get_daemon_url() -> str:
     """Get the daemon HTTP URL from config file."""
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
@@ -33,8 +36,9 @@ def get_daemon_url() -> str:
         try:
             import yaml
 
-            with open(config_path) as f:
-                config = yaml.safe_load(f) or {}
+            async with aiofiles.open(config_path, encoding="utf-8") as f:
+                content = await f.read()
+            config = yaml.safe_load(content) or {}
             port = config.get("daemon_port", DEFAULT_DAEMON_PORT)
         except Exception:
             port = DEFAULT_DAEMON_PORT
@@ -93,23 +97,24 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_daemon_running(timeout: float = 0.5) -> bool:
+async def check_daemon_running(timeout: float = 0.5) -> bool:
     """Check if gobby daemon is active and responding."""
     try:
         import httpx
 
-        daemon_url = get_daemon_url()
-        response = httpx.get(
-            f"{daemon_url}/admin/status",
-            timeout=timeout,
-            follow_redirects=False,
-        )
+        daemon_url = await get_daemon_url()
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{daemon_url}/admin/status",
+                timeout=timeout,
+                follow_redirects=False,
+            )
         return response.status_code == 200
     except Exception:
         return False
 
 
-def main() -> int:
+async def main() -> int:
     """Main dispatcher execution."""
     try:
         args = parse_arguments()
@@ -122,7 +127,7 @@ def main() -> int:
 
     # Check if daemon is running
     # Note: Windsurf doesn't have explicit session start/end, so pre_user_prompt is critical
-    if not check_daemon_running():
+    if not await check_daemon_running():
         critical_hooks = {"pre_user_prompt"}
         if hook_type in critical_hooks:
             print(
@@ -148,7 +153,10 @@ def main() -> int:
         logging.basicConfig(level=logging.WARNING, handlers=[])
 
     try:
-        input_data = json.load(sys.stdin)
+        # Read JSON input from stdin asynchronously
+        loop = asyncio.get_running_loop()
+        raw = await loop.run_in_executor(None, sys.stdin.read)
+        input_data = json.loads(raw)
 
         # Inject terminal context for first prompt (acts as session start)
         if hook_type == "pre_user_prompt":
@@ -167,17 +175,18 @@ def main() -> int:
 
     import httpx
 
-    daemon_url = get_daemon_url()
+    daemon_url = await get_daemon_url()
     try:
-        response = httpx.post(
-            f"{daemon_url}/hooks/execute",
-            json={
-                "hook_type": hook_type,
-                "input_data": input_data,
-                "source": "windsurf",
-            },
-            timeout=90.0,
-        )
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{daemon_url}/hooks/execute",
+                json={
+                    "hook_type": hook_type,
+                    "input_data": input_data,
+                    "source": "windsurf",
+                },
+                timeout=90.0,
+            )
 
         if response.status_code == 200:
             result = response.json()
@@ -210,4 +219,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))

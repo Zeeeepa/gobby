@@ -15,10 +15,13 @@ Exit Codes:
 """
 
 import argparse
+import asyncio
 import json
 import os
 import sys
 from pathlib import Path
+
+import aiofiles
 
 # No longer need to import HookManager - we call it via HTTP daemon instead
 
@@ -27,7 +30,7 @@ DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
-def get_daemon_url() -> str:
+async def get_daemon_url() -> str:
     """Get the daemon HTTP URL from config file.
 
     Reads daemon_port from ~/.gobby/config.yaml if it exists,
@@ -42,8 +45,9 @@ def get_daemon_url() -> str:
         try:
             import yaml
 
-            with open(config_path) as f:
-                config = yaml.safe_load(f) or {}
+            async with aiofiles.open(config_path, encoding="utf-8") as f:
+                content = await f.read()
+            config = yaml.safe_load(content) or {}
             port = config.get("daemon_port", DEFAULT_DAEMON_PORT)
         except Exception:
             # If config read fails, use default
@@ -125,7 +129,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_daemon_running(timeout: float = 0.5) -> bool:
+async def check_daemon_running(timeout: float = 0.5) -> bool:
     """Check if gobby daemon is active and responding.
 
     Performs a quick health check to verify the HTTP server is running
@@ -141,19 +145,20 @@ def check_daemon_running(timeout: float = 0.5) -> bool:
     try:
         import httpx
 
-        daemon_url = get_daemon_url()
-        response = httpx.get(
-            f"{daemon_url}/admin/status",
-            timeout=timeout,
-            follow_redirects=False,
-        )
+        daemon_url = await get_daemon_url()
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{daemon_url}/admin/status",
+                timeout=timeout,
+                follow_redirects=False,
+            )
         return response.status_code == 200
     except Exception:
         # Any error (connection refused, timeout, etc.) means client is not running
         return False
 
 
-def main() -> int:
+async def main() -> int:
     """Main dispatcher execution.
 
     Returns:
@@ -171,7 +176,7 @@ def main() -> int:
     debug_mode = args.debug
 
     # Check if gobby daemon is running before processing hooks
-    if not check_daemon_running():
+    if not await check_daemon_running():
         # Critical hooks that manage session state MUST have daemon running
         # Without daemon, we lose handoff context, session tracking, etc.
         critical_hooks = {"session-start", "session-end", "pre-compact"}
@@ -204,8 +209,10 @@ def main() -> int:
         logging.basicConfig(level=logging.WARNING, handlers=[])
 
     try:
-        # Read JSON input from stdin
-        input_data = json.load(sys.stdin)
+        # Read JSON input from stdin asynchronously
+        loop = asyncio.get_running_loop()
+        raw = await loop.run_in_executor(None, sys.stdin.read)
+        input_data = json.loads(raw)
 
         # Inject terminal context for session-start hooks
         # This captures the terminal/process info for session correlation
@@ -306,17 +313,18 @@ def main() -> int:
     # Call daemon HTTP endpoint instead of creating HookManager
     import httpx
 
-    daemon_url = get_daemon_url()
+    daemon_url = await get_daemon_url()
     try:
-        response = httpx.post(
-            f"{daemon_url}/hooks/execute",
-            json={
-                "hook_type": hook_type,
-                "input_data": input_data,
-                "source": "claude",  # Required: identifies CLI source
-            },
-            timeout=90.0,  # LLM-powered hooks (pre-compact summary) need more time
-        )
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{daemon_url}/hooks/execute",
+                json={
+                    "hook_type": hook_type,
+                    "input_data": input_data,
+                    "source": "claude",  # Required: identifies CLI source
+                },
+                timeout=90.0,  # LLM-powered hooks (pre-compact summary) need more time
+            )
 
         if response.status_code == 200:
             # Success - daemon returns result directly (not wrapped)
@@ -368,4 +376,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))
