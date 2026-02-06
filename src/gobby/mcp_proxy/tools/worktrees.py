@@ -230,69 +230,6 @@ def _install_provider_hooks(
     return False
 
 
-def _build_worktree_context_prompt(
-    original_prompt: str,
-    worktree_path: str,
-    branch_name: str,
-    task_id: str | None,
-    main_repo_path: str | None = None,
-) -> str:
-    """
-    Build an enhanced prompt with worktree context injected.
-
-    This helps the spawned agent understand it's working in an isolated worktree,
-    not the main repository. Critical for preventing the agent from accessing
-    wrong files or working in the wrong directory.
-
-    Args:
-        original_prompt: The original task prompt
-        worktree_path: Path to the worktree
-        branch_name: Name of the worktree branch
-        task_id: Task ID being worked on (if any)
-        main_repo_path: Path to the main repo (to explicitly warn against accessing it)
-
-    Returns:
-        Enhanced prompt with worktree context prepended
-    """
-    context_lines = [
-        "## CRITICAL: Worktree Context",
-        "You are working in an ISOLATED git worktree, NOT the main repository.",
-        "",
-        f"**Your workspace:** {worktree_path}",
-        f"**Your branch:** {branch_name}",
-    ]
-
-    if task_id:
-        context_lines.append(f"**Your task:** {task_id}")
-
-    context_lines.extend(
-        [
-            "",
-            "**IMPORTANT RULES:**",
-            f"1. ALL file operations must be within {worktree_path}",
-        ]
-    )
-
-    if main_repo_path:
-        context_lines.append(f"2. Do NOT access {main_repo_path} (main repo)")
-    else:
-        context_lines.append("2. Do NOT access the main repository")
-
-    context_lines.extend(
-        [
-            "3. Run `pwd` to verify your location before any file operations",
-            f"4. Commit to YOUR branch ({branch_name}), not main/dev",
-            "5. When your assigned task is complete, STOP - do not claim other tasks",
-            "",
-            "---",
-            "",
-        ]
-    )
-
-    worktree_context = "\n".join(context_lines)
-    return f"{worktree_context}{original_prompt}"
-
-
 def create_worktrees_registry(
     worktree_storage: LocalWorktreeManager,
     git_manager: WorktreeGitManager | None = None,
