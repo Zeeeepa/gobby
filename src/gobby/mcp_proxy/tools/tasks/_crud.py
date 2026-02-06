@@ -374,12 +374,8 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
             kwargs["title"] = title
         if description is not None:
             kwargs["description"] = description
-        if status is not None:
-            kwargs["status"] = status
         if priority is not None:
             kwargs["priority"] = priority
-        if assignee is not None:
-            kwargs["assignee"] = assignee
         if labels is not None:
             kwargs["labels"] = labels
         if validation_criteria is not None:
