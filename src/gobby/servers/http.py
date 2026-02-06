@@ -499,7 +499,9 @@ class HTTPServer:
         @app.get("/{path:path}")
         async def spa_catch_all(request: Request, path: str) -> FileResponse:
             # Don't intercept API, admin, MCP, or WebSocket paths
-            if path.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws")):
+            # Normalize with trailing slash so both "api" and "api/..." are excluded
+            path_check = path if path.endswith("/") else path + "/"
+            if path_check.startswith(("api/", "admin/", "mcp/", "hooks/", "sessions/", "ws/")):
                 raise HTTPException(status_code=404)
             # Serve static file if it exists
             static_file = dist_dir / path
