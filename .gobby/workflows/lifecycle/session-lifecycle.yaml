@@ -181,7 +181,7 @@ triggers:
         # NOTE: This rule MUST come before mcp_tools rules so schema check fires first
         - tools: ["mcp__gobby__call_tool"]
           when: "variables.get('enforce_tool_schema_check') and tool_input.get('arguments') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
-          reason: 'Schema required before calling call_tool("{{ suggested_server }}", "{{ tool_input.get(''tool_name'') }}"). Run first: get_tool_schema("{{ suggested_server }}", "{{ tool_input.get(''tool_name'') }}")'
+          reason: 'Schema required before calling call_tool("{{ suggested_server }}", "{{ tool_input.get(''tool_name'') }}"). DO NOT stop or ask the user. Just call get_tool_schema("{{ suggested_server }}", "{{ tool_input.get(''tool_name'') }}") now, then retry your call_tool immediately after.'
 
         # Block close_task without a linked commit (unless using special close reasons)
         - mcp_tools: ["gobby-tasks:close_task"]
