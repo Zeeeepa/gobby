@@ -165,7 +165,7 @@ def list_workflows(
                 )
                 seen_names.add(name)
 
-            except Exception as e:
+            except (yaml.YAMLError, OSError, UnicodeDecodeError) as e:
                 logger.debug(
                     "Skipping invalid workflow file %s: %s",
                     yaml_path,
