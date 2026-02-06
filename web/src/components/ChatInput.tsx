@@ -62,7 +62,7 @@ export function ChatInput({ onSend, onStop, isStreaming = false, disabled = fals
       {isStreaming && !hasInput ? (
         <button
           className="stop-button"
-          onClick={onStop}
+          onClick={() => onStop?.()}
           title="Stop generating"
         >
           <StopIcon />

@@ -558,19 +558,17 @@ def spawn_ui_server(
 
     try:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        log_f = open(log_file, "a")
 
-        process = subprocess.Popen(  # nosec B603 B607
-            cmd,
-            cwd=web_dir,
-            stdout=log_f,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-            env=os.environ.copy(),
-        )
-
-        log_f.close()
+        with open(log_file, "a") as log_f:
+            process = subprocess.Popen(  # nosec B603 B607
+                cmd,
+                cwd=web_dir,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env=os.environ.copy(),
+            )
 
         # Write PID file
         pid_file = get_gobby_home() / "ui.pid"
