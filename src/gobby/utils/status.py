@@ -166,7 +166,12 @@ def format_status_message(
         tasks_blocked: Number of blocked tasks
         memories_count: Total number of memories
         memories_avg_importance: Average memory importance
-
+        skills_total: Total number of loaded skills
+        artifacts_count: Number of captured artifacts
+        ui_enabled: Whether the web UI is enabled
+        ui_mode: UI mode ('production' or 'dev')
+        ui_url: URL where the UI is accessible
+        ui_pid: Process ID of the UI dev server (dev mode only)
 
     Returns:
         Formatted status message string
