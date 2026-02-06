@@ -7,6 +7,7 @@ from gobby.hooks.events import HookEvent, HookResponse
 
 if TYPE_CHECKING:
     from gobby.storage.sessions import Session
+    from gobby.workflows.definitions import WorkflowState
 
 
 class SessionEventHandlerMixin(EventHandlersBase):
@@ -380,6 +381,26 @@ class SessionEventHandlerMixin(EventHandlersBase):
             is_pre_created=True,
         )
 
+    def _get_step_workflow_state(self, session_id: str) -> WorkflowState | None:
+        """Get the active step workflow state for a session.
+
+        Safely navigates the workflow_handler -> engine -> state_manager chain,
+        returning None if any component is missing or an error occurs.
+        """
+        if (
+            not self._workflow_handler
+            or not hasattr(self._workflow_handler, "engine")
+            or self._workflow_handler.engine is None
+            or not hasattr(self._workflow_handler.engine, "state_manager")
+            or self._workflow_handler.engine.state_manager is None
+        ):
+            return None
+        try:
+            return self._workflow_handler.engine.state_manager.get_state(session_id)
+        except Exception as e:
+            self.logger.debug(f"Failed to get step workflow state: {e}")
+            return None
+
     def _compose_session_response(
         self,
         session: Session | None,
@@ -449,23 +470,12 @@ class SessionEventHandlerMixin(EventHandlersBase):
                     )
 
         # Add active step workflows from WorkflowStateManager
-        if (
-            session_id
-            and self._workflow_handler
-            and hasattr(self._workflow_handler, "engine")
-            and self._workflow_handler.engine is not None
-            and hasattr(self._workflow_handler.engine, "state_manager")
-            and self._workflow_handler.engine.state_manager is not None
-        ):
-            try:
-                state = self._workflow_handler.engine.state_manager.get_state(session_id)
-            except Exception as e:
-                self.logger.debug(f"Failed to get step workflow state: {e}")
-            else:
-                if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
-                    active_workflow_lines.append(
-                        f"  - {state.workflow_name} (step, current_step={state.step})"
-                    )
+        if session_id:
+            state = self._get_step_workflow_state(session_id)
+            if state and state.workflow_name not in ("__lifecycle__", "__ended__"):
+                active_workflow_lines.append(
+                    f"  - {state.workflow_name} (step, current_step={state.step})"
+                )
 
         if active_workflow_lines:
             system_message += "\nActive workflows:"
