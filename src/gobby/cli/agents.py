@@ -109,7 +109,7 @@ def agents() -> None:
     help="Context source (summary_markdown, compact_markdown, transcript:<n>, file:<path>)",
 )
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def start_agent_cmd(
+def spawn_agent_cmd(
     prompt: str,
     parent_session_id: str,
     workflow: str | None,
