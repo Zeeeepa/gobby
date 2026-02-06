@@ -33,8 +33,8 @@ def _silence_output() -> None:
         devnull = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
         sys.stdout = devnull
         sys.stderr = devnull
-    except Exception:
-        pass  # nosec B110
+    except (OSError, AttributeError):
+        pass  # devnull may be unavailable (OSError) or std streams unwritable (AttributeError)
 
 
 def _get_daemon_url() -> str:
