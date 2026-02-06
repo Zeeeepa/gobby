@@ -64,6 +64,7 @@ export function ChatInput({ onSend, onStop, isStreaming = false, disabled = fals
           className="stop-button"
           onClick={() => onStop?.()}
           title="Stop generating"
+          aria-label="Stop generating"
         >
           <StopIcon />
           Stop
