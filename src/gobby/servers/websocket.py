@@ -235,10 +235,14 @@ class WebSocketServer:
             logger.exception(f"Unexpected error for client {client_id}")
 
         finally:
-            # Cancel any active chat task
+            # Cancel any active chat task and await cleanup
             active_task = self._active_chat_tasks.pop(client_id, None)
             if active_task and not active_task.done():
                 active_task.cancel()
+                try:
+                    await active_task
+                except asyncio.CancelledError:
+                    pass
 
             # Always cleanup client state
             self.clients.pop(websocket, None)
