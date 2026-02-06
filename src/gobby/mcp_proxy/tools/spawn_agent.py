@@ -87,13 +87,19 @@ async def _handle_self_mode(
     # Pre-check for active step workflow before attempting activation
     existing_state = effective_state_manager.get_state(parent_session_id)
     if existing_state and existing_state.workflow_name not in ("__lifecycle__", "__ended__"):
-        return {
-            "success": False,
-            "error": (
-                f"Session already has step workflow '{existing_state.workflow_name}' active. "
-                f"Call end_workflow(session_id='{parent_session_id}') first before activating a new workflow."
-            ),
-        }
+        # Check if existing workflow is a lifecycle type (they coexist with step workflows)
+        existing_def = workflow_loader.load_workflow(
+            existing_state.workflow_name,
+            Path(project_path) if project_path else None,
+        ) if workflow_loader else None
+        if not existing_def or existing_def.type != "lifecycle":
+            return {
+                "success": False,
+                "error": (
+                    f"Session already has step workflow '{existing_state.workflow_name}' active. "
+                    f"Call end_workflow(session_id='{parent_session_id}') first before activating a new workflow."
+                ),
+            }
 
     # Import and call the existing activate_workflow function
     from gobby.mcp_proxy.tools.workflows._lifecycle import activate_workflow
