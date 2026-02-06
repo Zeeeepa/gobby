@@ -72,6 +72,34 @@ Decompose 5 oversized files (~5,200 lines total) into focused modules using the 
 
 ## Task Mapping
 
-<!-- Updated after task creation -->
 | Plan Item | Task Ref | Status |
 |-----------|----------|--------|
+| **Root Epic** | #7084 | open |
+| **Phase 1: CLI Skills** | #7085 | open |
+| Extract metadata helpers | #7091 | open |
+| Extract scaffold logic | #7092 | open |
+| Extract formatting helpers | #7093 | open |
+| **Phase 2: Storage Sessions** | #7086 | open |
+| Extract Session dataclass | #7094 | open |
+| Extract resolve_session_reference | #7095 | blocked by #7094 |
+| Extract lifecycle methods | #7096 | blocked by #7094 |
+| **Phase 3: LLM Claude** | #7087 | open |
+| Extract claude models | #7097 | open |
+| Extract CLI path management | #7098 | open |
+| Extract streaming logic | #7099 | blocked by #7097 |
+| **Phase 4A: WebSocket** | #7088 | open |
+| Create websocket package scaffold | #7100 | open |
+| Extract broadcast methods | #7101 | blocked by #7100 |
+| Extract message handlers | #7102 | blocked by #7100 |
+| Extract chat handler | #7103 | blocked by #7100, #7097 |
+| Extract auth | #7104 | blocked by #7100 |
+| **Phase 4B: Hook Manager** | #7089 | open |
+| Extract HookManagerFactory | #7105 | open |
+| Extract SessionLookupService | #7106 | blocked by #7105 |
+| Extract EventEnricher | #7107 | blocked by #7105 |
+| **Phase 5: Cleanup** | #7090 | open |
+| Phase 1 cleanup | #7108 | blocked by #7091-#7093 |
+| Phase 2 cleanup | #7109 | blocked by #7094-#7096 |
+| Phase 3 cleanup | #7110 | blocked by #7097-#7099 |
+| Phase 4A cleanup | #7111 | blocked by #7100-#7104 |
+| Phase 4B cleanup | #7112 | blocked by #7105-#7107 |
