@@ -54,6 +54,14 @@ class UIConfig(BaseModel):
         default=None, description="Path to web/ dir (auto-detected if None)"
     )
 
+    @field_validator("port")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        """Validate port number is in valid range."""
+        if not (1024 <= v <= 65535):
+            raise ValueError("Port must be between 1024 and 65535")
+        return v
+
     @field_validator("mode")
     @classmethod
     def validate_mode(cls, v: str) -> str:
