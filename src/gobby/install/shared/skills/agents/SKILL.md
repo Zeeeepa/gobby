@@ -24,9 +24,31 @@ Gobby Session ID: <uuid>
 
 **First time calling a tool this session?** Use `get_tool_schema(server_name, tool_name)` before `call_tool` to get correct parameters. Schemas are cached per session—no need to refetch.
 
+## Shorthand: Named Agent with Task
+
+When the first argument matches a known agent name (e.g., "meeseeks", "meeseeks-claude"), this is a **named agent spawn**. Named agents have preconfigured workflows, providers, and terminals - do NOT write a custom prompt or override their defaults.
+
+**Pattern:** `/gobby agents <agent-name> session_task=#N`
+
+**Action:** Call `spawn_agent` with ONLY these parameters:
+- `agent`: The agent name
+- `task_id`: The `session_task` value (maps to the workflow's `session_task` variable)
+- `parent_session_id`: Your session ID
+- `prompt`: A minimal one-liner like "Execute task #N" (required by schema but the workflow overrides it)
+
+Do NOT set `mode`, `workflow`, `isolation`, `terminal`, `provider`, or write a detailed prompt. The agent definition controls all of these. The agent's `default_workflow` activates automatically.
+
+Example: `/gobby agents meeseeks-claude session_task=#6878`
+→ `spawn_agent(prompt="Execute task #6878", agent="meeseeks-claude", task_id="#6878", parent_session_id="#934")`
+
+Example: `/gobby agents meeseeks session_task=#5000`
+→ `spawn_agent(prompt="Execute task #5000", agent="meeseeks", task_id="#5000", parent_session_id="#934")`
+
 ## Subcommands
 
-### `/gobby agents spawn <prompt>` - Spawn a new agent
+### `/gobby agents spawn <prompt>` - Spawn a new agent (manual)
+Use this for ad-hoc spawns WITHOUT a named agent definition.
+
 Call `spawn_agent` with:
 - `prompt`: (required) Task description for the agent
 - `agent`: Named agent definition (e.g., "meeseeks", "meeseeks-claude")
