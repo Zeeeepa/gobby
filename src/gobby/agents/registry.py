@@ -29,6 +29,7 @@ _TERMINAL_CTX_PATTERNS: dict[str, re.Pattern[str]] = {
     "iterm_session_id": re.compile(r"^[a-zA-Z0-9_\-:.]+$"),
     "parent_pid": re.compile(r"^\d+$"),
     "session_id": re.compile(r"^[a-zA-Z0-9_\-]+$"),
+    "term_program": re.compile(r"^[a-zA-Z0-9_\-.]+$"),
 }
 
 
@@ -296,6 +297,14 @@ class RunningAgentRegistry:
             self._logger.debug(f"Failed to get terminal context: {e}")
 
         term_program = ctx.get("term_program", "").lower()
+
+        # Validate term_program before use in pgrep patterns
+        if term_program and not _validate_terminal_value("term_program", term_program):
+            self._logger.debug(
+                f"Rejected invalid term_program value: {term_program!r}, "
+                "skipping terminal-program-specific strategies"
+            )
+            term_program = ""
 
         # Validate terminal context values - remove invalid ones to prevent injection
         for _key in ("tmux_pane", "kitty_window_id", "alacritty_socket",
