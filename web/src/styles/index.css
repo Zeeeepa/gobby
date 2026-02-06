@@ -284,12 +284,16 @@ body {
 }
 
 /* Streaming cursor */
+.message-content:has(> .cursor) > *:last-of-type:not(.cursor) {
+  display: inline;
+}
+
 .cursor {
   display: inline-block;
   width: 0.5rem;
   height: 1rem;
   background: var(--accent);
-  margin-left: 0.125rem;
+  margin-left: 1ch;
   animation: blink 1s step-end infinite;
   vertical-align: text-bottom;
 }
