@@ -30,13 +30,19 @@ export function ChatInput({ onSend, onStop, isStreaming = false, disabled = fals
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // Escape to stop streaming
+      if (e.key === 'Escape' && isStreaming && onStop) {
+        e.preventDefault()
+        onStop()
+        return
+      }
       // Enter to send, Shift+Enter for newline
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         handleSubmit()
       }
     },
-    [handleSubmit]
+    [handleSubmit, isStreaming, onStop]
   )
 
   const hasInput = input.trim().length > 0
