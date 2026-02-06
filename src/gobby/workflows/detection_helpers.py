@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from gobby.tasks.session_tasks import SessionTaskManager
 
     from .definitions import WorkflowState
+    from .templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -348,7 +349,7 @@ def process_mcp_handlers(
     succeeded: bool,
     on_mcp_success: list[dict[str, Any]],
     on_mcp_error: list[dict[str, Any]],
-    template_engine: Any | None = None,
+    template_engine: "TemplateRenderer | None" = None,
 ) -> None:
     """Process on_mcp_success/on_mcp_error handlers from workflow step definition.
 

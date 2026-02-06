@@ -1,9 +1,21 @@
 import logging
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class TemplateRenderer(Protocol):
+    """Protocol for template rendering.
+
+    Any object with a compatible ``render`` method satisfies this protocol,
+    enabling static type checkers to validate callers without coupling them
+    to the concrete :class:`TemplateEngine` implementation.
+    """
+
+    def render(self, template_str: str, context: dict[str, Any]) -> str: ...
 
 
 class TemplateEngine:

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
+    from gobby.workflows.templates import TemplateRenderer
 
 from gobby.workflows.git_utils import get_git_status, get_recent_git_commits
 
@@ -24,7 +25,7 @@ def inject_context(
     session_manager: Any,
     session_id: str,
     state: Any,
-    template_engine: Any,
+    template_engine: TemplateRenderer,
     source: str | list[str] | None = None,
     template: str | None = None,
     require: bool = False,
@@ -327,7 +328,7 @@ def inject_message(
     session_manager: Any,
     session_id: str,
     state: Any,
-    template_engine: Any,
+    template_engine: TemplateRenderer,
     content: str | None = None,
     **extra_kwargs: Any,
 ) -> dict[str, Any] | None:

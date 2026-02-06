@@ -14,7 +14,10 @@ import re
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.templates import TemplateRenderer
 
 import aiohttp
 
@@ -64,7 +67,7 @@ class WebhookExecutor:
 
     def __init__(
         self,
-        template_engine: Any | None = None,
+        template_engine: TemplateRenderer | None = None,
         webhook_registry: dict[str, dict[str, Any]] | None = None,
         secrets: dict[str, str] | None = None,
     ):

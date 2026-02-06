@@ -23,6 +23,7 @@ from gobby.workflows.enforcement.task_policy import (
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
+    from gobby.workflows.templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +220,7 @@ async def handle_require_active_task(
 async def handle_require_task_complete(
     context: Any,
     task_manager: LocalTaskManager | None = None,
-    template_engine: Any | None = None,
+    template_engine: TemplateRenderer | None = None,
     **kwargs: Any,
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for require_task_complete.

@@ -15,6 +15,7 @@ from gobby.workflows.git_utils import get_file_changes, get_git_status
 
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
+    from gobby.workflows.templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +195,7 @@ async def synthesize_title(
     session_id: str,
     llm_service: Any,
     transcript_processor: Any,
-    template_engine: Any,
+    template_engine: TemplateRenderer,
     template: str | None = None,
     prompt: str | None = None,
 ) -> dict[str, Any] | None:

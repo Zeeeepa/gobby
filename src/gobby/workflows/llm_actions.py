@@ -5,14 +5,17 @@ These functions handle direct LLM calls from workflows.
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.workflows.templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
 
 async def call_llm(
     llm_service: Any,
-    template_engine: Any,
+    template_engine: "TemplateRenderer",
     state: Any,
     session: Any,
     prompt: str | None,
