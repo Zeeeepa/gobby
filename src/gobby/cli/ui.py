@@ -29,6 +29,19 @@ def _get_ui_pid() -> int | None:
         return None
 
 
+def _ensure_npm_deps_installed(web_dir: Path) -> bool:
+    """Install npm dependencies if node_modules is missing. Returns True on success."""
+    if (web_dir / "node_modules").exists():
+        return True
+    click.echo("Installing dependencies...")
+    result = subprocess.run(  # nosec B603 B607
+        ["npm", "install"],
+        cwd=web_dir,
+        capture_output=False,
+    )
+    return result.returncode == 0
+
+
 @click.group()
 def ui() -> None:
     """Web UI management and development commands."""
@@ -131,17 +144,9 @@ def dev(port: int, host: str) -> None:
         click.echo(f"Error: package.json not found at {package_json}", err=True)
         sys.exit(1)
 
-    node_modules = WEB_UI_DIR / "node_modules"
-    if not node_modules.exists():
-        click.echo("Installing dependencies...")
-        result = subprocess.run(  # nosec B603 B607
-            ["npm", "install"],
-            cwd=WEB_UI_DIR,
-            capture_output=False,
-        )
-        if result.returncode != 0:
-            click.echo("Failed to install dependencies", err=True)
-            sys.exit(1)
+    if not _ensure_npm_deps_installed(WEB_UI_DIR):
+        click.echo("Failed to install dependencies", err=True)
+        sys.exit(1)
 
     click.echo(f"Starting dev server at http://{host}:{port}")
     click.echo("Press Ctrl+C to stop")
@@ -167,17 +172,9 @@ def build() -> None:
         click.echo(f"Error: Web UI directory not found at {WEB_UI_DIR}", err=True)
         sys.exit(1)
 
-    node_modules = WEB_UI_DIR / "node_modules"
-    if not node_modules.exists():
-        click.echo("Installing dependencies...")
-        result = subprocess.run(  # nosec B603 B607
-            ["npm", "install"],
-            cwd=WEB_UI_DIR,
-            capture_output=False,
-        )
-        if result.returncode != 0:
-            click.echo("Failed to install dependencies", err=True)
-            sys.exit(1)
+    if not _ensure_npm_deps_installed(WEB_UI_DIR):
+        click.echo("Failed to install dependencies", err=True)
+        sys.exit(1)
 
     click.echo("Building web UI...")
     result = subprocess.run(  # nosec B603 B607
@@ -201,15 +198,8 @@ def install_deps() -> None:
         click.echo(f"Error: Web UI directory not found at {WEB_UI_DIR}", err=True)
         sys.exit(1)
 
-    click.echo("Installing dependencies...")
-    result = subprocess.run(  # nosec B603 B607
-        ["npm", "install"],
-        cwd=WEB_UI_DIR,
-        capture_output=False,
-    )
-
-    if result.returncode == 0:
+    if _ensure_npm_deps_installed(WEB_UI_DIR):
         click.echo("Dependencies installed")
     else:
         click.echo("Failed to install dependencies", err=True)
-        sys.exit(result.returncode)
+        sys.exit(1)
