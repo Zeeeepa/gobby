@@ -8,6 +8,7 @@ that shouldn't be persisted.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import threading
@@ -188,6 +189,36 @@ class RunningAgentRegistry:
             except Exception as e:
                 self._logger.warning(f"Event callback error: {e}")
 
+    async def _run_subprocess(self, *args: str, timeout: float = 5.0) -> tuple[int, str, str]:
+        """Run a subprocess asynchronously with timeout.
+
+        Args:
+            *args: Command and arguments to run.
+            timeout: Timeout in seconds.
+
+        Returns:
+            Tuple of (returncode, stdout, stderr).
+
+        Raises:
+            TimeoutError: If the process exceeds the timeout.
+        """
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise
+        return (
+            proc.returncode or 0,
+            stdout_bytes.decode() if stdout_bytes else "",
+            stderr_bytes.decode() if stderr_bytes else "",
+        )
+
     def add(self, agent: RunningAgent) -> None:
         """
         Add a running agent to the registry.
@@ -255,7 +286,7 @@ class RunningAgentRegistry:
             )
         return agent
 
-    def _close_terminal_window(
+    async def _close_terminal_window(
         self,
         agent: RunningAgent,
         signal_name: str = "TERM",
@@ -276,7 +307,6 @@ class RunningAgentRegistry:
         """
         import os
         import signal
-        import subprocess  # nosec B404
         import sys
 
         is_macos = sys.platform == "darwin"
@@ -307,8 +337,13 @@ class RunningAgentRegistry:
             term_program = ""
 
         # Validate terminal context values - remove invalid ones to prevent injection
-        for _key in ("tmux_pane", "kitty_window_id", "alacritty_socket",
-                      "iterm_session_id", "parent_pid"):
+        for _key in (
+            "tmux_pane",
+            "kitty_window_id",
+            "alacritty_socket",
+            "iterm_session_id",
+            "parent_pid",
+        ):
             _val = ctx.get(_key)
             if _val is not None and not _validate_terminal_value(_key, str(_val)):
                 self._logger.warning(f"Invalid {_key} format: {_val!r}, ignoring")
@@ -328,17 +363,22 @@ class RunningAgentRegistry:
         if ctx.get("tmux_pane"):
             try:
                 # Verify the pane exists before killing - prevents killing inherited/stale panes
-                verify_result = subprocess.run(  # nosec B603 B607 - hardcoded tmux command
-                    ["tmux", "display-message", "-t", ctx["tmux_pane"], "-p", "#{pane_id}"],
+                rc, stdout, _ = await self._run_subprocess(
+                    "tmux",
+                    "display-message",
+                    "-t",
+                    ctx["tmux_pane"],
+                    "-p",
+                    "#{pane_id}",
                     timeout=timeout,
-                    capture_output=True,
-                    text=True,
                 )
-                if verify_result.returncode == 0 and verify_result.stdout.strip():
-                    subprocess.run(  # nosec B603 B607 - hardcoded tmux command
-                        ["tmux", "kill-pane", "-t", ctx["tmux_pane"]],
+                if rc == 0 and stdout.strip():
+                    await self._run_subprocess(
+                        "tmux",
+                        "kill-pane",
+                        "-t",
+                        ctx["tmux_pane"],
                         timeout=timeout,
-                        capture_output=True,
                     )
                     return {"success": True, "method": "tmux_kill_pane", "pane": ctx["tmux_pane"]}
                 else:
@@ -351,10 +391,13 @@ class RunningAgentRegistry:
         # Strategy 2: Kitty remote control (cross-platform)
         if term_program == "kitty" and ctx.get("kitty_window_id"):
             try:
-                subprocess.run(  # nosec B603 B607 - hardcoded kitty command
-                    ["kitty", "@", "close-window", "--match", f"id:{ctx['kitty_window_id']}"],
+                await self._run_subprocess(
+                    "kitty",
+                    "@",
+                    "close-window",
+                    "--match",
+                    f"id:{ctx['kitty_window_id']}",
                     timeout=timeout,
-                    capture_output=True,
                 )
                 return {
                     "success": True,
@@ -367,10 +410,13 @@ class RunningAgentRegistry:
         # Strategy 3: Alacritty socket IPC (cross-platform)
         if term_program == "alacritty" and ctx.get("alacritty_socket"):
             try:
-                subprocess.run(  # nosec B603 B607 - hardcoded alacritty command
-                    ["alacritty", "msg", "--socket", ctx["alacritty_socket"], "close"],
+                await self._run_subprocess(
+                    "alacritty",
+                    "msg",
+                    "--socket",
+                    ctx["alacritty_socket"],
+                    "close",
                     timeout=timeout,
-                    capture_output=True,
                 )
                 return {"success": True, "method": "alacritty_socket"}
             except Exception as e:
@@ -383,10 +429,11 @@ class RunningAgentRegistry:
             if "iterm" in term_program and ctx.get("iterm_session_id"):
                 try:
                     script = f'tell app "iTerm2" to close (session id "{ctx["iterm_session_id"]}")'
-                    subprocess.run(  # nosec B603 B607 - osascript is safe, args built from config
-                        ["osascript", "-e", script],
+                    await self._run_subprocess(
+                        "osascript",
+                        "-e",
+                        script,
                         timeout=timeout,
-                        capture_output=True,
                     )
                     return {"success": True, "method": "iterm_applescript"}
                 except Exception as e:
@@ -397,10 +444,11 @@ class RunningAgentRegistry:
                 try:
                     # Close window by matching the session process
                     script = 'tell app "Terminal" to close front window'
-                    subprocess.run(  # nosec B603 B607 - osascript with internal AppleScript
-                        ["osascript", "-e", script],
+                    await self._run_subprocess(
+                        "osascript",
+                        "-e",
+                        script,
                         timeout=timeout,
-                        capture_output=True,
                     )
                     return {"success": True, "method": "terminal_applescript"}
                 except Exception as e:
@@ -410,14 +458,14 @@ class RunningAgentRegistry:
             if "ghostty" in term_program and _valid_session_id:
                 try:
                     # Ghostty doesn't have remote control, but we can find its window process
-                    result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
-                        ["pgrep", "-f", f"ghostty.*{agent.session_id}"],
-                        capture_output=True,
-                        text=True,
+                    rc, stdout, _ = await self._run_subprocess(
+                        "pgrep",
+                        "-f",
+                        f"ghostty.*{agent.session_id}",
                         timeout=timeout,
                     )
-                    if result.returncode == 0 and result.stdout.strip():
-                        pid = int(result.stdout.strip().split("\n")[0])
+                    if rc == 0 and stdout.strip():
+                        pid = int(stdout.strip().split("\n")[0])
                         os.kill(pid, signal.SIGTERM)
                         return {"success": True, "method": "ghostty_pgrep", "pid": pid}
                 except Exception as e:
@@ -430,10 +478,13 @@ class RunningAgentRegistry:
             if parent_pid:
                 try:
                     # /T kills the entire process tree
-                    subprocess.run(  # nosec B603 B607 - hardcoded taskkill command
-                        ["taskkill", "/F", "/T", "/PID", str(parent_pid)],
+                    await self._run_subprocess(
+                        "taskkill",
+                        "/F",
+                        "/T",
+                        "/PID",
+                        str(parent_pid),
                         timeout=timeout,
-                        capture_output=True,
                     )
                     return {"success": True, "method": "taskkill_tree", "pid": parent_pid}
                 except Exception as e:
@@ -444,14 +495,14 @@ class RunningAgentRegistry:
         # Strategy 7: pgrep for terminal with session_id in args (macOS + Linux)
         if not is_windows and term_program and _valid_session_id:
             try:
-                result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
-                    ["pgrep", "-f", f"{term_program}.*{agent.session_id}"],
-                    capture_output=True,
-                    text=True,
+                rc, stdout, _ = await self._run_subprocess(
+                    "pgrep",
+                    "-f",
+                    f"{term_program}.*{agent.session_id}",
                     timeout=timeout,
                 )
-                if result.returncode == 0 and result.stdout.strip():
-                    pid = int(result.stdout.strip().split("\n")[0])
+                if rc == 0 and stdout.strip():
+                    pid = int(stdout.strip().split("\n")[0])
                     os.kill(pid, signal.SIGTERM)
                     return {"success": True, "method": "terminal_pgrep", "pid": pid}
             except Exception as e:
@@ -463,10 +514,12 @@ class RunningAgentRegistry:
             try:
                 pid = int(parent_pid)
                 if is_windows:
-                    subprocess.run(  # nosec B603 B607 - hardcoded taskkill command
-                        ["taskkill", "/F", "/PID", str(pid)],
+                    await self._run_subprocess(
+                        "taskkill",
+                        "/F",
+                        "/PID",
+                        str(pid),
                         timeout=timeout,
-                        capture_output=True,
                     )
                 else:
                     os.kill(pid, signal.SIGTERM)
@@ -476,7 +529,7 @@ class RunningAgentRegistry:
 
         return {"success": False, "error": "No terminal close method available"}
 
-    def kill(
+    async def kill(
         self,
         run_id: str,
         signal_name: str = "TERM",
@@ -504,8 +557,6 @@ class RunningAgentRegistry:
         """
         import os
         import signal
-        import subprocess  # nosec B404 - subprocess needed for process management
-        import time
 
         agent = self.get(run_id)
         if not agent:
@@ -519,7 +570,7 @@ class RunningAgentRegistry:
 
         # For terminal mode with close_terminal=True, try terminal-specific close methods
         if close_terminal and agent.mode == "terminal" and agent.session_id:
-            result = self._close_terminal_window(agent, signal_name, timeout)
+            result = await self._close_terminal_window(agent, signal_name, timeout)
             if result.get("success"):
                 self.remove(run_id, status="killed")
                 return result
@@ -558,14 +609,15 @@ class RunningAgentRegistry:
                 else:
                     try:
                         # Use -- to prevent pgrep from interpreting pattern as options
-                        pgrep_result = subprocess.run(  # nosec B603 B607 - pgrep with validated session_id
-                            ["pgrep", "-f", "--", f"session-id {agent.session_id}"],
-                            capture_output=True,
-                            text=True,
+                        rc, stdout, _ = await self._run_subprocess(
+                            "pgrep",
+                            "-f",
+                            "--",
+                            f"session-id {agent.session_id}",
                             timeout=5.0,
                         )
-                        if pgrep_result.returncode == 0 and pgrep_result.stdout.strip():
-                            pids = pgrep_result.stdout.strip().split("\n")
+                        if rc == 0 and stdout.strip():
+                            pids = stdout.strip().split("\n")
                             if len(pids) == 1:
                                 target_pid = int(pids[0])
                                 found_via = "pgrep"
@@ -582,14 +634,16 @@ class RunningAgentRegistry:
                                     try:
                                         candidate_pid = int(pid_str)
                                         # Query the process command line to verify
-                                        ps_result = subprocess.run(  # nosec B603 B607 - ps with numeric PID
-                                            ["ps", "-p", str(candidate_pid), "-o", "args="],
-                                            capture_output=True,
-                                            text=True,
+                                        ps_rc, ps_stdout, _ = await self._run_subprocess(
+                                            "ps",
+                                            "-p",
+                                            str(candidate_pid),
+                                            "-o",
+                                            "args=",
                                             timeout=2.0,
                                         )
-                                        if ps_result.returncode == 0:
-                                            cmdline = ps_result.stdout.strip()
+                                        if ps_rc == 0:
+                                            cmdline = ps_stdout.strip()
                                             # Verify it's actually the agent process
                                             # (contains session-id and matches expected CLI)
                                             # Check both provider name and "claude" (for cursor/windsurf/copilot)
@@ -615,7 +669,7 @@ class RunningAgentRegistry:
                                                     matched_pid = None
                                                     break
                                                 matched_pid = candidate_pid
-                                    except (ValueError, subprocess.TimeoutExpired):
+                                    except (ValueError, TimeoutError):
                                         continue
                                 if matched_pid is not None:
                                     target_pid = matched_pid
@@ -668,11 +722,11 @@ class RunningAgentRegistry:
 
         # Wait for termination with optional SIGKILL escalation
         if signal_name == "TERM" and timeout > 0:
-            deadline = time.time() + timeout
-            while time.time() < deadline:
+            deadline = asyncio.get_event_loop().time() + timeout
+            while asyncio.get_event_loop().time() < deadline:
                 try:
                     os.kill(target_pid, 0)
-                    time.sleep(0.1)
+                    await asyncio.sleep(0.1)
                 except ProcessLookupError:
                     break
             else:

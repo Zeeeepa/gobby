@@ -269,11 +269,7 @@ def create_agents_registry(
         # Default: full cleanup. debug=True preserves state/terminal for inspection.
         close_terminal = not debug
 
-        # Kill via registry (run in thread to avoid blocking event loop)
-        import asyncio
-
-        result = await asyncio.to_thread(
-            agent_registry.kill,
+        result = await agent_registry.kill(
             run_id,
             signal_name=signal,
             close_terminal=close_terminal,
