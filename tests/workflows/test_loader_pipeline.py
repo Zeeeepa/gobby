@@ -239,12 +239,36 @@ steps:
 
         # First load
         result1 = loader.load_pipeline("cached-pipeline")
-        # Modify the file
-        pipeline_path.write_text(pipeline_yaml.replace("cached", "modified"))
-        # Second load should return cached version
+        # Second load without file change should return cached version
         result2 = loader.load_pipeline("cached-pipeline")
 
         assert result1 is result2  # Same object from cache
+
+    def test_load_pipeline_cache_invalidation(self, loader, temp_workflow_dir) -> None:
+        """Test that modified pipelines are reloaded (cache invalidated via mtime)."""
+        pipeline_yaml = """
+name: cached-pipeline
+type: pipeline
+steps:
+  - id: step1
+    exec: echo cached
+"""
+        pipeline_path = temp_workflow_dir / "global" / "workflows" / "cached-pipeline.yaml"
+        pipeline_path.write_text(pipeline_yaml)
+
+        # First load
+        result1 = loader.load_pipeline("cached-pipeline")
+        assert result1 is not None
+        assert result1.name == "cached-pipeline"
+
+        # Modify the file
+        pipeline_path.write_text(pipeline_yaml.replace("cached", "modified"))
+
+        # Second load should detect staleness and return fresh version
+        result2 = loader.load_pipeline("cached-pipeline")
+        assert result2 is not None
+        assert result2.name == "modified-pipeline"
+        assert result1 is not result2
 
     def test_load_pipeline_invalid_yaml(self, loader, temp_workflow_dir) -> None:
         """Test that invalid YAML returns None."""
