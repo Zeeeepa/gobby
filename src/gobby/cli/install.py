@@ -397,7 +397,7 @@ def install(
             click.echo("  npm install -g @openai/codex\n")
             results["codex"] = {"success": False, "error": "Codex CLI not detected"}
         else:
-            result = install_codex_notify()
+            result = install_codex_notify(project_path)
             results["codex"] = result
 
             if result["success"]:

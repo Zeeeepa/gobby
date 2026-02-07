@@ -24,8 +24,12 @@ from .shared import (
 logger = logging.getLogger(__name__)
 
 
-def install_codex_notify() -> dict[str, Any]:
+def install_codex_notify(project_path: Path) -> dict[str, Any]:
     """Install Codex notify script and configure ~/.codex/config.toml.
+
+    Args:
+        project_path: Project root directory. Shared content (workflows, plugins)
+            installs to {project_path}/.gobby/.
 
     Returns:
         Dict with installation results including success status and installed items
@@ -60,11 +64,10 @@ def install_codex_notify() -> dict[str, Any]:
     target_notify.chmod(0o755)
     files_installed.append(str(target_notify))
 
-    # Install shared content - workflows to ~/.gobby
+    # Install shared content - workflows to {project_path}/.gobby/
     codex_home = Path.home() / ".codex"
-    gobby_home = Path.home()  # workflows go to ~/.gobby/workflows/
 
-    shared = install_shared_content(codex_home, gobby_home)
+    shared = install_shared_content(codex_home, project_path)
     # Install CLI-specific content (can override shared)
     cli = install_cli_content("codex", codex_home)
 

@@ -225,11 +225,17 @@ def format_status_message(
         lines.append("Web UI:")
         if ui_mode == "dev":
             if ui_pid:
-                lines.append(f"  Mode: dev | Running (PID: {ui_pid}) at {ui_url}")
+                msg = f"  Mode: dev | Running (PID: {ui_pid})"
+                if ui_url:
+                    msg += f" at {ui_url}"
+                lines.append(msg)
             else:
                 lines.append("  Mode: dev | Stopped")
         elif ui_mode == "production":
-            lines.append(f"  Mode: production | Serving at {ui_url}")
+            msg = "  Mode: production | Serving"
+            if ui_url:
+                msg += f" at {ui_url}"
+            lines.append(msg)
         else:
             lines.append(f"  Mode: {ui_mode!r} | Unknown status")
         lines.append("")

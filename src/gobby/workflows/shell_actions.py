@@ -54,7 +54,7 @@ async def handle_shell_run(context: ActionContext, **kwargs: Any) -> dict[str, A
 
     # Fetch session object for template access (e.g., session.seq_num)
     session = None
-    if context.session_manager:
+    if context.session_manager and context.session_id:
         session = context.session_manager.get(context.session_id)
     if session:
         render_context["session"] = session

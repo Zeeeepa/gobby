@@ -66,7 +66,7 @@ class TestInstallCodexNotify:
         """Test successful installation with a new config file."""
         from gobby.cli.installers.codex import install_codex_notify
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["error"] is None
@@ -101,7 +101,7 @@ class TestInstallCodexNotify:
         config_path = codex_dir / "config.toml"
         config_path.write_text('model = "gpt-4"\n')
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["config_updated"] is True
@@ -131,7 +131,7 @@ class TestInstallCodexNotify:
         config_path = codex_dir / "config.toml"
         config_path.write_text('notify = ["old", "command"]\n')
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["config_updated"] is True
@@ -157,7 +157,7 @@ class TestInstallCodexNotify:
         existing_hook = hook_dir / "hook_dispatcher.py"
         existing_hook.write_text("# Old hook content")
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
 
@@ -174,7 +174,7 @@ class TestInstallCodexNotify:
         install_dir.mkdir(parents=True)
 
         with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir):
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is False
         assert "Missing source file" in result["error"]
@@ -191,7 +191,7 @@ class TestInstallCodexNotify:
         with patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp:
             mock_mcp.return_value = {"success": False, "error": "MCP config error"}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["mcp_configured"] is False
@@ -212,7 +212,7 @@ class TestInstallCodexNotify:
                 "already_configured": True,
             }
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["mcp_configured"] is False
@@ -240,7 +240,7 @@ class TestInstallCodexNotify:
                 "commands": ["command1"],
             }
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["workflows_installed"] == ["shared-workflow", "cli-workflow"]
@@ -265,7 +265,7 @@ class TestInstallCodexNotify:
         config_path = codex_dir / "config.toml"
         config_path.mkdir()
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is False
         assert "Failed to update Codex config" in result["error"]
@@ -282,7 +282,7 @@ class TestInstallCodexNotify:
 
         from gobby.cli.installers.codex import install_codex_notify
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
 
@@ -563,7 +563,7 @@ class TestNotifyLineFormat:
         """Test that the notify line contains valid JSON array."""
         from gobby.cli.installers.codex import install_codex_notify
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
 
@@ -590,7 +590,7 @@ class TestNotifyLineFormat:
         """Test that the notify line contains an absolute path to the hook."""
         from gobby.cli.installers.codex import install_codex_notify
 
-        result = install_codex_notify()
+        result = install_codex_notify(mock_home)
 
         assert result["success"] is True
 
@@ -634,7 +634,7 @@ class TestEdgeCases:
             mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
 
@@ -664,7 +664,7 @@ class TestEdgeCases:
             mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         assert result["config_updated"] is True
@@ -699,7 +699,7 @@ class TestEdgeCases:
             mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         config_content = config_path.read_text()
@@ -790,7 +790,7 @@ debug = true
             mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
 
@@ -844,7 +844,7 @@ debug = true
             mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         assert result["success"] is True
         # Config was not updated since notify line was already correct
@@ -962,7 +962,7 @@ class TestResultStructure:
             mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
-            result = install_codex_notify()
+            result = install_codex_notify(mock_home)
 
         expected_keys = {
             "success",

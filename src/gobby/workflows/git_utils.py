@@ -166,7 +166,8 @@ def get_git_diff_summary(max_chars: int = 8000) -> str:
 
         return "\n\n".join(sections)
 
-    except Exception:
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"get_git_diff_summary failed: {e}")
         return ""
 
 

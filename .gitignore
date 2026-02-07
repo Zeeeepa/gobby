@@ -219,6 +219,7 @@ __marimo__/
 .claude/activation-instructions
 .claude/tts*.txt
 .codex/
+.gemini/settings.json
 .agent/
 .agentvibes/
 .antigravity/

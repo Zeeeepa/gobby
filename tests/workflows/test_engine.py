@@ -1012,7 +1012,7 @@ class TestDetectTaskClaim:
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
 
-        def get_step(name):
+        def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
 
         workflow.get_step.side_effect = get_step
@@ -1049,7 +1049,7 @@ class TestDetectTaskClaim:
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
 
-        def get_step(name):
+        def get_step(name: str) -> WorkflowStep | None:
             return {"step1": step1, "step2": step2}.get(name)
 
         workflow.get_step.side_effect = get_step
@@ -1090,7 +1090,7 @@ class TestDetectTaskClaim:
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
 
-        def get_step(name):
+        def get_step(name: str) -> WorkflowStep | None:
             return {"step_a": step_a, "step_b": step_b}.get(name)
 
         workflow.get_step.side_effect = get_step

@@ -43,6 +43,12 @@ def _ensure_npm_deps_installed(web_dir: Path) -> bool:
     except subprocess.TimeoutExpired:
         click.echo("npm install timed out after 120 seconds", err=True)
         return False
+    except FileNotFoundError:
+        click.echo("npm not found. Please install Node.js and npm.", err=True)
+        return False
+    except OSError as e:
+        click.echo(f"Failed to run npm install: {e}", err=True)
+        return False
     return result.returncode == 0
 
 
