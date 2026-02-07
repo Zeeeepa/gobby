@@ -218,7 +218,6 @@ __marimo__/
 .claude/personalities/
 .claude/activation-instructions
 .claude/tts*.txt
-.gemini/
 .codex/
 .agent/
 .agentvibes/
