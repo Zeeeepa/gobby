@@ -619,8 +619,8 @@ def register_reviewer(
                 state.variables["escalated_agents"] = existing_escalated
 
                 state_manager.save_state(state)
-        except (sqlite3.Error, OSError) as e:
-            logger.exception(f"Failed to save workflow state during processing: {e}")
+        except (sqlite3.Error, OSError):
+            logger.exception("Failed to save workflow state during processing")
             raise
 
         return {

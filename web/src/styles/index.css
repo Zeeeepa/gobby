@@ -497,6 +497,11 @@ body {
   background: #991b1b;
 }
 
+.chat-actions {
+  display: flex;
+  gap: 4px;
+}
+
 /* Settings Panel */
 .settings-overlay {
   position: fixed;

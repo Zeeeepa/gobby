@@ -7,10 +7,10 @@ Decompose 5 oversized files (~5,200 lines total) into focused modules using the 
 ## Constraints
 
 - Every extraction must maintain backward-compatible imports via re-exports
-- All existing tests must pass after each extraction task without test modifications; any patch-target updates or test modifications are deferred to Phase 5 cleanup (exceptions: Phase 4B and Phase 5 where patch target updates are planned)
+- All existing tests must pass after each extraction task. "Test modifications" (changes to test logic or assertions) are deferred to Phase 5 cleanup. "Patch target updates" (updating mock/patch paths to reflect new module locations) are a separate, permitted action. Exceptions: Phase 4B Task 1 (#7105) explicitly allows ~20 patch target updates while preserving test logic; Phase 5 handles remaining test logic changes.
 - Follow established patterns: mixin decomposition (event_handlers/), flat re-exports (storage/__init__), factory+re-exports (llm/__init__)
 - Each task is atomic — completable in one session
-- Phases 1, 2, 3 can execute in parallel; Phase 4A depends on Phase 3 Task 1 (#7097); Phase 4B is independent but highest risk
+- Phases 1, 2, 3 can execute in parallel; only Phase 4A Task 4 (#7103, extract chat handler) depends on Phase 3 Task 1 (#7097) for the claude_models import; Phase 4A Tasks 1–3 (#7100–#7102) can proceed independently of Phase 3; Phase 4B is independent but highest risk
 
 ## Phase 1: CLI Skills Extraction
 
@@ -44,7 +44,8 @@ Decompose 5 oversized files (~5,200 lines total) into focused modules using the 
 **Goal**: Convert `src/gobby/servers/websocket.py` (1135 lines) to a `websocket/` package. Only 4 importers all use `from gobby.servers.websocket import WebSocketServer, WebSocketConfig`.
 
 **Tasks:**
-- [ ] Create websocket package scaffold: __init__.py with re-exports, models.py with WebSocketClient/WebSocketConfig, server.py with full WebSocketServer class, delete websocket.py (category: refactor)
+- [ ] **Step 1:** Create websocket package scaffold: `__init__.py` with re-exports, `models.py` with `WebSocketClient`/`WebSocketConfig`, `server.py` with full `WebSocketServer` class — run unit/integration tests and a runtime smoke test (WebSocket connect + tool_call round-trip) to validate new modules before proceeding (category: refactor)
+- [ ] **Step 2:** After Step 1 validations pass, delete `websocket.py` — if rollback is needed, restore `websocket.py` from git (category: refactor)
 - [ ] Extract broadcast() and 7 broadcast_* methods to websocket/broadcast.py as BroadcastMixin inherited by WebSocketServer (depends: Phase 4A Task 1) (category: refactor)
 - [ ] Extract _handle_tool_call, _handle_ping, _handle_subscribe, _handle_unsubscribe, _handle_stop_request, _handle_terminal_input to websocket/handlers.py (depends: Phase 4A Task 1) (category: refactor)
 - [ ] Extract _handle_chat_message (207 lines, largest handler) to websocket/chat.py (depends: Phase 4A Task 1, Phase 3 Task 1) (category: refactor)
@@ -58,6 +59,18 @@ Decompose 5 oversized files (~5,200 lines total) into focused modules using the 
 - [ ] Extract subsystem creation from __init__ (lines 137-424) to src/gobby/hooks/factory.py as HookManagerFactory with HookManagerComponents dataclass, update ~20 test patch targets (category: refactor)
 - [ ] Extract session resolution from handle() (lines 538-615) to src/gobby/hooks/session_lookup.py as SessionLookupService (depends: Phase 4B Task 1) (category: refactor)
 - [ ] Extract response metadata enrichment from handle() (lines 672-716) to src/gobby/hooks/event_enrichment.py as EventEnricher (depends: Phase 4B Task 1) (category: refactor)
+
+### Phase 4B Risk Analysis
+
+**Why high-risk:** Large extraction surface (~320 lines from `__init__` + `handle()`), ~20 test patch targets to update, tight coupling between subsystem creation and runtime logic, potential behavioral regressions when splitting into `HookManagerFactory`/`HookManagerComponents`, `SessionLookupService`, and `EventEnricher`.
+
+**Precautions:**
+- Extract incrementally — one task at a time with full test pass between each
+- Run and update unit/integration tests after each extraction step
+- Capture interface contracts for `HookManager.__init__` and `handle()` as test assertions before refactoring
+- Create automated migration tests validating session resolution and event enrichment behavior
+- Coordinate changes with code owners familiar with hook lifecycle
+- Prepare rollback plan: each extraction commit should be independently revertible
 
 ## Phase 5: Cleanup — Remove Re-exports
 

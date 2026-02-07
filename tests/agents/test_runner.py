@@ -1041,7 +1041,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         # Mock the workflow loader to return a lifecycle workflow
         mock_workflow = MagicMock()
         mock_workflow.type = "lifecycle"
-        runner._workflow_loader.load_workflow = MagicMock(return_value=mock_workflow)
+        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_workflow)
 
         config = AgentConfig(
             prompt="Test prompt",
@@ -1098,7 +1098,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         runner._run_storage.create = MagicMock(return_value=agent_run)
 
         # Mock workflow loader to return None (not found)
-        runner._workflow_loader.load_workflow = MagicMock(return_value=None)
+        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=None)
 
         config = AgentConfig(
             prompt="Test prompt",
@@ -1136,7 +1136,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         mock_workflow.type = "step"
         mock_workflow.steps = [mock_step]
         mock_workflow.variables = {"initial_var": "value"}
-        runner._workflow_loader.load_workflow = MagicMock(return_value=mock_workflow)
+        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_workflow)
 
         # Mock the workflow state manager
         runner._workflow_state_manager.save_state = MagicMock()
@@ -1175,7 +1175,7 @@ class TestAgentRunnerPrepareRunWorkflows:
         mock_workflow.type = "step"
         mock_workflow.steps = []  # Empty steps list
         mock_workflow.variables = {}
-        runner._workflow_loader.load_workflow = MagicMock(return_value=mock_workflow)
+        runner._workflow_loader.load_workflow_sync = MagicMock(return_value=mock_workflow)
 
         runner._workflow_state_manager.save_state = MagicMock()
 

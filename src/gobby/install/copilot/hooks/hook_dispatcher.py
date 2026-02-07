@@ -28,8 +28,15 @@ DEFAULT_DAEMON_PORT = 60887
 DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
+_cached_daemon_url: str | None = None
+
+
 async def get_daemon_url() -> str:
     """Get the daemon HTTP URL from config file."""
+    global _cached_daemon_url
+    if _cached_daemon_url is not None:
+        return _cached_daemon_url
+
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
     if config_path.exists():
@@ -45,7 +52,8 @@ async def get_daemon_url() -> str:
     else:
         port = DEFAULT_DAEMON_PORT
 
-    return f"http://localhost:{port}"
+    _cached_daemon_url = f"http://localhost:{port}"
+    return _cached_daemon_url
 
 
 def get_terminal_context() -> dict[str, str | int | None]:

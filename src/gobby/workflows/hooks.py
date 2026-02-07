@@ -38,6 +38,16 @@ class WorkflowHookHandler:
             except RuntimeError:
                 pass
 
+    def _handle_cancelled(self, event: HookEvent) -> HookResponse:
+        """Handle CancelledError by logging and returning appropriate response."""
+        logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
+        if event.event_type == HookEventType.STOP:
+            return HookResponse(
+                decision="block",
+                reason="Workflow evaluation was cancelled; blocking stop for safety.",
+            )
+        return HookResponse(decision="allow")
+
     def handle_all_lifecycles(self, event: HookEvent) -> HookResponse:
         """
         Handle a hook event by discovering and evaluating all lifecycle workflows.
@@ -76,10 +86,7 @@ class WorkflowHookHandler:
                 return asyncio.run(self.engine.evaluate_all_lifecycle_workflows(event))
 
         except concurrent.futures.CancelledError:
-            logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
-            if event.event_type == HookEventType.STOP:
-                return HookResponse(decision="block", reason="Workflow evaluation was cancelled; blocking stop for safety.")
-            return HookResponse(decision="allow")
+            return self._handle_cancelled(event)
         except Exception as e:
             logger.error(f"Error handling all lifecycle workflows: {e}", exc_info=True)
             return HookResponse(decision="allow")
@@ -132,10 +139,7 @@ class WorkflowHookHandler:
                 return asyncio.run(self.engine.handle_event(event))
 
         except concurrent.futures.CancelledError:
-            logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
-            if event.event_type == HookEventType.STOP:
-                return HookResponse(decision="block", reason="Workflow evaluation was cancelled; blocking stop for safety.")
-            return HookResponse(decision="allow")
+            return self._handle_cancelled(event)
         except Exception as e:
             logger.error(f"Error handling workflow hook: {e}", exc_info=True)
             return HookResponse(decision="allow")
@@ -176,10 +180,7 @@ class WorkflowHookHandler:
                 )
 
         except concurrent.futures.CancelledError:
-            logger.warning(f"Lifecycle workflow evaluation cancelled for {event.event_type}")
-            if event.event_type == HookEventType.STOP:
-                return HookResponse(decision="block", reason="Workflow evaluation was cancelled; blocking stop for safety.")
-            return HookResponse(decision="allow")
+            return self._handle_cancelled(event)
         except Exception as e:
             logger.error(f"Error handling lifecycle workflow: {e}", exc_info=True)
             return HookResponse(decision="allow")
@@ -215,12 +216,30 @@ class WorkflowHookHandler:
         path = Path(project_path) if project_path else None
 
         try:
-            return self.engine.activate_workflow(
-                workflow_name=workflow_name,
-                session_id=session_id,
-                project_path=path,
-                variables=variables,
-            )
+            if self._loop and self._loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(
+                    self.engine.activate_workflow(
+                        workflow_name=workflow_name,
+                        session_id=session_id,
+                        project_path=path,
+                        variables=variables,
+                    ),
+                    self._loop,
+                )
+                return future.result(timeout=self.timeout)
+
+            try:
+                asyncio.get_running_loop()
+                return {"success": False, "error": "Event loop conflict"}
+            except RuntimeError:
+                return asyncio.run(
+                    self.engine.activate_workflow(
+                        workflow_name=workflow_name,
+                        session_id=session_id,
+                        project_path=path,
+                        variables=variables,
+                    )
+                )
         except Exception as e:
             logger.error(f"Error activating workflow: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

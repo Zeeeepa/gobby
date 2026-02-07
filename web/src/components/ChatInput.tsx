@@ -59,16 +59,27 @@ export function ChatInput({ onSend, onStop, isStreaming = false, disabled = fals
         disabled={disabled}
         rows={1}
       />
-      {isStreaming && !hasInput ? (
-        <button
-          className="stop-button"
-          onClick={() => onStop?.()}
-          title="Stop generating"
-          aria-label="Stop generating"
-        >
-          <StopIcon />
-          Stop
-        </button>
+      {isStreaming ? (
+        <div className="chat-actions">
+          <button
+            className="stop-button"
+            onClick={() => onStop?.()}
+            title="Stop generating"
+            aria-label="Stop generating"
+          >
+            <StopIcon />
+          </button>
+          {hasInput && (
+            <button
+              className="send-button"
+              onClick={handleSubmit}
+              title="Send message (stops current generation)"
+              aria-label="Send message (stops current generation)"
+            >
+              Send
+            </button>
+          )}
+        </div>
       ) : (
         <button
           className="send-button"

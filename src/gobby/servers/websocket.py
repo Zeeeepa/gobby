@@ -843,7 +843,7 @@ class WebSocketServer:
                         }
                     )
                 )
-            except Exception:
+            except (ConnectionClosed, ConnectionClosedError):
                 pass  # Client may have disconnected
 
         except Exception:

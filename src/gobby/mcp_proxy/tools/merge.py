@@ -145,7 +145,7 @@ def create_merge_registry(
             }
 
         except Exception as e:
-            logger.exception(f"Error starting merge: {e}")
+            logger.exception("Error starting merge")
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -266,7 +266,7 @@ def create_merge_registry(
             return {"success": False, "error": "No resolution method specified"}
 
         except Exception as e:
-            logger.exception(f"Error resolving conflict: {e}")
+            logger.exception("Error resolving conflict")
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -324,7 +324,7 @@ def create_merge_registry(
             }
 
         except Exception as e:
-            logger.exception(f"Error applying merge: {e}")
+            logger.exception("Error applying merge")
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -371,7 +371,7 @@ def create_merge_registry(
                 return {"success": False, "error": "Failed to abort merge"}
 
         except Exception as e:
-            logger.exception(f"Error aborting merge: {e}")
+            logger.exception("Error aborting merge")
             return {"success": False, "error": str(e)}
 
     return registry
