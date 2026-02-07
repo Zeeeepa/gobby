@@ -87,25 +87,28 @@ def _persist_state_changes(
     state_was_created: bool,
     vars_snapshot: dict[str, Any] | None,
     state_manager: "WorkflowStateManager",
-    workflow: "WorkflowDefinition",
+    workflow: "WorkflowDefinition | None" = None,
 ) -> None:
     """Persist workflow state changes to the database.
 
     Handles both newly-created states and existing states (via atomic variable merge).
     Skips persistence for the synthetic "global" session ID.
+    When workflow is None, skips the is_step_workflow check and always saves new states.
     """
     if session_id == "global":
         return
 
     if state_was_created:
-        current_state = state_manager.get_state(session_id)
-        is_step_workflow = (
-            current_state is not None
-            and current_state.workflow_name not in ("__lifecycle__", "__ended__")
-            and current_state.workflow_name != workflow.name
-        )
-        if not is_step_workflow:
-            state_manager.save_state(state)
+        if workflow is not None:
+            current_state = state_manager.get_state(session_id)
+            is_step_workflow = (
+                current_state is not None
+                and current_state.workflow_name not in ("__lifecycle__", "__ended__")
+                and current_state.workflow_name != workflow.name
+            )
+            if is_step_workflow:
+                return
+        state_manager.save_state(state)
     else:
         changed_vars = _compute_variable_diff(vars_snapshot, state.variables)
         if changed_vars:
@@ -643,45 +646,37 @@ async def evaluate_all_lifecycle_workflows(
     if event.event_type == HookEventType.AFTER_TOOL:
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
-            # Get or create a minimal state for tracking task_claimed
-            state = state_manager.get_state(session_id)
-            if state is None:
-                state = WorkflowState(
-                    session_id=session_id,
-                    workflow_name="__lifecycle__",
-                    step="",
-                )
-                detect_task_claim_fn(event, state)
-                detect_plan_mode_fn(event, state)
-                state_manager.save_state(state)  # new state
-            else:
-                vars_before = dict(state.variables)
-                detect_task_claim_fn(event, state)
-                detect_plan_mode_fn(event, state)
-                changed = _compute_variable_diff(vars_before, state.variables)
-                if changed:
-                    state_manager.merge_variables(session_id, changed)
+            existing = state_manager.get_state(session_id)
+            state_was_created = existing is None
+            state = existing or WorkflowState(
+                session_id=session_id,
+                workflow_name="__lifecycle__",
+                step="",
+            )
+            vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
+            detect_task_claim_fn(event, state)
+            detect_plan_mode_fn(event, state)
+            _persist_state_changes(
+                session_id, state, state_was_created, vars_snapshot, state_manager
+            )
 
     # Detect plan mode from system reminders for BEFORE_AGENT events
     # This catches plan mode when user enters via UI (not via EnterPlanMode tool)
     if event.event_type == HookEventType.BEFORE_AGENT and detect_plan_mode_from_context_fn:
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
-            state = state_manager.get_state(session_id)
-            if state is None:
-                state = WorkflowState(
-                    session_id=session_id,
-                    workflow_name="__lifecycle__",
-                    step="",
-                )
-                detect_plan_mode_from_context_fn(event, state)
-                state_manager.save_state(state)  # new state
-            else:
-                vars_before = dict(state.variables)
-                detect_plan_mode_from_context_fn(event, state)
-                changed = _compute_variable_diff(vars_before, state.variables)
-                if changed:
-                    state_manager.merge_variables(session_id, changed)
+            existing = state_manager.get_state(session_id)
+            state_was_created = existing is None
+            state = existing or WorkflowState(
+                session_id=session_id,
+                workflow_name="__lifecycle__",
+                step="",
+            )
+            vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
+            detect_plan_mode_from_context_fn(event, state)
+            _persist_state_changes(
+                session_id, state, state_was_created, vars_snapshot, state_manager
+            )
 
     # Check for premature stop in active step workflows on STOP events
     if event.event_type == HookEventType.STOP:

@@ -25,6 +25,7 @@ def register_reviewer(
     worktree_storage: LocalWorktreeManager,
     agent_runner: AgentRunner | None = None,
     default_project_id: str | None = None,
+    max_validation_retries: int = 3,
 ) -> None:
     """Register review tools."""
     from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
@@ -467,7 +468,7 @@ def register_reviewer(
             if task.validation_status == "invalid":
                 # Check failure count
                 fail_count = task.validation_fail_count or 0
-                max_retries = 3
+                max_retries = max_validation_retries
 
                 if fail_count >= max_retries:
                     # Escalate - too many failures

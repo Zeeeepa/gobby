@@ -848,6 +848,7 @@ class TestCallToolByName:
         assert result["status"] == "ok"
 
 
+@pytest.mark.asyncio
 class TestProxyNamespaceResolution:
     """Tests for server_name='gobby' auto-resolution."""
 
@@ -867,7 +868,6 @@ class TestProxyNamespaceResolution:
         manager.is_internal.return_value = False
         return manager
 
-    @pytest.mark.asyncio
     async def test_list_tools_gobby_aggregates_all_internal(
         self, mock_mcp_manager, mock_internal_manager
     ):
@@ -898,7 +898,6 @@ class TestProxyNamespaceResolution:
         assert "create_memory" in names
         assert "search_memories" in names
 
-    @pytest.mark.asyncio
     async def test_list_tools_gobby_no_internal_manager(self, mock_mcp_manager):
         """Test list_tools('gobby') with no internal manager returns empty."""
         proxy = ToolProxyService(
@@ -912,7 +911,6 @@ class TestProxyNamespaceResolution:
         assert result["tool_count"] == 0
         assert result["tools"] == []
 
-    @pytest.mark.asyncio
     async def test_list_tools_gobby_with_filter(
         self, mock_mcp_manager, mock_internal_manager
     ):
@@ -939,7 +937,6 @@ class TestProxyNamespaceResolution:
         assert result["tool_count"] == 1
         mock_filter.filter_tools.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_get_tool_schema_gobby_resolves_to_real_server(
         self, mock_mcp_manager, mock_internal_manager
     ):
@@ -966,7 +963,6 @@ class TestProxyNamespaceResolution:
         assert result["tool"]["name"] == "create_task"
         mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
 
-    @pytest.mark.asyncio
     async def test_get_tool_schema_gobby_tool_not_found(
         self, mock_mcp_manager, mock_internal_manager
     ):
@@ -984,7 +980,6 @@ class TestProxyNamespaceResolution:
         assert "not a real server" in result["error"]
         assert "list_mcp_servers()" in result["error"]
 
-    @pytest.mark.asyncio
     async def test_call_tool_gobby_resolves_to_real_server(
         self, mock_mcp_manager, mock_internal_manager
     ):
@@ -1010,7 +1005,6 @@ class TestProxyNamespaceResolution:
         mock_internal_manager.find_tool_server.assert_called_once_with("create_task")
         mock_registry.call.assert_called_once_with("create_task", {"title": "Test"})
 
-    @pytest.mark.asyncio
     async def test_call_tool_gobby_tool_not_found(
         self, mock_mcp_manager, mock_internal_manager
     ):

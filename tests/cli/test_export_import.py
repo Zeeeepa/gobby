@@ -44,9 +44,9 @@ def project_with_resources(tmp_path: Path):
 class TestExportCommand:
     """Tests for the export command."""
 
-    def test_dry_run_lists_resources(self, runner, project_with_resources) -> None:
+    def test_dry_run_lists_resources(self, runner, project_with_resources, monkeypatch) -> None:
         """Dry run lists resources without copying."""
-        os.chdir(project_with_resources)
+        monkeypatch.chdir(project_with_resources)
         result = runner.invoke(export_cmd, ["workflow"])
         assert result.exit_code == 0
         assert "Dry run" in result.output
@@ -73,7 +73,7 @@ class TestExportCommand:
         fake_home.mkdir()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(Path, "home", classmethod(lambda cls: fake_home))
+            mp.setenv("HOME", str(fake_home))
             result = runner.invoke(export_cmd, ["prompt", "--global"])
 
         assert result.exit_code == 0

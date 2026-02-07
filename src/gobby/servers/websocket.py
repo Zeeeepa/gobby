@@ -236,13 +236,7 @@ class WebSocketServer:
 
         finally:
             # Cancel any active chat task and await cleanup
-            active_task = self._active_chat_tasks.pop(client_id, None)
-            if active_task and not active_task.done():
-                active_task.cancel()
-                try:
-                    await active_task
-                except asyncio.CancelledError:
-                    pass
+            await self._cancel_active_chat(client_id)
 
             # Always cleanup client state
             self.clients.pop(websocket, None)

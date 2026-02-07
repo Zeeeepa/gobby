@@ -518,8 +518,10 @@ def find_web_dir(config: DaemonConfig | None = None) -> Path | None:
         pkg_web = Path(gobby.__file__).parent / "ui" / "web"
         if pkg_web.exists() and (pkg_web / "package.json").exists():
             return pkg_web
-    except Exception as e:
-        logger.debug(f"Could not locate package web directory: {e}")
+    except ImportError:
+        logger.debug("gobby package not importable, skipping package web dir")
+    except OSError as e:
+        logger.debug("Could not locate package web directory: %s", e)
 
     return None
 

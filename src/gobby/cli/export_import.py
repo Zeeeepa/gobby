@@ -149,8 +149,7 @@ def import_cmd(
     TYPE is one of: workflow, agent, prompt, all.
     """
     if not from_path and not from_project:
-        click.echo("Error: specify --from <path> or --from-project <path>.", err=True)
-        raise SystemExit(1)
+        raise click.ClickException("Specify --from <path> or --from-project <path>.")
 
     types_to_import = list(RESOURCE_TYPES) if type_ == "all" else [type_]
     total = 0

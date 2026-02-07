@@ -354,7 +354,7 @@ async def main() -> int:
             )
 
         if debug_mode:
-            logger.debug(f"Input data: {input_data}")
+            logger.debug("Input data: %s", input_data)
 
     except json.JSONDecodeError as e:
         # Invalid JSON input - return empty dict and exit 1

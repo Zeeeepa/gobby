@@ -14,6 +14,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _render_value(
+    value: Any,
+    template_engine: "TemplateEngine",
+    template_context: dict[str, Any],
+) -> Any:
+    """Recursively render a single value through the template engine."""
+    if isinstance(value, str) and "{{" in value:
+        return template_engine.render(value, template_context)
+    elif isinstance(value, dict):
+        return _render_arguments(value, template_engine, template_context)
+    elif isinstance(value, list):
+        return [_render_value(item, template_engine, template_context) for item in value]
+    return value
+
+
 def _render_arguments(
     arguments: dict[str, Any],
     template_engine: "TemplateEngine",
@@ -29,24 +44,7 @@ def _render_arguments(
     Returns:
         New dict with all string values rendered through the template engine
     """
-    rendered: dict[str, Any] = {}
-    for key, value in arguments.items():
-        if isinstance(value, str) and "{{" in value:
-            rendered[key] = template_engine.render(value, template_context)
-        elif isinstance(value, dict):
-            rendered[key] = _render_arguments(value, template_engine, template_context)
-        elif isinstance(value, list):
-            rendered[key] = [
-                _render_arguments(item, template_engine, template_context)
-                if isinstance(item, dict)
-                else template_engine.render(item, template_context)
-                if isinstance(item, str) and "{{" in item
-                else item
-                for item in value
-            ]
-        else:
-            rendered[key] = value
-    return rendered
+    return {key: _render_value(value, template_engine, template_context) for key, value in arguments.items()}
 
 
 async def call_mcp_tool(

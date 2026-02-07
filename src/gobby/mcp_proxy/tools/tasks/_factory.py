@@ -151,6 +151,7 @@ def create_task_registry(
             git_manager=git_manager,
             agent_runner=agent_runner,
             project_id=project_id,
+            config=config,
         )
         for tool_name, tool in orchestration_registry._tools.items():
             registry._tools[tool_name] = tool

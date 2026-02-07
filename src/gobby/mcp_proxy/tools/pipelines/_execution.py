@@ -1,14 +1,22 @@
 """Pipeline execution tools."""
 
 import json
-from typing import Any
+from typing import Any, Protocol
 
 from gobby.workflows.pipeline_state import ApprovalRequired
 
 
+class PipelineLoader(Protocol):
+    async def load_pipeline(self, name: str) -> Any: ...
+
+
+class PipelineExecutor(Protocol):
+    async def execute(self, *, pipeline: Any, inputs: dict[str, Any], project_id: str) -> Any: ...
+
+
 async def run_pipeline(
-    loader: Any,
-    executor: Any,
+    loader: PipelineLoader | None,
+    executor: PipelineExecutor | None,
     name: str,
     inputs: dict[str, Any],
     project_id: str,

@@ -15,6 +15,7 @@ from gobby.mcp_proxy.tools.orchestration.wait import register_wait
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
+    from gobby.config.app import DaemonConfig
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.worktrees.git import WorktreeGitManager
@@ -28,6 +29,7 @@ def create_orchestration_registry(
     git_manager: WorktreeGitManager | None = None,
     agent_runner: AgentRunner | None = None,
     project_id: str | None = None,
+    config: DaemonConfig | None = None,
 ) -> InternalToolRegistry:
     """Create registry with orchestration tools."""
     registry = InternalToolRegistry(
@@ -58,12 +60,14 @@ def create_orchestration_registry(
     )
 
     # Register review tools
+    max_retries = config.gobby_tasks.validation.max_retries if config else 3
     register_reviewer(
         registry=registry,
         task_manager=task_manager,
         worktree_storage=worktree_storage,
         agent_runner=agent_runner,
         default_project_id=default_project_id,
+        max_validation_retries=max_retries,
     )
 
     # Register cleanup tools

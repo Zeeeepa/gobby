@@ -3,7 +3,9 @@
 import os
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +16,7 @@ from gobby.workflows.loader import DiscoveredWorkflow, WorkflowLoader
 pytestmark = pytest.mark.unit
 
 
-def _aiofiles_mock(read_data=""):
+def _aiofiles_mock(read_data: str = "") -> MagicMock:
     """Create a mock for aiofiles.open() that returns an async context manager."""
     mock_file = AsyncMock()
     mock_file.read = AsyncMock(return_value=read_data)
@@ -24,10 +26,10 @@ def _aiofiles_mock(read_data=""):
     return MagicMock(return_value=mock_cm)
 
 
-def _aiofiles_side_effect(content_fn):
+def _aiofiles_side_effect(content_fn: Callable[[str], str]) -> Callable[..., MagicMock]:
     """Create aiofiles.open mock with path-based content resolution."""
 
-    def _open(path, *args, **kwargs):
+    def _open(path: str, *args: Any, **kwargs: Any) -> MagicMock:
         content = content_fn(path)
         mock_file = AsyncMock()
         mock_file.read = AsyncMock(return_value=content)
@@ -40,7 +42,7 @@ def _aiofiles_side_effect(content_fn):
 
 
 @pytest.fixture
-def loader():
+def loader() -> WorkflowLoader:
     """Create a WorkflowLoader with a temporary workflow directory."""
     return WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
