@@ -2,12 +2,9 @@
 Prompt template loader with multi-level override support.
 
 Implements prompt loading with precedence:
-1. Inline config (deprecated, for backwards compatibility)
-2. Config path (explicit path in config)
-3. Project file (.gobby/prompts/)
-4. Global file (~/.gobby/prompts/)
-5. Bundled default (src/gobby/prompts/defaults/)
-6. Python constant (strangler fig fallback)
+1. Project file (.gobby/prompts/)
+2. Global file (~/.gobby/prompts/)
+3. Bundled default (install/shared/prompts/)
 """
 
 import logging
