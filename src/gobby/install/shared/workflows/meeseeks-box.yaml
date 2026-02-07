@@ -31,6 +31,7 @@ version: "1.0"
 type: step
 
 variables:
+  agent_name: null                # Set by spawn_agent (e.g., "meeseeks-gemini", "meeseeks-claude")
   session_task: null              # Root task ID(s) to complete
   isolation_mode: "clone"         # "clone", "worktree", or "current"
   current_worker_id: null         # Active worker run_id
@@ -154,8 +155,8 @@ steps:
         server_name: gobby-agents
         tool_name: spawn_agent
         arguments:
-          prompt: "You are a worker in an isolated environment.\n\nFIRST, activate your workflow by calling:\n\nmcp__gobby__call_tool(\n  server_name=\"gobby-workflows\",\n  tool_name=\"activate_workflow\",\n  arguments={\n    \"name\": \"meeseeks:worker\",\n    \"session_id\": \"<your_gobby_session_id>\",\n    \"variables\": {\"assigned_task_id\": \"{{ variables.current_task_id }}\"}\n  }\n)\n\nReplace <your_gobby_session_id> with your Gobby Session ID (shown at startup).\n\nThe workflow will guide you through: claim -> implement -> commit -> close -> report -> shutdown.\n\nDo NOT proceed without activating the workflow first."
-          agent: "meeseeks"
+          prompt: "You are a worker in an isolated environment.\n\nFIRST, activate your workflow by calling:\n\nmcp__gobby__call_tool(\n  server_name=\"gobby-workflows\",\n  tool_name=\"activate_workflow\",\n  arguments={\n    \"name\": \"{{ variables.agent_name }}:worker\",\n    \"session_id\": \"<your_gobby_session_id>\",\n    \"variables\": {\"assigned_task_id\": \"{{ variables.current_task_id }}\"}\n  }\n)\n\nReplace <your_gobby_session_id> with your Gobby Session ID (shown at startup).\n\nThe workflow will guide you through: claim -> implement -> commit -> close -> report -> shutdown.\n\nDo NOT proceed without activating the workflow first."
+          agent: "{{ variables.agent_name }}"
           workflow: "worker"
           task_id: "{{ variables.current_task_id }}"
           isolation: "{{ variables.isolation_mode }}"
@@ -362,7 +363,7 @@ steps:
         tool_name: spawn_agent
         arguments:
           prompt: "You are a worker fixing code review deficiencies.\n\nIsolation: {{ variables.isolation_mode }}\nTask: {{ variables.current_task_id }}\nBranch: {{ variables.current_branch }}\n\nDeficiencies to fix:\n{% for d in variables.review_deficiencies %}- {{ d }}\n{% endfor %}\n\nActivate workflow, fix the issues, commit, close task, and report."
-          agent: "meeseeks"
+          agent: "{{ variables.agent_name }}"
           workflow: "worker"
           task_id: "{{ variables.current_task_id }}"
           isolation: "{{ variables.isolation_mode }}"

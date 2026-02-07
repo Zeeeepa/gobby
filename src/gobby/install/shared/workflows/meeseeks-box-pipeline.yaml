@@ -23,6 +23,7 @@ version: "1.0"
 type: pipeline
 
 inputs:
+  agent_name: null             # Agent definition name (e.g., "meeseeks-gemini", "meeseeks-claude")
   session_task: null           # Root task ID to complete
   max_review_attempts: 3       # Max times to request changes per task
   wait_timeout: 600            # 10 min per wait cycle
@@ -44,17 +45,16 @@ steps:
   - id: spawn_worker
     condition: "${{ find_work.output.task_id }}"
     prompt: |
-      Spawn a meeseeks worker for task ${{ find_work.output.task_id }}:
+      Spawn a worker for task ${{ find_work.output.task_id }}:
 
       Use the spawn_agent MCP tool with these parameters:
-      - agent: meeseeks
+      - agent: ${{ inputs.agent_name }}
       - workflow: worker
       - task_id: ${{ find_work.output.task_id }}
       - isolation: worktree
-      - provider: gemini
 
       The prompt should instruct the worker to:
-      1. Activate the meeseeks:worker workflow
+      1. Activate the ${{ inputs.agent_name }}:worker workflow
       2. Claim the task
       3. Implement the changes
       4. Commit and close the task

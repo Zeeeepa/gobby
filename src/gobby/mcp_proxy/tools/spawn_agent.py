@@ -134,6 +134,7 @@ async def spawn_agent_impl(
     prompt: str,
     runner: AgentRunner,
     agent_def: AgentDefinition | None = None,
+    agent_lookup_name: str | None = None,
     task_id: str | None = None,
     task_manager: LocalTaskManager | None = None,
     # Isolation
@@ -257,7 +258,13 @@ async def spawn_agent_impl(
             }
 
         # Resolve step_variables for workflow activation
-        self_step_variables: dict[str, Any] | None = None
+        self_step_variables: dict[str, Any] = {}
+
+        # Pass the agent lookup name so orchestrator workflows can spawn workers
+        # using the correct agent name (e.g., "meeseeks-gemini" not "meeseeks")
+        if agent_lookup_name:
+            self_step_variables["agent_name"] = agent_lookup_name
+
         if task_id and task_manager:
             # Resolve project context first for task resolution
             ctx = get_project_context(Path(project_path) if project_path else None)
@@ -268,10 +275,8 @@ async def spawn_agent_impl(
                     task = task_manager.get_task(self_task_id)
                     if task:
                         task_ref = f"#{task.seq_num}" if task.seq_num else self_task_id
-                        self_step_variables = {
-                            "assigned_task_id": task_ref,
-                            "session_task": task_ref,  # For orchestrator workflows like meeseeks-box
-                        }
+                        self_step_variables["assigned_task_id"] = task_ref
+                        self_step_variables["session_task"] = task_ref
                 except Exception as e:
                     logger.warning(f"Failed to resolve task_id {task_id}: {e}")
 
@@ -755,6 +760,7 @@ def create_spawn_agent_registry(
             prompt=prompt,
             runner=runner,
             agent_def=agent_def,
+            agent_lookup_name=agent,
             task_id=task_id,
             task_manager=task_manager,
             isolation=isolation,

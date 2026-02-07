@@ -26,7 +26,7 @@ Gobby Session ID: <uuid>
 
 ## Shorthand: Named Agent with Task
 
-When the first argument matches a known agent name (e.g., "meeseeks", "meeseeks-claude"), this is a **named agent spawn**. Named agents have preconfigured workflows, providers, and terminals - do NOT write a custom prompt or override their defaults.
+When the first argument matches a known agent name (e.g., "meeseeks-gemini", "meeseeks-claude"), this is a **named agent spawn**. Named agents have preconfigured workflows, providers, and terminals - do NOT write a custom prompt or override their defaults.
 
 **Pattern:** `/gobby agents <agent-name> session_task=#N`
 
@@ -41,8 +41,8 @@ Do NOT set `mode`, `workflow`, `isolation`, `terminal`, `provider`, or write a d
 Example: `/gobby agents meeseeks-claude session_task=#6878`
 → `spawn_agent(prompt="Execute task #6878", agent="meeseeks-claude", task_id="#6878", parent_session_id="#934")`
 
-Example: `/gobby agents meeseeks session_task=#5000`
-→ `spawn_agent(prompt="Execute task #5000", agent="meeseeks", task_id="#5000", parent_session_id="#934")`
+Example: `/gobby agents meeseeks-gemini session_task=#5000`
+→ `spawn_agent(prompt="Execute task #5000", agent="meeseeks-gemini", task_id="#5000", parent_session_id="#934")`
 
 ## Subcommands
 
@@ -51,7 +51,7 @@ Use this for ad-hoc spawns WITHOUT a named agent definition.
 
 Call `spawn_agent` with:
 - `prompt`: (required) Task description for the agent
-- `agent`: Named agent definition (e.g., "meeseeks", "meeseeks-claude")
+- `agent`: Named agent definition (e.g., "meeseeks-gemini", "meeseeks-claude")
 - `workflow`: Workflow to activate (e.g., "worker", "box")
 - `task_id`: Task ID to associate with the agent
 - `isolation`: Isolation mode - "current" (default), "worktree", or "clone"
@@ -78,8 +78,8 @@ Example: `/gobby agents spawn Implement the login feature`
 Example: `/gobby agents spawn --isolation worktree Fix auth bug`
 → `spawn_agent(prompt="Fix auth bug", isolation="worktree")`
 
-Example: `/gobby agents spawn --agent meeseeks --workflow worker Fix the tests`
-→ `spawn_agent(prompt="Fix the tests", agent="meeseeks", workflow="worker")`
+Example: `/gobby agents spawn --agent meeseeks-gemini --workflow worker Fix the tests`
+→ `spawn_agent(prompt="Fix the tests", agent="meeseeks-gemini", workflow="worker")`
 
 ### `/gobby agents result <run-id>` - Get agent result
 Call `get_agent_result` with:
@@ -186,7 +186,7 @@ Agent definitions in `.gobby/agents/` provide preconfigured settings:
 ### Meeseeks Pattern
 The meeseeks agent supports orchestrator/worker workflows:
 
-- **meeseeks** (Gemini-based): `spawn_agent(agent="meeseeks", workflow="worker")`
+- **meeseeks-gemini** (Gemini-based): `spawn_agent(agent="meeseeks-gemini", workflow="worker")`
 - **meeseeks-claude** (Claude-based): `spawn_agent(agent="meeseeks-claude", workflow="worker")`
 
 **Workflows:**

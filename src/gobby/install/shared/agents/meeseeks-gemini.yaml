@@ -1,4 +1,4 @@
-name: meeseeks
+name: meeseeks-gemini
 description: |
   Autonomous task worker with full lifecycle: spawn -> work -> review -> merge.
   "Hi, I'm Mr. Meeseeks! Look at me!"
@@ -11,8 +11,8 @@ description: |
   - worktree-merge: Merge and cleanup
 
   Usage:
-    spawn_agent(meeseeks)                     # Uses box (interactive)
-    spawn_agent(meeseeks, workflow="worker")  # Direct worker spawn
+    spawn_agent(meeseeks-gemini)                     # Uses box (interactive)
+    spawn_agent(meeseeks-gemini, workflow="worker")  # Direct worker spawn
 
 mode: terminal
 terminal: tmux

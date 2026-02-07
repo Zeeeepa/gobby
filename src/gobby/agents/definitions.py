@@ -261,33 +261,54 @@ class AgentDefinitionLoader:
         return None
 
     def _find_agent_file(self, name: str) -> Path | None:
-        """Find the agent definition file in search paths."""
+        """Find the agent definition file in search paths.
+
+        Resolution order per search path (project > user > built-in):
+        1. Exact filename match: {name}.yaml
+        2. YAML name-field match: scan *.yaml files for `name: {name}`
+        """
         filename = f"{name}.yaml"
 
-        # Check project first (highest priority for finding logic, but technically
-        # we want to load from lowest to highest if we were merging, but we just
-        # want the "winner" here. Since we don't merge partial definitions,
-        # finding the first one in priority order is sufficient.)
+        search_paths = [
+            self._get_project_path(),
+            self._user_path,
+            self._shared_path,
+        ]
 
-        # 1. Project
-        project_agents = self._get_project_path()
-        if project_agents and project_agents.exists():
-            f = project_agents / filename
-            if f.exists():
-                return f
+        # Pass 1: Exact filename match (fast path)
+        for path in search_paths:
+            if path and path.exists():
+                f = path / filename
+                if f.exists():
+                    return f
 
-        # 2. User
-        if self._user_path.exists():
-            f = self._user_path / filename
-            if f.exists():
-                return f
+        # Pass 2: Match by name field inside YAML files (fallback)
+        for path in search_paths:
+            if path and path.exists():
+                result = self._find_by_yaml_name(path, name)
+                if result:
+                    return result
 
-        # 3. Built-in (Shared)
-        if self._shared_path.exists():
-            f = self._shared_path / filename
-            if f.exists():
-                return f
+        return None
 
+    def _find_by_yaml_name(self, directory: Path, name: str) -> Path | None:
+        """Scan YAML files in a directory for one whose 'name' field matches."""
+        for yaml_file in directory.glob("*.yaml"):
+            try:
+                with open(yaml_file, encoding="utf-8") as f:
+                    # Read only the first few lines to find the name field
+                    # without parsing the entire file
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("name:"):
+                            yaml_name = line.split(":", 1)[1].strip().strip("\"'")
+                            if yaml_name == name:
+                                return yaml_file
+                            break  # Found name field, didn't match
+                        if line and not line.startswith("#") and not line.startswith("---"):
+                            break  # First non-comment, non-directive line isn't name
+            except OSError:
+                continue
         return None
 
     def load(self, name: str) -> AgentDefinition | None:
