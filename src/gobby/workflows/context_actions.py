@@ -527,21 +527,52 @@ def _format_task_context(task_entries: list[dict[str, Any]]) -> str:
 def _format_skills(skills: list[Any]) -> str:
     """Format a list of ParsedSkill objects as markdown for injection.
 
+    Respects each skill's ``injection_format`` field:
+    - ``"summary"`` (default): ``- **name**: description`` under an
+      ``## Available Skills`` heading.
+    - ``"full"``: ``### name`` + description + full content body.
+    - ``"content"``: raw content only, no wrapper.
+
     Args:
         skills: List of ParsedSkill objects
 
     Returns:
-        Formatted markdown string with skill names and descriptions
+        Formatted markdown string with skill content
     """
-    lines = ["## Available Skills"]
+    summary_lines: list[str] = []
+    expanded_sections: list[str] = []
+
     for skill in skills:
         name = getattr(skill, "name", "unknown")
         description = getattr(skill, "description", "")
-        if description:
-            lines.append(f"- **{name}**: {description}")
+        fmt = getattr(skill, "injection_format", "summary")
+        content = getattr(skill, "content", "")
+
+        if fmt == "full":
+            section_lines = [f"### {name}"]
+            if description:
+                section_lines.append(description)
+            if content:
+                section_lines.append("")
+                section_lines.append(content)
+            expanded_sections.append("\n".join(section_lines))
+        elif fmt == "content":
+            if content:
+                expanded_sections.append(content)
         else:
-            lines.append(f"- **{name}**")
-    return "\n".join(lines)
+            # summary (default)
+            if description:
+                summary_lines.append(f"- **{name}**: {description}")
+            else:
+                summary_lines.append(f"- **{name}**")
+
+    parts: list[str] = []
+    if summary_lines:
+        parts.append("## Available Skills\n" + "\n".join(summary_lines))
+    if expanded_sections:
+        parts.extend(expanded_sections)
+
+    return "\n\n".join(parts)
 
 
 def recommend_skills_for_task(task: dict[str, Any] | None) -> list[str]:

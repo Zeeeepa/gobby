@@ -136,8 +136,6 @@ triggers:
       source: skills
       filter: always_apply
       template: |
-        The following skills are available for use with the Skill tool:
-
         {{ skills_list }}
 
     # Inject active task context if session has a claimed task
