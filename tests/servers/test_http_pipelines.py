@@ -29,7 +29,7 @@ def mock_pipeline_executor():
 @pytest.fixture
 def mock_workflow_loader():
     """Create a mock workflow loader."""
-    return MagicMock()
+    return AsyncMock()
 
 
 @pytest.fixture

@@ -367,7 +367,7 @@ class TestAutoLinkCommits:
             # Mock git log output with commit mentioning task
             mock_git.return_value = "abc123|Fix bug [gobby-#1]\ndef456|Unrelated commit\n"
 
-            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
+            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo", project_name="gobby")
 
             assert isinstance(result, AutoLinkResult)
             assert "#1" in result.linked_tasks
@@ -431,7 +431,7 @@ class TestAutoLinkCommits:
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = "abc123|[gobby-#1] first task\ndef456|Fixes gobby-#2\n"
 
-            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
+            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo", project_name="gobby")
 
             assert "#1" in result.linked_tasks
             assert "#2" in result.linked_tasks
@@ -458,7 +458,7 @@ class TestAutoLinkCommits:
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = "abc123|[gobby-#1] commit 1\ndef456|Fixes gobby-#1\n"
 
-            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
+            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo", project_name="gobby")
 
             assert result.total_linked >= 2
 
@@ -476,6 +476,7 @@ class TestAutoLinkCommits:
                 mock_task_manager,
                 task_id="#1",
                 cwd="/tmp/repo",
+                project_name="gobby",
             )
 
             # Should only link to #1
@@ -502,7 +503,7 @@ class TestAutoLinkCommits:
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = "abc123|[gobby-#1] already linked\n"
 
-            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
+            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo", project_name="gobby")
 
             assert result.skipped >= 1
 

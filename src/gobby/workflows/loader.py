@@ -1061,13 +1061,27 @@ class WorkflowLoader:
     # Synchronous wrappers for CLI / startup contexts without a running loop
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _run_sync(coro):  # type: ignore[no-untyped-def]
+        """Run a coroutine synchronously, handling both loop and no-loop contexts."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop and loop.is_running():
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, coro).result()
+        return asyncio.run(coro)
+
     def load_workflow_sync(
         self,
         name: str,
         project_path: Path | str | None = None,
         _inheritance_chain: list[str] | None = None,
     ) -> WorkflowDefinition | PipelineDefinition | None:
-        return asyncio.run(self.load_workflow(name, project_path, _inheritance_chain))
+        return self._run_sync(self.load_workflow(name, project_path, _inheritance_chain))
 
     def load_pipeline_sync(
         self,
@@ -1075,21 +1089,21 @@ class WorkflowLoader:
         project_path: Path | str | None = None,
         _inheritance_chain: list[str] | None = None,
     ) -> PipelineDefinition | None:
-        return asyncio.run(self.load_pipeline(name, project_path, _inheritance_chain))
+        return self._run_sync(self.load_pipeline(name, project_path, _inheritance_chain))
 
     def discover_lifecycle_workflows_sync(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        return asyncio.run(self.discover_lifecycle_workflows(project_path))
+        return self._run_sync(self.discover_lifecycle_workflows(project_path))
 
     def discover_pipeline_workflows_sync(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
-        return asyncio.run(self.discover_pipeline_workflows(project_path))
+        return self._run_sync(self.discover_pipeline_workflows(project_path))
 
     def validate_workflow_for_agent_sync(
         self,
         workflow_name: str,
         project_path: Path | str | None = None,
     ) -> tuple[bool, str | None]:
-        return asyncio.run(self.validate_workflow_for_agent(workflow_name, project_path))
+        return self._run_sync(self.validate_workflow_for_agent(workflow_name, project_path))
