@@ -5,6 +5,7 @@ These tests verify that agents cannot bypass workflow controls:
 2. Modifying session_task when a real workflow is active is blocked
 """
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -61,7 +62,7 @@ def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
     )
 
 
-def call_tool(registry, tool_name: str, **kwargs):
+def call_tool(registry: Any, tool_name: str, **kwargs: Any) -> Any:
     """Helper to call a tool from the registry."""
     tool = registry._tools.get(tool_name)
     if not tool:

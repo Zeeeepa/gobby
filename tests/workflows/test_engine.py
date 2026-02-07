@@ -1078,9 +1078,7 @@ class TestDetectTaskClaim:
         step_a = MagicMock(spec=WorkflowStep)
         step_a.on_enter = []
         step_a.on_exit = []
-        step_a.transitions = [
-            MagicMock(when="ready", to="step_b", on_transition=None)
-        ]
+        step_a.transitions = [MagicMock(when="ready", to="step_b", on_transition=None)]
 
         step_b = MagicMock(spec=WorkflowStep)
         step_b.on_enter = [{"action": "inject_message", "content": "In step B"}]
@@ -1097,8 +1095,6 @@ class TestDetectTaskClaim:
 
         mock_action_executor.execute.return_value = {"inject_message": "In step B"}
 
-        from gobby.hooks.events import HookEvent, HookEventType, SessionSource
-
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
             session_id="sess1",
@@ -1109,7 +1105,12 @@ class TestDetectTaskClaim:
         )
 
         messages = await workflow_engine._auto_transition_chain(
-            state, workflow, {}, {}, event, ["Initial message"],
+            state,
+            workflow,
+            {},
+            {},
+            event,
+            ["Initial message"],
         )
 
         assert state.step == "step_b"
@@ -1132,9 +1133,7 @@ class TestDetectTaskClaim:
         loop_step = MagicMock(spec=WorkflowStep)
         loop_step.on_enter = []
         loop_step.on_exit = []
-        loop_step.transitions = [
-            MagicMock(when="looping", to="loop_step", on_transition=None)
-        ]
+        loop_step.transitions = [MagicMock(when="looping", to="loop_step", on_transition=None)]
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.name = "default"
@@ -1156,7 +1155,13 @@ class TestDetectTaskClaim:
 
         # Should stop after max_depth=3 iterations
         messages = await workflow_engine._auto_transition_chain(
-            state, workflow, {}, {}, event, [], max_depth=3,
+            state,
+            workflow,
+            {},
+            {},
+            event,
+            [],
+            max_depth=3,
         )
 
         # The step should still be loop_step (it transitions to itself)
@@ -1178,9 +1183,7 @@ class TestDetectTaskClaim:
 
         wait_step = MagicMock(spec=WorkflowStep)
         wait_step.on_enter = []
-        wait_step.transitions = [
-            MagicMock(when="completed", to="done")
-        ]
+        wait_step.transitions = [MagicMock(when="completed", to="done")]
 
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
@@ -1198,7 +1201,12 @@ class TestDetectTaskClaim:
         )
 
         messages = await workflow_engine._auto_transition_chain(
-            state, workflow, {}, {}, event, ["initial"],
+            state,
+            workflow,
+            {},
+            {},
+            event,
+            ["initial"],
         )
 
         # No transition matched, state unchanged

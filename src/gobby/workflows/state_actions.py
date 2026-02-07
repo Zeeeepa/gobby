@@ -155,7 +155,9 @@ def _resolve_variable_name(kwargs: dict[str, Any], caller: str = "unknown") -> s
         logger.warning(
             "%s: both 'name' (%s) and 'variable' (%s) provided with different values; "
             "using 'name' for backwards compatibility",
-            caller, name_val, variable_val,
+            caller,
+            name_val,
+            variable_val,
         )
     return name_val or variable_val
 

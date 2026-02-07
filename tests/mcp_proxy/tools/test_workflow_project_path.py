@@ -8,6 +8,7 @@ These tests verify that workflow tools work with:
 """
 
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -60,7 +61,7 @@ def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
     )
 
 
-def call_tool(registry, tool_name: str, **kwargs):
+def call_tool(registry, tool_name: str, **kwargs) -> Any:
     """Helper to call a tool from the registry."""
     tool = registry._tools.get(tool_name)
     if not tool:

@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import logging
 import threading
 from collections.abc import Coroutine
@@ -65,7 +66,7 @@ class WorkflowLoader:
         if bundled_dir is not None:
             self._bundled_dir = bundled_dir
         elif workflow_dirs is not None:
-            self._bundled_dir = Path("/nonexistent")  # Disabled for test isolation
+            self._bundled_dir = None  # Disabled for test isolation
         else:
             self._bundled_dir = _BUNDLED_WORKFLOWS_DIR
         self._cache: dict[str, _CachedEntry] = {}
@@ -156,7 +157,7 @@ class WorkflowLoader:
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
             search_dirs.insert(0, project_dir)
-        if self._bundled_dir.is_dir():
+        if self._bundled_dir is not None and self._bundled_dir.is_dir():
             search_dirs.append(self._bundled_dir)
 
         # 1. Find file
@@ -251,7 +252,7 @@ class WorkflowLoader:
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
             search_dirs.insert(0, project_dir)
-        if self._bundled_dir.is_dir():
+        if self._bundled_dir is not None and self._bundled_dir.is_dir():
             search_dirs.append(self._bundled_dir)
 
         # 1. Find file
@@ -622,7 +623,7 @@ class WorkflowLoader:
         dir_mtimes: dict[str, float] = {}
 
         # 1. Scan bundled lifecycle directory first (lowest priority, shadowed by all)
-        if self._bundled_dir.is_dir():
+        if self._bundled_dir is not None and self._bundled_dir.is_dir():
             await self._scan_directory(
                 self._bundled_dir / "lifecycle",
                 is_project=False,
@@ -716,7 +717,7 @@ class WorkflowLoader:
         dir_mtimes: dict[str, float] = {}
 
         # 1. Scan bundled workflows directory first (lowest priority, shadowed by all)
-        if self._bundled_dir.is_dir():
+        if self._bundled_dir is not None and self._bundled_dir.is_dir():
             await self._scan_pipeline_directory(
                 self._bundled_dir,
                 is_project=False,
@@ -1065,6 +1066,17 @@ class WorkflowLoader:
     # Synchronous wrappers for CLI / startup contexts without a running loop
     # ------------------------------------------------------------------
 
+    _sync_executor: "concurrent.futures.ThreadPoolExecutor | None" = None
+    _sync_executor_lock: threading.Lock = threading.Lock()
+
+    @classmethod
+    def _get_sync_executor(cls) -> "concurrent.futures.ThreadPoolExecutor":
+        if cls._sync_executor is None:
+            with cls._sync_executor_lock:
+                if cls._sync_executor is None:
+                    cls._sync_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        return cls._sync_executor
+
     @staticmethod
     def _run_sync(coro: Coroutine[Any, Any, _T]) -> _T:
         """Run a coroutine synchronously, handling both loop and no-loop contexts."""
@@ -1080,10 +1092,8 @@ class WorkflowLoader:
         if threading.current_thread() is threading.main_thread():
             # Same-thread with running loop - offload to a new thread
             # to avoid deadlocking the current loop.
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(asyncio.run, coro).result()
+            pool = WorkflowLoader._get_sync_executor()
+            return pool.submit(asyncio.run, coro).result()
 
         # Worker thread with loop running elsewhere - schedule on existing loop
         future = asyncio.run_coroutine_threadsafe(coro, loop)

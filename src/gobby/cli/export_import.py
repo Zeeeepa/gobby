@@ -66,7 +66,8 @@ def export_import() -> None:
 @click.argument("name", required=False, default=None)
 @click.option("--to", "to_path", type=click.Path(), help="Target project path to export to.")
 @click.option("--global", "global_", is_flag=True, help="Export to ~/.gobby/ (global).")
-def export_cmd(type_: str, name: str | None, to_path: str | None, global_: bool) -> None:
+@click.option("--dry-run", "dry_run_flag", is_flag=True, help="Perform a dry run without writing files.")
+def export_cmd(type_: str, name: str | None, to_path: str | None, global_: bool, dry_run_flag: bool) -> None:
     """Export resources from the current project.
 
     TYPE is one of: workflow, agent, prompt, all.
@@ -74,7 +75,7 @@ def export_cmd(type_: str, name: str | None, to_path: str | None, global_: bool)
     Without --to or --global, performs a dry run showing what would be exported.
     """
     types_to_export = list(RESOURCE_TYPES) if type_ == "all" else [type_]
-    dry_run = not to_path and not global_
+    dry_run = dry_run_flag or (not to_path and not global_)
 
     if dry_run:
         click.echo("Dry run (pass --to <path> or --global to actually export):\n")
@@ -150,6 +151,8 @@ def import_cmd(
     """
     if not from_path and not from_project:
         raise click.ClickException("Specify --from <path> or --from-project <path>.")
+    if from_path and from_project:
+        raise click.ClickException("Cannot specify both --from and --from-project.")
 
     types_to_import = list(RESOURCE_TYPES) if type_ == "all" else [type_]
     total = 0

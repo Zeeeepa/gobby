@@ -21,7 +21,7 @@ class TestGetTaskDiff:
     """Tests for get_task_diff function."""
 
     @pytest.fixture
-    def mock_task_manager(self):
+    def mock_task_manager(self) -> MagicMock:
         """Create a mock task manager."""
         manager = MagicMock()
         return manager
@@ -350,7 +350,7 @@ class TestAutoLinkCommits:
     """
 
     @pytest.fixture
-    def mock_task_manager(self):
+    def mock_task_manager(self) -> MagicMock:
         """Create a mock task manager."""
         manager = MagicMock()
         return manager
@@ -387,6 +387,7 @@ class TestAutoLinkCommits:
                 mock_task_manager,
                 since="1 week ago",
                 cwd="/tmp/repo",
+                project_name="gobby",
             )
 
             # Verify --since was passed to git log
@@ -403,7 +404,7 @@ class TestAutoLinkCommits:
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = "abc123|[gobby-#1] existing commit\n"
 
-            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
+            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo", project_name="gobby")
 
             # Should not link abc123 again
             if "#1" in result.linked_tasks:
@@ -443,7 +444,7 @@ class TestAutoLinkCommits:
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = "abc123|[gobby-#999] commit\n"
 
-            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
+            result = auto_link_commits(mock_task_manager, cwd="/tmp/repo", project_name="gobby")
 
             # Should not crash, just skip the task
             assert "#999" not in result.linked_tasks
@@ -470,7 +471,9 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gobby-#1] target task\ndef456|[gobby-#2] different task\n"
+            mock_git.return_value = (
+                "abc123|[gobby-#1] target task\ndef456|[gobby-#2] different task\n"
+            )
 
             result = auto_link_commits(
                 mock_task_manager,

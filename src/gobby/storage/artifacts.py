@@ -82,8 +82,8 @@ class LocalArtifactManager:
         for listener in self._change_listeners:
             try:
                 listener()
-            except Exception as e:
-                logger.error(f"Error in artifact change listener: {e}")
+            except Exception:
+                logger.error("Error in artifact change listener", exc_info=True, extra={"listener": repr(listener)})
 
     def create_artifact(
         self,

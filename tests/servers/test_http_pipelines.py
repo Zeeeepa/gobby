@@ -27,7 +27,7 @@ def mock_pipeline_executor():
 
 
 @pytest.fixture
-def mock_workflow_loader():
+def mock_workflow_loader() -> AsyncMock:
     """Create a mock workflow loader."""
     return AsyncMock()
 

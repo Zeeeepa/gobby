@@ -126,7 +126,6 @@ class TestPipelineResume:
         )
 
         # Verify step2 was executed (create_step_execution called for step2)
-        # currently this fails because approve() just returns
         calls = mock_execution_manager.create_step_execution.call_args_list
         step2_calls = [c for c in calls if c.kwargs.get("step_id") == "step2"]
 

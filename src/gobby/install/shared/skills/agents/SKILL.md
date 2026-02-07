@@ -61,7 +61,7 @@ Call `spawn_agent` with:
 - `initial_step`: Starting step for workflow
 - `terminal`: Terminal type (ghostty, tmux, iterm, etc.)
 - `provider`: LLM provider (claude, gemini)
-- `model`: Model override
+- `model`: Model override (provider-specific identifier, e.g., `claude-3-opus` for Claude, `gemini-2.0-flash` for Gemini). Must be compatible with the selected `--provider`. Omitting `--provider` uses the default provider for the current CLI.
 - `timeout`: Max runtime in seconds
 - `max_turns`: Max conversation turns
 - `sandbox`: Enable sandboxing (true/false)

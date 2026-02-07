@@ -92,6 +92,19 @@ class TestHandleSetVariableVariableKey:
 
         assert result == {"variable_set": "greeting", "value": "world"}
 
+    @pytest.mark.asyncio
+    async def test_logs_warning_when_name_and_variable_differ(self, action_context, caplog) -> None:
+        """Warning is logged when name and variable differ."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            await handle_set_variable(
+                action_context, name="from_name", variable="from_variable", value="test"
+            )
+
+        assert "from_name" in caplog.text
+        assert "from_variable" in caplog.text
+
 
 class TestHandleIncrementVariableVariableKey:
     """Tests for handle_increment_variable with `variable` key."""
@@ -119,3 +132,15 @@ class TestHandleIncrementVariableVariableKey:
         result = await handle_increment_variable(action_context, amount=1)
 
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_name_takes_precedence_over_variable(self, action_context) -> None:
+        """When both name and variable are provided, name wins."""
+        action_context.state.variables["from_name"] = 10
+        action_context.state.variables["from_variable"] = 20
+        result = await handle_increment_variable(
+            action_context, name="from_name", variable="from_variable", amount=1
+        )
+
+        assert result == {"variable_incremented": "from_name", "value": 11}
+        assert action_context.state.variables["from_variable"] == 20

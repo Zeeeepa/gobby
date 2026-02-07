@@ -44,7 +44,10 @@ def _render_arguments(
     Returns:
         New dict with all string values rendered through the template engine
     """
-    return {key: _render_value(value, template_engine, template_context) for key, value in arguments.items()}
+    return {
+        key: _render_value(value, template_engine, template_context)
+        for key, value in arguments.items()
+    }
 
 
 async def call_mcp_tool(
@@ -127,6 +130,18 @@ async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[
             server_name = template_engine.render(server_name, template_context)
         if "{{" in tool_name:
             tool_name = template_engine.render(tool_name, template_context)
+    else:
+        has_templates = "{{" in server_name or "{{" in tool_name
+        if not has_templates:
+            for v in (kwargs.get("arguments") or {}).values():
+                if isinstance(v, str) and "{{" in v:
+                    has_templates = True
+                    break
+        if has_templates:
+            logger.warning(
+                "handle_call_mcp_tool: template syntax detected but no template_engine configured; "
+                "templates will not be rendered"
+            )
 
     # Render template strings in arguments
     arguments = kwargs.get("arguments") or {}

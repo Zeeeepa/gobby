@@ -45,7 +45,14 @@ def _silence_output() -> None:
         pass  # devnull may be unavailable (OSError) or std streams unwritable (AttributeError)
 
 
+_cached_daemon_url: str | None = None
+
+
 async def _get_daemon_url() -> str:
+    global _cached_daemon_url  # noqa: PLW0603
+    if _cached_daemon_url is not None:
+        return _cached_daemon_url
+
     config_path = Path(DEFAULT_CONFIG_PATH).expanduser()
 
     port = DEFAULT_DAEMON_PORT
@@ -60,7 +67,8 @@ async def _get_daemon_url() -> str:
         except Exception:
             port = DEFAULT_DAEMON_PORT
 
-    return f"http://localhost:{port}"
+    _cached_daemon_url = f"http://localhost:{port}"
+    return _cached_daemon_url
 
 
 async def _read_event_from_stdin() -> dict[str, Any] | None:

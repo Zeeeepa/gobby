@@ -308,7 +308,9 @@ class TaskValidationConfig(BaseModel):
         description="Auto-generate validation criteria when expanding tasks via expand_task",
     )
 
-    @field_validator("max_retries", "max_iterations", "max_consecutive_errors", "recurring_issue_threshold")
+    @field_validator(
+        "max_retries", "max_iterations", "max_consecutive_errors", "recurring_issue_threshold"
+    )
     @classmethod
     def validate_positive_int(cls, v: int) -> int:
         """Validate value is positive."""

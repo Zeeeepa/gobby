@@ -46,6 +46,7 @@ variables:
   review_attempt: 0
   review_approved: false
   review_deficiencies: []
+  merge_target_branch: "dev"
 
 steps:
   - name: find_work
@@ -414,7 +415,7 @@ steps:
         tool_name: merge_clone_to_target
         arguments:
           clone_id: "{{ variables.current_clone_id }}"
-          target_branch: "dev"
+          target_branch: "{{ variables.merge_target_branch }}"
         output_as: _merge_result
       - action: inject_message
         content: |

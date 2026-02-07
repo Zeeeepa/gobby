@@ -35,7 +35,7 @@ if TYPE_CHECKING:
         """Protocol for agent spawning interface (gobby-agents)."""
 
         async def spawn_agent(self, **kwargs: Any) -> dict[str, Any]:
-            """Start a new agent process."""
+            """Spawn a new agent process."""
             ...
 
         async def get_agent_result(self, agent_id: str, **kwargs: Any) -> dict[str, Any]:

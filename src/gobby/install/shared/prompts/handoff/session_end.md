@@ -54,4 +54,4 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 ## Next Steps
 [Numbered list. Each item must be actionable without additional context -- include file names, function names, and what specifically to do.]
 
-Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
+Use only ASCII-safe characters. Replace: em-dashes (—) with hyphens (-), smart quotes (' ' " ") with straight quotes (' "), bullet points (•) with asterisks (*), ellipses (…) with three periods (...).

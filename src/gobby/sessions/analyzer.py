@@ -151,10 +151,17 @@ class TranscriptAnalyzer:
                             break
         context.recent_activity = recent_tools
 
-        # 5. Extract Key Decisions from assistant text blocks
+        # 4. Extract Key Decisions from assistant text blocks
         decision_indicators = [
-            "decided", "approach", "instead", "because", "chosen",
-            "opted for", "went with", "switching to", "rather than",
+            "decided",
+            "approach",
+            "instead",
+            "because",
+            "chosen",
+            "opted for",
+            "went with",
+            "switching to",
+            "rather than",
         ]
         decisions: list[str] = []
         for turn in relevant_turns:
@@ -399,4 +406,3 @@ class TranscriptAnalyzer:
         if len(text) <= max_len:
             return text
         return text[: max_len - 3] + "..."
-

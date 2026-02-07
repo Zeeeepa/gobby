@@ -34,8 +34,17 @@ def _get_result_truncation_limit(content_str: str) -> int:
 
     Errors/test output get 1000 chars for visibility. Default: 200 chars.
     """
-    error_indicators = ["Error", "error", "ERROR", "Failed", "failed",
-                        "Traceback", "Exception", "FAIL", "AssertionError"]
+    error_indicators = [
+        "Error",
+        "error",
+        "ERROR",
+        "Failed",
+        "failed",
+        "Traceback",
+        "Exception",
+        "FAIL",
+        "AssertionError",
+    ]
     if any(ind in content_str[:500] for ind in error_indicators):
         return 1000
     test_indicators = ["pytest", "PASSED", "FAILED", "test_", "npm test"]
@@ -179,18 +188,17 @@ def _format_structured_context(ctx: HandoffContext) -> str:
 
     if ctx.git_commits:
         commit_lines = [
-            f"  - {c.get('hash', '')[:7]} {c.get('message', '')}"
-            for c in ctx.git_commits[:10]
+            f"  - {c.get('hash', '')[:7]} {c.get('message', '')}" for c in ctx.git_commits[:10]
         ]
         sections.append("Recent Commits:\n" + "\n".join(commit_lines))
 
     if ctx.recent_activity:
-        sections.append("Recent Activity:\n" + "\n".join(f"  - {a}" for a in ctx.recent_activity[-10:]))
+        sections.append(
+            "Recent Activity:\n" + "\n".join(f"  - {a}" for a in ctx.recent_activity[-10:])
+        )
 
     if ctx.key_decisions:
-        sections.append(
-            "Key Decisions:\n" + "\n".join(f"  - {d}" for d in ctx.key_decisions)
-        )
+        sections.append("Key Decisions:\n" + "\n".join(f"  - {d}" for d in ctx.key_decisions))
 
     return "\n\n".join(sections) if sections else ""
 

@@ -10,8 +10,10 @@ Tests the following scenarios:
 6. Variable precedence pattern (explicit > workflow > config)
 """
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -38,10 +40,10 @@ def mock_aiofiles_open(read_data: str = "") -> MagicMock:
     return MagicMock(return_value=mock_cm)
 
 
-def mock_aiofiles_open_side_effect(content_fn):
+def mock_aiofiles_open_side_effect(content_fn: Callable[[str], Any]) -> Callable[..., Any]:
     """Create a side_effect function for aiofiles.open that dispatches by path."""
 
-    def _open(path, *args, **kwargs):
+    def _open(path: str, *args: Any, **kwargs: Any) -> AsyncMock:
         content = content_fn(path)
         mock_file = AsyncMock()
         mock_file.read = AsyncMock(return_value=content)

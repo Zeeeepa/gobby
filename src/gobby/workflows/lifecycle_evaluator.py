@@ -486,6 +486,29 @@ async def evaluate_lifecycle_triggers(
     )
 
 
+def _detect_and_persist(
+    session_id: str,
+    event: HookEvent,
+    state_manager: "WorkflowStateManager",
+    detect_fns: list,
+    persist_fn: Any,
+) -> None:
+    """Run detection functions and persist any state changes."""
+    existing = state_manager.get_state(session_id)
+    state_was_created = existing is None
+    state = existing or WorkflowState(
+        session_id=session_id,
+        workflow_name="__lifecycle__",
+        step="",
+    )
+    vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
+    for fn in detect_fns:
+        fn(event, state)
+    persist_fn(
+        session_id, state, state_was_created, vars_snapshot, state_manager
+    )
+
+
 async def evaluate_all_lifecycle_workflows(
     event: HookEvent,
     loader: "WorkflowLoader",
@@ -646,18 +669,10 @@ async def evaluate_all_lifecycle_workflows(
     if event.event_type == HookEventType.AFTER_TOOL:
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
-            existing = state_manager.get_state(session_id)
-            state_was_created = existing is None
-            state = existing or WorkflowState(
-                session_id=session_id,
-                workflow_name="__lifecycle__",
-                step="",
-            )
-            vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
-            detect_task_claim_fn(event, state)
-            detect_plan_mode_fn(event, state)
-            _persist_state_changes(
-                session_id, state, state_was_created, vars_snapshot, state_manager
+            _detect_and_persist(
+                session_id, event, state_manager,
+                [detect_task_claim_fn, detect_plan_mode_fn],
+                _persist_state_changes,
             )
 
     # Detect plan mode from system reminders for BEFORE_AGENT events
@@ -665,17 +680,10 @@ async def evaluate_all_lifecycle_workflows(
     if event.event_type == HookEventType.BEFORE_AGENT and detect_plan_mode_from_context_fn:
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
-            existing = state_manager.get_state(session_id)
-            state_was_created = existing is None
-            state = existing or WorkflowState(
-                session_id=session_id,
-                workflow_name="__lifecycle__",
-                step="",
-            )
-            vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
-            detect_plan_mode_from_context_fn(event, state)
-            _persist_state_changes(
-                session_id, state, state_was_created, vars_snapshot, state_manager
+            _detect_and_persist(
+                session_id, event, state_manager,
+                [detect_plan_mode_from_context_fn],
+                _persist_state_changes,
             )
 
     # Check for premature stop in active step workflows on STOP events

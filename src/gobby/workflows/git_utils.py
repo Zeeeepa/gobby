@@ -103,7 +103,7 @@ def get_file_changes() -> str:
         return "Unable to determine file changes"
 
 
-def get_git_diff_summary(max_chars: int = 8000) -> str:
+def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None) -> str:
     """Get git diff --stat + truncated diff content.
 
     Provides actual code change context beyond just file names.
@@ -122,6 +122,7 @@ def get_git_diff_summary(max_chars: int = 8000) -> str:
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=project_path,
         )
         stat_output = stat_result.stdout.strip()
 
@@ -131,6 +132,7 @@ def get_git_diff_summary(max_chars: int = 8000) -> str:
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=project_path,
         )
         diff_output = diff_result.stdout.strip()
 
@@ -141,6 +143,7 @@ def get_git_diff_summary(max_chars: int = 8000) -> str:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                cwd=project_path,
             )
             diff_output = diff_result.stdout.strip()
             if not stat_output:
@@ -149,6 +152,7 @@ def get_git_diff_summary(max_chars: int = 8000) -> str:
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    cwd=project_path,
                 )
                 stat_output = stat_result.stdout.strip()
 
@@ -161,13 +165,16 @@ def get_git_diff_summary(max_chars: int = 8000) -> str:
 
         if diff_output:
             if len(diff_output) > max_chars:
-                diff_output = diff_output[:max_chars] + f"\n\n... (truncated, {len(diff_output) - max_chars} chars omitted)"
+                diff_output = (
+                    diff_output[:max_chars]
+                    + f"\n\n... (truncated, {len(diff_output) - max_chars} chars omitted)"
+                )
             sections.append(f"### Actual Changes\n```diff\n{diff_output}\n```")
 
         return "\n\n".join(sections)
 
-    except Exception as e:
-        logger.debug(f"get_git_diff_summary failed: {e}")
+    except Exception:
+        logger.debug("get_git_diff_summary failed", exc_info=True)
         return ""
 
 

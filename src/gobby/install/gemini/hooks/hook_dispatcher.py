@@ -359,7 +359,7 @@ async def main() -> int:
     except json.JSONDecodeError as e:
         # Invalid JSON input - return empty dict and exit 1
         if debug_mode:
-            logger.error(f"JSON decode error: {e}")
+            logger.error("JSON decode error: %s", e)
         print(json.dumps({}))
         return 1
 
@@ -384,7 +384,7 @@ async def main() -> int:
             result = response.json()
 
             if debug_mode:
-                logger.debug(f"Output data: {result}")
+                logger.debug("Output data: %s", result)
 
             # Determine exit code based on decision
             decision = result.get("decision", "allow")
@@ -406,7 +406,7 @@ async def main() -> int:
             # HTTP error from daemon
             error_detail = response.text
             logger.error(
-                f"Daemon returned error: status={response.status_code}, detail={error_detail}"
+                "Daemon returned error: status=%s, detail=%s", response.status_code, error_detail
             )
             print(json.dumps({"status": "error", "message": f"Daemon error: {error_detail}"}))
             return 1
@@ -419,13 +419,13 @@ async def main() -> int:
 
     except httpx.TimeoutException:
         # Hook processing took too long
-        logger.error(f"Hook execution timeout: {hook_type}")
+        logger.error("Hook execution timeout: %s", hook_type)
         print(json.dumps({"status": "error", "message": "Hook execution timeout"}))
         return 1
 
     except Exception as e:
         # General error - log and return 1
-        logger.error(f"Hook execution failed: {e}", exc_info=True)
+        logger.error("Hook execution failed: %s", e, exc_info=True)
         print(json.dumps({"status": "error", "message": str(e)}))
         return 1
 

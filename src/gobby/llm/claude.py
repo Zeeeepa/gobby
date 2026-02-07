@@ -412,6 +412,7 @@ class ClaudeLLMProvider(LLMProvider):
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=8000,
+                timeout=120,
             )
             return response.choices[0].message.content or ""
         except Exception as e:

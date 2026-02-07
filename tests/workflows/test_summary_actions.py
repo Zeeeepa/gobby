@@ -1619,17 +1619,20 @@ class TestWriteSummaryFile:
         assert "my-session" in filename
 
     @pytest.mark.asyncio
-    async def test_write_summary_file_error_returns_none(self) -> None:
+    async def test_write_summary_file_error_returns_none(self, monkeypatch) -> None:
         """Test that write errors return None."""
+        monkeypatch.setattr(
+            "pathlib.Path.mkdir",
+            lambda *a, **kw: (_ for _ in ()).throw(OSError("mocked")),
+        )
+
         result = await _write_summary_file(
             session_id="test",
             content="Content",
-            output_path="/nonexistent/deeply/nested/path",
+            output_path="/tmp/test_summary",
         )
 
-        # Should return None on failure (mkdir will fail)
-        # Note: on some systems mkdir may succeed, so we just check it doesn't raise
-        assert result is None or isinstance(result, str)
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_generate_summary_with_write_file(

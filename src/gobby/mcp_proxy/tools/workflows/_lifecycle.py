@@ -233,7 +233,6 @@ async def end_workflow(
     if definition and isinstance(definition, WorkflowDefinition) and definition.variables:
         for var_name in definition.variables:
             state.variables.pop(var_name, None)
-        state_manager.save_state(state)
 
     state_manager.delete_state(resolved_session_id)
 

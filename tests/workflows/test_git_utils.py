@@ -613,6 +613,15 @@ class TestGetGitDiffSummary:
 
         assert result == ""
 
+    def test_handles_timeout(self) -> None:
+        """Test graceful handling of subprocess timeout."""
+        with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
+
+            result = get_git_diff_summary()
+
+        assert result == ""
+
     def test_falls_back_to_cached(self) -> None:
         """Test fallback to staged changes."""
         with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
@@ -623,7 +632,11 @@ class TestGetGitDiffSummary:
 
             result = get_git_diff_summary()
 
-        assert "staged" in result
+        assert "staged.py | 1 +" in result
+        assert "diff staged content" in result
+        stat_pos = result.index("staged.py | 1 +")
+        diff_pos = result.index("diff staged content")
+        assert stat_pos < diff_pos
 
     def test_handles_exception(self) -> None:
         """Test graceful handling of exceptions."""

@@ -222,7 +222,7 @@ class CloneGitManager:
                 success=False,
                 message="Git clone timed out",
             )
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             # Clean up partial clone
             if clone_path.exists():
                 shutil.rmtree(clone_path, ignore_errors=True)
@@ -305,7 +305,7 @@ class CloneGitManager:
                 success=False,
                 message="Git clone timed out",
             )
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             # Clean up partial clone
             if clone_path.exists():
                 shutil.rmtree(clone_path, ignore_errors=True)
@@ -379,7 +379,7 @@ class CloneGitManager:
                 success=False,
                 message="Git sync timed out",
             )
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             return GitOperationResult(
                 success=False,
                 message=f"Error syncing clone: {e}",
@@ -427,7 +427,7 @@ class CloneGitManager:
                 message=f"Deleted clone at {clone_path}",
             )
 
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             return GitOperationResult(
                 success=False,
                 message=f"Error deleting clone: {e}",

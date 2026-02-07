@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.task_readiness import _get_ready_descendants
-from gobby.storage.tasks import TaskNotFoundError
+from gobby.storage.tasks import Task, TaskNotFoundError
 
 from .utils import get_current_project_id
 
@@ -723,7 +723,7 @@ def register_orchestrator(
     )
 
 
-def _build_task_prompt(task: Any) -> str:
+def _build_task_prompt(task: Task) -> str:
     """Build a prompt for a task agent."""
     prompt_parts = [
         f"# Task: {task.title}",

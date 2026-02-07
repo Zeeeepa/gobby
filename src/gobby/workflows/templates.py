@@ -50,7 +50,7 @@ class TemplateEngine:
             # Fallback to original string or raise?
             # For workflows, it might be better to fail typically, but let's return error message in string for visibility if strict validation isn't on.
             # actually, better to raise so the action fails and handles it.
-            raise e
+            raise
 
     def render_file(self, template_name: str, context: dict[str, Any]) -> str:
         """
@@ -61,4 +61,4 @@ class TemplateEngine:
             return str(template.render(**context))
         except Exception as e:
             logger.error(f"Error rendering template file '{template_name}': {e}", exc_info=True)
-            raise e
+            raise

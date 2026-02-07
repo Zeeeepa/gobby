@@ -552,7 +552,9 @@ def create_worktrees_registry(
                 if mgr:
                     resolved_git_mgr = mgr
             except Exception as e:
-                logger.debug(f"Failed to resolve project context for project_path={project_path}: {e}")
+                logger.debug(
+                    f"Failed to resolve project context for project_path={project_path}: {e}"
+                )
 
         # Check if worktree path exists
         worktree_exists = Path(worktree.worktree_path).exists()
