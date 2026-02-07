@@ -265,7 +265,7 @@ async def test_memory_recall_relevant_with_prompt(
     mock_mem_services["memory_manager"].recall.assert_called_once()
     call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
     assert call_kwargs["query"] == "How do I write tests for this project?"
-    assert call_kwargs["use_semantic"] is True
+    assert call_kwargs["search_mode"] == "auto"
 
 
 @pytest.mark.asyncio
