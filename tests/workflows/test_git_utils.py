@@ -11,6 +11,7 @@ import pytest
 
 from gobby.workflows.git_utils import (
     get_file_changes,
+    get_git_diff_summary,
     get_git_status,
     get_recent_git_commits,
 )
@@ -573,3 +574,62 @@ class TestEdgeCases:
 
             assert "old_name.py" in result
             assert "new_name.py" in result
+
+
+class TestGetGitDiffSummary:
+    """Tests for get_git_diff_summary."""
+
+    def test_returns_stat_and_diff(self) -> None:
+        """Test that both stat and diff are returned."""
+        with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
+            stat_result = MagicMock(stdout=" file.py | 2 +-\n 1 file changed", returncode=0)
+            diff_result = MagicMock(stdout="diff --git a/file.py\n+new line", returncode=0)
+            mock_run.side_effect = [stat_result, diff_result]
+
+            result = get_git_diff_summary()
+
+        assert "### Diff Summary" in result
+        assert "### Actual Changes" in result
+        assert "file.py" in result
+
+    def test_truncates_long_diff(self) -> None:
+        """Test that long diffs are truncated."""
+        with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
+            stat_result = MagicMock(stdout="file.py | 2 +-", returncode=0)
+            diff_result = MagicMock(stdout="x" * 10000, returncode=0)
+            mock_run.side_effect = [stat_result, diff_result]
+
+            result = get_git_diff_summary(max_chars=1000)
+
+        assert "truncated" in result
+        assert "x" * 1000 in result
+
+    def test_returns_empty_when_no_changes(self) -> None:
+        """Test empty string when no changes."""
+        with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="", returncode=0)
+
+            result = get_git_diff_summary()
+
+        assert result == ""
+
+    def test_falls_back_to_cached(self) -> None:
+        """Test fallback to staged changes."""
+        with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
+            empty = MagicMock(stdout="", returncode=0)
+            cached_stat = MagicMock(stdout="staged.py | 1 +", returncode=0)
+            cached_diff = MagicMock(stdout="diff staged content", returncode=0)
+            mock_run.side_effect = [empty, empty, cached_diff, cached_stat]
+
+            result = get_git_diff_summary()
+
+        assert "staged" in result
+
+    def test_handles_exception(self) -> None:
+        """Test graceful handling of exceptions."""
+        with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
+            mock_run.side_effect = Exception("git not found")
+
+            result = get_git_diff_summary()
+
+        assert result == ""

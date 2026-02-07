@@ -103,6 +103,73 @@ def get_file_changes() -> str:
         return "Unable to determine file changes"
 
 
+def get_git_diff_summary(max_chars: int = 8000) -> str:
+    """Get git diff --stat + truncated diff content.
+
+    Provides actual code change context beyond just file names.
+    Falls back to staged changes if HEAD diff is empty.
+
+    Args:
+        max_chars: Maximum characters for the diff content
+
+    Returns:
+        Formatted markdown with stat overview + truncated diff
+    """
+    try:
+        # Get stat overview
+        stat_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+            ["git", "diff", "HEAD", "--stat"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        stat_output = stat_result.stdout.strip()
+
+        # Get actual diff content
+        diff_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+            ["git", "diff", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        diff_output = diff_result.stdout.strip()
+
+        # Fall back to staged changes if HEAD diff is empty
+        if not diff_output:
+            diff_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+                ["git", "diff", "--cached"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            diff_output = diff_result.stdout.strip()
+            if not stat_output:
+                stat_result = subprocess.run(  # nosec B603 B607 - hardcoded git command
+                    ["git", "diff", "--cached", "--stat"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                stat_output = stat_result.stdout.strip()
+
+        if not stat_output and not diff_output:
+            return ""
+
+        sections = []
+        if stat_output:
+            sections.append(f"### Diff Summary\n```\n{stat_output}\n```")
+
+        if diff_output:
+            if len(diff_output) > max_chars:
+                diff_output = diff_output[:max_chars] + f"\n\n... (truncated, {len(diff_output) - max_chars} chars omitted)"
+            sections.append(f"### Actual Changes\n```diff\n{diff_output}\n```")
+
+        return "\n\n".join(sections)
+
+    except Exception:
+        return ""
+
+
 def get_dirty_files(project_path: str | None = None) -> set[str]:
     """
     Get the set of dirty files from git status --porcelain.
