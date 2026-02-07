@@ -1149,7 +1149,7 @@ class TestDetectTaskClaim:
         )
 
         # Should stop after max_depth=3 iterations
-        messages = await workflow_engine._auto_transition_chain(
+        await workflow_engine._auto_transition_chain(
             state,
             workflow,
             {},

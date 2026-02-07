@@ -11,8 +11,9 @@ pytestmark = pytest.mark.unit
 
 class TestBuildCliCommand:
     def test_claude_basic(self):
+        # Default mode is "terminal" — no -p flag (allows multi-turn interaction)
         cmd = build_cli_command("claude", prompt="hello")
-        assert cmd == ["claude", "-p", "hello"]
+        assert cmd == ["claude", "hello"]
 
     def test_claude_terminal_mode(self):
         cmd = build_cli_command("claude", prompt="hello", mode="terminal")

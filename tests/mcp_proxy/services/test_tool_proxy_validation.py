@@ -713,7 +713,7 @@ class TestCallToolBlockedToolsEnforcement:
         mock_tool_filter.is_tool_allowed.return_value = (True, None)
         mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True, "data": "result"})
 
-        result = await tool_proxy_with_filter.call_tool(
+        await tool_proxy_with_filter.call_tool(
             server_name="test-server",
             tool_name="Read",
             arguments={"file": "test.py"},
@@ -730,7 +730,7 @@ class TestCallToolBlockedToolsEnforcement:
         """Verify filter is not checked when session_id is not provided."""
         mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
 
-        result = await tool_proxy_with_filter.call_tool(
+        await tool_proxy_with_filter.call_tool(
             server_name="test-server",
             tool_name="Edit",
             arguments={"file": "test.py"},
@@ -753,7 +753,7 @@ class TestCallToolBlockedToolsEnforcement:
         )
         mock_mcp_manager.call_tool = AsyncMock(return_value={"success": True})
 
-        result = await proxy.call_tool(
+        await proxy.call_tool(
             server_name="test-server",
             tool_name="Edit",
             arguments={"file": "test.py"},
