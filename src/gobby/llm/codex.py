@@ -191,7 +191,7 @@ class CodexProvider(LLMProvider):
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=4000,
+                max_tokens=8000,
             )
             return response.choices[0].message.content or ""
         except Exception as e:
@@ -254,7 +254,7 @@ class CodexProvider(LLMProvider):
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=4000,
+                max_tokens=8000,
             )
             return response.choices[0].message.content or ""
         except Exception as e:

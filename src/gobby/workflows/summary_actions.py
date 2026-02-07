@@ -11,13 +11,28 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from gobby.workflows.git_utils import get_file_changes, get_git_status
+from gobby.workflows.git_utils import get_file_changes, get_git_diff_summary, get_git_status
 
 if TYPE_CHECKING:
     from gobby.workflows.actions import ActionContext
     from gobby.workflows.templates import TemplateRenderer
 
 logger = logging.getLogger(__name__)
+
+
+def _get_result_truncation_limit(content_str: str) -> int:
+    """Return truncation limit based on content type.
+
+    Errors/test output get 1000 chars for visibility. Default: 200 chars.
+    """
+    error_indicators = ["Error", "error", "ERROR", "Failed", "failed",
+                        "Traceback", "Exception", "FAIL", "AssertionError"]
+    if any(ind in content_str[:500] for ind in error_indicators):
+        return 1000
+    test_indicators = ["pytest", "PASSED", "FAILED", "test_", "npm test"]
+    if any(ind in content_str[:500] for ind in test_indicators):
+        return 1000
+    return 200
 
 
 def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
@@ -76,8 +91,9 @@ def _format_gemini_turn(turn: dict[str, Any], event_type: str) -> tuple[str | No
         tool_name = turn.get("tool_name", "")
         output = turn.get("output") or turn.get("result", "")
         output_str = str(output)
-        preview = output_str[:100]
-        suffix = "..." if len(output_str) > 100 else ""
+        limit = _get_result_truncation_limit(output_str)
+        preview = output_str[:limit]
+        suffix = "..." if len(output_str) > limit else ""
         return "tool", f"[Result{' from ' + tool_name if tool_name else ''}]: {preview}{suffix}"
 
     elif event_type in ("init", "result"):
@@ -119,75 +135,13 @@ def _format_claude_turn(turn: dict[str, Any]) -> tuple[str, str]:
                                 extracted.append(str(item))
                         result_content = " ".join(extracted)
                     content_str = str(result_content)
-                    preview = content_str[:100]
-                    suffix = "..." if len(content_str) > 100 else ""
+                    limit = _get_result_truncation_limit(content_str)
+                    preview = content_str[:limit]
+                    suffix = "..." if len(content_str) > limit else ""
                     text_parts.append(f"[Result: {preview}{suffix}]")
         content = " ".join(text_parts)
 
     return role, str(content)
-
-
-def extract_todowrite_state(turns: list[dict[str, Any]]) -> str:
-    """Extract the last TodoWrite tool call's todos list from transcript.
-
-    Scans turns in reverse to find the most recent TodoWrite tool call
-    and formats it as a markdown checklist.
-
-    Handles both Claude Code format (nested message.content) and
-    Gemini CLI format (flat type/tool_name/parameters).
-
-    Args:
-        turns: List of transcript turns
-
-    Returns:
-        Formatted markdown string with todo list, or empty string if not found
-    """
-    for turn in reversed(turns):
-        # Check Gemini CLI format: flat structure with type="tool_use"
-        event_type = turn.get("type")
-        if event_type == "tool_use":
-            tool_name = turn.get("tool_name") or turn.get("function_name", "")
-            if tool_name == "TodoWrite":
-                tool_input = turn.get("parameters") or turn.get("args") or turn.get("input", {})
-                todos = tool_input.get("todos", [])
-                return _format_todos(todos)
-
-        # Check Claude Code format: nested message.content
-        message = turn.get("message", {})
-        content = message.get("content", [])
-
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    if block.get("name") == "TodoWrite":
-                        tool_input = block.get("input", {})
-                        todos = tool_input.get("todos", [])
-                        return _format_todos(todos)
-
-    return ""
-
-
-def _format_todos(todos: list[dict[str, Any]]) -> str:
-    """Format todos list as markdown checklist."""
-    if not todos:
-        return ""
-
-    lines: list[str] = []
-    for todo in todos:
-        content_text = todo.get("content", "")
-        status = todo.get("status", "pending")
-
-        # Map status to checkbox style
-        if status == "completed":
-            checkbox = "[x]"
-        elif status == "in_progress":
-            checkbox = "[>]"
-        else:
-            checkbox = "[ ]"
-
-        lines.append(f"- {checkbox} {content_text}")
-
-    return "\n".join(lines)
 
 
 async def synthesize_title(
@@ -339,7 +293,7 @@ async def generate_summary(
         # recent turns since the last /clear and let the prompt control summarization
         # density. The mode parameter is passed to the LLM context where the template
         # can adjust output format (e.g., compact mode may instruct denser summaries).
-        recent_turns = transcript_processor.extract_turns_since_clear(turns, max_turns=50)
+        recent_turns = transcript_processor.extract_turns_since_clear(turns, max_turns=100)
 
         # Format turns for LLM
         transcript_summary = format_turns_for_llm(recent_turns)
@@ -354,9 +308,7 @@ async def generate_summary(
     # Get git status and file changes
     git_status = get_git_status()
     file_changes = get_file_changes()
-
-    # Extract TodoWrite state from transcript
-    todo_list = extract_todowrite_state(recent_turns)
+    git_diff_summary = get_git_diff_summary()
 
     # 3. Call LLM
     try:
@@ -367,7 +319,8 @@ async def generate_summary(
             "last_messages": last_messages_str,
             "git_status": git_status,
             "file_changes": file_changes,
-            "todo_list": f"## Agent's TODO List\n{todo_list}" if todo_list else "",
+            "git_diff_summary": git_diff_summary,
+            "todo_list": "",
             "previous_summary": previous_summary or "",
             "mode": mode,
         }
