@@ -89,7 +89,7 @@ async def test_unsubscribe_all(mock_config, mock_mcp_manager):
 async def test_broadcast_filtering(mock_config, mock_mcp_manager):
     server = WebSocketServer(mock_config, mock_mcp_manager)
 
-    # Client 1: No subscription (should receive everything)
+    # Client 1: No subscription (should receive nothing after deprecation cleanup)
     ws1 = MockWebSocket("client1")
     server.clients[ws1] = {"id": "1"}
 
@@ -103,26 +103,34 @@ async def test_broadcast_filtering(mock_config, mock_mcp_manager):
     ws3.subscriptions = {"event2"}
     server.clients[ws3] = {"id": "3"}
 
+    # Client 4: Subscribed to wildcard (receives everything)
+    ws4 = MockWebSocket("client4")
+    ws4.subscriptions = {"*"}
+    server.clients[ws4] = {"id": "4"}
+
     # 1. Broadcast event1
     msg1 = {"type": "hook_event", "event_type": "event1"}
     await server.broadcast(msg1)
 
-    assert len(ws1.sent_messages) == 1
+    assert len(ws1.sent_messages) == 0  # No subscriptions = receive nothing
     assert len(ws2.sent_messages) == 1
     assert len(ws3.sent_messages) == 0
+    assert len(ws4.sent_messages) == 1  # Wildcard receives everything
 
     # 2. Broadcast event2
     msg2 = {"type": "hook_event", "event_type": "event2"}
     await server.broadcast(msg2)
 
-    assert len(ws1.sent_messages) == 2
+    assert len(ws1.sent_messages) == 0
     assert len(ws2.sent_messages) == 1
     assert len(ws3.sent_messages) == 1
+    assert len(ws4.sent_messages) == 2
 
-    # 3. Broadcast system message (no event_type)
+    # 3. Broadcast system message (no event_type, not hook_event or session_message)
     msg3 = {"type": "system_message"}
     await server.broadcast(msg3)
 
-    assert len(ws1.sent_messages) == 3
-    assert len(ws2.sent_messages) == 2
+    assert len(ws1.sent_messages) == 0  # Still receives nothing
+    assert len(ws2.sent_messages) == 2  # Non-hook/non-session messages pass through for subscribed clients
     assert len(ws3.sent_messages) == 2
+    assert len(ws4.sent_messages) == 3

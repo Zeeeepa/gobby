@@ -8,6 +8,9 @@ provider: claude
 isolation: null  # No isolation by default
 sandbox: null  # No sandbox by default
 base_branch: main
-workflow: generic
+workflows:
+  generic:
+    file: generic.yaml
+default_workflow: generic
 timeout: 120.0
 max_turns: 10

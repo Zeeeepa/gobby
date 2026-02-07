@@ -723,9 +723,9 @@ class TestGeminiTranscriptParser:
         return GeminiTranscriptParser()
 
     def test_gemini_parser_generic_message(self, parser) -> None:
-        # Test simple user message
+        # Test simple user message via type-based format
         line = json.dumps(
-            {"role": "user", "content": "Hello world", "timestamp": "2023-01-01T12:00:00Z"}
+            {"type": "message", "role": "user", "content": "Hello world", "timestamp": "2023-01-01T12:00:00Z"}
         )
 
         msg = parser.parse_line(line, 0)
@@ -736,9 +736,9 @@ class TestGeminiTranscriptParser:
         assert msg.timestamp.year == 2023
 
     def test_gemini_parser_model_response(self, parser) -> None:
-        # Test model response
+        # Test model response via type-based format
         line = json.dumps(
-            {"role": "model", "content": "I am Gemini", "timestamp": "2023-01-01T12:00:01Z"}
+            {"type": "message", "role": "model", "content": "I am Gemini", "timestamp": "2023-01-01T12:00:01Z"}
         )
 
         msg = parser.parse_line(line, 1)
@@ -746,8 +746,8 @@ class TestGeminiTranscriptParser:
         assert msg.role == "assistant"  # Normalized
         assert msg.content == "I am Gemini"
 
-    def test_gemini_parser_nested_message_structure(self, parser) -> None:
-        # Test nested message structure often seen in Google APIs
+    def test_gemini_parser_nested_message_structure_skipped(self, parser) -> None:
+        # Legacy nested message structure without type field is now skipped
         line = json.dumps(
             {
                 "message": {"role": "user", "content": "Nested content"},
@@ -756,13 +756,11 @@ class TestGeminiTranscriptParser:
         )
 
         msg = parser.parse_line(line, 2)
-        assert msg is not None
-        assert msg.role == "user"
-        assert msg.content == "Nested content"
+        assert msg is None
 
     def test_gemini_parser_list_content(self, parser) -> None:
-        # Test content as list of parts
-        line = json.dumps({"role": "model", "content": [{"text": "Part 1"}, "Part 2"]})
+        # Test content as list of parts via type-based format
+        line = json.dumps({"type": "model", "content": [{"text": "Part 1"}, "Part 2"]})
 
         msg = parser.parse_line(line, 3)
         assert msg is not None
@@ -800,18 +798,24 @@ class TestGeminiTranscriptParser:
         assert msg.role == "assistant"
 
     def test_gemini_parse_line_tool_result(self, parser) -> None:
-        """Test parsing tool_result message."""
-        line = json.dumps({"tool_result": {"output": "some result"}})
+        """Test parsing tool_result event."""
+        line = json.dumps({
+            "type": "tool_result",
+            "tool_name": "read_file",
+            "output": "some result",
+            "status": "success",
+        })
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.role == "tool"
-        assert "output" in msg.content
+        assert msg.content_type == "tool_result"
+        assert "some result" in msg.content
 
     def test_gemini_parse_line_function_call(self, parser) -> None:
-        """Test parsing functionCall in content."""
+        """Test parsing functionCall in content via type-based format."""
         line = json.dumps(
             {
-                "role": "model",
+                "type": "model",
                 "content": [
                     {"text": "Let me call a function"},
                     {"functionCall": {"name": "read_file", "args": {"path": "test.txt"}}},
@@ -826,12 +830,12 @@ class TestGeminiTranscriptParser:
         assert "Let me call a function" in msg.content
 
     def test_gemini_extract_last_messages(self, parser) -> None:
-        """Test extract_last_messages."""
+        """Test extract_last_messages with type-based format."""
         turns = [
-            {"role": "user", "content": "1"},
-            {"role": "model", "content": "2"},
-            {"role": "user", "content": "3"},
-            {"role": "model", "content": "4"},
+            {"type": "message", "role": "user", "content": "1"},
+            {"type": "message", "role": "model", "content": "2"},
+            {"type": "message", "role": "user", "content": "3"},
+            {"type": "message", "role": "model", "content": "4"},
         ]
 
         msgs = parser.extract_last_messages(turns, num_pairs=1)
@@ -844,8 +848,8 @@ class TestGeminiTranscriptParser:
     def test_gemini_extract_last_messages_list_content(self, parser) -> None:
         """Test extract_last_messages with list content."""
         turns = [
-            {"role": "user", "content": ["part1", "part2"]},
-            {"role": "model", "content": [{"text": "response"}]},
+            {"type": "message", "role": "user", "content": ["part1", "part2"]},
+            {"type": "message", "role": "model", "content": [{"text": "response"}]},
         ]
 
         msgs = parser.extract_last_messages(turns, num_pairs=1)
@@ -853,17 +857,15 @@ class TestGeminiTranscriptParser:
         assert "part1" in msgs[0]["content"]
         assert "part2" in msgs[0]["content"]
 
-    def test_gemini_extract_last_messages_nested_message(self, parser) -> None:
-        """Test extract_last_messages with nested message structure."""
+    def test_gemini_extract_last_messages_nested_message_skipped(self, parser) -> None:
+        """Test extract_last_messages skips legacy nested message structure."""
         turns = [
             {"message": {"role": "user", "content": "nested user"}},
             {"message": {"role": "assistant", "content": "nested assistant"}},
         ]
 
         msgs = parser.extract_last_messages(turns, num_pairs=1)
-        assert len(msgs) == 2
-        assert msgs[0]["content"] == "nested user"
-        assert msgs[1]["content"] == "nested assistant"
+        assert len(msgs) == 0  # Legacy format is now skipped
 
     def test_gemini_extract_turns_since_clear(self, parser) -> None:
         """Test extract_turns_since_clear."""
@@ -884,9 +886,9 @@ class TestGeminiTranscriptParser:
     def test_gemini_parse_lines(self, parser) -> None:
         """Test batch parsing with parse_lines."""
         lines = [
-            json.dumps({"role": "user", "content": "First"}),
+            json.dumps({"type": "message", "role": "user", "content": "First"}),
             "",  # Empty line
-            json.dumps({"role": "model", "content": "Second"}),
+            json.dumps({"type": "message", "role": "model", "content": "Second"}),
         ]
 
         msgs = parser.parse_lines(lines, start_index=0)
@@ -900,6 +902,7 @@ class TestGeminiTranscriptParser:
         """Test _extract_usage with usageMetadata."""
         line = json.dumps(
             {
+                "type": "message",
                 "role": "model",
                 "content": "Response",
                 "usageMetadata": {
@@ -916,7 +919,7 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_extract_usage_no_usage(self, parser) -> None:
         """Test _extract_usage returns None without usageMetadata."""
-        line = json.dumps({"role": "model", "content": "Response"})
+        line = json.dumps({"type": "message", "role": "model", "content": "Response"})
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.usage is None
@@ -925,6 +928,7 @@ class TestGeminiTranscriptParser:
         """Test handling of invalid timestamp format."""
         line = json.dumps(
             {
+                "type": "message",
                 "role": "user",
                 "content": "Hello",
                 "timestamp": "invalid-date",
@@ -937,7 +941,7 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_content_none(self, parser) -> None:
         """Test handling of None content."""
-        line = json.dumps({"role": "user", "content": None})
+        line = json.dumps({"type": "message", "role": "user", "content": None})
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.content == ""

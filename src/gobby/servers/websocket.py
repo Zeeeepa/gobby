@@ -886,28 +886,18 @@ class WebSocketServer:
 
         for websocket in list(self.clients.keys()):
             try:
-                # Filter logic
+                # Filter by subscription: clients must subscribe to receive events
+                subs = getattr(websocket, "subscriptions", None)
+                if subs is None:
+                    # No subscriptions = receive nothing
+                    continue
+
                 if is_hook_event:
-                    # If subscriptions are present, we MUST match.
-                    # If NO subscriptions present, we default to sending everything (backward compatibility)
-                    subs = getattr(websocket, "subscriptions", None)
-                    if subs is not None:
-                        # Filtering active
-                        if event_type not in subs and "*" not in subs:
-                            continue
-
-                # Session Message Logic
+                    if event_type not in subs and "*" not in subs:
+                        continue
                 elif message.get("type") == "session_message":
-                    # Only send to clients subscribed to "session_message" or "*"
-                    # If NO subscriptions present (None), we invoke backward compat logic?
-                    # Actually for new feature session_message, let's say:
-                    # If subscriptions is None => Receive All (simple tools)
-                    # If subscriptions is set => Must include "session_message" or "*"
-
-                    subs = getattr(websocket, "subscriptions", None)
-                    if subs is not None:
-                        if "session_message" not in subs and "*" not in subs:
-                            continue
+                    if "session_message" not in subs and "*" not in subs:
+                        continue
 
                 await websocket.send(message_str)
                 sent_count += 1

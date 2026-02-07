@@ -177,10 +177,11 @@ def spawn_agent(
     daemon_url = get_daemon_url()
 
     arguments = {
-        "clone_id": clone_id,
         "prompt": prompt,
         "parent_session_id": parent_session_id,
         "mode": mode,
+        "isolation": "clone",
+        "clone_id": clone_id,
     }
 
     if workflow:
@@ -188,7 +189,7 @@ def spawn_agent(
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/gobby-clones/tools/spawn_agent_in_clone",
+            f"{daemon_url}/mcp/gobby-agents/tools/spawn_agent",
             json=arguments,
             timeout=60.0,
         )

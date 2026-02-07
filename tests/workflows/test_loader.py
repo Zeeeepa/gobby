@@ -1174,8 +1174,6 @@ steps:
 
     blocked_tools:
       - spawn_agent
-      - spawn_agent_in_worktree
-      - spawn_agent_in_clone
 
     transitions:
       - to: complete
@@ -1259,7 +1257,6 @@ steps:
     blocked_tools:
       - spawn_agent
 
-
     transitions:
       - to: complete
         when: "done"
@@ -1299,9 +1296,6 @@ steps:
     blocked_tools:
       - spawn_agent
 
-      - spawn_agent_in_worktree
-      - spawn_agent_in_clone
-
     transitions:
       - to: complete
         when: "done"
@@ -1319,9 +1313,6 @@ steps:
         work_step = next(s for s in wf.steps if s.name == "work")
         # Check blocked tools prevent recursive spawning
         assert "spawn_agent" in work_step.blocked_tools
-
-        assert "spawn_agent_in_worktree" in work_step.blocked_tools
-        assert "spawn_agent_in_clone" in work_step.blocked_tools
 
 
 class TestMtimeCacheInvalidation:

@@ -30,7 +30,7 @@ class TestAgentDefinition:
         assert agent.model == "haiku"
         assert agent.mode == "headless"
         assert agent.lifecycle_variables == {}  # Default empty dict
-        assert agent.workflow is None
+        assert agent.workflows is None
 
     def test_lifecycle_variables(self) -> None:
         """Test lifecycle variables validation."""
@@ -336,7 +336,8 @@ class TestGenericAgentDefinition:
             "provider": "claude",
             "isolation": None,
             "base_branch": "main",
-            "workflow": "generic",
+            "workflows": {"generic": {"file": "generic.yaml"}},
+            "default_workflow": "generic",
             "timeout": 120.0,
             "max_turns": 10,
         }
@@ -361,7 +362,8 @@ class TestGenericAgentDefinition:
             "mode": "terminal",
             "provider": "claude",
             "base_branch": "main",
-            "workflow": "generic",
+            "workflows": {"generic": {"file": "generic.yaml"}},
+            "default_workflow": "generic",
             "timeout": 120.0,
             "max_turns": 10,
         }
@@ -377,7 +379,7 @@ class TestGenericAgentDefinition:
             assert agent.name == "generic"
             assert agent.mode == "terminal"
             assert agent.provider == "claude"
-            assert agent.workflow == "generic"
+            assert agent.get_effective_workflow() == "generic"
             assert agent.timeout == 120.0
             assert agent.max_turns == 10
             assert agent.base_branch == "main"
@@ -390,7 +392,8 @@ class TestGenericAgentDefinition:
             "name": "generic",
             "mode": "terminal",
             "provider": "claude",
-            "workflow": "generic",
+            "workflows": {"generic": {"file": "generic.yaml"}},
+            "default_workflow": "generic",
         }
 
         with (
@@ -603,27 +606,14 @@ class TestAgentDefinitionWithWorkflows:
         result = agent.get_effective_workflow("some-external-workflow")
         assert result == "some-external-workflow"
 
-    def test_get_effective_workflow_legacy_fallback(self) -> None:
-        """Test get_effective_workflow falls back to legacy workflow field."""
+    def test_get_effective_workflow_no_workflows_returns_none(self) -> None:
+        """Test get_effective_workflow returns None when no workflows configured."""
         agent = AgentDefinition(
-            name="legacy-agent",
-            workflow="old-workflow",
+            name="bare-agent",
         )
 
         result = agent.get_effective_workflow()
-        assert result == "old-workflow"
-
-    def test_backwards_compatible_workflow_field(self) -> None:
-        """Test that legacy workflow field still works."""
-        data: dict[str, Any] = {
-            "name": "legacy-agent",
-            "workflow": "work-task-gemini",
-        }
-        agent = AgentDefinition(**data)
-
-        assert agent.workflow == "work-task-gemini"
-        assert agent.workflows is None
-        assert agent.get_effective_workflow() == "work-task-gemini"
+        assert result is None
 
     def test_get_orchestrator_workflow_with_self_mode(self) -> None:
         """Test detection of orchestrator workflow with mode: self."""

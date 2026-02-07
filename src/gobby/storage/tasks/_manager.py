@@ -445,7 +445,7 @@ class LocalTaskManager:
         """Unlink a commit SHA from a task.
 
         Removes the commit SHA from the task's commits array if present.
-        Handles both normalized and legacy SHA formats via prefix matching.
+        Uses normalized SHA for exact matching.
 
         Args:
             task_id: The task ID to unlink the commit from.

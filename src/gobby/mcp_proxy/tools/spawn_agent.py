@@ -1,12 +1,8 @@
 """
-Unified spawn_agent MCP tool.
+spawn_agent MCP tool.
 
-Consolidates three separate agent spawning tools into one:
-- start_agent
-- spawn_agent_in_worktree
-- spawn_agent_in_clone
-
-One tool: spawn_agent(prompt, agent="generic", isolation="current"|"worktree"|"clone", ...)
+Spawns agents with configurable isolation modes:
+  spawn_agent(prompt, agent="generic", isolation="current"|"worktree"|"clone", ...)
 """
 
 from __future__ import annotations
@@ -178,7 +174,7 @@ async def spawn_agent_impl(
     Core spawn_agent implementation that can be called directly.
 
     This is the internal implementation used by both the spawn_agent MCP tool
-    and the deprecated spawn_agent_in_worktree/spawn_agent_in_clone tools.
+    and the spawn_agent MCP tool registration.
 
     Args:
         prompt: Required - what the agent should do
@@ -238,7 +234,7 @@ async def spawn_agent_impl(
         effective_terminal = agent_def.terminal
 
     # Resolve workflow using agent_def's named workflows map
-    # Resolution order: explicit param > agent's workflows map > legacy workflow field
+    # Resolution order: explicit param > agent's workflows map > default_workflow
     effective_workflow: str | None = None
     if agent_def:
         effective_workflow = agent_def.get_effective_workflow(workflow)
@@ -702,7 +698,7 @@ def create_spawn_agent_registry(
                     }
 
         # Determine effective workflow using agent's named workflows map
-        # Resolution: explicit param > agent's workflows map > legacy workflow field
+        # Resolution: explicit param > agent's workflows map > default_workflow
         effective_workflow: str | None = None
         inline_workflow_spec = None
 

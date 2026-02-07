@@ -39,7 +39,7 @@ class GeminiTranscriptParser:
         """
         Extract last N user<>agent message pairs.
 
-        Handles both Gemini CLI's type-based format and legacy role/content format.
+        Handles Gemini CLI's type-based event format.
         """
         messages: list[dict[str, str]] = []
         for turn in reversed(turns):
@@ -63,9 +63,8 @@ class GeminiTranscriptParser:
                 # Skip tool results for message extraction
                 continue
             else:
-                # Fallback: legacy format with role/content at top level
-                role = turn.get("role") or turn.get("message", {}).get("role")
-                content = turn.get("content") or turn.get("message", {}).get("content")
+                # Unknown event type, skip
+                continue
 
             if role in ["user", "model", "assistant"]:
                 norm_role = "assistant" if role == "model" else role
@@ -175,25 +174,8 @@ class GeminiTranscriptParser:
             return None
 
         else:
-            # Fallback: try legacy format with role/content at top level
-            role = data.get("role")
-            content = data.get("content")
-
-            # Check nested message structure
-            if not role and "message" in data:
-                msg = data["message"]
-                role = msg.get("role")
-                content = msg.get("content")
-
-            # Handle tool_result at top level (legacy)
-            if not role and "tool_result" in data:
-                role = "tool"
-                content_type = "tool_result"
-                content = str(data["tool_result"])
-
-            # If still no role in fallback, skip this line
-            if not role:
-                return None
+            # Unknown event type, skip
+            return None
 
         # Validate role is set - skip lines with missing role
         if not role:

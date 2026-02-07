@@ -308,9 +308,7 @@ Args:
                     prompt_obj = loader.load("handoff/session_end")
                     prompt_template = prompt_obj.content
                 except FileNotFoundError:
-                    # Fall back to config inline prompt (deprecated)
-                    if hasattr(config, "session_summary") and config.session_summary:
-                        prompt_template = getattr(config.session_summary, "prompt", None)
+                    pass
 
                 if not prompt_template:
                     raise ValueError(

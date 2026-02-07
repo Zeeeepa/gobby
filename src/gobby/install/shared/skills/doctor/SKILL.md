@@ -30,8 +30,6 @@ Run security-focused checks: file permissions, plaintext secrets scan, HTTP bind
 
 Run everything: functional tests (phases 1-4 including worktree/clone) plus security audit (phase 5).
 
-Note: `--full` is a deprecated alias for `--all`.
-
 ### `/gobby doctor --cleanup` - Cleanup only
 
 Scan for and remove stale `__diag__` artifacts from previous failed runs.

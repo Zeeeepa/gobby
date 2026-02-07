@@ -100,24 +100,14 @@ class TestAgentConfig:
         assert config.max_turns == 10
         assert config.timeout == 120.0
 
-    def test_get_effective_workflow_prefers_workflow(self) -> None:
-        """get_effective_workflow prefers 'workflow' over 'workflow_name'."""
+    def test_get_effective_workflow_returns_workflow(self) -> None:
+        """get_effective_workflow returns the workflow field."""
         config = AgentConfig(
             prompt="test",
             workflow="new-workflow",
-            workflow_name="old-workflow",
         )
 
         assert config.get_effective_workflow() == "new-workflow"
-
-    def test_get_effective_workflow_fallback(self) -> None:
-        """get_effective_workflow falls back to workflow_name."""
-        config = AgentConfig(
-            prompt="test",
-            workflow_name="legacy-workflow",
-        )
-
-        assert config.get_effective_workflow() == "legacy-workflow"
 
     def test_get_effective_workflow_none(self) -> None:
         """get_effective_workflow returns None when neither set."""
@@ -480,8 +470,8 @@ class TestAgentRunnerTerminalPickupMetadata:
             original_prompt="Simple task",
         )
 
-    def test_prepare_run_uses_legacy_workflow_name(self, runner, mock_session_storage) -> None:
-        """prepare_run uses legacy workflow_name if workflow not specified."""
+    def test_prepare_run_uses_workflow_field(self, runner, mock_session_storage) -> None:
+        """prepare_run passes workflow to session metadata."""
         runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
@@ -500,7 +490,7 @@ class TestAgentRunnerTerminalPickupMetadata:
             parent_session_id="sess-parent",
             project_id="proj-123",
             machine_id="machine-1",
-            workflow_name="legacy-workflow",  # Using legacy field
+            workflow="legacy-workflow",
         )
 
         runner.prepare_run(config)

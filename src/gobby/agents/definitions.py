@@ -115,9 +115,6 @@ class AgentDefinition(BaseModel):
     # Default workflow name (key in workflows map)
     default_workflow: str | None = None
 
-    # Legacy: single workflow reference (for backwards compatibility)
-    workflow: str | None = None
-
     # Lifecycle variables to override parent's lifecycle settings
     lifecycle_variables: dict[str, Any] = Field(default_factory=dict)
 
@@ -155,8 +152,6 @@ class AgentDefinition(BaseModel):
         1. If workflow_name specified and in workflows map -> resolve that spec
         2. If workflow_name specified but NOT in map -> return workflow_name (external ref)
         3. If no workflow_name -> check default_workflow in workflows map
-        4. Fallback to legacy `workflow` field
-
         Args:
             workflow_name: Explicit workflow name parameter
 
@@ -187,8 +182,7 @@ class AgentDefinition(BaseModel):
             else:
                 return f"{self.name}:{self.default_workflow}"
 
-        # Fallback to legacy workflow field
-        return self.workflow
+        return None
 
     def get_effective_mode(
         self, workflow_name: str | None = None

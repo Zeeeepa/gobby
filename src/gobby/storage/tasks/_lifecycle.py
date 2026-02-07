@@ -226,7 +226,7 @@ def unlink_commit(
     """Unlink a commit SHA from a task.
 
     Removes the commit SHA from the task's commits array if present.
-    Handles both normalized and legacy SHA formats via prefix matching.
+    Uses normalized SHA for exact matching.
 
     Args:
         db: Database protocol instance
@@ -242,23 +242,19 @@ def unlink_commit(
     """
     from gobby.utils.git import normalize_commit_sha
 
-    # Try to normalize - if it fails, fall back to prefix matching
+    # Normalize SHA to dynamic short format
     normalized_sha = normalize_commit_sha(commit_sha, cwd=cwd)
 
     task = get_task(db, task_id)  # Raises if not found
     commits = task.commits or []
 
-    # Find matching commit (handle both normalized and legacy SHAs)
+    # Find matching commit by exact normalized SHA
     sha_to_remove = None
-    for stored_sha in commits:
-        # Exact match with normalized SHA
-        if normalized_sha and stored_sha == normalized_sha:
-            sha_to_remove = stored_sha
-            break
-        # Prefix matching for legacy mixed-format data
-        if stored_sha.startswith(commit_sha) or commit_sha.startswith(stored_sha):
-            sha_to_remove = stored_sha
-            break
+    if normalized_sha:
+        for stored_sha in commits:
+            if stored_sha == normalized_sha:
+                sha_to_remove = stored_sha
+                break
 
     if sha_to_remove:
         commits.remove(sha_to_remove)

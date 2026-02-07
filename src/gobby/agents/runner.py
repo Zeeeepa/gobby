@@ -93,10 +93,6 @@ class AgentConfig:
     timeout: float = 120.0
     """Execution timeout in seconds."""
 
-    # Legacy/internal fields (kept for compatibility)
-    workflow_name: str | None = None
-    """Deprecated: use 'workflow' instead. Kept for backward compatibility."""
-
     system_prompt: str | None = None
     """Optional system prompt override."""
 
@@ -116,8 +112,8 @@ class AgentConfig:
     """Whether context was successfully injected into the prompt."""
 
     def get_effective_workflow(self) -> str | None:
-        """Get the workflow name, preferring 'workflow' over legacy 'workflow_name'."""
-        return self.workflow or self.workflow_name
+        """Get the workflow name."""
+        return self.workflow
 
 
 @dataclass
@@ -309,7 +305,7 @@ class AgentRunner:
                 # 3. Merge lifecycle_variables
 
                 if not config.workflow:
-                    config.workflow = agent_def.workflow
+                    config.workflow = agent_def.get_effective_workflow()
 
                 if not config.model:
                     config.model = agent_def.model

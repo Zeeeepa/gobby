@@ -310,7 +310,6 @@ class MemoryManager:
         limit: int = 10,
         min_importance: float | None = None,
         memory_type: str | None = None,
-        use_semantic: bool | None = None,
         search_mode: str | None = None,
         tags_all: list[str] | None = None,
         tags_any: list[str] | None = None,
@@ -328,7 +327,6 @@ class MemoryManager:
             limit: Maximum memories to return
             min_importance: Minimum importance threshold
             memory_type: Filter by memory type
-            use_semantic: Use semantic search (deprecated, use search_mode instead)
             search_mode: Search mode - "auto" (default), "tfidf", "openai", "hybrid", "text"
             tags_all: Memory must have ALL of these tags
             tags_any: Memory must have at least ONE of these tags
@@ -344,7 +342,6 @@ class MemoryManager:
                 project_id=project_id,
                 limit=limit,
                 min_importance=threshold,
-                use_semantic=use_semantic,
                 search_mode=search_mode,
                 tags_all=tags_all,
                 tags_any=tags_any,
@@ -373,7 +370,6 @@ class MemoryManager:
         project_id: str | None = None,
         limit: int = 10,
         min_importance: float | None = None,
-        use_semantic: bool | None = None,
         search_mode: str | None = None,
         tags_all: list[str] | None = None,
         tags_any: list[str] | None = None,
@@ -385,10 +381,6 @@ class MemoryManager:
         Uses the new search backend by default (TF-IDF),
         falling back to legacy semantic search if configured.
         """
-        # Legacy compatibility: use_semantic is deprecated
-        if use_semantic is not None:
-            logger.warning("use_semantic argument is deprecated and ignored")
-
         return self._search_service.search(
             query=query,
             project_id=project_id,

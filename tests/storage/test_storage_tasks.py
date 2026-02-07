@@ -538,20 +538,20 @@ class TestLocalTaskManager:
 
         assert updated.commits == ["commit1"]
 
-    def test_unlink_commit_prefix_matching(self, task_manager, project_id) -> None:
-        """Test unlinking uses prefix matching for legacy data."""
+    def test_unlink_commit_requires_normalized_sha(self, task_manager, project_id) -> None:
+        """Test unlinking requires successful SHA normalization."""
         task = task_manager.create_task(project_id, "Task with commits")
 
         with patch("gobby.utils.git.normalize_commit_sha") as mock_normalize:
             mock_normalize.return_value = "abc1234"
             task_manager.link_commit(task.id, "abc1234")
 
-            # Simulate normalize failing but prefix matching should work
+            # Simulate normalize failing - should NOT remove anything
             mock_normalize.return_value = None
             updated = task_manager.unlink_commit(task.id, "abc1234")
 
-        # Should still unlink via prefix matching
-        assert updated.commits == [] or updated.commits is None
+        # Commit should still be present since normalize returned None
+        assert updated.commits == ["abc1234"]
 
     def test_unlink_commit_from_empty_task(self, task_manager, project_id) -> None:
         """Test unlinking from task with no commits is a no-op."""
