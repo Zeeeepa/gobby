@@ -10,6 +10,7 @@ threading scenarios:
 """
 
 import asyncio
+import concurrent.futures
 import threading
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -748,3 +749,91 @@ class TestThreadingScenarios:
             loop.call_soon_threadsafe(loop.stop)
             t_loop.join()
             loop.close()
+
+
+class TestCancelledErrorHandling:
+    """Tests that CancelledError fails closed for STOP events and open for others."""
+
+    @pytest.fixture
+    def mock_engine(self):
+        """Create a mock workflow engine."""
+        engine = MagicMock()
+        engine.evaluate_all_lifecycle_workflows = AsyncMock(
+            side_effect=concurrent.futures.CancelledError()
+        )
+        engine.handle_event = AsyncMock(
+            side_effect=concurrent.futures.CancelledError()
+        )
+        engine.evaluate_lifecycle_triggers = AsyncMock(
+            side_effect=concurrent.futures.CancelledError()
+        )
+        return engine
+
+    def _make_event(self, event_type: HookEventType) -> HookEvent:
+        return HookEvent(
+            event_type=event_type,
+            session_id="session-cancel",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(),
+            data={},
+        )
+
+    def test_cancelled_error_blocks_stop_handle_all_lifecycles(self, mock_engine) -> None:
+        """CancelledError on STOP event should block (fail-closed)."""
+        event = self._make_event(HookEventType.STOP)
+        with patch("asyncio.run", side_effect=concurrent.futures.CancelledError()):
+            with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+                handler = WorkflowHookHandler(mock_engine)
+                handler._loop = None
+                result = handler.handle_all_lifecycles(event)
+                assert result.decision == "block"
+
+    def test_cancelled_error_allows_non_stop_handle_all_lifecycles(self, mock_engine) -> None:
+        """CancelledError on non-STOP event should allow (fail-open)."""
+        event = self._make_event(HookEventType.BEFORE_TOOL)
+        with patch("asyncio.run", side_effect=concurrent.futures.CancelledError()):
+            with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+                handler = WorkflowHookHandler(mock_engine)
+                handler._loop = None
+                result = handler.handle_all_lifecycles(event)
+                assert result.decision == "allow"
+
+    def test_cancelled_error_blocks_stop_handle(self, mock_engine) -> None:
+        """CancelledError on STOP event should block in handle()."""
+        event = self._make_event(HookEventType.STOP)
+        with patch("asyncio.run", side_effect=concurrent.futures.CancelledError()):
+            with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+                handler = WorkflowHookHandler(mock_engine)
+                handler._loop = None
+                result = handler.handle(event)
+                assert result.decision == "block"
+
+    def test_cancelled_error_allows_non_stop_handle(self, mock_engine) -> None:
+        """CancelledError on non-STOP event should allow in handle()."""
+        event = self._make_event(HookEventType.SESSION_START)
+        with patch("asyncio.run", side_effect=concurrent.futures.CancelledError()):
+            with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+                handler = WorkflowHookHandler(mock_engine)
+                handler._loop = None
+                result = handler.handle(event)
+                assert result.decision == "allow"
+
+    def test_cancelled_error_blocks_stop_handle_lifecycle(self, mock_engine) -> None:
+        """CancelledError on STOP event should block in handle_lifecycle()."""
+        event = self._make_event(HookEventType.STOP)
+        with patch("asyncio.run", side_effect=concurrent.futures.CancelledError()):
+            with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+                handler = WorkflowHookHandler(mock_engine)
+                handler._loop = None
+                result = handler.handle_lifecycle("test-workflow", event)
+                assert result.decision == "block"
+
+    def test_cancelled_error_allows_non_stop_handle_lifecycle(self, mock_engine) -> None:
+        """CancelledError on non-STOP event should allow in handle_lifecycle()."""
+        event = self._make_event(HookEventType.BEFORE_TOOL)
+        with patch("asyncio.run", side_effect=concurrent.futures.CancelledError()):
+            with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+                handler = WorkflowHookHandler(mock_engine)
+                handler._loop = None
+                result = handler.handle_lifecycle("test-workflow", event)
+                assert result.decision == "allow"

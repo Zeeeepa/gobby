@@ -83,6 +83,37 @@ def process_action_result(
     return result.get("system_message")
 
 
+def _persist_state_changes(
+    session_id: str,
+    state: "WorkflowState",
+    state_was_created: bool,
+    vars_snapshot: dict[str, Any] | None,
+    state_manager: "WorkflowStateManager",
+    workflow: "WorkflowDefinition",
+) -> None:
+    """Persist workflow state changes to the database.
+
+    Handles both newly-created states and existing states (via atomic variable merge).
+    Skips persistence for the synthetic "global" session ID.
+    """
+    if session_id == "global":
+        return
+
+    if state_was_created:
+        current_state = state_manager.get_state(session_id)
+        is_step_workflow = (
+            current_state is not None
+            and current_state.workflow_name not in ("__lifecycle__", "__ended__")
+            and current_state.workflow_name != workflow.name
+        )
+        if not is_step_workflow:
+            state_manager.save_state(state)
+    else:
+        changed_vars = _compute_variable_diff(vars_snapshot, state.variables)
+        if changed_vars:
+            state_manager.merge_variables(session_id, changed_vars)
+
+
 async def evaluate_workflow_triggers(
     workflow: "WorkflowDefinition",
     event: HookEvent,
@@ -240,6 +271,9 @@ async def evaluate_workflow_triggers(
 
                 # Check for blocking decision from action
                 if result.get("decision") == "block":
+                    _persist_state_changes(
+                        session_id, state, state_was_created, vars_snapshot, state_manager, workflow
+                    )
                     return HookResponse(
                         decision="block",
                         reason=result.get("reason", "Blocked by action"),
@@ -255,27 +289,7 @@ async def evaluate_workflow_triggers(
 
     # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant,
     # unlocked_tools from track_schema_lookup)
-    # Only save if we have a real session ID (not "global" fallback)
-    # The workflow_states table has a FK to sessions, so we can't save for non-existent sessions
-    if session_id != "global":
-        if state_was_created:
-            # We created a new lifecycle state - check for existing step workflow
-            # to avoid overwriting it with our new lifecycle state.
-            # Step workflows (activated via activate_workflow) have their own workflow_name.
-            current_state = state_manager.get_state(session_id)
-            is_step_workflow = (
-                current_state is not None
-                and current_state.workflow_name not in ("__lifecycle__", "__ended__")
-                and current_state.workflow_name != workflow.name
-            )
-            if not is_step_workflow:
-                state_manager.save_state(state)
-        else:
-            # Existing state: only merge changed variables atomically
-            # to avoid clobbering concurrent evaluations' changes.
-            changed_vars = _compute_variable_diff(vars_snapshot, state.variables)
-            if changed_vars:
-                state_manager.merge_variables(session_id, changed_vars)
+    _persist_state_changes(session_id, state, state_was_created, vars_snapshot, state_manager, workflow)
 
     final_context = "\n\n".join(injected_context) if injected_context else None
     logger.debug(

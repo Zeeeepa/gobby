@@ -507,6 +507,7 @@ class HookManager:
             HookEventType.SESSION_START,
             HookEventType.SESSION_END,
             HookEventType.PRE_COMPACT,
+            HookEventType.STOP,
         }
         retry_delays = [0.5, 1.0, 2.0]  # Exponential backoff
 

@@ -1,9 +1,10 @@
 import asyncio
+import concurrent.futures
 import logging
 import threading
 from typing import TYPE_CHECKING, Any
 
-from gobby.hooks.events import HookEvent, HookResponse
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 if TYPE_CHECKING:
     from .engine import WorkflowEngine
@@ -74,6 +75,11 @@ class WorkflowHookHandler:
                 # No loop running, safe to use asyncio.run
                 return asyncio.run(self.engine.evaluate_all_lifecycle_workflows(event))
 
+        except concurrent.futures.CancelledError:
+            logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
+            if event.event_type == HookEventType.STOP:
+                return HookResponse(decision="block", reason="Workflow evaluation was cancelled; blocking stop for safety.")
+            return HookResponse(decision="allow")
         except Exception as e:
             logger.error(f"Error handling all lifecycle workflows: {e}", exc_info=True)
             return HookResponse(decision="allow")
@@ -125,6 +131,11 @@ class WorkflowHookHandler:
                 # No loop running, safe to use asyncio.run
                 return asyncio.run(self.engine.handle_event(event))
 
+        except concurrent.futures.CancelledError:
+            logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
+            if event.event_type == HookEventType.STOP:
+                return HookResponse(decision="block", reason="Workflow evaluation was cancelled; blocking stop for safety.")
+            return HookResponse(decision="allow")
         except Exception as e:
             logger.error(f"Error handling workflow hook: {e}", exc_info=True)
             return HookResponse(decision="allow")
@@ -164,6 +175,11 @@ class WorkflowHookHandler:
                     self.engine.evaluate_lifecycle_triggers(workflow_name, event, context_data)
                 )
 
+        except concurrent.futures.CancelledError:
+            logger.warning(f"Lifecycle workflow evaluation cancelled for {event.event_type}")
+            if event.event_type == HookEventType.STOP:
+                return HookResponse(decision="block", reason="Workflow evaluation was cancelled; blocking stop for safety.")
+            return HookResponse(decision="allow")
         except Exception as e:
             logger.error(f"Error handling lifecycle workflow: {e}", exc_info=True)
             return HookResponse(decision="allow")
