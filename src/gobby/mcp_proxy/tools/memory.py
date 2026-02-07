@@ -58,12 +58,12 @@ def create_memory_registry(
 
     @registry.tool(
         name="create_memory",
-        description="Create a new memory.",
+        description="Create a new memory. Returns similar existing memories to help detect duplicates.",
     )
     async def create_memory(
         content: str,
         memory_type: str = "fact",
-        importance: float = 0.5,
+        importance: float = 0.8,
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         """
@@ -72,23 +72,45 @@ def create_memory_registry(
         Args:
             content: The memory content to store
             memory_type: Type of memory (fact, preference, etc)
-            importance: Importance score (0.0-1.0)
+            importance: Importance score (0.0-1.0), defaults to 0.8
             tags: Optional list of tags
         """
         try:
+            project_id = get_current_project_id()
             memory = await memory_manager.remember(
                 content=content,
                 memory_type=memory_type,
                 importance=importance,
-                project_id=get_current_project_id(),
+                project_id=project_id,
                 tags=tags,
                 source_type="mcp_tool",
             )
+
+            # Search for similar existing memories to surface potential duplicates
+            similar_existing: list[dict[str, Any]] = []
+            try:
+                similar = memory_manager.recall(
+                    query=content,
+                    project_id=project_id,
+                    limit=4,  # fetch 4 since the new memory itself may appear
+                )
+                for m in similar:
+                    if m.id != memory.id:
+                        similar_existing.append({
+                            "id": m.id,
+                            "content": m.content,
+                            "similarity": getattr(m, "similarity", None),
+                        })
+                similar_existing = similar_existing[:3]
+            except Exception:
+                pass  # Don't fail creation if similarity search fails
+
             return {
                 "success": True,
                 "memory": {
                     "id": memory.id,
                 },
+                "similar_existing": similar_existing,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

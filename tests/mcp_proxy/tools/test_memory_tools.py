@@ -108,7 +108,11 @@ class TestCreateMemory:
 
     @pytest.mark.asyncio
     async def test_create_memory_success(self, memory_registry, mock_memory_manager):
-        """Test successful memory creation."""
+        """Test successful memory creation with similar_existing in response."""
+        mock_memory_manager.recall.return_value = [
+            MockMemory(id="existing-1", content="Similar memory", similarity=0.85),
+        ]
+
         with patch(
             "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
         ):
@@ -120,11 +124,17 @@ class TestCreateMemory:
         assert result["success"] is True
         assert "memory" in result
         assert result["memory"]["id"] == "mem-123"
+        assert "similar_existing" in result
+        assert len(result["similar_existing"]) == 1
+        assert result["similar_existing"][0]["id"] == "existing-1"
+        assert result["similar_existing"][0]["similarity"] == 0.85
         mock_memory_manager.remember.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_memory_with_tags(self, memory_registry, mock_memory_manager):
         """Test memory creation with tags."""
+        mock_memory_manager.recall.return_value = []
+
         with patch(
             "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
         ):
@@ -133,8 +143,53 @@ class TestCreateMemory:
             )
 
         assert result["success"] is True
+        assert result["similar_existing"] == []
         call_kwargs = mock_memory_manager.remember.call_args.kwargs
         assert call_kwargs["tags"] == ["tag1", "tag2"]
+
+    @pytest.mark.asyncio
+    async def test_create_memory_default_importance(self, memory_registry, mock_memory_manager):
+        """Test that default importance is 0.8."""
+        mock_memory_manager.recall.return_value = []
+
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
+            await memory_registry.call("create_memory", {"content": "Test"})
+
+        call_kwargs = mock_memory_manager.remember.call_args.kwargs
+        assert call_kwargs["importance"] == 0.8
+
+    @pytest.mark.asyncio
+    async def test_create_memory_excludes_self_from_similar(self, memory_registry, mock_memory_manager):
+        """Test that the newly created memory is excluded from similar_existing."""
+        # Recall returns the new memory itself plus another
+        mock_memory_manager.recall.return_value = [
+            MockMemory(id="mem-123", content="Test content", similarity=1.0),
+            MockMemory(id="existing-1", content="Similar", similarity=0.9),
+        ]
+
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
+            result = await memory_registry.call("create_memory", {"content": "Test content"})
+
+        assert result["success"] is True
+        assert len(result["similar_existing"]) == 1
+        assert result["similar_existing"][0]["id"] == "existing-1"
+
+    @pytest.mark.asyncio
+    async def test_create_memory_similar_search_failure_nonfatal(self, memory_registry, mock_memory_manager):
+        """Test that similarity search failure doesn't break memory creation."""
+        mock_memory_manager.recall.side_effect = Exception("Search unavailable")
+
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value={"id": "proj-1"}
+        ):
+            result = await memory_registry.call("create_memory", {"content": "Test"})
+
+        assert result["success"] is True
+        assert result["similar_existing"] == []
 
     @pytest.mark.asyncio
     async def test_create_memory_error(self, memory_registry, mock_memory_manager):

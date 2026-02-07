@@ -251,10 +251,7 @@ triggers:
         - artifacts
         - pending_tasks
       prompt: handoff/session_end
-
-    # Memory capture is now agent-driven via proactive-memory skill
-    # Agents save memories during work when they discover valuable insights
-    # The memory_extract action remains available for manual/workflow use
+      write_file: true
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
@@ -297,3 +294,4 @@ triggers:
       when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
       mode: compact
       prompt: handoff/compact
+      write_file: true
