@@ -27,6 +27,10 @@ variables:
   # Reset on compact/clear since context is lost
   unlocked_tools: []
 
+  # Pre-existing error triage - require agents to create tasks for
+  # pre-existing issues (test failures, lint errors, etc.) before stopping
+  pre_existing_errors_triaged: false
+
   # Stop attempt counter for escape hatch
   # After 3 consecutive failed stops, allow force-stop
   stop_attempts: 0
@@ -43,6 +47,17 @@ triggers:
       when: "variables.get('_tool_block_pending') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
       reason: |
         Do not stop. A tool was blocked — follow the instructions in the error message to resolve it, then continue working.
+
+    # Pre-existing error triage enforcement - block stop until agent confirms triage
+    # Only applies when commits were made (agent ran code and could have seen issues)
+    # Uses same escape hatch as other stop gates (3+ consecutive stop attempts)
+    - action: block_stop
+      when: "task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      reason: |
+        You must triage pre-existing issues before stopping.
+        - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
+        - If you found no pre-existing issues, confirm by calling:
+          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
@@ -128,6 +143,20 @@ triggers:
       template: |
         {{ task_context }}
 
+    # Pre-existing error/warning triage policy - inject on all session starts
+    - action: inject_context
+      template: |
+        ## Pre-Existing Error/Warning/Failure Policy
+        *Injected by Gobby session lifecycle*
+
+        If you encounter ANY pre-existing issues during your work — errors,
+        warnings, or failures (test failures, lint errors/warnings, type errors,
+        build failures, deprecation warnings) unrelated to your changes — you
+        MUST create a gobby task for each distinct issue before stopping.
+
+        After triaging all issues (or confirming none were found), call:
+        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
       when: "event.data.get('source') == 'startup'"
@@ -152,6 +181,12 @@ triggers:
     # Clear tool block flag on new user prompt
     - action: set_variable
       name: _tool_block_pending
+      value: false
+
+    # Reset pre-existing error triage flag on each new user prompt
+    # Agents must re-confirm triage status for each interaction
+    - action: set_variable
+      name: pre_existing_errors_triaged
       value: false
 
     # Title synthesis on first prompt
