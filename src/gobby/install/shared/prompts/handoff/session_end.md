@@ -40,7 +40,7 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 [Bullet points referencing specific files, functions, and commits. Each bullet should name the file and describe the specific change.]
 
 ## Key Technical Decisions
-[Decisions and WHY they were made. Reference specific alternatives considered. Use key_decisions from structured data above.]
+[Decisions and WHY they were made. Reference specific alternatives considered. If available, use key_decisions from structured_context above (a list of decision records with rationale); otherwise summarize key decision points from the transcript and git history.]
 
 ## Problems Encountered
 [Errors, failed approaches, exact error messages. Write "None" if none.]

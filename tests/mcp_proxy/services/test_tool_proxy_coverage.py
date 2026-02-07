@@ -853,7 +853,7 @@ class TestProxyNamespaceResolution:
     """Tests for server_name='gobby' auto-resolution."""
 
     @pytest.fixture
-    def mock_mcp_manager(self):
+    def mock_mcp_manager(self) -> MagicMock:
         """Create a mock MCP manager."""
         manager = MagicMock()
         manager.project_id = "test-project"
@@ -862,7 +862,7 @@ class TestProxyNamespaceResolution:
         return manager
 
     @pytest.fixture
-    def mock_internal_manager(self):
+    def mock_internal_manager(self) -> MagicMock:
         """Create a mock internal registry manager."""
         manager = MagicMock()
         manager.is_internal.return_value = False
@@ -870,7 +870,7 @@ class TestProxyNamespaceResolution:
 
     async def test_list_tools_gobby_aggregates_all_internal(
         self, mock_mcp_manager, mock_internal_manager
-    ):
+    ) -> None:
         """Test that list_tools('gobby') aggregates tools from all internal registries."""
         registry1 = MagicMock()
         registry1.list_tools.return_value = [
@@ -898,7 +898,7 @@ class TestProxyNamespaceResolution:
         assert "create_memory" in names
         assert "search_memories" in names
 
-    async def test_list_tools_gobby_no_internal_manager(self, mock_mcp_manager):
+    async def test_list_tools_gobby_no_internal_manager(self, mock_mcp_manager) -> None:
         """Test list_tools('gobby') with no internal manager returns empty."""
         proxy = ToolProxyService(
             mcp_manager=mock_mcp_manager,
@@ -913,7 +913,7 @@ class TestProxyNamespaceResolution:
 
     async def test_list_tools_gobby_with_filter(
         self, mock_mcp_manager, mock_internal_manager
-    ):
+    ) -> None:
         """Test list_tools('gobby') applies workflow phase filtering."""
         registry = MagicMock()
         registry.list_tools.return_value = [
@@ -939,7 +939,7 @@ class TestProxyNamespaceResolution:
 
     async def test_get_tool_schema_gobby_resolves_to_real_server(
         self, mock_mcp_manager, mock_internal_manager
-    ):
+    ) -> None:
         """Test get_tool_schema('gobby', 'create_task') auto-resolves to gobby-tasks."""
         mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
         mock_internal_manager.is_internal.side_effect = (
@@ -965,7 +965,7 @@ class TestProxyNamespaceResolution:
 
     async def test_get_tool_schema_gobby_tool_not_found(
         self, mock_mcp_manager, mock_internal_manager
-    ):
+    ) -> None:
         """Test get_tool_schema('gobby', 'nonexistent') returns helpful error."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -982,7 +982,7 @@ class TestProxyNamespaceResolution:
 
     async def test_call_tool_gobby_resolves_to_real_server(
         self, mock_mcp_manager, mock_internal_manager
-    ):
+    ) -> None:
         """Test call_tool('gobby', 'create_task', ...) auto-resolves to gobby-tasks."""
         mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
         mock_internal_manager.is_internal.side_effect = (
@@ -1007,7 +1007,7 @@ class TestProxyNamespaceResolution:
 
     async def test_call_tool_gobby_tool_not_found(
         self, mock_mcp_manager, mock_internal_manager
-    ):
+    ) -> None:
         """Test call_tool('gobby', 'nonexistent', ...) returns helpful error."""
         mock_internal_manager.find_tool_server.return_value = None
 
@@ -1024,7 +1024,7 @@ class TestProxyNamespaceResolution:
         assert "list_mcp_servers()" in result["error"]
         assert result["error_code"] == "SERVER_NOT_FOUND"
 
-    def test_is_proxy_namespace(self, mock_mcp_manager):
+    def test_is_proxy_namespace(self, mock_mcp_manager) -> None:
         """Test _is_proxy_namespace correctly identifies the proxy namespace."""
         proxy = ToolProxyService(mcp_manager=mock_mcp_manager)
 

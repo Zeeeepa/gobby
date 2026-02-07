@@ -61,12 +61,16 @@ async def handle_shell_run(context: ActionContext, **kwargs: Any) -> dict[str, A
 
     # Fetch project object for template access (e.g., project.name)
     if session and context.db:
-        from gobby.storage.projects import LocalProjectManager
+        try:
+            from gobby.storage.projects import LocalProjectManager
 
-        project_mgr = LocalProjectManager(context.db)
-        project = project_mgr.get(session.project_id)
-        if project:
-            render_context["project"] = project
+            loop = asyncio.get_running_loop()
+            project_mgr = LocalProjectManager(context.db)
+            project = await loop.run_in_executor(None, project_mgr.get, session.project_id)
+            if project:
+                render_context["project"] = project
+        except Exception as e:
+            logger.warning(f"Failed to fetch project for template context: {e}")
 
     try:
         command = context.template_engine.render(command_template, render_context)

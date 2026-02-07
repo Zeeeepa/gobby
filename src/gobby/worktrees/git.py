@@ -249,6 +249,13 @@ class WorktreeGitManager:
                 status = self.get_worktree_status(worktree_path)
                 if status:
                     branch_name = status.branch
+                if not branch_name:
+                    logger.warning(
+                        "Branch deletion skipped: branch_name could not be resolved "
+                        "from get_worktree_status for worktree '%s'",
+                        worktree_path,
+                        extra={"worktree_path": str(worktree_path), "delete_branch": True},
+                    )
 
             # Remove worktree
             args = ["worktree", "remove"]
