@@ -230,10 +230,26 @@ async def _write_summary_file(
         async with aiofiles.open(summary_file, "w", encoding="utf-8") as f:
             await f.write(content)
 
-        logger.info(f"Session summary written to: {summary_file}")
+        logger.info(
+            "Session summary written",
+            extra={
+                "session_id": session_id,
+                "external_id": external_id,
+                "summary_file": str(summary_file),
+                "output_dir": str(summary_dir),
+            },
+        )
         return str(summary_file)
     except Exception as e:
-        logger.error(f"Failed to write summary file: {e}", exc_info=True)
+        logger.error(
+            f"Failed to write summary file: {e}",
+            exc_info=True,
+            extra={
+                "session_id": session_id,
+                "external_id": external_id,
+                "output_dir": str(summary_dir),
+            },
+        )
         return None
 
 

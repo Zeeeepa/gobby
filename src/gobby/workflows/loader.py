@@ -1,8 +1,10 @@
 import asyncio
 import logging
+import threading
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import aiofiles
 import yaml
@@ -13,6 +15,8 @@ if TYPE_CHECKING:
     from gobby.agents.definitions import WorkflowSpec
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -1062,18 +1066,28 @@ class WorkflowLoader:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _run_sync(coro):  # type: ignore[no-untyped-def]
+    def _run_sync(coro: Coroutine[Any, Any, _T]) -> _T:
         """Run a coroutine synchronously, handling both loop and no-loop contexts."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
-        if loop and loop.is_running():
+
+        if loop is None:
+            # No event loop running - safe to use asyncio.run()
+            return asyncio.run(coro)
+
+        if threading.current_thread() is threading.main_thread():
+            # Same-thread with running loop - offload to a new thread
+            # to avoid deadlocking the current loop.
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 return pool.submit(asyncio.run, coro).result()
-        return asyncio.run(coro)
+
+        # Worker thread with loop running elsewhere - schedule on existing loop
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
 
     def load_workflow_sync(
         self,

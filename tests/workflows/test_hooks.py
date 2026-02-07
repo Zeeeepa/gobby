@@ -755,7 +755,7 @@ class TestCancelledErrorHandling:
     """Tests that CancelledError fails closed for STOP events and open for others."""
 
     @pytest.fixture
-    def mock_engine(self):
+    def mock_engine(self) -> MagicMock:
         """Create a mock workflow engine."""
         engine = MagicMock()
         engine.evaluate_all_lifecycle_workflows = AsyncMock(
