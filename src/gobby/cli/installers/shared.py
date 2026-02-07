@@ -48,6 +48,32 @@ def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
         copytree(source, target)
 
 
+def _install_file(source: Path, target: Path, dev_mode: bool, executable: bool = False) -> None:
+    """Install a single file, using symlink in dev mode or copy otherwise.
+
+    In dev mode, creates a symlink from target -> source.
+    In normal mode, copies the file. Symlinks inherit permissions from the
+    source, so chmod is only applied to copies.
+
+    Args:
+        source: Source file path
+        target: Target file path
+        dev_mode: If True, create symlink; if False, copy
+        executable: If True (and not dev_mode), chmod 0o755 after copying
+    """
+    if target.is_symlink():
+        os.unlink(target)
+    elif target.exists():
+        target.unlink()
+
+    if dev_mode:
+        os.symlink(source.resolve(), target)
+    else:
+        copy2(source, target)
+        if executable:
+            target.chmod(0o755)
+
+
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
     """Install shared content from src/install/shared/.
 
@@ -897,7 +923,7 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "transport": "stdio",
         "command": "npx",
         "args": ["-y", "mcp-linear"],
-        "env": {"LINEAR_API_KEY": "${LINEAR_API_KEY}"},
+        "env": {"LINEAR_API_KEY": "${LINEAR_API_KEY}"},  # nosec B105
         "description": "Linear issue tracking integration",
     },
     {
@@ -906,7 +932,7 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "command": "npx",
         "args": ["-y", "@upstash/context7-mcp"],
         # API key args added dynamically if CONTEXT7_API_KEY is set
-        "optional_env_args": {"CONTEXT7_API_KEY": ["--api-key", "${CONTEXT7_API_KEY}"]},
+        "optional_env_args": {"CONTEXT7_API_KEY": ["--api-key", "${CONTEXT7_API_KEY}"]},  # nosec B105
         "description": "Context7 library documentation lookup (set CONTEXT7_API_KEY for private repos)",
     },
 ]

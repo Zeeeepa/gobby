@@ -15,6 +15,8 @@ from typing import Any
 from gobby.cli.utils import get_install_dir
 
 from .shared import (
+    _install_file,
+    _is_dev_mode,
     configure_mcp_server_json,
     install_cli_content,
     install_router_skills_as_gemini_skills,
@@ -69,12 +71,10 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Missing hooks template: {source_hooks_template}"
         return result
 
-    # Copy hook dispatcher
+    # Install hook dispatcher (symlink in dev mode, copy otherwise)
+    dev_mode = _is_dev_mode(project_path)
     target_dispatcher = hooks_dir / "hook_dispatcher.py"
-    if target_dispatcher.exists():
-        target_dispatcher.unlink()
-    copy2(dispatcher_file, target_dispatcher)
-    target_dispatcher.chmod(0o755)
+    _install_file(dispatcher_file, target_dispatcher, dev_mode=dev_mode, executable=True)
 
     # Install shared content (workflows)
     shared = install_shared_content(gemini_path, project_path)

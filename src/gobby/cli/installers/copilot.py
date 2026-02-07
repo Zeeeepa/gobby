@@ -15,7 +15,7 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
-from .shared import install_shared_content
+from .shared import _install_file, _is_dev_mode, install_shared_content
 
 logger = logging.getLogger(__name__)
 
@@ -71,21 +71,16 @@ def install_copilot(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Missing source files: {missing_files}"
         return result
 
-    # Copy hook files
+    # Install hook files (symlink in dev mode, copy otherwise)
     try:
+        dev_mode = _is_dev_mode(project_path)
         for filename, make_executable in hook_files.items():
             source_file = install_hooks_dir / filename
             target_file = hooks_dir / filename
-
-            if target_file.exists():
-                target_file.unlink()
-
-            copy2(source_file, target_file)
-            if make_executable:
-                target_file.chmod(0o755)
+            _install_file(source_file, target_file, dev_mode=dev_mode, executable=make_executable)
     except OSError as e:
-        logger.error(f"Failed to copy hook files: {e}")
-        result["error"] = f"Failed to copy hook files: {e}"
+        logger.error(f"Failed to install hook files: {e}")
+        result["error"] = f"Failed to install hook files: {e}"
         return result
 
     # Install shared content (workflows) to .gobby/

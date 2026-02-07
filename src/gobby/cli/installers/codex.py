@@ -9,12 +9,13 @@ import json
 import logging
 import re
 from pathlib import Path
-from shutil import copy2
 from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
 from .shared import (
+    _install_file,
+    _is_dev_mode,
     configure_mcp_server_toml,
     install_cli_content,
     install_shared_content,
@@ -57,11 +58,8 @@ def install_codex_notify(project_path: Path) -> dict[str, Any]:
     notify_dir.mkdir(parents=True, exist_ok=True)
     target_notify = notify_dir / "hook_dispatcher.py"
 
-    if target_notify.exists():
-        target_notify.unlink()
-
-    copy2(source_notify, target_notify)
-    target_notify.chmod(0o755)
+    dev_mode = _is_dev_mode(project_path)
+    _install_file(source_notify, target_notify, dev_mode=dev_mode, executable=True)
     files_installed.append(str(target_notify))
 
     # Install shared content - workflows to {project_path}/.gobby/

@@ -371,7 +371,7 @@ class TestInstallClaude:
         assert result["mcp_already_configured"] is True
 
     @patch("gobby.cli.installers.claude.get_install_dir")
-    @patch("gobby.cli.installers.claude.copy2")
+    @patch("gobby.cli.installers.shared.copy2")
     def test_install_claude_copy_error(
         self,
         mock_copy2: MagicMock,
@@ -388,7 +388,7 @@ class TestInstallClaude:
         result = install_claude(temp_project)
 
         assert result["success"] is False
-        assert "Failed to copy hook files" in result["error"]
+        assert "Failed to install hook files" in result["error"]
 
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.install_shared_content")
