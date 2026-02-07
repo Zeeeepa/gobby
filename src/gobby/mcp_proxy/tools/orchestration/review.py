@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -618,8 +619,9 @@ def register_reviewer(
                 state.variables["escalated_agents"] = existing_escalated
 
                 state_manager.save_state(state)
-        except Exception as e:
-            logger.warning(f"Failed to update workflow state during processing: {e}")
+        except (sqlite3.Error, OSError) as e:
+            logger.exception(f"Failed to save workflow state during processing: {e}")
+            raise
 
         return {
             "success": True,

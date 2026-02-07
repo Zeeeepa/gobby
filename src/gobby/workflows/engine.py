@@ -615,6 +615,12 @@ class WorkflowEngine:
 
             if not transitioned:
                 break
+        else:
+            # Loop exhausted max_depth without a non-transitioning step
+            logger.warning(
+                f"Auto-transition chain truncated at max_depth={max_depth} "
+                f"for workflow '{workflow.name}' at step '{state.step}'"
+            )
 
         return all_messages
 

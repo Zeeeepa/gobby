@@ -76,11 +76,8 @@ async def call_llm(
 # --- ActionHandler-compatible wrappers ---
 # These match the ActionHandler protocol: (context: ActionContext, **kwargs) -> dict | None
 
-if __name__ != "__main__":
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from gobby.workflows.actions import ActionContext
+if TYPE_CHECKING:
+    from gobby.workflows.actions import ActionContext
 
 
 async def handle_call_llm(context: "ActionContext", **kwargs: Any) -> dict[str, Any] | None:

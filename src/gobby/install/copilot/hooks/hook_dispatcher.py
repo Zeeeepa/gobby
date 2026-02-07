@@ -210,6 +210,16 @@ async def main() -> int:
             print(json.dumps({"status": "error", "message": f"Daemon error: {error_detail}"}))
             return 1
 
+    except httpx.ConnectError:
+        logger.error("Failed to connect to daemon (unreachable)", exc_info=True)
+        print(json.dumps({"status": "error", "message": "Daemon unreachable"}))
+        return 1
+
+    except httpx.TimeoutException:
+        logger.error(f"Hook execution timeout: {hook_type}", exc_info=True)
+        print(json.dumps({"status": "error", "message": "Hook execution timeout"}))
+        return 1
+
     except Exception as e:
         logger.error(f"Hook execution failed: {e}", exc_info=True)
         print(json.dumps({"status": "error", "message": str(e)}))

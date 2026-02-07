@@ -7,12 +7,11 @@ import os
 import signal
 import time
 from pathlib import Path
-from typing import Any
 
 import click
 import psutil
 
-from gobby.config.app import load_config
+from gobby.config.app import DaemonConfig, load_config
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
@@ -487,7 +486,7 @@ def stop_watchdog(quiet: bool = False) -> bool:
         return False
 
 
-def find_web_dir(config: Any = None) -> Path | None:
+def find_web_dir(config: DaemonConfig | None = None) -> Path | None:
     """Find the web UI directory.
 
     Search order:
@@ -519,8 +518,8 @@ def find_web_dir(config: Any = None) -> Path | None:
         pkg_web = Path(gobby.__file__).parent / "ui" / "web"
         if pkg_web.exists() and (pkg_web / "package.json").exists():
             return pkg_web
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not locate package web directory: {e}")
 
     return None
 
@@ -557,9 +556,6 @@ def spawn_ui_server(host: str, port: int, web_dir: Path, log_file: Path) -> int 
             logger.error("npm not found — install Node.js/npm and ensure it is on PATH")
             return None
 
-        if result.returncode == 127:
-            logger.error("npm not found / command failed with exit 127")
-            return None
         if result.returncode != 0:
             logger.error(f"Failed to install UI dependencies: {result.stderr.decode()}")
             return None

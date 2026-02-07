@@ -389,6 +389,7 @@ class ToolProxyService:
             return {
                 "success": False,
                 "error": f"Tool '{tool_name}' not found on any server (server_name='gobby' is not a real server — use list_mcp_servers() to discover server names)",
+                "error_code": ToolProxyErrorCode.SERVER_NOT_FOUND.value,
             }
 
         # Check internal tools first

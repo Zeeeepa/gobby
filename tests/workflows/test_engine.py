@@ -1137,6 +1137,7 @@ class TestDetectTaskClaim:
         ]
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.name = "default"
         workflow.type = "step"
         workflow.get_step.return_value = loop_step
 

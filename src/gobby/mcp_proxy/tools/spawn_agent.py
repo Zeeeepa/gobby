@@ -664,6 +664,13 @@ def create_spawn_agent_registry(
                             parent_workflow = parent_state.workflow_name
                     except Exception as e:
                         logger.warning(f"Could not get parent session workflow state: {e}")
+                        return {
+                            "success": False,
+                            "error": (
+                                f"Could not verify parent session workflow state for orchestrator enforcement: {e}. "
+                                f"Ensure the orchestrator workflow is active before spawning '{agent}' with workflow='{workflow}'."
+                            ),
+                        }
 
                 # Build expected orchestrator workflow names
                 # Could be "agent:workflow" (inline) or file reference

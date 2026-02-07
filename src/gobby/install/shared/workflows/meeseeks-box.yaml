@@ -65,10 +65,14 @@ steps:
         arguments:
           session_id: "{{ session_id }}"
         output_as: _suggest_result
+      # Capture any error from suggest_next_task
+      - action: set_variable
+        name: _suggest_error
+        value: "{{ variables._suggest_result.error if variables._suggest_result and variables._suggest_result.error is defined else '' }}"
       # Extract task_id from result
       - action: set_variable
         name: current_task_id
-        value: "{{ variables._suggest_result.suggestion.ref if variables._suggest_result and variables._suggest_result.suggestion else '' }}"
+        value: "{{ variables._suggest_result.suggestion.ref if variables._suggest_result and variables._suggest_result.suggestion is defined and variables._suggest_result.suggestion.ref is defined else '' }}"
 
     allowed_tools:
       - mcp__gobby__call_tool
