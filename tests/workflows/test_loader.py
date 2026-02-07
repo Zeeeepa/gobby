@@ -1492,3 +1492,112 @@ steps:
         p2 = loader.load_pipeline("test_pipeline")
         assert p2 is not None
         assert p2.version == "2.0.0"
+
+
+class TestBundledFallback:
+    """Tests for bundled workflow fallback behavior."""
+
+    def test_bundled_dir_set_on_init(self) -> None:
+        """Test that _bundled_dir is set to install/shared/workflows."""
+        loader = WorkflowLoader()
+        assert "install" in str(loader._bundled_dir)
+        assert str(loader._bundled_dir).endswith("workflows")
+
+    def test_load_workflow_falls_back_to_bundled(self, temp_workflow_dir) -> None:
+        """WorkflowLoader finds bundled workflows when project and global dirs are empty."""
+        # Create a bundled workflow file
+        bundled_dir = temp_workflow_dir / "bundled" / "workflows"
+        bundled_dir.mkdir(parents=True)
+        (bundled_dir / "test-bundled.yaml").write_text(
+            "name: test-bundled\nversion: '1.0'\nsteps:\n"
+            "  - name: step1\n    allowed_tools: all\n"
+        )
+
+        empty_global = temp_workflow_dir / "empty_global"
+        empty_global.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
+
+        result = loader.load_workflow("test-bundled")
+        assert result is not None
+        assert result.name == "test-bundled"
+
+    def test_project_shadows_bundled(self, temp_workflow_dir) -> None:
+        """Project workflows take precedence over bundled ones."""
+        # Create bundled version
+        bundled_dir = temp_workflow_dir / "bundled" / "workflows"
+        bundled_dir.mkdir(parents=True)
+        (bundled_dir / "shadowed.yaml").write_text(
+            "name: shadowed\nversion: '1.0'\nsteps:\n"
+            "  - name: step1\n    allowed_tools: all\n"
+        )
+
+        # Create project version with different version
+        project_dir = temp_workflow_dir / "project" / ".gobby" / "workflows"
+        project_dir.mkdir(parents=True)
+        (project_dir / "shadowed.yaml").write_text(
+            "name: shadowed\nversion: '2.0'\nsteps:\n"
+            "  - name: step1\n    allowed_tools: all\n"
+        )
+
+        empty_global = temp_workflow_dir / "empty_global"
+        empty_global.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
+
+        result = loader.load_workflow(
+            "shadowed", project_path=temp_workflow_dir / "project"
+        )
+        assert result is not None
+        assert result.version == "2.0"
+
+    def test_discover_lifecycle_includes_bundled(self, temp_workflow_dir) -> None:
+        """Bundled lifecycle workflows are discoverable via discover methods."""
+        bundled_dir = temp_workflow_dir / "bundled" / "workflows"
+        lifecycle_dir = bundled_dir / "lifecycle"
+        lifecycle_dir.mkdir(parents=True)
+        (lifecycle_dir / "bundled-lc.yaml").write_text(
+            "name: bundled-lc\ntype: lifecycle\nversion: '1.0'\n"
+            "trigger:\n  event: session_start\n"
+            "steps:\n  - name: step1\n    allowed_tools: all\n"
+        )
+
+        empty_global = temp_workflow_dir / "empty_global"
+        empty_global.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
+
+        discovered = loader.discover_lifecycle_workflows()
+        names = [w.name for w in discovered]
+        assert "bundled-lc" in names
+
+    def test_load_pipeline_falls_back_to_bundled(self, temp_workflow_dir) -> None:
+        """WorkflowLoader finds bundled pipelines when other dirs are empty."""
+        bundled_dir = temp_workflow_dir / "bundled" / "workflows"
+        bundled_dir.mkdir(parents=True)
+        (bundled_dir / "test-pipe.yaml").write_text(
+            "name: test-pipe\ntype: pipeline\nversion: '1.0'\n"
+            "steps:\n  - id: s1\n    prompt: 'Do thing'\n"
+        )
+
+        empty_global = temp_workflow_dir / "empty_global"
+        empty_global.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
+
+        result = loader.load_pipeline("test-pipe")
+        assert result is not None
+        assert result.name == "test-pipe"
+
+    def test_discover_pipelines_includes_bundled(self, temp_workflow_dir) -> None:
+        """Bundled pipeline workflows are discoverable."""
+        bundled_dir = temp_workflow_dir / "bundled" / "workflows"
+        bundled_dir.mkdir(parents=True)
+        (bundled_dir / "bundled-pipe.yaml").write_text(
+            "name: bundled-pipe\ntype: pipeline\nversion: '1.0'\n"
+            "steps:\n  - id: s1\n    prompt: 'Do thing'\n"
+        )
+
+        empty_global = temp_workflow_dir / "empty_global"
+        empty_global.mkdir()
+        loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
+
+        discovered = loader.discover_pipeline_workflows()
+        names = [w.name for w in discovered]
+        assert "bundled-pipe" in names

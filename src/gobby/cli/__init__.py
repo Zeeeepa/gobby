@@ -11,6 +11,7 @@ from .artifacts import artifacts
 from .clones import clones
 from .conductor import conductor
 from .daemon import restart, start, status, stop
+from .export_import import export_cmd, import_cmd
 from .extensions import hooks, plugins, webhooks
 from .github import github
 from .init import init
@@ -73,3 +74,5 @@ cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)
 cli.add_command(ui)
+cli.add_command(export_cmd)
+cli.add_command(import_cmd)

@@ -19,6 +19,35 @@ from gobby.cli.utils import get_install_dir
 logger = logging.getLogger(__name__)
 
 
+def _is_dev_mode(project_path: Path) -> bool:
+    """Detect if running inside the gobby source repo.
+
+    When the project IS the gobby source repo, we use symlinks instead of
+    copies so that .gobby/ and install/shared/ stay in sync during development.
+    """
+    return (project_path / "src" / "gobby" / "install" / "shared").is_dir()
+
+
+def _install_resource_dir(source: Path, target: Path, dev_mode: bool) -> None:
+    """Install a resource directory, handling existing symlinks safely.
+
+    In dev mode, creates a symlink from target -> source.
+    In normal mode, copies the directory tree.
+
+    Safely handles existing symlinks by unlinking (not following) before
+    replacing, which prevents shutil.rmtree from destroying source files.
+    """
+    if target.is_symlink():
+        os.unlink(target)  # Safe: removes symlink, not target
+    elif target.exists():
+        shutil.rmtree(target)
+
+    if dev_mode:
+        os.symlink(source.resolve(), target)
+    else:
+        copytree(source, target)
+
+
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
     """Install shared content from src/install/shared/.
 
@@ -28,6 +57,9 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     Prompts are project-scoped and go to {project_path}/.gobby/prompts/.
     Docs are project-local and go to {project_path}/.gobby/docs/.
 
+    In dev mode (running inside the gobby source repo), symlinks are created
+    instead of copies so that .gobby/ and install/shared/ stay in sync.
+
     Args:
         cli_path: Path to CLI config directory (e.g., .claude, .gemini)
         project_path: Path to project root
@@ -36,6 +68,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
+    dev_mode = _is_dev_mode(project_path)
     installed: dict[str, list[str]] = {
         "workflows": [],
         "agents": [],
@@ -44,81 +77,112 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         "docs": [],
     }
 
-    # Install shared workflows to .gobby/workflows/ (cross-CLI)
-    shared_workflows = shared_dir / "workflows"
-    if shared_workflows.exists():
-        target_workflows = project_path / ".gobby" / "workflows"
-        target_workflows.mkdir(parents=True, exist_ok=True)
-        for item in shared_workflows.iterdir():
-            # Skip deprecated workflows - they are kept for reference only
-            if item.name == "deprecated":
-                continue
-            if item.is_file():
-                copy2(item, target_workflows / item.name)
-                installed["workflows"].append(item.name)
-            elif item.is_dir():
-                # Copy subdirectories (e.g., lifecycle/)
-                target_subdir = target_workflows / item.name
-                if target_subdir.exists():
-                    shutil.rmtree(target_subdir)
-                copytree(item, target_subdir)
-                installed["workflows"].append(f"{item.name}/")
+    if dev_mode:
+        logger.info("Dev mode detected: using symlinks instead of copies")
 
-    # Install shared agents to .gobby/agents/ (cross-CLI)
-    shared_agents = shared_dir / "agents"
-    if shared_agents.exists():
-        target_agents = project_path / ".gobby" / "agents"
-        target_agents.mkdir(parents=True, exist_ok=True)
-        for item in shared_agents.iterdir():
-            if item.is_file() and item.suffix in (".yaml", ".yml"):
-                copy2(item, target_agents / item.name)
-                installed["agents"].append(item.name)
-            elif item.is_dir():
-                # Copy subdirectories (agent with multiple files)
-                target_subdir = target_agents / item.name
-                if target_subdir.exists():
-                    shutil.rmtree(target_subdir)
-                copytree(item, target_subdir)
-                installed["agents"].append(f"{item.name}/")
+    # Resource directories to install: (source_subdir, target_subdir, type_key)
+    resource_dirs = [
+        ("workflows", "workflows", "workflows"),
+        ("agents", "agents", "agents"),
+        ("plugins", "plugins", "plugins"),
+        ("prompts", "prompts", "prompts"),
+        ("docs", "docs", "docs"),
+    ]
 
-    # Install shared plugins to .gobby/plugins/ (project-scoped)
-    shared_plugins = shared_dir / "plugins"
-    if shared_plugins.exists():
-        target_plugins = project_path / ".gobby" / "plugins"
-        target_plugins.mkdir(parents=True, exist_ok=True)
-        for plugin_file in shared_plugins.iterdir():
-            if plugin_file.is_file() and plugin_file.suffix == ".py":
-                copy2(plugin_file, target_plugins / plugin_file.name)
-                installed["plugins"].append(plugin_file.name)
+    for source_name, target_name, type_key in resource_dirs:
+        source = shared_dir / source_name
+        if not source.exists():
+            continue
 
-    # Install shared prompts to .gobby/prompts/ (project-scoped)
-    shared_prompts = shared_dir / "prompts"
-    if shared_prompts.exists():
-        target_prompts = project_path / ".gobby" / "prompts"
-        target_prompts.mkdir(parents=True, exist_ok=True)
-        for item in shared_prompts.iterdir():
-            if item.is_file():
-                copy2(item, target_prompts / item.name)
-                installed["prompts"].append(item.name)
-            elif item.is_dir():
-                # Copy subdirectories (e.g., expansion/, validation/)
-                target_subdir = target_prompts / item.name
-                if target_subdir.exists():
-                    shutil.rmtree(target_subdir)
-                copytree(item, target_subdir)
-                installed["prompts"].append(f"{item.name}/")
+        target = project_path / ".gobby" / target_name
 
-    # Install shared docs to .gobby/docs/ (project-local)
-    shared_docs = shared_dir / "docs"
-    if shared_docs.exists():
-        target_docs = project_path / ".gobby" / "docs"
-        target_docs.mkdir(parents=True, exist_ok=True)
-        for doc_file in shared_docs.iterdir():
-            if doc_file.is_file():
-                copy2(doc_file, target_docs / doc_file.name)
-                installed["docs"].append(doc_file.name)
+        if dev_mode:
+            # Symlink the entire directory
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _install_resource_dir(source, target, dev_mode=True)
+            installed[type_key].append(f"{source_name}/ -> (symlink)")
+        else:
+            # Copy files individually (preserving existing per-item logic)
+            target.mkdir(parents=True, exist_ok=True)
+            if type_key == "workflows":
+                _copy_workflows(source, target, installed)
+            elif type_key == "agents":
+                _copy_agents(source, target, installed)
+            elif type_key == "plugins":
+                _copy_plugins(source, target, installed)
+            elif type_key == "prompts":
+                _copy_prompts(source, target, installed)
+            elif type_key == "docs":
+                _copy_docs(source, target, installed)
 
     return installed
+
+
+def _copy_workflows(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
+    """Copy workflow files from source to target."""
+    for item in source.iterdir():
+        # Skip deprecated workflows - they are kept for reference only
+        if item.name == "deprecated":
+            continue
+        if item.is_file():
+            copy2(item, target / item.name)
+            installed["workflows"].append(item.name)
+        elif item.is_dir():
+            target_subdir = target / item.name
+            if target_subdir.is_symlink():
+                os.unlink(target_subdir)
+            elif target_subdir.exists():
+                shutil.rmtree(target_subdir)
+            copytree(item, target_subdir)
+            installed["workflows"].append(f"{item.name}/")
+
+
+def _copy_agents(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
+    """Copy agent files from source to target."""
+    for item in source.iterdir():
+        if item.is_file() and item.suffix in (".yaml", ".yml"):
+            copy2(item, target / item.name)
+            installed["agents"].append(item.name)
+        elif item.is_dir():
+            target_subdir = target / item.name
+            if target_subdir.is_symlink():
+                os.unlink(target_subdir)
+            elif target_subdir.exists():
+                shutil.rmtree(target_subdir)
+            copytree(item, target_subdir)
+            installed["agents"].append(f"{item.name}/")
+
+
+def _copy_plugins(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
+    """Copy plugin files from source to target."""
+    for plugin_file in source.iterdir():
+        if plugin_file.is_file() and plugin_file.suffix == ".py":
+            copy2(plugin_file, target / plugin_file.name)
+            installed["plugins"].append(plugin_file.name)
+
+
+def _copy_prompts(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
+    """Copy prompt files from source to target."""
+    for item in source.iterdir():
+        if item.is_file():
+            copy2(item, target / item.name)
+            installed["prompts"].append(item.name)
+        elif item.is_dir():
+            target_subdir = target / item.name
+            if target_subdir.is_symlink():
+                os.unlink(target_subdir)
+            elif target_subdir.exists():
+                shutil.rmtree(target_subdir)
+            copytree(item, target_subdir)
+            installed["prompts"].append(f"{item.name}/")
+
+
+def _copy_docs(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
+    """Copy doc files from source to target."""
+    for doc_file in source.iterdir():
+        if doc_file.is_file():
+            copy2(doc_file, target / doc_file.name)
+            installed["docs"].append(doc_file.name)
 
 
 def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:

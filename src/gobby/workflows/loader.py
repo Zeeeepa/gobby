@@ -42,10 +42,26 @@ class _CachedDiscovery:
     dir_mtimes: dict[str, float]  # scanned directory path -> mtime
 
 
+_BUNDLED_WORKFLOWS_DIR = Path(__file__).parent.parent / "install" / "shared" / "workflows"
+
+
 class WorkflowLoader:
-    def __init__(self, workflow_dirs: list[Path] | None = None):
+    def __init__(
+        self,
+        workflow_dirs: list[Path] | None = None,
+        bundled_dir: Path | None = None,
+    ):
         # Default global workflow directory
         self.global_dirs = workflow_dirs or [Path.home() / ".gobby" / "workflows"]
+        # Bundled workflows shipped with the package (lowest priority fallback).
+        # When custom workflow_dirs are provided (e.g. tests), disable bundled
+        # fallback unless explicitly passed, to keep test isolation.
+        if bundled_dir is not None:
+            self._bundled_dir = bundled_dir
+        elif workflow_dirs is not None:
+            self._bundled_dir = Path("/nonexistent")  # Disabled for test isolation
+        else:
+            self._bundled_dir = _BUNDLED_WORKFLOWS_DIR
         self._cache: dict[str, _CachedEntry] = {}
         # Cache for discovered workflows per project path
         self._discovery_cache: dict[str, _CachedDiscovery] = {}
@@ -129,11 +145,13 @@ class WorkflowLoader:
             # Fall through to file-based lookup (for backwards compatibility with
             # persisted inline workflows like meeseeks-worker.yaml)
 
-        # Build search directories: project-specific first, then global
+        # Build search directories: project-specific first, then global, then bundled
         search_dirs = list(self.global_dirs)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
             search_dirs.insert(0, project_dir)
+        if self._bundled_dir.is_dir():
+            search_dirs.append(self._bundled_dir)
 
         # 1. Find file
         path = self._find_workflow_file(name, search_dirs)
@@ -223,11 +241,13 @@ class WorkflowLoader:
             else:
                 return None
 
-        # Build search directories: project-specific first, then global
+        # Build search directories: project-specific first, then global, then bundled
         search_dirs = list(self.global_dirs)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
             search_dirs.insert(0, project_dir)
+        if self._bundled_dir.is_dir():
+            search_dirs.append(self._bundled_dir)
 
         # 1. Find file
         path = self._find_workflow_file(name, search_dirs)
@@ -597,7 +617,17 @@ class WorkflowLoader:
         file_mtimes: dict[str, float] = {}
         dir_mtimes: dict[str, float] = {}
 
-        # 1. Scan global lifecycle directory first (will be shadowed by project)
+        # 1. Scan bundled lifecycle directory first (lowest priority, shadowed by all)
+        if self._bundled_dir.is_dir():
+            self._scan_directory(
+                self._bundled_dir / "lifecycle",
+                is_project=False,
+                discovered=discovered,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
+
+        # 2. Scan global lifecycle directory (shadows bundled)
         for global_dir in self.global_dirs:
             self._scan_directory(
                 global_dir / "lifecycle",
@@ -607,7 +637,7 @@ class WorkflowLoader:
                 dir_mtimes=dir_mtimes,
             )
 
-        # 2. Scan project lifecycle directory (shadows global)
+        # 3. Scan project lifecycle directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows" / "lifecycle"
             self._scan_directory(
@@ -681,7 +711,17 @@ class WorkflowLoader:
         file_mtimes: dict[str, float] = {}
         dir_mtimes: dict[str, float] = {}
 
-        # 1. Scan global workflows directory first (will be shadowed by project)
+        # 1. Scan bundled workflows directory first (lowest priority, shadowed by all)
+        if self._bundled_dir.is_dir():
+            self._scan_pipeline_directory(
+                self._bundled_dir,
+                is_project=False,
+                discovered=discovered,
+                file_mtimes=file_mtimes,
+                dir_mtimes=dir_mtimes,
+            )
+
+        # 2. Scan global workflows directory (shadows bundled)
         for global_dir in self.global_dirs:
             self._scan_pipeline_directory(
                 global_dir,
@@ -691,7 +731,7 @@ class WorkflowLoader:
                 dir_mtimes=dir_mtimes,
             )
 
-        # 2. Scan project workflows directory (shadows global)
+        # 3. Scan project workflows directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
             self._scan_pipeline_directory(
