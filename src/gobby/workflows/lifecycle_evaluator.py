@@ -490,7 +490,7 @@ def _detect_and_persist(
     session_id: str,
     event: HookEvent,
     state_manager: "WorkflowStateManager",
-    detect_fns: list,
+    detect_fns: list[Any],
     persist_fn: Any,
 ) -> None:
     """Run detection functions and persist any state changes."""
@@ -504,9 +504,7 @@ def _detect_and_persist(
     vars_snapshot = copy.deepcopy(state.variables) if not state_was_created else None
     for fn in detect_fns:
         fn(event, state)
-    persist_fn(
-        session_id, state, state_was_created, vars_snapshot, state_manager
-    )
+    persist_fn(session_id, state, state_was_created, vars_snapshot, state_manager)
 
 
 async def evaluate_all_lifecycle_workflows(
@@ -542,7 +540,6 @@ async def evaluate_all_lifecycle_workflows(
     Returns:
         Merged HookResponse with combined context and first non-allow decision.
     """
-    from .definitions import WorkflowState
 
     # Use event.cwd (top-level attribute set by adapter) with fallback to event.data
     # This ensures consistent project_path across all calls, preventing duplicate
@@ -670,7 +667,9 @@ async def evaluate_all_lifecycle_workflows(
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
             _detect_and_persist(
-                session_id, event, state_manager,
+                session_id,
+                event,
+                state_manager,
                 [detect_task_claim_fn, detect_plan_mode_fn],
                 _persist_state_changes,
             )
@@ -681,7 +680,9 @@ async def evaluate_all_lifecycle_workflows(
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
             _detect_and_persist(
-                session_id, event, state_manager,
+                session_id,
+                event,
+                state_manager,
                 [detect_plan_mode_from_context_fn],
                 _persist_state_changes,
             )

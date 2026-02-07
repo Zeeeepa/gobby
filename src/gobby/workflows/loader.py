@@ -63,6 +63,7 @@ class WorkflowLoader:
         # Bundled workflows shipped with the package (lowest priority fallback).
         # When custom workflow_dirs are provided (e.g. tests), disable bundled
         # fallback unless explicitly passed, to keep test isolation.
+        self._bundled_dir: Path | None
         if bundled_dir is not None:
             self._bundled_dir = bundled_dir
         elif workflow_dirs is not None:
