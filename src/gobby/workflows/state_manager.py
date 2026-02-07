@@ -101,27 +101,34 @@ class WorkflowStateManager:
             ),
         )
 
-    def merge_variables(self, session_id: str, updates: dict[str, Any]) -> None:
+    def merge_variables(self, session_id: str, updates: dict[str, Any]) -> bool:
         """Atomically merge variable updates into existing state.
 
         Uses BEGIN IMMEDIATE to serialize the read-modify-write,
         preventing concurrent evaluations from clobbering each other.
+
+        Returns:
+            True if the merge succeeded, False if the session was not found.
         """
         if not updates:
-            return
+            return True
         with self.db.transaction_immediate() as conn:
             row = conn.execute(
                 "SELECT variables FROM workflow_states WHERE session_id = ?",
                 (session_id,),
             ).fetchone()
             if not row:
-                return
+                logger.warning(
+                    "merge_variables: no workflow state found for session %s", session_id
+                )
+                return False
             current = json.loads(row["variables"]) if row["variables"] else {}
             current.update(updates)
             conn.execute(
                 "UPDATE workflow_states SET variables = ?, updated_at = ? WHERE session_id = ?",
                 (json.dumps(current), datetime.now(UTC).isoformat(), session_id),
             )
+            return True
 
     def delete_state(self, session_id: str) -> None:
         """

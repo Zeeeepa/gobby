@@ -192,13 +192,15 @@ class ToolProxyService:
         if self._is_proxy_namespace(server_name):
             logger.warning("list_tools called with server_name='gobby' — aggregating all internal tools")
             if self._internal_manager:
-                all_tools: list[dict[str, Any]] = []
+                brief_tools: list[dict[str, Any]] = []
                 for reg in self._internal_manager.get_all_registries():
-                    tools = reg.list_tools()
-                    all_tools.extend(tools)
+                    for tool in reg.list_tools():
+                        name = tool.get("name", "unknown") if isinstance(tool, dict) else getattr(tool, "name", "unknown")
+                        desc = tool.get("description", "") if isinstance(tool, dict) else getattr(tool, "description", "")
+                        brief_tools.append({"name": name, "brief": safe_truncate(desc)})
                 if session_id and self._tool_filter:
-                    all_tools = self._tool_filter.filter_tools(all_tools, session_id)
-                return {"success": True, "tools": all_tools, "tool_count": len(all_tools)}
+                    brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
+                return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
             return {"success": True, "tools": [], "tool_count": 0}
 
         # Check internal servers first (gobby-tasks, gobby-memory, etc.)

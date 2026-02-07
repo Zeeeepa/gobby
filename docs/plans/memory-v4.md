@@ -333,7 +333,7 @@ Files: `src/gobby/memory/extractor.py` (major refactor)
 #### 2b. Embedding-based dedup instead of Jaccard
 
 - Replace `_is_similar()` Jaccard word overlap with embedding cosine similarity
-- Gobby already has embedding infrastructure (TF-IDF search backend)
+- Gobby currently uses a TF-IDF search backend (a sparse bag-of-words representation), not dense semantic embeddings; adding sentence-transformers or OpenAI embeddings would enable true semantic similarity for dedup
 - Even simple sentence-transformers would be far better than word overlap
 
 Files: `src/gobby/memory/extractor.py`

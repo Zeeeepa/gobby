@@ -21,8 +21,7 @@ def _get_ui_pid() -> int | None:
     if not pid_file.exists():
         return None
     try:
-        with open(pid_file) as f:
-            pid = int(f.read().strip())
+        pid = int(pid_file.read_text().strip())
         os.kill(pid, 0)
         return pid
     except (ProcessLookupError, ValueError, OSError):
@@ -34,11 +33,16 @@ def _ensure_npm_deps_installed(web_dir: Path) -> bool:
     if (web_dir / "node_modules").exists():
         return True
     click.echo("Installing dependencies...")
-    result = subprocess.run(  # nosec B603 B607
-        ["npm", "install"],
-        cwd=web_dir,
-        capture_output=False,
-    )
+    try:
+        result = subprocess.run(  # nosec B603 B607
+            ["npm", "install"],
+            cwd=web_dir,
+            capture_output=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        click.echo("npm install timed out after 120 seconds", err=True)
+        return False
     return result.returncode == 0
 
 
@@ -73,7 +77,9 @@ def ui_start(ctx: click.Context) -> None:
         ui_log = Path(config.logging.client).expanduser().parent / "ui.log"
         pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
         if pid:
-            click.echo(f"UI dev server started (PID: {pid}) at http://{config.ui.host}:{config.ui.port}")
+            click.echo(
+                f"UI dev server started (PID: {pid}) at http://{config.ui.host}:{config.ui.port}"
+            )
         else:
             click.echo("Failed to start UI server", err=True)
             sys.exit(1)

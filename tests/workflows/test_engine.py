@@ -993,7 +993,7 @@ class TestDetectTaskClaim:
 
     async def test_transition_to_sets_context_injected(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
-    ):
+    ) -> None:
         """transition_to sets context_injected=True when on_enter produces messages."""
         state = WorkflowState(
             session_id="sess1",
@@ -1030,7 +1030,7 @@ class TestDetectTaskClaim:
 
     async def test_transition_to_no_context_injected_when_no_messages(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
-    ):
+    ) -> None:
         """transition_to does NOT set context_injected when on_enter produces no messages."""
         state = WorkflowState(
             session_id="sess1",
@@ -1065,7 +1065,7 @@ class TestDetectTaskClaim:
 
     async def test_auto_transition_chain_follows_transitions(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
-    ):
+    ) -> None:
         """Auto-transition chain follows transitions when on_enter sets satisfying variables."""
         state = WorkflowState(
             session_id="sess1",
@@ -1118,7 +1118,7 @@ class TestDetectTaskClaim:
 
     async def test_auto_transition_chain_respects_max_depth(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
-    ):
+    ) -> None:
         """Auto-transition chain stops at max_depth to prevent infinite loops."""
         state = WorkflowState(
             session_id="sess1",
@@ -1165,7 +1165,7 @@ class TestDetectTaskClaim:
 
     async def test_auto_transition_chain_stops_when_no_transition_matches(
         self, workflow_engine, mock_state_manager, mock_loader, mock_action_executor
-    ):
+    ) -> None:
         """Auto-transition chain stops when no transition condition is satisfied."""
         state = WorkflowState(
             session_id="sess1",

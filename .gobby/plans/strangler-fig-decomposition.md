@@ -7,10 +7,10 @@ Decompose 5 oversized files (~5,200 lines total) into focused modules using the 
 ## Constraints
 
 - Every extraction must maintain backward-compatible imports via re-exports
-- All existing tests must pass after each task without test modifications (except Phase 4B and Phase 5 where patch target updates are planned)
+- All existing tests must pass after each extraction task without test modifications; any patch-target updates or test modifications are deferred to Phase 5 cleanup (exceptions: Phase 4B and Phase 5 where patch target updates are planned)
 - Follow established patterns: mixin decomposition (event_handlers/), flat re-exports (storage/__init__), factory+re-exports (llm/__init__)
 - Each task is atomic — completable in one session
-- Phases 1, 2, 3 can execute in parallel; Phase 4A depends on 3.1; Phase 4B is independent but highest risk
+- Phases 1, 2, 3 can execute in parallel; Phase 4A depends on Phase 3 Task 1 (#7097); Phase 4B is independent but highest risk
 
 ## Phase 1: CLI Skills Extraction
 

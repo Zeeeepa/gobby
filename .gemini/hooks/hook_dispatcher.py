@@ -96,8 +96,10 @@ def get_terminal_context() -> dict[str, str | int | bool | None]:
     context["vscode_ipc_hook_cli"] = vscode_ipc_hook
     context["vscode_terminal_detected"] = bool(vscode_ipc_hook) or term_program == "vscode"
 
-    # Tmux pane (if running in tmux)
-    context["tmux_pane"] = os.environ.get("TMUX_PANE")
+    # Tmux pane (if running in tmux) - only set when TMUX is present
+    # to avoid inheriting parent tmux pane IDs
+    if os.environ.get("TMUX"):
+        context["tmux_pane"] = os.environ.get("TMUX_PANE")
 
     # Kitty terminal window ID
     context["kitty_window_id"] = os.environ.get("KITTY_WINDOW_ID")
