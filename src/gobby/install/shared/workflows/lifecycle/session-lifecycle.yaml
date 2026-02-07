@@ -15,14 +15,17 @@ variables:
   require_task_before_edit: true
 
   # Task lifecycle policies
+  
   # Block close_task until a commit is linked to the task
   require_commit_before_close: true
+  
   # Clear task_claimed variable on successful close_task
   clear_task_on_close: true
 
   # Progressive tool discovery - require get_tool_schema before call_tool
   # Set to false to disable this enforcement
   enforce_tool_schema_check: true
+
   # List of server:tool combos that have been unlocked via get_tool_schema
   # Reset on compact/clear since context is lost
   unlocked_tools: []
@@ -143,26 +146,11 @@ triggers:
       template: |
         {{ task_context }}
 
-    # Pre-existing error/warning triage policy - inject on all session starts
-    - action: inject_context
-      template: |
-        ## Pre-Existing Error/Warning/Failure Policy
-        *Injected by Gobby session lifecycle*
-
-        If you encounter ANY pre-existing issues during your work — errors,
-        warnings, or failures (test failures, lint errors/warnings, type errors,
-        build failures, deprecation warnings) unrelated to your changes — you
-        MUST create a gobby task for each distinct issue before stopping.
-
-        After triaging all issues (or confirming none were found), call:
-        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
-
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
       when: "event.data.get('source') == 'startup'"
       template: |
         ## Session Start: Plan Mode Recommended
-        *Injected by Gobby session startup*
 
         This is a new session. Before executing any code changes, consider:
         1. Understanding the user's full request
@@ -171,6 +159,19 @@ triggers:
 
         If the user's request involves non-trivial changes, use `/plan` or
         suggest entering plan mode before proceeding with edits.
+
+    # Pre-existing error/warning triage policy - inject on all session starts
+    - action: inject_context
+      template: |
+        ## Pre-Existing Error/Warning/Failure Policy
+
+        If you encounter ANY pre-existing issues during your work — errors,
+        warnings, or failures (test failures, lint errors/warnings, type errors,
+        build failures, deprecation warnings) unrelated to your changes — you
+        MUST create a gobby task for each distinct issue before stopping.
+
+        After triaging all issues (or confirming none were found), call:
+        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
 
   on_before_agent:
     # Reset stop attempts counter on user activity
@@ -205,7 +206,6 @@ triggers:
         # Block CC native task tools entirely - use gobby-tasks MCP tools instead
         - tools: [TaskCreate, TaskUpdate, TaskGet, TaskList]
           reason: |
-
             CC native task tools are disabled. Use gobby-tasks MCP tools instead:
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
             - claim_task(task_id, session_id) - Claim existing unclaimed task.
@@ -216,7 +216,6 @@ triggers:
         - tools: [Edit, Write, NotebookEdit]
           when: "not task_claimed and not plan_mode and not is_plan_file(tool_input.get('file_path', ''), source)"
           reason: |
-
             You must create or claim a task before editing files. This is required. DO NOT stop or ask the user - just create/claim a task and then retry your edit.
             - create_task(title, description, session_id, claim=True) - Create and auto-claim new task.
             - claim_task(task_id, session_id) - Claim existing unclaimed task.
@@ -227,13 +226,13 @@ triggers:
         # NOTE: This rule MUST come before mcp_tools rules so schema check fires first
         - tools: ["mcp__gobby__call_tool"]
           when: "variables.get('enforce_tool_schema_check') and tool_input.get('arguments') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
-          reason: 'Schema required before calling call_tool("{{ tool_input.get(''server_name'', '''') }}", "{{ tool_input.get(''tool_name'') }}"). DO NOT stop or ask the user. Just call get_tool_schema("{{ tool_input.get(''server_name'', '''') }}", "{{ tool_input.get(''tool_name'') }}") now, then retry your call_tool immediately after.'
+          reason: |
+            Schema required before calling call_tool("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}"). DO NOT stop or ask the user. Just call get_tool_schema("{{ tool_input.get('server_name', '') }}", "{{ tool_input.get('tool_name') }}") now, then retry your call_tool immediately after.
 
         # Block close_task without a linked commit (unless using special close reasons)
         - mcp_tools: ["gobby-tasks:close_task"]
           when: "variables.get('require_commit_before_close') and not task_has_commits and not tool_input.get('commit_sha') and tool_input.get('reason') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo']"
           reason: |
-
             A commit is required before closing this task.
 
             **Normal flow:**
@@ -250,7 +249,8 @@ triggers:
         # Block skip_validation when a commit is attached (work was done = must validate)
         - mcp_tools: ["gobby-tasks:close_task"]
           when: "tool_input.get('skip_validation') and (task_has_commits or tool_input.get('commit_sha'))"
-          reason: "skip_validation is not allowed when a commit is attached. If work was done, validation must run. Close the task without skip_validation."
+          reason: | 
+            skip_validation is not allowed when a commit is attached. If work was done, validation must run. Close the task without skip_validation.
 
         # Block AskUserQuestion when the stop hook has fired with an actionable directive
         # If stop_attempts > 0 and a task is still claimed, the agent should be
@@ -258,7 +258,6 @@ triggers:
         - tools: [AskUserQuestion]
           when: "variables.get('stop_attempts', 0) > 0 and task_claimed"
           reason: |
-
             Do not ask — act on the hook directive. The stop hook told you what to do:
             1. Commit your changes: git commit -m "[{{ project.name }}-#N] description"
             2. Close the task: close_task(task_id="#N", commit_sha="<sha>")
