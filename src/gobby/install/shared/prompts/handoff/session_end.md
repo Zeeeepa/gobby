@@ -5,8 +5,6 @@ required_variables:
   - last_messages
   - git_status
   - file_changes
-optional_variables:
-  - todo_list
 ---
 Analyze this Claude Code session transcript and create a comprehensive session summary.
 
@@ -47,8 +45,6 @@ Create a markdown summary with the following sections (do NOT include a top-leve
 ```
 {{ git_status }}
 ```
-
-{{ todo_list }}
 
 ## Next Steps
 [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]

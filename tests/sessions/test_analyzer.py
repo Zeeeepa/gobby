@@ -172,121 +172,6 @@ def test_extract_handoff_context_explicit_max_turns_overrides_default() -> None:
     assert "/path/file149.py" not in ctx.files_modified
 
 
-def test_extract_todowrite() -> None:
-    """Test extraction of TodoWrite state from transcript."""
-    turns = [
-        {"type": "user", "message": {"content": "Help me with tasks"}},
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "TodoWrite",
-                        "input": {
-                            "todos": [
-                                {"content": "Fix the bug", "status": "completed"},
-                                {"content": "Write tests", "status": "in_progress"},
-                                {"content": "Update docs", "status": "pending"},
-                            ]
-                        },
-                    },
-                ]
-            },
-        },
-    ]
-
-    analyzer = TranscriptAnalyzer()
-    ctx = analyzer.extract_handoff_context(turns)
-
-    assert len(ctx.todo_state) == 3
-    assert ctx.todo_state[0]["content"] == "Fix the bug"
-    assert ctx.todo_state[0]["status"] == "completed"
-    assert ctx.todo_state[1]["content"] == "Write tests"
-    assert ctx.todo_state[1]["status"] == "in_progress"
-    assert ctx.todo_state[2]["content"] == "Update docs"
-    assert ctx.todo_state[2]["status"] == "pending"
-
-
-def test_extract_todowrite_empty() -> None:
-    """Test that empty transcript returns empty todo_state."""
-    analyzer = TranscriptAnalyzer()
-    ctx = analyzer.extract_handoff_context([])
-    assert ctx.todo_state == []
-
-
-def test_extract_todowrite_uses_latest() -> None:
-    """Test that we extract the most recent TodoWrite, not earlier ones."""
-    turns = [
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "TodoWrite",
-                        "input": {
-                            "todos": [
-                                {"content": "Old task", "status": "pending"},
-                            ]
-                        },
-                    },
-                ]
-            },
-        },
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "TodoWrite",
-                        "input": {
-                            "todos": [
-                                {"content": "New task", "status": "in_progress"},
-                            ]
-                        },
-                    },
-                ]
-            },
-        },
-    ]
-
-    analyzer = TranscriptAnalyzer()
-    ctx = analyzer.extract_handoff_context(turns)
-
-    # Should get the latest (second) TodoWrite
-    assert len(ctx.todo_state) == 1
-    assert ctx.todo_state[0]["content"] == "New task"
-    assert ctx.todo_state[0]["status"] == "in_progress"
-
-
-# --- Edge Case Tests ---
-
-
-def test_todowrite_empty_todos_list() -> None:
-    """Test that TodoWrite with empty todos list returns empty state."""
-    turns = [
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "TodoWrite",
-                        "input": {"todos": []},  # Empty list
-                    },
-                ]
-            },
-        },
-    ]
-
-    analyzer = TranscriptAnalyzer()
-    ctx = analyzer.extract_handoff_context(turns)
-
-    assert ctx.todo_state == []
-
-
 def test_malformed_tool_blocks_not_dict() -> None:
     """Test handling of malformed content blocks that aren't dicts."""
     turns = [
@@ -501,43 +386,6 @@ def test_content_as_string_not_list() -> None:
     # Should handle gracefully without errors
     assert ctx.initial_goal == "plain string user message"
     assert ctx.files_modified == []
-    assert ctx.todo_state == []
-
-
-def test_todowrite_missing_content_or_status() -> None:
-    """Test TodoWrite extraction with todos missing content or status keys."""
-    turns = [
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "TodoWrite",
-                        "input": {
-                            "todos": [
-                                {"content": "Has content"},  # Missing status
-                                {"status": "pending"},  # Missing content
-                                {},  # Missing both
-                            ]
-                        },
-                    },
-                ]
-            },
-        },
-    ]
-
-    analyzer = TranscriptAnalyzer()
-    ctx = analyzer.extract_handoff_context(turns)
-
-    # Should extract with defaults
-    assert len(ctx.todo_state) == 3
-    assert ctx.todo_state[0]["content"] == "Has content"
-    assert ctx.todo_state[0]["status"] == "pending"  # Default
-    assert ctx.todo_state[1]["content"] == ""  # Default
-    assert ctx.todo_state[1]["status"] == "pending"
-    assert ctx.todo_state[2]["content"] == ""
-    assert ctx.todo_state[2]["status"] == "pending"
 
 
 def test_recent_activity_limited_to_10() -> None:
@@ -1027,15 +875,6 @@ class TestFormatToolDescription:
         assert result.endswith("...")
         assert len(result) <= 47  # "Grep: " + 37 chars + "..."
 
-    def test_todowrite_shows_count(self) -> None:
-        """Test TodoWrite shows item count."""
-        analyzer = TranscriptAnalyzer()
-        block = {
-            "name": "TodoWrite",
-            "input": {"todos": [{"content": "a"}, {"content": "b"}, {"content": "c"}]},
-        }
-        assert analyzer._format_tool_description(block) == "TodoWrite: 3 items"
-
     def test_task_with_subagent(self) -> None:
         """Test Task shows subagent type and description."""
         analyzer = TranscriptAnalyzer()
@@ -1128,7 +967,6 @@ class TestHandoffContext:
         """Test HandoffContext has correct default values."""
         ctx = HandoffContext()
         assert ctx.active_gobby_task is None
-        assert ctx.todo_state == []
         assert ctx.files_modified == []
         assert ctx.git_commits == []
         assert ctx.git_status == ""
@@ -1141,7 +979,6 @@ class TestHandoffContext:
         """Test HandoffContext with custom values."""
         ctx = HandoffContext(
             active_gobby_task={"id": "gt-123", "title": "Test task"},
-            todo_state=[{"content": "Do something", "status": "pending"}],
             files_modified=["/path/to/file.py"],
             git_commits=[{"command": "git commit -m 'test'"}],
             git_status="On branch main",
@@ -1151,7 +988,6 @@ class TestHandoffContext:
             active_worktree={"path": "/worktree/path"},
         )
         assert ctx.active_gobby_task["id"] == "gt-123"
-        assert len(ctx.todo_state) == 1
         assert ctx.files_modified == ["/path/to/file.py"]
         assert len(ctx.git_commits) == 1
         assert ctx.git_status == "On branch main"
@@ -1225,29 +1061,6 @@ class TestAnalyzerEdgeCases:
         }
         result = analyzer._format_tool_description(block)
         assert result == "Called unknown.some_tool"
-
-    def test_todowrite_with_missing_todos_key(self) -> None:
-        """Test TodoWrite extraction when todos key is missing."""
-        turns = [
-            {
-                "type": "assistant",
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "name": "TodoWrite",
-                            "input": {},  # Missing todos key entirely
-                        },
-                    ]
-                },
-            },
-        ]
-
-        analyzer = TranscriptAnalyzer()
-        ctx = analyzer.extract_handoff_context(turns)
-
-        # Should return empty list when todos key is missing
-        assert ctx.todo_state == []
 
     def test_replace_tool_for_file_modification(self) -> None:
         """Test that Replace tool captures file modifications."""
@@ -1407,3 +1220,85 @@ class TestAnalyzerEdgeCases:
         assert ctx.active_gobby_task["id"] == "gt-multi"
         # Recent activity should have 5 items
         assert len(ctx.recent_activity) == 5
+
+
+def test_extract_key_decisions() -> None:
+    """Test that key decisions are extracted from assistant text blocks."""
+    turns = [
+        {"type": "user", "message": {"content": "help me"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "I decided to use a factory pattern because it provides better extensibility.",
+                    },
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "I opted for SQLite instead of PostgreSQL for local storage.",
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    assert ctx.key_decisions is not None
+    assert len(ctx.key_decisions) == 2
+    assert "factory pattern" in ctx.key_decisions[0]
+    assert "SQLite" in ctx.key_decisions[1]
+
+
+def test_extract_key_decisions_caps_at_10() -> None:
+    """Test that key decisions are capped at 10."""
+    turns = [{"type": "user", "message": {"content": "help me"}}]
+    for i in range(15):
+        turns.append(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"I decided to use approach {i} because it works well.",
+                        },
+                    ]
+                },
+            }
+        )
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    assert ctx.key_decisions is not None
+    assert len(ctx.key_decisions) == 10
+
+
+def test_initial_goal_handles_list_content() -> None:
+    """Test that initial goal handles nested content block lists."""
+    turns = [
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "Please fix"},
+                    {"type": "text", "text": "the login bug"},
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    assert ctx.initial_goal == "Please fix the login bug"

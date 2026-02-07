@@ -7,7 +7,6 @@ required_variables:
   - file_changes
 optional_variables:
   - previous_summary
-  - todo_list
 ---
 You are creating a session continuation summary after a compaction event.
 
@@ -29,10 +28,6 @@ If no previous context, this is the first segment - summarize the full session.
 
 ## Files Changed:
 {{ file_changes }}
-
-{% if todo_list %}
-{{ todo_list }}
-{% endif %}
 
 ---
 

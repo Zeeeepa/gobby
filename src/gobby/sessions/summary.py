@@ -233,9 +233,6 @@ class SummaryFileGenerator:
                 last_turns, num_pairs=2
             )
 
-            # Extract last TodoWrite tool call
-            todowrite_list = self._extract_last_todowrite(last_turns)
-
             # Get git status and file changes
             git_status = self._get_git_status()
             file_changes = self._get_file_changes()
@@ -249,7 +246,6 @@ class SummaryFileGenerator:
                 external_id=external_id,
                 session_id=session_id,
                 session_source=session_source,
-                todowrite_list=todowrite_list,
                 session_tasks_str=None,  # Task integration removed for failover simplicity
             )
 
@@ -304,7 +300,6 @@ class SummaryFileGenerator:
         external_id: str,
         session_id: str | None,
         session_source: str | None,
-        todowrite_list: str | None = None,
         session_tasks_str: str | None = None,
     ) -> str:
         """
@@ -318,7 +313,6 @@ class SummaryFileGenerator:
             external_id: Claude Code session key
             session_id: Internal database UUID
             session_source: Session source (e.g., "Claude Code")
-            todowrite_list: Optional TodoWrite list markdown
             session_tasks_str: Optional formatted session tasks list
 
         Returns:
@@ -338,7 +332,7 @@ class SummaryFileGenerator:
             "last_messages": last_messages,
             "git_status": git_status,
             "file_changes": file_changes,
-            "todo_list": f"## Agent's TODO List\n{todowrite_list}" if todowrite_list else "",
+            "todo_list": "",
             "session_tasks": session_tasks_str,
             "external_id": external_id,
             "session_id": session_id,
@@ -381,30 +375,6 @@ class SummaryFileGenerator:
 
             final_summary = header + llm_summary
 
-            # Insert TodoWrite list if it exists
-            if todowrite_list:
-                todo_section_marker = "## Claude's Todo List"
-                if todo_section_marker in final_summary:
-                    parts = final_summary.split(todo_section_marker)
-                    if len(parts) == 2:
-                        next_section_idx = parts[1].find("\n##")
-                        if next_section_idx != -1:
-                            after_next = parts[1][next_section_idx:]
-                            final_summary = (
-                                f"{parts[0]}{todo_section_marker}\n{todowrite_list}\n{after_next}"
-                            )
-                        else:
-                            final_summary = f"{parts[0]}{todo_section_marker}\n{todowrite_list}"
-                else:
-                    # Fallback: insert before Next Steps
-                    if "## Next Steps" in final_summary:
-                        parts = final_summary.split("## Next Steps", 1)
-                        final_summary = f"{parts[0]}\n## Claude's Todo List\n{todowrite_list}\n\n## Next Steps{parts[1]}"
-                    else:
-                        final_summary = (
-                            f"{final_summary}\n\n## Claude's Todo List\n{todowrite_list}"
-                        )
-
             return final_summary
 
         except Exception as e:
@@ -419,9 +389,6 @@ class SummaryFileGenerator:
                 error_header = f"# Session Summary (Error)\nClaude Code ID: {external_id}\nGenerated:      {timestamp}\n\n"
 
             error_summary = error_header + f"Error generating summary: {str(e)}"
-
-            if todowrite_list:
-                error_summary = f"{error_summary}\n\n## Claude's Todo List\n{todowrite_list}"
 
             return error_summary
 
@@ -457,51 +424,6 @@ class SummaryFileGenerator:
             formatted.append(f"[Turn {i + 1} - {role}]: {content}")
 
         return "\n\n".join(formatted)
-
-    def _extract_last_todowrite(self, turns: list[dict[str, Any]]) -> str | None:
-        """
-        Extract the last TodoWrite tool call's todos list from transcript.
-
-        Args:
-            turns: List of transcript turns
-
-        Returns:
-            Formatted markdown string with todo list, or None if not found
-        """
-        # Scan turns in reverse to find most recent TodoWrite
-        for turn in reversed(turns):
-            message = turn.get("message", {})
-            content = message.get("content", [])
-
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        if block.get("name") == "TodoWrite":
-                            tool_input = block.get("input", {})
-                            todos = tool_input.get("todos", [])
-
-                            if not todos:
-                                return None
-
-                            # Format as markdown checklist
-                            lines: list[str] = []
-                            for todo in todos:
-                                content_text = todo.get("content", "")
-                                status = todo.get("status", "pending")
-
-                                # Map status to checkbox style
-                                if status == "completed":
-                                    checkbox = "[x]"
-                                elif status == "in_progress":
-                                    checkbox = "[>]"
-                                else:
-                                    checkbox = "[ ]"
-
-                                lines.append(f"- {checkbox} {content_text} ({status})")
-
-                            return "\n".join(lines)
-
-        return None
 
     def _get_git_status(self) -> str:
         """

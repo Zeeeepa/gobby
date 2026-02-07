@@ -23,7 +23,6 @@ class HandoffContext:
     """Structured context for autonomous handoff."""
 
     active_gobby_task: dict[str, Any] | None = None
-    todo_state: list[dict[str, Any]] = field(default_factory=list)
     files_modified: list[str] = field(default_factory=list)
     git_commits: list[dict[str, Any]] = field(default_factory=list)
     git_status: str = ""
@@ -61,7 +60,6 @@ class TranscriptAnalyzer:
 
         Analyzes recent turns to find:
         - Active task state from gobby-tasks calls
-        - TodoWrite state from Claude's internal tracking (if available in transcript)
         - Files modified from Edit/Write/Bash calls
         - Git commits from Bash calls
         - The original user goal (first user message)
@@ -84,7 +82,18 @@ class TranscriptAnalyzer:
         for turn in turns:
             if turn.get("type") == "user":
                 msg = turn.get("message", {})
-                context.initial_goal = str(msg.get("content", "")).strip()
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    # Handle nested content blocks (e.g., Claude format)
+                    text_parts = []
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif isinstance(block, str):
+                            text_parts.append(block)
+                    context.initial_goal = " ".join(text_parts).strip()
+                else:
+                    context.initial_goal = str(content).strip()
                 break
 
         # 2. Analyze Recent Activity (Scan backwards)
@@ -123,10 +132,7 @@ class TranscriptAnalyzer:
 
         context.files_modified = sorted(modified_files_set)
 
-        # 3. Extract TodoWrite state
-        context.todo_state = self._extract_todowrite(relevant_turns)
-
-        # 4. Recent Activity Summary (Last 10 calls)
+        # 3. Recent Activity Summary (Last 10 calls)
         # Extract meaningful details from recent tool uses
         recent_tools = []
         count = 0
@@ -144,6 +150,32 @@ class TranscriptAnalyzer:
                         if count >= 10:
                             break
         context.recent_activity = recent_tools
+
+        # 5. Extract Key Decisions from assistant text blocks
+        decision_indicators = [
+            "decided", "approach", "instead", "because", "chosen",
+            "opted for", "went with", "switching to", "rather than",
+        ]
+        decisions: list[str] = []
+        for turn in relevant_turns:
+            message = turn.get("message", {})
+            content = message.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text = block.get("text", "")
+                        text_lower = text.lower()
+                        if any(ind in text_lower for ind in decision_indicators):
+                            # Extract first 200 chars of the decision text
+                            snippet = text[:200].strip()
+                            if snippet:
+                                decisions.append(snippet)
+                                if len(decisions) >= 10:
+                                    break
+                if len(decisions) >= 10:
+                    break
+        if decisions:
+            context.key_decisions = decisions
 
         return context
 
@@ -307,11 +339,6 @@ class TranscriptAnalyzer:
                 return f"Grep: {pattern}"
             return "Called Grep"
 
-        # TodoWrite - show count
-        if tool_name == "TodoWrite":
-            todos = tool_input.get("todos", [])
-            return f"TodoWrite: {len(todos)} items"
-
         # Task tool - show subagent type
         if tool_name == "Task":
             subagent = tool_input.get("subagent_type", "")
@@ -373,38 +400,3 @@ class TranscriptAnalyzer:
             return text
         return text[: max_len - 3] + "..."
 
-    def _extract_todowrite(self, turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """
-        Extract the most recent TodoWrite state from transcript.
-
-        Scans turns in reverse to find the last TodoWrite tool call and
-        extracts the todos list.
-
-        Args:
-            turns: List of transcript turns to scan
-
-        Returns:
-            List of todo dicts with 'content' and 'status' keys, or empty list
-        """
-        for turn in reversed(turns):
-            message = turn.get("message", {})
-            content = message.get("content", [])
-
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        if block.get("name") == "TodoWrite":
-                            tool_input = block.get("input", {})
-                            todos = tool_input.get("todos", [])
-
-                            if todos:
-                                # Return the raw todo list for HandoffContext
-                                return [
-                                    {
-                                        "content": todo.get("content", ""),
-                                        "status": todo.get("status", "pending"),
-                                    }
-                                    for todo in todos
-                                ]
-
-        return []

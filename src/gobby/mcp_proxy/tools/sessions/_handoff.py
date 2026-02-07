@@ -36,15 +36,6 @@ def _format_handoff_markdown(ctx: HandoffContext, notes: str | None = None) -> s
         sections.append(f"Status: {task.get('status', 'unknown')}")
         sections.append("")
 
-    # Todo state section
-    if ctx.todo_state:
-        sections.append("### In-Progress Work")
-        for todo in ctx.todo_state:
-            status = todo.get("status", "pending")
-            marker = "x" if status == "completed" else ">" if status == "in_progress" else " "
-            sections.append(f"- [{marker}] {todo.get('content', '')}")
-        sections.append("")
-
     # Git commits section
     if ctx.git_commits:
         sections.append("### Commits This Session")
@@ -395,7 +386,6 @@ Args:
             "files_written": files_written,
             "context_summary": {
                 "has_active_task": bool(handoff_ctx.active_gobby_task),
-                "todo_count": len(handoff_ctx.todo_state),
                 "files_modified_count": len(handoff_ctx.files_modified),
                 "git_commits_count": len(handoff_ctx.git_commits),
                 "has_initial_goal": bool(handoff_ctx.initial_goal),

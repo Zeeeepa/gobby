@@ -603,15 +603,6 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
             lines.append(f"- **Task**: {wt.get('task_id')}")
         sections.append("\n".join(lines))
 
-    # Todo state section
-    if ctx.todo_state:
-        lines = ["### In-Progress Work"]
-        for todo in ctx.todo_state:
-            status = todo.get("status", "pending")
-            marker = "x" if status == "completed" else ">" if status == "in_progress" else " "
-            lines.append(f"- [{marker}] {todo.get('content', '')}")
-        sections.append("\n".join(lines))
-
     # Git commits section
     if ctx.git_commits:
         lines = ["### Commits This Session"]
