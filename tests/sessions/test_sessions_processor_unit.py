@@ -618,3 +618,197 @@ class TestInitialization:
 
         processor_no_ws = SessionMessageProcessor(mock_db)
         assert processor_no_ws.websocket_server is None
+
+    def test_initial_state_includes_mtime(self, mock_db) -> None:
+        """Should initialize with empty mtime tracking dict."""
+        processor = SessionMessageProcessor(mock_db)
+        assert processor._last_mtime == {}
+
+
+class TestUnregisterCleansMtime:
+    """Tests that unregister cleans up mtime tracking."""
+
+    def test_unregister_removes_mtime(self, processor, tmp_path) -> None:
+        """Unregister should clean up mtime tracking."""
+        transcript = tmp_path / "transcript.json"
+        transcript.touch()
+
+        processor.register_session("session-1", str(transcript), source="gemini")
+        processor._last_mtime["session-1"] = 12345.0
+
+        processor.unregister_session("session-1")
+        assert "session-1" not in processor._last_mtime
+
+    def test_unregister_no_mtime_entry(self, processor, tmp_path) -> None:
+        """Unregister should handle missing mtime entry gracefully."""
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.touch()
+
+        processor.register_session("session-1", str(transcript))
+        # No mtime entry set
+        processor.unregister_session("session-1")
+        assert "session-1" not in processor._last_mtime
+
+
+class TestProcessJsonSession:
+    """Tests for _process_json_session (Gemini native JSON format)."""
+
+    @pytest.mark.asyncio
+    async def test_process_json_session_basic(self, mock_db, tmp_path) -> None:
+        """Should parse and store messages from a Gemini JSON session file."""
+        import json
+
+        processor = SessionMessageProcessor(mock_db)
+        transcript = tmp_path / "session-2024-01-01T10-00-abc12345.json"
+        data = {
+            "sessionId": "abc-12345",
+            "messages": [
+                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hello"},
+                {"id": "2", "timestamp": "2024-01-01T10:00:01Z", "type": "gemini", "content": "Hi there"},
+            ],
+        }
+        transcript.write_text(json.dumps(data))
+
+        processor.register_session("session-1", str(transcript), source="gemini")
+        processor.message_manager = AsyncMock()
+        processor.message_manager.get_state = AsyncMock(return_value=None)
+        processor.message_manager.store_messages = AsyncMock()
+        processor.message_manager.update_state = AsyncMock()
+
+        await processor._process_json_session("session-1", str(transcript))
+
+        # Should store 2 messages
+        processor.message_manager.store_messages.assert_called_once()
+        stored_msgs = processor.message_manager.store_messages.call_args[0][1]
+        assert len(stored_msgs) == 2
+        assert stored_msgs[0].role == "user"
+        assert stored_msgs[1].role == "assistant"
+
+        # Should update state
+        processor.message_manager.update_state.assert_called_once()
+
+        # Should track mtime
+        assert "session-1" in processor._last_mtime
+
+    @pytest.mark.asyncio
+    async def test_process_json_session_skips_unchanged(self, mock_db, tmp_path) -> None:
+        """Should skip processing when file hasn't changed (mtime check)."""
+        import json
+        import os
+
+        processor = SessionMessageProcessor(mock_db)
+        transcript = tmp_path / "session.json"
+        data = {"sessionId": "abc", "messages": [
+            {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hello"},
+        ]}
+        transcript.write_text(json.dumps(data))
+
+        processor.register_session("session-1", str(transcript), source="gemini")
+        processor.message_manager = AsyncMock()
+
+        # Set mtime to current file mtime (pretend we already processed)
+        processor._last_mtime["session-1"] = os.path.getmtime(str(transcript))
+
+        await processor._process_json_session("session-1", str(transcript))
+
+        # Should not call get_state since we skipped
+        processor.message_manager.get_state.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_json_session_incremental(self, mock_db, tmp_path) -> None:
+        """Should only store new messages beyond last_message_index."""
+        import json
+
+        processor = SessionMessageProcessor(mock_db)
+        transcript = tmp_path / "session.json"
+        data = {
+            "sessionId": "abc",
+            "messages": [
+                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "First"},
+                {"id": "2", "timestamp": "2024-01-01T10:00:01Z", "type": "gemini", "content": "Second"},
+                {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "user", "content": "Third"},
+            ],
+        }
+        transcript.write_text(json.dumps(data))
+
+        processor.register_session("session-1", str(transcript), source="gemini")
+        processor.message_manager = AsyncMock()
+        # Pretend we already processed up to index 1
+        processor.message_manager.get_state = AsyncMock(
+            return_value={"last_byte_offset": 0, "last_message_index": 1}
+        )
+        processor.message_manager.store_messages = AsyncMock()
+        processor.message_manager.update_state = AsyncMock()
+
+        await processor._process_json_session("session-1", str(transcript))
+
+        # Should only store message at index 2 (Third)
+        stored_msgs = processor.message_manager.store_messages.call_args[0][1]
+        assert len(stored_msgs) == 1
+        assert stored_msgs[0].content == "Third"
+
+    @pytest.mark.asyncio
+    async def test_process_json_session_file_not_found(self, mock_db) -> None:
+        """Should return early when transcript file doesn't exist."""
+        processor = SessionMessageProcessor(mock_db)
+        processor.register_session("session-1", "/nonexistent/file.json", source="gemini")
+        processor.message_manager = AsyncMock()
+
+        await processor._process_json_session("session-1", "/nonexistent/file.json")
+        processor.message_manager.get_state.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_json_session_invalid_json(self, mock_db, tmp_path, caplog) -> None:
+        """Should handle invalid JSON gracefully."""
+        processor = SessionMessageProcessor(mock_db)
+        transcript = tmp_path / "bad.json"
+        transcript.write_text("not valid json {{{")
+
+        processor.register_session("session-1", str(transcript), source="gemini")
+        processor.message_manager = AsyncMock()
+
+        await processor._process_json_session("session-1", str(transcript))
+        assert "Error reading JSON transcript" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_process_json_session_wrong_parser_type(self, mock_db, tmp_path, caplog) -> None:
+        """Should warn when parser is not GeminiTranscriptParser."""
+        import json
+
+        processor = SessionMessageProcessor(mock_db)
+        transcript = tmp_path / "session.json"
+        transcript.write_text(json.dumps({"sessionId": "x", "messages": []}))
+
+        # Register with claude parser (wrong for JSON)
+        processor.register_session("session-1", str(transcript), source="claude")
+        processor.message_manager = AsyncMock()
+        processor.message_manager.get_state = AsyncMock(return_value=None)
+
+        await processor._process_json_session("session-1", str(transcript))
+        assert "No GeminiTranscriptParser" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_process_session_dispatches_to_json(self, mock_db, tmp_path) -> None:
+        """_process_session should dispatch to _process_json_session for .json files."""
+        import json
+
+        processor = SessionMessageProcessor(mock_db)
+        transcript = tmp_path / "session.json"
+        data = {"sessionId": "abc", "messages": [
+            {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hello"},
+        ]}
+        transcript.write_text(json.dumps(data))
+
+        processor.register_session("session-1", str(transcript), source="gemini")
+        processor.message_manager = AsyncMock()
+        processor.message_manager.get_state = AsyncMock(return_value=None)
+        processor.message_manager.store_messages = AsyncMock()
+        processor.message_manager.update_state = AsyncMock()
+
+        await processor._process_session("session-1", str(transcript))
+
+        # Should have processed via JSON path
+        processor.message_manager.store_messages.assert_called_once()
+        stored_msgs = processor.message_manager.store_messages.call_args[0][1]
+        assert len(stored_msgs) == 1
+        assert stored_msgs[0].role == "user"

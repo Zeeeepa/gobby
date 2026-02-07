@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.event_handlers._base import EventHandlersBase
@@ -9,9 +12,93 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import Session
     from gobby.workflows.definitions import WorkflowState
 
+_derive_logger = logging.getLogger(__name__)
+
 
 class SessionEventHandlerMixin(EventHandlersBase):
     """Mixin for handling session-related events."""
+
+    def _derive_transcript_path(
+        self, cli_source: str, input_data: dict[str, Any], external_id: str
+    ) -> str | None:
+        """Derive transcript path for CLIs that don't provide one natively.
+
+        Args:
+            cli_source: CLI source name (gemini, cursor, etc.)
+            input_data: Hook event input data
+            external_id: External session ID
+
+        Returns:
+            Path to transcript file, or None if not derivable.
+        """
+        if cli_source in ("gemini", "antigravity"):
+            return self._find_gemini_transcript(input_data, external_id)
+        if cli_source == "cursor":
+            return self._find_cursor_transcript(input_data, external_id)
+        return None
+
+    def _find_gemini_transcript(
+        self, input_data: dict[str, Any], external_id: str
+    ) -> str | None:
+        """Find the Gemini session JSON file.
+
+        Gemini stores sessions at:
+        ~/.gemini/tmp/{SHA256(cwd)}/chats/session-{date}T{time}-{session_id[:8]}.json
+        """
+        cwd = input_data.get("cwd")
+        if not cwd:
+            self.logger.debug("Cannot derive Gemini transcript: no cwd")
+            return None
+
+        session_id = input_data.get("session_id") or external_id or ""
+        project_hash = hashlib.sha256(cwd.encode()).hexdigest()
+        chats_dir = Path.home() / ".gemini" / "tmp" / project_hash / "chats"
+
+        if not chats_dir.exists():
+            self.logger.debug(f"Gemini chats dir not found: {chats_dir}")
+            return None
+
+        # Try to match by session_id prefix (first 8 chars)
+        prefix = session_id[:8] if session_id else ""
+        if prefix:
+            matches = sorted(chats_dir.glob(f"session-*-{prefix}.json"), reverse=True)
+            if matches:
+                self.logger.debug(f"Found Gemini transcript by prefix: {matches[0]}")
+                return str(matches[0])
+
+        # Fallback: most recent session file
+        all_sessions = sorted(chats_dir.glob("session-*.json"), reverse=True)
+        if all_sessions:
+            self.logger.debug(f"Found Gemini transcript (most recent): {all_sessions[0]}")
+            return str(all_sessions[0])
+
+        self.logger.debug(f"No Gemini session files in {chats_dir}")
+        return None
+
+    def _find_cursor_transcript(
+        self, input_data: dict[str, Any], external_id: str
+    ) -> str | None:
+        """Find the Cursor NDJSON capture file.
+
+        For spawned Cursor agents, Gobby writes stdout to a capture file.
+        The path is passed via GOBBY_CURSOR_CAPTURE_PATH env var or
+        stored in the session's jsonl_path.
+        """
+        terminal_context = input_data.get("terminal_context")
+        if terminal_context:
+            capture_path = terminal_context.get("cursor_capture_path")
+            if capture_path:
+                self.logger.debug(f"Found Cursor capture path from context: {capture_path}")
+                return capture_path
+
+        # Check for capture file in standard location
+        session_id = input_data.get("session_id") or external_id or ""
+        capture_path = f"/tmp/gobby-cursor-{session_id}.ndjson"
+        if Path(capture_path).exists():
+            self.logger.debug(f"Found Cursor capture file: {capture_path}")
+            return capture_path
+
+        return None
 
     def handle_session_start(self, event: HookEvent) -> HookResponse:
         """
@@ -24,6 +111,10 @@ class SessionEventHandlerMixin(EventHandlersBase):
         transcript_path = input_data.get("transcript_path")
         cli_source = event.source.value
         cwd = input_data.get("cwd")
+
+        # Derive transcript path for CLIs that don't provide one natively
+        if not transcript_path:
+            transcript_path = self._derive_transcript_path(cli_source, input_data, external_id)
         session_source = input_data.get("source", "startup")
 
         # Resolve project_id (auto-creates if needed)
@@ -299,6 +390,11 @@ class SessionEventHandlerMixin(EventHandlersBase):
             HookResponse for the pre-created session
         """
         self.logger.info(f"Found pre-created session {external_id}, updating instead of creating")
+
+        # Derive transcript path for CLIs that don't provide one natively
+        if not transcript_path:
+            input_data = event.data if event else {}
+            transcript_path = self._derive_transcript_path(cli_source, input_data, external_id)
 
         # Update the session with actual runtime info
         if self._session_storage:

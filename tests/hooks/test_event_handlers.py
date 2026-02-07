@@ -1826,3 +1826,145 @@ class TestNoManagerDependencies:
         response = handlers.handle_notification(event)
 
         assert response.decision == "allow"
+
+
+class TestTranscriptPathDerivation:
+    """Test _derive_transcript_path and helpers for non-Claude CLIs."""
+
+    def test_derive_transcript_path_unknown_cli(self, event_handlers: EventHandlers) -> None:
+        """Unknown CLI should return None."""
+        result = event_handlers._derive_transcript_path("unknown-cli", {}, "ext-123")
+        assert result is None
+
+    def test_derive_transcript_path_claude_returns_none(self, event_handlers: EventHandlers) -> None:
+        """Claude provides transcript_path natively, so derivation returns None."""
+        result = event_handlers._derive_transcript_path("claude", {}, "ext-123")
+        assert result is None
+
+    def test_find_gemini_transcript_no_cwd(self, event_handlers: EventHandlers) -> None:
+        """Should return None when cwd is not provided."""
+        result = event_handlers._find_gemini_transcript({}, "ext-123")
+        assert result is None
+
+    def test_find_gemini_transcript_nonexistent_dir(self, event_handlers: EventHandlers) -> None:
+        """Should return None when chats dir doesn't exist."""
+        result = event_handlers._find_gemini_transcript(
+            {"cwd": "/nonexistent/path/that/does/not/exist"}, "ext-123"
+        )
+        assert result is None
+
+    def test_find_gemini_transcript_by_prefix(self, event_handlers: EventHandlers, tmp_path) -> None:
+        """Should find Gemini session file by session_id prefix."""
+        import hashlib
+
+        cwd = str(tmp_path / "myproject")
+        project_hash = hashlib.sha256(cwd.encode()).hexdigest()
+        chats_dir = tmp_path / ".gemini" / "tmp" / project_hash / "chats"
+        chats_dir.mkdir(parents=True)
+
+        # Create a session file matching the prefix
+        session_file = chats_dir / "session-2024-01-01T10-00-abcd1234.json"
+        session_file.touch()
+
+        # Monkey-patch Path.home to use tmp_path
+        import gobby.hooks.event_handlers._session as session_mod
+        original_home = session_mod.Path.home
+
+        try:
+            session_mod.Path.home = staticmethod(lambda: tmp_path)
+            result = event_handlers._find_gemini_transcript(
+                {"cwd": cwd, "session_id": "abcd1234-full-uuid"}, "ext-123"
+            )
+            assert result is not None
+            assert "abcd1234" in result
+        finally:
+            session_mod.Path.home = original_home
+
+    def test_find_gemini_transcript_fallback_most_recent(self, event_handlers: EventHandlers, tmp_path) -> None:
+        """Should fall back to most recent session file when prefix doesn't match."""
+        import hashlib
+
+        cwd = str(tmp_path / "myproject")
+        project_hash = hashlib.sha256(cwd.encode()).hexdigest()
+        chats_dir = tmp_path / ".gemini" / "tmp" / project_hash / "chats"
+        chats_dir.mkdir(parents=True)
+
+        # Create session files that won't match the prefix
+        session_file = chats_dir / "session-2024-01-01T10-00-xxxxxxxx.json"
+        session_file.touch()
+
+        import gobby.hooks.event_handlers._session as session_mod
+        original_home = session_mod.Path.home
+
+        try:
+            session_mod.Path.home = staticmethod(lambda: tmp_path)
+            result = event_handlers._find_gemini_transcript(
+                {"cwd": cwd, "session_id": "nomatch-uuid"}, "ext-123"
+            )
+            assert result is not None
+            assert "xxxxxxxx" in result
+        finally:
+            session_mod.Path.home = original_home
+
+    def test_find_cursor_transcript_from_terminal_context(self, event_handlers: EventHandlers) -> None:
+        """Should find Cursor capture path from terminal_context."""
+        result = event_handlers._find_cursor_transcript(
+            {"terminal_context": {"cursor_capture_path": "/tmp/gobby-cursor-abc.ndjson"}},
+            "ext-123",
+        )
+        assert result == "/tmp/gobby-cursor-abc.ndjson"
+
+    def test_find_cursor_transcript_from_standard_location(self, event_handlers: EventHandlers) -> None:
+        """Should find Cursor capture file in /tmp/ by session_id."""
+        import os
+
+        capture_path = "/tmp/gobby-cursor-test-session-id-xyz.ndjson"
+        try:
+            # Create the file so it exists
+            with open(capture_path, "w") as f:
+                f.write("")
+
+            result = event_handlers._find_cursor_transcript(
+                {"session_id": "test-session-id-xyz"}, "ext-123"
+            )
+            assert result == capture_path
+        finally:
+            if os.path.exists(capture_path):
+                os.unlink(capture_path)
+
+    def test_find_cursor_transcript_not_found(self, event_handlers: EventHandlers) -> None:
+        """Should return None when no capture file exists."""
+        result = event_handlers._find_cursor_transcript(
+            {}, "nonexistent-session-id-xyz"
+        )
+        assert result is None
+
+    def test_derive_gemini_dispatches(self, event_handlers: EventHandlers) -> None:
+        """_derive_transcript_path should dispatch to _find_gemini_transcript for gemini."""
+        # Without cwd, gemini derivation returns None
+        result = event_handlers._derive_transcript_path("gemini", {}, "ext-123")
+        assert result is None
+
+    def test_derive_antigravity_dispatches(self, event_handlers: EventHandlers) -> None:
+        """_derive_transcript_path should dispatch to _find_gemini_transcript for antigravity."""
+        result = event_handlers._derive_transcript_path("antigravity", {}, "ext-123")
+        assert result is None
+
+    def test_derive_cursor_dispatches(self, event_handlers: EventHandlers) -> None:
+        """_derive_transcript_path should dispatch to _find_cursor_transcript for cursor."""
+        result = event_handlers._derive_transcript_path("cursor", {}, "ext-123")
+        assert result is None
+
+    def test_session_start_derives_gemini_transcript(self, mock_dependencies: dict) -> None:
+        """SESSION_START should derive transcript_path for Gemini when not provided natively."""
+        handlers = EventHandlers(**mock_dependencies)
+        mock_dependencies["session_storage"].get.return_value = None
+
+        event = make_event(
+            HookEventType.SESSION_START,
+            source="gemini",
+            data={"cwd": "/some/project", "source": "startup"},
+        )
+
+        response = handlers.handle_session_start(event)
+        assert response.decision == "allow"

@@ -7,6 +7,7 @@ Exports transcript parsers for different CLI tools.
 from gobby.sessions.transcripts.base import ParsedMessage, TranscriptParser
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
+from gobby.sessions.transcripts.cursor import CursorTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "ClaudeTranscriptParser",
     "GeminiTranscriptParser",
     "CodexTranscriptParser",
+    "CursorTranscriptParser",
     "get_parser",
     "PARSER_REGISTRY",
 ]
@@ -24,9 +26,8 @@ PARSER_REGISTRY: dict[str, type[TranscriptParser]] = {
     "gemini": GeminiTranscriptParser,
     "antigravity": GeminiTranscriptParser,
     "codex": CodexTranscriptParser,
-    "cursor": ClaudeTranscriptParser,
-    "windsurf": ClaudeTranscriptParser,
-    "copilot": ClaudeTranscriptParser,
+    "cursor": CursorTranscriptParser,
+    # windsurf and copilot: no transcript file support yet (hook-based, future work)
 }
 
 
@@ -35,7 +36,7 @@ def get_parser(source: str) -> TranscriptParser:
     Get a transcript parser instance for the given source.
 
     Args:
-        source: CLI source name (e.g., 'claude', 'gemini')
+        source: CLI source name (e.g., 'claude', 'gemini', 'cursor')
 
     Returns:
         TranscriptParser instance

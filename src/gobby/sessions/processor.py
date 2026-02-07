@@ -3,9 +3,14 @@ Session message processor.
 
 Handles asynchronous, incremental processing of session transcripts.
 Tracks file offsets and updates the database with new messages.
+
+Supports two transcript formats:
+- JSONL: Incremental line-by-line processing with byte offset tracking (Claude, Codex, Cursor)
+- JSON: Full-file parsing with mtime-based change detection (Gemini native session files)
 """
 
 import asyncio
+import json
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -16,6 +21,7 @@ if TYPE_CHECKING:
 
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
+from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.session_messages import LocalSessionMessageManager
 
@@ -49,8 +55,10 @@ class SessionMessageProcessor:
         self._active_sessions: dict[str, str] = {}
 
         # Track parsers: session_id -> TranscriptParser
-        # Currently hardcoded to ClaudeTranscriptParser, but could support others
         self._parsers: dict[str, TranscriptParser] = {}
+
+        # Track last mtime for JSON file sessions (mtime-based change detection)
+        self._last_mtime: dict[str, float] = {}
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -105,6 +113,7 @@ class SessionMessageProcessor:
             del self._active_sessions[session_id]
             if session_id in self._parsers:
                 del self._parsers[session_id]
+            self._last_mtime.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
 
     async def _loop(self) -> None:
@@ -132,9 +141,15 @@ class SessionMessageProcessor:
         """
         Process a single session.
 
-        Reads new lines from the transcript file from the last known byte offset.
+        Dispatches to format-specific processing based on file extension:
+        - .json: Full-file parsing with mtime change detection (Gemini native)
+        - .jsonl/.ndjson/other: Incremental line-by-line with byte offset tracking
         """
         if not os.path.exists(transcript_path):
+            return
+
+        if transcript_path.endswith(".json"):
+            await self._process_json_session(session_id, transcript_path)
             return
 
         # Get current processing state
@@ -233,3 +248,94 @@ class SessionMessageProcessor:
         )
 
         logger.debug(f"Processed {len(parsed_messages)} messages for {session_id}")
+
+    async def _process_json_session(self, session_id: str, transcript_path: str) -> None:
+        """
+        Process a JSON session file (e.g., Gemini native format).
+
+        Uses mtime to detect changes, reads the entire file, and parses
+        all messages. Only stores messages newer than last_message_index.
+        """
+        try:
+            current_mtime = os.path.getmtime(transcript_path)
+        except OSError:
+            return
+
+        # Skip if file hasn't changed since last poll
+        last_mtime = self._last_mtime.get(session_id, 0.0)
+        if current_mtime <= last_mtime:
+            return
+
+        # Read and parse the entire file
+        try:
+            with open(transcript_path, encoding="utf-8") as f:
+                data = json.loads(f.read())
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error(f"Error reading JSON transcript {transcript_path}: {e}")
+            return
+
+        if not isinstance(data, dict):
+            logger.warning(f"JSON transcript is not an object: {transcript_path}")
+            return
+
+        parser = self._parsers.get(session_id)
+        if not parser or not isinstance(parser, GeminiTranscriptParser):
+            logger.warning(f"No GeminiTranscriptParser for JSON session {session_id}")
+            return
+
+        all_messages = parser.parse_session_json(data)
+        if not all_messages:
+            self._last_mtime[session_id] = current_mtime
+            return
+
+        # Get current state to find only new messages
+        state = await self.message_manager.get_state(session_id)
+        last_index = state.get("last_message_index", -1) if state else -1
+
+        new_messages = [m for m in all_messages if m.index > last_index]
+
+        if not new_messages:
+            self._last_mtime[session_id] = current_mtime
+            return
+
+        # Store messages
+        await self.message_manager.store_messages(session_id, new_messages)
+
+        # Extract and store model from parsed messages
+        if self.session_manager:
+            for msg in new_messages:
+                if msg.model:
+                    self.session_manager.update_model(session_id, msg.model)
+                    break
+
+        # Broadcast new messages
+        if self.websocket_server:
+            for msg in new_messages:
+                payload = {
+                    "type": "session_message",
+                    "session_id": session_id,
+                    "message": {
+                        "index": msg.index,
+                        "role": msg.role,
+                        "content": msg.content,
+                        "content_type": msg.content_type,
+                        "tool_name": msg.tool_name,
+                        "timestamp": msg.timestamp.isoformat(),
+                    },
+                }
+                await self.websocket_server.broadcast(payload)
+
+        # Update state — use 0 for byte_offset since JSON doesn't use offsets
+        new_last_index = new_messages[-1].index
+        await self.message_manager.update_state(
+            session_id=session_id,
+            byte_offset=0,
+            message_index=new_last_index,
+        )
+
+        # Track mtime for change detection
+        self._last_mtime[session_id] = current_mtime
+
+        logger.debug(
+            f"Processed {len(new_messages)} JSON messages for {session_id}"
+        )

@@ -1,5 +1,5 @@
 """
-Tests for Transcript Parsers (Claude, Codex, Gemini).
+Tests for Transcript Parsers (Claude, Codex, Gemini, Cursor).
 Consolidated from individual files.
 """
 
@@ -8,9 +8,11 @@ from datetime import UTC, datetime
 
 import pytest
 
+from gobby.sessions.transcripts import PARSER_REGISTRY, get_parser
 from gobby.sessions.transcripts.base import ParsedMessage
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
+from gobby.sessions.transcripts.cursor import CursorTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
 pytestmark = pytest.mark.unit
@@ -957,3 +959,376 @@ class TestGeminiTranscriptParser:
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.content == ""
+
+    def test_gemini_parse_session_json_basic(self, parser) -> None:
+        """Test parse_session_json with basic user/gemini messages."""
+        data = {
+            "sessionId": "abc-123",
+            "projectHash": "deadbeef",
+            "startTime": "2024-01-01T10:00:00Z",
+            "lastUpdated": "2024-01-01T10:05:00Z",
+            "messages": [
+                {
+                    "id": "msg-1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "user",
+                    "content": "Hello Gemini",
+                },
+                {
+                    "id": "msg-2",
+                    "timestamp": "2024-01-01T10:00:01Z",
+                    "type": "gemini",
+                    "content": "Hello! How can I help?",
+                },
+            ],
+        }
+
+        msgs = parser.parse_session_json(data)
+        assert len(msgs) == 2
+        assert msgs[0].role == "user"
+        assert msgs[0].content == "Hello Gemini"
+        assert msgs[0].index == 0
+        assert msgs[1].role == "assistant"
+        assert msgs[1].content == "Hello! How can I help?"
+        assert msgs[1].index == 1
+
+    def test_gemini_parse_session_json_with_tool_calls(self, parser) -> None:
+        """Test parse_session_json with gemini message containing toolCalls."""
+        data = {
+            "sessionId": "abc-123",
+            "messages": [
+                {
+                    "id": "msg-1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "gemini",
+                    "content": "Let me read that file.",
+                    "toolCalls": [
+                        {
+                            "name": "read_file",
+                            "args": {"path": "test.txt"},
+                            "result": {
+                                "functionResponse": {"content": "file contents here"}
+                            },
+                        }
+                    ],
+                },
+            ],
+        }
+
+        msgs = parser.parse_session_json(data)
+        # Should produce: text response + tool_use + tool_result = 3 messages
+        assert len(msgs) == 3
+        assert msgs[0].role == "assistant"
+        assert msgs[0].content_type == "text"
+        assert msgs[0].content == "Let me read that file."
+        assert msgs[1].role == "assistant"
+        assert msgs[1].content_type == "tool_use"
+        assert msgs[1].tool_name == "read_file"
+        assert msgs[1].tool_input == {"path": "test.txt"}
+        assert msgs[2].role == "tool"
+        assert msgs[2].content_type == "tool_result"
+        assert msgs[2].tool_name == "read_file"
+
+    def test_gemini_parse_session_json_skips_info_warning(self, parser) -> None:
+        """Test that info and warning messages are skipped."""
+        data = {
+            "sessionId": "abc-123",
+            "messages": [
+                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Hi"},
+                {"id": "2", "timestamp": "2024-01-01T10:00:01Z", "type": "info", "content": "Info msg"},
+                {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "warning", "content": "Warn msg"},
+                {"id": "4", "timestamp": "2024-01-01T10:00:03Z", "type": "gemini", "content": "Response"},
+            ],
+        }
+
+        msgs = parser.parse_session_json(data)
+        assert len(msgs) == 2
+        assert msgs[0].role == "user"
+        assert msgs[1].role == "assistant"
+
+    def test_gemini_parse_session_json_empty_messages(self, parser) -> None:
+        """Test parse_session_json with no messages."""
+        data = {"sessionId": "abc-123", "messages": []}
+        msgs = parser.parse_session_json(data)
+        assert msgs == []
+
+    def test_gemini_parse_session_json_no_messages_key(self, parser) -> None:
+        """Test parse_session_json with missing messages key."""
+        data = {"sessionId": "abc-123"}
+        msgs = parser.parse_session_json(data)
+        assert msgs == []
+
+    def test_gemini_parse_session_json_gemini_no_content(self, parser) -> None:
+        """Test gemini message with no text content but with toolCalls."""
+        data = {
+            "sessionId": "abc-123",
+            "messages": [
+                {
+                    "id": "msg-1",
+                    "timestamp": "2024-01-01T10:00:00Z",
+                    "type": "gemini",
+                    "content": "",
+                    "toolCalls": [
+                        {"name": "bash", "args": {"command": "ls"}},
+                    ],
+                },
+            ],
+        }
+
+        msgs = parser.parse_session_json(data)
+        # No text content, but should have tool_use
+        assert len(msgs) == 1
+        assert msgs[0].content_type == "tool_use"
+        assert msgs[0].tool_name == "bash"
+
+    def test_gemini_parse_session_json_indexes_are_sequential(self, parser) -> None:
+        """Test that indexes across messages with tool calls are sequential."""
+        data = {
+            "sessionId": "abc-123",
+            "messages": [
+                {"id": "1", "timestamp": "2024-01-01T10:00:00Z", "type": "user", "content": "Do it"},
+                {
+                    "id": "2",
+                    "timestamp": "2024-01-01T10:00:01Z",
+                    "type": "gemini",
+                    "content": "OK",
+                    "toolCalls": [
+                        {"name": "tool1", "args": {}, "result": {"functionResponse": "r1"}},
+                        {"name": "tool2", "args": {}, "result": {"functionResponse": "r2"}},
+                    ],
+                },
+                {"id": "3", "timestamp": "2024-01-01T10:00:02Z", "type": "user", "content": "Thanks"},
+            ],
+        }
+
+        msgs = parser.parse_session_json(data)
+        # user(0), text(1), tool1_use(2), tool1_result(3), tool2_use(4), tool2_result(5), user(6)
+        assert len(msgs) == 7
+        for i, msg in enumerate(msgs):
+            assert msg.index == i, f"Expected index {i}, got {msg.index} for {msg.content_type}"
+
+
+class TestCursorTranscriptParser:
+    """Tests for Cursor NDJSON transcript parser."""
+
+    @pytest.fixture
+    def parser(self):
+        return CursorTranscriptParser()
+
+    def test_parse_line_user_message(self, parser) -> None:
+        """Test parsing user message event."""
+        line = json.dumps({
+            "type": "user",
+            "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+            "session_id": "abc-123",
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is not None
+        assert msg.role == "user"
+        assert msg.content == "Hello"
+        assert msg.content_type == "text"
+        assert msg.index == 0
+
+    def test_parse_line_assistant_message(self, parser) -> None:
+        """Test parsing assistant message event."""
+        line = json.dumps({
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "I can help"}]},
+            "session_id": "abc-123",
+        })
+        msg = parser.parse_line(line, 1)
+        assert msg is not None
+        assert msg.role == "assistant"
+        assert msg.content == "I can help"
+        assert msg.index == 1
+
+    def test_parse_line_tool_call_started(self, parser) -> None:
+        """Test parsing tool_call started event."""
+        line = json.dumps({
+            "type": "tool_call",
+            "subtype": "started",
+            "call_id": "call-001",
+            "tool_call": {
+                "readToolCall": {"args": {"path": "test.txt"}},
+            },
+            "session_id": "abc-123",
+        })
+        msg = parser.parse_line(line, 2)
+        assert msg is not None
+        assert msg.role == "assistant"
+        assert msg.content_type == "tool_use"
+        assert msg.tool_name == "readToolCall"
+        assert msg.tool_input == {"path": "test.txt"}
+        assert msg.tool_use_id == "call-001"
+
+    def test_parse_line_tool_call_completed(self, parser) -> None:
+        """Test parsing tool_call completed event."""
+        line = json.dumps({
+            "type": "tool_call",
+            "subtype": "completed",
+            "call_id": "call-001",
+            "tool_call": {
+                "readToolCall": {
+                    "args": {"path": "test.txt"},
+                    "result": {"success": {"content": "file contents"}},
+                },
+            },
+            "session_id": "abc-123",
+        })
+        msg = parser.parse_line(line, 3)
+        assert msg is not None
+        assert msg.role == "tool"
+        assert msg.content_type == "tool_result"
+        assert msg.tool_name == "readToolCall"
+        assert msg.tool_result is not None
+        assert msg.tool_result["output"] == "file contents"
+        assert msg.tool_use_id == "call-001"
+
+    def test_parse_line_write_tool_call(self, parser) -> None:
+        """Test parsing writeToolCall event."""
+        line = json.dumps({
+            "type": "tool_call",
+            "subtype": "started",
+            "call_id": "call-002",
+            "tool_call": {
+                "writeToolCall": {"args": {"path": "out.txt", "content": "data"}},
+            },
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is not None
+        assert msg.tool_name == "writeToolCall"
+        assert msg.tool_input == {"path": "out.txt", "content": "data"}
+
+    def test_parse_line_function_tool_call(self, parser) -> None:
+        """Test parsing generic function tool call."""
+        line = json.dumps({
+            "type": "tool_call",
+            "subtype": "started",
+            "call_id": "call-003",
+            "tool_call": {
+                "function": {"name": "custom_tool", "args": {"key": "value"}},
+            },
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is not None
+        assert msg.tool_name == "custom_tool"
+        assert msg.tool_input == {"key": "value"}
+
+    def test_parse_line_system_event_skipped(self, parser) -> None:
+        """Test that system init events are skipped."""
+        line = json.dumps({
+            "type": "system",
+            "subtype": "init",
+            "cwd": "/path",
+            "session_id": "abc-123",
+            "model": "Claude 4 Sonnet",
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is None
+
+    def test_parse_line_result_event_skipped(self, parser) -> None:
+        """Test that result summary events are skipped."""
+        line = json.dumps({
+            "type": "result",
+            "subtype": "success",
+            "duration_ms": 1234,
+            "result": "full text",
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is None
+
+    def test_parse_line_invalid_json(self, parser) -> None:
+        """Test handling of invalid JSON."""
+        msg = parser.parse_line("not valid json", 0)
+        assert msg is None
+
+    def test_parse_line_empty(self, parser) -> None:
+        """Test handling of empty lines."""
+        assert parser.parse_line("", 0) is None
+        assert parser.parse_line("   ", 0) is None
+
+    def test_parse_lines_batch(self, parser) -> None:
+        """Test batch parsing with parse_lines."""
+        lines = [
+            json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "Q1"}]}}),
+            json.dumps({"type": "system", "subtype": "init"}),  # Skipped
+            json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "A1"}]}}),
+        ]
+        msgs = parser.parse_lines(lines, start_index=5)
+        assert len(msgs) == 2
+        assert msgs[0].index == 5
+        assert msgs[0].role == "user"
+        assert msgs[1].index == 6
+        assert msgs[1].role == "assistant"
+
+    def test_extract_last_messages(self, parser) -> None:
+        """Test extract_last_messages with Cursor events."""
+        turns = [
+            {"type": "user", "message": {"content": [{"type": "text", "text": "1"}]}},
+            {"type": "assistant", "message": {"content": [{"type": "text", "text": "2"}]}},
+            {"type": "user", "message": {"content": [{"type": "text", "text": "3"}]}},
+            {"type": "assistant", "message": {"content": [{"type": "text", "text": "4"}]}},
+        ]
+        msgs = parser.extract_last_messages(turns, num_pairs=1)
+        assert len(msgs) == 2
+        assert msgs[0]["content"] == "3"
+        assert msgs[1]["content"] == "4"
+
+    def test_is_session_boundary(self, parser) -> None:
+        """Cursor has no session boundaries."""
+        assert parser.is_session_boundary({}) is False
+
+    def test_extract_content_blocks_string(self, parser) -> None:
+        """Test _extract_content_blocks with plain string content."""
+        assert parser._extract_content_blocks("hello") == "hello"
+
+    def test_extract_content_blocks_mixed_list(self, parser) -> None:
+        """Test _extract_content_blocks with mixed list."""
+        content = [
+            {"type": "text", "text": "Part 1"},
+            "Part 2",
+            {"type": "image", "url": "img.png"},  # Non-text block ignored
+        ]
+        assert parser._extract_content_blocks(content) == "Part 1 Part 2"
+
+    def test_tool_call_unknown_structure(self, parser) -> None:
+        """Test tool call with unknown structure falls back to 'unknown'."""
+        line = json.dumps({
+            "type": "tool_call",
+            "subtype": "started",
+            "call_id": "call-x",
+            "tool_call": {"weirdKey": {"data": 42}},
+        })
+        msg = parser.parse_line(line, 0)
+        assert msg is not None
+        assert msg.tool_name == "unknown"
+
+
+class TestParserRegistry:
+    """Tests for the parser registry and get_parser function."""
+
+    def test_registry_has_correct_parsers(self) -> None:
+        """Verify each source maps to the correct parser class."""
+        assert PARSER_REGISTRY["claude"] is ClaudeTranscriptParser
+        assert PARSER_REGISTRY["gemini"] is GeminiTranscriptParser
+        assert PARSER_REGISTRY["antigravity"] is GeminiTranscriptParser
+        assert PARSER_REGISTRY["codex"] is CodexTranscriptParser
+        assert PARSER_REGISTRY["cursor"] is CursorTranscriptParser
+
+    def test_windsurf_copilot_not_in_registry(self) -> None:
+        """Windsurf and Copilot should not have registry entries (no transcript support)."""
+        assert "windsurf" not in PARSER_REGISTRY
+        assert "copilot" not in PARSER_REGISTRY
+
+    def test_get_parser_returns_correct_instances(self) -> None:
+        """get_parser should return instances of the correct parser class."""
+        assert isinstance(get_parser("claude"), ClaudeTranscriptParser)
+        assert isinstance(get_parser("gemini"), GeminiTranscriptParser)
+        assert isinstance(get_parser("codex"), CodexTranscriptParser)
+        assert isinstance(get_parser("cursor"), CursorTranscriptParser)
+
+    def test_get_parser_unknown_source_defaults_to_claude(self) -> None:
+        """Unknown source should default to ClaudeTranscriptParser."""
+        assert isinstance(get_parser("unknown-cli"), ClaudeTranscriptParser)
+        assert isinstance(get_parser("windsurf"), ClaudeTranscriptParser)
+        assert isinstance(get_parser("copilot"), ClaudeTranscriptParser)

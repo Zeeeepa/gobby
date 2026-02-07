@@ -305,6 +305,15 @@ class TerminalSpawner:
         if sandbox_env:
             env.update(sandbox_env)
 
+        # For Cursor, set up NDJSON capture via tee
+        if cli == "cursor":
+            capture_path = f"/tmp/gobby-cursor-{session_id}.ndjson"
+            env["GOBBY_CURSOR_CAPTURE_PATH"] = capture_path
+            # Wrap command to pipe stdout through tee for transcript capture
+            # The --output stream-json flag is already added by build_cli_command
+            cmd_str = " ".join(command)
+            command = ["bash", "-c", f"{cmd_str} 2>&1 | tee {capture_path}"]
+
         # Set title (avoid colons/parentheses which Ghostty interprets as config syntax)
         title = f"gobby-{cli}-d{agent_depth}"
 

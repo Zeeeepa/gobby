@@ -50,7 +50,21 @@ def build_cli_command(
     """
     command = [cli]
 
-    if cli in ("claude", "cursor", "windsurf", "copilot"):
+    if cli == "cursor":
+        # Cursor CLI flags — similar to Claude but with --output stream-json for capture
+        if session_id:
+            command.extend(["--session-id", session_id])
+        if model:
+            command.extend(["--model", model])
+        if auto_approve:
+            command.append("--dangerously-skip-permissions")
+        # Add --output stream-json to enable NDJSON transcript capture
+        if mode == "terminal":
+            command.extend(["--output", "stream-json"])
+        elif prompt:
+            command.append("-p")
+
+    elif cli in ("claude", "windsurf", "copilot"):
         # Claude-compatible CLI flags
         if session_id:
             command.extend(["--session-id", session_id])
