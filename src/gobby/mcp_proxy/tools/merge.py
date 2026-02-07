@@ -324,7 +324,7 @@ def create_merge_registry(
             }
 
         except Exception as e:
-            logger.exception("Error applying merge")
+            logger.exception("Error applying merge for resolution %s", resolution_id)
             return {"success": False, "error": str(e)}
 
     @registry.tool(

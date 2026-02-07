@@ -184,14 +184,16 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
         else:
             logger.warning("handle_set_variable: template_engine is None, skipping template render")
 
-    return set_variable(context.state, _resolve_variable_name(kwargs, "handle_set_variable"), value)
+    resolved_name = _resolve_variable_name(kwargs, "handle_set_variable")
+    return set_variable(context.state, resolved_name, value)
 
 
 async def handle_increment_variable(
     context: "ActionContext", **kwargs: Any
 ) -> dict[str, Any] | None:
     """ActionHandler wrapper for increment_variable."""
-    return increment_variable(context.state, _resolve_variable_name(kwargs, "handle_increment_variable"), kwargs.get("amount", 1))
+    resolved_name = _resolve_variable_name(kwargs, "handle_increment_variable")
+    return increment_variable(context.state, resolved_name, kwargs.get("amount", 1))
 
 
 async def handle_mark_loop_complete(
