@@ -93,7 +93,9 @@ class TestHandleSetVariableVariableKey:
         assert result == {"variable_set": "greeting", "value": "world"}
 
     @pytest.mark.asyncio
-    async def test_logs_warning_when_name_and_variable_differ(self, action_context, caplog) -> None:
+    async def test_logs_warning_when_name_and_variable_differ(
+        self, action_context, caplog, enable_log_propagation
+    ) -> None:
         """Warning is logged when name and variable differ."""
         import logging
 
