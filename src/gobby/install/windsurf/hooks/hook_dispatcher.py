@@ -131,7 +131,7 @@ async def main() -> int:
         critical_hooks = {"pre_user_prompt"}
         if hook_type in critical_hooks:
             print(
-                f"Gobby daemon is not running. Start with 'gobby start' before continuing. "
+                f"\nGobby daemon is not running. Start with 'gobby start' before continuing. "
                 f"({hook_type} requires daemon for session state management)",
                 file=sys.stderr,
             )
@@ -197,7 +197,7 @@ async def main() -> int:
             # Check for block decision
             if result.get("decision") == "deny":
                 reason = result.get("reason") or "Blocked by hook"
-                print(reason, file=sys.stderr)
+                print(f"\n{reason}", file=sys.stderr)
                 return 2
 
             if result and result != {}:

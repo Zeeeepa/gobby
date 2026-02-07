@@ -178,7 +178,7 @@ def main() -> int:
         if hook_type in critical_hooks:
             # Block the hook - forces user to start daemon before critical lifecycle events
             print(
-                f"Gobby daemon is not running. Start with 'gobby start' before continuing. "
+                f"\nGobby daemon is not running. Start with 'gobby start' before continuing. "
                 f"({hook_type} requires daemon for session state management)",
                 file=sys.stderr,
             )
@@ -330,7 +330,8 @@ def main() -> int:
             if result.get("continue") is False or result.get("decision") == "block":
                 # Output just the reason, not the full JSON
                 reason = result.get("stopReason") or result.get("reason") or "Blocked by hook"
-                print(reason, file=sys.stderr)
+                # Claude Code aligns output after "]: ", so we need a newline to break it
+                print(f"\n{reason}", file=sys.stderr)
                 return 2
 
             # Only print output if there's something meaningful to show
