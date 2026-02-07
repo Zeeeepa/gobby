@@ -143,6 +143,19 @@ triggers:
         If the user's request involves non-trivial changes, use `/plan` or
         suggest entering plan mode before proceeding with edits.
 
+    # Set terminal window title: project_name-#session_ref
+    - action: shell
+      when: "event.data.get('terminal_context', {}).get('tmux_pane')"
+      command: |
+        tmux rename-window "{{ project.name }}-#{{ session.seq_num }}"
+      background: true
+
+    - action: shell
+      when: "not event.data.get('terminal_context', {}).get('tmux_pane')"
+      command: |
+        printf '\033]0;{{ project.name }}-#{{ session.seq_num }}\007'
+      background: true
+
   on_before_agent:
     # Reset stop attempts counter on user activity
     - action: set_variable

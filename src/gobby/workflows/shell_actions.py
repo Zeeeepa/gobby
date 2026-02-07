@@ -52,6 +52,22 @@ async def handle_shell_run(context: ActionContext, **kwargs: Any) -> dict[str, A
     if context.event_data:
         render_context["event"] = context.event_data
 
+    # Fetch session object for template access (e.g., session.seq_num)
+    session = None
+    if context.session_manager:
+        session = context.session_manager.get(context.session_id)
+    if session:
+        render_context["session"] = session
+
+    # Fetch project object for template access (e.g., project.name)
+    if session and context.db:
+        from gobby.storage.projects import LocalProjectManager
+
+        project_mgr = LocalProjectManager(context.db)
+        project = project_mgr.get(session.project_id)
+        if project:
+            render_context["project"] = project
+
     try:
         command = context.template_engine.render(command_template, render_context)
     except Exception as e:
