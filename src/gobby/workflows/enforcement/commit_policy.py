@@ -172,9 +172,10 @@ async def require_task_review_or_close_before_stop(
     need to check for uncommitted changes here - that's handled by
     require_commit_before_stop if needed.
 
-    Checks both:
-    1. claimed_task_id - task explicitly claimed via update_task(status="in_progress")
-    2. session_task - task(s) assigned via set_variable (fallback if no claimed_task_id)
+    Only checks claimed_task_id - the task explicitly claimed via claim_task().
+    Does NOT check session_task, which is a scoping variable for suggest_next_task
+    and does not imply ownership (e.g. orchestrators set session_task but delegate
+    actual work to spawned workers).
 
     Args:
         workflow_state: Workflow state with variables (claimed_task_id, etc.)
@@ -190,42 +191,7 @@ async def require_task_review_or_close_before_stop(
         logger.debug("require_task_review_or_close_before_stop: No workflow_state, allowing")
         return None
 
-    # 1. Check claimed_task_id first (existing behavior)
     claimed_task_id = workflow_state.variables.get("claimed_task_id")
-
-    # 2. If no claimed task, fall back to session_task
-    if not claimed_task_id and task_manager:
-        session_task = workflow_state.variables.get("session_task")
-        if session_task and session_task != "*":
-            # Normalize to list
-            task_ids = [session_task] if isinstance(session_task, str) else session_task
-
-            if isinstance(task_ids, list):
-                for task_id in task_ids:
-                    try:
-                        task = task_manager.get_task(task_id, project_id=project_id)
-                    except ValueError:
-                        continue
-                    if task and task.status == "in_progress":
-                        claimed_task_id = task_id
-                        logger.debug(
-                            f"require_task_review_or_close_before_stop: Found in_progress "
-                            f"session_task '{task_id}'"
-                        )
-                        break
-                    # Also check subtasks
-                    if task:
-                        subtasks = task_manager.list_tasks(parent_task_id=task.id)
-                        for subtask in subtasks:
-                            if subtask.status == "in_progress":
-                                claimed_task_id = subtask.id
-                                logger.debug(
-                                    f"require_task_review_or_close_before_stop: Found in_progress "
-                                    f"subtask '{subtask.id}' under session_task '{task_id}'"
-                                )
-                                break
-                    if claimed_task_id:
-                        break
 
     if not claimed_task_id:
         logger.debug("require_task_review_or_close_before_stop: No claimed task, allowing")

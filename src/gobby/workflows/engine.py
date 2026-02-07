@@ -1,7 +1,6 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
@@ -44,6 +43,24 @@ if TYPE_CHECKING:
     from .actions import ActionExecutor
 
 logger = logging.getLogger(__name__)
+
+
+class DotDict(dict):
+    """Dict subclass that supports both dot-notation and .get() access.
+
+    SimpleNamespace supports dot-notation but not .get(), which breaks
+    workflow transition conditions that use ``variables.get('key')``.
+    DotDict supports both patterns.
+    """
+
+    def __getattr__(self, key: str) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(key) from None
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        self[key] = value
 
 
 # Read-only MCP discovery tools that are always allowed regardless of workflow step restrictions.
@@ -335,7 +352,7 @@ class WorkflowEngine:
             self._detect_mcp_call(event, state, current_step)
 
             # Rebuild eval_context variables after detection updates
-            eval_context["variables"] = SimpleNamespace(**state.variables)
+            eval_context["variables"] = DotDict(state.variables)
             # Also update flattened variables at top level
             eval_context.update(state.variables)
 
@@ -551,15 +568,16 @@ class WorkflowEngine:
     ) -> dict[str, Any]:
         """Build evaluation context dict for condition checking.
 
-        Uses SimpleNamespace for variables so dot notation works (variables.session_task).
+        Uses DotDict for variables so both dot notation (variables.session_task)
+        and .get() access (variables.get('key')) work in transition conditions.
         Flattens variables to top level for simpler conditions like "task_claimed".
         """
         return {
             "event": event,
             "workflow_state": state,
-            "variables": SimpleNamespace(**state.variables),
-            "session": SimpleNamespace(**session_info),
-            "project": SimpleNamespace(**project_info),
+            "variables": DotDict(state.variables),
+            "session": DotDict(session_info),
+            "project": DotDict(project_info),
             "tool_name": event.data.get("tool_name") if event.data else None,
             "tool_args": event.data.get("tool_args", {}) if event.data else {},
             # State attributes for transition conditions

@@ -234,6 +234,10 @@ async def end_workflow(
         for var_name in definition.variables:
             state.variables.pop(var_name, None)
 
+    # Persist the cleaned-up variables before deleting workflow state.
+    # delete_state only clears workflow/step fields, not variables.
+    # Without this save, the in-memory pops above are lost.
+    state_manager.save_state(state)
     state_manager.delete_state(resolved_session_id)
 
     return {"success": True, "workflow": state.workflow_name, "reason": reason}
@@ -328,6 +332,7 @@ async def request_step_transition(
     state.step = to_step
     state.step_entered_at = datetime.now(UTC)
     state.step_action_count = 0
+    state.context_injected = False  # Allow on_enter to run on next event
 
     state_manager.save_state(state)
 

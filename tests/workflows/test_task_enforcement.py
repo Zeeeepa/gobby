@@ -674,65 +674,42 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         assert result is None
 
     # -------------------------------------------------------------------------
-    # Tests for session_task fallback (when claimed_task_id is not set)
+    # Tests for session_task (scoping variable, NOT ownership)
+    # session_task should never block stop — only claimed_task_id does.
     # -------------------------------------------------------------------------
 
-    async def test_session_task_string_blocks_when_in_progress(
+    async def test_session_task_string_does_not_block(
         self, workflow_state, mock_task_manager
     ):
-        """When session_task is set (string) and task is in_progress, block stop."""
+        """session_task is a scoping variable, not ownership — should not block stop."""
         task_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         workflow_state.variables["session_task"] = task_id
         # No claimed_task_id set
-
-        mock_task = MagicMock()
-        mock_task.id = task_id
-        mock_task.seq_num = 101
-        mock_task.status = "in_progress"
-        mock_task_manager.get_task.return_value = mock_task
-        mock_task_manager.list_tasks.return_value = []
 
         result = await require_task_review_or_close_before_stop(
             workflow_state=workflow_state,
             task_manager=mock_task_manager,
         )
 
-        assert result is not None
-        assert result["decision"] == "block"
-        assert "#101" in result["reason"]
-        assert "still in_progress" in result["reason"]
+        # session_task alone should never block
+        assert result is None
 
-    async def test_session_task_list_blocks_when_any_in_progress(
+    async def test_session_task_list_does_not_block(
         self, workflow_state, mock_task_manager
     ):
-        """When session_task is a list and any task is in_progress, block stop."""
+        """session_task list should not block stop — only claimed_task_id does."""
         task1_id = "11111111-1111-1111-1111-111111111111"
         task2_id = "22222222-2222-2222-2222-222222222222"
         workflow_state.variables["session_task"] = [task1_id, task2_id]
         # No claimed_task_id set
 
-        mock_task1 = MagicMock()
-        mock_task1.id = task1_id
-        mock_task1.seq_num = 1
-        mock_task1.status = "closed"
-
-        mock_task2 = MagicMock()
-        mock_task2.id = task2_id
-        mock_task2.seq_num = 2
-        mock_task2.status = "in_progress"
-
-        # Return different tasks for each get_task call
-        mock_task_manager.get_task.side_effect = [mock_task1, mock_task2, mock_task2]
-        mock_task_manager.list_tasks.return_value = []
-
         result = await require_task_review_or_close_before_stop(
             workflow_state=workflow_state,
             task_manager=mock_task_manager,
         )
 
-        assert result is not None
-        assert result["decision"] == "block"
-        assert "#2" in result["reason"]
+        # session_task alone should never block
+        assert result is None
 
     async def test_session_task_allows_when_all_closed(self, workflow_state, mock_task_manager):
         """When session_task is set but all tasks are closed, allow stop."""
@@ -753,35 +730,21 @@ class TestRequireTaskReviewOrCloseBeforeStop:
         # Should allow since no in_progress task found
         assert result is None
 
-    async def test_session_task_subtask_in_progress_blocks(self, workflow_state, mock_task_manager):
-        """When session_task has subtask in_progress, block stop."""
+    async def test_session_task_subtask_in_progress_does_not_block(
+        self, workflow_state, mock_task_manager
+    ):
+        """session_task with in_progress subtask should not block — only claimed_task_id does."""
         parent_id = "33333333-3333-3333-3333-333333333333"
-        subtask_id = "44444444-4444-4444-4444-444444444444"
         workflow_state.variables["session_task"] = parent_id
         # No claimed_task_id set
-
-        mock_parent = MagicMock()
-        mock_parent.id = parent_id
-        mock_parent.seq_num = 10
-        mock_parent.status = "open"  # Parent is open, not in_progress
-
-        mock_subtask = MagicMock()
-        mock_subtask.id = subtask_id
-        mock_subtask.seq_num = 11
-        mock_subtask.status = "in_progress"
-
-        # First call for parent, second call for subtask verification
-        mock_task_manager.get_task.side_effect = [mock_parent, mock_subtask]
-        mock_task_manager.list_tasks.return_value = [mock_subtask]
 
         result = await require_task_review_or_close_before_stop(
             workflow_state=workflow_state,
             task_manager=mock_task_manager,
         )
 
-        assert result is not None
-        assert result["decision"] == "block"
-        assert "#11" in result["reason"]
+        # session_task alone should never block
+        assert result is None
 
     async def test_session_task_wildcard_allows(self, workflow_state, mock_task_manager):
         """When session_task='*', don't check tasks (wildcard means all)."""
