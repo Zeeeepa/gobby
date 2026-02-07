@@ -100,11 +100,15 @@ def create_task_registry(
         registry._tools[tool_name] = tool
 
     # Merge validation tools from extracted module (Strangler Fig pattern)
+    validation_max_retries = 3
+    if config:
+        validation_max_retries = config.gobby_tasks.validation.max_retries
     validation_registry = create_validation_registry(
         task_manager=task_manager,
         task_validator=task_validator,
         project_manager=ctx.project_manager,
         get_project_repo_path=ctx.get_project_repo_path,
+        max_retries=validation_max_retries,
     )
     for tool_name, tool in validation_registry._tools.items():
         registry._tools[tool_name] = tool

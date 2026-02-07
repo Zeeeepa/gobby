@@ -35,6 +35,7 @@ def create_validation_registry(
     project_manager: "LocalProjectManager | None" = None,
     get_project_repo_path: Any = None,
     agent_runner: "AgentRunner | None" = None,
+    max_retries: int = 3,
 ) -> InternalToolRegistry:
     """
     Create a validation tool registry with all validation-related tools.
@@ -190,8 +191,6 @@ def create_validation_registry(
             "validation_feedback": result.feedback,
         }
 
-        MAX_RETRIES = 3
-
         if result.status == "valid":
             # Success: Close task
             task_manager.close_task(task.id, reason="Completed via validation")
@@ -203,7 +202,7 @@ def create_validation_registry(
 
             feedback_str = result.feedback or "Validation failed (no feedback provided)."
 
-            if new_fail_count < MAX_RETRIES:
+            if new_fail_count < max_retries:
                 # Create subtask to fix issues
                 fix_task = task_manager.create_task(
                     project_id=task.project_id,
@@ -220,7 +219,7 @@ def create_validation_registry(
                 # Exceeded retries: Mark as failed
                 updates["status"] = "failed"
                 updates["validation_feedback"] = (
-                    feedback_str + f"\n\nExceeded max retries ({MAX_RETRIES}). Marked as failed."
+                    feedback_str + f"\n\nExceeded max retries ({max_retries}). Marked as failed."
                 )
 
         task_manager.update_task(task.id, **updates)
