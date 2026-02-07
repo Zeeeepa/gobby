@@ -102,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- Fix skill_manager not wired to ActionContext in engine and lifecycle evaluator (#7238)
 - Fix pre-existing test failures and lint warnings (#7233)
 - Fix stale skill cache: sync_bundled_skills now updates changed skills (#7227)
 - Fix agent name resolution and remove hardcoded meeseeks refs (#7225)
