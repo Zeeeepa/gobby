@@ -66,8 +66,12 @@ def export_import() -> None:
 @click.argument("name", required=False, default=None)
 @click.option("--to", "to_path", type=click.Path(), help="Target project path to export to.")
 @click.option("--global", "global_", is_flag=True, help="Export to ~/.gobby/ (global).")
-@click.option("--dry-run", "dry_run_flag", is_flag=True, help="Perform a dry run without writing files.")
-def export_cmd(type_: str, name: str | None, to_path: str | None, global_: bool, dry_run_flag: bool) -> None:
+@click.option(
+    "--dry-run", "dry_run_flag", is_flag=True, help="Perform a dry run without writing files."
+)
+def export_cmd(
+    type_: str, name: str | None, to_path: str | None, global_: bool, dry_run_flag: bool
+) -> None:
     """Export resources from the current project.
 
     TYPE is one of: workflow, agent, prompt, all.

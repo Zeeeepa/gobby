@@ -83,7 +83,11 @@ class LocalArtifactManager:
             try:
                 listener()
             except Exception:
-                logger.error("Error in artifact change listener", exc_info=True, extra={"listener": repr(listener)})
+                logger.error(
+                    "Error in artifact change listener",
+                    exc_info=True,
+                    extra={"listener": repr(listener)},
+                )
 
     def create_artifact(
         self,
