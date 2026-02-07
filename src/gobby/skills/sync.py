@@ -52,6 +52,7 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
     result: dict[str, Any] = {
         "success": True,
         "synced": 0,
+        "updated": 0,
         "skipped": 0,
         "errors": [],
     }
@@ -81,8 +82,37 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
             existing = storage.get_by_name(parsed.name, project_id=None)
 
             if existing is not None:
-                logger.debug(f"Skill '{parsed.name}' already exists, skipping")
-                result["skipped"] += 1
+                # Compare key fields to detect stale content
+                needs_update = (
+                    existing.description != parsed.description
+                    or existing.content != parsed.content
+                    or existing.version != parsed.version
+                    or existing.license != parsed.license
+                    or existing.compatibility != parsed.compatibility
+                    or existing.allowed_tools != parsed.allowed_tools
+                    or existing.metadata != parsed.metadata
+                    or existing.always_apply != parsed.always_apply
+                    or existing.injection_format != parsed.injection_format
+                )
+
+                if needs_update:
+                    storage.update_skill(
+                        skill_id=existing.id,
+                        description=parsed.description,
+                        content=parsed.content,
+                        version=parsed.version,
+                        license=parsed.license,
+                        compatibility=parsed.compatibility,
+                        allowed_tools=parsed.allowed_tools,
+                        metadata=parsed.metadata,
+                        always_apply=parsed.always_apply,
+                        injection_format=parsed.injection_format,
+                    )
+                    logger.info(f"Updated bundled skill: {parsed.name}")
+                    result["updated"] += 1
+                else:
+                    logger.debug(f"Skill '{parsed.name}' already exists, skipping")
+                    result["skipped"] += 1
                 continue
 
             # Create the skill in the database
@@ -112,9 +142,10 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
-    total = result["synced"] + result["skipped"]
+    total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
-        f"Skill sync complete: {result['synced']} synced, {result['skipped']} skipped, {total} total"
+        f"Skill sync complete: {result['synced']} synced, "
+        f"{result['updated']} updated, {result['skipped']} skipped, {total} total"
     )
 
     return result

@@ -114,3 +114,39 @@ class TestSyncBundledSkills:
         skill = skill_manager.get_by_name("tasks")
         assert skill is not None
         assert skill.project_id is None
+
+    def test_sync_bundled_skills_updates_changed_content(
+        self, db: LocalDatabase, skill_manager: LocalSkillManager
+    ) -> None:
+        """Verify re-sync updates skills whose content has changed on disk."""
+        from gobby.skills.sync import sync_bundled_skills
+
+        # First sync — populates the DB
+        result1 = sync_bundled_skills(db)
+        assert result1["success"] is True
+        assert result1["synced"] > 0
+
+        # Grab the "tasks" skill and remember its real content
+        skill = skill_manager.get_by_name("tasks")
+        assert skill is not None
+        original_content = skill.content
+
+        # Manually corrupt the DB record to simulate stale data
+        stale_content = "This is stale content that should be overwritten."
+        skill_manager.update_skill(skill.id, content=stale_content)
+
+        # Confirm the DB now has stale content
+        stale_skill = skill_manager.get_by_name("tasks")
+        assert stale_skill is not None
+        assert stale_skill.content == stale_content
+
+        # Second sync — should detect the difference and update
+        result2 = sync_bundled_skills(db)
+        assert result2["success"] is True
+        assert result2["updated"] >= 1
+
+        # Verify DB content now matches disk again
+        refreshed = skill_manager.get_by_name("tasks")
+        assert refreshed is not None
+        assert refreshed.content == original_content
+        assert refreshed.content != stale_content
