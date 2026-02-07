@@ -151,6 +151,12 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
     """ActionHandler wrapper for set_variable.
 
     Values containing Jinja2 templates ({{ ... }}) are rendered before setting.
+
+    The variable name is resolved from kwargs using ``kwargs.get("name")`` first,
+    falling back to ``kwargs.get("variable")``.  "name" takes precedence over
+    "variable" for backwards compatibility.  If both keys are present with
+    different truthy values, a warning is logged to alert callers to the
+    potential conflict.
     """
     value = kwargs.get("value")
 
@@ -165,7 +171,17 @@ async def handle_set_variable(context: "ActionContext", **kwargs: Any) -> dict[s
         else:
             logger.warning("handle_set_variable: template_engine is None, skipping template render")
 
-    return set_variable(context.state, kwargs.get("name") or kwargs.get("variable"), value)
+    name_val = kwargs.get("name")
+    variable_val = kwargs.get("variable")
+    if name_val and variable_val and name_val != variable_val:
+        logger.warning(
+            "handle_set_variable: both 'name' (%s) and 'variable' (%s) provided with different values; "
+            "using 'name' for backwards compatibility",
+            name_val,
+            variable_val,
+        )
+
+    return set_variable(context.state, name_val or variable_val, value)
 
 
 async def handle_increment_variable(
