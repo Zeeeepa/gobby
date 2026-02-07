@@ -37,7 +37,9 @@ def _render_arguments(
             rendered[key] = _render_arguments(value, template_engine, template_context)
         elif isinstance(value, list):
             rendered[key] = [
-                template_engine.render(item, template_context)
+                _render_arguments(item, template_engine, template_context)
+                if isinstance(item, dict)
+                else template_engine.render(item, template_context)
                 if isinstance(item, str) and "{{" in item
                 else item
                 for item in value
