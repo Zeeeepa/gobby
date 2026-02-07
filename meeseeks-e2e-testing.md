@@ -18,7 +18,7 @@ Two agent configurations are available for testing:
 | **Gemini** | `meeseeks-gemini` | gemini   | ghostty  | Watch Ghostty window     |
 | **Claude** | `meeseeks-claude` | claude   | tmux     | `tmux attach -t gobby-*` |
 
-### Gemini Configuration (meeseeks)
+### Gemini Configuration (meeseeks-gemini)
 
 - Worker runs in Gemini CLI with visible Ghostty terminal
 - Interactive terminal window spawns for each worker
@@ -37,7 +37,7 @@ Two agent configurations are available for testing:
 
 1. Tester creates a parent task (the "session task")
 2. Tester calls `spawn_agent(agent="<agent>", workflow="box", task_id="<parent_task>")`
-   - Use `agent="meeseeks"` for Gemini workers
+   - Use `agent="meeseeks-gemini"` for Gemini workers
    - Use `agent="meeseeks-claude"` for Claude workers
 3. meeseeks-box activates in tester's session (mode: self)
 4. meeseeks-box loops until parent task tree is complete:
@@ -56,7 +56,7 @@ Before testing:
 - [ ] MCP servers connected: `gobby-tasks`, `gobby-agents`, `gobby-workflows`, `gobby-clones`
 - [ ] Git repository with clean working tree
 
-**For Gemini (meeseeks)**:
+**For Gemini (meeseeks-gemini)**:
 
 - [ ] Gemini CLI installed and authenticated
 - [ ] Terminal emulator available (ghostty or configured alternative)
@@ -123,7 +123,7 @@ mcp__gobby__call_tool(
     server_name="gobby-agents",
     tool_name="spawn_agent",
     arguments={
-        "agent": "meeseeks",
+        "agent": "meeseeks-gemini",
         "workflow": "box",
         "task_id": "<parent_task_id>",
         "parent_session_id": "#876"
@@ -167,7 +167,7 @@ mcp__gobby__call_tool(
 
 meeseeks-box calls spawn_agent with the agent's configured provider/terminal:
 
-**Gemini worker (meeseeks):**
+**Gemini worker (meeseeks-gemini):**
 
 ```python
 mcp__gobby__call_tool(
@@ -175,7 +175,7 @@ mcp__gobby__call_tool(
     tool_name="spawn_agent",
     arguments={
         "prompt": "...(activation instructions)...",
-        "agent": "meeseeks",
+        "agent": "meeseeks-gemini",
         "workflow": "worker",
         "task_id": "<subtask_id>",
         "parent_session_id": "#876"
