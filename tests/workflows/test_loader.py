@@ -3,7 +3,7 @@
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,6 +11,31 @@ from gobby.workflows.definitions import WorkflowDefinition
 from gobby.workflows.loader import DiscoveredWorkflow, WorkflowLoader
 
 pytestmark = pytest.mark.unit
+
+
+def _aiofiles_mock(read_data=""):
+    """Create a mock for aiofiles.open() that returns an async context manager."""
+    mock_file = AsyncMock()
+    mock_file.read = AsyncMock(return_value=read_data)
+    mock_cm = AsyncMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_cm.__aexit__ = AsyncMock(return_value=False)
+    return MagicMock(return_value=mock_cm)
+
+
+def _aiofiles_side_effect(content_fn):
+    """Create aiofiles.open mock with path-based content resolution."""
+
+    def _open(path, *args, **kwargs):
+        content = content_fn(path)
+        mock_file = AsyncMock()
+        mock_file.read = AsyncMock(return_value=content)
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        return mock_cm
+
+    return _open
 
 
 @pytest.fixture
@@ -42,15 +67,17 @@ class TestWorkflowLoader:
         loader = WorkflowLoader(workflow_dirs=custom_dirs)
         assert loader.global_dirs == custom_dirs
 
-    def test_load_workflow_not_found(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_not_found(self, loader) -> None:
         """Test loading a workflow that doesn't exist."""
         with patch(
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=None,
         ):
-            assert loader.load_workflow("non_existent") is None
+            assert await loader.load_workflow("non_existent") is None
 
-    def test_load_workflow_valid_yaml(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_valid_yaml(self, loader) -> None:
         """Test loading a valid workflow YAML."""
         yaml_content = """
         name: test_workflow
@@ -63,25 +90,27 @@ class TestWorkflowLoader:
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=Path("/tmp/workflows/test_workflow.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
-                wf = loader.load_workflow("test_workflow")
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content)):
+                wf = await loader.load_workflow("test_workflow")
                 assert wf is not None
                 assert wf.name == "test_workflow"
                 assert len(wf.steps) == 1
                 assert wf.steps[0].name == "step1"
 
-    def test_load_workflow_invalid_yaml(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_invalid_yaml(self, loader) -> None:
         """Test loading invalid YAML returns None."""
         yaml_content = "invalid: : yaml"
         with patch(
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=Path("/tmp/workflows/invalid.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
-                wf = loader.load_workflow("invalid")
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content)):
+                wf = await loader.load_workflow("invalid")
                 assert wf is None
 
-    def test_load_workflow_exception_handling(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_exception_handling(self, loader) -> None:
         """Test that non-ValueError exceptions during loading return None."""
         yaml_content = """
         name: test_workflow
@@ -94,27 +123,29 @@ class TestWorkflowLoader:
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=Path("/tmp/workflows/test.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content)):
                 # Mock WorkflowDefinition to raise a generic exception
                 with patch(
                     "gobby.workflows.loader.WorkflowDefinition",
                     side_effect=RuntimeError("Generic error"),
                 ):
-                    result = loader.load_workflow("test")
+                    result = await loader.load_workflow("test")
                     assert result is None
 
-    def test_load_workflow_with_project_path(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_with_project_path(self, loader) -> None:
         """Test that project path is prepended to search directories."""
         with patch("gobby.workflows.loader.WorkflowLoader._find_workflow_file") as mock_find:
             mock_find.return_value = None
-            loader.load_workflow("test", project_path="/my/project")
+            await loader.load_workflow("test", project_path="/my/project")
 
             args, _ = mock_find.call_args
             search_dirs = args[1]
             assert Path("/my/project/.gobby/workflows") in search_dirs
             assert search_dirs[0] == Path("/my/project/.gobby/workflows")
 
-    def test_load_workflow_caching(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_caching(self, loader) -> None:
         """Test that loaded workflows are cached."""
         yaml_content = """
         name: cached_workflow
@@ -127,16 +158,17 @@ class TestWorkflowLoader:
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=Path("/tmp/workflows/cached_workflow.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content)):
                 # First load
-                wf1 = loader.load_workflow("cached_workflow")
+                wf1 = await loader.load_workflow("cached_workflow")
                 assert wf1 is not None
 
         # Second load should return cached version (no file access)
-        wf2 = loader.load_workflow("cached_workflow")
+        wf2 = await loader.load_workflow("cached_workflow")
         assert wf2 is wf1
 
-    def test_load_workflow_cache_key_includes_project(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_cache_key_includes_project(self, loader) -> None:
         """Test that cache keys include project path for proper isolation."""
         yaml_content = """
         name: project_workflow
@@ -150,15 +182,15 @@ class TestWorkflowLoader:
             return Path("/tmp/workflows/project_workflow.yaml")
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content)):
                 # Load without project path (caches under "global:" key)
-                loader.load_workflow("project_workflow")
+                await loader.load_workflow("project_workflow")
 
         # Different project should get separate cache entry
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content)):
                 # Load with project path (caches under project-specific key)
-                loader.load_workflow("project_workflow", project_path="/project/a")
+                await loader.load_workflow("project_workflow", project_path="/project/a")
 
         # Verify both are cached separately
         assert "global:project_workflow" in loader._cache
@@ -166,7 +198,8 @@ class TestWorkflowLoader:
         assert loader._cache["global:project_workflow"].definition.name == "project_workflow"
         assert loader._cache["/project/a:project_workflow"].definition.name == "project_workflow"
 
-    def test_clear_cache_forces_reload(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_clear_cache_forces_reload(self, loader) -> None:
         """Test that clearing cache forces reload from disk."""
         yaml_content_v1 = """
         name: dynamic_workflow
@@ -181,21 +214,21 @@ class TestWorkflowLoader:
 
         with patch.object(loader, "_find_workflow_file", return_value=mock_path):
             # First load
-            with patch("builtins.open", mock_open(read_data=yaml_content_v1)):
-                wf1 = loader.load_workflow("dynamic_workflow")
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content_v1)):
+                wf1 = await loader.load_workflow("dynamic_workflow")
                 assert wf1.version == "1.0.0"
 
             # Cache hit check
-            with patch("builtins.open", mock_open(read_data="should not be read")):
-                wf_cached = loader.load_workflow("dynamic_workflow")
+            with patch("aiofiles.open", _aiofiles_mock(read_data="should not be read")):
+                wf_cached = await loader.load_workflow("dynamic_workflow")
                 assert wf_cached.version == "1.0.0"
 
             # Clear cache
             loader.clear_cache()
 
             # Second load (should read v2)
-            with patch("builtins.open", mock_open(read_data=yaml_content_v2)):
-                wf2 = loader.load_workflow("dynamic_workflow")
+            with patch("aiofiles.open", _aiofiles_mock(read_data=yaml_content_v2)):
+                wf2 = await loader.load_workflow("dynamic_workflow")
                 assert wf2.version == "2.0"
 
 
@@ -307,7 +340,8 @@ class TestFindWorkflowFile:
 class TestWorkflowInheritance:
     """Tests for workflow inheritance and cycle detection."""
 
-    def test_valid_inheritance(self) -> None:
+    @pytest.mark.asyncio
+    async def test_valid_inheritance(self) -> None:
         """Test that valid inheritance (A extends B) works correctly."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -335,23 +369,24 @@ class TestWorkflowInheritance:
                 return Path("/tmp/workflows/parent_workflow.yaml")
             return None
 
-        def mock_open_func(path, *args, **kwargs):
+        def mock_content_func(path, *args, **kwargs):
             if "child" in str(path):
-                return mock_open(read_data=child_yaml)()
+                return child_yaml
             elif "parent" in str(path):
-                return mock_open(read_data=parent_yaml)()
+                return parent_yaml
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
-                wf = loader.load_workflow("child_workflow")
+            with patch("aiofiles.open", side_effect=_aiofiles_side_effect(mock_content_func)):
+                wf = await loader.load_workflow("child_workflow")
                 assert wf is not None
                 assert wf.name == "child_workflow"
                 step_names = [p.name for p in wf.steps]
                 assert "step1" in step_names
                 assert "step2" in step_names
 
-    def test_parent_workflow_not_found(self) -> None:
+    @pytest.mark.asyncio
+    async def test_parent_workflow_not_found(self) -> None:
         """Test handling when parent workflow doesn't exist."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -370,13 +405,14 @@ class TestWorkflowInheritance:
             return None  # Parent not found
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", mock_open(read_data=child_yaml)):
+            with patch("aiofiles.open", _aiofiles_mock(read_data=child_yaml)):
                 # Should still load (with warning logged), just without parent merge
-                wf = loader.load_workflow("orphan_workflow")
+                wf = await loader.load_workflow("orphan_workflow")
                 assert wf is not None
                 assert wf.name == "orphan_workflow"
 
-    def test_self_inheritance_cycle(self) -> None:
+    @pytest.mark.asyncio
+    async def test_self_inheritance_cycle(self) -> None:
         """Test that self-inheritance (A extends A) raises ValueError."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -394,11 +430,12 @@ class TestWorkflowInheritance:
             "_find_workflow_file",
             return_value=Path("/tmp/workflows/self_ref.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=self_ref_yaml)):
+            with patch("aiofiles.open", _aiofiles_mock(read_data=self_ref_yaml)):
                 with pytest.raises(ValueError, match="Circular workflow inheritance"):
-                    loader.load_workflow("self_ref")
+                    await loader.load_workflow("self_ref")
 
-    def test_two_way_circular_inheritance(self) -> None:
+    @pytest.mark.asyncio
+    async def test_two_way_circular_inheritance(self) -> None:
         """Test that A extends B, B extends A raises ValueError."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -427,19 +464,20 @@ class TestWorkflowInheritance:
                 return Path("/tmp/workflows/workflow_b.yaml")
             return None
 
-        def mock_open_func(path, *args, **kwargs):
+        def mock_content_func(path, *args, **kwargs):
             if "workflow_a" in str(path):
-                return mock_open(read_data=workflow_a_yaml)()
+                return workflow_a_yaml
             elif "workflow_b" in str(path):
-                return mock_open(read_data=workflow_b_yaml)()
+                return workflow_b_yaml
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
+            with patch("aiofiles.open", side_effect=_aiofiles_side_effect(mock_content_func)):
                 with pytest.raises(ValueError, match="Circular workflow inheritance"):
-                    loader.load_workflow("workflow_a")
+                    await loader.load_workflow("workflow_a")
 
-    def test_three_level_circular_inheritance(self) -> None:
+    @pytest.mark.asyncio
+    async def test_three_level_circular_inheritance(self) -> None:
         """Test that A extends B, B extends C, C extends A raises ValueError."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -478,7 +516,7 @@ class TestWorkflowInheritance:
             }
             return paths.get(name)
 
-        def mock_open_func(path, *args, **kwargs):
+        def mock_content_func(path, *args, **kwargs):
             yamls = {
                 "workflow_a": workflow_a_yaml,
                 "workflow_b": workflow_b_yaml,
@@ -486,15 +524,16 @@ class TestWorkflowInheritance:
             }
             for name, content in yamls.items():
                 if name in str(path):
-                    return mock_open(read_data=content)()
+                    return content
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
+            with patch("aiofiles.open", side_effect=_aiofiles_side_effect(mock_content_func)):
                 with pytest.raises(ValueError, match="Circular workflow inheritance"):
-                    loader.load_workflow("workflow_a")
+                    await loader.load_workflow("workflow_a")
 
-    def test_valid_chain_inheritance(self) -> None:
+    @pytest.mark.asyncio
+    async def test_valid_chain_inheritance(self) -> None:
         """Test that valid chain (A extends B extends C) works correctly."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -532,7 +571,7 @@ class TestWorkflowInheritance:
             }
             return paths.get(name)
 
-        def mock_open_func(path, *args, **kwargs):
+        def mock_content_func(path, *args, **kwargs):
             yamls = {
                 "base": base_yaml,
                 "middle": middle_yaml,
@@ -540,12 +579,12 @@ class TestWorkflowInheritance:
             }
             for name, content in yamls.items():
                 if name in str(path):
-                    return mock_open(read_data=content)()
+                    return content
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
-                wf = loader.load_workflow("top")
+            with patch("aiofiles.open", side_effect=_aiofiles_side_effect(mock_content_func)):
+                wf = await loader.load_workflow("top")
                 assert wf is not None
                 assert wf.name == "top"
                 step_names = [p.name for p in wf.steps]
@@ -706,7 +745,8 @@ class TestMergeSteps:
 class TestDiscoverLifecycleWorkflows:
     """Tests for discover_lifecycle_workflows method."""
 
-    def test_discover_from_global_directory(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_from_global_directory(self, temp_workflow_dir) -> None:
         """Test discovering lifecycle workflows from global directory."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         lifecycle_dir = global_dir / "lifecycle"
@@ -723,14 +763,15 @@ settings:
         (lifecycle_dir / "session_start.yaml").write_text(workflow_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_lifecycle_workflows()
 
         assert len(discovered) == 1
         assert discovered[0].name == "session_start"
         assert discovered[0].is_project is False
         assert discovered[0].priority == 10
 
-    def test_discover_project_shadows_global(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_project_shadows_global(self, temp_workflow_dir) -> None:
         """Test that project workflows shadow global ones with the same name."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -756,14 +797,17 @@ settings:
         (project_dir / "session_start.yaml").write_text(project_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = loader.discover_lifecycle_workflows(project_path=temp_workflow_dir / "project")
+        discovered = await loader.discover_lifecycle_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
 
         # Should only have one workflow (project shadows global)
         assert len(discovered) == 1
         assert discovered[0].is_project is True
         assert discovered[0].priority == 50
 
-    def test_discover_sorting(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_sorting(self, temp_workflow_dir) -> None:
         """Test that workflows are sorted by project/global, priority, then name."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -780,14 +824,15 @@ settings:
             (global_dir / "lifecycle" / f"{name}.yaml").write_text(yaml_content)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_lifecycle_workflows()
 
         # Should be sorted: priority 50 first (b, c), then priority 100 (a)
         # Within same priority, alphabetical
         names = [w.name for w in discovered]
         assert names == ["b_workflow", "c_workflow", "a_workflow"]
 
-    def test_discover_filters_non_lifecycle(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_filters_non_lifecycle(self, temp_workflow_dir) -> None:
         """Test that non-lifecycle workflows are filtered out."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -806,12 +851,13 @@ type: step
         (global_dir / "lifecycle" / "step_wf.yaml").write_text(step_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_lifecycle_workflows()
 
         assert len(discovered) == 1
         assert discovered[0].name == "lifecycle_wf"
 
-    def test_discover_caching(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_caching(self, temp_workflow_dir) -> None:
         """Test that discovery results are cached."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -826,13 +872,14 @@ type: lifecycle
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # First call
-        discovered1 = loader.discover_lifecycle_workflows()
+        discovered1 = await loader.discover_lifecycle_workflows()
         # Second call should return cached
-        discovered2 = loader.discover_lifecycle_workflows()
+        discovered2 = await loader.discover_lifecycle_workflows()
 
         assert discovered1 is discovered2
 
-    def test_discover_default_priority(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_default_priority(self, temp_workflow_dir) -> None:
         """Test that workflows without priority setting get default of 100."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -845,7 +892,7 @@ type: lifecycle
         (global_dir / "lifecycle" / "no_priority.yaml").write_text(yaml_content)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_lifecycle_workflows()
 
         assert len(discovered) == 1
         assert discovered[0].priority == 100
@@ -854,17 +901,19 @@ type: lifecycle
 class TestScanDirectory:
     """Tests for _scan_directory method."""
 
-    def test_scan_nonexistent_directory(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_scan_nonexistent_directory(self, loader, temp_workflow_dir) -> None:
         """Test that scanning non-existent directory does nothing."""
         discovered = {}
-        loader._scan_directory(
+        await loader._scan_directory(
             temp_workflow_dir / "nonexistent",
             is_project=False,
             discovered=discovered,
         )
         assert len(discovered) == 0
 
-    def test_scan_skips_empty_yaml(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_scan_skips_empty_yaml(self, temp_workflow_dir) -> None:
         """Test that empty YAML files are skipped."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -872,11 +921,12 @@ class TestScanDirectory:
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         discovered = {}
-        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+        await loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
 
         assert len(discovered) == 0
 
-    def test_scan_skips_invalid_yaml(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_scan_skips_invalid_yaml(self, temp_workflow_dir) -> None:
         """Test that invalid YAML files are skipped with warning."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -884,11 +934,12 @@ class TestScanDirectory:
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         discovered = {}
-        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+        await loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
 
         assert len(discovered) == 0
 
-    def test_scan_handles_inheritance_in_discovery(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_scan_handles_inheritance_in_discovery(self, temp_workflow_dir) -> None:
         """Test that inheritance is resolved during discovery."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         global_dir.mkdir(parents=True)
@@ -912,13 +963,14 @@ extends: parent
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
         discovered = {}
-        loader._scan_directory(global_dir, is_project=False, discovered=discovered)
+        await loader._scan_directory(global_dir, is_project=False, discovered=discovered)
 
         # Both workflows should be discovered
         assert "parent" in discovered
         assert "child" in discovered
 
-    def test_scan_handles_circular_inheritance_gracefully(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_scan_handles_circular_inheritance_gracefully(self, temp_workflow_dir) -> None:
         """Test that circular inheritance is handled during scan."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -941,13 +993,14 @@ extends: cycle_a
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         discovered = {}
         # Should not raise, just log warning and skip
-        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+        await loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
 
         # Workflows with circular inheritance should be skipped
         # At least one will fail to load
         assert len(discovered) <= 2
 
-    def test_scan_handles_missing_parent_in_inheritance(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_scan_handles_missing_parent_in_inheritance(self, temp_workflow_dir) -> None:
         """Test that workflows extending missing parents are still loaded."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -962,7 +1015,7 @@ extends: nonexistent_parent
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
         discovered = {}
-        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+        await loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
 
         # Should load the child workflow even if parent not found
         # (parent=None branch in line 257)
@@ -972,7 +1025,8 @@ extends: nonexistent_parent
 class TestClearCache:
     """Tests for clear_cache method."""
 
-    def test_clear_cache(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_clear_cache(self, temp_workflow_dir) -> None:
         """Test that discovery cache is cleared."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         (global_dir / "lifecycle").mkdir(parents=True)
@@ -987,7 +1041,7 @@ type: lifecycle
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # Populate cache
-        loader.discover_lifecycle_workflows()
+        await loader.discover_lifecycle_workflows()
         assert len(loader._discovery_cache) > 0
 
         # Clear cache
@@ -998,57 +1052,62 @@ type: lifecycle
 class TestValidateWorkflowForAgent:
     """Tests for validate_workflow_for_agent method."""
 
-    def test_validate_nonexistent_workflow(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_validate_nonexistent_workflow(self, loader) -> None:
         """Test that nonexistent workflows are considered valid (no error)."""
         with patch.object(loader, "load_workflow", return_value=None):
-            is_valid, error = loader.validate_workflow_for_agent("nonexistent")
+            is_valid, error = await loader.validate_workflow_for_agent("nonexistent")
 
         assert is_valid is True
         assert error is None
 
-    def test_validate_step_workflow(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_validate_step_workflow(self, loader) -> None:
         """Test that step workflows are valid for agents."""
         step_workflow = MagicMock(spec=WorkflowDefinition)
         step_workflow.type = "step"
 
         with patch.object(loader, "load_workflow", return_value=step_workflow):
-            is_valid, error = loader.validate_workflow_for_agent("step_wf")
+            is_valid, error = await loader.validate_workflow_for_agent("step_wf")
 
         assert is_valid is True
         assert error is None
 
-    def test_validate_lifecycle_workflow(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_validate_lifecycle_workflow(self, loader) -> None:
         """Test that lifecycle workflows are invalid for agents."""
         lifecycle_workflow = MagicMock(spec=WorkflowDefinition)
         lifecycle_workflow.type = "lifecycle"
 
         with patch.object(loader, "load_workflow", return_value=lifecycle_workflow):
-            is_valid, error = loader.validate_workflow_for_agent("lifecycle_wf")
+            is_valid, error = await loader.validate_workflow_for_agent("lifecycle_wf")
 
         assert is_valid is False
         assert "lifecycle workflow" in error.lower()
         assert "plan-execute" in error
 
-    def test_validate_with_loading_error(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_validate_with_loading_error(self, loader) -> None:
         """Test handling of ValueError during workflow loading."""
         with patch.object(
             loader,
             "load_workflow",
             side_effect=ValueError("Circular inheritance"),
         ):
-            is_valid, error = loader.validate_workflow_for_agent("broken_wf")
+            is_valid, error = await loader.validate_workflow_for_agent("broken_wf")
 
         assert is_valid is False
         assert "Failed to load" in error
         assert "Circular inheritance" in error
 
-    def test_validate_with_project_path(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_validate_with_project_path(self, loader) -> None:
         """Test that project_path is passed through to load_workflow."""
         step_workflow = MagicMock(spec=WorkflowDefinition)
         step_workflow.type = "step"
 
         with patch.object(loader, "load_workflow", return_value=step_workflow) as mock_load:
-            loader.validate_workflow_for_agent("test_wf", project_path="/my/project")
+            await loader.validate_workflow_for_agent("test_wf", project_path="/my/project")
 
         mock_load.assert_called_once_with("test_wf", project_path="/my/project")
 
@@ -1078,7 +1137,8 @@ class TestDiscoveredWorkflow:
 class TestGenericWorkflow:
     """Tests for the generic.yaml workflow definition."""
 
-    def test_generic_workflow_loads_successfully(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_generic_workflow_loads_successfully(self, temp_workflow_dir) -> None:
         """Test that the generic workflow can be loaded."""
         # Copy the generic workflow to the test directory
         generic_yaml = """
@@ -1128,13 +1188,14 @@ exit_condition: "current_step == 'complete'"
         (workflow_dir / "generic.yaml").write_text(generic_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-        wf = loader.load_workflow("generic")
+        wf = await loader.load_workflow("generic")
 
         assert wf is not None
         assert wf.name == "generic"
         assert wf.type == "step"
 
-    def test_generic_workflow_has_work_and_complete_steps(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_generic_workflow_has_work_and_complete_steps(self, temp_workflow_dir) -> None:
         """Test that generic workflow has work and complete steps."""
         generic_yaml = """
 name: generic
@@ -1167,14 +1228,15 @@ exit_condition: "current_step == 'complete'"
         (workflow_dir / "generic.yaml").write_text(generic_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-        wf = loader.load_workflow("generic")
+        wf = await loader.load_workflow("generic")
 
         assert wf is not None
         step_names = [s.name for s in wf.steps]
         assert "work" in step_names
         assert "complete" in step_names
 
-    def test_generic_workflow_work_step_has_allowed_tools(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_generic_workflow_work_step_has_allowed_tools(self, temp_workflow_dir) -> None:
         """Test that work step allows basic file tools."""
         generic_yaml = """
 name: generic
@@ -1207,7 +1269,7 @@ steps:
         (workflow_dir / "generic.yaml").write_text(generic_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-        wf = loader.load_workflow("generic")
+        wf = await loader.load_workflow("generic")
 
         work_step = next(s for s in wf.steps if s.name == "work")
         # Check allowed tools include essential file operations
@@ -1218,7 +1280,8 @@ steps:
         assert "Glob" in work_step.allowed_tools
         assert "Grep" in work_step.allowed_tools
 
-    def test_generic_workflow_blocks_spawn_tools(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_generic_workflow_blocks_spawn_tools(self, temp_workflow_dir) -> None:
         """Test that work step blocks spawn tools to prevent recursive spawning."""
         generic_yaml = """
 name: generic
@@ -1248,7 +1311,7 @@ steps:
         (workflow_dir / "generic.yaml").write_text(generic_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-        wf = loader.load_workflow("generic")
+        wf = await loader.load_workflow("generic")
 
         work_step = next(s for s in wf.steps if s.name == "work")
         # Check blocked tools prevent recursive spawning
@@ -1261,7 +1324,8 @@ steps:
 class TestMtimeCacheInvalidation:
     """Tests for mtime-based cache invalidation."""
 
-    def test_stale_file_auto_reloads(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_stale_file_auto_reloads(self, temp_workflow_dir) -> None:
         """Test that modifying a YAML file on disk causes automatic reload."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -1288,20 +1352,21 @@ steps:
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
         # First load
-        wf1 = loader.load_workflow("mtime_test")
+        wf1 = await loader.load_workflow("mtime_test")
         assert wf1 is not None
         assert wf1.version == "1.0.0"
 
         # Modify file on disk (ensure mtime changes)
-        time.sleep(0.1)  # Small sleep to ensure mtime differs
+        time.sleep(1.0)  # Small sleep to ensure mtime differs
         yaml_path.write_text(yaml_v2)
 
         # Second load should detect stale cache and reload
-        wf2 = loader.load_workflow("mtime_test")
+        wf2 = await loader.load_workflow("mtime_test")
         assert wf2 is not None
         assert wf2.version == "2.0.0"
 
-    def test_unchanged_file_returns_cached(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_unchanged_file_returns_cached(self, temp_workflow_dir) -> None:
         """Test that unchanged files return the cached object (same identity)."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -1318,11 +1383,12 @@ steps:
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        wf1 = loader.load_workflow("stable_test")
-        wf2 = loader.load_workflow("stable_test")
+        wf1 = await loader.load_workflow("stable_test")
+        wf2 = await loader.load_workflow("stable_test")
         assert wf1 is wf2  # Same object from cache
 
-    def test_inline_workflow_never_stale(self) -> None:
+    @pytest.mark.asyncio
+    async def test_inline_workflow_never_stale(self) -> None:
         """Test that inline workflows (path=None) are never considered stale."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -1345,10 +1411,11 @@ steps:
         assert not loader._is_stale(entry)
 
         # Loading again should return same object
-        wf2 = loader.load_workflow("test:inline")
+        wf2 = await loader.load_workflow("test:inline")
         assert wf2 is definition
 
-    def test_deleted_file_is_stale(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_deleted_file_is_stale(self, temp_workflow_dir) -> None:
         """Test that a deleted file is detected as stale."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -1366,7 +1433,7 @@ steps:
 
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        wf1 = loader.load_workflow("deletable")
+        wf1 = await loader.load_workflow("deletable")
         assert wf1 is not None
 
         # Delete the file
@@ -1377,7 +1444,8 @@ steps:
         entry = loader._cache[cache_key]
         assert loader._is_stale(entry)
 
-    def test_discovery_auto_reloads_on_file_change(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discovery_auto_reloads_on_file_change(self, temp_workflow_dir) -> None:
         """Test that discovery cache auto-reloads when a YAML file changes."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         lifecycle_dir = global_dir / "lifecycle"
@@ -1403,7 +1471,7 @@ settings:
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # First discovery
-        discovered1 = loader.discover_lifecycle_workflows()
+        discovered1 = await loader.discover_lifecycle_workflows()
         assert len(discovered1) == 1
         assert discovered1[0].definition.version == "1.0.0"
         assert discovered1[0].priority == 10
@@ -1413,12 +1481,13 @@ settings:
         yaml_path.write_text(yaml_v2)
 
         # Second discovery should detect stale cache and reload
-        discovered2 = loader.discover_lifecycle_workflows()
+        discovered2 = await loader.discover_lifecycle_workflows()
         assert len(discovered2) == 1
         assert discovered2[0].definition.version == "2.0.0"
         assert discovered2[0].priority == 20
 
-    def test_discovery_detects_new_file(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discovery_detects_new_file(self, temp_workflow_dir) -> None:
         """Test that discovery detects when a new file is added to directory."""
         global_dir = temp_workflow_dir / "global" / "workflows"
         lifecycle_dir = global_dir / "lifecycle"
@@ -1434,7 +1503,7 @@ type: lifecycle
         loader = WorkflowLoader(workflow_dirs=[global_dir])
 
         # First discovery
-        discovered1 = loader.discover_lifecycle_workflows()
+        discovered1 = await loader.discover_lifecycle_workflows()
         assert len(discovered1) == 1
 
         # Add a new file (changes directory mtime)
@@ -1447,13 +1516,14 @@ type: lifecycle
         (lifecycle_dir / "new_workflow.yaml").write_text(yaml_new)
 
         # Second discovery should detect new file via dir mtime change
-        discovered2 = loader.discover_lifecycle_workflows()
+        discovered2 = await loader.discover_lifecycle_workflows()
         assert len(discovered2) == 2
         names = [w.name for w in discovered2]
         assert "existing" in names
         assert "new_workflow" in names
 
-    def test_pipeline_stale_file_auto_reloads(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_pipeline_stale_file_auto_reloads(self, temp_workflow_dir) -> None:
         """Test that pipeline cache auto-reloads on file change."""
         workflow_dir = temp_workflow_dir / "workflows"
         workflow_dir.mkdir()
@@ -1480,7 +1550,7 @@ steps:
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
         # First load
-        p1 = loader.load_pipeline("test_pipeline")
+        p1 = await loader.load_pipeline("test_pipeline")
         assert p1 is not None
         assert p1.version == "1.0.0"
 
@@ -1489,7 +1559,7 @@ steps:
         yaml_path.write_text(yaml_v2)
 
         # Second load should detect stale and reload
-        p2 = loader.load_pipeline("test_pipeline")
+        p2 = await loader.load_pipeline("test_pipeline")
         assert p2 is not None
         assert p2.version == "2.0.0"
 
@@ -1503,53 +1573,51 @@ class TestBundledFallback:
         assert "install" in str(loader._bundled_dir)
         assert str(loader._bundled_dir).endswith("workflows")
 
-    def test_load_workflow_falls_back_to_bundled(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_falls_back_to_bundled(self, temp_workflow_dir) -> None:
         """WorkflowLoader finds bundled workflows when project and global dirs are empty."""
         # Create a bundled workflow file
         bundled_dir = temp_workflow_dir / "bundled" / "workflows"
         bundled_dir.mkdir(parents=True)
         (bundled_dir / "test-bundled.yaml").write_text(
-            "name: test-bundled\nversion: '1.0'\nsteps:\n"
-            "  - name: step1\n    allowed_tools: all\n"
+            "name: test-bundled\nversion: '1.0'\nsteps:\n  - name: step1\n    allowed_tools: all\n"
         )
 
         empty_global = temp_workflow_dir / "empty_global"
         empty_global.mkdir()
         loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
 
-        result = loader.load_workflow("test-bundled")
+        result = await loader.load_workflow("test-bundled")
         assert result is not None
         assert result.name == "test-bundled"
 
-    def test_project_shadows_bundled(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_project_shadows_bundled(self, temp_workflow_dir) -> None:
         """Project workflows take precedence over bundled ones."""
         # Create bundled version
         bundled_dir = temp_workflow_dir / "bundled" / "workflows"
         bundled_dir.mkdir(parents=True)
         (bundled_dir / "shadowed.yaml").write_text(
-            "name: shadowed\nversion: '1.0'\nsteps:\n"
-            "  - name: step1\n    allowed_tools: all\n"
+            "name: shadowed\nversion: '1.0'\nsteps:\n  - name: step1\n    allowed_tools: all\n"
         )
 
         # Create project version with different version
         project_dir = temp_workflow_dir / "project" / ".gobby" / "workflows"
         project_dir.mkdir(parents=True)
         (project_dir / "shadowed.yaml").write_text(
-            "name: shadowed\nversion: '2.0'\nsteps:\n"
-            "  - name: step1\n    allowed_tools: all\n"
+            "name: shadowed\nversion: '2.0'\nsteps:\n  - name: step1\n    allowed_tools: all\n"
         )
 
         empty_global = temp_workflow_dir / "empty_global"
         empty_global.mkdir()
         loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
 
-        result = loader.load_workflow(
-            "shadowed", project_path=temp_workflow_dir / "project"
-        )
+        result = await loader.load_workflow("shadowed", project_path=temp_workflow_dir / "project")
         assert result is not None
         assert result.version == "2.0"
 
-    def test_discover_lifecycle_includes_bundled(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_lifecycle_includes_bundled(self, temp_workflow_dir) -> None:
         """Bundled lifecycle workflows are discoverable via discover methods."""
         bundled_dir = temp_workflow_dir / "bundled" / "workflows"
         lifecycle_dir = bundled_dir / "lifecycle"
@@ -1564,11 +1632,12 @@ class TestBundledFallback:
         empty_global.mkdir()
         loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
 
-        discovered = loader.discover_lifecycle_workflows()
+        discovered = await loader.discover_lifecycle_workflows()
         names = [w.name for w in discovered]
         assert "bundled-lc" in names
 
-    def test_load_pipeline_falls_back_to_bundled(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_falls_back_to_bundled(self, temp_workflow_dir) -> None:
         """WorkflowLoader finds bundled pipelines when other dirs are empty."""
         bundled_dir = temp_workflow_dir / "bundled" / "workflows"
         bundled_dir.mkdir(parents=True)
@@ -1581,11 +1650,12 @@ class TestBundledFallback:
         empty_global.mkdir()
         loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
 
-        result = loader.load_pipeline("test-pipe")
+        result = await loader.load_pipeline("test-pipe")
         assert result is not None
         assert result.name == "test-pipe"
 
-    def test_discover_pipelines_includes_bundled(self, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discover_pipelines_includes_bundled(self, temp_workflow_dir) -> None:
         """Bundled pipeline workflows are discoverable."""
         bundled_dir = temp_workflow_dir / "bundled" / "workflows"
         bundled_dir.mkdir(parents=True)
@@ -1598,6 +1668,6 @@ class TestBundledFallback:
         empty_global.mkdir()
         loader = WorkflowLoader(workflow_dirs=[empty_global], bundled_dir=bundled_dir)
 
-        discovered = loader.discover_pipeline_workflows()
+        discovered = await loader.discover_pipeline_workflows()
         names = [w.name for w in discovered]
         assert "bundled-pipe" in names

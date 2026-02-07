@@ -85,7 +85,7 @@ def test_list_workflows_found(mock_open, mock_yaml, mock_project_path, mock_load
 
 def test_show_workflow(mock_loader) -> None:
     """Test 'workflows show' with valid name."""
-    mock_loader.load_workflow.return_value = MOCK_WORKFLOW
+    mock_loader.load_workflow_sync.return_value = MOCK_WORKFLOW
 
     runner = CliRunner()
     result = runner.invoke(workflows, ["show", "test-workflow"])
@@ -98,7 +98,7 @@ def test_show_workflow(mock_loader) -> None:
 
 def test_show_workflow_not_found(mock_loader) -> None:
     """Test 'workflows show' with invalid name."""
-    mock_loader.load_workflow.return_value = None
+    mock_loader.load_workflow_sync.return_value = None
 
     runner = CliRunner()
     result = runner.invoke(workflows, ["show", "invalid"])
@@ -121,7 +121,7 @@ def test_status_no_active(mock_state_manager) -> None:
 
 def test_set_workflow_success(mock_loader, mock_state_manager) -> None:
     """Test 'workflows set' successfully."""
-    mock_loader.load_workflow.return_value = MOCK_WORKFLOW
+    mock_loader.load_workflow_sync.return_value = MOCK_WORKFLOW
     mock_state_manager.get_state.return_value = None  # No existing workflow
 
     runner = CliRunner()

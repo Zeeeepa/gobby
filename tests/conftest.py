@@ -127,7 +127,7 @@ def mock_llm_service() -> MagicMock:
 
 
 @pytest.fixture
-def mock_daemon_config() -> MagicMock:
+def mock_daemon_config() -> "MagicMock":
     """Create a mock daemon configuration for CLI tests.
 
     Provides daemon_port, websocket.port, logging paths,

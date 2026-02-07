@@ -531,7 +531,7 @@ class PipelineExecutor:
         # Resume execution
         if self.loader:
             try:
-                pipeline = self.loader.load_pipeline(execution.pipeline_name)
+                pipeline = await self.loader.load_pipeline(execution.pipeline_name)
                 if pipeline:
                     inputs = {}
                     if execution.inputs_json:
@@ -713,7 +713,7 @@ class PipelineExecutor:
 
         try:
             # Load the nested pipeline
-            nested_pipeline = self.loader.load_pipeline(pipeline_name)
+            nested_pipeline = await self.loader.load_pipeline(pipeline_name)
 
             if not nested_pipeline:
                 return {

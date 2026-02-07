@@ -5,7 +5,7 @@ These tests verify that agents cannot bypass workflow controls:
 2. Modifying session_task when a real workflow is active is blocked
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -43,9 +43,10 @@ def mock_session_manager():
 
 @pytest.fixture
 def mock_loader():
-    """Create a mock workflow loader."""
+    """Create a mock workflow loader with async load_workflow."""
     loader = MagicMock()
     loader.global_dirs = []
+    loader.load_workflow = AsyncMock()
     return loader
 
 
@@ -61,7 +62,7 @@ def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
 
 
 def call_tool(registry, tool_name: str, **kwargs):
-    """Helper to call a tool from the registry synchronously."""
+    """Helper to call a tool from the registry."""
     tool = registry._tools.get(tool_name)
     if not tool:
         raise ValueError(f"Tool '{tool_name}' not found")
@@ -71,7 +72,8 @@ def call_tool(registry, tool_name: str, **kwargs):
 class TestBlockManualTransitionToConditionalSteps:
     """Tests for blocking manual transitions to steps with conditional auto-transitions."""
 
-    def test_blocks_manual_transition_to_conditional_step(
+    @pytest.mark.asyncio
+    async def test_blocks_manual_transition_to_conditional_step(
         self, registry, mock_loader, mock_state_manager
     ) -> None:
         """Manual transition to step with conditional auto-transition is blocked."""
@@ -100,7 +102,7 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_loader.load_workflow.return_value = workflow
 
         # Try to manually transition to "complete"
-        result = call_tool(
+        result = await call_tool(
             registry,
             "request_step_transition",
             to_step="complete",
@@ -112,7 +114,8 @@ class TestBlockManualTransitionToConditionalSteps:
         assert "task_tree_complete" in result["error"]
         assert "workflow circumvention" in result["error"]
 
-    def test_allows_manual_transition_without_condition(
+    @pytest.mark.asyncio
+    async def test_allows_manual_transition_without_condition(
         self, registry, mock_loader, mock_state_manager
     ) -> None:
         """Manual transition to step without conditional auto-transition is allowed."""
@@ -133,7 +136,7 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_loader.load_workflow.return_value = workflow
 
         # Manual transition should work
-        result = call_tool(
+        result = await call_tool(
             registry,
             "request_step_transition",
             to_step="execute",
@@ -143,7 +146,8 @@ class TestBlockManualTransitionToConditionalSteps:
         assert "error" not in result
         assert result["to_step"] == "execute"
 
-    def test_allows_transition_to_step_with_unconditional_transition(
+    @pytest.mark.asyncio
+    async def test_allows_transition_to_step_with_unconditional_transition(
         self, registry, mock_loader, mock_state_manager
     ) -> None:
         """Manual transition is allowed when transition has no 'when' condition."""
@@ -167,7 +171,7 @@ class TestBlockManualTransitionToConditionalSteps:
         )
         mock_loader.load_workflow.return_value = workflow
 
-        result = call_tool(
+        result = await call_tool(
             registry,
             "request_step_transition",
             to_step="step2",
@@ -176,7 +180,8 @@ class TestBlockManualTransitionToConditionalSteps:
 
         assert "error" not in result
 
-    def test_blocks_only_transitions_to_conditional_targets(
+    @pytest.mark.asyncio
+    async def test_blocks_only_transitions_to_conditional_targets(
         self, registry, mock_loader, mock_state_manager
     ) -> None:
         """Transition to a different step (not the conditional target) is allowed."""
@@ -202,7 +207,7 @@ class TestBlockManualTransitionToConditionalSteps:
         mock_loader.load_workflow.return_value = workflow
 
         # Transition to step2 (not step3) should work
-        result = call_tool(
+        result = await call_tool(
             registry,
             "request_step_transition",
             to_step="step2",

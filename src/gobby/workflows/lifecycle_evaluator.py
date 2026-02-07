@@ -22,9 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _compute_variable_diff(
-    before: dict[str, Any] | None, after: dict[str, Any]
-) -> dict[str, Any]:
+def _compute_variable_diff(before: dict[str, Any] | None, after: dict[str, Any]) -> dict[str, Any]:
     """Compute which variables changed between before and after snapshots."""
     if before is None:
         return dict(after)
@@ -289,7 +287,9 @@ async def evaluate_workflow_triggers(
 
     # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant,
     # unlocked_tools from track_schema_lookup)
-    _persist_state_changes(session_id, state, state_was_created, vars_snapshot, state_manager, workflow)
+    _persist_state_changes(
+        session_id, state, state_was_created, vars_snapshot, state_manager, workflow
+    )
 
     final_context = "\n\n".join(injected_context) if injected_context else None
     logger.debug(
@@ -334,7 +334,7 @@ async def evaluate_lifecycle_triggers(
         f"evaluate_lifecycle_triggers: workflow={workflow_name}, project_path={project_path}"
     )
 
-    workflow = loader.load_workflow(workflow_name, project_path=project_path)
+    workflow = await loader.load_workflow(workflow_name, project_path=project_path)
     if not workflow:
         logger.warning(f"Workflow '{workflow_name}' not found in project_path={project_path}")
         return HookResponse(decision="allow")
@@ -524,7 +524,7 @@ async def evaluate_all_lifecycle_workflows(
     project_path = event.cwd or (event.data.get("cwd") if event.data else None)
 
     # Discover all lifecycle workflows
-    workflows = loader.discover_lifecycle_workflows(project_path)
+    workflows = await loader.discover_lifecycle_workflows(project_path)
 
     if not workflows:
         logger.debug("No lifecycle workflows discovered")

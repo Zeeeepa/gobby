@@ -31,7 +31,10 @@ def make_event(
 
 @pytest.fixture
 def mock_loader():
-    return Mock()
+    loader = Mock()
+    loader.load_workflow = AsyncMock()
+    loader.discover_lifecycle_workflows = AsyncMock()
+    return loader
 
 
 @pytest.fixture

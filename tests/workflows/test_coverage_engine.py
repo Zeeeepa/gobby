@@ -5,10 +5,10 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import (
+    WorkflowDefinition,
     WorkflowRule,
     WorkflowState,
     WorkflowTransition,
-    WorkflowDefinition,
 )
 from gobby.workflows.engine import WorkflowEngine
 
@@ -18,6 +18,8 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def mock_components():
     loader = MagicMock()
+    loader.load_workflow = AsyncMock()
+    loader.discover_lifecycle_workflows = AsyncMock()
     state_manager = MagicMock()
     action_executor = AsyncMock()
     evaluator = MagicMock()

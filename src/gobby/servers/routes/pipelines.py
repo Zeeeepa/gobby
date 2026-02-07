@@ -80,7 +80,7 @@ def create_pipelines_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail="Pipeline executor not configured")
 
         # Load the pipeline
-        pipeline = loader.load_pipeline(request.name)
+        pipeline = await loader.load_pipeline(request.name)
         if pipeline is None:
             raise HTTPException(status_code=404, detail=f"Pipeline '{request.name}' not found")
 

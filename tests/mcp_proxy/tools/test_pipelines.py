@@ -3,7 +3,7 @@
 TDD tests for the pipelines MCP registry and tools.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -17,6 +17,9 @@ pytestmark = pytest.mark.unit
 def mock_loader() -> MagicMock:
     """Create a mock workflow loader."""
     loader = MagicMock()
+    loader.discover_pipeline_workflows = AsyncMock(return_value=[])
+    loader.discover_pipeline_workflows_sync.return_value = []
+    loader.load_pipeline = AsyncMock()
     return loader
 
 
@@ -966,7 +969,7 @@ class TestDynamicPipelineTools:
             expose_as_tool=True,
         )
 
-        mock_loader.discover_pipeline_workflows.return_value = [
+        discovered = [
             DiscoveredWorkflow(
                 name="run-tests",
                 definition=pipeline,
@@ -975,6 +978,8 @@ class TestDynamicPipelineTools:
                 path=Path("/project/.gobby/workflows/run-tests.yaml"),
             ),
         ]
+        mock_loader.discover_pipeline_workflows.return_value = discovered
+        mock_loader.discover_pipeline_workflows_sync.return_value = discovered
 
         registry = create_pipelines_registry(
             loader=mock_loader,
@@ -1003,7 +1008,7 @@ class TestDynamicPipelineTools:
             steps=[PipelineStep(id="step1", exec="echo internal")],
         )
 
-        mock_loader.discover_pipeline_workflows.return_value = [
+        discovered = [
             DiscoveredWorkflow(
                 name="internal-pipeline",
                 definition=pipeline,
@@ -1012,6 +1017,8 @@ class TestDynamicPipelineTools:
                 path=Path("/project/.gobby/workflows/internal.yaml"),
             ),
         ]
+        mock_loader.discover_pipeline_workflows.return_value = discovered
+        mock_loader.discover_pipeline_workflows_sync.return_value = discovered
 
         registry = create_pipelines_registry(
             loader=mock_loader,
@@ -1040,7 +1047,7 @@ class TestDynamicPipelineTools:
             expose_as_tool=True,
         )
 
-        mock_loader.discover_pipeline_workflows.return_value = [
+        discovered = [
             DiscoveredWorkflow(
                 name="deploy",
                 definition=pipeline,
@@ -1049,6 +1056,8 @@ class TestDynamicPipelineTools:
                 path=Path("/project/.gobby/workflows/deploy.yaml"),
             ),
         ]
+        mock_loader.discover_pipeline_workflows.return_value = discovered
+        mock_loader.discover_pipeline_workflows_sync.return_value = discovered
 
         registry = create_pipelines_registry(
             loader=mock_loader,
@@ -1081,7 +1090,7 @@ class TestDynamicPipelineTools:
             },
         )
 
-        mock_loader.discover_pipeline_workflows.return_value = [
+        discovered = [
             DiscoveredWorkflow(
                 name="deploy",
                 definition=pipeline,
@@ -1090,6 +1099,8 @@ class TestDynamicPipelineTools:
                 path=Path("/project/.gobby/workflows/deploy.yaml"),
             ),
         ]
+        mock_loader.discover_pipeline_workflows.return_value = discovered
+        mock_loader.discover_pipeline_workflows_sync.return_value = discovered
 
         registry = create_pipelines_registry(
             loader=mock_loader,
@@ -1125,7 +1136,7 @@ class TestDynamicPipelineTools:
             inputs={"filter": {"type": "string", "default": ""}},
         )
 
-        mock_loader.discover_pipeline_workflows.return_value = [
+        discovered = [
             DiscoveredWorkflow(
                 name="run-tests",
                 definition=pipeline,
@@ -1134,6 +1145,8 @@ class TestDynamicPipelineTools:
                 path=Path("/project/.gobby/workflows/run-tests.yaml"),
             ),
         ]
+        mock_loader.discover_pipeline_workflows.return_value = discovered
+        mock_loader.discover_pipeline_workflows_sync.return_value = discovered
         mock_loader.load_pipeline.return_value = pipeline
 
         execution = PipelineExecution(
@@ -1190,7 +1203,7 @@ class TestDynamicPipelineTools:
             expose_as_tool=False,
         )
 
-        mock_loader.discover_pipeline_workflows.return_value = [
+        discovered = [
             DiscoveredWorkflow(
                 name="build",
                 definition=pipeline1,
@@ -1213,6 +1226,8 @@ class TestDynamicPipelineTools:
                 path=Path("/project/.gobby/workflows/internal.yaml"),
             ),
         ]
+        mock_loader.discover_pipeline_workflows.return_value = discovered
+        mock_loader.discover_pipeline_workflows_sync.return_value = discovered
 
         registry = create_pipelines_registry(
             loader=mock_loader,

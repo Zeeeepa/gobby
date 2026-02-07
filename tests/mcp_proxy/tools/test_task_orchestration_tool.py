@@ -140,6 +140,10 @@ class TestOrchestrateReadyTasks:
                             "gobby.mcp_proxy.tools.orchestration.orchestrate.get_current_project_id",
                             return_value="test-project",
                         ),
+                        patch(
+                            "gobby.workflows.loader.WorkflowLoader.validate_workflow_for_agent_sync",
+                            return_value=(True, None),
+                        ),
                     ):
                         result = await tool.func(
                             parent_task_id="T1", parent_session_id="parent-session"

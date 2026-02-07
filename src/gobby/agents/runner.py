@@ -337,7 +337,7 @@ class AgentRunner:
         # Validate workflow BEFORE creating child session to avoid orphaned sessions
         workflow_definition = None
         if effective_workflow:
-            workflow_definition = self._workflow_loader.load_workflow(
+            workflow_definition = self._workflow_loader.load_workflow_sync(
                 effective_workflow,
                 project_path=config.project_path,
             )

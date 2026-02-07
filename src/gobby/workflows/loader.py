@@ -1,8 +1,10 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import aiofiles
 import yaml
 
 from .definitions import PipelineDefinition, WorkflowDefinition
@@ -93,7 +95,7 @@ class WorkflowLoader:
                 return True  # File deleted
         return False
 
-    def load_workflow(
+    async def load_workflow(
         self,
         name: str,
         project_path: Path | str | None = None,
@@ -136,7 +138,7 @@ class WorkflowLoader:
 
         # Check for qualified name (agent:workflow) - try to load from agent definition first
         if ":" in name:
-            agent_workflow = self._load_from_agent_definition(name, project_path)
+            agent_workflow = await self._load_from_agent_definition(name, project_path)
             if agent_workflow:
                 self._cache[cache_key] = _CachedEntry(
                     definition=agent_workflow, path=None, mtime=0.0
@@ -161,14 +163,15 @@ class WorkflowLoader:
 
         try:
             # 2. Parse YAML
-            with open(path) as f:
-                data = yaml.safe_load(f)
+            async with aiofiles.open(path) as f:
+                content = await f.read()
+            data = yaml.safe_load(content)
 
             # 3. Handle inheritance with cycle detection
             if "extends" in data:
                 parent_name = data["extends"]
                 # Add current workflow to chain before loading parent
-                parent = self.load_workflow(
+                parent = await self.load_workflow(
                     parent_name,
                     project_path=project_path,
                     _inheritance_chain=_inheritance_chain + [name],
@@ -190,9 +193,7 @@ class WorkflowLoader:
                 mtime = path.stat().st_mtime
             except OSError:
                 mtime = 0.0
-            self._cache[cache_key] = _CachedEntry(
-                definition=definition, path=path, mtime=mtime
-            )
+            self._cache[cache_key] = _CachedEntry(definition=definition, path=path, mtime=mtime)
             return definition
 
         except ValueError:
@@ -202,7 +203,7 @@ class WorkflowLoader:
             logger.error(f"Failed to load workflow '{name}' from {path}: {e}", exc_info=True)
             return None
 
-    def load_pipeline(
+    async def load_pipeline(
         self,
         name: str,
         project_path: Path | str | None = None,
@@ -257,8 +258,9 @@ class WorkflowLoader:
 
         try:
             # 2. Parse YAML
-            with open(path) as f:
-                data = yaml.safe_load(f)
+            async with aiofiles.open(path) as f:
+                content = await f.read()
+            data = yaml.safe_load(content)
 
             # 3. Check if this is a pipeline type
             if data.get("type") != "pipeline":
@@ -269,7 +271,7 @@ class WorkflowLoader:
             if "extends" in data:
                 parent_name = data["extends"]
                 # Add current pipeline to chain before loading parent
-                parent = self.load_pipeline(
+                parent = await self.load_pipeline(
                     parent_name,
                     project_path=project_path,
                     _inheritance_chain=_inheritance_chain + [name],
@@ -288,9 +290,7 @@ class WorkflowLoader:
                 mtime = path.stat().st_mtime
             except OSError:
                 mtime = 0.0
-            self._cache[cache_key] = _CachedEntry(
-                definition=definition, path=path, mtime=mtime
-            )
+            self._cache[cache_key] = _CachedEntry(definition=definition, path=path, mtime=mtime)
             return definition
 
         except ValueError:
@@ -321,7 +321,7 @@ class WorkflowLoader:
                             return candidate
         return None
 
-    def _load_from_agent_definition(
+    async def _load_from_agent_definition(
         self,
         qualified_name: str,
         project_path: Path | str | None = None,
@@ -373,7 +373,7 @@ class WorkflowLoader:
             logger.debug(
                 f"Loading file-referenced workflow '{workflow_file}' for '{qualified_name}'"
             )
-            return self.load_workflow(workflow_file, project_path)
+            return await self.load_workflow(workflow_file, project_path)
 
         # It's an inline workflow - build definition from spec
         if spec.is_inline():
@@ -584,7 +584,7 @@ class WorkflowLoader:
 
         return list(parent_map.values())
 
-    def discover_lifecycle_workflows(
+    async def discover_lifecycle_workflows(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
         """
@@ -619,7 +619,7 @@ class WorkflowLoader:
 
         # 1. Scan bundled lifecycle directory first (lowest priority, shadowed by all)
         if self._bundled_dir.is_dir():
-            self._scan_directory(
+            await self._scan_directory(
                 self._bundled_dir / "lifecycle",
                 is_project=False,
                 discovered=discovered,
@@ -629,7 +629,7 @@ class WorkflowLoader:
 
         # 2. Scan global lifecycle directory (shadows bundled)
         for global_dir in self.global_dirs:
-            self._scan_directory(
+            await self._scan_directory(
                 global_dir / "lifecycle",
                 is_project=False,
                 discovered=discovered,
@@ -640,7 +640,7 @@ class WorkflowLoader:
         # 3. Scan project lifecycle directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows" / "lifecycle"
-            self._scan_directory(
+            await self._scan_directory(
                 project_dir,
                 is_project=True,
                 discovered=discovered,
@@ -675,7 +675,7 @@ class WorkflowLoader:
         )
         return sorted_workflows
 
-    def discover_pipeline_workflows(
+    async def discover_pipeline_workflows(
         self, project_path: Path | str | None = None
     ) -> list[DiscoveredWorkflow]:
         """
@@ -713,7 +713,7 @@ class WorkflowLoader:
 
         # 1. Scan bundled workflows directory first (lowest priority, shadowed by all)
         if self._bundled_dir.is_dir():
-            self._scan_pipeline_directory(
+            await self._scan_pipeline_directory(
                 self._bundled_dir,
                 is_project=False,
                 discovered=discovered,
@@ -723,7 +723,7 @@ class WorkflowLoader:
 
         # 2. Scan global workflows directory (shadows bundled)
         for global_dir in self.global_dirs:
-            self._scan_pipeline_directory(
+            await self._scan_pipeline_directory(
                 global_dir,
                 is_project=False,
                 discovered=discovered,
@@ -734,7 +734,7 @@ class WorkflowLoader:
         # 3. Scan project workflows directory (shadows global)
         if project_path:
             project_dir = Path(project_path) / ".gobby" / "workflows"
-            self._scan_pipeline_directory(
+            await self._scan_pipeline_directory(
                 project_dir,
                 is_project=True,
                 discovered=discovered,
@@ -766,7 +766,7 @@ class WorkflowLoader:
         )
         return sorted_pipelines
 
-    def _scan_pipeline_directory(
+    async def _scan_pipeline_directory(
         self,
         directory: Path,
         is_project: bool,
@@ -806,8 +806,9 @@ class WorkflowLoader:
                     except OSError:
                         pass
 
-                with open(yaml_path) as f:
-                    data = yaml.safe_load(f)
+                async with aiofiles.open(yaml_path) as f:
+                    content = await f.read()
+                data = yaml.safe_load(content)
 
                 if not data:
                     continue
@@ -820,7 +821,7 @@ class WorkflowLoader:
                 if "extends" in data:
                     parent_name = data["extends"]
                     try:
-                        parent = self.load_pipeline(
+                        parent = await self.load_pipeline(
                             parent_name,
                             _inheritance_chain=[name],
                         )
@@ -863,7 +864,7 @@ class WorkflowLoader:
                 if failed is not None:
                     failed[name] = str(e)
 
-    def _scan_directory(
+    async def _scan_directory(
         self,
         directory: Path,
         is_project: bool,
@@ -901,8 +902,9 @@ class WorkflowLoader:
                     except OSError:
                         pass
 
-                with open(yaml_path) as f:
-                    data = yaml.safe_load(f)
+                async with aiofiles.open(yaml_path) as f:
+                    content = await f.read()
+                data = yaml.safe_load(content)
 
                 if not data:
                     continue
@@ -911,7 +913,7 @@ class WorkflowLoader:
                 if "extends" in data:
                     parent_name = data["extends"]
                     try:
-                        parent = self.load_workflow(
+                        parent = await self.load_workflow(
                             parent_name,
                             _inheritance_chain=[name],
                         )
@@ -1007,9 +1009,7 @@ class WorkflowLoader:
                     data["type"] = "step"
                 definition = WorkflowDefinition(**data)
 
-            self._cache[cache_key] = _CachedEntry(
-                definition=definition, path=None, mtime=0.0
-            )
+            self._cache[cache_key] = _CachedEntry(definition=definition, path=None, mtime=0.0)
 
             logger.debug(f"Registered inline workflow '{name}' (type={definition.type})")
             return definition
@@ -1018,7 +1018,7 @@ class WorkflowLoader:
             logger.error(f"Failed to register inline workflow '{name}': {e}")
             raise ValueError(f"Invalid inline workflow '{name}': {e}") from e
 
-    def validate_workflow_for_agent(
+    async def validate_workflow_for_agent(
         self,
         workflow_name: str,
         project_path: Path | str | None = None,
@@ -1039,7 +1039,7 @@ class WorkflowLoader:
             If invalid, returns (False, error_message).
         """
         try:
-            workflow = self.load_workflow(workflow_name, project_path=project_path)
+            workflow = await self.load_workflow(workflow_name, project_path=project_path)
         except ValueError as e:
             # Circular inheritance or other workflow loading errors
             return False, f"Failed to load workflow '{workflow_name}': {e}"
@@ -1056,3 +1056,40 @@ class WorkflowLoader:
             )
 
         return True, None
+
+    # ------------------------------------------------------------------
+    # Synchronous wrappers for CLI / startup contexts without a running loop
+    # ------------------------------------------------------------------
+
+    def load_workflow_sync(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+        _inheritance_chain: list[str] | None = None,
+    ) -> WorkflowDefinition | PipelineDefinition | None:
+        return asyncio.run(self.load_workflow(name, project_path, _inheritance_chain))
+
+    def load_pipeline_sync(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+        _inheritance_chain: list[str] | None = None,
+    ) -> PipelineDefinition | None:
+        return asyncio.run(self.load_pipeline(name, project_path, _inheritance_chain))
+
+    def discover_lifecycle_workflows_sync(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]:
+        return asyncio.run(self.discover_lifecycle_workflows(project_path))
+
+    def discover_pipeline_workflows_sync(
+        self, project_path: Path | str | None = None
+    ) -> list[DiscoveredWorkflow]:
+        return asyncio.run(self.discover_pipeline_workflows(project_path))
+
+    def validate_workflow_for_agent_sync(
+        self,
+        workflow_name: str,
+        project_path: Path | str | None = None,
+    ) -> tuple[bool, str | None]:
+        return asyncio.run(self.validate_workflow_for_agent(workflow_name, project_path))

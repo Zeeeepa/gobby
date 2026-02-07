@@ -283,7 +283,7 @@ def register_orchestrator(
                 # Validate workflow early (before creating worktree to avoid cleanup)
                 if workflow:
                     workflow_loader = WorkflowLoader()
-                    is_valid, error_msg = workflow_loader.validate_workflow_for_agent(
+                    is_valid, error_msg = workflow_loader.validate_workflow_for_agent_sync(
                         workflow, project_path=project_path
                     )
                     if not is_valid:

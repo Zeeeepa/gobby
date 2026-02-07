@@ -47,7 +47,7 @@ def test_list_workflows_empty(runner, mock_loader) -> None:
 
 
 def test_show_workflow_not_found(runner, mock_loader) -> None:
-    mock_loader.load_workflow.return_value = None
+    mock_loader.load_workflow_sync.return_value = None
     with patch("gobby.cli.workflows.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["show", "unknown"])
         assert result.exit_code == 1
@@ -81,7 +81,7 @@ def test_set_workflow_lifecycle_error(
     definition = Mock()
     definition.type = "lifecycle"
     definition.name = "life-wf"
-    mock_loader.load_workflow.return_value = definition
+    mock_loader.load_workflow_sync.return_value = definition
 
     with patch("gobby.cli.workflows.get_project_path", return_value=None):
         result = runner.invoke(workflows, ["set", "life-wf"])

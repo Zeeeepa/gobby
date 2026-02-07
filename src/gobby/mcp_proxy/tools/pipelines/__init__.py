@@ -60,10 +60,10 @@ def create_pipelines_registry(
         name="list_pipelines",
         description="List available pipeline definitions from project and global directories.",
     )
-    def _list_pipelines(
+    async def _list_pipelines(
         project_path: str | None = None,
     ) -> dict[str, Any]:
-        return list_pipelines(_loader, project_path)
+        return await list_pipelines(_loader, project_path)
 
     @registry.tool(
         name="run_pipeline",
@@ -145,7 +145,7 @@ def _register_exposed_pipeline_tools(
         return
 
     try:
-        discovered = loader.discover_pipeline_workflows()
+        discovered = loader.discover_pipeline_workflows_sync()
     except Exception:
         logger.warning("Failed to discover pipelines for dynamic tools", exc_info=True)
         return

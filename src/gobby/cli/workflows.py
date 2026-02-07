@@ -134,7 +134,7 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
     loader = get_workflow_loader()
     project_path = get_project_path()
 
-    definition = loader.load_workflow(name, project_path)
+    definition = loader.load_workflow_sync(name, project_path)
     if not definition:
         click.echo(f"Workflow '{name}' not found.", err=True)
         raise SystemExit(1)
@@ -273,7 +273,7 @@ def set_workflow(
     project_path = get_project_path()
 
     # Load workflow
-    definition = loader.load_workflow(name, project_path)
+    definition = loader.load_workflow_sync(name, project_path)
     if not definition:
         click.echo(f"Workflow '{name}' not found.", err=True)
         raise SystemExit(1)
@@ -386,7 +386,7 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
         raise SystemExit(1)
 
     # Load workflow to validate step
-    definition = loader.load_workflow(state.workflow_name, project_path)
+    definition = loader.load_workflow_sync(state.workflow_name, project_path)
     if not definition:
         click.echo(f"Workflow '{state.workflow_name}' not found.", err=True)
         raise SystemExit(1)

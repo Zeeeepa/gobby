@@ -88,10 +88,14 @@ async def _handle_self_mode(
     existing_state = effective_state_manager.get_state(parent_session_id)
     if existing_state and existing_state.workflow_name not in ("__lifecycle__", "__ended__"):
         # Check if existing workflow is a lifecycle type (they coexist with step workflows)
-        existing_def = workflow_loader.load_workflow(
-            existing_state.workflow_name,
-            Path(project_path) if project_path else None,
-        ) if workflow_loader else None
+        existing_def = (
+            await workflow_loader.load_workflow(
+                existing_state.workflow_name,
+                Path(project_path) if project_path else None,
+            )
+            if workflow_loader
+            else None
+        )
         if not existing_def or existing_def.type != "lifecycle":
             return {
                 "success": False,
@@ -734,7 +738,7 @@ def create_spawn_agent_registry(
 
         # Validate workflow exists if specified (skip for inline that we just registered)
         if effective_workflow and not inline_workflow_spec:
-            loaded_workflow = wf_loader.load_workflow(
+            loaded_workflow = await wf_loader.load_workflow(
                 effective_workflow, project_path=wf_project_path
             )
             if loaded_workflow is None:

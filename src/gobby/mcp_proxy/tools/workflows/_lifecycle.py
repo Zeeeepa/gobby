@@ -18,7 +18,7 @@ from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
 
-def activate_workflow(
+async def activate_workflow(
     loader: WorkflowLoader,
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
@@ -55,7 +55,7 @@ def activate_workflow(
     proj = Path(project_path) if project_path else None
 
     # Load workflow
-    definition = loader.load_workflow(name, proj)
+    definition = await loader.load_workflow(name, proj)
     if not definition:
         return {"success": False, "error": f"Workflow '{name}' not found"}
 
@@ -94,7 +94,7 @@ def activate_workflow(
     existing = state_manager.get_state(resolved_session_id)
     if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
         # Check if existing workflow is a lifecycle type
-        existing_def = loader.load_workflow(existing.workflow_name, proj)
+        existing_def = await loader.load_workflow(existing.workflow_name, proj)
         # Only allow if we can confirm it's a lifecycle workflow
         # If definition not found or it's a step workflow, block activation
         if not existing_def or existing_def.type != "lifecycle":
@@ -168,7 +168,7 @@ def activate_workflow(
     }
 
 
-def end_workflow(
+async def end_workflow(
     loader: WorkflowLoader,
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
@@ -218,7 +218,7 @@ def end_workflow(
             project_path = str(discovered)
 
     proj = Path(project_path) if project_path else None
-    definition = loader.load_workflow(state.workflow_name, proj)
+    definition = await loader.load_workflow(state.workflow_name, proj)
 
     # If definition exists and is lifecycle type, block manual ending
     if definition and definition.type == "lifecycle":
@@ -240,7 +240,7 @@ def end_workflow(
     return {"success": True, "workflow": state.workflow_name, "reason": reason}
 
 
-def request_step_transition(
+async def request_step_transition(
     loader: WorkflowLoader,
     state_manager: WorkflowStateManager,
     session_manager: LocalSessionManager,
@@ -292,7 +292,7 @@ def request_step_transition(
         return {"success": False, "error": "No workflow active for session"}
 
     # Load workflow to validate step
-    definition = loader.load_workflow(state.workflow_name, proj)
+    definition = await loader.load_workflow(state.workflow_name, proj)
     if not definition:
         return {"success": False, "error": f"Workflow '{state.workflow_name}' not found"}
 

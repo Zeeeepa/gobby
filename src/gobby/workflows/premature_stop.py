@@ -64,7 +64,7 @@ async def check_premature_stop(
 
     # Load the workflow definition
     project_path = Path(event.cwd) if event.cwd else None
-    workflow = loader.load_workflow(state.workflow_name, project_path=project_path)
+    workflow = await loader.load_workflow(state.workflow_name, project_path=project_path)
     if not workflow:
         logger.warning(f"Workflow '{state.workflow_name}' not found for premature stop check")
         return None

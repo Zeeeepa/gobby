@@ -138,7 +138,7 @@ class WorkflowEngine:
                 # Force transition to reflect if not already there
                 if state.step != "reflect":
                     project_path = Path(event.cwd) if event.cwd else None
-                    workflow = self.loader.load_workflow(state.workflow_name, project_path)
+                    workflow = await self.loader.load_workflow(state.workflow_name, project_path)
                     if (
                         workflow
                         and isinstance(workflow, WorkflowDefinition)
@@ -159,7 +159,7 @@ class WorkflowEngine:
             return HookResponse(decision="allow")
 
         project_path = Path(event.cwd) if event.cwd else None
-        workflow = self.loader.load_workflow(state.workflow_name, project_path)
+        workflow = await self.loader.load_workflow(state.workflow_name, project_path)
         if not workflow:
             logger.error(f"Workflow '{state.workflow_name}' not found for session {session_id}")
             return HookResponse(decision="allow")
@@ -204,7 +204,12 @@ class WorkflowEngine:
             # follow them immediately without waiting for the next hook event.
             # This chains deterministic steps (e.g., find_work → spawn_worker → wait_for_worker).
             injected_messages = await self._auto_transition_chain(
-                state, workflow, session_info, project_info, event, injected_messages,
+                state,
+                workflow,
+                session_info,
+                project_info,
+                event,
+                injected_messages,
             )
 
             if injected_messages:
@@ -354,7 +359,12 @@ class WorkflowEngine:
 
                 # Auto-transition chain after the transition's on_enter
                 injected_messages = await self._auto_transition_chain(
-                    state, workflow, session_info, project_info, event, injected_messages,
+                    state,
+                    workflow,
+                    session_info,
+                    project_info,
+                    event,
+                    injected_messages,
                 )
 
                 # Save state after transition
@@ -790,11 +800,16 @@ class WorkflowEngine:
                         self.action_executor.template_engine if self.action_executor else None
                     )
                     process_mcp_handlers(
-                        state, server_name, tool_name, succeeded, on_success, on_error,
+                        state,
+                        server_name,
+                        tool_name,
+                        succeeded,
+                        on_success,
+                        on_error,
                         template_engine=template_engine,
                     )
 
-    def activate_workflow(
+    async def activate_workflow(
         self,
         workflow_name: str,
         session_id: str,
@@ -817,7 +832,7 @@ class WorkflowEngine:
             Dict with success status and workflow info
         """
         # Load workflow
-        definition = self.loader.load_workflow(workflow_name, project_path)
+        definition = await self.loader.load_workflow(workflow_name, project_path)
         if not definition:
             logger.warning(f"Workflow '{workflow_name}' not found for auto-activation")
             return {"success": False, "error": f"Workflow '{workflow_name}' not found"}
@@ -841,7 +856,7 @@ class WorkflowEngine:
         existing = self.state_manager.get_state(session_id)
         if existing and existing.workflow_name not in ("__lifecycle__", "__ended__"):
             # Check if existing is lifecycle type
-            existing_def = self.loader.load_workflow(existing.workflow_name, project_path)
+            existing_def = await self.loader.load_workflow(existing.workflow_name, project_path)
             if not existing_def or existing_def.type != "lifecycle":
                 logger.warning(
                     f"Session {session_id} already has workflow '{existing.workflow_name}' active"

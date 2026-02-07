@@ -87,7 +87,7 @@ class ToolFilterService:
             return None
 
         proj = Path(project_path) if project_path else None
-        definition = loader.load_workflow(state.workflow_name, proj)
+        definition = loader.load_workflow_sync(state.workflow_name, proj)
         if not definition:
             logger.warning(f"Workflow '{state.workflow_name}' not found")
             return None

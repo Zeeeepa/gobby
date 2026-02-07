@@ -87,7 +87,7 @@ class TestGetStepRestrictions:
         mock_state.workflow_name = "unknown-workflow"
         mock_state.step = "step1"
         mock_state_manager.get_state.return_value = mock_state
-        mock_loader.load_workflow.return_value = None
+        mock_loader.load_workflow_sync.return_value = None
 
         result = service.get_step_restrictions("session-123")
         assert result is None
@@ -103,7 +103,7 @@ class TestGetStepRestrictions:
 
         mock_definition = MagicMock()
         mock_definition.get_step.return_value = None
-        mock_loader.load_workflow.return_value = mock_definition
+        mock_loader.load_workflow_sync.return_value = mock_definition
 
         result = service.get_step_restrictions("session-123")
         assert result is None
@@ -123,7 +123,7 @@ class TestGetStepRestrictions:
             blocked_tools=["write", "delete"],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         result = service.get_step_restrictions("session-123")
 
@@ -147,7 +147,7 @@ class TestGetStepRestrictions:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="open-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         result = service.get_step_restrictions("session-123")
 
@@ -200,7 +200,7 @@ class TestIsToolAllowed:
             blocked_tools=["dangerous-tool"],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         allowed, reason = service.is_tool_allowed("dangerous-tool", "session-123")
 
@@ -221,7 +221,7 @@ class TestIsToolAllowed:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         allowed, reason = service.is_tool_allowed("search", "session-123")
 
@@ -243,7 +243,7 @@ class TestIsToolAllowed:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         allowed, reason = service.is_tool_allowed("write", "session-123")
 
@@ -263,7 +263,7 @@ class TestIsToolAllowed:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         allowed, reason = service.is_tool_allowed("any-tool", "session-123")
 
@@ -285,7 +285,7 @@ class TestIsToolAllowed:
             blocked_tools=["dangerous"],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         allowed, reason = service.is_tool_allowed("dangerous", "session-123")
 
@@ -353,7 +353,7 @@ class TestFilterTools:
             blocked_tools=["tool2"],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -381,7 +381,7 @@ class TestFilterTools:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -410,7 +410,7 @@ class TestFilterTools:
             blocked_tools=["tool2"],  # Blocked takes priority
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         tools = [
             {"name": "tool1", "brief": "desc1"},
@@ -471,7 +471,7 @@ class TestFilterServersTools:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         servers = [
             {
@@ -514,7 +514,7 @@ class TestFilterServersTools:
             blocked_tools=[],
         )
         definition = WorkflowDefinition(name="test-workflow", steps=[step])
-        mock_loader.load_workflow.return_value = definition
+        mock_loader.load_workflow_sync.return_value = definition
 
         servers = [
             {"name": "server1", "tools": [{"name": "tool1", "brief": "d1"}]},
@@ -558,7 +558,7 @@ class TestLazyInitialization:
         # Patch at source module since import happens locally in method
         with patch("gobby.workflows.loader.WorkflowLoader") as mock_class:
             mock_loader = MagicMock()
-            mock_loader.load_workflow.return_value = None
+            mock_loader.load_workflow_sync.return_value = None
             mock_class.return_value = mock_loader
 
             service.get_step_restrictions("session-123")
@@ -583,7 +583,7 @@ class TestLazyInitialization:
     def test_reuses_existing_loader(self) -> None:
         """Test existing loader is reused."""
         mock_loader = MagicMock()
-        mock_loader.load_workflow.return_value = None
+        mock_loader.load_workflow_sync.return_value = None
         mock_state_manager = MagicMock()
         mock_state = MagicMock()
         mock_state.workflow_name = "test"

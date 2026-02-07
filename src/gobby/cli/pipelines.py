@@ -95,7 +95,7 @@ def list_pipelines(ctx: click.Context, json_format: bool) -> None:
     loader = get_workflow_loader()
     project_path = get_project_path()
 
-    discovered = loader.discover_pipeline_workflows(
+    discovered = loader.discover_pipeline_workflows_sync(
         project_path=str(project_path) if project_path else None
     )
 
@@ -136,7 +136,7 @@ def show_pipeline(ctx: click.Context, name: str, json_format: bool) -> None:
     loader = get_workflow_loader()
     project_path = get_project_path()
 
-    pipeline = loader.load_pipeline(name, project_path=project_path)
+    pipeline = loader.load_pipeline_sync(name, project_path=project_path)
     if not pipeline:
         click.echo(f"Pipeline '{name}' not found.", err=True)
         raise SystemExit(1)
@@ -249,7 +249,7 @@ def run_pipeline(
 
         loader = get_workflow_loader()
         project_path = get_project_path()
-        pipeline = loader.load_pipeline(name, project_path=project_path)
+        pipeline = loader.load_pipeline_sync(name, project_path=project_path)
         if not pipeline:
             click.echo(f"Pipeline '{name}' not found.", err=True)
             raise SystemExit(1)

@@ -6,7 +6,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def list_pipelines(
+async def list_pipelines(
     loader: Any,
     project_path: str | None = None,
 ) -> dict[str, Any]:
@@ -24,7 +24,7 @@ def list_pipelines(
         return {"success": False, "error": "No loader configured"}
 
     try:
-        discovered = loader.discover_pipeline_workflows(project_path=project_path)
+        discovered = await loader.discover_pipeline_workflows(project_path=project_path)
 
         pipelines = []
         for workflow in discovered:

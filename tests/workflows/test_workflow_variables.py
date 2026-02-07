@@ -12,7 +12,7 @@ Tests the following scenarios:
 
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -22,6 +22,37 @@ from gobby.workflows.state_manager import WorkflowStateManager
 
 pytestmark = pytest.mark.unit
 
+
+# =============================================================================
+# aiofiles mock helpers
+# =============================================================================
+
+
+def mock_aiofiles_open(read_data: str = "") -> MagicMock:
+    """Create a mock for aiofiles.open that returns read_data."""
+    mock_file = AsyncMock()
+    mock_file.read = AsyncMock(return_value=read_data)
+    mock_cm = AsyncMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_cm.__aexit__ = AsyncMock(return_value=False)
+    return MagicMock(return_value=mock_cm)
+
+
+def mock_aiofiles_open_side_effect(content_fn):
+    """Create a side_effect function for aiofiles.open that dispatches by path."""
+
+    def _open(path, *args, **kwargs):
+        content = content_fn(path)
+        mock_file = AsyncMock()
+        mock_file.read = AsyncMock(return_value=content)
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        return mock_cm
+
+    return _open
+
+
 # =============================================================================
 # Test WorkflowDefinition Variables Loading from YAML
 # =============================================================================
@@ -30,7 +61,8 @@ pytestmark = pytest.mark.unit
 class TestWorkflowDefinitionVariables:
     """Tests for loading variables from workflow YAML files."""
 
-    def test_load_workflow_with_variables(self) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_with_variables(self) -> None:
         """Variables section from YAML is loaded into WorkflowDefinition."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
@@ -49,8 +81,8 @@ class TestWorkflowDefinitionVariables:
             "_find_workflow_file",
             return_value=Path("/tmp/workflows/test_workflow.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
-                wf = loader.load_workflow("test_workflow")
+            with patch("aiofiles.open", mock_aiofiles_open(read_data=yaml_content)):
+                wf = await loader.load_workflow("test_workflow")
 
         assert wf is not None
         assert wf.variables == {
@@ -59,7 +91,8 @@ class TestWorkflowDefinitionVariables:
             "session_task": None,
         }
 
-    def test_load_workflow_without_variables(self) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_without_variables(self) -> None:
         """Workflow without variables section has empty dict."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
@@ -73,13 +106,14 @@ class TestWorkflowDefinitionVariables:
             "_find_workflow_file",
             return_value=Path("/tmp/workflows/no_vars_workflow.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
-                wf = loader.load_workflow("no_vars_workflow")
+            with patch("aiofiles.open", mock_aiofiles_open(read_data=yaml_content)):
+                wf = await loader.load_workflow("no_vars_workflow")
 
         assert wf is not None
         assert wf.variables == {}
 
-    def test_variables_support_all_types(self) -> None:
+    @pytest.mark.asyncio
+    async def test_variables_support_all_types(self) -> None:
         """Variables support string, int, float, bool, null, list, and dict values."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
         yaml_content = """
@@ -102,8 +136,8 @@ class TestWorkflowDefinitionVariables:
             "_find_workflow_file",
             return_value=Path("/tmp/workflows/typed_vars.yaml"),
         ):
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
-                wf = loader.load_workflow("typed_vars")
+            with patch("aiofiles.open", mock_aiofiles_open(read_data=yaml_content)):
+                wf = await loader.load_workflow("typed_vars")
 
         assert wf.variables["string_var"] == "hello"
         assert wf.variables["int_var"] == 42
@@ -117,7 +151,8 @@ class TestWorkflowDefinitionVariables:
 class TestWorkflowVariableInheritance:
     """Tests for variable inheritance when workflows extend each other."""
 
-    def test_child_inherits_parent_variables(self) -> None:
+    @pytest.mark.asyncio
+    async def test_child_inherits_parent_variables(self) -> None:
         """Child workflow inherits variables from parent."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -146,23 +181,26 @@ class TestWorkflowVariableInheritance:
             }
             return paths.get(name)
 
-        def mock_open_func(path, *args, **kwargs):
+        def content_for_path(path):
             if "parent" in str(path):
-                return mock_open(read_data=parent_yaml)()
-            elif "child" in str(path):
-                return mock_open(read_data=child_yaml)()
+                return parent_yaml
+            if "child" in str(path):
+                return child_yaml
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
-                wf = loader.load_workflow("child")
+            with patch(
+                "aiofiles.open", side_effect=mock_aiofiles_open_side_effect(content_for_path)
+            ):
+                wf = await loader.load_workflow("child")
 
         assert wf is not None
         # Should have both parent and child variables
         assert wf.variables["from_parent"] == "inherited"
         assert wf.variables["from_child"] == "new"
 
-    def test_child_overrides_parent_variables(self) -> None:
+    @pytest.mark.asyncio
+    async def test_child_overrides_parent_variables(self) -> None:
         """Child variables override parent variables with same name."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -191,22 +229,25 @@ class TestWorkflowVariableInheritance:
             }
             return paths.get(name)
 
-        def mock_open_func(path, *args, **kwargs):
+        def content_for_path(path):
             if "parent" in str(path):
-                return mock_open(read_data=parent_yaml)()
-            elif "child" in str(path):
-                return mock_open(read_data=child_yaml)()
+                return parent_yaml
+            if "child" in str(path):
+                return child_yaml
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
-                wf = loader.load_workflow("child")
+            with patch(
+                "aiofiles.open", side_effect=mock_aiofiles_open_side_effect(content_for_path)
+            ):
+                wf = await loader.load_workflow("child")
 
         # Child overrides shared_var but inherits only_parent
         assert wf.variables["shared_var"] == "child_value"
         assert wf.variables["only_parent"] == 100
 
-    def test_three_level_inheritance_merges_variables(self) -> None:
+    @pytest.mark.asyncio
+    async def test_three_level_inheritance_merges_variables(self) -> None:
         """Variables merge across three levels of inheritance."""
         loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
@@ -239,6 +280,8 @@ class TestWorkflowVariableInheritance:
         steps: []
         """
 
+        yamls = {"base": base_yaml, "middle": middle_yaml, "top": top_yaml}
+
         def mock_find(name, search_dirs):
             paths = {
                 "base": Path("/tmp/workflows/base.yaml"),
@@ -247,16 +290,17 @@ class TestWorkflowVariableInheritance:
             }
             return paths.get(name)
 
-        def mock_open_func(path, *args, **kwargs):
-            yamls = {"base": base_yaml, "middle": middle_yaml, "top": top_yaml}
+        def content_for_path(path):
             for name, content in yamls.items():
                 if name in str(path):
-                    return mock_open(read_data=content)()
+                    return content
             raise FileNotFoundError(path)
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
-            with patch("builtins.open", side_effect=mock_open_func):
-                wf = loader.load_workflow("top")
+            with patch(
+                "aiofiles.open", side_effect=mock_aiofiles_open_side_effect(content_for_path)
+            ):
+                wf = await loader.load_workflow("top")
 
         # Top overrides level, but inherits from all ancestors
         assert wf.variables["level"] == "top"

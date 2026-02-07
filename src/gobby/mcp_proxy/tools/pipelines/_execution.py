@@ -33,7 +33,7 @@ async def run_pipeline(
         return {"success": False, "error": "No loader configured"}
 
     # Load the pipeline definition
-    pipeline = loader.load_pipeline(name)
+    pipeline = await loader.load_pipeline(name)
     if not pipeline:
         return {"success": False, "error": f"Pipeline '{name}' not found"}
 

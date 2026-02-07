@@ -34,7 +34,8 @@ def loader(temp_workflow_dir):
 class TestLoadPipeline:
     """Tests for load_pipeline method."""
 
-    def test_load_valid_pipeline(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_valid_pipeline(self, loader, temp_workflow_dir) -> None:
         """Test loading a valid pipeline YAML returns PipelineDefinition."""
         pipeline_yaml = """
 name: test-pipeline
@@ -49,7 +50,7 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "test-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("test-pipeline")
+        result = await loader.load_pipeline("test-pipeline")
 
         assert result is not None
         assert isinstance(result, PipelineDefinition)
@@ -57,12 +58,14 @@ steps:
         assert result.type == "pipeline"
         assert len(result.steps) == 2
 
-    def test_load_pipeline_not_found(self, loader) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_not_found(self, loader) -> None:
         """Test loading non-existent pipeline returns None."""
-        result = loader.load_pipeline("nonexistent")
+        result = await loader.load_pipeline("nonexistent")
         assert result is None
 
-    def test_load_pipeline_wrong_type(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_wrong_type(self, loader, temp_workflow_dir) -> None:
         """Test loading a step workflow via load_pipeline returns None."""
         workflow_yaml = """
 name: step-workflow
@@ -74,10 +77,11 @@ steps:
         workflow_path = temp_workflow_dir / "global" / "workflows" / "step-workflow.yaml"
         workflow_path.write_text(workflow_yaml)
 
-        result = loader.load_pipeline("step-workflow")
+        result = await loader.load_pipeline("step-workflow")
         assert result is None
 
-    def test_load_pipeline_project_path_priority(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_project_path_priority(self, loader, temp_workflow_dir) -> None:
         """Test that project-specific pipelines take priority over global."""
         # Global pipeline
         global_yaml = """
@@ -102,12 +106,13 @@ steps:
         project_path = temp_workflow_dir / "project" / ".gobby" / "workflows" / "deploy.yaml"
         project_path.write_text(project_yaml)
 
-        result = loader.load_pipeline("deploy", project_path=temp_workflow_dir / "project")
+        result = await loader.load_pipeline("deploy", project_path=temp_workflow_dir / "project")
 
         assert result is not None
         assert result.description == "Project-specific deploy"
 
-    def test_load_pipeline_with_inputs_outputs(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_with_inputs_outputs(self, loader, temp_workflow_dir) -> None:
         """Test loading pipeline with inputs and outputs schema."""
         pipeline_yaml = """
 name: parameterized
@@ -128,7 +133,7 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "parameterized.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("parameterized")
+        result = await loader.load_pipeline("parameterized")
 
         assert result is not None
         assert "files" in result.inputs
@@ -136,7 +141,8 @@ steps:
         assert result.inputs["mode"]["default"] == "fast"
         assert result.outputs["result"] == "$final.output"
 
-    def test_load_pipeline_with_approval(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_with_approval(self, loader, temp_workflow_dir) -> None:
         """Test loading pipeline with approval gates."""
         pipeline_yaml = """
 name: approval-pipeline
@@ -153,7 +159,7 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "approval-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("approval-pipeline")
+        result = await loader.load_pipeline("approval-pipeline")
 
         assert result is not None
         assert len(result.steps) == 2
@@ -163,7 +169,8 @@ steps:
         assert deploy_step.approval.required is True
         assert deploy_step.approval.message == "Approve deployment?"
 
-    def test_load_pipeline_with_webhooks(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_with_webhooks(self, loader, temp_workflow_dir) -> None:
         """Test loading pipeline with webhook configuration."""
         pipeline_yaml = """
 name: webhook-pipeline
@@ -179,14 +186,15 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "webhook-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("webhook-pipeline")
+        result = await loader.load_pipeline("webhook-pipeline")
 
         assert result is not None
         assert result.webhooks is not None
         assert result.webhooks.on_complete is not None
         assert result.webhooks.on_complete.url == "https://example.com/done"
 
-    def test_load_pipeline_inheritance(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_inheritance(self, loader, temp_workflow_dir) -> None:
         """Test pipeline inheritance via extends field."""
         # Base pipeline
         base_yaml = """
@@ -218,14 +226,15 @@ steps:
         child_path = temp_workflow_dir / "global" / "workflows" / "child-pipeline.yaml"
         child_path.write_text(child_yaml)
 
-        result = loader.load_pipeline("child-pipeline")
+        result = await loader.load_pipeline("child-pipeline")
 
         assert result is not None
         assert result.name == "child-pipeline"
         # Should have inherited env input with overridden default
         assert result.inputs["env"]["default"] == "production"
 
-    def test_load_pipeline_caching(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_caching(self, loader, temp_workflow_dir) -> None:
         """Test that pipelines are cached after first load."""
         pipeline_yaml = """
 name: cached-pipeline
@@ -238,13 +247,14 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         # First load
-        result1 = loader.load_pipeline("cached-pipeline")
+        result1 = await loader.load_pipeline("cached-pipeline")
         # Second load without file change should return cached version
-        result2 = loader.load_pipeline("cached-pipeline")
+        result2 = await loader.load_pipeline("cached-pipeline")
 
         assert result1 is result2  # Same object from cache
 
-    def test_load_pipeline_cache_invalidation(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_cache_invalidation(self, loader, temp_workflow_dir) -> None:
         """Test that modified pipelines are reloaded (cache invalidated via mtime)."""
         pipeline_yaml = """
 name: cached-pipeline
@@ -257,7 +267,7 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         # First load
-        result1 = loader.load_pipeline("cached-pipeline")
+        result1 = await loader.load_pipeline("cached-pipeline")
         assert result1 is not None
         assert result1.name == "cached-pipeline"
 
@@ -271,12 +281,13 @@ steps:
         os.utime(pipeline_path, (future_time, future_time))
 
         # Second load should detect staleness and return fresh version
-        result2 = loader.load_pipeline("cached-pipeline")
+        result2 = await loader.load_pipeline("cached-pipeline")
         assert result2 is not None
         assert result2.name == "modified-pipeline"
         assert result1 is not result2
 
-    def test_load_pipeline_invalid_yaml(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_invalid_yaml(self, loader, temp_workflow_dir) -> None:
         """Test that invalid YAML returns None."""
         invalid_yaml = """
 name: invalid
@@ -286,10 +297,11 @@ steps: [this is: : not valid yaml
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "invalid.yaml"
         pipeline_path.write_text(invalid_yaml)
 
-        result = loader.load_pipeline("invalid")
+        result = await loader.load_pipeline("invalid")
         assert result is None
 
-    def test_load_pipeline_missing_type(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_pipeline_missing_type(self, loader, temp_workflow_dir) -> None:
         """Test that YAML without type field returns None (defaults to step)."""
         no_type_yaml = """
 name: no-type
@@ -300,7 +312,7 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "no-type.yaml"
         pipeline_path.write_text(no_type_yaml)
 
-        result = loader.load_pipeline("no-type")
+        result = await loader.load_pipeline("no-type")
         # Should return None because it's not type: pipeline
         assert result is None
 
@@ -308,7 +320,8 @@ steps:
 class TestValidatePipelineReferences:
     """Tests for _validate_pipeline_references method."""
 
-    def test_valid_back_reference(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_valid_back_reference(self, loader, temp_workflow_dir) -> None:
         """Test that $earlier_step.output references are accepted."""
         pipeline_yaml = """
 name: valid-refs
@@ -323,11 +336,12 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         # Should load successfully - references are valid
-        result = loader.load_pipeline("valid-refs")
+        result = await loader.load_pipeline("valid-refs")
         assert result is not None
         assert len(result.steps) == 2
 
-    def test_rejects_forward_reference(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_rejects_forward_reference(self, loader, temp_workflow_dir) -> None:
         """Test that $later_step.output (forward ref) is rejected."""
         pipeline_yaml = """
 name: forward-ref
@@ -343,11 +357,12 @@ steps:
 
         # Should fail - step1 references step2 which comes later
         with pytest.raises(ValueError) as exc_info:
-            loader.load_pipeline("forward-ref")
+            await loader.load_pipeline("forward-ref")
         assert "step2" in str(exc_info.value)
         assert "later" in str(exc_info.value).lower() or "forward" in str(exc_info.value).lower()
 
-    def test_rejects_nonexistent_reference(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_rejects_nonexistent_reference(self, loader, temp_workflow_dir) -> None:
         """Test that $nonexistent.output is rejected."""
         pipeline_yaml = """
 name: nonexistent-ref
@@ -361,10 +376,11 @@ steps:
 
         # Should fail - doesnotexist is not a valid step
         with pytest.raises(ValueError) as exc_info:
-            loader.load_pipeline("nonexistent-ref")
+            await loader.load_pipeline("nonexistent-ref")
         assert "doesnotexist" in str(exc_info.value)
 
-    def test_validates_prompt_references(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_validates_prompt_references(self, loader, temp_workflow_dir) -> None:
         """Test that references in prompt fields are validated."""
         pipeline_yaml = """
 name: prompt-refs
@@ -382,10 +398,11 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         # Should load successfully - all references are to earlier steps
-        result = loader.load_pipeline("prompt-refs")
+        result = await loader.load_pipeline("prompt-refs")
         assert result is not None
 
-    def test_validates_condition_references(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_validates_condition_references(self, loader, temp_workflow_dir) -> None:
         """Test that references in condition fields are validated."""
         pipeline_yaml = """
 name: condition-refs
@@ -401,10 +418,11 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         # Should load successfully
-        result = loader.load_pipeline("condition-refs")
+        result = await loader.load_pipeline("condition-refs")
         assert result is not None
 
-    def test_validates_input_references(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_validates_input_references(self, loader, temp_workflow_dir) -> None:
         """Test that references in input fields are validated."""
         pipeline_yaml = """
 name: input-refs
@@ -419,10 +437,11 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "input-refs.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("input-refs")
+        result = await loader.load_pipeline("input-refs")
         assert result is not None
 
-    def test_validates_output_references(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_validates_output_references(self, loader, temp_workflow_dir) -> None:
         """Test that references in pipeline outputs are validated."""
         pipeline_yaml = """
 name: output-refs
@@ -439,10 +458,11 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "output-refs.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("output-refs")
+        result = await loader.load_pipeline("output-refs")
         assert result is not None
 
-    def test_rejects_invalid_output_reference(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_output_reference(self, loader, temp_workflow_dir) -> None:
         """Test that invalid references in outputs are rejected."""
         pipeline_yaml = """
 name: bad-output-refs
@@ -457,10 +477,11 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         with pytest.raises(ValueError) as exc_info:
-            loader.load_pipeline("bad-output-refs")
+            await loader.load_pipeline("bad-output-refs")
         assert "missing_step" in str(exc_info.value)
 
-    def test_allows_inputs_reference(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_allows_inputs_reference(self, loader, temp_workflow_dir) -> None:
         """Test that $inputs.field references are allowed (not step refs)."""
         pipeline_yaml = """
 name: inputs-ref
@@ -475,10 +496,11 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "inputs-ref.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("inputs-ref")
+        result = await loader.load_pipeline("inputs-ref")
         assert result is not None
 
-    def test_multiple_refs_all_valid(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_refs_all_valid(self, loader, temp_workflow_dir) -> None:
         """Test pipeline with multiple valid references."""
         pipeline_yaml = """
 name: multi-refs
@@ -494,10 +516,11 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "multi-refs.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_pipeline("multi-refs")
+        result = await loader.load_pipeline("multi-refs")
         assert result is not None
 
-    def test_multiple_refs_one_invalid(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_refs_one_invalid(self, loader, temp_workflow_dir) -> None:
         """Test that one invalid ref among valid ones is caught."""
         pipeline_yaml = """
 name: mixed-refs
@@ -514,14 +537,15 @@ steps:
         pipeline_path.write_text(pipeline_yaml)
 
         with pytest.raises(ValueError) as exc_info:
-            loader.load_pipeline("mixed-refs")
+            await loader.load_pipeline("mixed-refs")
         assert "step3" in str(exc_info.value)
 
 
 class TestLoadWorkflowPipelineIntegration:
     """Tests for load_workflow() auto-detecting and handling pipelines."""
 
-    def test_load_workflow_auto_detects_pipeline(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_auto_detects_pipeline(self, loader, temp_workflow_dir) -> None:
         """Test that load_workflow() auto-detects type=pipeline."""
         pipeline_yaml = """
 name: auto-detect
@@ -533,13 +557,16 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "auto-detect.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_workflow("auto-detect")
+        result = await loader.load_workflow("auto-detect")
 
         assert result is not None
         assert isinstance(result, PipelineDefinition)
         assert result.type == "pipeline"
 
-    def test_load_workflow_validates_pipeline_references(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_validates_pipeline_references(
+        self, loader, temp_workflow_dir
+    ) -> None:
         """Test that load_workflow() validates references for pipelines."""
         pipeline_yaml = """
 name: validate-refs
@@ -555,10 +582,11 @@ steps:
 
         # Should fail due to forward reference
         with pytest.raises(ValueError) as exc_info:
-            loader.load_workflow("validate-refs")
+            await loader.load_workflow("validate-refs")
         assert "step2" in str(exc_info.value)
 
-    def test_load_workflow_returns_workflow_definition_for_step(
+    @pytest.mark.asyncio
+    async def test_load_workflow_returns_workflow_definition_for_step(
         self, loader, temp_workflow_dir
     ) -> None:
         """Test that load_workflow() returns WorkflowDefinition for step type."""
@@ -572,13 +600,14 @@ steps:
         workflow_path = temp_workflow_dir / "global" / "workflows" / "step-workflow.yaml"
         workflow_path.write_text(workflow_yaml)
 
-        result = loader.load_workflow("step-workflow")
+        result = await loader.load_workflow("step-workflow")
 
         assert result is not None
         assert isinstance(result, WorkflowDefinition)
         assert result.type == "step"
 
-    def test_load_workflow_returns_workflow_definition_for_lifecycle(
+    @pytest.mark.asyncio
+    async def test_load_workflow_returns_workflow_definition_for_lifecycle(
         self, loader, temp_workflow_dir
     ) -> None:
         """Test that load_workflow() returns WorkflowDefinition for lifecycle type."""
@@ -591,13 +620,14 @@ triggers:
         workflow_path = temp_workflow_dir / "global" / "workflows" / "lifecycle-workflow.yaml"
         workflow_path.write_text(workflow_yaml)
 
-        result = loader.load_workflow("lifecycle-workflow")
+        result = await loader.load_workflow("lifecycle-workflow")
 
         assert result is not None
         assert isinstance(result, WorkflowDefinition)
         assert result.type == "lifecycle"
 
-    def test_load_workflow_pipeline_with_valid_refs(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_load_workflow_pipeline_with_valid_refs(self, loader, temp_workflow_dir) -> None:
         """Test load_workflow() succeeds for pipeline with valid references."""
         pipeline_yaml = """
 name: valid-pipeline
@@ -611,7 +641,7 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "valid-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.load_workflow("valid-pipeline")
+        result = await loader.load_workflow("valid-pipeline")
 
         assert result is not None
         assert isinstance(result, PipelineDefinition)
@@ -621,7 +651,8 @@ steps:
 class TestDiscoverPipelineWorkflows:
     """Tests for discover_pipeline_workflows() method."""
 
-    def test_discovers_pipelines_in_global_dir(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discovers_pipelines_in_global_dir(self, loader, temp_workflow_dir) -> None:
         """Test that pipelines in global workflows dir are discovered."""
         pipeline_yaml = """
 name: global-pipeline
@@ -633,14 +664,15 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "global-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.discover_pipeline_workflows()
+        result = await loader.discover_pipeline_workflows()
 
         assert len(result) == 1
         assert result[0].name == "global-pipeline"
         assert result[0].is_project is False
         assert result[0].definition.type == "pipeline"
 
-    def test_discovers_pipelines_in_project_dir(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discovers_pipelines_in_project_dir(self, loader, temp_workflow_dir) -> None:
         """Test that pipelines in project workflows dir are discovered."""
         pipeline_yaml = """
 name: project-pipeline
@@ -653,14 +685,17 @@ steps:
         pipeline_path = project_workflows / "project-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.discover_pipeline_workflows(project_path=temp_workflow_dir / "project")
+        result = await loader.discover_pipeline_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
 
         # Should find the project pipeline
         project_pipelines = [p for p in result if p.is_project]
         assert len(project_pipelines) == 1
         assert project_pipelines[0].name == "project-pipeline"
 
-    def test_project_shadows_global_pipeline(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_project_shadows_global_pipeline(self, loader, temp_workflow_dir) -> None:
         """Test that project pipelines shadow global pipelines with same name."""
         # Global pipeline
         global_yaml = """
@@ -687,7 +722,9 @@ steps:
         project_path = project_workflows / "deploy.yaml"
         project_path.write_text(project_yaml)
 
-        result = loader.discover_pipeline_workflows(project_path=temp_workflow_dir / "project")
+        result = await loader.discover_pipeline_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
 
         # Should only have one "deploy" pipeline (project shadows global)
         deploy_pipelines = [p for p in result if p.name == "deploy"]
@@ -695,7 +732,8 @@ steps:
         assert deploy_pipelines[0].is_project is True
         assert deploy_pipelines[0].definition.description == "Project deploy"
 
-    def test_ignores_non_pipeline_workflows(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_ignores_non_pipeline_workflows(self, loader, temp_workflow_dir) -> None:
         """Test that step/lifecycle workflows are not returned."""
         # Pipeline workflow
         pipeline_yaml = """
@@ -731,14 +769,15 @@ triggers:
         lifecycle_path = lifecycle_dir / "my-lifecycle.yaml"
         lifecycle_path.write_text(lifecycle_yaml)
 
-        result = loader.discover_pipeline_workflows()
+        result = await loader.discover_pipeline_workflows()
 
         # Should only find the pipeline
         assert len(result) == 1
         assert result[0].name == "my-pipeline"
         assert result[0].definition.type == "pipeline"
 
-    def test_returns_discovered_workflow_structure(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_returns_discovered_workflow_structure(self, loader, temp_workflow_dir) -> None:
         """Test that result has correct DiscoveredWorkflow structure."""
         pipeline_yaml = """
 name: structured-pipeline
@@ -752,7 +791,7 @@ steps:
         pipeline_path = temp_workflow_dir / "global" / "workflows" / "structured-pipeline.yaml"
         pipeline_path.write_text(pipeline_yaml)
 
-        result = loader.discover_pipeline_workflows()
+        result = await loader.discover_pipeline_workflows()
 
         assert len(result) == 1
         discovered = result[0]
@@ -763,7 +802,8 @@ steps:
         assert discovered.path == pipeline_path
         assert isinstance(discovered.definition, PipelineDefinition)
 
-    def test_discovers_multiple_pipelines(self, loader, temp_workflow_dir) -> None:
+    @pytest.mark.asyncio
+    async def test_discovers_multiple_pipelines(self, loader, temp_workflow_dir) -> None:
         """Test discovering multiple pipelines."""
         for i in range(3):
             pipeline_yaml = f"""
@@ -776,7 +816,7 @@ steps:
             path = temp_workflow_dir / "global" / "workflows" / f"pipeline-{i}.yaml"
             path.write_text(pipeline_yaml)
 
-        result = loader.discover_pipeline_workflows()
+        result = await loader.discover_pipeline_workflows()
 
         assert len(result) == 3
         names = {p.name for p in result}

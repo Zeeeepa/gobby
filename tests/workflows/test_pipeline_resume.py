@@ -50,6 +50,7 @@ def mock_llm_service():
 @pytest.fixture
 def mock_loader():
     loader = MagicMock()
+    loader.load_pipeline = AsyncMock()
     return loader
 
 

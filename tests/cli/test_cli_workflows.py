@@ -60,7 +60,7 @@ def test_show_workflow(cli_runner, mock_loader) -> None:
             defi = WorkflowDefinition(
                 name="test", steps=[WorkflowStep(name="step1", description="step desc")]
             )
-            mock_loader.load_workflow.return_value = defi
+            mock_loader.load_workflow_sync.return_value = defi
 
             result = cli_runner.invoke(workflows, ["show", "test"])
 
@@ -113,7 +113,7 @@ def test_set_workflow(cli_runner, mock_loader, mock_state_manager) -> None:
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
                     # Mock definition
                     defi = WorkflowDefinition(name="new_wf", steps=[WorkflowStep(name="start")])
-                    mock_loader.load_workflow.return_value = defi
+                    mock_loader.load_workflow_sync.return_value = defi
 
                     # Mock no existing state
                     mock_state_manager.get_state.return_value = None
@@ -185,7 +185,7 @@ def test_show_workflow_not_found(cli_runner, mock_loader) -> None:
     """Test show workflow when workflow not found."""
     with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
         with patch("gobby.cli.workflows.get_project_path", return_value=None):
-            mock_loader.load_workflow.return_value = None
+            mock_loader.load_workflow_sync.return_value = None
 
             result = cli_runner.invoke(workflows, ["show", "nonexistent"])
 
@@ -201,7 +201,7 @@ def test_show_workflow_json_format(cli_runner, mock_loader) -> None:
                 name="test",
                 steps=[WorkflowStep(name="step1", description="step desc")],
             )
-            mock_loader.load_workflow.return_value = defi
+            mock_loader.load_workflow_sync.return_value = defi
 
             result = cli_runner.invoke(workflows, ["show", "test", "--json"])
 
@@ -225,7 +225,7 @@ def test_show_workflow_with_tools(cli_runner, mock_loader) -> None:
                     )
                 ],
             )
-            mock_loader.load_workflow.return_value = defi
+            mock_loader.load_workflow_sync.return_value = defi
 
             result = cli_runner.invoke(workflows, ["show", "test"])
 
@@ -312,7 +312,7 @@ def test_set_workflow_lifecycle_rejected(cli_runner, mock_loader, mock_state_man
             with patch("gobby.cli.workflows.get_project_path", return_value=None):
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(name="lifecycle_wf", type="lifecycle")
-                    mock_loader.load_workflow.return_value = defi
+                    mock_loader.load_workflow_sync.return_value = defi
 
                     result = cli_runner.invoke(
                         workflows, ["set", "lifecycle_wf", "--session", "sess1"]
@@ -329,7 +329,7 @@ def test_set_workflow_already_active(cli_runner, mock_loader, mock_state_manager
             with patch("gobby.cli.workflows.get_project_path", return_value=None):
                 with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
                     defi = WorkflowDefinition(name="new_wf", steps=[WorkflowStep(name="start")])
-                    mock_loader.load_workflow.return_value = defi
+                    mock_loader.load_workflow_sync.return_value = defi
 
                     existing_state = MagicMock(spec=WorkflowState)
                     existing_state.workflow_name = "existing_wf"
@@ -355,7 +355,7 @@ def test_set_workflow_with_initial_step(cli_runner, mock_loader, mock_state_mana
                             WorkflowStep(name="review"),
                         ],
                     )
-                    mock_loader.load_workflow.return_value = defi
+                    mock_loader.load_workflow_sync.return_value = defi
                     mock_state_manager.get_state.return_value = None
 
                     result = cli_runner.invoke(
@@ -382,7 +382,7 @@ def test_step_transition(cli_runner, mock_loader, mock_state_manager) -> None:
                         name="test_wf",
                         steps=[WorkflowStep(name="plan"), WorkflowStep(name="implement")],
                     )
-                    mock_loader.load_workflow.return_value = defi
+                    mock_loader.load_workflow_sync.return_value = defi
 
                     state = MagicMock(spec=WorkflowState)
                     state.workflow_name = "test_wf"
@@ -407,7 +407,7 @@ def test_step_invalid_step(cli_runner, mock_loader, mock_state_manager) -> None:
                         name="test_wf",
                         steps=[WorkflowStep(name="plan")],
                     )
-                    mock_loader.load_workflow.return_value = defi
+                    mock_loader.load_workflow_sync.return_value = defi
 
                     state = MagicMock(spec=WorkflowState)
                     state.workflow_name = "test_wf"

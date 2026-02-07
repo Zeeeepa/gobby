@@ -256,58 +256,63 @@ class TestWorkflowDefinitionPrematureStop:
 class TestAutonomousTaskWorkflowLoading:
     """Tests for loading the auto-task workflow."""
 
-    def test_workflow_can_be_loaded(self) -> None:
+    @pytest.mark.asyncio
+    async def test_workflow_can_be_loaded(self) -> None:
         """auto-task.yaml workflow can be loaded."""
         # Use the actual shared workflows directory
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        workflow = loader.load_workflow("auto-task")
+        workflow = await loader.load_workflow("auto-task")
 
         assert workflow is not None
         assert workflow.name == "auto-task"
         assert workflow.type == "step"
 
-    def test_workflow_has_expected_steps(self) -> None:
+    @pytest.mark.asyncio
+    async def test_workflow_has_expected_steps(self) -> None:
         """auto-task workflow has work and complete steps."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        workflow = loader.load_workflow("auto-task")
+        workflow = await loader.load_workflow("auto-task")
 
         assert workflow is not None
         step_names = [s.name for s in workflow.steps]
         assert "work" in step_names
         assert "complete" in step_names
 
-    def test_workflow_has_exit_condition(self) -> None:
+    @pytest.mark.asyncio
+    async def test_workflow_has_exit_condition(self) -> None:
         """auto-task workflow has exit_condition defined."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        workflow = loader.load_workflow("auto-task")
+        workflow = await loader.load_workflow("auto-task")
 
         assert workflow is not None
         assert workflow.exit_condition is not None
         assert "complete" in workflow.exit_condition
 
-    def test_workflow_has_premature_stop_handler(self) -> None:
+    @pytest.mark.asyncio
+    async def test_workflow_has_premature_stop_handler(self) -> None:
         """auto-task workflow has on_premature_stop defined."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        workflow = loader.load_workflow("auto-task")
+        workflow = await loader.load_workflow("auto-task")
 
         assert workflow is not None
         assert workflow.on_premature_stop is not None
         assert workflow.on_premature_stop.action == "guide_continuation"
 
-    def test_work_step_has_transition_to_complete(self) -> None:
+    @pytest.mark.asyncio
+    async def test_work_step_has_transition_to_complete(self) -> None:
         """Work step has transition to complete with task_tree_complete condition."""
         workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
         loader = WorkflowLoader(workflow_dirs=[workflow_dir])
 
-        workflow = loader.load_workflow("auto-task")
+        workflow = await loader.load_workflow("auto-task")
 
         work_step = workflow.get_step("work")
         assert work_step is not None
@@ -358,7 +363,8 @@ class TestActivateWorkflowWithVariables:
         )
         return session.id
 
-    def test_requires_session_id(self, temp_db) -> None:
+    @pytest.mark.asyncio
+    async def test_requires_session_id(self, temp_db) -> None:
         """Tool requires session_id parameter."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -376,12 +382,13 @@ class TestActivateWorkflowWithVariables:
         )
         tool_func = registry._tools["activate_workflow"].func
 
-        result = tool_func(name="auto-task", variables={"session_task": "gt-abc123"})
+        result = await tool_func(name="auto-task", variables={"session_task": "gt-abc123"})
 
         assert result["success"] is False
         assert "session_id is required" in result["error"]
 
-    def test_creates_workflow_state_with_variables(self, temp_db, session_id) -> None:
+    @pytest.mark.asyncio
+    async def test_creates_workflow_state_with_variables(self, temp_db, session_id) -> None:
         """Tool creates workflow state with variables merged correctly."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -400,7 +407,7 @@ class TestActivateWorkflowWithVariables:
         )
         tool_func = registry._tools["activate_workflow"].func
 
-        result = tool_func(
+        result = await tool_func(
             name="auto-task",
             variables={"session_task": "gt-abc123"},
             session_id=session_id,
@@ -419,7 +426,10 @@ class TestActivateWorkflowWithVariables:
         assert state.workflow_name == "auto-task"
         assert state.variables.get("session_task") == "gt-abc123"
 
-    def test_merges_workflow_defaults_with_passed_variables(self, temp_db, session_id) -> None:
+    @pytest.mark.asyncio
+    async def test_merges_workflow_defaults_with_passed_variables(
+        self, temp_db, session_id
+    ) -> None:
         """Passed variables override workflow defaults."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -438,7 +448,7 @@ class TestActivateWorkflowWithVariables:
         tool_func = registry._tools["activate_workflow"].func
 
         # Override the default premature_stop_max_attempts
-        result = tool_func(
+        result = await tool_func(
             name="auto-task",
             variables={"session_task": "gt-abc123", "premature_stop_max_attempts": 5},
             session_id=session_id,
@@ -449,7 +459,8 @@ class TestActivateWorkflowWithVariables:
         assert result["variables"]["premature_stop_max_attempts"] == 5
         assert result["variables"]["session_task"] == "gt-abc123"
 
-    def test_rejects_existing_step_workflow(self, temp_db, session_id) -> None:
+    @pytest.mark.asyncio
+    async def test_rejects_existing_step_workflow(self, temp_db, session_id) -> None:
         """Tool rejects activation if step workflow already active."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -475,7 +486,7 @@ class TestActivateWorkflowWithVariables:
         )
         tool_func = registry._tools["activate_workflow"].func
 
-        result = tool_func(
+        result = await tool_func(
             name="auto-task",
             variables={"session_task": "gt-abc123"},
             session_id=session_id,
@@ -484,7 +495,8 @@ class TestActivateWorkflowWithVariables:
         assert result["success"] is False
         assert "already has step workflow" in result["error"]
 
-    def test_preserves_lifecycle_variables_when_activating(self, temp_db, session_id) -> None:
+    @pytest.mark.asyncio
+    async def test_preserves_lifecycle_variables_when_activating(self, temp_db, session_id) -> None:
         """Lifecycle variables are preserved when activating a step workflow."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.storage.sessions import LocalSessionManager
@@ -514,7 +526,7 @@ class TestActivateWorkflowWithVariables:
         )
         tool_func = registry._tools["activate_workflow"].func
 
-        result = tool_func(
+        result = await tool_func(
             name="auto-task",
             variables={"session_task": "gt-abc123"},
             session_id=session_id,

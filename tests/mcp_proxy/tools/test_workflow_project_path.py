@@ -8,7 +8,7 @@ These tests verify that workflow tools work with:
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -42,9 +42,10 @@ def mock_session_manager():
 
 @pytest.fixture
 def mock_loader():
-    """Create a mock workflow loader."""
+    """Create a mock workflow loader with async load_workflow."""
     loader = MagicMock()
     loader.global_dirs = []
+    loader.load_workflow = AsyncMock()
     return loader
 
 
@@ -60,7 +61,7 @@ def registry(mock_loader, mock_state_manager, mock_session_manager, mock_db):
 
 
 def call_tool(registry, tool_name: str, **kwargs):
-    """Helper to call a tool from the registry synchronously."""
+    """Helper to call a tool from the registry."""
     tool = registry._tools.get(tool_name)
     if not tool:
         raise ValueError(f"Tool '{tool_name}' not found")
@@ -70,7 +71,8 @@ def call_tool(registry, tool_name: str, **kwargs):
 class TestGetWorkflowWithProjectPath:
     """Tests for get_workflow with project_path parameter."""
 
-    def test_with_explicit_project_path(self, registry, mock_loader, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_with_explicit_project_path(self, registry, mock_loader, tmp_path) -> None:
         """Verify get_workflow works with explicit project_path."""
         # Setup mock workflow
         mock_workflow = MagicMock()
@@ -84,7 +86,7 @@ class TestGetWorkflowWithProjectPath:
         mock_loader.load_workflow.return_value = mock_workflow
 
         # Call with explicit project_path
-        result = call_tool(
+        result = await call_tool(
             registry, "get_workflow", name="test-workflow", project_path=str(tmp_path)
         )
 
@@ -92,7 +94,8 @@ class TestGetWorkflowWithProjectPath:
         assert result["name"] == "test-workflow"
         mock_loader.load_workflow.assert_called_once_with("test-workflow", tmp_path)
 
-    def test_with_auto_discovery(self, registry, mock_loader, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_with_auto_discovery(self, registry, mock_loader, tmp_path) -> None:
         """Verify get_workflow uses auto-discovery when project_path not provided."""
         # Setup project structure
         gobby_dir = tmp_path / ".gobby"
@@ -116,13 +119,14 @@ class TestGetWorkflowWithProjectPath:
         ) as mock_discover:
             mock_discover.return_value = tmp_path
 
-            result = call_tool(registry, "get_workflow", name="test-workflow")
+            result = await call_tool(registry, "get_workflow", name="test-workflow")
 
             assert result["success"] is True
             mock_discover.assert_called_once()
             mock_loader.load_workflow.assert_called_once_with("test-workflow", tmp_path)
 
-    def test_auto_discovery_fails_gracefully(self, registry, mock_loader) -> None:
+    @pytest.mark.asyncio
+    async def test_auto_discovery_fails_gracefully(self, registry, mock_loader) -> None:
         """Verify get_workflow handles auto-discovery failure gracefully."""
         mock_loader.load_workflow.return_value = None
 
@@ -131,7 +135,7 @@ class TestGetWorkflowWithProjectPath:
         ) as mock_discover:
             mock_discover.return_value = None
 
-            result = call_tool(registry, "get_workflow", name="nonexistent-workflow")
+            result = await call_tool(registry, "get_workflow", name="nonexistent-workflow")
 
             # Should still call load_workflow with None path
             assert result["success"] is False
@@ -182,7 +186,8 @@ class TestListWorkflowsWithProjectPath:
 class TestActivateWorkflowWithProjectPath:
     """Tests for activate_workflow with project_path parameter."""
 
-    def test_with_explicit_project_path(
+    @pytest.mark.asyncio
+    async def test_with_explicit_project_path(
         self, registry, mock_loader, mock_state_manager, tmp_path
     ) -> None:
         """Verify activate_workflow works with explicit project_path."""
@@ -194,7 +199,7 @@ class TestActivateWorkflowWithProjectPath:
         mock_loader.load_workflow.return_value = workflow
         mock_state_manager.get_state.return_value = None
 
-        result = call_tool(
+        result = await call_tool(
             registry,
             "activate_workflow",
             name="plan-execute",
@@ -205,7 +210,10 @@ class TestActivateWorkflowWithProjectPath:
         assert result["success"] is True
         mock_loader.load_workflow.assert_called_once_with("plan-execute", tmp_path)
 
-    def test_with_auto_discovery(self, registry, mock_loader, mock_state_manager, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_with_auto_discovery(
+        self, registry, mock_loader, mock_state_manager, tmp_path
+    ) -> None:
         """Verify activate_workflow uses auto-discovery when project_path not provided."""
         workflow = WorkflowDefinition(
             name="auto-task",
@@ -219,7 +227,7 @@ class TestActivateWorkflowWithProjectPath:
         ) as mock_discover:
             mock_discover.return_value = tmp_path
 
-            result = call_tool(
+            result = await call_tool(
                 registry,
                 "activate_workflow",
                 name="auto-task",
@@ -233,7 +241,8 @@ class TestActivateWorkflowWithProjectPath:
 class TestRequestStepTransitionWithProjectPath:
     """Tests for request_step_transition with project_path parameter."""
 
-    def test_with_explicit_project_path(
+    @pytest.mark.asyncio
+    async def test_with_explicit_project_path(
         self, registry, mock_loader, mock_state_manager, tmp_path
     ) -> None:
         """Verify request_step_transition works with explicit project_path."""
@@ -250,7 +259,7 @@ class TestRequestStepTransitionWithProjectPath:
         )
         mock_loader.load_workflow.return_value = workflow
 
-        result = call_tool(
+        result = await call_tool(
             registry,
             "request_step_transition",
             to_step="execute",
@@ -262,7 +271,10 @@ class TestRequestStepTransitionWithProjectPath:
         assert result["to_step"] == "execute"
         mock_loader.load_workflow.assert_called_once_with("plan-execute", tmp_path)
 
-    def test_with_auto_discovery(self, registry, mock_loader, mock_state_manager, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_with_auto_discovery(
+        self, registry, mock_loader, mock_state_manager, tmp_path
+    ) -> None:
         """Verify request_step_transition uses auto-discovery."""
         mock_state = MagicMock()
         mock_state.workflow_name = "plan-execute"
@@ -281,7 +293,7 @@ class TestRequestStepTransitionWithProjectPath:
         ) as mock_discover:
             mock_discover.return_value = tmp_path
 
-            result = call_tool(
+            result = await call_tool(
                 registry,
                 "request_step_transition",
                 to_step="execute",
@@ -363,7 +375,8 @@ class TestImportWorkflowWithProjectPath:
 class TestWorktreeAutoDiscovery:
     """Tests for auto-discovery in worktree context."""
 
-    def test_worktree_discovers_parent_project(self, registry, mock_loader, tmp_path) -> None:
+    @pytest.mark.asyncio
+    async def test_worktree_discovers_parent_project(self, registry, mock_loader, tmp_path) -> None:
         """Verify auto-discovery finds parent project from worktree."""
         # Setup parent project
         parent_project = tmp_path / "parent"
@@ -398,7 +411,7 @@ class TestWorktreeAutoDiscovery:
         ) as mock_discover:
             mock_discover.return_value = parent_project
 
-            result = call_tool(registry, "get_workflow", name="test")
+            result = await call_tool(registry, "get_workflow", name="test")
 
             assert result["success"] is True
             # Should use parent project path

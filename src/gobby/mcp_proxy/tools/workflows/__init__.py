@@ -98,11 +98,11 @@ def create_workflows_registry(
         name="get_workflow",
         description="Get details about a specific workflow definition.",
     )
-    def _get_workflow(
+    async def _get_workflow(
         name: str,
         project_path: str | None = None,
     ) -> dict[str, Any]:
-        return get_workflow(_loader, name, project_path)
+        return await get_workflow(_loader, name, project_path)
 
     @registry.tool(
         name="list_workflows",
@@ -119,7 +119,7 @@ def create_workflows_registry(
         name="activate_workflow",
         description="Activate a step-based workflow for the current session. Accepts #N, N, UUID, or prefix for session_id.",
     )
-    def _activate_workflow(
+    async def _activate_workflow(
         name: str,
         session_id: str | None = None,
         initial_step: str | None = None,
@@ -128,7 +128,7 @@ def create_workflows_registry(
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None or _db is None:
             return {"error": "Workflow tools require database connection"}
-        return activate_workflow(
+        return await activate_workflow(
             _loader,
             _state_manager,
             _session_manager,
@@ -144,14 +144,14 @@ def create_workflows_registry(
         name="end_workflow",
         description="End the currently active step-based workflow. Accepts #N, N, UUID, or prefix for session_id.",
     )
-    def _end_workflow(
+    async def _end_workflow(
         session_id: str | None = None,
         reason: str | None = None,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
             return {"error": "Workflow tools require database connection"}
-        return end_workflow(
+        return await end_workflow(
             _loader, _state_manager, _session_manager, session_id, reason, project_path
         )
 
@@ -168,7 +168,7 @@ def create_workflows_registry(
         name="request_step_transition",
         description="Request transition to a different step. Accepts #N, N, UUID, or prefix for session_id.",
     )
-    def _request_step_transition(
+    async def _request_step_transition(
         to_step: str,
         reason: str | None = None,
         session_id: str | None = None,
@@ -177,7 +177,7 @@ def create_workflows_registry(
     ) -> dict[str, Any]:
         if _state_manager is None or _session_manager is None:
             return {"error": "Workflow tools require database connection"}
-        return request_step_transition(
+        return await request_step_transition(
             _loader,
             _state_manager,
             _session_manager,

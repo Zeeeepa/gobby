@@ -18,7 +18,7 @@ from gobby.workflows.state_manager import WorkflowStateManager
 logger = logging.getLogger(__name__)
 
 
-def get_workflow(
+async def get_workflow(
     loader: WorkflowLoader,
     name: str,
     project_path: str | None = None,
@@ -41,7 +41,7 @@ def get_workflow(
             project_path = str(discovered)
 
     proj = Path(project_path) if project_path else None
-    definition = loader.load_workflow(name, proj)
+    definition = await loader.load_workflow(name, proj)
 
     if not definition:
         return {"success": False, "error": f"Workflow '{name}' not found"}

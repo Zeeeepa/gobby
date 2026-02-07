@@ -102,19 +102,19 @@ class TestPipelinesList:
     def test_list_discovers_pipelines(self, runner, mock_discovered_pipelines) -> None:
         """Verify 'gobby pipelines list' calls discover_pipeline_workflows."""
         mock_loader = MagicMock()
-        mock_loader.discover_pipeline_workflows.return_value = mock_discovered_pipelines
+        mock_loader.discover_pipeline_workflows_sync.return_value = mock_discovered_pipelines
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "list"])
 
             assert result.exit_code == 0
-            mock_loader.discover_pipeline_workflows.assert_called_once()
+            mock_loader.discover_pipeline_workflows_sync.assert_called_once()
 
     @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
     def test_list_outputs_pipeline_names(self, runner, mock_discovered_pipelines) -> None:
         """Verify list command outputs pipeline names."""
         mock_loader = MagicMock()
-        mock_loader.discover_pipeline_workflows.return_value = mock_discovered_pipelines
+        mock_loader.discover_pipeline_workflows_sync.return_value = mock_discovered_pipelines
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "list"])
@@ -127,7 +127,7 @@ class TestPipelinesList:
     def test_list_shows_descriptions(self, runner, mock_discovered_pipelines) -> None:
         """Verify list command shows pipeline descriptions."""
         mock_loader = MagicMock()
-        mock_loader.discover_pipeline_workflows.return_value = mock_discovered_pipelines
+        mock_loader.discover_pipeline_workflows_sync.return_value = mock_discovered_pipelines
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "list"])
@@ -139,7 +139,7 @@ class TestPipelinesList:
     def test_list_shows_source(self, runner, mock_discovered_pipelines) -> None:
         """Verify list command indicates project vs global source."""
         mock_loader = MagicMock()
-        mock_loader.discover_pipeline_workflows.return_value = mock_discovered_pipelines
+        mock_loader.discover_pipeline_workflows_sync.return_value = mock_discovered_pipelines
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "list"])
@@ -151,7 +151,7 @@ class TestPipelinesList:
     def test_list_empty_result(self, runner) -> None:
         """Verify list handles no pipelines found."""
         mock_loader = MagicMock()
-        mock_loader.discover_pipeline_workflows.return_value = []
+        mock_loader.discover_pipeline_workflows_sync.return_value = []
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "list"])
@@ -165,7 +165,7 @@ class TestPipelinesList:
         import json
 
         mock_loader = MagicMock()
-        mock_loader.discover_pipeline_workflows.return_value = mock_discovered_pipelines
+        mock_loader.discover_pipeline_workflows_sync.return_value = mock_discovered_pipelines
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "list", "--json"])
@@ -183,19 +183,19 @@ class TestPipelinesShow:
     def test_show_loads_pipeline(self, runner, mock_pipeline) -> None:
         """Verify 'gobby pipelines show <name>' loads the pipeline."""
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "show", "deploy"])
 
             assert result.exit_code == 0
-            mock_loader.load_pipeline.assert_called_once_with("deploy", project_path=ANY)
+            mock_loader.load_pipeline_sync.assert_called_once_with("deploy", project_path=ANY)
 
     @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
     def test_show_outputs_pipeline_details(self, runner, mock_pipeline) -> None:
         """Verify show command outputs pipeline definition details."""
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "show", "deploy"])
@@ -208,7 +208,7 @@ class TestPipelinesShow:
     def test_show_outputs_steps(self, runner, mock_pipeline) -> None:
         """Verify show command outputs step information."""
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "show", "deploy"])
@@ -221,7 +221,7 @@ class TestPipelinesShow:
     def test_show_not_found(self, runner) -> None:
         """Verify show returns error for nonexistent pipeline."""
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = None
+        mock_loader.load_pipeline_sync.return_value = None
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "show", "nonexistent"])
@@ -234,7 +234,7 @@ class TestPipelinesShow:
         import json
 
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "show", "deploy", "--json"])
@@ -275,7 +275,7 @@ class TestPipelinesRun:
         from unittest.mock import AsyncMock
 
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         mock_executor = MagicMock()
         mock_executor.execute = AsyncMock(return_value=mock_execution)
@@ -287,7 +287,7 @@ class TestPipelinesRun:
             result = runner.invoke(cli, ["pipelines", "run", "deploy"])
 
             assert result.exit_code == 0
-            mock_loader.load_pipeline.assert_called_once_with("deploy", project_path=ANY)
+            mock_loader.load_pipeline_sync.assert_called_once_with("deploy", project_path=ANY)
             mock_executor.execute.assert_called_once()
 
     @pytest.mark.skipif(not pipelines_available(), reason="pipelines CLI not yet implemented")
@@ -296,7 +296,7 @@ class TestPipelinesRun:
         from unittest.mock import AsyncMock
 
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         mock_executor = MagicMock()
         mock_executor.execute = AsyncMock(return_value=mock_execution)
@@ -323,7 +323,7 @@ class TestPipelinesRun:
         from unittest.mock import AsyncMock
 
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         mock_executor = MagicMock()
         mock_executor.execute = AsyncMock(return_value=mock_execution)
@@ -346,7 +346,7 @@ class TestPipelinesRun:
         from gobby.workflows.pipeline_state import ApprovalRequired
 
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         mock_executor = MagicMock()
         mock_executor.execute = AsyncMock(
@@ -372,7 +372,7 @@ class TestPipelinesRun:
     def test_run_pipeline_not_found(self, runner) -> None:
         """Verify run returns error for nonexistent pipeline."""
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = None
+        mock_loader.load_pipeline_sync.return_value = None
 
         with patch("gobby.cli.pipelines.get_workflow_loader", return_value=mock_loader):
             result = runner.invoke(cli, ["pipelines", "run", "nonexistent"])
@@ -386,7 +386,7 @@ class TestPipelinesRun:
         from unittest.mock import AsyncMock
 
         mock_loader = MagicMock()
-        mock_loader.load_pipeline.return_value = mock_pipeline
+        mock_loader.load_pipeline_sync.return_value = mock_pipeline
 
         mock_executor = MagicMock()
         mock_executor.execute = AsyncMock(return_value=mock_execution)

@@ -426,7 +426,7 @@ class ActionExecutor:
                 return {"error": "Pipeline executor not configured"}
 
             # Load the pipeline
-            pipeline = executor.workflow_loader.load_pipeline(name)
+            pipeline = await executor.workflow_loader.load_pipeline(name)
             if pipeline is None:
                 return {"error": f"Pipeline '{name}' not found"}
 
