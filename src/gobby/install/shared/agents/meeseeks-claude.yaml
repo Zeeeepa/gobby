@@ -104,7 +104,7 @@ workflows:
 
         transitions:
           - to: work
-            when: "variables.get('task_claimed')"
+            when: "task_claimed"
 
       - name: work
         description: "Full tool access for implementation"

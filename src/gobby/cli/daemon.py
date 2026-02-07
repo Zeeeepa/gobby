@@ -226,11 +226,12 @@ def start(ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool) -> 
                 web_dir = find_web_dir(config)
                 if web_dir:
                     ui_log = Path(config.logging.client).expanduser().parent / "ui.log"
-                    ui_pid = spawn_ui_server(
-                        config.ui.host, config.ui.port, web_dir, ui_log
-                    )
+                    ui_pid = spawn_ui_server(config.ui.host, config.ui.port, web_dir, ui_log)
                     if ui_pid:
                         ui_url = f"http://{config.ui.host}:{config.ui.port}"
+                        ui_pid_file = gobby_dir / "ui.pid"
+                        with open(ui_pid_file, "w") as f:
+                            f.write(str(ui_pid))
                 else:
                     click.echo("Warning: Web UI enabled but web/ directory not found")
             elif config.ui.mode == "production":

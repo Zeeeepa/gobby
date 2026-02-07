@@ -240,6 +240,9 @@ class WorkflowHookHandler:
                         variables=variables,
                     )
                 )
+        except concurrent.futures.CancelledError:
+            logger.warning("Workflow activation cancelled")
+            return {"success": False, "error": "Workflow activation was cancelled"}
         except Exception as e:
             logger.error(f"Error activating workflow: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

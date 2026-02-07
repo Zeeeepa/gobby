@@ -628,7 +628,7 @@ class TestGetGitDiffSummary:
     def test_handles_exception(self) -> None:
         """Test graceful handling of exceptions."""
         with patch("gobby.workflows.git_utils.subprocess.run") as mock_run:
-            mock_run.side_effect = Exception("git not found")
+            mock_run.side_effect = OSError("git not found")
 
             result = get_git_diff_summary()
 

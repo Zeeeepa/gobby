@@ -1,5 +1,6 @@
 """Comprehensive tests for WorkflowLoader."""
 
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -1357,8 +1358,8 @@ steps:
         assert wf1.version == "1.0.0"
 
         # Modify file on disk (ensure mtime changes)
-        time.sleep(1.0)  # Small sleep to ensure mtime differs
         yaml_path.write_text(yaml_v2)
+        os.utime(yaml_path, (time.time() + 2, time.time() + 2))
 
         # Second load should detect stale cache and reload
         wf2 = await loader.load_workflow("mtime_test")
@@ -1477,8 +1478,8 @@ settings:
         assert discovered1[0].priority == 10
 
         # Modify file
-        time.sleep(0.05)
         yaml_path.write_text(yaml_v2)
+        os.utime(yaml_path, (time.time() + 2, time.time() + 2))
 
         # Second discovery should detect stale cache and reload
         discovered2 = await loader.discover_lifecycle_workflows()
@@ -1507,13 +1508,13 @@ type: lifecycle
         assert len(discovered1) == 1
 
         # Add a new file (changes directory mtime)
-        time.sleep(0.1)
         yaml_new = """
 name: new_workflow
 version: "1.0.0"
 type: lifecycle
 """
         (lifecycle_dir / "new_workflow.yaml").write_text(yaml_new)
+        os.utime(lifecycle_dir, (time.time() + 2, time.time() + 2))
 
         # Second discovery should detect new file via dir mtime change
         discovered2 = await loader.discover_lifecycle_workflows()
@@ -1555,8 +1556,8 @@ steps:
         assert p1.version == "1.0.0"
 
         # Modify file
-        time.sleep(0.05)
         yaml_path.write_text(yaml_v2)
+        os.utime(yaml_path, (time.time() + 2, time.time() + 2))
 
         # Second load should detect stale and reload
         p2 = await loader.load_pipeline("test_pipeline")

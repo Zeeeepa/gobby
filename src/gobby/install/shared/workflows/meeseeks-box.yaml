@@ -370,6 +370,16 @@ steps:
           terminal: "{{ variables.worker_terminal }}"
           parent_session_id: "{{ session_id }}"
         output_as: _respawn_result
+      # Extract new worker info from respawn result
+      - action: set_variable
+        name: current_worker_id
+        value: "{{ variables._respawn_result.run_id if variables._respawn_result and variables._respawn_result.run_id is defined else '' }}"
+      - action: set_variable
+        name: current_clone_id
+        value: "{{ variables._respawn_result.clone_id if variables._respawn_result and variables._respawn_result.clone_id is defined else '' }}"
+      - action: set_variable
+        name: current_worktree_id
+        value: "{{ variables._respawn_result.worktree_id if variables._respawn_result and variables._respawn_result.worktree_id is defined else '' }}"
       # Clear deficiencies after respawn
       - action: set_variable
         name: review_deficiencies
