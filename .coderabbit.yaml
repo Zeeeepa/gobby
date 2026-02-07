@@ -16,7 +16,7 @@ reviews:
       - dev
 
   # Review profile - balance between thoroughness and noise
-  profile: chill
+  profile: assertive
 
   # Request changes vs comments
   request_changes_workflow: false
