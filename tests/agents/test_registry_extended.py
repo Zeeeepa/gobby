@@ -1,8 +1,9 @@
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 import signal
-import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from gobby.agents.registry import RunningAgent, RunningAgentRegistry
 
 pytestmark = pytest.mark.unit
 

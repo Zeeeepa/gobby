@@ -144,6 +144,14 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     return installed
 
 
+def _safe_remove_target(path: Path) -> None:
+    """Remove a symlink or directory at path so it can be replaced."""
+    if path.is_symlink():
+        os.unlink(path)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
 def _copy_workflows(source: Path, target: Path, installed: dict[str, list[str]]) -> None:
     """Copy workflow files from source to target."""
     for item in source.iterdir():
@@ -155,10 +163,7 @@ def _copy_workflows(source: Path, target: Path, installed: dict[str, list[str]])
             installed["workflows"].append(item.name)
         elif item.is_dir():
             target_subdir = target / item.name
-            if target_subdir.is_symlink():
-                os.unlink(target_subdir)
-            elif target_subdir.exists():
-                shutil.rmtree(target_subdir)
+            _safe_remove_target(target_subdir)
             copytree(item, target_subdir)
             installed["workflows"].append(f"{item.name}/")
 
@@ -171,10 +176,7 @@ def _copy_agents(source: Path, target: Path, installed: dict[str, list[str]]) ->
             installed["agents"].append(item.name)
         elif item.is_dir():
             target_subdir = target / item.name
-            if target_subdir.is_symlink():
-                os.unlink(target_subdir)
-            elif target_subdir.exists():
-                shutil.rmtree(target_subdir)
+            _safe_remove_target(target_subdir)
             copytree(item, target_subdir)
             installed["agents"].append(f"{item.name}/")
 
@@ -195,10 +197,7 @@ def _copy_prompts(source: Path, target: Path, installed: dict[str, list[str]]) -
             installed["prompts"].append(item.name)
         elif item.is_dir():
             target_subdir = target / item.name
-            if target_subdir.is_symlink():
-                os.unlink(target_subdir)
-            elif target_subdir.exists():
-                shutil.rmtree(target_subdir)
+            _safe_remove_target(target_subdir)
             copytree(item, target_subdir)
             installed["prompts"].append(f"{item.name}/")
 

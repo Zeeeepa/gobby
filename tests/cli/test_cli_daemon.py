@@ -29,7 +29,6 @@ class TestStartCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-
     def test_start_help(self, runner: CliRunner) -> None:
         """Test start --help displays help text."""
         result = runner.invoke(cli, ["start", "--help"])
@@ -499,7 +498,6 @@ class TestRestartCommand:
         """Create a CLI test runner."""
         return CliRunner()
 
-
     def test_restart_help(self, runner: CliRunner) -> None:
         """Test restart --help displays help text."""
         result = runner.invoke(cli, ["restart", "--help"])
@@ -646,7 +644,6 @@ class TestStatusCommand:
     def runner(self) -> CliRunner:
         """Create a CLI test runner."""
         return CliRunner()
-
 
     def test_status_help(self, runner: CliRunner) -> None:
         """Test status --help displays help text."""
@@ -821,7 +818,6 @@ class TestDaemonCommandsIntegration:
         """Create a CLI test runner."""
         return CliRunner()
 
-
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
         """Ensure temp PID file location is clean (does NOT touch real PID file)."""
@@ -905,7 +901,6 @@ class TestEdgeCases:
     def runner(self) -> CliRunner:
         """Create a CLI test runner."""
         return CliRunner()
-
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):
@@ -1124,7 +1119,6 @@ class TestCommandBuilding:
     def runner(self) -> CliRunner:
         """Create a CLI test runner."""
         return CliRunner()
-
 
     @pytest.fixture
     def clean_pid_file(self, temp_dir: Path):

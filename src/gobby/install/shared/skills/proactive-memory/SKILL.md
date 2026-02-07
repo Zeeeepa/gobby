@@ -37,9 +37,9 @@ Ask: **"Would this save a future session more than 5 minutes of investigation?"*
 
 ## Before Creating a Memory
 
-**Check for duplicates first.** Call `search_memories` with a relevant query before creating a new memory. If a similar memory already exists, either skip or `update_memory` to refine it instead of creating a duplicate.
+**Check for duplicates first.** Call `search_memories` (tool: `gobby-memory.search_memories`) with a relevant query before creating a new memory. If a similar memory already exists, either skip or update it with `gobby-memory.update_memory` to refine instead of creating a duplicate.
 
-The `create_memory` response includes a `similar_existing` field showing the top 3 similar memories — review these after creation and `delete_memory` if you accidentally duplicated.
+The `create_memory` response includes a `similar_existing` field showing the top 3 similar memories — review these after creation and use `gobby-memory.delete_memory` if you accidentally duplicated.
 
 ## How to Save
 

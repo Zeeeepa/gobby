@@ -29,7 +29,15 @@ DEFAULT_CONFIG_PATH = "~/.gobby/config.yaml"
 
 
 _cached_daemon_url: str | None = None
-_daemon_url_lock: asyncio.Lock = asyncio.Lock()
+_daemon_url_lock: asyncio.Lock | None = None
+
+
+def _get_daemon_url_lock() -> asyncio.Lock:
+    """Get or create the daemon URL lock (lazy init for event loop safety)."""
+    global _daemon_url_lock
+    if _daemon_url_lock is None:
+        _daemon_url_lock = asyncio.Lock()
+    return _daemon_url_lock
 
 
 async def get_daemon_url() -> str:
@@ -38,7 +46,8 @@ async def get_daemon_url() -> str:
     if _cached_daemon_url is not None:
         return _cached_daemon_url
 
-    async with _daemon_url_lock:
+    lock = _get_daemon_url_lock()
+    async with lock:
         # Double-check after acquiring lock
         if _cached_daemon_url is not None:
             return _cached_daemon_url

@@ -1282,6 +1282,9 @@ def test_extract_key_decisions_caps_at_10() -> None:
 
     assert ctx.key_decisions is not None
     assert len(ctx.key_decisions) == 10
+    # Verify the retained decisions are the first 10 extracted
+    for i, decision in enumerate(ctx.key_decisions):
+        assert f"approach {i}" in decision
 
 
 def test_initial_goal_handles_list_content() -> None:

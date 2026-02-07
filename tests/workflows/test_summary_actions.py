@@ -707,15 +707,17 @@ class TestGenerateSummary:
         ]
         mock_transcript_processor.extract_last_messages.return_value = []
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert result is not None
         assert result["summary_generated"] is True
@@ -765,16 +767,18 @@ class TestGenerateSummary:
         ]
         mock_transcript_processor.extract_last_messages.return_value = []
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    mode="clear",
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                mode="clear",
+            )
 
         assert result["summary_generated"] is True
         # Verify mode was passed in LLM context
@@ -804,16 +808,18 @@ class TestGenerateSummary:
         ]
         mock_transcript_processor.extract_last_messages.return_value = []
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    mode="compact",
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                mode="compact",
+            )
 
         assert result["summary_generated"] is True
         provider = mock_llm_service.get_default_provider()
@@ -842,17 +848,19 @@ class TestGenerateSummary:
 
         previous = "Previous session summary content"
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    previous_summary=previous,
-                    mode="compact",
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                previous_summary=previous,
+                mode="compact",
+            )
 
         assert result["summary_generated"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1002,15 +1010,17 @@ class TestGenerateSummary:
         provider = mock_llm_service.get_default_provider()
         provider.generate_summary.side_effect = Exception("LLM API Error")
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert "error" in result
         assert "LLM error" in result["error"]
@@ -1037,16 +1047,18 @@ class TestGenerateSummary:
 
         custom_template = "Custom summary template: {transcript_summary}"
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    template=custom_template,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                template=custom_template,
+            )
 
         assert result["summary_generated"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1073,15 +1085,20 @@ class TestGenerateSummary:
         mock_transcript_processor.extract_turns_since_clear.return_value = []
         mock_transcript_processor.extract_last_messages.return_value = []
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="M file.py"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="Modified/Deleted:\nM\tfile.py"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="M file.py"),
+            patch(
+                "gobby.workflows.summary_actions.get_file_changes",
+                return_value="Modified/Deleted:\nM\tfile.py",
+            ),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert result["summary_generated"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1113,15 +1130,17 @@ class TestGenerateSummary:
         mock_transcript_processor.extract_turns_since_clear.return_value = []
         mock_transcript_processor.extract_last_messages.return_value = last_messages
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert result["summary_generated"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1157,15 +1176,17 @@ class TestGenerateHandoff:
         mock_transcript_processor.extract_turns_since_clear.return_value = []
         mock_transcript_processor.extract_last_messages.return_value = []
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_handoff(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_handoff(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert result is not None
         assert result["handoff_created"] is True
@@ -1212,16 +1233,18 @@ class TestGenerateHandoff:
         mock_transcript_processor.extract_turns_since_clear.return_value = []
         mock_transcript_processor.extract_last_messages.return_value = []
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_handoff(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    mode="compact",
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_handoff(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                mode="compact",
+            )
 
         assert result["handoff_created"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1269,17 +1292,19 @@ class TestGenerateHandoff:
 
         previous = "Previous summary"
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_handoff(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    previous_summary=previous,
-                    mode="compact",
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_handoff(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                previous_summary=previous,
+                mode="compact",
+            )
 
         assert result["handoff_created"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1308,16 +1333,18 @@ class TestGenerateHandoff:
 
         custom_template = "Handoff template: {transcript_summary}"
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_handoff(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    template=custom_template,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_handoff(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                template=custom_template,
+            )
 
         assert result["handoff_created"] is True
         provider = mock_llm_service.get_default_provider()
@@ -1456,15 +1483,20 @@ class TestSummaryActionsIntegration:
         provider = mock_llm_service.get_default_provider()
         provider.generate_summary.return_value = "Session focused on code refactoring."
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="M src/main.py"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="Modified/Deleted:\nM\tsrc/main.py"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_handoff(
-                    session_manager=mock_session_manager,
-                    session_id="session-123",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="M src/main.py"),
+            patch(
+                "gobby.workflows.summary_actions.get_file_changes",
+                return_value="Modified/Deleted:\nM\tsrc/main.py",
+            ),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_handoff(
+                session_manager=mock_session_manager,
+                session_id="session-123",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert result["handoff_created"] is True
         assert result["summary_length"] == len("Session focused on code refactoring.")
@@ -1508,15 +1540,17 @@ class TestSummaryActionsIntegration:
         assert "title_synthesized" in title_result
 
         # Then generate summary
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                summary_result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="session-456",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            summary_result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="session-456",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+            )
 
         assert summary_result["summary_generated"] is True
 
@@ -1619,7 +1653,7 @@ class TestWriteSummaryFile:
         assert "my-session" in filename
 
     @pytest.mark.asyncio
-    async def test_write_summary_file_error_returns_none(self, monkeypatch) -> None:
+    async def test_write_summary_file_error_returns_none(self, monkeypatch, tmp_path) -> None:
         """Test that write errors return None."""
         monkeypatch.setattr(
             "pathlib.Path.mkdir",
@@ -1629,7 +1663,7 @@ class TestWriteSummaryFile:
         result = await _write_summary_file(
             session_id="test",
             content="Content",
-            output_path="/tmp/test_summary",
+            output_path=str(tmp_path / "test_summary"),
         )
 
         assert result is None
@@ -1657,17 +1691,19 @@ class TestWriteSummaryFile:
 
         output_dir = str(tmp_path / "write_test_summaries")
 
-        with patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"), \
-             patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"), \
-             patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""):
-                result = await generate_summary(
-                    session_manager=mock_session_manager,
-                    session_id="test-session",
-                    llm_service=mock_llm_service,
-                    transcript_processor=mock_transcript_processor,
-                    write_file=True,
-                    output_path=output_dir,
-                )
+        with (
+            patch("gobby.workflows.summary_actions.get_git_status", return_value="clean"),
+            patch("gobby.workflows.summary_actions.get_file_changes", return_value="No changes"),
+            patch("gobby.workflows.summary_actions.get_git_diff_summary", return_value=""),
+        ):
+            result = await generate_summary(
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                llm_service=mock_llm_service,
+                transcript_processor=mock_transcript_processor,
+                write_file=True,
+                output_path=output_dir,
+            )
 
         assert result is not None
         assert result["summary_generated"] is True

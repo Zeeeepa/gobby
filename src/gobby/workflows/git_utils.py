@@ -111,6 +111,8 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
 
     Args:
         max_chars: Maximum characters for the diff content
+        project_path: Optional path to the project directory. When provided,
+            git commands run in this directory instead of the current working directory.
 
     Returns:
         Formatted markdown with stat overview + truncated diff
@@ -173,7 +175,7 @@ def get_git_diff_summary(max_chars: int = 8000, project_path: str | None = None)
 
         return "\n\n".join(sections)
 
-    except Exception:
+    except (subprocess.TimeoutExpired, OSError):
         logger.debug("get_git_diff_summary failed", exc_info=True)
         return ""
 

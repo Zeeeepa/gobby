@@ -4,9 +4,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
-from gobby.workflows.actions import (
-    ActionExecutor,
-)  # keep it if referenced elsewhere? No, fixture was the only user likely.
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.loader import WorkflowLoader
@@ -1142,8 +1139,6 @@ class TestDetectTaskClaim:
 
         mock_action_executor.execute.return_value = None
 
-        from gobby.hooks.events import HookEvent, HookEventType, SessionSource
-
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
             session_id="sess1",
@@ -1188,8 +1183,6 @@ class TestDetectTaskClaim:
         workflow = MagicMock(spec=WorkflowDefinition)
         workflow.type = "step"
         workflow.get_step.return_value = wait_step
-
-        from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,

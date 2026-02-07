@@ -1078,6 +1078,14 @@ class WorkflowLoader:
                     cls._sync_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         return cls._sync_executor
 
+    @classmethod
+    def shutdown_sync_executor(cls) -> None:
+        """Shut down the shared ThreadPoolExecutor, if one was created."""
+        with cls._sync_executor_lock:
+            if cls._sync_executor is not None:
+                cls._sync_executor.shutdown(wait=False)
+                cls._sync_executor = None
+
     @staticmethod
     def _run_sync(coro: Coroutine[Any, Any, _T]) -> _T:
         """Run a coroutine synchronously, handling both loop and no-loop contexts."""

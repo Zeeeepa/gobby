@@ -1004,7 +1004,9 @@ class TestHandleCallMcpToolTemplateRendering:
         from gobby.workflows.mcp_actions import handle_call_mcp_tool
 
         result = await handle_call_mcp_tool(
-            ctx, server_name="srv", tool_name="my_tool",
+            ctx,
+            server_name="srv",
+            tool_name="my_tool",
         )
 
         assert "inject_message" in result
@@ -1036,7 +1038,9 @@ class TestHandleCallMcpToolTemplateRendering:
         from gobby.workflows.mcp_actions import handle_call_mcp_tool
 
         result = await handle_call_mcp_tool(
-            ctx, server_name="srv", tool_name="my_tool",
+            ctx,
+            server_name="srv",
+            tool_name="my_tool",
         )
 
         assert "error" in result

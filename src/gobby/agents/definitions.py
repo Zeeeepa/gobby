@@ -293,21 +293,15 @@ class AgentDefinitionLoader:
 
     def _find_by_yaml_name(self, directory: Path, name: str) -> Path | None:
         """Scan YAML files in a directory for one whose 'name' field matches."""
+        import yaml
+
         for yaml_file in directory.glob("*.yaml"):
             try:
                 with open(yaml_file, encoding="utf-8") as f:
-                    # Read only the first few lines to find the name field
-                    # without parsing the entire file
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("name:"):
-                            yaml_name = line.split(":", 1)[1].strip().strip("\"'")
-                            if yaml_name == name:
-                                return yaml_file
-                            break  # Found name field, didn't match
-                        if line and not line.startswith("#") and not line.startswith("---"):
-                            break  # First non-comment, non-directive line isn't name
-            except OSError:
+                    data = yaml.safe_load(f)
+                if isinstance(data, dict) and data.get("name") == name:
+                    return yaml_file
+            except (OSError, yaml.YAMLError):
                 continue
         return None
 

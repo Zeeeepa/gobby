@@ -161,7 +161,9 @@ class TestCreateMemory:
         assert call_kwargs["importance"] == 0.8
 
     @pytest.mark.asyncio
-    async def test_create_memory_excludes_self_from_similar(self, memory_registry, mock_memory_manager):
+    async def test_create_memory_excludes_self_from_similar(
+        self, memory_registry, mock_memory_manager
+    ):
         """Test that the newly created memory is excluded from similar_existing."""
         # Recall returns the new memory itself plus another
         mock_memory_manager.recall.return_value = [
@@ -179,7 +181,9 @@ class TestCreateMemory:
         assert result["similar_existing"][0]["id"] == "existing-1"
 
     @pytest.mark.asyncio
-    async def test_create_memory_similar_search_failure_nonfatal(self, memory_registry, mock_memory_manager):
+    async def test_create_memory_similar_search_failure_nonfatal(
+        self, memory_registry, mock_memory_manager
+    ):
         """Test that similarity search failure doesn't break memory creation."""
         mock_memory_manager.recall.side_effect = Exception("Search unavailable")
 

@@ -10,8 +10,6 @@ from gobby.storage.migrations import run_migrations
 from gobby.storage.pipelines import LocalPipelineExecutionManager
 from gobby.workflows.pipeline_state import (
     ExecutionStatus,
-    PipelineExecution,
-    StepExecution,
     StepStatus,
 )
 

@@ -192,7 +192,7 @@ def setup_internal_registries(
                 from gobby.clones.git import CloneGitManager
 
                 clone_git_manager = CloneGitManager(git_manager.repo_path)
-            except Exception as e:
+            except (TypeError, OSError, RuntimeError) as e:
                 logger.debug(f"CloneGitManager not available for spawn_agent: {e}")
 
         # Create workflow state manager for orchestrator workflow checking
@@ -200,7 +200,7 @@ def setup_internal_registries(
         if db:
             try:
                 workflow_state_manager = WorkflowStateManager(db)
-            except Exception as e:
+            except (TypeError, OSError, RuntimeError) as e:
                 logger.debug(f"WorkflowStateManager not available for agents registry: {e}")
 
         agents_registry = create_agents_registry(

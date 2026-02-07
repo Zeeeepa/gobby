@@ -14,6 +14,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _has_template_syntax(value: Any) -> bool:
+    """Recursively check if a value contains Jinja2 template syntax."""
+    if isinstance(value, str):
+        return "{{" in value
+    if isinstance(value, dict):
+        return any(_has_template_syntax(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_has_template_syntax(item) for item in value)
+    return False
+
+
 def _render_value(
     value: Any,
     template_engine: "TemplateEngine",
@@ -133,10 +144,7 @@ async def handle_call_mcp_tool(context: "ActionContext", **kwargs: Any) -> dict[
     else:
         has_templates = "{{" in server_name or "{{" in tool_name
         if not has_templates:
-            for v in (kwargs.get("arguments") or {}).values():
-                if isinstance(v, str) and "{{" in v:
-                    has_templates = True
-                    break
+            has_templates = _has_template_syntax(kwargs.get("arguments") or {})
         if has_templates:
             logger.warning(
                 "handle_call_mcp_tool: template syntax detected but no template_engine configured; "

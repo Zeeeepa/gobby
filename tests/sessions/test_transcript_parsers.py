@@ -725,7 +725,12 @@ class TestGeminiTranscriptParser:
     def test_gemini_parser_generic_message(self, parser) -> None:
         # Test simple user message via type-based format
         line = json.dumps(
-            {"type": "message", "role": "user", "content": "Hello world", "timestamp": "2023-01-01T12:00:00Z"}
+            {
+                "type": "message",
+                "role": "user",
+                "content": "Hello world",
+                "timestamp": "2023-01-01T12:00:00Z",
+            }
         )
 
         msg = parser.parse_line(line, 0)
@@ -738,7 +743,12 @@ class TestGeminiTranscriptParser:
     def test_gemini_parser_model_response(self, parser) -> None:
         # Test model response via type-based format
         line = json.dumps(
-            {"type": "message", "role": "model", "content": "I am Gemini", "timestamp": "2023-01-01T12:00:01Z"}
+            {
+                "type": "message",
+                "role": "model",
+                "content": "I am Gemini",
+                "timestamp": "2023-01-01T12:00:01Z",
+            }
         )
 
         msg = parser.parse_line(line, 1)
@@ -799,12 +809,14 @@ class TestGeminiTranscriptParser:
 
     def test_gemini_parse_line_tool_result(self, parser) -> None:
         """Test parsing tool_result event."""
-        line = json.dumps({
-            "type": "tool_result",
-            "tool_name": "read_file",
-            "output": "some result",
-            "status": "success",
-        })
+        line = json.dumps(
+            {
+                "type": "tool_result",
+                "tool_name": "read_file",
+                "output": "some result",
+                "status": "success",
+            }
+        )
         msg = parser.parse_line(line, 0)
         assert msg is not None
         assert msg.role == "tool"

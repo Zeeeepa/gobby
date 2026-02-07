@@ -9,7 +9,6 @@ from gobby.storage.skills import (
     LocalSkillManager,
     Skill,
     SkillChangeNotifier,
-    SkillSourceType,
 )
 
 pytestmark = pytest.mark.unit

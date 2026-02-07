@@ -40,7 +40,7 @@ class WorkflowHookHandler:
 
     def _handle_cancelled(self, event: HookEvent) -> HookResponse:
         """Handle CancelledError by logging and returning appropriate response."""
-        logger.warning(f"Workflow evaluation cancelled for {event.event_type}")
+        logger.warning("Workflow evaluation cancelled for %s", event.event_type)
         if event.event_type == HookEventType.STOP:
             return HookResponse(
                 decision="block",

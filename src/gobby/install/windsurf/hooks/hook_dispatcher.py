@@ -62,7 +62,7 @@ async def get_daemon_url() -> str:
                     content = await f.read()
                 config = yaml.safe_load(content) or {}
                 port = config.get("daemon_port", DEFAULT_DAEMON_PORT)
-            except Exception:
+            except Exception:  # noqa: BLE001 - logger not yet configured at module load time
                 port = DEFAULT_DAEMON_PORT
         else:
             port = DEFAULT_DAEMON_PORT

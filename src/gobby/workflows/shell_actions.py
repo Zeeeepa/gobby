@@ -55,12 +55,13 @@ async def handle_shell_run(context: ActionContext, **kwargs: Any) -> dict[str, A
     # Fetch session object for template access (e.g., session.seq_num)
     session = None
     if context.session_manager and context.session_id:
-        session = context.session_manager.get(context.session_id)
+        loop = asyncio.get_running_loop()
+        session = await loop.run_in_executor(None, context.session_manager.get, context.session_id)
     if session:
         render_context["session"] = session
 
     # Fetch project object for template access (e.g., project.name)
-    if session and context.db:
+    if session and session.project_id and context.db:
         try:
             from gobby.storage.projects import LocalProjectManager
 

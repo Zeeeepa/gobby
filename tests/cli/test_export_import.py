@@ -11,12 +11,12 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def runner():
+def runner() -> CliRunner:
     return CliRunner()
 
 
 @pytest.fixture
-def project_with_resources(tmp_path: Path):
+def project_with_resources(tmp_path: Path) -> Path:
     """Create a project directory with sample resources."""
     project = tmp_path / "project"
     project.mkdir()
@@ -52,7 +52,9 @@ class TestExportCommand:
         assert "session-lifecycle.yaml" in result.output
         assert "custom.yaml" in result.output
 
-    def test_export_to_target_directory(self, runner, project_with_resources, tmp_path, monkeypatch) -> None:
+    def test_export_to_target_directory(
+        self, runner, project_with_resources, tmp_path, monkeypatch
+    ) -> None:
         """Export copies to target directory."""
         monkeypatch.chdir(project_with_resources)
         target = tmp_path / "target_project"
@@ -110,7 +112,9 @@ class TestExportCommand:
 class TestImportCommand:
     """Tests for the import command."""
 
-    def test_import_from_project(self, runner, project_with_resources, tmp_path, monkeypatch) -> None:
+    def test_import_from_project(
+        self, runner, project_with_resources, tmp_path, monkeypatch
+    ) -> None:
         """Import copies from source project to current project."""
         target = tmp_path / "target"
         target.mkdir()
@@ -124,7 +128,9 @@ class TestImportCommand:
         assert "imported" in result.output
         assert (target / ".gobby" / "workflows" / "lifecycle" / "session-lifecycle.yaml").exists()
 
-    def test_import_single_file(self, runner, project_with_resources, tmp_path, monkeypatch) -> None:
+    def test_import_single_file(
+        self, runner, project_with_resources, tmp_path, monkeypatch
+    ) -> None:
         """Import a single file directly."""
         target = tmp_path / "target"
         target.mkdir()
@@ -143,7 +149,9 @@ class TestImportCommand:
         assert result.exit_code != 0
         assert "Error" in result.output or "specify" in result.output
 
-    def test_import_specific_name(self, runner, project_with_resources, tmp_path, monkeypatch) -> None:
+    def test_import_specific_name(
+        self, runner, project_with_resources, tmp_path, monkeypatch
+    ) -> None:
         """Import with name filters to specific resource."""
         target = tmp_path / "target"
         target.mkdir()

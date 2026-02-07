@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def workflow_state():
+def workflow_state() -> WorkflowState:
     """Create a workflow state with empty variables."""
     return WorkflowState(
         session_id="test-session",
@@ -30,7 +30,7 @@ def workflow_state():
 
 
 @pytest.fixture
-def action_context(workflow_state):
+def action_context(workflow_state: WorkflowState) -> ActionContext:
     """Create an ActionContext for testing."""
     return ActionContext(
         session_id="test-session",

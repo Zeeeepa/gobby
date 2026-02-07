@@ -1,9 +1,12 @@
 import pytest
+
 from gobby.agents.spawners.command_builder import (
     build_cli_command,
-    build_gemini_command_with_resume,
     build_codex_command_with_resume,
+    build_gemini_command_with_resume,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestBuildCliCommand:
@@ -16,19 +19,19 @@ class TestBuildCliCommand:
         assert cmd == ["claude", "hello"]
 
     def test_claude_with_session_id(self):
-        cmd = build_cli_command("claude", session_id="123", prompt="hello")
+        cmd = build_cli_command("claude", session_id="123", prompt="hello", mode="headless")
         assert cmd == ["claude", "--session-id", "123", "-p", "hello"]
 
     def test_claude_auto_approve(self):
-        cmd = build_cli_command("claude", auto_approve=True, prompt="hello")
+        cmd = build_cli_command("claude", auto_approve=True, prompt="hello", mode="headless")
         assert cmd == ["claude", "--dangerously-skip-permissions", "-p", "hello"]
 
     def test_claude_with_model(self):
-        cmd = build_cli_command("claude", model="claude-3-opus", prompt="hello")
+        cmd = build_cli_command("claude", model="claude-3-opus", prompt="hello", mode="headless")
         assert cmd == ["claude", "--model", "claude-3-opus", "-p", "hello"]
 
     def test_cursor_basic(self):
-        cmd = build_cli_command("cursor", prompt="hello")
+        cmd = build_cli_command("cursor", prompt="hello", mode="headless")
         assert cmd == ["cursor", "-p", "hello"]
 
     def test_gemini_basic_headless(self):
@@ -70,7 +73,9 @@ class TestBuildCliCommand:
         assert cmd == ["codex", "--model", "gpt-4", "hello"]
 
     def test_generic_sandbox_args(self):
-        cmd = build_cli_command("claude", prompt="hello", sandbox_args=["--sandbox"])
+        cmd = build_cli_command(
+            "claude", prompt="hello", sandbox_args=["--sandbox"], mode="headless"
+        )
         # sandbox args come before prompt
         assert cmd == ["claude", "-p", "--sandbox", "hello"]
 

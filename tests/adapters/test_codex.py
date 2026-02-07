@@ -24,7 +24,6 @@ from gobby.adapters.codex_impl.adapter import (
     CodexAdapter,
     CodexNotifyAdapter,
     _get_daemon_machine_id,
-    _get_machine_id,
 )
 from gobby.adapters.codex_impl.client import CodexAppServerClient
 from gobby.adapters.codex_impl.types import (

@@ -411,7 +411,9 @@ async def block_tools(
                 logger.warning(f"Failed to render reason template: {e}")
                 # Keep original reason on failure
 
-        # Set flag so on_stop can deterministically block stops after a tool block
+        # Set cross-cutting flag so on_stop handler can deterministically block
+        # stop attempts after a tool block. Without this, a blocked tool could
+        # race with a user stop, allowing the session to end in an inconsistent state.
         if workflow_state:
             workflow_state.variables["_tool_block_pending"] = True
 

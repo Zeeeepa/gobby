@@ -1511,9 +1511,7 @@ class TestFormatHandoffAsMarkdown:
     def test_active_skills_section_removed(self) -> None:
         """Active skills section was removed - redundant with _build_skill_injection_context()."""
         # Skills are now only injected via _build_skill_injection_context() on session start
-        ctx = self.MockHandoffContext(
-            git_commits=[{"hash": "abc1234", "message": "test"}]
-        )
+        ctx = self.MockHandoffContext(git_commits=[{"hash": "abc1234", "message": "test"}])
         result = format_handoff_as_markdown(ctx)
 
         assert "### Active Skills" not in result

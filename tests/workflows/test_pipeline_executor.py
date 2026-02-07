@@ -994,7 +994,6 @@ class TestApprovalGateHandling:
     ) -> None:
         """Test that steps without approval gate do not pause."""
         from gobby.workflows.pipeline_executor import PipelineExecutor
-        from gobby.workflows.pipeline_state import ApprovalRequired
 
         executor = PipelineExecutor(
             db=mock_db,

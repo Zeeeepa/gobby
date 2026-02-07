@@ -761,9 +761,7 @@ class TestCancelledErrorHandling:
         engine.evaluate_all_lifecycle_workflows = AsyncMock(
             side_effect=concurrent.futures.CancelledError()
         )
-        engine.handle_event = AsyncMock(
-            side_effect=concurrent.futures.CancelledError()
-        )
+        engine.handle_event = AsyncMock(side_effect=concurrent.futures.CancelledError())
         engine.evaluate_lifecycle_triggers = AsyncMock(
             side_effect=concurrent.futures.CancelledError()
         )

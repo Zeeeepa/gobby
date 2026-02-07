@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from gobby.clones.git import CloneGitManager
 
 pytestmark = pytest.mark.unit
 
@@ -10,7 +16,7 @@ class TestCloneGitManagerFullClone:
     """Tests for CloneGitManager.full_clone method."""
 
     @pytest.fixture
-    def manager(self, tmp_path: Path):
+    def manager(self, tmp_path: Path) -> CloneGitManager:
         """Create manager with temp directory as repo path."""
         from gobby.clones.git import CloneGitManager
 
@@ -46,7 +52,7 @@ class TestCloneGitManagerCreateClone:
     """Tests for CloneGitManager.create_clone method."""
 
     @pytest.fixture
-    def manager(self, tmp_path: Path):
+    def manager(self, tmp_path: Path) -> CloneGitManager:
         """Create manager with temp directory as repo path."""
         from gobby.clones.git import CloneGitManager
 
@@ -87,8 +93,10 @@ class TestCloneGitManagerCreateClone:
                 assert result.success is True
                 # Should create branch if different
                 assert mock_run.call_count >= 1
-                cmd = mock_run.call_args[0][0]
-                assert "checkout" in cmd
+                # Search call_args_list for the checkout call instead of relying on index
+                checkout_calls = [c for c in mock_run.call_args_list if "checkout" in c[0][0]]
+                assert len(checkout_calls) >= 1, "Expected a checkout call"
+                cmd = checkout_calls[0][0][0]
                 assert "-b" in cmd
                 assert "feature-branch" in cmd
 
@@ -118,7 +126,7 @@ class TestCloneGitManagerMergeBranch:
     """Tests for CloneGitManager.merge_branch method."""
 
     @pytest.fixture
-    def manager(self, tmp_path: Path):
+    def manager(self, tmp_path: Path) -> CloneGitManager:
         """Create manager with temp directory as repo path."""
         from gobby.clones.git import CloneGitManager
 

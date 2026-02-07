@@ -145,7 +145,11 @@ def create_merge_registry(
             }
 
         except Exception as e:
-            logger.exception("Error starting merge")
+            logger.exception(
+                "Error starting merge for worktree_id=%s, resolution_id=%s",
+                worktree_id,
+                resolution.id if "resolution" in dir() else "N/A",
+            )
             return {"success": False, "error": str(e)}
 
     @registry.tool(
@@ -371,7 +375,7 @@ def create_merge_registry(
                 return {"success": False, "error": "Failed to abort merge"}
 
         except Exception as e:
-            logger.exception("Error aborting merge")
+            logger.exception("Error aborting merge for resolution_id=%s", resolution_id)
             return {"success": False, "error": str(e)}
 
     return registry

@@ -895,7 +895,9 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_task_blocks_needs_review_status(self, mock_task_manager, mock_sync_manager):
+    async def test_update_task_blocks_needs_review_status(
+        self, mock_task_manager, mock_sync_manager
+    ):
         """Test update_task blocks 'needs_review' status changes."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -926,7 +928,8 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.return_value = updated_task
 
         await registry.call(
-            "update_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"}
+            "update_task",
+            {"task_id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"},
         )
 
         # Should only include title, not other None values
@@ -1235,7 +1238,6 @@ class TestCloseTaskTool:
 
             # When override_justification is provided, task routes to review
             assert result.get("routed_to_review") is True
-
 
     @pytest.mark.asyncio
     async def test_close_task_out_of_repo_blocked_when_session_had_edits(

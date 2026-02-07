@@ -131,6 +131,8 @@ async def test_broadcast_filtering(mock_config, mock_mcp_manager):
     await server.broadcast(msg3)
 
     assert len(ws1.sent_messages) == 0  # Still receives nothing
-    assert len(ws2.sent_messages) == 2  # Non-hook/non-session messages pass through for subscribed clients
+    assert (
+        len(ws2.sent_messages) == 2
+    )  # Non-hook/non-session messages pass through for subscribed clients
     assert len(ws3.sent_messages) == 2
     assert len(ws4.sent_messages) == 3

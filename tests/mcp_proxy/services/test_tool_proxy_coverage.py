@@ -942,9 +942,7 @@ class TestProxyNamespaceResolution:
     ) -> None:
         """Test get_tool_schema('gobby', 'create_task') auto-resolves to gobby-tasks."""
         mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
-        mock_internal_manager.is_internal.side_effect = (
-            lambda name: name.startswith("gobby-")
-        )
+        mock_internal_manager.is_internal.side_effect = lambda name: name.startswith("gobby-")
         mock_registry = MagicMock()
         mock_registry.get_schema.return_value = {
             "name": "create_task",
@@ -985,9 +983,7 @@ class TestProxyNamespaceResolution:
     ) -> None:
         """Test call_tool('gobby', 'create_task', ...) auto-resolves to gobby-tasks."""
         mock_internal_manager.find_tool_server.return_value = "gobby-tasks"
-        mock_internal_manager.is_internal.side_effect = (
-            lambda name: name.startswith("gobby-")
-        )
+        mock_internal_manager.is_internal.side_effect = lambda name: name.startswith("gobby-")
         mock_registry = MagicMock()
         mock_registry.call = AsyncMock(return_value={"id": "task-123"})
         mock_registry.get_schema.return_value = None  # Skip validation

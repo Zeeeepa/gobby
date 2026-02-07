@@ -687,7 +687,16 @@ class WebSocketServer:
         task = asyncio.create_task(
             self._stream_chat_response(websocket, client_id, history, use_tools, model)
         )
+        task.add_done_callback(self._on_chat_task_done)
         self._active_chat_tasks[client_id] = task
+
+    def _on_chat_task_done(self, task: asyncio.Task) -> None:  # type: ignore[type-arg]
+        """Log unhandled exceptions from chat tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Unhandled exception in chat task", exc_info=exc)
 
     async def _stream_chat_response(
         self,

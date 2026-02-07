@@ -3,8 +3,6 @@
 TDD tests for ExecutionStatus, PipelineExecution, StepExecution, and ApprovalRequired.
 """
 
-from datetime import UTC, datetime
-
 import pytest
 
 from gobby.workflows.pipeline_state import (

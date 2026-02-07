@@ -1,6 +1,7 @@
 ---
 name: agents
-description: This skill should be used when the user asks to "/gobby agents", "spawn agent", "start agent", "list agents". Manage subagent spawning - spawn, cancel, list, and check results of autonomous agents.
+description: Manage subagent spawning - spawn, cancel, list, and check results of autonomous agents.
+triggers: /gobby agents, spawn agent, start agent, list agents
 category: core
 ---
 

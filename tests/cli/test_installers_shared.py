@@ -117,7 +117,10 @@ class TestInstallSharedContent:
         (shared / "agents" / "test.yaml").write_text("name: test")
         (project / ".gobby").mkdir(parents=True)
 
-        with patch("gobby.cli.installers.shared.get_install_dir", return_value=project / "src" / "gobby" / "install"):
+        with patch(
+            "gobby.cli.installers.shared.get_install_dir",
+            return_value=project / "src" / "gobby" / "install",
+        ):
             result = install_shared_content(project / ".claude", project)
 
         # Workflows should be a symlink

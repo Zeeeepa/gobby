@@ -61,14 +61,16 @@ export function ChatInput({ onSend, onStop, isStreaming = false, disabled = fals
       />
       {isStreaming ? (
         <div className="chat-actions">
-          <button
-            className="stop-button"
-            onClick={() => onStop?.()}
-            title="Stop generating"
-            aria-label="Stop generating"
-          >
-            <StopIcon />
-          </button>
+          {onStop && (
+            <button
+              className="stop-button"
+              onClick={() => onStop()}
+              title="Stop generating"
+              aria-label="Stop generating"
+            >
+              <StopIcon />
+            </button>
+          )}
           {hasInput && (
             <button
               className="send-button"

@@ -5,13 +5,10 @@ Provides CLI commands for sharing customized resources across projects
 or backing them up to the global ~/.gobby/ directory.
 """
 
-import logging
 from pathlib import Path
 from shutil import copy2
 
 import click
-
-logger = logging.getLogger(__name__)
 
 # Resource types and their directory names
 RESOURCE_TYPES = {

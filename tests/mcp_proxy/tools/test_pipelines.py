@@ -272,7 +272,6 @@ class TestRunPipelineTool:
         self, mock_loader, mock_executor, mock_execution_manager
     ) -> None:
         """Test that run_pipeline loads the pipeline via loader."""
-        import asyncio
         from unittest.mock import AsyncMock
 
         from gobby.mcp_proxy.tools.pipelines import create_pipelines_registry
