@@ -460,10 +460,13 @@ class SessionEventHandlerMixin(EventHandlersBase):
         # Add active step workflows from WorkflowStateManager
         if session_id:
             state = self._get_step_workflow_state(session_id)
-            if state and state.workflow_name not in ("__lifecycle__", "__ended__") and state.workflow_name not in lifecycle_names:
-                active_workflow_lines.append(
-                    f"  - {state.workflow_name} (step, current_step={state.step})"
-                )
+            if state:
+                is_lifecycle = state.workflow_name in ("__lifecycle__", "__ended__")
+                is_in_lifecycle_names = state.workflow_name in lifecycle_names
+                if not is_lifecycle and not is_in_lifecycle_names:
+                    active_workflow_lines.append(
+                        f"  - {state.workflow_name} (step, current_step={state.step})"
+                    )
 
         if active_workflow_lines:
             system_message += "\nActive workflows:"
